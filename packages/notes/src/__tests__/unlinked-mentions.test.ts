@@ -9,12 +9,11 @@ import {
 const target = "Roadmap.md";
 const names = mentionNames(target, ["the plan"]);
 
-function mentions(docs: Record<string, string>, limit = 50, exclude: string[] = []) {
-  return findUnlinkedMentions(
-    Object.entries(docs).map(([path, body]) => ({ path, title: path, body })),
-    { names, exclude: new Set([target, ...exclude]), limit },
+const mentions = (docs: Record<string, string>, limit = 50, exclude: string[] = []) =>
+  findUnlinkedMentions(
+    Object.entries(docs).map(([path, body]) => ({ body, path, title: path })),
+    { exclude: new Set([target, ...exclude]), limit, names },
   );
-}
 
 describe("the names a mention can spell", () => {
   it("is the stem and the aliases, deduped by case, never empty", () => {
@@ -34,14 +33,14 @@ describe("finding plain mentions", () => {
     expect(found.total).toBe(1);
     expect(found.mentions).toEqual([
       expect.objectContaining({
-        path: "a.md",
-        line: 1,
-        column: 15,
-        length: 7,
-        text: "roadmap",
-        before: "We revisit the ",
         after: " on Monday.",
+        before: "We revisit the ",
+        column: 15,
         count: 2,
+        length: 7,
+        line: 1,
+        path: "a.md",
+        text: "roadmap",
       }),
     ]);
   });
@@ -52,7 +51,7 @@ describe("finding plain mentions", () => {
 
   it("skips the target and the docs that already link here", () => {
     const found = mentions(
-      { "Roadmap.md": "Roadmap here\n", "linker.md": "Roadmap\n", "c.md": "Roadmap\n" },
+      { "Roadmap.md": "Roadmap here\n", "c.md": "Roadmap\n", "linker.md": "Roadmap\n" },
       50,
       ["linker.md"],
     );
@@ -74,7 +73,7 @@ describe("finding plain mentions", () => {
     ].join("\n");
     expect(mentions({ "a.md": body }).total).toBe(0);
     expect(mentions({ "a.md": `${body}Then the roadmap in prose.\n` }).mentions[0]).toEqual(
-      expect.objectContaining({ line: 10, text: "roadmap", count: 1 }),
+      expect.objectContaining({ count: 1, line: 10, text: "roadmap" }),
     );
   });
 
@@ -85,27 +84,27 @@ describe("finding plain mentions", () => {
   });
 
   it("closes an unclosed fence at the end of the doc", () => {
-    expect(withheldSpans("x\n```\nRoadmap\n")).toContainEqual({ start: 2, end: 14 });
+    expect(withheldSpans("x\n```\nRoadmap\n")).toContainEqual({ end: 14, start: 2 });
   });
 });
 
 describe("linking a mention", () => {
   it("wraps exactly the shown bytes and nothing else", () => {
     const content = "roadmap first.\r\nWe revisit the roadmap on Monday. roadmap.\n";
-    const site = { line: 2, column: 15, length: 7, text: "roadmap" };
+    const site = { column: 15, length: 7, line: 2, text: "roadmap" };
     expect(linkMention(content, site, "Roadmap")).toBe(
       "roadmap first.\r\nWe revisit the [[Roadmap|roadmap]] on Monday. roadmap.\n",
     );
   });
 
   it("spells the bare link when the prose already matches the target", () => {
-    const site = { line: 1, column: 4, length: 7, text: "Roadmap" };
+    const site = { column: 4, length: 7, line: 1, text: "Roadmap" };
     expect(linkMention("See Roadmap.\n", site, "Roadmap")).toBe("See [[Roadmap]].\n");
   });
 
   it("refuses when the bytes moved", () => {
-    const site = { line: 1, column: 4, length: 7, text: "Roadmap" };
+    const site = { column: 4, length: 7, line: 1, text: "Roadmap" };
     expect(linkMention("See it.\n", site, "Roadmap")).toBeNull();
-    expect(linkMention("one\n", { line: 3, column: 0, length: 1, text: "x" }, "x")).toBeNull();
+    expect(linkMention("one\n", { column: 0, length: 1, line: 3, text: "x" }, "x")).toBeNull();
   });
 });

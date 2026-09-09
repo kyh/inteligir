@@ -18,11 +18,13 @@ import {
 import { parseChartPayload } from "@repo/editor/nodes/chart-node";
 import { roundTrip } from "@repo/editor/markdown/markdown-doc";
 
-function chartOf(payload: string) {
+const chartOf = (payload: string) => {
   const parsed = parseChartPayload(payload);
-  if (!parsed.ok) throw new Error(parsed.reason);
+  if (!parsed.ok) {
+    throw new Error(parsed.reason);
+  }
   return parsed.chart;
-}
+};
 
 describe("chartGridView", () => {
   it("projects single-series and multi-series shapes", () => {
@@ -91,7 +93,7 @@ describe("chart transforms preserve what the grid does not show", () => {
     expect("data" in grown ? grown.data[2] : null).toEqual({ label: "Label 3", value: 0 });
 
     const shrunk = chartWithRowRemoved(chart, 0);
-    expect(shrunk === null ? null : "data" in shrunk ? shrunk.data : null).toEqual([
+    expect(shrunk !== null && "data" in shrunk ? shrunk.data : null).toEqual([
       { label: "b", value: 2 },
     ]);
   });

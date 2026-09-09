@@ -12,64 +12,66 @@ import {
 } from "@repo/ui/components/alert-dialog";
 import { Button } from "@repo/ui/components/button";
 
-type ConfirmOptions = {
+interface ConfirmOptions {
   title: React.ReactNode;
   body?: React.ReactNode;
   confirmLabel?: React.ReactNode;
   cancelLabel?: React.ReactNode;
   destructive?: boolean;
-};
+}
 
-type PendingConfirm = {
+interface PendingConfirm {
   options: ConfirmOptions;
   resolve: (confirmed: boolean) => void;
-};
+}
 
-type ConfirmSnapshot = {
+interface ConfirmSnapshot {
   pending: PendingConfirm | null;
   options: ConfirmOptions | null;
-};
+}
 
 type Listener = () => void;
 
-type ConfirmStore = {
+interface ConfirmStore {
   snapshot: ConfirmSnapshot;
   listeners: Set<Listener>;
   subscribe: (listener: Listener) => () => void;
   getSnapshot: () => ConfirmSnapshot;
   set: (pending: PendingConfirm | null) => void;
-};
+}
 
 const confirmStore: ConfirmStore = {
-  snapshot: { pending: null, options: null },
+  getSnapshot(): ConfirmSnapshot {
+    return confirmStore.snapshot;
+  },
   listeners: new Set<Listener>(),
+  set(pending: PendingConfirm | null): void {
+    confirmStore.snapshot = {
+      options: pending?.options ?? confirmStore.snapshot.options,
+      pending,
+    };
+    for (const listener of confirmStore.listeners) {
+      listener();
+    }
+  },
+  snapshot: { options: null, pending: null },
   subscribe(listener: Listener): () => void {
     confirmStore.listeners.add(listener);
     return () => {
       confirmStore.listeners.delete(listener);
     };
   },
-  getSnapshot(): ConfirmSnapshot {
-    return confirmStore.snapshot;
-  },
-  set(pending: PendingConfirm | null): void {
-    confirmStore.snapshot = {
-      pending,
-      options: pending?.options ?? confirmStore.snapshot.options,
-    };
-    for (const listener of confirmStore.listeners) listener();
-  },
 };
 
 // without a mounted ConfirmDialogHost the promise stays pending, never a false positive.
-export function confirm(options: ConfirmOptions): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
+export const confirm = async (options: ConfirmOptions): Promise<boolean> =>
+  // oxlint-disable-next-line promise/avoid-new -- the answer arrives from a click on the mounted host, so there is no upstream promise to return
+  await new Promise<boolean>((resolve) => {
     confirmStore.getSnapshot().pending?.resolve(false);
     confirmStore.set({ options, resolve });
   });
-}
 
-export function ConfirmDialogHost() {
+export const ConfirmDialogHost = () => {
   const { pending, options } = React.useSyncExternalStore(
     confirmStore.subscribe,
     confirmStore.getSnapshot,
@@ -86,7 +88,9 @@ export function ConfirmDialogHost() {
     <AlertDialog
       open={pending !== null}
       onOpenChange={(open) => {
-        if (!open) settle(false);
+        if (!open) {
+          settle(false);
+        }
       }}
     >
       <AlertDialogContent size="sm" initialFocus={confirmButtonRef}>
@@ -97,13 +101,20 @@ export function ConfirmDialogHost() {
           <AlertDialogDescription>{options.body}</AlertDialogDescription>
         )}
         <AlertDialogFooter>
-          <Button variant="secondary" onClick={() => settle(false)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              settle(false);
+            }}
+          >
             {options?.cancelLabel ?? "Cancel"}
           </Button>
           <Button
             ref={confirmButtonRef}
-            variant={options?.destructive ? "destructive" : "primary"}
-            onClick={() => settle(true)}
+            variant={options?.destructive === true ? "destructive" : "primary"}
+            onClick={() => {
+              settle(true);
+            }}
           >
             {options?.confirmLabel ?? "Confirm"}
           </Button>
@@ -111,4 +122,4 @@ export function ConfirmDialogHost() {
       </AlertDialogContent>
     </AlertDialog>
   );
-}
+};

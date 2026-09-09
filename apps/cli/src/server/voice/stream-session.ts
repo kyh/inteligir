@@ -10,27 +10,29 @@ import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "./voic
 export const STREAM_MAX_SAMPLES = VOICE_SAMPLE_RATE * VOICE_MAX_AUDIO_SECONDS;
 
 export interface StreamHandlers {
-  onPartial(text: string): void;
-  onFinal(text: string): void;
-  onError(message: string): void;
+  onPartial: (text: string) => void;
+  onFinal: (text: string) => void;
+  onError: (message: string) => void;
 }
 
 export interface StreamSession {
   // forwarded by transfer; the caller must not touch the buffer afterwards.
-  pushPcm(pcm: ArrayBuffer): void;
-  finalize(): void;
-  dispose(): Promise<void>;
+  pushPcm: (pcm: ArrayBuffer) => void;
+  finalize: () => void;
+  // a session that stops synchronously is a session; every caller awaits either.
+  dispose: () => void | Promise<void>;
 }
 
-function samplesIn(pcm: ArrayBuffer): number {
-  return Math.floor(pcm.byteLength / 2);
-}
+export const samplesIn = (pcm: ArrayBuffer): number => Math.floor(pcm.byteLength / 2);
+
+type PreparedModel = { ok: true; model: VoiceModelFiles } | { ok: false; reason: string };
 
 export interface WorkerStreamSessionDeps {
   handlers: StreamHandlers;
-  prepare(): Promise<{ ok: true; model: VoiceModelFiles } | { ok: false; reason: string }>;
-  spawn(model: VoiceModelFiles, callbacks: VoiceStreamWorkerCallbacks): VoiceStreamWorkerHandle;
-  onModelUnusable(): Promise<string>;
+  // a prepare that answers from memory is a prepare; the session awaits either.
+  prepare: () => PreparedModel | Promise<PreparedModel>;
+  spawn: (model: VoiceModelFiles, callbacks: VoiceStreamWorkerCallbacks) => VoiceStreamWorkerHandle;
+  onModelUnusable: () => string | Promise<string>;
 }
 
 export class WorkerStreamSession implements StreamSession {
@@ -62,11 +64,8 @@ export class WorkerStreamSession implements StreamSession {
       return;
     }
     const worker = this.#deps.spawn(prepared.model, {
-      onReady: () => undefined,
-      onPartial: (text) => {
-        if (!this.#dead) {
-          this.#deps.handlers.onPartial(text);
-        }
+      onError: (message, modelUnusable) => {
+        void this.#handleWorkerError(message, modelUnusable);
       },
       onFinal: (text) => {
         if (!this.#dead) {
@@ -74,8 +73,13 @@ export class WorkerStreamSession implements StreamSession {
         }
         void this.dispose();
       },
-      onError: (message, modelUnusable) => {
-        void this.#handleWorkerError(message, modelUnusable);
+      onPartial: (text) => {
+        if (!this.#dead) {
+          this.#deps.handlers.onPartial(text);
+        }
+      },
+      onReady: () => {
+        // queued audio is flushed once spawn returns; ready carries nothing for this session.
       },
     });
     if (this.#dead) {
@@ -152,40 +156,5 @@ export class WorkerStreamSession implements StreamSession {
     this.#dead = true;
     this.#pending = [];
     await this.#worker?.dispose();
-  }
-}
-
-// names the sample count in its partials and final, so an e2e asserting the composer's text
-// proves the mic's bytes reached the server.
-export class ScriptedStreamSession implements StreamSession {
-  readonly #handlers: StreamHandlers;
-  #samples = 0;
-  #dead = false;
-
-  constructor(handlers: StreamHandlers) {
-    this.#handlers = handlers;
-  }
-
-  #transcript(): string {
-    return `scripted dictation of ${this.#samples} samples`;
-  }
-
-  pushPcm(pcm: ArrayBuffer): void {
-    if (this.#dead) {
-      return;
-    }
-    this.#samples += samplesIn(pcm);
-    this.#handlers.onPartial(this.#transcript());
-  }
-
-  finalize(): void {
-    if (this.#dead) {
-      return;
-    }
-    this.#handlers.onFinal(this.#transcript());
-  }
-
-  async dispose(): Promise<void> {
-    this.#dead = true;
   }
 }

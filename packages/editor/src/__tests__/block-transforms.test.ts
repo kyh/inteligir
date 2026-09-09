@@ -12,17 +12,16 @@ import {
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 
-function makeEditor(md: string) {
+const makeEditor = (md: string) => {
   const parsed = parseMarkdown(md);
   const value = parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
   return createSlateEditor({ plugins: EDITOR_KIT, value });
-}
+};
 
 type Editor = ReturnType<typeof makeEditor>;
 
-function out(editor: Editor): string {
-  return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-}
+const out = (editor: Editor): string =>
+  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
 describe("TURN_INTO menu (decision #8)", () => {
   it("offers exactly the locked target set, in menu order — no columns", () => {

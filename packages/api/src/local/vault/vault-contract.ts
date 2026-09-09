@@ -29,16 +29,45 @@ import {
 } from "./vault-schema";
 
 export const vaultContract = {
-  tree: oc.output(vaultTreeResponseSchema),
+  assetWrite: oc
+    .input(vaultAssetWriteRequestSchema)
+    .output(vaultAssetWriteResponseSchema)
+    .errors({ INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
+
+  // a restore checkpoints first: the auto-commit is session-shaped, so the bytes being replaced
+  // may be in no revision yet.
+  commitNow: oc.output(vaultCommitResponseSchema),
+
+  // the recovery surface: there is no trash folder, the git log is the record of what was deleted.
+  deleted: oc.output(vaultDeletedResponseSchema),
+
+  // an unknown path answers an empty page, not NOT_FOUND: a note inside the auto-commit's quiet
+  // window has no revisions yet.
+  history: oc.input(vaultHistoryRequestSchema).output(vaultHistoryResponseSchema),
+
+  mkdir: oc
+    .input(vaultMkdirRequestSchema)
+    .output(vaultMkdirResponseSchema)
+    .errors({ CONFLICT: {}, INVALID_PATH }),
+
+  // the vault's own choices, stored beside the data dir's other app-written files; the
+  // attachments folder need not exist, it is created on the first paste.
+  prefs: oc.output(vaultPrefsResponseSchema),
 
   read: oc
     .input(vaultReadRequestSchema)
     .output(vaultReadResponseSchema)
     .errors({ INVALID_PATH, NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
 
-  // an unknown path answers an empty page, not NOT_FOUND: a note inside the auto-commit's quiet
-  // window has no revisions yet.
-  history: oc.input(vaultHistoryRequestSchema).output(vaultHistoryResponseSchema),
+  remove: oc
+    .input(vaultDeleteRequestSchema)
+    .output(vaultDeleteResponseSchema)
+    .errors({ INVALID_PATH, NOT_FOUND: {} }),
+
+  rename: oc
+    .input(vaultRenameRequestSchema)
+    .output(vaultRenameResponseSchema)
+    .errors({ CONFLICT: {}, INVALID_PATH, NOT_FOUND: {} }),
 
   // no vault.restore: restore is the client composing this with write + expectedHash (or
   // ifAbsent for a deleted note), so there is one cas.
@@ -47,51 +76,22 @@ export const vaultContract = {
     .output(vaultRevisionResponseSchema)
     .errors({ NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
 
-  // ALREADY_EXISTS is ifAbsent's refusal; every other collision answers CONFLICT, so no other
-  // row declares it.
-  write: oc
-    .input(vaultWriteRequestSchema)
-    .output(vaultWriteResponseSchema)
-    .errors({ INVALID_PATH, ALREADY_EXISTS, CAS_MISMATCH, CONFLICT: {} }),
-
-  assetWrite: oc
-    .input(vaultAssetWriteRequestSchema)
-    .output(vaultAssetWriteResponseSchema)
-    .errors({ INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
-
-  rename: oc
-    .input(vaultRenameRequestSchema)
-    .output(vaultRenameResponseSchema)
-    .errors({ INVALID_PATH, NOT_FOUND: {}, CONFLICT: {} }),
-
-  mkdir: oc
-    .input(vaultMkdirRequestSchema)
-    .output(vaultMkdirResponseSchema)
-    .errors({ INVALID_PATH, CONFLICT: {} }),
-
-  // the vault's own choices, stored beside the data dir's other app-written files; the
-  // attachments folder need not exist, it is created on the first paste.
-  prefs: oc.output(vaultPrefsResponseSchema),
-
   // INVALID_PATH: the named attachments folder is a file today, which would refuse every paste
   setPrefs: oc
     .input(vaultSetPrefsRequestSchema)
     .output(vaultPrefsResponseSchema)
     .errors({ INVALID_PATH }),
 
-  // the recovery surface: there is no trash folder, the git log is the record of what was deleted.
-  deleted: oc.output(vaultDeletedResponseSchema),
-
-  remove: oc
-    .input(vaultDeleteRequestSchema)
-    .output(vaultDeleteResponseSchema)
-    .errors({ INVALID_PATH, NOT_FOUND: {} }),
-
-  // a restore checkpoints first: the auto-commit is session-shaped, so the bytes being replaced
-  // may be in no revision yet.
-  commitNow: oc.output(vaultCommitResponseSchema),
-
   status: oc.output(vaultStatusResponseSchema),
 
   syncNow: oc.output(vaultStatusResponseSchema),
+
+  tree: oc.output(vaultTreeResponseSchema),
+
+  // ALREADY_EXISTS is ifAbsent's refusal; every other collision answers CONFLICT, so no other
+  // row declares it.
+  write: oc
+    .input(vaultWriteRequestSchema)
+    .output(vaultWriteResponseSchema)
+    .errors({ ALREADY_EXISTS, CAS_MISMATCH, CONFLICT: {}, INVALID_PATH }),
 };

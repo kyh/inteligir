@@ -1,21 +1,23 @@
-import { evaluateExpression, type BoundRef, type ExpressionNode } from "./expression";
-import { formulasById, type CollectedFormula } from "./collect-formulas";
+import { evaluateExpression } from "./expression";
+import type { BoundRef, ExpressionNode } from "./expression";
+import { formulasById } from "./collect-formulas";
+import type { CollectedFormula } from "./collect-formulas";
 
-export type FormulaGraph = {
+export interface FormulaGraph {
   notes: ReadonlyMap<string, readonly CollectedFormula[]>;
-};
+}
 
 export type ResolveOutcome =
   | { ok: true; value: number }
   | { ok: false; reason: "missing-ref" | "cyclic" | "not-finite" };
 
 // selfFormulas answers refs into this note even when the graph has no entry for it yet
-export function resolveExpression(
+export const resolveExpression = (
   expression: ExpressionNode,
   graph: FormulaGraph,
   selfNoteId: string | null,
   selfFormulas: readonly CollectedFormula[],
-): ResolveOutcome {
+): ResolveOutcome => {
   const byNote = new Map<string, Map<string, CollectedFormula>>();
   const selfById = formulasById(selfFormulas);
   const inProgress = new Set<string>();
@@ -29,7 +31,9 @@ export function resolveExpression(
     let byId = byNote.get(ref.noteId);
     if (byId === undefined) {
       const formulas = graph.notes.get(ref.noteId);
-      if (formulas === undefined) return undefined;
+      if (formulas === undefined) {
+        return undefined;
+      }
       byId = formulasById(formulas);
       byNote.set(ref.noteId, byId);
     }
@@ -43,7 +47,9 @@ export function resolveExpression(
       return null;
     }
     const memoized = memo.get(key);
-    if (memoized !== undefined) return memoized;
+    if (memoized !== undefined) {
+      return memoized;
+    }
     const target = lookup(ref);
     let value: number | null = null;
     if (target !== undefined && target.expression !== null) {
@@ -57,7 +63,11 @@ export function resolveExpression(
   };
 
   const outcome = evaluateExpression(expression, valueOf);
-  if (outcome.ok) return outcome;
-  if (sawCycle) return { ok: false, reason: "cyclic" };
+  if (outcome.ok) {
+    return outcome;
+  }
+  if (sawCycle) {
+    return { ok: false, reason: "cyclic" };
+  }
   return { ok: false, reason: outcome.reason };
-}
+};

@@ -6,26 +6,36 @@ import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 import { SAMPLE_NOTES } from "./sample-notes";
 
 type Classification =
-  | "canonical" // byte-stable
-  | "formattable" // rich-safe, one Format away from canonical
-  | "letters-diverge" // parses, but round-trip drops content → Raw
-  | `raw:${string}`; // rawReason.kind
+  // byte-stable
+  | "canonical"
+  // rich-safe, one Format away from canonical
+  | "formattable"
+  // parses, but round-trip drops content → Raw
+  | "letters-diverge"
+  // rawReason.kind
+  | `raw:${string}`;
 
-function classify(md: string): Classification {
+const classify = (md: string): Classification => {
   const analysis = analyzeMarkdown(md);
-  if (analysis.rawReason) return `raw:${analysis.rawReason.kind}`;
-  if (analysis.canonical) return "canonical";
+  if (analysis.rawReason) {
+    return `raw:${analysis.rawReason.kind}`;
+  }
+  if (analysis.canonical) {
+    return "canonical";
+  }
   return analysis.richSafe ? "formattable" : "letters-diverge";
-}
+};
 
 const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
 
 const REPO_DOCS = {
-  "README.md": readFileSync(`${REPO_ROOT}/README.md`, "utf8"),
+  "README.md": readFileSync(`${REPO_ROOT}/README.md`, "utf-8"),
 } satisfies Record<string, string>;
 
+// oxlint-disable-next-line sort-keys -- Object.entries below declares the tests in this order, which groups the repo doc ahead of the vault fixtures
 const EXPECTED = {
-  "README.md": "formattable", // wrapped paragraphs → soft-break churn
+  // wrapped paragraphs → soft-break churn
+  "README.md": "formattable",
   // the fixture vault is pre-canonicalized so a first edit is a minimal diff, not a reflow.
   "empty.md": "canonical",
   "welcome.md": "canonical",
@@ -51,7 +61,7 @@ const EXPECTED = {
 
 const CORPUS = new Map([...Object.entries(REPO_DOCS), ...Object.entries(SAMPLE_NOTES)]);
 
-const letters = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
+const letters = (s: string) => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
 
 describe("legacy corpus classification", () => {
   it("covers every corpus file with an expectation", () => {
@@ -62,7 +72,9 @@ describe("legacy corpus classification", () => {
     it(`${name} → ${expected}`, () => {
       const md = CORPUS.get(name);
       expect(md).toBeDefined();
-      if (md === undefined) return;
+      if (md === undefined) {
+        return;
+      }
       expect(classify(md)).toBe(expected);
     });
   }
@@ -70,7 +82,9 @@ describe("legacy corpus classification", () => {
   it("round-trips rich-safe corpus files idempotently and letters-preserving", () => {
     for (const [name, md] of CORPUS) {
       const analysis = analyzeMarkdown(md);
-      if (!analysis.richSafe || md.trim() === "") continue;
+      if (!analysis.richSafe || md.trim() === "") {
+        continue;
+      }
       const once = roundTrip(md);
       expect(roundTrip(once), `${name} must be idempotent`).toBe(once);
       expect(letters(once), `${name} must preserve content`).toBe(letters(md));

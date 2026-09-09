@@ -1,17 +1,15 @@
 import { z } from "zod";
-import { type PlateElementProps, PlateElement } from "platejs/react";
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { PlateElement } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
+import { useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { cn } from "cn";
 
 import { stringProp } from "@repo/editor/node-props";
 
-import {
-  type CanvasCell,
-  clearCanvasGrid,
-  paintCanvasCells,
-  strokeSegmentCells,
-} from "./canvas-sketch";
+import { clearCanvasGrid, paintCanvasCells, strokeSegmentCells } from "./canvas-sketch";
+import type { CanvasCell } from "./canvas-sketch";
 import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
 import { setBlockValue } from "./rich-block-value";
 import { GRID_HEADER, isGridHeader, labelLinePrefix } from "@repo/editor/nodes/canvas-header";
@@ -41,14 +39,14 @@ export type CanvasParse =
   | { ok: true; grid: boolean[][]; labels: z.infer<typeof labelSchema>[] }
   | { ok: false; reason: string };
 
-export function parseCanvasPayload(value: string): CanvasParse {
+export const parseCanvasPayload = (value: string): CanvasParse => {
   const lines = value.split("\n");
-  if (!isGridHeader(lines[0])) {
+  const [headerLine, labelLine] = lines;
+  if (!isGridHeader(headerLine)) {
     return { ok: false, reason: `The payload does not begin with ${GRID_HEADER}.` };
   }
   let rowStart = 1;
   let labels: z.infer<typeof labelSchema>[] = [];
-  const labelLine = lines[1];
   const labelPrefix = labelLinePrefix(labelLine);
   if (labelLine !== undefined && labelPrefix !== null) {
     if (!labelLine.endsWith("]]")) {
@@ -76,18 +74,24 @@ export function parseCanvasPayload(value: string): CanvasParse {
     }),
   );
   return { grid, labels, ok: true };
-}
+};
 
-function usedRowsOf(grid: boolean[][], labels: z.infer<typeof labelSchema>[]): number {
+const usedRowsOf = (grid: boolean[][], labels: z.infer<typeof labelSchema>[]): number =>
   // crop to used rows so a small sketch is not a sea of empty grid; columns stay full width for stable label geometry.
-  return Math.max(8, grid.length, ...labels.map((label) => label.row + 2));
-}
+  Math.max(8, grid.length, ...labels.map((label) => label.row + 2));
 
-function CanvasSvg({ grid, labels }: { grid: boolean[][]; labels: z.infer<typeof labelSchema>[] }) {
+const CanvasSvg = ({
+  grid,
+  labels,
+}: {
+  grid: boolean[][];
+  labels: z.infer<typeof labelSchema>[];
+}) => {
   const usedRows = usedRowsOf(grid, labels);
   return (
     <svg
       viewBox={`0 0 ${String(COLS * CELL)} ${String(usedRows * CELL)}`}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
       role="img"
       aria-label="canvas sketch"
       className="w-full"
@@ -127,12 +131,12 @@ function CanvasSvg({ grid, labels }: { grid: boolean[][]; labels: z.infer<typeof
       ))}
     </svg>
   );
-}
+};
 
 type SketchTool = "pencil" | "eraser";
 
 // the stroke commits once on pointer-up: one transaction, one undo step.
-function SketchSurface({
+const SketchSurface = ({
   grid,
   labels,
   onStroke,
@@ -142,7 +146,7 @@ function SketchSurface({
   labels: z.infer<typeof labelSchema>[];
   onStroke: (cells: CanvasCell[], ink: boolean) => void;
   tool: SketchTool;
-}) {
+}) => {
   const rowsShown = Math.min(ROWS, Math.max(24, usedRowsOf(grid, labels) + 6));
   const [pending, setPending] = useState<ReadonlyMap<string, CanvasCell>>(new Map());
   const lastCell = useRef<CanvasCell | null>(null);
@@ -171,6 +175,7 @@ function SketchSurface({
   return (
     <svg
       viewBox={`0 0 ${String(COLS * CELL)} ${String(rowsShown * CELL)}`}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
       role="img"
       aria-label="canvas sketch surface"
       className={cn("w-full touch-none", erasing ? "cursor-cell" : "cursor-crosshair")}
@@ -180,10 +185,14 @@ function SketchSurface({
         extend(cellAt(event));
       }}
       onPointerMove={(event) => {
-        if (lastCell.current !== null) extend(cellAt(event));
+        if (lastCell.current !== null) {
+          extend(cellAt(event));
+        }
       }}
       onPointerUp={() => {
-        if (pending.size > 0) onStroke([...pending.values()], !erasing);
+        if (pending.size > 0) {
+          onStroke([...pending.values()], !erasing);
+        }
         setPending(new Map());
         lastCell.current = null;
       }}
@@ -245,9 +254,9 @@ function SketchSurface({
       ))}
     </svg>
   );
-}
+};
 
-function SketchToolButton({
+const SketchToolButton = ({
   active,
   label,
   onClick,
@@ -255,23 +264,152 @@ function SketchToolButton({
   active: boolean;
   label: string;
   onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "rounded-sm px-1.5 py-0.5 text-xs",
-        active ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
-      )}
-      onClick={onClick}
-    >
-      {label}
-    </button>
-  );
-}
+}) => (
+  <button
+    type="button"
+    className={cn(
+      "rounded-sm px-1.5 py-0.5 text-xs",
+      active ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+    )}
+    onClick={onClick}
+  >
+    {label}
+  </button>
+);
 
-export function CanvasElement(props: PlateElementProps) {
-  const [mode, setMode] = useState<"view" | "sketch" | "raw">("view");
+type CanvasMode = "view" | "sketch" | "raw";
+
+const CanvasActions = ({
+  canSketch,
+  mode,
+  onMode,
+}: {
+  canSketch: boolean;
+  mode: CanvasMode;
+  onMode: (mode: CanvasMode) => void;
+}) => {
+  if (mode === "sketch") {
+    return (
+      <button
+        type="button"
+        className="text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          onMode("view");
+        }}
+      >
+        Done
+      </button>
+    );
+  }
+  if (mode !== "view") {
+    return null;
+  }
+  return (
+    <span className="flex items-center gap-1">
+      {canSketch ? (
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            onMode("sketch");
+          }}
+        >
+          Sketch
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          onMode("raw");
+        }}
+      >
+        Edit payload
+      </button>
+    </span>
+  );
+};
+
+const CanvasBody = ({
+  mode,
+  onMode,
+  onStroke,
+  onTool,
+  onValue,
+  parsed,
+  tool,
+  value,
+}: {
+  mode: CanvasMode;
+  onMode: (mode: CanvasMode) => void;
+  onStroke: (cells: CanvasCell[], ink: boolean) => void;
+  onTool: (tool: SketchTool) => void;
+  onValue: (next: string) => void;
+  parsed: CanvasParse;
+  tool: SketchTool;
+  value: string;
+}) => {
+  if (mode === "raw") {
+    return (
+      <PayloadEditor
+        initial={value}
+        validate={(next) => {
+          const verdict = parseCanvasPayload(next);
+          return verdict.ok ? null : verdict.reason;
+        }}
+        onCancel={() => {
+          onMode("view");
+        }}
+        onSave={(next) => {
+          onValue(next);
+          onMode("view");
+        }}
+      />
+    );
+  }
+  if (!parsed.ok) {
+    return <DegradedPayloadView reason={parsed.reason} value={value} />;
+  }
+  if (mode === "sketch") {
+    return (
+      <div className="px-2 py-1">
+        <div className="flex items-center gap-1 pb-1">
+          <SketchToolButton
+            active={tool === "pencil"}
+            label="Pencil"
+            onClick={() => {
+              onTool("pencil");
+            }}
+          />
+          <SketchToolButton
+            active={tool === "eraser"}
+            label="Eraser"
+            onClick={() => {
+              onTool("eraser");
+            }}
+          />
+          <span className="flex-1" />
+          <SketchToolButton
+            active={false}
+            label="Clear"
+            onClick={() => {
+              onValue(clearCanvasGrid(value));
+            }}
+          />
+        </div>
+        <SketchSurface grid={parsed.grid} labels={parsed.labels} tool={tool} onStroke={onStroke} />
+      </div>
+    );
+  }
+  return (
+    <div className="px-2 py-1">
+      <CanvasSvg grid={parsed.grid} labels={parsed.labels} />
+    </div>
+  );
+};
+
+export const CanvasElement = (props: PlateElementProps) => {
+  const [mode, setMode] = useState<CanvasMode>("view");
   const [tool, setTool] = useState<SketchTool>("pencil");
   const value = stringProp(props.element, "value") ?? "";
   const parsed = parseCanvasPayload(value);
@@ -280,102 +418,24 @@ export function CanvasElement(props: PlateElementProps) {
     <PlateElement {...props}>
       <RichBlockCard
         label="canvas"
-        actions={
-          mode === "view" ? (
-            <span className="flex items-center gap-1">
-              {parsed.ok ? (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setMode("sketch");
-                  }}
-                >
-                  Sketch
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setMode("raw");
-                }}
-              >
-                Edit payload
-              </button>
-            </span>
-          ) : mode === "sketch" ? (
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setMode("view");
-              }}
-            >
-              Done
-            </button>
-          ) : null
-        }
+        actions={<CanvasActions canSketch={parsed.ok} mode={mode} onMode={setMode} />}
       >
-        {mode === "raw" ? (
-          <PayloadEditor
-            initial={value}
-            validate={(next) => {
-              const verdict = parseCanvasPayload(next);
-              return verdict.ok ? null : verdict.reason;
-            }}
-            onCancel={() => {
-              setMode("view");
-            }}
-            onSave={(next) => {
-              setBlockValue(props.editor, props.element, next);
-              setMode("view");
-            }}
-          />
-        ) : mode === "sketch" && parsed.ok ? (
-          <div className="px-2 py-1">
-            <div className="flex items-center gap-1 pb-1">
-              <SketchToolButton
-                active={tool === "pencil"}
-                label="Pencil"
-                onClick={() => {
-                  setTool("pencil");
-                }}
-              />
-              <SketchToolButton
-                active={tool === "eraser"}
-                label="Eraser"
-                onClick={() => {
-                  setTool("eraser");
-                }}
-              />
-              <span className="flex-1" />
-              <SketchToolButton
-                active={false}
-                label="Clear"
-                onClick={() => {
-                  setBlockValue(props.editor, props.element, clearCanvasGrid(value));
-                }}
-              />
-            </div>
-            <SketchSurface
-              grid={parsed.grid}
-              labels={parsed.labels}
-              tool={tool}
-              onStroke={(cells, ink) => {
-                setBlockValue(props.editor, props.element, paintCanvasCells(value, cells, ink));
-              }}
-            />
-          </div>
-        ) : parsed.ok ? (
-          <div className="px-2 py-1">
-            <CanvasSvg grid={parsed.grid} labels={parsed.labels} />
-          </div>
-        ) : (
-          <DegradedPayloadView reason={parsed.reason} value={value} />
-        )}
+        <CanvasBody
+          mode={mode}
+          parsed={parsed}
+          tool={tool}
+          value={value}
+          onMode={setMode}
+          onStroke={(cells, ink) => {
+            setBlockValue(props.editor, props.element, paintCanvasCells(value, cells, ink));
+          }}
+          onTool={setTool}
+          onValue={(next) => {
+            setBlockValue(props.editor, props.element, next);
+          }}
+        />
       </RichBlockCard>
       {props.children}
     </PlateElement>
   );
-}
+};

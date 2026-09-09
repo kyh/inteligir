@@ -12,19 +12,19 @@ import { DateElement } from "@repo/editor/nodes/date-node";
 
 export const DateBaseKit = [BaseDatePlugin];
 
-function insertDateChip(editor: PlateEditor, iso: string): void {
+const insertDateChip = (editor: PlateEditor, iso: string): void => {
   insertVoidAndEscape(editor, { children: [{ text: "" }], date: iso, type: KEYS.date });
   editor.tf.insertText(" ");
-}
+};
 
-export function insertDate(editor: PlateEditor): void {
+export const insertDate = (editor: PlateEditor): void => {
   insertDateChip(editor, formatIsoDate(new Date()));
-}
+};
 
 // No month-granularity byte form exists, so a month is its first day.
-export function insertMonthDate(editor: PlateEditor): void {
+export const insertMonthDate = (editor: PlateEditor): void => {
   const now = new Date();
   insertDateChip(editor, formatIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)));
-}
+};
 
 export const DateKit = [DatePlugin.withComponent(DateElement)];

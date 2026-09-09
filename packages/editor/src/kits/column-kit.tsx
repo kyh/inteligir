@@ -2,14 +2,8 @@
 // into every bare group on the first edit, breaking byte stability. Widths enter the document
 // only through the resize commit in column-node.tsx.
 
-import {
-  ElementApi,
-  KEYS,
-  PathApi,
-  createSlatePlugin,
-  type OverrideEditor,
-  type PluginConfig,
-} from "platejs";
+import { ElementApi, KEYS, PathApi, createSlatePlugin } from "platejs";
+import type { OverrideEditor, PluginConfig } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { ColumnElement, ColumnGroupElement } from "@repo/editor/nodes/column-node";
@@ -25,7 +19,7 @@ const withStableColumns: OverrideEditor<ColumnConfig> = ({
     normalizeNode(entry) {
       const [node, path] = entry;
       if (ElementApi.isElement(node) && node.type === editor.getType(KEYS.columnGroup)) {
-        const first = node.children[0];
+        const [first] = node.children;
         if (
           node.children.length === 1 &&
           ElementApi.isElement(first) &&
@@ -55,21 +49,29 @@ const withStableColumns: OverrideEditor<ColumnConfig> = ({
     selectAll: () => {
       const apply = (): boolean | undefined => {
         const at = editor.selection;
-        if (!at) return;
+        if (!at) {
+          return;
+        }
         const column = editor.api.above({ match: { type } });
-        if (!column) return;
-        let targetPath = column[1];
+        if (!column) {
+          return;
+        }
+        let [, targetPath] = column;
         if (
           editor.api.isStart(editor.api.start(at), targetPath) &&
           editor.api.isEnd(editor.api.end(at), targetPath)
         ) {
           targetPath = PathApi.parent(targetPath);
         }
-        if (targetPath.length === 0) return;
+        if (targetPath.length === 0) {
+          return;
+        }
         editor.tf.select(targetPath);
         return true;
       };
-      if (apply()) return true;
+      if (apply() === true) {
+        return true;
+      }
       return selectAll();
     },
   },
@@ -87,7 +89,7 @@ const ColumnGroupBasePlugin = createSlatePlugin({
 
 export const ColumnBaseKit = [ColumnGroupBasePlugin, ColumnItemBasePlugin];
 
-export function insertColumnGroup(editor: PlateEditor, count: 2 | 3): void {
+export const insertColumnGroup = (editor: PlateEditor, count: 2 | 3): void => {
   const emptyBlock = () => ({ children: [{ text: "" }], type: editor.getType(KEYS.p) });
   editor.tf.withoutNormalizing(() => {
     // select: true lands the caret in the last column; move it to the first.
@@ -102,11 +104,15 @@ export function insertColumnGroup(editor: PlateEditor, count: 2 | 3): void {
       { select: true },
     );
     const column = editor.api.above({ match: { type: editor.getType(KEYS.column) } });
-    if (!column) return;
-    const start = editor.api.start(PathApi.parent(column[1]).concat([0]));
-    if (start) editor.tf.select(start);
+    if (!column) {
+      return;
+    }
+    const start = editor.api.start([...PathApi.parent(column[1]), 0]);
+    if (start) {
+      editor.tf.select(start);
+    }
   });
-}
+};
 
 export const ColumnKit = [
   ColumnGroupBasePlugin.withComponent(ColumnGroupElement),

@@ -22,16 +22,15 @@ export class CliExitError extends Error {
   }
 }
 
-export function invalidUsage(message: string): CliExitError {
-  return new CliExitError(message, { code: "INVALID_USAGE" });
-}
+export const invalidUsage = (message: string): CliExitError =>
+  new CliExitError(message, { code: "INVALID_USAGE" });
 
 const UNREACHABLE_ERRNOS = ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EHOSTUNREACH"];
 const errnoSchema = z.object({ code: z.enum(UNREACHABLE_ERRNOS) });
 
 // a crash leaves server.json behind, so a stale row and a refused dial is the ordinary "no server"
 // and must read as SERVER_UNREACHABLE rather than UNEXPECTED.
-export function isUnreachable(cause: unknown): boolean {
+export const isUnreachable = (cause: unknown): boolean => {
   if (!(cause instanceof Error)) {
     return false;
   }
@@ -54,10 +53,10 @@ export function isUnreachable(cause: unknown): boolean {
     }
   }
   return false;
-}
+};
 
 // node's fetch says "fetch failed" and keeps the socket error under `cause`; multi-address dials wrap an AggregateError.
-export function getErrorMessage(cause: unknown): string {
+export const getErrorMessage = (cause: unknown): string => {
   if (!(cause instanceof Error)) {
     return String(cause);
   }
@@ -89,4 +88,4 @@ export function getErrorMessage(cause: unknown): string {
     }
   }
   return messages.join(": ");
-}
+};

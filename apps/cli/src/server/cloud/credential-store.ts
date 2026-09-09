@@ -4,7 +4,7 @@
 
 import { readFileSync, rmSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { deviceCredentialSchema } from "@repo/api/cloud/device/device-schema";
 import { z } from "zod";
 import { errnoCode } from "../errno";
@@ -20,14 +20,13 @@ const storedCredentialSchema = deviceCredentialSchema.extend({
 
 export type DeviceCredential = z.infer<typeof storedCredentialSchema>;
 
-export function deviceCredentialPath(dataDir: string): string {
-  return join(dataDir, DEVICE_CREDENTIAL_FILE_NAME);
-}
+export const deviceCredentialPath = (dataDir: string): string =>
+  nodePath.join(dataDir, DEVICE_CREDENTIAL_FILE_NAME);
 
-export function readDeviceCredential(dataDir: string): DeviceCredential | null {
+export const readDeviceCredential = (dataDir: string): DeviceCredential | null => {
   let raw: string;
   try {
-    raw = readFileSync(deviceCredentialPath(dataDir), "utf8");
+    raw = readFileSync(deviceCredentialPath(dataDir), "utf-8");
   } catch (error) {
     if (errnoCode(error) === "ENOENT" || errnoCode(error) === "EACCES") {
       return null;
@@ -42,14 +41,14 @@ export function readDeviceCredential(dataDir: string): DeviceCredential | null {
   }
   const result = storedCredentialSchema.safeParse(parsed);
   return result.success ? result.data : null;
-}
+};
 
 // the only plaintext copy anywhere: a torn write reads back as "never signed in".
-export function writeDeviceCredential(dataDir: string, credential: DeviceCredential): void {
+export const writeDeviceCredential = (dataDir: string, credential: DeviceCredential): void => {
   const path = deviceCredentialPath(dataDir);
   stagedWriteFileSync(path, `${JSON.stringify(credential)}\n`, { mode: CREDENTIAL_FILE_MODE });
-}
+};
 
-export function clearDeviceCredential(dataDir: string): void {
+export const clearDeviceCredential = (dataDir: string): void => {
   rmSync(deviceCredentialPath(dataDir), { force: true });
-}
+};

@@ -1,4 +1,8 @@
-import { env, runInDurableObject, SELF } from "cloudflare:test";
+// oxlint-disable typescript/no-deprecated -- SELF is the only fetcher that runs in the tests'
+// own isolate; the cloudflare:workers loopback binding stands a second worker up, and its
+// first fetch costs seconds enough to time a test out.
+import { runInDurableObject, SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import {
   deviceHeaders,
@@ -72,12 +76,12 @@ describe("vault git remote auth", () => {
       },
     });
     const response = await SELF.fetch(`${REMOTE}/git-upload-pack`, {
-      method: "POST",
+      body,
       headers: {
         ...deviceHeaders(credential),
         "content-type": "application/x-git-upload-pack-request",
       },
-      body,
+      method: "POST",
     });
     expect(response.status).toBe(413);
   });
@@ -88,8 +92,8 @@ describe("vault git remote auth", () => {
     const api = await SELF.fetch(`${REMOTE}/api/refs`, { headers: deviceHeaders(credential) });
     expect(api.status).toBe(404);
     const admin = await SELF.fetch(`${REMOTE}/`, {
-      method: "DELETE",
       headers: deviceHeaders(credential),
+      method: "DELETE",
     });
     expect(admin.status).toBe(404);
   });
@@ -107,13 +111,15 @@ describe("vault git remote round-trip", () => {
     const first = await pushVaultFiles(
       pusher.credential,
       "vault: initialize",
-      [{ path: "welcome.md", content: "# hello\n" }],
+      [{ content: "# hello\n", path: "welcome.md" }],
       ZERO_OID,
     );
     expect(first.response.status).toBe(200);
     expect(await first.response.text()).toContain("unpack ok");
 
-    await vi.waitFor(() => expect(otherSocket.frames).toContainEqual({ type: "vault" }));
+    await vi.waitFor(() => {
+      expect(otherSocket.frames).toContainEqual({ type: "vault" });
+    });
     expect(pusherSocket.frames).not.toContainEqual({ type: "vault" });
 
     const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
@@ -125,7 +131,7 @@ describe("vault git remote round-trip", () => {
     const second = await pushVaultFiles(
       pusher.credential,
       "vault: update welcome.md",
-      [{ path: "welcome.md", content: "# hello again\n" }],
+      [{ content: "# hello again\n", path: "welcome.md" }],
       first.commit,
       first.commit,
     );
@@ -142,7 +148,7 @@ describe("vault git remote round-trip", () => {
     const pushed = await pushVaultFiles(
       alphaDevice.credential,
       "vault: initialize",
-      [{ path: "secret.md", content: "alpha's note\n" }],
+      [{ content: "alpha's note\n", path: "secret.md" }],
       ZERO_OID,
     );
     expect(pushed.response.status).toBe(200);
@@ -161,16 +167,16 @@ describe("account deletion's vault half", () => {
     const pushed = await pushVaultFiles(
       credential,
       "vault: initialize",
-      [{ path: "secret.md", content: "note bytes the deletion promise covers\n" }],
+      [{ content: "note bytes the deletion promise covers\n", path: "secret.md" }],
       ZERO_OID,
     );
     expect(pushed.response.status).toBe(200);
     const userId = await userIdOf(bearer);
 
     const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ password }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
     expect(deletion.status).toBe(200);
 

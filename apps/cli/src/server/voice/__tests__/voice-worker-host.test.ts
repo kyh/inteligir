@@ -9,5 +9,6 @@ describe("the real transcription worker", () => {
   it("loads the native binding on a probe", async () => {
     const answer = await runVoiceWorker({ kind: "probe" });
     expect(answer).toEqual({ kind: "probed" });
-  }, 30_000); // dlopening onnxruntime costs more than vitest's 5 s default.
+    // dlopening onnxruntime costs more than vitest's 5 s default.
+  }, 30_000);
 });

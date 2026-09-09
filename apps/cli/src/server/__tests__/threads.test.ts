@@ -3,51 +3,47 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import { claimNextQueuedThreadMessage, listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
-import { serverMessageLenientSchema, type ServerMessage } from "@repo/api/local/notifications";
+import { serverMessageLenientSchema } from "@repo/api/local/notifications";
+import type { ServerMessage } from "@repo/api/local/notifications";
 import { WS_PATH } from "@repo/api/local/routes";
 import type { TimelineResponse } from "@repo/api/local/threads/threads-schema";
-import { applyTimelineDelta, type TimelineRow } from "@repo/api/local/thread-timeline";
+import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
+import type { TimelineRow } from "@repo/api/local/thread-timeline";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import { authorizationHeader } from "../server-file";
-import {
-  bootTestApp,
-  bootThreadHarness,
-  listenTestApp,
-  TEST_SERVER_TOKEN,
-  type BootedTestApp,
-} from "./boot-app";
+import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
+import type { BootedTestApp } from "./boot-app";
 
 type ThreadsClient = BootedTestApp["client"];
 
-async function createThread(client: ThreadsClient): Promise<string> {
+const createThread = async (client: ThreadsClient): Promise<string> => {
   const { thread } = await client.threads.create({});
   return thread.id;
-}
+};
 
-async function getThreadStatus(client: ThreadsClient, threadId: string): Promise<string> {
+const getThreadStatus = async (client: ThreadsClient, threadId: string): Promise<string> => {
   const detail = await client.threads.get({ threadId });
   return detail.thread.status;
-}
+};
 
-function fetchTimeline(client: ThreadsClient, threadId: string): Promise<TimelineResponse> {
-  return client.threads.timeline({ threadId });
-}
+const fetchTimeline = async (client: ThreadsClient, threadId: string): Promise<TimelineResponse> =>
+  await client.threads.timeline({ threadId });
 
-function timelineRows(response: TimelineResponse): TimelineRow[] {
+const timelineRows = (response: TimelineResponse): TimelineRow[] => {
   if (response.kind !== "full") {
     throw new Error("expected a full timeline");
   }
   return response.timeline.rows;
-}
+};
 
 describe("the send policy", () => {
   it("starts a turn when the thread is idle", async () => {
     const { client } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
-    const started = await client.threads.send({ threadId, text: "hello" });
+    const started = await client.threads.send({ text: "hello", threadId });
     expect(started.kind).toBe("started");
     expect(await getThreadStatus(client, threadId)).toBe("active");
   });
@@ -55,16 +51,16 @@ describe("the send policy", () => {
   it("refuses a send naming a turn that is not the open one", async () => {
     const { client } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
-    const started = await client.threads.send({ threadId, text: "start" });
+    const started = await client.threads.send({ text: "start", threadId });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
 
     const [stale] = await safe(
       client.threads.send({
-        threadId,
-        text: "too late",
         expectedTurnId: "turn_stale",
+        text: "too late",
+        threadId,
       }),
     );
     expect(isDefinedError(stale) && stale.code).toBe("STALE_TURN");
@@ -74,8 +70,8 @@ describe("the send policy", () => {
     const { client, driver } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const started = await client.threads.send({
-      threadId,
       text: "start",
+      threadId,
     });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
@@ -85,9 +81,9 @@ describe("the send policy", () => {
 
     const [stale] = await safe(
       client.threads.send({
-        threadId,
-        text: "after the finished turn",
         expectedTurnId: started.turnId,
+        text: "after the finished turn",
+        threadId,
       }),
     );
     expect(isDefinedError(stale) && stale.code).toBe("STALE_TURN");
@@ -97,56 +93,56 @@ describe("the send policy", () => {
     const activeHarness = await bootThreadHarness({ mode: "manual" });
     const activeThread = await createThread(activeHarness.client);
     await activeHarness.client.threads.send({
-      threadId: activeThread,
       text: "start",
+      threadId: activeThread,
     });
     const queuedWhileActive = await activeHarness.client.threads.send({
-      threadId: activeThread,
       text: "later",
+      threadId: activeThread,
     });
     expect(queuedWhileActive.kind).toBe("queued");
 
     applyThreadLifecycleEvent(activeHarness.db, noopNotifier, {
-      threadId: activeThread,
       event: { type: "stop.requested" },
+      threadId: activeThread,
     });
     expect(await getThreadStatus(activeHarness.client, activeThread)).toBe("stopping");
     const queuedWhileStopping = await activeHarness.client.threads.send({
-      threadId: activeThread,
       text: "after the stop",
+      threadId: activeThread,
     });
     expect(queuedWhileStopping.kind).toBe("queued");
 
     const inertHarness = await bootThreadHarness({ mode: "inert" });
     const startingThread = await createThread(inertHarness.client);
     await inertHarness.client.threads.send({
-      threadId: startingThread,
       text: "start",
+      threadId: startingThread,
     });
     expect(await getThreadStatus(inertHarness.client, startingThread)).toBe("starting");
     const queueWhileStarting = await inertHarness.client.threads.send({
-      threadId: startingThread,
       text: "later",
+      threadId: startingThread,
     });
     expect(queueWhileStarting.kind).toBe("queued");
   });
 
   it("refuses unknown and archived threads", async () => {
     const { client } = await bootThreadHarness({ mode: "manual" });
-    const [missing] = await safe(client.threads.send({ threadId: "thr_missing", text: "hi" }));
+    const [missing] = await safe(client.threads.send({ text: "hi", threadId: "thr_missing" }));
     expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
 
     const threadId = await createThread(client);
     const archived = await client.threads.archive({ threadId });
     expect(archived.thread.archivedAt).not.toBeNull();
-    const [send] = await safe(client.threads.send({ threadId, text: "hi" }));
+    const [send] = await safe(client.threads.send({ text: "hi", threadId }));
     expect(isDefinedError(send) && send.code).toBe("ARCHIVED");
   });
 
   it("refuses PROVIDER_UNAVAILABLE and lands the thread in error when none is configured", async () => {
     const { client } = await bootTestApp();
     const threadId = await createThread(client);
-    const [send] = await safe(client.threads.send({ threadId, text: "hi" }));
+    const [send] = await safe(client.threads.send({ text: "hi", threadId }));
     expect(isDefinedError(send) && send.code).toBe("PROVIDER_UNAVAILABLE");
     expect(await getThreadStatus(client, threadId)).toBe("error");
   });
@@ -154,17 +150,17 @@ describe("the send policy", () => {
 
 describe("the view context a message carries", () => {
   const VIEW_CONTEXT = {
-    surface: "doc",
     resource: "Notes/Plans.md",
     revision: "a".repeat(64),
+    surface: "doc",
   } as const;
 
   it("reaches the driver, is recorded beside the text, and never becomes the text", async () => {
     const { client, driver } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const send = await client.threads.send({
-      threadId,
       text: "make this shorter",
+      threadId,
       viewContext: VIEW_CONTEXT,
     });
     expect(send.kind).toBe("started");
@@ -182,20 +178,17 @@ describe("the view context a message carries", () => {
 
   it("is DROPPED by a queued send, which drains onto a screen the user has left", async () => {
     const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    if (!driver) {
-      throw new Error("expected the fake driver");
-    }
     const threadId = await createThread(client);
     const started = await client.threads.send({
-      threadId,
       text: "first",
+      threadId,
     });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
     const queued = await client.threads.send({
-      threadId,
       text: "for later",
+      threadId,
       viewContext: VIEW_CONTEXT,
     });
     expect(queued.kind).toBe("queued");
@@ -218,8 +211,8 @@ describe("the view context a message carries", () => {
     const threadId = await createThread(client);
     const [error] = await safe(
       client.threads.send({
-        threadId,
         text: "hi",
+        threadId,
         viewContext: { ...VIEW_CONTEXT, resource: "../outside.md" },
       }),
     );
@@ -231,19 +224,16 @@ describe("the view context a message carries", () => {
 describe("the queue drain", () => {
   it("drains queued messages one turn at a time as the thread settles idle", async () => {
     const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
-    if (!driver) {
-      throw new Error("expected the fake driver");
-    }
     const threadId = await createThread(client);
     const started = await client.threads.send({
-      threadId,
       text: "first",
+      threadId,
     });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
     for (const text of ["q1", "q2"]) {
-      const queued = await client.threads.send({ threadId, text });
+      const queued = await client.threads.send({ text, threadId });
       expect(queued.kind).toBe("queued");
     }
     expect(listQueuedThreadMessages(db, threadId)).toHaveLength(2);
@@ -253,12 +243,12 @@ describe("the queue drain", () => {
     expect(await getThreadStatus(client, threadId)).toBe("active");
     expect(listQueuedThreadMessages(db, threadId)).toHaveLength(1);
 
-    const q1Turn = driver.startedTurns[1];
+    const q1Turn = driver.startedTurns.at(1);
     if (!q1Turn) {
       throw new Error("expected the drained turn");
     }
     driver.completeTurn(threadId, q1Turn.turnId, "completed");
-    const q2Turn = driver.startedTurns[2];
+    const q2Turn = driver.startedTurns.at(2);
     if (!q2Turn) {
       throw new Error("expected the second drained turn");
     }
@@ -278,18 +268,15 @@ describe("the queue drain", () => {
 
   it("appends a drained message exactly once, even when its dispatch fails", async () => {
     const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
-    if (!driver) {
-      throw new Error("expected the fake driver");
-    }
     const threadId = await createThread(client);
     const started = await client.threads.send({
-      threadId,
       text: "first",
+      threadId,
     });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
-    await client.threads.send({ threadId, text: "queued" });
+    await client.threads.send({ text: "queued", threadId });
 
     driver.failNextStart = new Error("boom");
     driver.completeTurn(threadId, started.turnId, "completed");
@@ -306,16 +293,16 @@ describe("the queue drain", () => {
   it("frees a claim the previous process held, so its message is visible again", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
-    await client.threads.send({ threadId, text: "first" });
-    await client.threads.send({ threadId, text: "queued" });
+    await client.threads.send({ text: "first", threadId });
+    await client.threads.send({ text: "queued", threadId });
     const claimed = claimNextQueuedThreadMessage(db, noopNotifier, threadId);
     expect(claimed).not.toBeNull();
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
 
     const revived = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      createTurnDriver: () => unavailableTurnDriver,
     });
     revived.boot();
     expect(revived.get(threadId)?.queuedMessages.map((message) => message.text)).toEqual([
@@ -326,18 +313,15 @@ describe("the queue drain", () => {
 
   it("releases the claim when the thread was archived before the drain could start", async () => {
     const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
-    if (!driver) {
-      throw new Error("expected the fake driver");
-    }
     const threadId = await createThread(client);
     const started = await client.threads.send({
-      threadId,
       text: "first",
+      threadId,
     });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
-    await client.threads.send({ threadId, text: "queued" });
+    await client.threads.send({ text: "queued", threadId });
     await client.threads.archive({ threadId });
 
     driver.completeTurn(threadId, started.turnId, "completed");
@@ -350,16 +334,13 @@ describe("the queue drain", () => {
 describe("turn identity and crash recovery", () => {
   it("ignores a late completion for a superseded turn", async () => {
     const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    if (!driver) {
-      throw new Error("expected the fake driver");
-    }
     const threadId = await createThread(client);
-    const first = await client.threads.send({ threadId, text: "one" });
+    const first = await client.threads.send({ text: "one", threadId });
     if (first.kind !== "started") {
       throw new Error("expected a started turn");
     }
     driver.completeTurn(threadId, first.turnId, "completed");
-    const second = await client.threads.send({ threadId, text: "two" });
+    const second = await client.threads.send({ text: "two", threadId });
     if (second.kind !== "started") {
       throw new Error("expected a second started turn");
     }
@@ -376,15 +357,15 @@ describe("turn identity and crash recovery", () => {
     const threadId = await createThread(client);
     const other = await createThread(client);
     const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      createTurnDriver: () => unavailableTurnDriver,
     });
-    expect(() =>
+    expect(() => {
       service.ingestProviderEvents(threadId, [
-        { type: "turn/started", threadId: other, scope: { kind: "turn", turnId: "turn_x" } },
-      ]),
-    ).toThrow(ThreadEventThreadIdMismatchError);
+        { scope: { kind: "turn", turnId: "turn_x" }, threadId: other, type: "turn/started" },
+      ]);
+    }).toThrow(ThreadEventThreadIdMismatchError);
     for (const id of [threadId, other]) {
       const timeline = await fetchTimeline(client, id);
       if (timeline.kind !== "full") {
@@ -397,20 +378,20 @@ describe("turn identity and crash recovery", () => {
   it("recovers threads a previous process left running", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
-    await client.threads.send({ threadId, text: "start" });
+    await client.threads.send({ text: "start", threadId });
     expect(await getThreadStatus(client, threadId)).toBe("active");
     // an approval the dead provider raised and nobody answered.
     const orphan = createPendingInteraction(db, noopNotifier, {
-      threadId,
-      requestKey: "req-orphaned",
       payload: "{}",
+      requestKey: "req-orphaned",
+      threadId,
     });
 
     // a fresh service on the same db is a process restart.
     const revived = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      createTurnDriver: () => unavailableTurnDriver,
     });
     revived.boot();
     expect(revived.get(threadId)?.thread.status).toBe("error");
@@ -436,12 +417,9 @@ describe("turn identity and crash recovery", () => {
 
   it("folds any dispatch throw into error status with a recorded provider/error", async () => {
     const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    if (!driver) {
-      throw new Error("expected the fake driver");
-    }
     const threadId = await createThread(client);
     driver.failNextStart = new Error("adapter exploded");
-    const [send] = await safe(client.threads.send({ threadId, text: "hi" }));
+    const [send] = await safe(client.threads.send({ text: "hi", threadId }));
     expect(isDefinedError(send) && send.code).toBe("DISPATCH_FAILED");
     expect(await getThreadStatus(client, threadId)).toBe("error");
     const rows = timelineRows(await fetchTimeline(client, threadId));
@@ -457,8 +435,8 @@ describe("thread detail", () => {
   it("thread detail carries the unclaimed queue for pending bubbles", async () => {
     const { client } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
-    await client.threads.send({ threadId, text: "start" });
-    await client.threads.send({ threadId, text: "bubble me" });
+    await client.threads.send({ text: "start", threadId });
+    await client.threads.send({ text: "bubble me", threadId });
     const detail = await client.threads.get({ threadId });
     expect(detail.queuedMessages.map((message) => message.text)).toEqual(["bubble me"]);
   });
@@ -469,20 +447,20 @@ describe("pending interactions over the API", () => {
     const { bus, client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const payload = {
+      availableDecisions: ["allow_once", "deny"],
       kind: "approval",
+      reason: null,
       subject: {
-        kind: "command",
-        itemId: "item_1",
         command: "rm -rf node_modules",
         cwd: null,
+        itemId: "item_1",
+        kind: "command",
       },
-      reason: null,
-      availableDecisions: ["allow_once", "deny"],
     };
     const interaction = createPendingInteraction(db, bus, {
-      threadId,
-      requestKey: "req-1",
       payload: JSON.stringify(payload),
+      requestKey: "req-1",
+      threadId,
     });
 
     const detail = await client.threads.get({ threadId });
@@ -490,26 +468,26 @@ describe("pending interactions over the API", () => {
     expect(detail.pendingInteractions[0]?.payload).toEqual(payload);
 
     const answered = await client.threads.answerInteraction({
-      threadId,
       interactionId: interaction.id,
       resolution: "allow_once",
+      threadId,
     });
     expect(answered.interaction.id).toBe(interaction.id);
 
     const [again] = await safe(
       client.threads.answerInteraction({
-        threadId,
         interactionId: interaction.id,
         resolution: "deny",
+        threadId,
       }),
     );
     expect(isDefinedError(again) && again.code).toBe("ALREADY_RESOLVED");
 
     const [unknown] = await safe(
       client.threads.answerInteraction({
-        threadId,
         interactionId: "pint_missing",
         resolution: "allow",
+        threadId,
       }),
     );
     expect(isDefinedError(unknown) && unknown.code).toBe("NOT_FOUND");
@@ -524,7 +502,9 @@ describe("a fake-provider turn end-to-end", () => {
     const socket = new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
-    onTestFinished(() => socket.close());
+    onTestFinished(() => {
+      socket.close();
+    });
     const frames: ServerMessage[] = [];
     socket.addEventListener("message", (event) => {
       const text = z.string().safeParse(event.data);
@@ -532,14 +512,18 @@ describe("a fake-provider turn end-to-end", () => {
         frames.push(serverMessageLenientSchema.parse(JSON.parse(text.data)));
       }
     });
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener("open", () => resolve());
-      socket.addEventListener("error", () => reject(new Error("ws error")));
+    const opened: PromiseWithResolvers<void> = Promise.withResolvers();
+    socket.addEventListener("open", () => {
+      opened.resolve();
     });
-    socket.send(JSON.stringify({ type: "subscribe", target: { kind: "thread-list" } }));
+    socket.addEventListener("error", () => {
+      opened.reject(new Error("ws error"));
+    });
+    await opened.promise;
+    socket.send(JSON.stringify({ target: { kind: "thread-list" }, type: "subscribe" }));
 
     // the client acts on ws frames only, never polls; every frame up to the match is consumed so the next wait starts after it.
-    async function waitForThreadChange(kind: string): Promise<void> {
+    const waitForThreadChange = async (kind: string): Promise<void> => {
       await vi.waitFor(
         () => {
           const index = frames.findIndex(
@@ -549,16 +533,18 @@ describe("a fake-provider turn end-to-end", () => {
               frame.id === threadId &&
               frame.changes.some((change) => change === kind),
           );
-          if (index === -1) throw new Error(`no ${kind} frame yet`);
+          if (index === -1) {
+            throw new Error(`no ${kind} frame yet`);
+          }
           frames.splice(0, index + 1);
         },
-        { timeout: 5_000, interval: 10 },
+        { interval: 10, timeout: 5000 },
       );
-    }
+    };
 
     const send = await client.threads.send({
-      threadId,
       text: "hello agent",
+      threadId,
     });
     expect(send.kind).toBe("started");
 
@@ -569,7 +555,7 @@ describe("a fake-provider turn end-to-end", () => {
     if (full.kind !== "full") {
       throw new Error("expected a full timeline");
     }
-    const rows = full.timeline.rows;
+    const { rows } = full.timeline;
     expect(rows.filter((row) => row.kind === "conversation").map((row) => row.text)).toEqual([
       "hello agent",
       "Echo: hello agent",
@@ -583,15 +569,15 @@ describe("a fake-provider turn end-to-end", () => {
 
     const held = full.timeline;
     const secondSend = await client.threads.send({
-      threadId,
       text: "and again",
+      threadId,
     });
     expect(secondSend.kind).toBe("started");
     await waitForThreadChange("events-appended");
 
     const delta = await client.threads.timeline({
-      threadId,
       afterSequence: held.maxSequence,
+      threadId,
     });
     if (delta.kind !== "delta") {
       throw new Error("expected a delta timeline");
@@ -607,14 +593,14 @@ describe("a fake-provider turn end-to-end", () => {
       rebuilt.timeline.rows.filter((row) => row.kind === "conversation").map((row) => row.text),
     ).toEqual(["hello agent", "Echo: hello agent", "and again", "Echo: and again"]);
 
-    const staleDelta = await client.threads.timeline({ threadId, afterSequence: 1 });
+    const staleDelta = await client.threads.timeline({ afterSequence: 1, threadId });
     if (staleDelta.kind !== "delta") {
       throw new Error("expected a delta timeline");
     }
     expect(applyTimelineDelta(rebuilt.timeline, staleDelta.delta)).toBeNull();
     const ahead = await client.threads.timeline({
-      threadId,
       afterSequence: rebuilt.timeline.maxSequence + 100,
+      threadId,
     });
     expect(ahead.kind).toBe("full");
   });

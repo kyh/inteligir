@@ -7,46 +7,44 @@ import {
   createSyncSession,
   MAX_PULL_PAGES_PER_PASS,
   pullPages,
-  type PullPagesArgs,
 } from "../sync/sync-session";
+import type { PullPagesArgs } from "../sync/sync-session";
 
 const UNAUTHORIZED: CloudFailure = {
-  kind: "refused",
   code: "unauthorized",
-  message: "credential revoked",
   deviceSeq: null,
+  kind: "refused",
+  message: "credential revoked",
 };
 
 const RATE_LIMITED: CloudFailure = {
-  kind: "refused",
   code: "rate-limited",
-  message: "slow down",
   deviceSeq: null,
+  kind: "refused",
+  message: "slow down",
 };
 
-function ok<T>(value: T): CloudResult<T> {
-  return { ok: true, value };
-}
+const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
 
-function noop(): void {}
+const noop = (): void => {};
 
-function unreachable<T>(): Promise<CloudResult<T>> {
-  return Promise.resolve({ ok: false, failure: { kind: "unreachable", message: "fake" } });
-}
+// oxlint-disable-next-line require-await -- callers `await` this to match the CloudClient contract.
+const unreachable = async <T>(): Promise<CloudResult<T>> => ({
+  failure: { kind: "unreachable", message: "fake" },
+  ok: false,
+});
 
-function fakeClient(pull: CloudClient["pull"]): CloudClient {
-  return {
-    pull,
-    push: () => unreachable(),
-    createCapture: () => unreachable(),
-    claimCaptures: () => unreachable(),
-    ackCaptures: () => unreachable(),
-    account: () => unreachable(),
-    vaultTree: () => unreachable(),
-    vaultFile: () => unreachable(),
-    vaultAssetSource: () => ({ uri: "https://cloud.test/fake", headers: {} }),
-  };
-}
+const fakeClient = (pull: CloudClient["pull"]): CloudClient => ({
+  account: async () => await unreachable(),
+  ackCaptures: async () => await unreachable(),
+  claimCaptures: async () => await unreachable(),
+  createCapture: async () => await unreachable(),
+  pull,
+  push: async () => await unreachable(),
+  vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
+  vaultFile: async () => await unreachable(),
+  vaultTree: async () => await unreachable(),
+});
 
 interface Harness {
   session: ReturnType<typeof createSyncSession<{ deviceId: string }>>;
@@ -54,25 +52,25 @@ interface Harness {
   ended: CloudFailure[];
 }
 
-function harness(): Harness {
+const harness = (): Harness => {
   const signals: AbortSignal[] = [];
   const ended: CloudFailure[] = [];
   const session = createSyncSession<{ deviceId: string }>({
     makeClient: (_credential, signal) => {
       signals.push(signal);
-      return fakeClient(() => unreachable());
+      return fakeClient(async () => await unreachable());
     },
     onEnded: (failure) => {
       ended.push(failure);
     },
   });
-  return { session, signals, ended };
-}
+  return { ended, session, signals };
+};
 
 describe("the session union", () => {
   it("opens live with a fresh id, and every transition bumps it", () => {
     const { session } = harness();
-    expect(session.current()).toEqual({ kind: "off", id: 0 });
+    expect(session.current()).toEqual({ id: 0, kind: "off" });
     session.open({ deviceId: "dev_1" });
     const first = session.current();
     expect(first.kind).toBe("live");
@@ -80,7 +78,9 @@ describe("the session union", () => {
     expect(session.current().kind).toBe("off");
     session.open({ deviceId: "dev_2" });
     const second = session.current();
-    if (first.kind !== "live" || second.kind !== "live") throw new Error("expected live");
+    if (first.kind !== "live" || second.kind !== "live") {
+      throw new Error("expected live");
+    }
     expect(second.id).toBeGreaterThan(first.id);
     expect(session.fenced(first.id)).toBe(false);
     expect(session.fenced(second.id)).toBe(true);
@@ -109,10 +109,14 @@ describe("the session union", () => {
     const { session } = harness();
     session.open({ deviceId: "dev_1" });
     const live = session.current();
-    if (live.kind !== "live") throw new Error("expected live");
+    if (live.kind !== "live") {
+      throw new Error("expected live");
+    }
     session.replaceCredential(live.id, { deviceId: "dev_1+identity" });
     const swapped = session.current();
-    if (swapped.kind !== "live") throw new Error("expected live");
+    if (swapped.kind !== "live") {
+      throw new Error("expected live");
+    }
     expect(swapped.id).toBe(live.id);
     expect(swapped.client).toBe(live.client);
     expect(swapped.credential.deviceId).toBe("dev_1+identity");
@@ -120,7 +124,9 @@ describe("the session union", () => {
     session.open({ deviceId: "dev_2" });
     session.replaceCredential(live.id, { deviceId: "stale" });
     const after = session.current();
-    if (after.kind !== "live") throw new Error("expected live");
+    if (after.kind !== "live") {
+      throw new Error("expected live");
+    }
     expect(after.credential.deviceId).toBe("dev_2");
   });
 });
@@ -132,9 +138,9 @@ describe("recordFailure", () => {
     expect(session.recordFailure(UNAUTHORIZED)).toBe("ended");
     const current = session.current();
     expect(current).toMatchObject({
-      kind: "unauthorized",
       credential: { deviceId: "dev_1" },
       detail: "credential revoked",
+      kind: "unauthorized",
     });
     expect(signals[0]?.aborted).toBe(true);
     expect(ended).toEqual([UNAUTHORIZED]);
@@ -150,17 +156,15 @@ describe("recordFailure", () => {
   });
 });
 
-function row(seq: number, deviceId: string): SyncEventRow {
-  return {
-    seq,
-    threadId: "thr_1",
-    deviceId,
-    deviceSeq: seq,
-    // not a ThreadEvent: planPage answers a cursor-only skip step, all this loop needs
-    event: { opaque: true },
-    createdAt: 0,
-  };
-}
+const row = (seq: number, deviceId: string): SyncEventRow => ({
+  createdAt: 0,
+  deviceId,
+  deviceSeq: seq,
+  // not a ThreadEvent: planPage answers a cursor-only skip step, all this loop needs
+  event: { opaque: true },
+  seq,
+  threadId: "thr_1",
+});
 
 interface PageLoop {
   applied: LogPlanStep[][];
@@ -169,43 +173,46 @@ interface PageLoop {
   cursor: number;
 }
 
-function pageLoop(args: {
-  results: Array<CloudResult<PullResponse>>;
+const pageLoop = (args: {
+  results: CloudResult<PullResponse>[];
   fenced?: () => boolean;
   recordFailure?: (failure: CloudFailure) => "continue" | "ended";
-}) {
-  const loop: PageLoop = { applied: [], skipped: [], pages: [], cursor: 0 };
+}) => {
+  const loop: PageLoop = { applied: [], cursor: 0, pages: [], skipped: [] };
   const pullArgs: PullPagesArgs = {
+    applyPlan: (steps) => {
+      loop.applied.push([...steps]);
+      for (const step of steps) {
+        if (step.kind === "skip") {
+          loop.cursor = step.cursor;
+        }
+      }
+    },
     client: {
-      pull: (query) => {
+      // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
+      pull: async (query) => {
         loop.pages.push(query.afterSeq);
-        return Promise.resolve(
-          args.results.shift() ?? ok({ events: [], lastSeq: loop.cursor, hasMore: false }),
-        );
+        return args.results.shift() ?? ok({ events: [], hasMore: false, lastSeq: loop.cursor });
       },
     },
     deviceId: "dev_self",
     fenced: args.fenced ?? (() => true),
-    readCursor: () => loop.cursor,
-    applyPlan: (steps) => {
-      loop.applied.push([...steps]);
-      for (const step of steps) {
-        if (step.kind === "skip") loop.cursor = step.cursor;
-      }
+    onSkipped: (message) => {
+      loop.skipped.push(message);
     },
+    readCursor: () => loop.cursor,
     recordFailure: args.recordFailure ?? (() => "continue"),
-    onSkipped: (message) => loop.skipped.push(message),
   };
-  const run = () => pullPages(pullArgs);
+  const run = async () => await pullPages(pullArgs);
   return { loop, run };
-}
+};
 
 describe("pullPages", () => {
   it("walks hasMore pages from the moving cursor and applies each plan", async () => {
     const { loop, run } = pageLoop({
       results: [
-        ok({ events: [row(1, "dev_other")], lastSeq: 1, hasMore: true }),
-        ok({ events: [row(2, "dev_other")], lastSeq: 2, hasMore: false }),
+        ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 1 }),
+        ok({ events: [row(2, "dev_other")], hasMore: false, lastSeq: 2 }),
       ],
     });
     expect(await run()).toBe(true);
@@ -216,7 +223,7 @@ describe("pullPages", () => {
   });
 
   it("stops at the page bound — what is left rides the next pass", async () => {
-    const endless = ok({ events: [row(1, "dev_other")], lastSeq: 1, hasMore: true });
+    const endless = ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 1 });
     const { loop, run } = pageLoop({
       results: Array.from({ length: MAX_PULL_PAGES_PER_PASS + 5 }, () => endless),
     });
@@ -225,10 +232,10 @@ describe("pullPages", () => {
   });
 
   it("answers the session's own verdict on a failed pull", async () => {
-    const failed: CloudResult<PullResponse> = { ok: false, failure: RATE_LIMITED };
-    const continuing = pageLoop({ results: [failed], recordFailure: () => "continue" });
+    const failed: CloudResult<PullResponse> = { failure: RATE_LIMITED, ok: false };
+    const continuing = pageLoop({ recordFailure: () => "continue", results: [failed] });
     expect(await continuing.run()).toBe(true);
-    const ending = pageLoop({ results: [failed], recordFailure: () => "ended" });
+    const ending = pageLoop({ recordFailure: () => "ended", results: [failed] });
     expect(await ending.run()).toBe(false);
     expect(ending.loop.applied).toEqual([]);
   });
@@ -237,27 +244,30 @@ describe("pullPages", () => {
     const { session } = harness();
     session.open({ deviceId: "dev_1" });
     const live = session.current();
-    if (live.kind !== "live") throw new Error("expected live");
+    if (live.kind !== "live") {
+      throw new Error("expected live");
+    }
     const sessionId = live.id;
 
     let release: (result: CloudResult<PullResponse>) => void = noop;
+    // oxlint-disable-next-line promise/avoid-new -- released later from outside; no async equivalent.
     const held = new Promise<CloudResult<PullResponse>>((resolve) => {
       release = resolve;
     });
     const applied: LogPlanStep[][] = [];
     const pass = pullPages({
-      client: { pull: () => held },
-      deviceId: "dev_1",
-      fenced: () => session.fenced(sessionId),
-      readCursor: () => 0,
       applyPlan: (steps) => {
         applied.push([...steps]);
       },
+      client: { pull: async () => await held },
+      deviceId: "dev_1",
+      fenced: () => session.fenced(sessionId),
+      readCursor: () => 0,
       recordFailure: session.recordFailure,
     });
 
     session.open({ deviceId: "dev_2" });
-    release(ok({ events: [row(1, "dev_other")], lastSeq: 1, hasMore: false }));
+    release(ok({ events: [row(1, "dev_other")], hasMore: false, lastSeq: 1 }));
 
     expect(await pass).toBe(false);
     expect(applied).toEqual([]);
@@ -270,7 +280,8 @@ describe("createSingleFlight", () => {
     let running = 0;
     let passes = 0;
     let release: () => void = noop;
-    const gates: Array<Promise<void>> = [
+    const gates: Promise<void>[] = [
+      // oxlint-disable-next-line promise/avoid-new -- released later from outside; no async equivalent.
       new Promise((resolve) => {
         release = resolve;
       }),
@@ -283,7 +294,7 @@ describe("createSingleFlight", () => {
       await gates.shift();
       running -= 1;
     };
-    const runArgs = { pass, repeat: () => true, onError: () => undefined };
+    const runArgs = { onError: () => {}, pass, repeat: () => true };
 
     const first = flight.run(runArgs);
     const second = flight.run(runArgs);
@@ -299,16 +310,17 @@ describe("createSingleFlight", () => {
     const flight = createSingleFlight();
     let passes = 0;
     let release: () => void = noop;
+    // oxlint-disable-next-line promise/avoid-new -- released later from outside; no async equivalent.
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
     const args = {
+      onError: () => {},
       pass: async (): Promise<void> => {
         passes += 1;
         await held;
       },
       repeat: () => false,
-      onError: () => undefined,
     };
     const first = flight.run(args);
     const joined = flight.run(args);
@@ -318,9 +330,13 @@ describe("createSingleFlight", () => {
 
     const errors: string[] = [];
     await flight.run({
-      pass: () => Promise.reject(new Error("boom")),
+      onError: (message) => {
+        errors.push(message);
+      },
+      pass: () => {
+        throw new Error("boom");
+      },
       repeat: () => true,
-      onError: (message) => errors.push(message),
     });
     expect(errors).toEqual(["boom"]);
   });

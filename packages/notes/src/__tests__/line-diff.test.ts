@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { diffLines, splitLinesLf, type DiffHunk } from "../text/line-diff";
+import { diffLines, splitLinesLf } from "../text/line-diff";
+import type { DiffHunk } from "../text/line-diff";
 
-function apply(base: readonly string[], side: readonly string[], hunks: DiffHunk[]): string[] {
+const apply = (base: readonly string[], side: readonly string[], hunks: DiffHunk[]): string[] => {
   const out: string[] = [];
   let at = 0;
   for (const hunk of hunks) {
-    out.push(...base.slice(at, hunk.baseStart));
-    out.push(...side.slice(hunk.sideStart, hunk.sideEnd));
+    out.push(...base.slice(at, hunk.baseStart), ...side.slice(hunk.sideStart, hunk.sideEnd));
     at = hunk.baseEnd;
   }
   out.push(...base.slice(at));
   return out;
-}
+};
 
-function roundTrips(baseText: string, sideText: string): void {
+const roundTrips = (baseText: string, sideText: string): void => {
   const base = splitLinesLf(baseText);
   const side = splitLinesLf(sideText);
   const hunks = diffLines(base, side);
@@ -25,7 +25,7 @@ function roundTrips(baseText: string, sideText: string): void {
       expect(next.baseStart).toBeGreaterThan(prev.baseEnd);
     }
   }
-}
+};
 
 describe("diffLines", () => {
   it("answers no hunks for identical input", () => {
@@ -49,6 +49,6 @@ describe("diffLines", () => {
 
   it("reports the minimal hunk for a single-line edit", () => {
     const hunks = diffLines(["a", "b", "c"], ["a", "B", "c"]);
-    expect(hunks).toEqual([{ baseStart: 1, baseEnd: 2, sideStart: 1, sideEnd: 2 }]);
+    expect(hunks).toEqual([{ baseEnd: 2, baseStart: 1, sideEnd: 2, sideStart: 1 }]);
   });
 });

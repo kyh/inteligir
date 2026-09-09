@@ -2,11 +2,11 @@
 
 import { invalidUsage } from "./cli-error";
 
-export function parseBoundedInteger(
+export const parseBoundedInteger = (
   rawValue: string,
   flag: string,
   bounds: { min: number; max?: number },
-): number {
+): number => {
   const value = Number(rawValue);
   const range =
     bounds.max === undefined
@@ -20,4 +20,4 @@ export function parseBoundedInteger(
     throw invalidUsage(`${flag} must be an integer ${range} (got "${rawValue}")`);
   }
   return value;
-}
+};

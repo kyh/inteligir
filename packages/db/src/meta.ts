@@ -2,15 +2,15 @@ import { eq } from "drizzle-orm";
 import type { DbConnection } from "./connection";
 import { meta } from "./schema";
 
-export function getMetaValue(db: DbConnection, key: string): string | undefined {
+export const getMetaValue = (db: DbConnection, key: string): string | undefined => {
   const row = db.select().from(meta).where(eq(meta.key, key)).get();
   return row?.value;
-}
+};
 
 // a database a newer build upgraded is past any generation this build has sql for: migrate
 // applies nothing and every read runs against a schema this code does not know, so the ceiling
 // is refused here.
-export function getSchemaVersion(db: DbConnection, latestKnownVersion: number): number {
+export const getSchemaVersion = (db: DbConnection, latestKnownVersion: number): number => {
   const value = getMetaValue(db, "schema_version");
   const parsed = value === undefined ? Number.NaN : Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) {
@@ -24,4 +24,4 @@ export function getSchemaVersion(db: DbConnection, latestKnownVersion: number): 
     );
   }
   return parsed;
-}
+};

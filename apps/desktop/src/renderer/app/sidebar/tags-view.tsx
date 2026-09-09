@@ -27,39 +27,42 @@ export interface TagNode {
   children: TagNode[];
 }
 
-function byTotal(a: TagNode, b: TagNode): number {
-  return b.total - a.total || a.name.localeCompare(b.name);
-}
+const byTotal = (a: TagNode, b: TagNode): number =>
+  b.total - a.total || a.name.localeCompare(b.name);
 
 // folded by `/`: every level gets a row, whether or not a note uses it bare
-export function foldTags(tags: readonly TagCountWire[]): TagNode[] {
+export const foldTags = (tags: readonly TagCountWire[]): TagNode[] => {
   const roots: TagNode[] = [];
   const byTag = new Map<string, TagNode>();
   const nodeFor = (tag: string): TagNode => {
     const existing = byTag.get(tag);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      return existing;
+    }
     const slash = tag.lastIndexOf("/");
     const node: TagNode = {
-      tag,
-      name: slash === -1 ? tag : tag.slice(slash + 1),
-      count: 0,
-      total: 0,
       children: [],
+      count: 0,
+      name: slash === -1 ? tag : tag.slice(slash + 1),
+      tag,
+      total: 0,
     };
     byTag.set(tag, node);
     (slash === -1 ? roots : nodeFor(tag.slice(0, slash)).children).push(node);
     return node;
   };
-  for (const { tag, count } of tags) nodeFor(tag).count = count;
+  for (const { tag, count } of tags) {
+    nodeFor(tag).count = count;
+  }
   const settle = (node: TagNode): TagNode => {
     const children = node.children.map(settle).toSorted(byTotal);
     const total = node.count + children.reduce((sum, child) => sum + child.total, 0);
     return { ...node, children, total };
   };
   return roots.map(settle).toSorted(byTotal);
-}
+};
 
-export function TagsView({
+export const TagsView = ({
   tags,
   loaded,
   onSelect,
@@ -69,7 +72,7 @@ export function TagsView({
   loaded: boolean;
   onSelect: (tag: string) => void;
   onRename: (tag: string) => void;
-}) {
+}) => {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const roots = foldTags(tags);
   if (loaded && roots.length === 0) {
@@ -77,11 +80,13 @@ export function TagsView({
       <p className="px-3 py-2 text-sm text-muted-foreground">No tags yet. Type #tag in a note.</p>
     );
   }
-  const rows: Array<{ node: TagNode; depth: number }> = [];
+  const rows: { node: TagNode; depth: number }[] = [];
   const collect = (nodes: readonly TagNode[], depth: number): void => {
     for (const node of nodes) {
-      rows.push({ node, depth });
-      if (expanded.has(node.tag)) collect(node.children, depth + 1);
+      rows.push({ depth, node });
+      if (expanded.has(node.tag)) {
+        collect(node.children, depth + 1);
+      }
     }
   };
   collect(roots, 0);
@@ -97,13 +102,12 @@ export function TagsView({
     });
   };
   return (
-    <div role="list" aria-label="Tags" className="flex flex-col py-1">
+    <ul aria-label="Tags" className="flex flex-col py-1">
       {rows.map(({ node, depth }) => {
         const isExpanded = expanded.has(node.tag);
         return (
-          <div
+          <li
             key={node.tag}
-            role="listitem"
             className="group flex w-full items-center gap-1 h-chrome-row pr-1 text-sm hover:bg-muted/60"
             style={{ paddingLeft: depth * 12 + 4 }}
           >
@@ -148,12 +152,12 @@ export function TagsView({
             >
               <PencilIcon className="size-3.5" />
             </Button>
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
-}
+};
 
 export interface TagScopeCount {
   // how many of the family the listing holds, and how many there are
@@ -162,11 +166,10 @@ export interface TagScopeCount {
 }
 
 // the count says when the list is cut, so a cut is never mistaken for the whole
-export function tagScopeCountLabel({ listed, total }: TagScopeCount): string {
-  return listed < total ? `${String(listed)} of ${String(total)}` : String(total);
-}
+export const tagScopeCountLabel = ({ listed, total }: TagScopeCount): string =>
+  listed < total ? `${String(listed)} of ${String(total)}` : String(total);
 
-export function TagScopeHeader({
+export const TagScopeHeader = ({
   tag,
   count,
   onClear,
@@ -176,26 +179,24 @@ export function TagScopeHeader({
   count: TagScopeCount | undefined;
   onClear: () => void;
   onRename: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 px-1.5 py-1">
-      <Button variant="ghost" size="icon-compact" aria-label="All tags" onClick={onClear}>
-        <ArrowLeftIcon />
-      </Button>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">#{tag}</span>
-      {count === undefined ? null : (
-        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
-          {tagScopeCountLabel(count)}
-        </span>
-      )}
-      <Button variant="ghost" size="icon-compact" aria-label={`Rename ${tag}`} onClick={onRename}>
-        <PencilIcon />
-      </Button>
-    </div>
-  );
-}
+}) => (
+  <div className="flex items-center gap-1 px-1.5 py-1">
+    <Button variant="ghost" size="icon-compact" aria-label="All tags" onClick={onClear}>
+      <ArrowLeftIcon />
+    </Button>
+    <span className="min-w-0 flex-1 truncate text-sm font-medium">#{tag}</span>
+    {count === undefined ? null : (
+      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+        {tagScopeCountLabel(count)}
+      </span>
+    )}
+    <Button variant="ghost" size="icon-compact" aria-label={`Rename ${tag}`} onClick={onRename}>
+      <PencilIcon />
+    </Button>
+  </div>
+);
 
-export function RenameTagDialog({
+export const RenameTagDialog = ({
   tag,
   onOpenChange,
   onRenamed,
@@ -203,7 +204,7 @@ export function RenameTagDialog({
   tag: string | null;
   onOpenChange: (open: boolean) => void;
   onRenamed: (from: string, to: string) => void;
-}) {
+}) => {
   const queryClient = useQueryClient();
   const [value, setValue] = useState("");
   // seeded during render, so the field never paints the previous tag's text
@@ -214,6 +215,9 @@ export function RenameTagDialog({
   }
   const rename = useMutation(
     orpc.knowledge.renameTag.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalMessage(cause, "Could not rename the tag."));
+      },
       onSuccess: (body) => {
         const count = body.rewritten.length;
         toast.success(`Renamed #${body.from} to #${body.to} in ${plural(count, "note")}.`);
@@ -225,9 +229,6 @@ export function RenameTagDialog({
         void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
         onOpenChange(false);
         onRenamed(body.from, body.to);
-      },
-      onError: (cause) => {
-        toast.error(refusalMessage(cause, "Could not rename the tag."));
       },
     }),
   );
@@ -247,7 +248,9 @@ export function RenameTagDialog({
           className="flex flex-col gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (valid && tag !== null) rename.mutate({ from: tag, to: next });
+            if (valid && tag !== null) {
+              rename.mutate({ from: tag, to: next });
+            }
           }}
         >
           <Input
@@ -277,4 +280,4 @@ export function RenameTagDialog({
       </DialogContent>
     </Dialog>
   );
-}
+};

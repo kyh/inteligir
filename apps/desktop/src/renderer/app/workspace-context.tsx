@@ -1,6 +1,7 @@
 import { partialMatchKey, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
-import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
+import { ThemeProvider, useTheme } from "@repo/ui/lib/theme";
+import type { Theme } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
@@ -34,26 +35,25 @@ export interface WorkspaceRuntime {
 
 const WorkspaceContext = createContext<WorkspaceRuntime | null>(null);
 
-export function useWorkspace(): WorkspaceRuntime {
+export const useWorkspace = (): WorkspaceRuntime => {
   const runtime = useContext(WorkspaceContext);
   if (runtime === null) {
     throw new Error("useWorkspace must be used inside WorkspaceProvider");
   }
   return runtime;
-}
+};
 
-function isUnlinkedMentionsQuery(queryKey: readonly unknown[]): boolean {
-  return partialMatchKey(queryKey, orpc.knowledge.unlinkedMentions.key());
-}
+const isUnlinkedMentionsQuery = (queryKey: readonly unknown[]): boolean =>
+  partialMatchKey(queryKey, orpc.knowledge.unlinkedMentions.key());
 
-export function applyChangedMessage(
+export const applyChangedMessage = (
   queryClient: QueryClient,
   notifyDoc: (docId: string | null) => void,
   notifyThread: ThreadListener,
   message: ChangedMessage,
-): void {
+): void => {
   switch (message.entity) {
-    case "vault":
+    case "vault": {
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: orpc.vault.tree.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
@@ -71,7 +71,8 @@ export function applyChangedMessage(
         void queryClient.invalidateQueries({ queryKey: orpc.vault.status.key() });
       }
       break;
-    case "doc":
+    }
+    case "doc": {
       // The note's bytes are not query state, so content-changed goes to the
       // open note's reader alone; a query alongside bought a second read of the
       // same bytes. Knowledge is swept whole: this doc's links are some other
@@ -81,37 +82,53 @@ export function applyChangedMessage(
       if (message.changes.includes("content-changed")) {
         notifyDoc(message.id);
         void queryClient.invalidateQueries({
-          queryKey: orpc.knowledge.key(),
           predicate: (query) => !isUnlinkedMentionsQuery(query.queryKey),
+          queryKey: orpc.knowledge.key(),
         });
       }
       break;
-    case "thread":
+    }
+    case "thread": {
       void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
       notifyThread(message);
       break;
+    }
+    default: {
+      const exhaustive: never = message;
+      return exhaustive;
+    }
   }
-}
+};
 
 // The ws bus sweeps every cached family, so react-query's defaults are pure
 // cost: refetch-on-focus re-ran a full vault walk and a `git status` on every
 // alt-tab back. A query the bus does not cover opts out per call.
-export function createWorkspaceQueryClient(): QueryClient {
-  return new QueryClient({
+export const createWorkspaceQueryClient = (): QueryClient =>
+  new QueryClient({
     defaultOptions: {
-      queries: { staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false },
+      queries: { refetchOnReconnect: false, refetchOnWindowFocus: false, staleTime: Infinity },
     },
   });
-}
 
 // The whole vocabulary, not a list: a list claims which kinds a gap can hide.
 const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
-  type: "changed",
-  entity: "thread",
   changes: THREAD_CHANGE_KINDS,
+  entity: "thread",
+  type: "changed",
 };
 
-export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+// The editor keys off `data-theme` on :root, the chrome off ThemeProvider's
+// `.dark` class; stamping the resolved theme (never "system") keeps them agreeing.
+const EditorThemeCarrier = () => {
+  const { resolved } = useTheme();
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolved;
+  }, [resolved]);
+  return null;
+};
+
+export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) => {
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [runtime] = useState(() => {
     const queryClient = createWorkspaceQueryClient();
     const docListeners = new Set<DocListener>();
@@ -147,7 +164,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       docEvents,
       threadEvents,
     };
-    return { queryClient, notifyDoc, notifyThread, contextValue };
+    return { contextValue, notifyDoc, notifyThread, queryClient };
   });
 
   // Constructed inside the effect: dispose() is permanent, so a client held in
@@ -155,8 +172,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const invalidation = new InvalidationClient({
       createSocket: () => browserInvalidationSocket(workspaceSocketUrl(socketOrigin())),
-      onChanged: (message) =>
-        applyChangedMessage(runtime.queryClient, runtime.notifyDoc, runtime.notifyThread, message),
+      onChanged: (message) => {
+        applyChangedMessage(runtime.queryClient, runtime.notifyDoc, runtime.notifyThread, message);
+      },
       // System status is swept too: a dropped socket most likely means the
       // server restarted.
       onReconnected: () => {
@@ -176,14 +194,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     };
   }, [runtime]);
 
-  const [theme, setThemeState] = useState<Theme>(readTheme);
-  const setTheme = (next: Theme): void => {
+  const [theme, setTheme] = useState<Theme>(readTheme);
+  const chooseTheme = (next: Theme): void => {
     writeTheme(next);
-    setThemeState(next);
+    setTheme(next);
   };
 
   return (
-    <ThemeProvider theme={theme} setTheme={setTheme}>
+    <ThemeProvider theme={theme} setTheme={chooseTheme}>
       <EditorThemeCarrier />
       <RadiusProvider radius="rounded">
         <SizeProvider size="compact">
@@ -196,14 +214,4 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       </RadiusProvider>
     </ThemeProvider>
   );
-}
-
-// The editor keys off `data-theme` on :root, the chrome off ThemeProvider's
-// `.dark` class; stamping the resolved theme (never "system") keeps them agreeing.
-function EditorThemeCarrier() {
-  const { resolved } = useTheme();
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolved;
-  }, [resolved]);
-  return null;
-}
+};

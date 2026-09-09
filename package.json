@@ -1,6 +1,7 @@
 {
   "name": "inteligir-monorepo",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "turbo run build",
     "clean": "git clean -xdf .cache .turbo node_modules apps/*/.cache apps/*/.expo apps/*/.output apps/*/.tanstack apps/*/.turbo apps/*/.wrangler apps/*/android apps/*/dist apps/*/ios apps/*/node_modules packages/*/.cache packages/*/.turbo packages/*/dist packages/*/node_modules tools/*/.cache tools/*/.turbo tools/*/node_modules",
@@ -13,7 +14,7 @@
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
     "knip": "knip",
-    "lint": "oxlint",
+    "lint": "oxlint --report-unused-disable-directives",
     "lint:fix": "oxlint --fix",
     "package:cli": "turbo run build --filter=inteligir",
     "package:desktop": "turbo run package --filter=@repo/desktop",
@@ -25,14 +26,14 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
   },
   "devDependencies": {
-    "@kyh/oxlint": "^0.2.0",
     "dotenv-cli": "^11.0.0",
     "knip": "^6.34.0",
     "oxfmt": "^0.65.0",
     "oxlint": "^1.81.0",
     "oxlint-tsgolint": "^7.0.2001",
     "turbo": "^2.10.12",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "ultracite": "^7.11.0"
   },
   "engines": {
     "node": "24.x"

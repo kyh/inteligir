@@ -11,7 +11,8 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-
 import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { DragEvent } from "react";
 import type { TreeSort } from "../prefs";
 import { absoluteEntryPath, planMove } from "./tree-ops";
 import type { TreeState } from "./tree-state";
@@ -63,9 +64,8 @@ export interface FileTreeProps {
 }
 
 // a file row stands for its folder: dropping beside a note puts the entry next to it
-function dropDirFor(node: TreeNode): string {
-  return node.kind === "dir" ? node.path : dirnamePath(node.path);
-}
+const dropDirFor = (node: TreeNode): string =>
+  node.kind === "dir" ? node.path : dirnamePath(node.path);
 
 interface TreeNode {
   path: string;
@@ -77,30 +77,36 @@ interface TreeNode {
 
 const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-function compareNodes(a: TreeNode, b: TreeNode, sort: TreeSort): number {
-  if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
+const compareNodes = (a: TreeNode, b: TreeNode, sort: TreeSort): number => {
+  if (a.kind !== b.kind) {
+    return a.kind === "dir" ? -1 : 1;
+  }
   if (sort === "modified" && a.kind === "file") {
     const byTime = (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0);
-    if (byTime !== 0) return byTime;
+    if (byTime !== 0) {
+      return byTime;
+    }
   }
   return byName.compare(a.name, b.name);
-}
+};
 
-function sortTree(nodes: TreeNode[], sort: TreeSort): void {
+const sortTree = (nodes: TreeNode[], sort: TreeSort): void => {
   nodes.sort((a, b) => compareNodes(a, b, sort));
-  for (const node of nodes) sortTree(node.children, sort);
-}
+  for (const node of nodes) {
+    sortTree(node.children, sort);
+  }
+};
 
-function buildTree(entries: readonly VaultEntry[], sort: TreeSort) {
+const buildTree = (entries: readonly VaultEntry[], sort: TreeSort) => {
   const roots: TreeNode[] = [];
   const byPath = new Map<string, TreeNode>();
   for (const entry of entries) {
     const node: TreeNode = {
-      path: entry.path,
-      name: basenamePath(entry.path),
+      children: [],
       kind: entry.kind,
       modifiedMs: entry.kind === "file" ? (entry.modifiedMs ?? null) : null,
-      children: [],
+      name: basenamePath(entry.path),
+      path: entry.path,
     };
     byPath.set(entry.path, node);
     const parentDir = dirnamePath(entry.path);
@@ -109,22 +115,28 @@ function buildTree(entries: readonly VaultEntry[], sort: TreeSort) {
   }
   sortTree(roots, sort);
   return roots;
-}
+};
 
 // the matches and every folder above them, so a folder holding a match is never hidden
-function filteredPaths(nodes: readonly TreeNode[], needle: string): ReadonlySet<string> {
+const filteredPaths = (nodes: readonly TreeNode[], needle: string): ReadonlySet<string> => {
   const kept = new Set<string>();
   const visit = (node: TreeNode): boolean => {
     let keep = node.name.toLowerCase().includes(needle);
     for (const child of node.children) {
-      if (visit(child)) keep = true;
+      if (visit(child)) {
+        keep = true;
+      }
     }
-    if (keep) kept.add(node.path);
+    if (keep) {
+      kept.add(node.path);
+    }
     return keep;
   };
-  for (const node of nodes) visit(node);
+  for (const node of nodes) {
+    visit(node);
+  }
   return kept;
-}
+};
 
 type EditingState =
   | { mode: "rename"; path: string }
@@ -133,7 +145,7 @@ type EditingState =
 type Row = { kind: "node"; node: TreeNode; depth: number } | { kind: "editor"; depth: number };
 
 // while a filter is on, every kept folder is open: a match is worth nothing folded away
-function visibleRows(
+const visibleRows = (
   nodes: readonly TreeNode[],
   expanded: ReadonlySet<string>,
   kept: ReadonlySet<string> | null,
@@ -141,30 +153,46 @@ function visibleRows(
   rootDir: string,
   depth: number,
   out: Row[],
-): void {
+): void => {
   if (editing?.mode === "create" && editing.parentDir === rootDir && depth === 0) {
-    out.push({ kind: "editor", depth: 0 });
+    out.push({ depth: 0, kind: "editor" });
   }
   for (const node of nodes) {
-    if (kept !== null && !kept.has(node.path)) continue;
-    out.push({ kind: "node", node, depth });
+    if (kept !== null && !kept.has(node.path)) {
+      continue;
+    }
+    out.push({ depth, kind: "node", node });
     if (node.kind === "dir" && (kept !== null || expanded.has(node.path))) {
       if (editing?.mode === "create" && editing.parentDir === node.path) {
-        out.push({ kind: "editor", depth: depth + 1 });
+        out.push({ depth: depth + 1, kind: "editor" });
       }
       visibleRows(node.children, expanded, kept, editing, rootDir, depth + 1, out);
     }
   }
-}
+};
 
-function copyText(text: string): void {
-  navigator.clipboard.writeText(text).then(
-    () => toast.success("Copied"),
-    () => toast.error("Could not copy"),
-  );
-}
+const copyText = (text: string): void => {
+  void (async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      toast.error("Could not copy");
+      return;
+    }
+    toast.success("Copied");
+  })();
+};
 
-function InlineNameInput({
+const withAncestorsExpanded = (current: ReadonlySet<string>, path: string): Set<string> => {
+  const next = new Set(current);
+  const segments = path.split("/");
+  for (let i = 1; i < segments.length; i += 1) {
+    next.add(segments.slice(0, i).join("/"));
+  }
+  return next;
+};
+
+const InlineNameInput = ({
   initialValue,
   depth,
   onCommit,
@@ -174,7 +202,7 @@ function InlineNameInput({
   depth: number;
   onCommit: (name: string) => void;
   onCancel: () => void;
-}) {
+}) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cancelledRef = useRef(false);
   useEffect(() => {
@@ -217,9 +245,9 @@ function InlineNameInput({
       />
     </div>
   );
-}
+};
 
-function EmptyRows({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: () => void }) {
+const EmptyRows = ({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: () => void }) => {
   if (loadState === "loading") {
     return <p className="px-3 py-2 text-xs text-muted-foreground">Loading…</p>;
   }
@@ -238,9 +266,159 @@ function EmptyRows({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: 
       </button>
     </div>
   );
+};
+
+const rowClassName = (isOpen: boolean, isDropTarget: boolean, isDragged: boolean): string =>
+  cn(
+    "group flex w-full cursor-default items-center gap-1 h-chrome-row pr-1 text-sm outline-none select-none",
+    "hover:bg-muted/60 focus-visible:bg-muted",
+    isOpen ? "bg-muted text-foreground" : "text-foreground/80",
+    isDropTarget && "bg-primary/10 text-foreground",
+    isDragged && "opacity-50",
+  );
+
+interface RowMenuProps {
+  menu: { node: TreeNode; anchor: HTMLElement } | null;
+  onClose: () => void;
+  onStartCreate: (parentDir: string, kind: "file" | "dir") => void;
+  onStartRename: (path: string) => void;
+  onMoveRequest: (path: string) => void;
+  ops: TreeOps;
+  pinnedPaths: ReadonlySet<string>;
+  vaultRoot: string | null;
 }
 
-export function FileTree({
+// The row's verbs, over whichever row opened it. Lifted out of the tree so the tree renders rows.
+const RowMenu = ({
+  menu,
+  onClose,
+  onStartCreate,
+  onStartRename,
+  onMoveRequest,
+  ops,
+  pinnedPaths,
+  vaultRoot,
+}: RowMenuProps) => (
+  <DropdownMenu
+    open={menu !== null}
+    onOpenChange={(open) => {
+      if (!open) {
+        onClose();
+      }
+    }}
+  >
+    {menu === null ? null : (
+      <DropdownMenuContent anchor={menu.anchor} align="start" side="bottom">
+        {menu.node.kind === "dir" ? (
+          <>
+            <DropdownMenuItem
+              onClick={() => {
+                const dirPath = menu.node.path;
+                onClose();
+                onStartCreate(dirPath, "file");
+              }}
+            >
+              New note
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                const dirPath = menu.node.path;
+                onClose();
+                onStartCreate(dirPath, "dir");
+              }}
+            >
+              New folder
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+        <DropdownMenuItem
+          onClick={() => {
+            const target = menu.node;
+            onClose();
+            onStartRename(target.path);
+          }}
+        >
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            const target = menu.node.path;
+            onClose();
+            copyText(target);
+          }}
+        >
+          Copy path
+        </DropdownMenuItem>
+        {vaultRoot === null ? null : (
+          <DropdownMenuItem
+            onClick={() => {
+              const target = menu.node.path;
+              onClose();
+              copyText(absoluteEntryPath(vaultRoot, target));
+            }}
+          >
+            Copy absolute path
+          </DropdownMenuItem>
+        )}
+        {ops.revealEntry === undefined ? null : (
+          <DropdownMenuItem
+            onClick={() => {
+              const target = menu.node.path;
+              onClose();
+              ops.revealEntry?.(target);
+            }}
+          >
+            Reveal in Finder
+          </DropdownMenuItem>
+        )}
+        {ops.openEntry === undefined || menu.node.kind !== "file" ? null : (
+          <DropdownMenuItem
+            onClick={() => {
+              const target = menu.node.path;
+              onClose();
+              ops.openEntry?.(target);
+            }}
+          >
+            Open with default app
+          </DropdownMenuItem>
+        )}
+        {menu.node.kind === "file" && isDocPath(menu.node.path) ? (
+          <DropdownMenuItem
+            onClick={() => {
+              const target = menu.node.path;
+              onClose();
+              ops.setPinned(target, !pinnedPaths.has(target));
+            }}
+          >
+            {pinnedPaths.has(menu.node.path) ? "Unpin" : "Pin"}
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem
+          onClick={() => {
+            const target = menu.node;
+            onClose();
+            onMoveRequest(target.path);
+          }}
+        >
+          Move to…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => {
+            const target = menu.node;
+            onClose();
+            ops.removeEntry(target.path, target.kind);
+          }}
+        >
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    )}
+  </DropdownMenu>
+);
+
+export const FileTree = ({
   entries,
   loadState,
   onRetry,
@@ -256,7 +434,7 @@ export function FileTree({
   sort,
   filter,
   vaultRoot,
-}: FileTreeProps) {
+}: FileTreeProps) => {
   const { expanded, setExpanded, activePath, setActivePath } = state;
   const roots = useMemo(() => buildTree(entries, sort), [entries, sort]);
   const needle = filter.trim().toLowerCase();
@@ -281,7 +459,9 @@ export function FileTree({
   // a row answers for itself even when it refuses, or the refusal would bubble to the
   // container and land the entry at the root instead
   const dragOverDir = (event: DragEvent, dir: string): void => {
-    if (dragging === null) return;
+    if (dragging === null) {
+      return;
+    }
     event.stopPropagation();
     if (!planMove(dragging, dir).ok) {
       setDropDir(null);
@@ -293,7 +473,9 @@ export function FileTree({
   };
 
   const dropIntoDir = (event: DragEvent, dir: string): void => {
-    if (dragging === null) return;
+    if (dragging === null) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     const from = dragging;
@@ -309,43 +491,47 @@ export function FileTree({
   const activeEditing: EditingState | null =
     pendingCreate === null
       ? editing
-      : { mode: "create", kind: pendingCreate.kind, parentDir: pendingCreate.parentDir };
+      : { kind: pendingCreate.kind, mode: "create", parentDir: pendingCreate.parentDir };
+  const openParentForCreate = (create: PendingCreate | null): void => {
+    if (create !== null && create.parentDir !== "") {
+      setExpanded((current) => new Set(current).add(create.parentDir));
+    }
+  };
   const [expandedForCreate, setExpandedForCreate] = useState<PendingCreate | null>(null);
   if (expandedForCreate !== pendingCreate) {
     setExpandedForCreate(pendingCreate);
-    if (pendingCreate !== null && pendingCreate.parentDir !== "") {
-      setExpanded((current) => new Set(current).add(pendingCreate.parentDir));
-    }
+    openParentForCreate(pendingCreate);
   }
   const stopEditing = (): void => {
     setEditing(null);
-    if (pendingCreate !== null) onPendingCreateDone();
+    if (pendingCreate !== null) {
+      onPendingCreateDone();
+    }
   };
 
   // Keyed on entries alone: reconciling on every activePath change would clear
   // an optimistic rename-follow before the refetched tree confirms it.
-  const [reconciledEntries, setReconciledEntries] = useState(entries);
-  if (reconciledEntries !== entries) {
-    setReconciledEntries(entries);
+  const clearActiveIfGone = (): void => {
     if (activePath !== null && !entries.some((entry) => entry.path === activePath)) {
       setActivePath(null);
     }
+  };
+  const [reconciledEntries, setReconciledEntries] = useState(entries);
+  if (reconciledEntries !== entries) {
+    setReconciledEntries(entries);
+    clearActiveIfGone();
   }
 
   // Seeded null so a tree mounting on an already-open note expands to it.
+  const expandToOpenNote = (path: string | null): void => {
+    if (path !== null && path.includes("/")) {
+      setExpanded((current) => withAncestorsExpanded(current, path));
+    }
+  };
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   if (expandedFor !== openPath) {
     setExpandedFor(openPath);
-    if (openPath !== null && openPath.includes("/")) {
-      setExpanded((current) => {
-        const next = new Set(current);
-        const segments = openPath.split("/");
-        for (let i = 1; i < segments.length; i += 1) {
-          next.add(segments.slice(0, i).join("/"));
-        }
-        return next;
-      });
-    }
+    expandToOpenNote(openPath);
   }
 
   const rows: Row[] = [];
@@ -370,7 +556,7 @@ export function FileTree({
   const focusPath = (path: string): void => {
     setActivePath(path);
     for (const candidate of treeRef.current?.querySelectorAll<HTMLElement>("[data-path]") ?? []) {
-      if (candidate.dataset["path"] === path) {
+      if (candidate.dataset.path === path) {
         candidate.focus();
         return;
       }
@@ -385,45 +571,55 @@ export function FileTree({
     }
   };
 
+  const focusRow = (row: Extract<Row, { kind: "node" }> | undefined): void => {
+    if (row) {
+      focusPath(row.node.path);
+    }
+  };
+
+  // Right opens a folder, then walks into it; left closes it, else climbs to its parent.
+  const stepIn = (node: TreeNode, index: number): void => {
+    if (node.kind !== "dir") {
+      return;
+    }
+    if (!expanded.has(node.path)) {
+      toggleDir(node.path);
+      return;
+    }
+    const next = nodeRows[index + 1];
+    if (next && dirnamePath(next.node.path) === node.path) {
+      focusPath(next.node.path);
+    }
+  };
+
+  const stepOut = (node: TreeNode): void => {
+    if (node.kind === "dir" && expanded.has(node.path)) {
+      toggleDir(node.path);
+      return;
+    }
+    const parent = dirnamePath(node.path);
+    if (parent !== rootDir) {
+      focusPath(parent);
+    }
+  };
+
   const handleRowKeyDown = (event: React.KeyboardEvent, node: TreeNode): void => {
     const index = nodeRows.findIndex((row) => row.node.path === node.path);
     switch (event.key) {
       case "ArrowDown": {
-        const next = nodeRows[index + 1];
-        if (next) {
-          focusPath(next.node.path);
-        }
+        focusRow(nodeRows[index + 1]);
         break;
       }
       case "ArrowUp": {
-        const previous = nodeRows[index - 1];
-        if (previous) {
-          focusPath(previous.node.path);
-        }
+        focusRow(nodeRows[index - 1]);
         break;
       }
       case "ArrowRight": {
-        if (node.kind === "dir") {
-          if (!expanded.has(node.path)) {
-            toggleDir(node.path);
-          } else {
-            const next = nodeRows[index + 1];
-            if (next && dirnamePath(next.node.path) === node.path) {
-              focusPath(next.node.path);
-            }
-          }
-        }
+        stepIn(node, index);
         break;
       }
       case "ArrowLeft": {
-        if (node.kind === "dir" && expanded.has(node.path)) {
-          toggleDir(node.path);
-        } else {
-          const parent = dirnamePath(node.path);
-          if (parent !== rootDir) {
-            focusPath(parent);
-          }
-        }
+        stepOut(node);
         break;
       }
       case "Enter":
@@ -432,25 +628,20 @@ export function FileTree({
         break;
       }
       case "Home": {
-        const first = nodeRows[0];
-        if (first) {
-          focusPath(first.node.path);
-        }
+        focusRow(nodeRows[0]);
         break;
       }
       case "End": {
-        const last = nodeRows.at(-1);
-        if (last) {
-          focusPath(last.node.path);
-        }
+        focusRow(nodeRows.at(-1));
         break;
       }
       case "F2": {
         setEditing({ mode: "rename", path: node.path });
         break;
       }
-      default:
+      default: {
         return;
+      }
     }
     event.preventDefault();
     event.stopPropagation();
@@ -478,6 +669,36 @@ export function FileTree({
     }
   };
 
+  const createRow = (row: Extract<Row, { kind: "editor" }>) => {
+    if (activeEditing?.mode !== "create") {
+      return null;
+    }
+    const createState = activeEditing;
+    return (
+      <InlineNameInput
+        key="create-editor"
+        initialValue=""
+        depth={row.depth}
+        onCommit={(name) => {
+          commitCreate(createState, name);
+        }}
+        onCancel={stopEditing}
+      />
+    );
+  };
+
+  const renameRow = (row: Extract<Row, { kind: "node" }>) => (
+    <InlineNameInput
+      key={row.node.path}
+      initialValue={row.node.name}
+      depth={row.depth}
+      onCommit={(name) => {
+        commitRename(row.node, name);
+      }}
+      onCancel={stopEditing}
+    />
+  );
+
   // The tab stop must be a visible row, or the tree has no reachable stop.
   const visible = (path: string | null): string | null =>
     path !== null && nodeRows.some((row) => row.node.path === path) ? path : null;
@@ -485,6 +706,7 @@ export function FileTree({
 
   return (
     <div
+      tabIndex={0}
       ref={treeRef}
       role="tree"
       aria-label="Vault files"
@@ -492,36 +714,20 @@ export function FileTree({
         "flex min-h-full flex-col py-1",
         dropDir === rootDir && dragging !== null && "ring-1 ring-primary/40 ring-inset",
       )}
-      onDragOver={(event) => dragOverDir(event, rootDir)}
-      onDrop={(event) => dropIntoDir(event, rootDir)}
+      onDragOver={(event) => {
+        dragOverDir(event, rootDir);
+      }}
+      onDrop={(event) => {
+        dropIntoDir(event, rootDir);
+      }}
     >
       {rows.map((row) => {
         if (row.kind === "editor") {
-          if (activeEditing?.mode !== "create") {
-            return null;
-          }
-          const createState = activeEditing;
-          return (
-            <InlineNameInput
-              key="create-editor"
-              initialValue=""
-              depth={row.depth}
-              onCommit={(name) => commitCreate(createState, name)}
-              onCancel={stopEditing}
-            />
-          );
+          return createRow(row);
         }
-        const node = row.node;
+        const { node } = row;
         if (activeEditing?.mode === "rename" && activeEditing.path === node.path) {
-          return (
-            <InlineNameInput
-              key={node.path}
-              initialValue={node.name}
-              depth={row.depth}
-              onCommit={(name) => commitRename(node, name)}
-              onCancel={stopEditing}
-            />
-          );
+          return renameRow(row);
         }
         const isOpen = node.kind === "file" && node.path === openPath;
         const isExpanded = node.kind === "dir" && (kept !== null || expanded.has(node.path));
@@ -536,13 +742,7 @@ export function FileTree({
             data-path={node.path}
             tabIndex={node.path === tabStopPath ? 0 : -1}
             draggable
-            className={cn(
-              "group flex w-full cursor-default items-center gap-1 h-chrome-row pr-1 text-sm outline-none select-none",
-              "hover:bg-muted/60 focus-visible:bg-muted",
-              isOpen ? "bg-muted text-foreground" : "text-foreground/80",
-              isDropTarget && "bg-primary/10 text-foreground",
-              dragging === node.path && "opacity-50",
-            )}
+            className={rowClassName(isOpen, isDropTarget, dragging === node.path)}
             style={{ paddingLeft: row.depth * 12 + 4 }}
             onClick={() => {
               setActivePath(node.path);
@@ -554,13 +754,21 @@ export function FileTree({
               setDragging(node.path);
             }}
             onDragEnd={endDrag}
-            onDragOver={(event) => dragOverDir(event, dropDirFor(node))}
-            onDrop={(event) => dropIntoDir(event, dropDirFor(node))}
-            onKeyDown={(event) => handleRowKeyDown(event, node)}
-            onFocus={() => setActivePath(node.path)}
+            onDragOver={(event) => {
+              dragOverDir(event, dropDirFor(node));
+            }}
+            onDrop={(event) => {
+              dropIntoDir(event, dropDirFor(node));
+            }}
+            onKeyDown={(event) => {
+              handleRowKeyDown(event, node);
+            }}
+            onFocus={() => {
+              setActivePath(node.path);
+            }}
             onContextMenu={(event) => {
               event.preventDefault();
-              setMenu({ node, anchor: event.currentTarget });
+              setMenu({ anchor: event.currentTarget, node });
             }}
           >
             {node.kind === "dir" ? (
@@ -582,7 +790,7 @@ export function FileTree({
               {...(menu?.node.path === node.path ? { "data-open": "" } : {})}
               onClick={(event) => {
                 event.stopPropagation();
-                setMenu({ node, anchor: event.currentTarget });
+                setMenu({ anchor: event.currentTarget, node });
               }}
             >
               <EllipsisIcon className="size-3.5" />
@@ -596,125 +804,23 @@ export function FileTree({
       {kept !== null && rows.length === 0 ? (
         <p className="px-3 py-2 text-xs text-muted-foreground">Nothing matches the filter.</p>
       ) : null}
-      <DropdownMenu
-        open={menu !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setMenu(null);
-          }
+      <RowMenu
+        menu={menu}
+        onClose={() => {
+          setMenu(null);
         }}
-      >
-        {menu !== null ? (
-          <DropdownMenuContent anchor={menu.anchor} align="start" side="bottom">
-            {menu.node.kind === "dir" ? (
-              <>
-                <DropdownMenuItem
-                  onClick={() => {
-                    const dirPath = menu.node.path;
-                    setMenu(null);
-                    setExpanded((current) => new Set(current).add(dirPath));
-                    setEditing({ mode: "create", kind: "file", parentDir: dirPath });
-                  }}
-                >
-                  New note
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    const dirPath = menu.node.path;
-                    setMenu(null);
-                    setExpanded((current) => new Set(current).add(dirPath));
-                    setEditing({ mode: "create", kind: "dir", parentDir: dirPath });
-                  }}
-                >
-                  New folder
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            ) : null}
-            <DropdownMenuItem
-              onClick={() => {
-                const target = menu.node;
-                setMenu(null);
-                setEditing({ mode: "rename", path: target.path });
-              }}
-            >
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                const target = menu.node.path;
-                setMenu(null);
-                copyText(target);
-              }}
-            >
-              Copy path
-            </DropdownMenuItem>
-            {vaultRoot === null ? null : (
-              <DropdownMenuItem
-                onClick={() => {
-                  const target = menu.node.path;
-                  setMenu(null);
-                  copyText(absoluteEntryPath(vaultRoot, target));
-                }}
-              >
-                Copy absolute path
-              </DropdownMenuItem>
-            )}
-            {ops.revealEntry === undefined ? null : (
-              <DropdownMenuItem
-                onClick={() => {
-                  const target = menu.node.path;
-                  setMenu(null);
-                  ops.revealEntry?.(target);
-                }}
-              >
-                Reveal in Finder
-              </DropdownMenuItem>
-            )}
-            {ops.openEntry === undefined || menu.node.kind !== "file" ? null : (
-              <DropdownMenuItem
-                onClick={() => {
-                  const target = menu.node.path;
-                  setMenu(null);
-                  ops.openEntry?.(target);
-                }}
-              >
-                Open with default app
-              </DropdownMenuItem>
-            )}
-            {menu.node.kind === "file" && isDocPath(menu.node.path) ? (
-              <DropdownMenuItem
-                onClick={() => {
-                  const target = menu.node.path;
-                  setMenu(null);
-                  ops.setPinned(target, !pinnedPaths.has(target));
-                }}
-              >
-                {pinnedPaths.has(menu.node.path) ? "Unpin" : "Pin"}
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuItem
-              onClick={() => {
-                const target = menu.node;
-                setMenu(null);
-                onMoveRequest(target.path);
-              }}
-            >
-              Move to…
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => {
-                const target = menu.node;
-                setMenu(null);
-                ops.removeEntry(target.path, target.kind);
-              }}
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        ) : null}
-      </DropdownMenu>
+        onStartCreate={(parentDir, kind) => {
+          setExpanded((current) => new Set(current).add(parentDir));
+          setEditing({ kind, mode: "create", parentDir });
+        }}
+        onStartRename={(path) => {
+          setEditing({ mode: "rename", path });
+        }}
+        onMoveRequest={onMoveRequest}
+        ops={ops}
+        pinnedPaths={pinnedPaths}
+        vaultRoot={vaultRoot}
+      />
     </div>
   );
-}
+};

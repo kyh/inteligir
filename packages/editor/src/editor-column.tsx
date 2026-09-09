@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import type { KeyboardEvent } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "cn";
@@ -11,29 +12,10 @@ import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 
-export function EditorColumn() {
-  // Never select the content buffer here: typing must re-render only NoteDocument.
-  const kind = useOpenNote((s) => s.openDoc.kind);
-  const docPath = useOpenNotePath();
-  const showRich = useOpenNote(
-    (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
-  );
-
-  if (kind === "none") {
-    return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
-        Select a note to edit, or create one. The agent edits these same files.
-      </div>
-    );
-  }
-
-  if (kind === "loading" || docPath === null) return null;
-
-  // keyed so each note gets fresh undo history and a fresh title element
-  return <NoteDocument key={docPath} path={docPath} showRich={showRich} />;
-}
-
-function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
+/* oxlint-disable jsx-a11y/heading-has-content, jsx-a11y/no-noninteractive-element-interactions --
+   the title heading is a contentEditable editing host: it carries real text at runtime (set
+   imperatively, see below) and keydown belongs on the element being edited. jsx-a11y models neither. */
+const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) => {
   const content = useOpenNote((s) => s.editor.content);
   const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
 
@@ -49,10 +31,14 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
   // the scroller ancestor survives the keyed swap, so it must be reset by hand
   useLayoutEffect(() => {
     const scroller = columnRef.current?.closest("[data-editor-scroller]");
-    if (scroller) scroller.scrollTop = 0;
+    if (scroller) {
+      scroller.scrollTop = 0;
+    }
   }, []);
   useEffect(() => {
-    if (titleRef.current) titleRef.current.textContent = displayName;
+    if (titleRef.current) {
+      titleRef.current.textContent = displayName;
+    }
   }, [displayName, titleRef]);
 
   useEffect(
@@ -67,23 +53,27 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
   const ext = dot > 0 ? fileName.slice(dot) : "";
   const dir = dirnamePath(path);
 
-  const commitTitle = (raw: string) => {
+  const commitTitle = async (raw: string): Promise<void> => {
     const next = raw.trim();
     if (next === "" || next === displayName) {
-      if (titleRef.current) titleRef.current.textContent = displayName;
+      if (titleRef.current) {
+        titleRef.current.textContent = displayName;
+      }
       return;
     }
     // Reject, never sanitize: an unchecked `/` creates folders and Windows-illegal characters break sync.
     const verdict = checkNoteName(`${next}${ext}`);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));
-      if (titleRef.current) titleRef.current.textContent = displayName;
+      if (titleRef.current) {
+        titleRef.current.textContent = displayName;
+      }
       return;
     }
-    void renameEntry(path, joinPath(dir, verdict.name)).then((ok) => {
-      if (!ok && titleRef.current) titleRef.current.textContent = displayName;
-      return undefined;
-    });
+    const ok = await renameEntry(path, joinPath(dir, verdict.name));
+    if (!ok && titleRef.current) {
+      titleRef.current.textContent = displayName;
+    }
   };
 
   // editingRef is armed on focus and disarmed by the blur-commit BEFORE it commits
@@ -97,16 +87,20 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
   });
   useEffect(() => {
     const onWindowBlur = () => {
-      if (editingRef.current) titleRef.current?.blur();
+      if (editingRef.current) {
+        titleRef.current?.blur();
+      }
     };
     window.addEventListener("blur", onWindowBlur);
-    return () => window.removeEventListener("blur", onWindowBlur);
+    return () => {
+      window.removeEventListener("blur", onWindowBlur);
+    };
   }, [titleRef]);
   useEffect(
     () => () => {
       if (editingRef.current) {
         editingRef.current = false;
-        commitTitleRef.current(titleRef.current?.textContent ?? "");
+        void commitTitleRef.current(titleRef.current?.textContent ?? "");
       }
     },
     [titleRef],
@@ -139,7 +133,7 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
         }}
         onBlur={(e) => {
           editingRef.current = false;
-          commitTitle(e.currentTarget.textContent ?? "");
+          void commitTitle(e.currentTarget.textContent ?? "");
         }}
         onKeyDown={onTitleKeyDown}
         className={cn(
@@ -151,13 +145,19 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
         <MarkdownEditor
           path={path}
           value={content}
-          onChange={(md) => editNote(path, md)}
-          onRegisterSerializeFlush={(flush) => registerNoteSerializeFlush(path, flush)}
+          onChange={(md) => {
+            editNote(path, md);
+          }}
+          onRegisterSerializeFlush={(flush) => {
+            registerNoteSerializeFlush(path, flush);
+          }}
         />
       ) : (
         <textarea
           value={content}
-          onChange={(e) => editNote(path, e.target.value)}
+          onChange={(e) => {
+            editNote(path, e.target.value);
+          }}
           spellCheck={false}
           className={cn(
             EDITOR_COLUMN_PX,
@@ -168,4 +168,28 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
       )}
     </div>
   );
-}
+};
+
+export const EditorColumn = () => {
+  // Never select the content buffer here: typing must re-render only NoteDocument.
+  const kind = useOpenNote((s) => s.openDoc.kind);
+  const docPath = useOpenNotePath();
+  const showRich = useOpenNote(
+    (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
+  );
+
+  if (kind === "none") {
+    return (
+      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
+        Select a note to edit, or create one. The agent edits these same files.
+      </div>
+    );
+  }
+
+  if (kind === "loading" || docPath === null) {
+    return null;
+  }
+
+  // keyed so each note gets fresh undo history and a fresh title element
+  return <NoteDocument key={docPath} path={docPath} showRich={showRich} />;
+};

@@ -56,7 +56,7 @@ const ALLOWED_EXPORTS = new Map<string, string>([
   ],
 ]);
 
-const SOURCE_FILE = /\.tsx?$/;
+const SOURCE_FILE = /\.tsx?$/u;
 
 interface BraceEntry {
   original: string;
@@ -64,24 +64,26 @@ interface BraceEntry {
 }
 
 // the one tokenization both the export walk and the import walk read.
-function braceEntries(body: string): BraceEntry[] {
+const braceEntries = (body: string): BraceEntry[] => {
   const entries: BraceEntry[] = [];
   for (const entry of body.split(",")) {
-    const cleaned = entry.replace(/^\s*type\s+/, "").trim();
-    if (cleaned === "") continue;
-    const parts = cleaned.split(/\s+as\s+/);
+    const cleaned = entry.replace(/^\s*type\s+/u, "").trim();
+    if (cleaned === "") {
+      continue;
+    }
+    const parts = cleaned.split(/\s+as\s+/u);
     const original = parts[0]?.trim();
-    const exported = parts[parts.length - 1]?.trim();
+    const exported = parts.at(-1)?.trim();
     if (original !== undefined && original !== "" && exported !== undefined && exported !== "") {
-      entries.push({ original, exported });
+      entries.push({ exported, original });
     }
   }
   return entries;
-}
+};
 
-function exportedNames(relativePath: string): string[] {
+const exportedNames = (relativePath: string): string[] => {
   const source = sourceOf(relativePath);
-  if (/^export\s*\*/m.test(source)) {
+  if (/^export\s*\*/mu.test(source)) {
     throw new Error(
       `${relativePath}: contains "export *", which this guard cannot attribute names to.\n` +
         `  fix: re-export by name, or teach ui-orphan-exports.test.ts the shape`,
@@ -89,25 +91,31 @@ function exportedNames(relativePath: string): string[] {
   }
   const names: string[] = [];
   const decl =
-    /^export\s+(?:async\s+)?(?:const|let|function|class|interface|type|enum)\s+([A-Za-z_$][\w$]*)/gm;
+    /^export\s+(?:async\s+)?(?:const|let|function|class|interface|type|enum)\s+(?<name>[A-Za-z_$][\w$]*)/gmu;
   let match = decl.exec(source);
   while (match !== null) {
-    const name = match[1];
-    if (name !== undefined) names.push(name);
+    const name = match.groups?.name;
+    if (name !== undefined) {
+      names.push(name);
+    }
     match = decl.exec(source);
   }
-  const list = /^export\s+(?:type\s+)?\{([^}]*)\}/gm;
+  const list = /^export\s+(?:type\s+)?\{(?<body>[^}]*)\}/gmu;
   match = list.exec(source);
   while (match !== null) {
-    const body = match[1];
+    const body = match.groups?.body;
     if (body !== undefined) {
-      for (const { exported } of braceEntries(body)) names.push(exported);
+      for (const { exported } of braceEntries(body)) {
+        names.push(exported);
+      }
     }
     match = list.exec(source);
   }
-  if (/^export\s+default\b/m.test(source)) names.push("default");
+  if (/^export\s+default\b/mu.test(source)) {
+    names.push("default");
+  }
   return [...new Set(names)];
-}
+};
 
 interface Consumption {
   names: Set<string>;
@@ -116,49 +124,55 @@ interface Consumption {
 }
 
 // the negated-quote body keeps the lazy clause from crossing into another statement's specifier.
-function consumptionOf(source: string, specifier: string): Consumption {
-  const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const consumptionOf = (source: string, specifier: string): Consumption => {
+  const escaped = specifier.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const statement = new RegExp(
     String.raw`(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?([^;'"]*?)\s*from\s*["']${escaped}["']`,
-    "g",
+    "gu",
   );
-  const result: Consumption = { names: new Set(), namespace: false, defaultImport: false };
+  const result: Consumption = { defaultImport: false, names: new Set(), namespace: false };
   let match = statement.exec(source);
   while (match !== null) {
     const clause = match[1] ?? "";
     if (clause.startsWith("*")) {
       result.namespace = true;
     } else {
-      const braces = /\{([^}]*)\}/.exec(clause);
-      if (braces?.[1] !== undefined) {
-        for (const { original } of braceEntries(braces[1])) result.names.add(original);
+      const braces = /\{(?<body>[^}]*)\}/u.exec(clause);
+      const bracesBody = braces?.groups?.body;
+      if (bracesBody !== undefined) {
+        for (const { original } of braceEntries(bracesBody)) {
+          result.names.add(original);
+        }
       }
       const beforeBraces = braces === null ? clause : clause.slice(0, braces.index);
-      if (/^[A-Za-z_$][\w$]*\s*,?\s*$/.test(beforeBraces.trim()) && beforeBraces.trim() !== "") {
+      if (/^[A-Za-z_$][\w$]*\s*,?\s*$/u.test(beforeBraces.trim()) && beforeBraces.trim() !== "") {
         result.defaultImport = true;
       }
     }
     match = statement.exec(source);
   }
   return result;
-}
+};
 
-function isNonConsumer(relativePath: string): boolean {
-  return NON_CONSUMER_DIRS.some((dir) => relativePath.startsWith(`${dir}/`));
-}
+const isNonConsumer = (relativePath: string): boolean =>
+  NON_CONSUMER_DIRS.some((dir) => relativePath.startsWith(`${dir}/`));
 
 interface UiFile {
   file: string;
   specifier: string;
 }
 
-function uiFiles(): UiFile[] {
+const uiFiles = (): UiFile[] => {
   const found: UiFile[] = [];
   for (const root of sweptRoots()) {
     const rootDir = path.join(REPO_ROOT, UI_DIR, "src", root.dir);
-    if (!fs.existsSync(rootDir)) continue;
+    if (!fs.existsSync(rootDir)) {
+      continue;
+    }
     for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !SOURCE_FILE.test(entry.name)) continue;
+      if (!entry.isFile() || !SOURCE_FILE.test(entry.name)) {
+        continue;
+      }
       const name = entry.name.replace(SOURCE_FILE, "");
       found.push({
         file: `${UI_DIR}/src/${root.dir}/${entry.name}`,
@@ -167,15 +181,14 @@ function uiFiles(): UiFile[] {
     }
   }
   return found;
-}
+};
 
 // tests included; a held file is not one, or its imports would keep every helper it reaches alive
 // with no row naming them.
-function consumerFiles(): string[] {
-  return workspaces()
+const consumerFiles = (): string[] =>
+  workspaces()
     .flatMap((workspace) => workspaceSourceFiles(workspace))
     .filter((file) => !isNonConsumer(file) && !AWAITING_CONSUMER.has(file));
-}
 
 describe("no orphan @repo/ui exports", () => {
   const files = uiFiles();
@@ -188,21 +201,33 @@ describe("no orphan @repo/ui exports", () => {
     const orphans: string[] = [];
 
     for (const { file, specifier } of files) {
-      if (AWAITING_CONSUMER.has(file)) continue;
+      if (AWAITING_CONSUMER.has(file)) {
+        continue;
+      }
       const names = exportedNames(file);
       const unconsumed = new Set(names.filter((name) => !ALLOWED_EXPORTS.has(`${file}#${name}`)));
       for (const consumer of consumers) {
-        if (unconsumed.size === 0) break;
-        if (consumer === file) continue;
+        if (unconsumed.size === 0) {
+          break;
+        }
+        if (consumer === file) {
+          continue;
+        }
         const source = sourceOf(consumer);
-        if (!source.includes(specifier)) continue;
+        if (!source.includes(specifier)) {
+          continue;
+        }
         const consumed = consumptionOf(source, specifier);
         if (consumed.namespace) {
           unconsumed.clear();
           break;
         }
-        for (const name of consumed.names) unconsumed.delete(name);
-        if (consumed.defaultImport) unconsumed.delete("default");
+        for (const name of consumed.names) {
+          unconsumed.delete(name);
+        }
+        if (consumed.defaultImport) {
+          unconsumed.delete("default");
+        }
       }
       for (const name of [...unconsumed].toSorted()) {
         orphans.push(`  ${file} — ${name}`);
@@ -217,8 +242,9 @@ describe("no orphan @repo/ui exports", () => {
         `there is not the same claim as the product needing it.\n` +
         `Wire each up, delete it, or record it: a whole component held for a coming\n` +
         `surface goes in AWAITING_CONSUMER; a single export that must stay goes in\n` +
-        `ALLOWED_EXPORTS with its reason (tools/repo-guards/src/ui-orphan-exports.test.ts):\n` +
-        orphans.join("\n"),
+        `ALLOWED_EXPORTS with its reason (tools/repo-guards/src/ui-orphan-exports.test.ts):\n${orphans.join(
+          "\n",
+        )}`,
     ).toEqual([]);
   });
 
@@ -233,8 +259,12 @@ describe("no orphan @repo/ui exports", () => {
   it("no ALLOWED_EXPORTS row outlives its export", () => {
     const stale = [...ALLOWED_EXPORTS.keys()].filter((key) => {
       const [file, name] = key.split("#");
-      if (file === undefined || name === undefined) return true;
-      if (!fs.existsSync(path.join(REPO_ROOT, file))) return true;
+      if (file === undefined || name === undefined) {
+        return true;
+      }
+      if (!fs.existsSync(path.join(REPO_ROOT, file))) {
+        return true;
+      }
       return !exportedNames(file).includes(name);
     });
     expect(

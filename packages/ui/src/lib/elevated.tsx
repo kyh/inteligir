@@ -11,7 +11,7 @@ interface ElevatedProps extends ComponentProps<"div"> {
   shadowLevel?: number;
 }
 
-function Elevated({ offset, shadowLevel, className, children, ...props }: ElevatedProps) {
+const Elevated = ({ offset, shadowLevel, className, children, ...props }: ElevatedProps) => {
   const substrate = useSurface();
   const level = Math.min(substrate + offset, 8);
   return (
@@ -21,6 +21,6 @@ function Elevated({ offset, shadowLevel, className, children, ...props }: Elevat
       </div>
     </SurfaceProvider>
   );
-}
+};
 
 export { Elevated };

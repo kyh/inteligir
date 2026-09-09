@@ -14,12 +14,14 @@ describe("comment range decoration", () => {
   it("tints the text between a marker pair and leaves the tail plain", () => {
     const parsed = parseMarkdown("%%i:abc:start%%tinted words%%i:abc:end%% and plain tail\n");
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) {
+      return;
+    }
     const view = render(<EditorHarness value={parsed.value} store={STORE} />);
     const tinted = view.getByText("tinted words");
     const tintedLeaf = tinted.closest('[data-slate-leaf="true"]');
     expect(tintedLeaf?.outerHTML ?? "").toContain("amber");
-    const tail = view.getByText(/and plain tail/);
+    const tail = view.getByText(/and plain tail/u);
     const tailLeaf = tail.closest('[data-slate-leaf="true"]');
     expect(tailLeaf?.outerHTML ?? "").not.toContain("amber");
   });

@@ -1,4 +1,5 @@
-import { type KeyboardEvent, useState } from "react";
+import { useState } from "react";
+import type { KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";
 
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
@@ -11,7 +12,7 @@ const FIELD_CLASS =
   "h-7 border-transparent bg-transparent px-1.5 text-sm shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
 
 // buffered so the document isn't re-serialized on every keystroke.
-function useBuffer(value: string, commit: (next: string) => void) {
+const useBuffer = (value: string, commit: (next: string) => void) => {
   const [local, setLocal] = useState(value);
   // a new `value` from the document wins over the buffer; re-key during render (not in an
   // effect) so the field never paints a frame of the previous property's text.
@@ -21,10 +22,13 @@ function useBuffer(value: string, commit: (next: string) => void) {
     setLocal(value);
   }
   return {
-    value: local,
-    onChange: (e: { target: { value: string } }) => setLocal(e.target.value),
     onBlur: () => {
-      if (local !== value) commit(local);
+      if (local !== value) {
+        commit(local);
+      }
+    },
+    onChange: (e: { target: { value: string } }) => {
+      setLocal(e.target.value);
     },
     onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") {
@@ -35,17 +39,20 @@ function useBuffer(value: string, commit: (next: string) => void) {
         e.currentTarget.blur();
       }
     },
+    value: local,
   };
-}
+};
 
-export function TextField({
+export const TextField = ({
   prop,
   onChange,
 }: {
   prop: Extract<TypedProperty, { type: "text" | "date" }>;
   onChange: (next: TypedProperty) => void;
-}) {
-  const buffer = useBuffer(prop.value, (value) => onChange({ ...prop, value }));
+}) => {
+  const buffer = useBuffer(prop.value, (value) => {
+    onChange({ ...prop, value });
+  });
   return (
     <Input
       {...buffer}
@@ -55,47 +62,49 @@ export function TextField({
       aria-label={prop.key}
     />
   );
-}
+};
 
-export function NumberField({
+export const NumberField = ({
   prop,
   onChange,
 }: {
   prop: Extract<TypedProperty, { type: "number" }>;
   onChange: (next: TypedProperty) => void;
-}) {
+}) => {
   const buffer = useBuffer(String(prop.value), (raw) => {
     const value = Number(raw);
-    if (raw.trim() !== "" && Number.isFinite(value)) onChange({ ...prop, value });
+    if (raw.trim() !== "" && Number.isFinite(value)) {
+      onChange({ ...prop, value });
+    }
   });
   return <Input {...buffer} type="number" className={FIELD_CLASS} aria-label={prop.key} />;
-}
+};
 
-export function CheckboxField({
+export const CheckboxField = ({
   prop,
   onChange,
 }: {
   prop: Extract<TypedProperty, { type: "checkbox" }>;
   onChange: (next: TypedProperty) => void;
-}) {
-  return (
-    <div className="flex h-7 items-center px-1.5">
-      <Checkbox
-        checked={prop.value}
-        onCheckedChange={(value) => onChange({ ...prop, value })}
-        aria-label={prop.key}
-      />
-    </div>
-  );
-}
+}) => (
+  <div className="flex h-7 items-center px-1.5">
+    <Checkbox
+      checked={prop.value}
+      onCheckedChange={(value) => {
+        onChange({ ...prop, value });
+      }}
+      aria-label={prop.key}
+    />
+  </div>
+);
 
-export function TagsField({
+export const TagsField = ({
   prop,
   onChange,
 }: {
   prop: Extract<TypedProperty, { type: "tags" }>;
   onChange: (next: TypedProperty) => void;
-}) {
+}) => {
   const [draft, setDraft] = useState("");
   const commitTag = () => {
     const tag = draft.trim();
@@ -118,7 +127,9 @@ export function TagsField({
             <button
               type="button"
               aria-label={`Remove ${tag}`}
-              onClick={() => onChange({ ...prop, value: prop.value.filter((t) => t !== tag) })}
+              onClick={() => {
+                onChange({ ...prop, value: prop.value.filter((t) => t !== tag) });
+              }}
               className="text-muted-foreground hover:text-foreground"
             >
               <XIcon className="size-3" />
@@ -128,7 +139,9 @@ export function TagsField({
       ))}
       <input
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+        }}
         onBlur={commitTag}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === ",") {
@@ -144,24 +157,22 @@ export function TagsField({
       />
     </div>
   );
-}
+};
 
-export function UnsupportedField({
+export const UnsupportedField = ({
   prop,
 }: {
   prop: Extract<TypedProperty, { type: "unsupported" }>;
-}) {
-  return (
-    <div className="flex min-h-7 items-center px-1.5">
-      <pre
-        title="Unsupported YAML — preserved byte-for-byte."
-        className={cn(
-          "max-w-full overflow-x-auto rounded-[6px] bg-muted/60 px-1.5 py-0.5",
-          "font-mono text-xs whitespace-pre text-muted-foreground",
-        )}
-      >
-        {prop.rawYaml === "" ? "—" : prop.rawYaml}
-      </pre>
-    </div>
-  );
-}
+}) => (
+  <div className="flex min-h-7 items-center px-1.5">
+    <pre
+      title="Unsupported YAML — preserved byte-for-byte."
+      className={cn(
+        "max-w-full overflow-x-auto rounded-[6px] bg-muted/60 px-1.5 py-0.5",
+        "font-mono text-xs whitespace-pre text-muted-foreground",
+      )}
+    >
+      {prop.rawYaml === "" ? "—" : prop.rawYaml}
+    </pre>
+  </div>
+);

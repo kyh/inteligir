@@ -1,44 +1,43 @@
 // lives here rather than in packages/notes because that package carries no sqlite binding.
 
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { projectDoc } from "@repo/notes/knowledge/projection";
-import {
-  createSqlKnowledgeStore,
-  type SqlKnowledgeStore,
-} from "@repo/notes/knowledge/sql-knowledge-store";
+import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
+import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
 
-function storeWith(docs: Record<string, string>): SqlKnowledgeStore {
-  const dbPath = join(makeTempDir("inteligir-fts-query-"), "knowledge.db");
+const storeWith = (docs: Record<string, string>): SqlKnowledgeStore => {
+  const dbPath = nodePath.join(makeTempDir("inteligir-fts-query-"), "knowledge.db");
   const store = createSqlKnowledgeStore(createSqliteDriver(dbPath), "/vault");
-  onTestFinished(() => store.dispose());
+  onTestFinished(() => {
+    store.dispose();
+  });
   for (const [path, content] of Object.entries(docs)) {
     store.upsertDoc(
       {
+        contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
         path,
-        contentHash: createHash("sha256").update(content, "utf8").digest("hex"),
         projection: projectDoc(path, content),
       },
       content,
     );
   }
   return store;
-}
+};
 
-function hits(store: SqlKnowledgeStore, query: string): string[] {
-  return store.search(query, 20).map((hit) => hit.path);
-}
+const hits = (store: SqlKnowledgeStore, query: string): string[] =>
+  store.search(query, 20).map((hit) => hit.path);
 
 const VAULT = {
   "burnout.md": "# Burnout\n\nI have been exhausted lately and cannot focus on anything at work.\n",
-  "deploy-runbook.md": "# Deploy runbook\n\nEvery step needed to deploy the gateway.\n",
   "deploy-notes.md": "# Deploy notes\n\nWe deploy on Fridays and never on a Friday evening.\n",
-  "how-do-i.md": "# How do I\n\nA scratch page of questions.\n",
+  "deploy-runbook.md": "# Deploy runbook\n\nEvery step needed to deploy the gateway.\n",
   "gateway.md": "# Gateway\n\nThe front door of the whole thing.\n",
+  "how-do-i.md": "# How do I\n\nA scratch page of questions.\n",
 };
 
 describe("FTS5 over the shared query policy", () => {
@@ -97,27 +96,27 @@ describe("FTS5 over the shared query policy", () => {
   it("keeps a tag a CONJUNCTION over the relaxed text", () => {
     const store = storeWith(VAULT);
     const sources = {
-      search: (query: string, limit: number) => store.search(query, limit),
       notesWithTag: (tag: string) => (tag === "work" ? ["burnout.md"] : []),
+      search: (query: string, limit: number) => store.search(query, limit),
     };
     expect(
       searchVaultNotes(sources, {
-        query: "how do I stop feeling burnt out at work",
         limit: 20,
+        query: "how do I stop feeling burnt out at work",
       }).map((hit) => hit.path),
     ).toEqual(["burnout.md"]);
     expect(
       searchVaultNotes(sources, {
+        limit: 20,
         query: "how do I stop feeling burnt out at work",
         tag: "rest",
-        limit: 20,
       }),
     ).toEqual([]);
     expect(
       searchVaultNotes(sources, {
+        limit: 20,
         query: "deploy on Fridays",
         tag: "work",
-        limit: 20,
       }),
     ).toEqual([]);
   });

@@ -46,7 +46,17 @@ export interface NoteTopbarProps {
   onExportPdf: () => void;
 }
 
-function PanelToggle() {
+const copyText = async (text: string, done: string): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    toast.error("Could not copy");
+    return;
+  }
+  toast.success(done);
+};
+
+const PanelToggle = () => {
   const { toggleSidebar } = useSidebar();
   return (
     <Button
@@ -60,9 +70,9 @@ function PanelToggle() {
       <PanelRightIcon />
     </Button>
   );
-}
+};
 
-export function NoteTopbar({
+export const NoteTopbar = ({
   path,
   railOpen,
   onToggleRail,
@@ -76,7 +86,7 @@ export function NoteTopbar({
   commentCount,
   onOpenComments,
   onExportPdf,
-}: NoteTopbarProps) {
+}: NoteTopbarProps) => {
   const segments =
     path === null
       ? []
@@ -85,20 +95,18 @@ export function NoteTopbar({
           .filter((segment) => segment !== "");
   // the server's origin, never the page's: an `inteligir://app` link opens nowhere, the shell included.
   const copyLink = () => {
-    if (path === null) return;
+    if (path === null) {
+      return;
+    }
     const url = new URL(socketOrigin());
     url.searchParams.set("note", path);
-    navigator.clipboard.writeText(url.toString()).then(
-      () => toast.success("Link copied"),
-      () => toast.error("Could not copy"),
-    );
+    void copyText(url.toString(), "Link copied");
   };
   const copyForAgent = () => {
-    if (path === null) return;
-    navigator.clipboard.writeText(shareWithAgentText(path)).then(
-      () => toast.success("Copied for an external agent"),
-      () => toast.error("Could not copy"),
-    );
+    if (path === null) {
+      return;
+    }
+    void copyText(shareWithAgentText(path), "Copied for an external agent");
   };
 
   return (
@@ -209,4 +217,4 @@ export function NoteTopbar({
       </div>
     </header>
   );
-}
+};

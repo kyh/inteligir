@@ -2,12 +2,8 @@
 // position replayed with a different body sync-conflict, so re-serializing at
 // push time turns every retry after a grammar change into one.
 
-import {
-  PUSH_MAX_EVENTS,
-  syncEventInputSchema,
-  type PushRequest,
-  type SyncEventInput,
-} from "@repo/api/cloud/sync/sync-schema";
+import { PUSH_MAX_EVENTS, syncEventInputSchema } from "@repo/api/cloud/sync/sync-schema";
+import type { PushRequest, SyncEventInput } from "@repo/api/cloud/sync/sync-schema";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   deleteSyncOutboxThrough,
@@ -20,12 +16,12 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 const PUSH_BATCH_SIZE = PUSH_MAX_EVENTS;
 
 // same transaction as the append: a separate write can lose the queue row to a crash.
-export function enqueueThreadEvents(tx: DbTransaction, events: readonly ThreadEvent[]): void {
+export const enqueueThreadEvents = (tx: DbTransaction, events: readonly ThreadEvent[]): void => {
   enqueueSyncOutboxInTransaction(
     tx,
-    events.map((event) => ({ threadId: event.threadId, body: JSON.stringify(event) })),
+    events.map((event) => ({ body: JSON.stringify(event), threadId: event.threadId })),
   );
-}
+};
 
 interface RejectedOutboxRow {
   deviceSeq: number;
@@ -42,7 +38,7 @@ export interface PushBatch {
 // a row the contract refuses is left out but stays inside the high-water so the
 // ack drops it: the log refuses a whole batch for one bad event. the push's
 // `threads` half is not sent — the pull answers events alone, so nothing reads it back.
-export function takePushBatch(db: DbConnection): PushBatch | null {
+export const takePushBatch = (db: DbConnection): PushBatch | null => {
   const rows = listSyncOutbox(db, PUSH_BATCH_SIZE);
   const last = rows.at(-1);
   if (last === undefined) {
@@ -59,10 +55,10 @@ export function takePushBatch(db: DbConnection): PushBatch | null {
       continue;
     }
     const parsed = syncEventInputSchema.safeParse({
-      threadId: row.threadId,
+      createdAt: row.createdAt,
       deviceSeq: row.deviceSeq,
       event: body,
-      createdAt: row.createdAt,
+      threadId: row.threadId,
     });
     if (!parsed.success) {
       rejected.push({ deviceSeq: row.deviceSeq, reason: parsed.error.issues[0]?.message ?? "" });
@@ -70,10 +66,10 @@ export function takePushBatch(db: DbConnection): PushBatch | null {
     }
     events.push(parsed.data);
   }
-  return { request: { events }, throughDeviceSeq: last.deviceSeq, rejected };
-}
+  return { rejected, request: { events }, throughDeviceSeq: last.deviceSeq };
+};
 
 // accepted and duplicates alike: both mean the position is in the log with these bytes.
-export function ackPushBatch(db: DbConnection, batch: PushBatch): void {
+export const ackPushBatch = (db: DbConnection, batch: PushBatch): void => {
   deleteSyncOutboxThrough(db, batch.throughDeviceSeq);
-}
+};

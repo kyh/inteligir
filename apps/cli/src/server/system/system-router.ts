@@ -2,18 +2,18 @@ import { base } from "../orpc";
 import { CLI_SKILL_MD } from "../guide/cli-skill";
 
 const status = base.system.status.handler(({ context }) => ({
-  version: context.system.version,
+  agent: context.system.agent,
   dataDir: context.system.dataDir,
   dataDirScope: context.system.dataDirScope,
-  vaultDir: context.system.vaultDir,
   schemaVersion: context.system.schemaVersion,
   uptimeMs: Date.now() - context.system.startedAt,
-  agent: context.system.agent,
+  vaultDir: context.system.vaultDir,
+  version: context.system.version,
 }));
 
 const guide = base.system.guide.handler(() => ({ markdown: CLI_SKILL_MD }));
 
 export const systemRouter = {
-  status,
   guide,
+  status,
 };

@@ -2,138 +2,138 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { applyTimelineDelta, computeTimelineDelta, threadTimelineSchema } from "../thread-timeline";
 import { describe, expect, it } from "vitest";
-import { buildThreadTimeline, type ThreadTimelineEvent } from "../build-thread-timeline";
+import { buildThreadTimeline } from "../build-thread-timeline";
+import type { ThreadTimelineEvent } from "../build-thread-timeline";
 
 const THREAD_ID = "thr_test";
 
-function stored(events: readonly ThreadEvent[]): ThreadTimelineEvent[] {
-  return events.map((event, index) => ({
-    sequence: index + 1,
-    createdAt: 1_000 + index,
+const stored = (events: readonly ThreadEvent[]): ThreadTimelineEvent[] =>
+  events.map((event, index) => ({
+    createdAt: 1000 + index,
     event,
+    sequence: index + 1,
   }));
-}
 
-function streamedTurnEvents(): ThreadEvent[] {
+const streamedTurnEvents = (): ThreadEvent[] => {
   const turn = turnScope("turn_1");
   return [
     {
-      type: "client/turn/requested",
-      threadId: THREAD_ID,
-      text: "What changed today?",
       scope: threadScope(),
+      text: "What changed today?",
+      threadId: THREAD_ID,
+      type: "client/turn/requested",
     },
-    { type: "turn/started", threadId: THREAD_ID, scope: turn },
+    { scope: turn, threadId: THREAD_ID, type: "turn/started" },
     {
+      item: { content: [], id: "item_r", summary: [], type: "reasoning" },
+      scope: turn,
+      threadId: THREAD_ID,
       type: "item/started",
-      threadId: THREAD_ID,
-      item: { type: "reasoning", id: "item_r", summary: [], content: [] },
-      scope: turn,
     },
     {
-      type: "item/reasoning/textDelta",
-      threadId: THREAD_ID,
-      itemId: "item_r",
       delta: "Scanning the vault…",
+      itemId: "item_r",
       scope: turn,
+      threadId: THREAD_ID,
+      type: "item/reasoning/textDelta",
     },
     {
-      type: "item/completed",
-      threadId: THREAD_ID,
       item: {
-        type: "reasoning",
+        content: ["Scanned the vault."],
         id: "item_r",
         summary: ["scanned"],
-        content: ["Scanned the vault."],
+        type: "reasoning",
       },
       scope: turn,
+      threadId: THREAD_ID,
+      type: "item/completed",
     },
     {
-      type: "item/started",
-      threadId: THREAD_ID,
       item: {
-        type: "commandExecution",
-        id: "item_c",
+        approvalStatus: null,
         command: "git log --oneline -3",
         cwd: "/vault",
+        id: "item_c",
         status: "pending",
-        approvalStatus: null,
+        type: "commandExecution",
       },
       scope: turn,
+      threadId: THREAD_ID,
+      type: "item/started",
     },
     {
-      type: "item/commandExecution/outputDelta",
-      threadId: THREAD_ID,
-      itemId: "item_c",
       delta: "abc123 fix\n",
+      itemId: "item_c",
       scope: turn,
+      threadId: THREAD_ID,
+      type: "item/commandExecution/outputDelta",
     },
     {
-      type: "item/completed",
-      threadId: THREAD_ID,
       item: {
-        type: "commandExecution",
-        id: "item_c",
+        aggregatedOutput: "abc123 fix\ndef456 feat\n",
+        approvalStatus: null,
         command: "git log --oneline -3",
         cwd: "/vault",
-        status: "completed",
-        approvalStatus: null,
-        aggregatedOutput: "abc123 fix\ndef456 feat\n",
         exitCode: 0,
+        id: "item_c",
+        status: "completed",
+        type: "commandExecution",
       },
       scope: turn,
-    },
-    {
-      type: "item/started",
       threadId: THREAD_ID,
-      item: { type: "agentMessage", id: "item_a", text: "" },
-      scope: turn,
-    },
-    {
-      type: "item/agentMessage/delta",
-      threadId: THREAD_ID,
-      itemId: "item_a",
-      delta: "Two commits ",
-      scope: turn,
-    },
-    {
-      type: "item/agentMessage/delta",
-      threadId: THREAD_ID,
-      itemId: "item_a",
-      delta: "landed today.",
-      scope: turn,
-    },
-    {
       type: "item/completed",
-      threadId: THREAD_ID,
-      item: { type: "agentMessage", id: "item_a", text: "Two commits landed today." },
-      scope: turn,
     },
     {
-      type: "thread/tokenUsage/updated",
+      item: { id: "item_a", text: "", type: "agentMessage" },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    {
+      delta: "Two commits ",
+      itemId: "item_a",
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/agentMessage/delta",
+    },
+    {
+      delta: "landed today.",
+      itemId: "item_a",
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/agentMessage/delta",
+    },
+    {
+      item: { id: "item_a", text: "Two commits landed today.", type: "agentMessage" },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/completed",
+    },
+    {
+      scope: turn,
       threadId: THREAD_ID,
       tokenUsage: {
-        total: {
-          totalTokens: 120,
-          inputTokens: 80,
-          cachedInputTokens: 0,
-          outputTokens: 40,
-          reasoningOutputTokens: 5,
-        },
         last: {
-          totalTokens: 120,
-          inputTokens: 80,
           cachedInputTokens: 0,
+          inputTokens: 80,
           outputTokens: 40,
           reasoningOutputTokens: 5,
+          totalTokens: 120,
         },
         modelContextWindow: 200_000,
+        total: {
+          cachedInputTokens: 0,
+          inputTokens: 80,
+          outputTokens: 40,
+          reasoningOutputTokens: 5,
+          totalTokens: 120,
+        },
       },
-      scope: turn,
+      type: "thread/tokenUsage/updated",
     },
-    { type: "turn/completed", threadId: THREAD_ID, status: "completed", scope: turn },
+    { scope: turn, status: "completed", threadId: THREAD_ID, type: "turn/completed" },
   ];
-}
+};
 
 describe("buildThreadTimeline", () => {
   it("projects the golden streamed turn", () => {
@@ -199,26 +199,26 @@ describe("buildThreadTimeline", () => {
     const turn = turnScope("turn_1");
     const timeline = buildThreadTimeline(
       stored([
-        { type: "turn/started", threadId: THREAD_ID, scope: turn },
+        { scope: turn, threadId: THREAD_ID, type: "turn/started" },
         {
-          type: "provider/error",
-          threadId: THREAD_ID,
           message: "in-turn failure",
           scope: turn,
+          threadId: THREAD_ID,
+          type: "provider/error",
         },
         {
-          type: "turn/completed",
-          threadId: THREAD_ID,
-          status: "failed",
           error: { message: "in-turn failure" },
           scope: turn,
+          status: "failed",
+          threadId: THREAD_ID,
+          type: "turn/completed",
         },
         {
-          type: "provider/error",
-          threadId: THREAD_ID,
-          message: "session failure",
           detail: "socket closed",
+          message: "session failure",
           scope: threadScope(),
+          threadId: THREAD_ID,
+          type: "provider/error",
         },
       ]),
     );
@@ -263,12 +263,12 @@ describe("buildThreadTimeline", () => {
       throw new Error("expected the full projection");
     }
     for (let seed = 1; seed <= 50; seed += 1) {
+      // MINSTD: the interleaving has to be reproducible across runs, not statistically strong,
+      // and its multiply stays exact in a double
       let state = seed;
       const random = () => {
-        state = (state + 0x6d2b79f5) | 0;
-        let t = Math.imul(state ^ (state >>> 15), 1 | state);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        state = (state * 48_271) % 2_147_483_647;
+        return state / 2_147_483_647;
       };
       const prefixAt = (index: number) => {
         const prefix = prefixes[index];
@@ -283,7 +283,8 @@ describe("buildThreadTimeline", () => {
         const target = prefixAt(Math.floor(random() * prefixes.length));
         const applied = applyTimelineDelta(held, computeTimelineDelta(base, target));
         held = applied ?? full;
-        const expected = prefixes.find((prefix) => prefix.maxSequence === held.maxSequence);
+        const heldMaxSequence = held.maxSequence;
+        const expected = prefixes.find((prefix) => prefix.maxSequence === heldMaxSequence);
         expect(held).toEqual(expected);
       }
       const finalDelta = computeTimelineDelta(
@@ -315,7 +316,7 @@ describe("buildThreadTimeline", () => {
   });
 
   it("projects an empty log to an empty timeline", () => {
-    expect(buildThreadTimeline([])).toEqual({ rows: [], maxSequence: 0, tokenUsage: null });
+    expect(buildThreadTimeline([])).toEqual({ maxSequence: 0, rows: [], tokenUsage: null });
   });
 });
 
@@ -336,8 +337,8 @@ const findReasoningText = (timeline: ReturnType<typeof buildThreadTimeline>): st
 describe("reasoning text preference", () => {
   it("settled reasoning prefers summary, falls back to content, then the stream buffer", () => {
     const base = {
-      threadId: THREAD_ID,
       scope: turnScope("turn_r"),
+      threadId: THREAD_ID,
     };
     const build = (item: { summary: string[]; content: string[] }) =>
       buildThreadTimeline(
@@ -346,21 +347,21 @@ describe("reasoning text preference", () => {
           {
             type: "item/started",
             ...base,
-            item: { type: "reasoning", id: "item_r", summary: [], content: [] },
+            item: { content: [], id: "item_r", summary: [], type: "reasoning" },
           },
-          { type: "item/reasoning/summaryTextDelta", ...base, itemId: "item_r", delta: "strea" },
-          { type: "item/reasoning/summaryTextDelta", ...base, itemId: "item_r", delta: "ming" },
+          { type: "item/reasoning/summaryTextDelta", ...base, delta: "strea", itemId: "item_r" },
+          { type: "item/reasoning/summaryTextDelta", ...base, delta: "ming", itemId: "item_r" },
           {
             type: "item/completed",
             ...base,
-            item: { type: "reasoning", id: "item_r", ...item },
+            item: { id: "item_r", type: "reasoning", ...item },
           },
           { type: "turn/completed", ...base, status: "completed" },
         ]),
       );
 
-    expect(findReasoningText(build({ summary: ["visible"], content: ["raw"] }))).toBe("visible");
-    expect(findReasoningText(build({ summary: [], content: ["raw"] }))).toBe("raw");
-    expect(findReasoningText(build({ summary: [], content: [] }))).toBe("streaming");
+    expect(findReasoningText(build({ content: ["raw"], summary: ["visible"] }))).toBe("visible");
+    expect(findReasoningText(build({ content: ["raw"], summary: [] }))).toBe("raw");
+    expect(findReasoningText(build({ content: [], summary: [] }))).toBe("streaming");
   });
 });

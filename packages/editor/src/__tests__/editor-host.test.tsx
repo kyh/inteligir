@@ -2,15 +2,16 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import WikiChip from "@repo/editor/wiki-chip";
-import { installFakeEditorHost, type FakeEditorHostOptions } from "./fake-editor-host";
+import { installFakeEditorHost } from "./fake-editor-host";
+import type { FakeEditorHostOptions } from "./fake-editor-host";
 
 afterEach(cleanup);
 
-function mountChip(body: string, options?: FakeEditorHostOptions) {
+const mountChip = (body: string, options?: FakeEditorHostOptions) => {
   const { calls } = installFakeEditorHost(options ?? {});
   render(<WikiChip body={body} />);
   return calls;
-}
+};
 
 describe("a wiki chip over a controlled host", () => {
   it("navigates to the path the host's listing resolved", () => {
@@ -28,7 +29,7 @@ describe("a wiki chip over a controlled host", () => {
     fireEvent.click(screen.getByRole("button", { name: "Someday" }));
     expect(calls).toEqual([]);
 
-    fireEvent.click(screen.getByRole("button", { name: /Create/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Create/u }));
     expect(calls).toEqual([{ action: "createFile", args: ["Someday"] }]);
   });
 
@@ -37,6 +38,6 @@ describe("a wiki chip over a controlled host", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "#section" }));
     expect(calls).toEqual([]);
-    expect(screen.queryByRole("button", { name: /Create/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Create/u })).toBeNull();
   });
 });

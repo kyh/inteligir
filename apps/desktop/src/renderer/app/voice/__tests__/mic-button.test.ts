@@ -10,19 +10,19 @@ const MODEL = {
 
 describe("micBlockedReason", () => {
   it("says the runtime is still being asked about before the status arrives", () => {
-    expect(micBlockedReason(undefined)).toMatch(/Checking/u);
+    expect(micBlockedReason()).toMatch(/Checking/u);
   });
 
   it("carries the server's own sentence when the machine cannot transcribe", () => {
     const status: VoiceStatusResponse = {
-      state: "unavailable",
       detail: "Dictation cannot run on this machine: dlopen failed",
+      state: "unavailable",
     };
     expect(micBlockedReason(status)).toBe(status.detail);
   });
 
   it("names the model AND its size, so nobody starts a download blind", () => {
-    const reason = micBlockedReason({ state: "no-model", model: MODEL, lastError: null });
+    const reason = micBlockedReason({ lastError: null, model: MODEL, state: "no-model" });
     expect(reason).toContain("Parakeet streaming (English)");
     expect(reason).toContain("106 MB");
     expect(reason).toContain("Settings");
@@ -30,15 +30,15 @@ describe("micBlockedReason", () => {
 
   it("reports download progress as a percentage of the pinned size", () => {
     expect(
-      micBlockedReason({ state: "downloading", model: MODEL, receivedBytes: MODEL.sizeBytes / 2 }),
+      micBlockedReason({ model: MODEL, receivedBytes: MODEL.sizeBytes / 2, state: "downloading" }),
     ).toContain("50%");
   });
 
   it("says the once-only preparation is happening", () => {
-    expect(micBlockedReason({ state: "preparing", model: MODEL })).toMatch(/once/u);
+    expect(micBlockedReason({ model: MODEL, state: "preparing" })).toMatch(/once/u);
   });
 
   it("blocks nothing when the model is ready", () => {
-    expect(micBlockedReason({ state: "ready", model: MODEL })).toBeNull();
+    expect(micBlockedReason({ model: MODEL, state: "ready" })).toBeNull();
   });
 });

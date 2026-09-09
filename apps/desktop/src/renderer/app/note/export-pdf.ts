@@ -1,7 +1,7 @@
 // `.dark` is lifted around the synchronous print dialog (dark ink on white paper is near-invisible),
 // and `document.title` becomes the note title because it is the browser's suggested PDF filename.
 
-export function exportNoteAsPdf(title: string): void {
+export const exportNoteAsPdf = (title: string): void => {
   const root = document.documentElement;
   const wasDark = root.classList.contains("dark");
   const previousTitle = document.title;
@@ -17,4 +17,4 @@ export function exportNoteAsPdf(title: string): void {
     }
     document.title = previousTitle;
   }
-}
+};

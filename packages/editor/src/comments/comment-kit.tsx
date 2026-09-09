@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ElementApi,
-  isHotkey,
-  KEYS,
-  NodeApi,
-  TextApi,
-  type DecoratedRange,
-  type SlateEditor,
-} from "platejs";
-import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
+import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
+import type { DecoratedRange, SlateEditor } from "platejs";
+import { PlateLeaf, createPlatePlugin, useEditorRef } from "platejs/react";
+import type { PlateLeafProps } from "platejs/react";
 
+import { matchesHotkey } from "@repo/editor/editor-shortcuts";
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
@@ -23,7 +18,21 @@ import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
 import { findCommentMarker, insertCommentMarkers, removeCommentMarkers } from "./comment-markers";
 import { setPendingCreate, useCommentMeta, useCommentSurface } from "./comment-store";
 
-function CommentRangeLeaf(props: PlateLeafProps) {
+const rangeClassName = (state: {
+  orphan: boolean;
+  resolved: boolean;
+  unknown: boolean;
+}): string => {
+  if (state.orphan || state.unknown) {
+    return "bg-amber-500/10 underline decoration-amber-500/50 decoration-dotted underline-offset-2";
+  }
+  if (state.resolved) {
+    return "bg-emerald-500/[0.06]";
+  }
+  return "bg-amber-300/20 hover:bg-amber-300/30";
+};
+
+const CommentRangeLeaf = (props: PlateLeafProps) => {
   const raw = stringProp(props.leaf, "commentIds") ?? "";
   const ids = raw.split(",").filter((id) => id !== "");
   const orphan = props.leaf.commentOrphan === true;
@@ -38,55 +47,57 @@ function CommentRangeLeaf(props: PlateLeafProps) {
       as="span"
       className={cn(
         "cursor-pointer rounded-[2px]",
-        orphan || unknown
-          ? "bg-amber-500/10 underline decoration-amber-500/50 decoration-dotted underline-offset-2"
-          : resolved
-            ? "bg-emerald-500/[0.06]"
-            : "bg-amber-300/20 hover:bg-amber-300/30",
+        rangeClassName({ orphan, resolved, unknown }),
         "print:bg-transparent print:no-underline",
       )}
       attributes={{
         ...props.attributes,
         onClick: () => {
-          if (ids.length > 0) actions?.open(ids);
+          if (ids.length > 0) {
+            actions?.open(ids);
+          }
         },
       }}
     >
       {props.children}
     </PlateLeaf>
   );
-}
+};
 
-function beginCreate(editor: SlateEditor): boolean {
+const beginCreate = (editor: SlateEditor): boolean => {
   // with no note nothing would claim the popover and the marker pair would be stranded, so refuse before minting
   const path = liveEditorPath(editor);
-  if (path === null) return false;
+  if (path === null) {
+    return false;
+  }
   const domSelection = window.getSelection();
   const rect =
     domSelection !== null && domSelection.rangeCount > 0
       ? domSelection.getRangeAt(0).getBoundingClientRect()
       : null;
   const id = mintCommentId();
-  if (!insertCommentMarkers(editor, id)) return false;
+  if (!insertCommentMarkers(editor, id)) {
+    return false;
+  }
   setPendingCreate({
     id,
     path,
     rect:
       rect === null
-        ? { bottom: 120, left: 120, top: 100, right: 120, width: 0, height: 20 }
+        ? { bottom: 120, height: 20, left: 120, right: 120, top: 100, width: 0 }
         : {
             bottom: rect.bottom,
-            left: rect.left,
-            top: rect.top,
-            right: rect.right,
-            width: rect.width,
             height: rect.height,
+            left: rect.left,
+            right: rect.right,
+            top: rect.top,
+            width: rect.width,
           },
   });
   return true;
-}
+};
 
-function CommentCreateHost() {
+const CommentCreateHost = () => {
   const editor = useEditorRef();
   const notePath = useOpenNotePath();
   const armed = useCommentSurface((state) => state.pendingCreate);
@@ -107,11 +118,15 @@ function CommentCreateHost() {
   }
 
   useEffect(() => {
-    if (pendingId === null) return;
+    if (pendingId === null) {
+      return;
+    }
     requestAnimationFrame(() => fieldRef.current?.focus());
   }, [pendingId]);
 
-  if (pending === null) return null;
+  if (pending === null) {
+    return null;
+  }
 
   const cancel = (): void => {
     removeCommentMarkers(editor, [pending.id]);
@@ -120,7 +135,9 @@ function CommentCreateHost() {
 
   const save = (): void => {
     const trimmed = text.trim();
-    if (trimmed === "" || saving || actions === null) return;
+    if (trimmed === "" || saving || actions === null) {
+      return;
+    }
     setSaving(true);
     void (async () => {
       const ok = await actions.create(pending.id, trimmed).catch(() => false);
@@ -139,7 +156,9 @@ function CommentCreateHost() {
     <Popover
       open
       onOpenChange={(open) => {
-        if (!open) cancel();
+        if (!open) {
+          cancel();
+        }
       }}
     >
       <PopoverContent anchor={anchor} side="bottom" align="start" className="gap-2 p-2">
@@ -171,11 +190,13 @@ function CommentCreateHost() {
       </PopoverContent>
     </Popover>
   );
-}
+};
 
-export function scrollToCommentMarker(editor: SlateEditor, rootId: string): boolean {
+export const scrollToCommentMarker = (editor: SlateEditor, rootId: string): boolean => {
   const entry = findCommentMarker(editor, rootId);
-  if (entry === null) return false;
+  if (entry === null) {
+    return false;
+  }
   try {
     const dom = editor.api.toDOMNode(entry[0]);
     dom?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -183,23 +204,27 @@ export function scrollToCommentMarker(editor: SlateEditor, rootId: string): bool
   } catch {
     return false;
   }
-}
+};
 
 export const CommentKit = [
   createPlatePlugin({
-    key: "commentRange",
-    node: { isLeaf: true },
     // Text-level: Plate applies a decoration only to the node it was returned for,
     // so a block-level range never reaches the leaves.
     decorate: ({ editor, entry }) => {
       const [node, path] = entry;
-      if (!TextApi.isText(node)) return undefined;
+      if (!TextApi.isText(node)) {
+        return;
+      }
       const parentPath = path.slice(0, -1);
       const parent = NodeApi.get(editor, parentPath);
-      if (!ElementApi.isElement(parent) || !holdsCommentMarkers(parent)) return undefined;
+      if (!ElementApi.isElement(parent) || !holdsCommentMarkers(parent)) {
+        return;
+      }
       const scan = scanBlockComments(editor, [parent, parentPath]);
-      const index = path[path.length - 1];
-      if (index === undefined) return undefined;
+      const index = path.at(-1);
+      if (index === undefined) {
+        return;
+      }
       const decorations: DecoratedRange[] = [];
       const clip = (
         anchor: { path: number[]; offset: number },
@@ -207,12 +232,16 @@ export const CommentKit = [
         ids: readonly string[],
         orphan: boolean,
       ): void => {
-        const from = anchor.path[anchor.path.length - 1];
-        const to = focus.path[focus.path.length - 1];
-        if (from === undefined || to === undefined || index < from || index > to) return;
+        const from = anchor.path.at(-1);
+        const to = focus.path.at(-1);
+        if (from === undefined || to === undefined || index < from || index > to) {
+          return;
+        }
         const startOffset = index === from ? anchor.offset : 0;
         const endOffset = index === to ? focus.offset : node.text.length;
-        if (startOffset >= endOffset) return;
+        if (startOffset >= endOffset) {
+          return;
+        }
         const decorated: DecoratedRange & {
           commentIds: string;
           commentRange: true;
@@ -223,7 +252,9 @@ export const CommentKit = [
           commentRange: true,
           focus: { offset: endOffset, path },
         };
-        if (orphan) decorated.commentOrphan = true;
+        if (orphan) {
+          decorated.commentOrphan = true;
+        }
         decorations.push(decorated);
       };
       for (const range of scan.ranges) {
@@ -232,10 +263,14 @@ export const CommentKit = [
       if (scan.unpairedIds.length > 0) {
         const start = editor.api.start(parentPath);
         const end = editor.api.end(parentPath);
-        if (start && end) clip(start, end, scan.unpairedIds, true);
+        if (start && end) {
+          clip(start, end, scan.unpairedIds, true);
+        }
       }
       return decorations.length > 0 ? decorations : undefined;
     },
+    key: "commentRange",
+    node: { isLeaf: true },
   }).withComponent(CommentRangeLeaf),
 
   createPlatePlugin({
@@ -244,8 +279,12 @@ export const CommentKit = [
   }).extend(() => ({
     handlers: {
       onKeyDown: ({ editor, event }) => {
-        if (!isHotkey("mod+shift+a", event)) return;
-        if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) return;
+        if (!matchesHotkey("mod+shift+a", event)) {
+          return;
+        }
+        if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) {
+          return;
+        }
         if (beginCreate(editor)) {
           event.preventDefault();
         }

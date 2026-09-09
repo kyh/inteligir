@@ -6,8 +6,7 @@ import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
-import type { ProviderEvent } from "./vocabulary/provider-event.js";
-import type { ProviderEventUserContent } from "./vocabulary/provider-event.js";
+import type { ProviderEvent, ProviderEventUserContent } from "./vocabulary/provider-event.js";
 
 export type AgentRuntimeShellEnvironment = Record<string, string>;
 
@@ -90,17 +89,17 @@ export interface ReapIdleProviderSessionsResult {
 }
 
 export interface AgentRuntime {
-  startThread(args: StartThreadArgs): Promise<StartThreadResult>;
+  startThread: (args: StartThreadArgs) => Promise<StartThreadResult>;
 
-  resumeThread(args: ResumeThreadArgs): Promise<ResumeThreadResult>;
+  resumeThread: (args: ResumeThreadArgs) => Promise<ResumeThreadResult>;
 
-  runTurn(args: RunTurnArgs): Promise<void>;
+  runTurn: (args: RunTurnArgs) => Promise<void>;
 
-  reapIdleProviderSessions(
+  reapIdleProviderSessions: (
     args: ReapIdleProviderSessionsArgs,
-  ): Promise<ReapIdleProviderSessionsResult>;
+  ) => Promise<ReapIdleProviderSessionsResult>;
 
-  hasThread(threadId: string): boolean;
+  hasThread: (threadId: string) => boolean;
 
-  shutdown(): Promise<void>;
+  shutdown: () => Promise<void>;
 }

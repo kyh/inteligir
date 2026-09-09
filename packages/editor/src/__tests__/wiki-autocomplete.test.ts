@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ElementApi, createSlateEditor, type TElement } from "platejs";
+import { ElementApi, createSlateEditor } from "platejs";
+import type { TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/combobox-input";
@@ -10,42 +11,48 @@ import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 import { composeWikiBody, wikiBodyForPath } from "@repo/editor/wiki-target";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 
-function makeEditor(text: string) {
-  return createSlateEditor({
+const makeEditor = (text: string) =>
+  createSlateEditor({
     plugins: EDITOR_KIT,
     value: [{ children: [{ text }], type: "p" }],
   });
-}
 
 type Editor = ReturnType<typeof makeEditor>;
 
-function out(editor: Editor): string {
-  return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-}
+const out = (editor: Editor): string =>
+  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
-function findByType(editor: Editor, type: string): TElement | null {
+const findByType = (editor: Editor, type: string): TElement | null => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {
-    if (ElementApi.isElement(node)) return node;
+    if (ElementApi.isElement(node)) {
+      return node;
+    }
   }
   return null;
-}
+};
 
-function openWikiPicker(editor: Editor): TElement {
+const openWikiPicker = (editor: Editor): TElement => {
   const end = editor.api.end([0]);
-  if (!end) throw new Error("no end point");
+  if (!end) {
+    throw new Error("no end point");
+  }
   editor.tf.select(end);
   editor.tf.insertText("[");
   editor.tf.insertText("[");
   const element = findByType(editor, WIKI_INPUT_KEY);
-  if (!element) throw new Error("[[ did not insert the wiki input element");
+  if (!element) {
+    throw new Error("[[ did not insert the wiki input element");
+  }
   return element;
-}
+};
 
 describe("[[ trigger", () => {
   it("a single [ stays plain text — no picker", () => {
     const editor = makeEditor("see ");
     const end = editor.api.end([0]);
-    if (end) editor.tf.select(end);
+    if (end) {
+      editor.tf.select(end);
+    }
     editor.tf.insertText("[");
     expect(findByType(editor, WIKI_INPUT_KEY)).toBeNull();
     expect(out(editor)).toBe("see \\[\n");
@@ -146,6 +153,6 @@ describe("body composition", () => {
     expect(composeWikiBody("note", {})).toBe("note");
     expect(composeWikiBody("note", { anchor: "sec" })).toBe("note#sec");
     expect(composeWikiBody("note", { alias: "nice" })).toBe("note|nice");
-    expect(composeWikiBody("note", { anchor: "sec", alias: "nice" })).toBe("note#sec|nice");
+    expect(composeWikiBody("note", { alias: "nice", anchor: "sec" })).toBe("note#sec|nice");
   });
 });

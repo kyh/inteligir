@@ -4,58 +4,55 @@
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 import { AnimatePresence, motion } from "framer-motion";
 
-import { useSize, type SizeVariant } from "@repo/ui/lib/size-context";
+import { useSize } from "@repo/ui/lib/size-context";
+import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { cn } from "cn";
 
-function CheckMark({ compact }: { compact: boolean }) {
-  return (
-    <motion.svg
-      width={compact ? 16 : 18}
-      height={compact ? 16 : 18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-foreground"
-      initial={{ opacity: 1 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 1 }}
-    >
-      <motion.path
-        d="M6 12L10 16L18 8"
-        initial={{ pathLength: 0 }}
-        animate={{ pathLength: 1, transition: { duration: 0.08, ease: "easeOut" } }}
-        exit={{ pathLength: 0, transition: { duration: 0.04, ease: "easeIn" } }}
-      />
-    </motion.svg>
-  );
-}
+const CheckMark = ({ compact }: { compact: boolean }) => (
+  <motion.svg
+    width={compact ? 16 : 18}
+    height={compact ? 16 : 18}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-foreground"
+    initial={{ opacity: 1 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 1 }}
+  >
+    <motion.path
+      d="M6 12L10 16L18 8"
+      initial={{ pathLength: 0 }}
+      animate={{ pathLength: 1, transition: { duration: 0.08, ease: "easeOut" } }}
+      exit={{ pathLength: 0, transition: { duration: 0.04, ease: "easeIn" } }}
+    />
+  </motion.svg>
+);
 
 // keepMounted holds the span through the exit so the un-draw is visible; initial={false} skips the
 // draw for a box that mounts already checked.
-function CheckIndicator({ compact }: { compact: boolean }) {
-  return (
-    <CheckboxPrimitive.Indicator
-      keepMounted
-      data-slot="checkbox-indicator"
-      render={(indicatorProps, state) => (
-        <span {...indicatorProps}>
-          <AnimatePresence initial={false}>
-            {state.checked && <CheckMark compact={compact} />}
-          </AnimatePresence>
-        </span>
-      )}
-    />
-  );
-}
+const CheckIndicator = ({ compact }: { compact: boolean }) => (
+  <CheckboxPrimitive.Indicator
+    keepMounted
+    data-slot="checkbox-indicator"
+    render={(indicatorProps, state) => (
+      <span {...indicatorProps}>
+        <AnimatePresence initial={false}>
+          {state.checked && <CheckMark compact={compact} />}
+        </AnimatePresence>
+      </span>
+    )}
+  />
+);
 
 type CheckboxProps = CheckboxPrimitive.Root.Props & {
   size?: SizeVariant;
 };
 
-function Checkbox({ className, size, ...props }: CheckboxProps) {
+const Checkbox = ({ className, size, ...props }: CheckboxProps) => {
   const compact = useSize(size).variant === "compact";
   return (
     <CheckboxPrimitive.Root
@@ -76,6 +73,6 @@ function Checkbox({ className, size, ...props }: CheckboxProps) {
       <CheckIndicator compact={compact} />
     </CheckboxPrimitive.Root>
   );
-}
+};
 
 export { Checkbox };

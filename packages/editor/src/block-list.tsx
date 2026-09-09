@@ -3,7 +3,8 @@
 
 import { isOrderedList } from "@platejs/list";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";
-import { type PlateElementProps, type RenderNodeWrapper, useReadOnly } from "platejs/react";
+import { useReadOnly } from "platejs/react";
+import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { cn } from "cn";
@@ -12,12 +13,30 @@ import { numberProp, stringProp } from "@repo/editor/node-props";
 
 const TODO_STYLE_TYPE = "todo";
 
-export const BlockList: RenderNodeWrapper = (props) => {
-  if (!props.element.listStyleType) return undefined;
-  return (innerProps) => <List {...innerProps} />;
+const TodoMarker = (props: PlateElementProps) => {
+  const { checkboxProps } = useTodoListElement(useTodoListElementState({ element: props.element }));
+  const readOnly = useReadOnly();
+
+  return (
+    <div contentEditable={false}>
+      <Checkbox
+        className={cn("absolute top-1 -left-6", readOnly && "pointer-events-none")}
+        {...checkboxProps}
+      />
+    </div>
+  );
 };
 
-function List(props: PlateElementProps) {
+const TodoLi = (props: PlateElementProps) => {
+  const checked = props.element.checked === true;
+  return (
+    <li className={cn("group relative list-none", checked && "text-muted-foreground line-through")}>
+      {props.children}
+    </li>
+  );
+};
+
+const List = (props: PlateElementProps) => {
   const styleType = stringProp(props.element, "listStyleType");
   const start = numberProp(props.element, "listStart");
   const isTodo = styleType === TODO_STYLE_TYPE;
@@ -29,28 +48,14 @@ function List(props: PlateElementProps) {
       {isTodo ? <TodoLi {...props} /> : <li>{props.children}</li>}
     </ListTag>
   );
-}
+};
 
-function TodoMarker(props: PlateElementProps) {
-  const state = useTodoListElementState({ element: props.element });
-  const { checkboxProps } = useTodoListElement(state);
-  const readOnly = useReadOnly();
-
-  return (
-    <div contentEditable={false}>
-      <Checkbox
-        className={cn("absolute top-1 -left-6", readOnly && "pointer-events-none")}
-        {...checkboxProps}
-      />
-    </div>
-  );
-}
-
-function TodoLi(props: PlateElementProps) {
-  const checked = props.element.checked === true;
-  return (
-    <li className={cn("group relative list-none", checked && "text-muted-foreground line-through")}>
-      {props.children}
-    </li>
-  );
-}
+export const BlockList: RenderNodeWrapper = (props) => {
+  const styleType = stringProp(props.element, "listStyleType");
+  if (styleType === undefined || styleType === "") {
+    return;
+  }
+  return function ListWrapper(innerProps) {
+    return <List {...innerProps} />;
+  };
+};

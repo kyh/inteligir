@@ -11,20 +11,20 @@ import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
 const ENTITIES = [
-  { entity: "vault", notifier: "notifyVault", kinds: VAULT_CHANGE_KINDS },
-  { entity: "doc", notifier: "notifyDoc", kinds: DOC_CHANGE_KINDS },
-  { entity: "thread", notifier: "notifyThread", kinds: THREAD_CHANGE_KINDS },
+  { entity: "vault", kinds: VAULT_CHANGE_KINDS, notifier: "notifyVault" },
+  { entity: "doc", kinds: DOC_CHANGE_KINDS, notifier: "notifyDoc" },
+  { entity: "thread", kinds: THREAD_CHANGE_KINDS, notifier: "notifyThread" },
 ] as const;
 
 // empty on purpose: a kind belongs in the contract when the write that announces it exists.
 const DECLARED_WITHOUT_PRODUCER: Record<string, string> = {};
 
-const QUOTED = /["']([^"']+)["']/g;
+const QUOTED = /["'](?<value>[^"']+)["']/gu;
 
 // paren-matched, so a nested CHECK(…) or an inline object cannot end the capture early.
-function callArguments(source: string, name: string): string[] {
+const callArguments = (source: string, name: string): string[] => {
   const calls: string[] = [];
-  const opener = new RegExp(`\\b${name}\\s*\\(`, "g");
+  const opener = new RegExp(`\\b${name}\\s*\\(`, "gu");
   let match = opener.exec(source);
   while (match !== null) {
     let depth = 1;
@@ -32,16 +32,22 @@ function callArguments(source: string, name: string): string[] {
     const start = index;
     while (index < source.length && depth > 0) {
       const char = source[index];
-      if (char === "(") depth += 1;
-      if (char === ")") depth -= 1;
+      if (char === "(") {
+        depth += 1;
+      }
+      if (char === ")") {
+        depth -= 1;
+      }
       index += 1;
     }
-    if (depth === 0) calls.push(source.slice(start, index - 1));
+    if (depth === 0) {
+      calls.push(source.slice(start, index - 1));
+    }
     opener.lastIndex = index;
     match = opener.exec(source);
   }
   return calls;
-}
+};
 
 interface Producer {
   entity: string;
@@ -49,20 +55,24 @@ interface Producer {
   file: string;
 }
 
-function producers(): Producer[] {
+const producers = (): Producer[] => {
   const found: Producer[] = [];
   for (const workspace of workspaces()) {
     for (const file of workspaceFiles(workspace).shipped) {
       // the vocabulary and the seam that types it name every kind and fire none.
-      if (file.startsWith("packages/domain/")) continue;
+      if (file.startsWith("packages/domain/")) {
+        continue;
+      }
       const source = sourceOf(file);
       for (const { entity, notifier } of ENTITIES) {
         for (const args of callArguments(source, notifier)) {
           QUOTED.lastIndex = 0;
           let quoted = QUOTED.exec(args);
           while (quoted !== null) {
-            const kind = quoted[1];
-            if (kind !== undefined) found.push({ entity, kind, file });
+            const kind = quoted.groups?.value;
+            if (kind !== undefined) {
+              found.push({ entity, file, kind });
+            }
             quoted = QUOTED.exec(args);
           }
         }
@@ -70,7 +80,7 @@ function producers(): Producer[] {
     }
   }
   return found;
-}
+};
 
 describe("ws change-kind reachability", () => {
   const fired = producers();
@@ -80,9 +90,12 @@ describe("ws change-kind reachability", () => {
     for (const { entity, kinds } of ENTITIES) {
       for (const kind of kinds) {
         const id = `${entity}/${kind}`;
-        if (id in DECLARED_WITHOUT_PRODUCER) continue;
-        if (fired.some((producer) => producer.entity === entity && producer.kind === kind))
+        if (id in DECLARED_WITHOUT_PRODUCER) {
           continue;
+        }
+        if (fired.some((producer) => producer.entity === entity && producer.kind === kind)) {
+          continue;
+        }
         unreachable.push(
           `UNREACHABLE CHANGE KIND  ${id}\n` +
             `  rule: a declared change kind is a promise that some write announces itself; nothing outside the suites fires this one\n` +
@@ -97,9 +110,13 @@ describe("ws change-kind reachability", () => {
     const undeclared: string[] = [];
     for (const producer of fired) {
       const entity = ENTITIES.find((candidate) => candidate.entity === producer.entity);
-      if (entity === undefined) continue;
+      if (entity === undefined) {
+        continue;
+      }
       const declared: readonly string[] = entity.kinds;
-      if (declared.includes(producer.kind)) continue;
+      if (declared.includes(producer.kind)) {
+        continue;
+      }
       undeclared.push(
         `UNDECLARED CHANGE KIND  ${producer.entity}/${producer.kind}\n` +
           `  rule: the domain's kind arrays are the vocabulary; the contract's strict outbound schema rejects anything else at the socket\n` +

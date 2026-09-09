@@ -2,27 +2,27 @@
 // isContentEditable), so the plugin's onKeyDown body is driven with a structural event.
 
 import { describe, expect, it, vi } from "vitest";
-import { createPlateEditor, type PlateEditor } from "platejs/react";
+import { createPlateEditor } from "platejs/react";
+import type { PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 
 import {
   EDITOR_SHORTCUTS,
   editorShortcutFor,
   handleEditorShortcut,
-  type EditorShortcut,
-  type ShortcutKeyEvent,
 } from "@repo/editor/editor-shortcuts";
+import type { EditorShortcut, ShortcutKeyEvent } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 
-function press(
+const press = (
   editor: PlateEditor,
   key: string,
   keyCode: number,
   modifiers: { shift?: boolean } = {},
-) {
+) => {
   let claimed = false;
   // is-hotkey resolves "mod" to ctrl where no Mac platform is detectable (node has no navigator).
   const event: ShortcutKeyEvent = {
@@ -39,15 +39,15 @@ function press(
   };
   handleEditorShortcut(editor, event);
   return { claimed };
-}
+};
 
 const PARAGRAPH: Value = [{ children: [{ text: "hello world" }], type: "p" }];
 
-function mount(value: Value): PlateEditor {
+const mount = (value: Value): PlateEditor => {
   const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
   editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 5, path: [0, 0] } });
   return editor;
-}
+};
 
 describe("editor shortcuts", () => {
   it("⌘E toggles the inline code mark on the selection", () => {
@@ -89,8 +89,8 @@ describe("editor shortcuts", () => {
     const editorA = mount(PARAGRAPH);
     const editorB = mount(PARAGRAPH);
     const offEditors = [registerLiveEditor("a.md", editorA), registerLiveEditor("b.md", editorB)];
-    const focusA = vi.fn();
-    const focusB = vi.fn();
+    const focusA = vi.fn<() => void>();
+    const focusB = vi.fn<() => void>();
     const offTitleA = registerNoteTitleFocus("a.md", focusA);
     const offTitleB = registerNoteTitleFocus("b.md", focusB);
     try {
@@ -105,7 +105,9 @@ describe("editor shortcuts", () => {
     } finally {
       offTitleA();
       offTitleB();
-      for (const off of offEditors) off();
+      for (const off of offEditors) {
+        off();
+      }
     }
   });
 
@@ -126,10 +128,10 @@ describe("editor shortcuts", () => {
 });
 
 // the chord a row spells, pressed: "mod" is ctrl where no Mac platform is detectable
-function chordEvent(hotkey: string): ShortcutKeyEvent {
+const chordEvent = (hotkey: string): ShortcutKeyEvent => {
   const parts = hotkey.split("+");
   const key = parts.at(-1) ?? "";
-  const keyCode = key.toUpperCase().charCodeAt(0);
+  const keyCode = key.toUpperCase().codePointAt(0) ?? Number.NaN;
   return {
     altKey: parts.includes("alt"),
     ctrlKey: parts.includes("mod"),
@@ -140,7 +142,7 @@ function chordEvent(hotkey: string): ShortcutKeyEvent {
     shiftKey: parts.includes("shift"),
     which: keyCode,
   };
-}
+};
 
 describe("the shortcut tables", () => {
   it("resolve each row from its own chord, and no other row from it", () => {

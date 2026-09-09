@@ -9,106 +9,28 @@ I have been exhausted lately and cannot focus on anything at work. Every small
 task feels like wading through wet sand. Talked to Sam about taking a proper
 break instead of another long weekend.
 `,
-  "health/sleep.md": `# Sleep
+  "health/dentist.md": `# Dentist
 
-Going to bed before eleven made the biggest difference. Caffeine after two in
-the afternoon wrecks the whole night.
+Cleaning every six months. The one on Mill Street takes evening appointments.
 `,
   "health/running.md": `# Running
 
 Three easy miles, one hard session, one long run. Shoes are done at about five
 hundred miles.
 `,
-  "health/dentist.md": `# Dentist
+  "health/sleep.md": `# Sleep
 
-Cleaning every six months. The one on Mill Street takes evening appointments.
+Going to bed before eleven made the biggest difference. Caffeine after two in
+the afternoon wrecks the whole night.
 `,
-  "work/deploy-runbook.md": `# Deploy runbook
+  "journal/2026-02-02.md": `# Sunday
 
-1. Tag the release.
-2. Roll the canary and watch the error rate for ten minutes.
-3. Promote to the full fleet.
-
-Rollback is the same steps in reverse.
+Long walk, no phone. First quiet day in weeks. I keep putting off the dentist.
 `,
-  "work/oncall.md": `# On-call notes
+  "journal/2026-03-11.md": `# Wednesday
 
-Paging comes through the gateway alert. If a release looks wrong, roll back
-first and investigate afterwards. Nobody debugs a fire.
-`,
-  "work/standup-2026-03-10.md": `# Standup
-
-Blocked on the gateway migration. Asked Priya to review the runbook changes
-before Thursday.
-`,
-  "work/hiring.md": `# Hiring
-
-Screen for judgement, not trivia. Two interviewers per loop, written feedback
-within a day.
-`,
-  "work/one-on-ones.md": `# One-on-ones
-
-Their agenda first, mine second. The useful question is what they are avoiding.
-`,
-  "work/roadmap.md": `# Roadmap
-
-Three bets this half: the gateway rewrite, billing, and the mobile shell.
-Everything else is maintenance.
-`,
-  "work/billing.md": `# Billing
-
-Invoices go out on the first. Dunning after fourteen days, then a hold.
-`,
-  "work/postmortem-2026-01.md": `# Postmortem
-
-The alert fired for nine minutes before anyone looked. Nothing was wrong with
-the code; the dashboard was pointed at the old cluster.
-`,
-  "projects/vault-search.md": `# Vault search design
-
-Full-text search over the notes, ranked by bm25. The link graph answers
-backlinks; the box answers words.
-`,
-  "projects/knowledge-index.md": `# Knowledge index
-
-The index is a cache: wipe and rebuild is always safe. Nothing durable lives
-in it.
-`,
-  "projects/garden.md": `# Garden
-
-Tomatoes go in after the last frost. The raised bed needs new soil this year.
-`,
-  "projects/bike.md": `# Bike
-
-New chain, new cassette. The bottom bracket creaks under load and I have been
-ignoring it since March.
-`,
-  "projects/house.md": `# House
-
-The hall needs rewiring before anything else. Quotes came back three thousand
-apart, which says more about the trade than the job.
-`,
-  "recipes/bread.md": `# Sourdough bread
-
-Feed the starter the night before. Bake at 240C with steam for the first
-twenty minutes.
-`,
-  "recipes/soup.md": `# Lentil soup
-
-Onion, carrot, celery, red lentils, stock. Simmer forty minutes.
-`,
-  "recipes/roast-chicken.md": `# Roast chicken
-
-Salt it the day before. Hot oven, breast down for the first half.
-`,
-  "travel/lisbon.md": `# Lisbon
-
-Stayed in Alfama. The tram is charming and useless. The best pastel de nata
-was near the cathedral, not the famous one.
-`,
-  "travel/packing.md": `# Packing
-
-One bag. Two shirts fewer than feels right. The charger is the thing I forget.
+Wrote nothing worth keeping. Read two chapters and fell asleep on the sofa
+before nine.
 `,
   "money/mortgage.md": `# Mortgage
 
@@ -118,6 +40,38 @@ Fixed until 2029. Overpaying ten percent a year is allowed without a penalty.
 
 Contributions raised to twelve percent. The old workplace pot is still sitting
 in a default fund doing nothing.
+`,
+  "people/priya.md": `# Priya
+
+Reviews faster than anyone and is blunt about it. Owns the gateway.
+`,
+  "people/sam.md": `# Sam
+
+Met at the conference. Runs a small team, cares a lot about hiring slowly.
+`,
+  "projects/bike.md": `# Bike
+
+New chain, new cassette. The bottom bracket creaks under load and I have been
+ignoring it since March.
+`,
+  "projects/garden.md": `# Garden
+
+Tomatoes go in after the last frost. The raised bed needs new soil this year.
+`,
+  "projects/house.md": `# House
+
+The hall needs rewiring before anything else. Quotes came back three thousand
+apart, which says more about the trade than the job.
+`,
+  "projects/knowledge-index.md": `# Knowledge index
+
+The index is a cache: wipe and rebuild is always safe. Nothing durable lives
+in it.
+`,
+  "projects/vault-search.md": `# Vault search design
+
+Full-text search over the notes, ranked by bm25. The link graph answers
+backlinks; the box answers words.
 `,
   "reading/deep-work.md": `# Deep Work
 
@@ -129,72 +83,118 @@ Long uninterrupted blocks beat many short ones.
 Legibility is imposed for the convenience of the centre, and the local
 knowledge it flattens is the part that made the thing work.
 `,
-  "people/sam.md": `# Sam
+  "recipes/bread.md": `# Sourdough bread
 
-Met at the conference. Runs a small team, cares a lot about hiring slowly.
+Feed the starter the night before. Bake at 240C with steam for the first
+twenty minutes.
 `,
-  "people/priya.md": `# Priya
+  "recipes/roast-chicken.md": `# Roast chicken
 
-Reviews faster than anyone and is blunt about it. Owns the gateway.
+Salt it the day before. Hot oven, breast down for the first half.
 `,
-  "journal/2026-02-02.md": `# Sunday
+  "recipes/soup.md": `# Lentil soup
 
-Long walk, no phone. First quiet day in weeks. I keep putting off the dentist.
+Onion, carrot, celery, red lentils, stock. Simmer forty minutes.
 `,
-  "journal/2026-03-11.md": `# Wednesday
+  "travel/lisbon.md": `# Lisbon
 
-Wrote nothing worth keeping. Read two chapters and fell asleep on the sofa
-before nine.
+Stayed in Alfama. The tram is charming and useless. The best pastel de nata
+was near the cathedral, not the famous one.
+`,
+  "travel/packing.md": `# Packing
+
+One bag. Two shirts fewer than feels right. The charger is the thing I forget.
+`,
+  "work/billing.md": `# Billing
+
+Invoices go out on the first. Dunning after fourteen days, then a hold.
+`,
+  "work/deploy-runbook.md": `# Deploy runbook
+
+1. Tag the release.
+2. Roll the canary and watch the error rate for ten minutes.
+3. Promote to the full fleet.
+
+Rollback is the same steps in reverse.
+`,
+  "work/hiring.md": `# Hiring
+
+Screen for judgement, not trivia. Two interviewers per loop, written feedback
+within a day.
+`,
+  "work/oncall.md": `# On-call notes
+
+Paging comes through the gateway alert. If a release looks wrong, roll back
+first and investigate afterwards. Nobody debugs a fire.
+`,
+  "work/one-on-ones.md": `# One-on-ones
+
+Their agenda first, mine second. The useful question is what they are avoiding.
+`,
+  "work/postmortem-2026-01.md": `# Postmortem
+
+The alert fired for nine minutes before anyone looked. Nothing was wrong with
+the code; the dashboard was pointed at the old cluster.
+`,
+  "work/roadmap.md": `# Roadmap
+
+Three bets this half: the gateway rewrite, billing, and the mobile shell.
+Everything else is maintenance.
+`,
+  "work/standup-2026-03-10.md": `# Standup
+
+Blocked on the gateway migration. Asked Priya to review the runbook changes
+before Thursday.
 `,
 };
 
-export type EvalQuery = {
+export interface EvalQuery {
   query: string;
   gold: readonly string[];
-};
+}
 
 export const EVAL_QUERIES: readonly EvalQuery[] = [
   // the sentence a lexical fix recovers, and the one it cannot.
-  { query: "how do I stop feeling burnt out at work", gold: ["health/burnout.md"] },
-  { query: "what did I write about being tired", gold: ["health/burnout.md"] },
+  { gold: ["health/burnout.md"], query: "how do I stop feeling burnt out at work" },
+  { gold: ["health/burnout.md"], query: "what did I write about being tired" },
 
   // short lookups: must not regress.
-  { query: "deploy runbook", gold: ["work/deploy-runbook.md"] },
-  { query: "canary release", gold: ["work/deploy-runbook.md"] },
-  { query: "bm25 ranking", gold: ["projects/vault-search.md"] },
-  { query: "gateway migration", gold: ["work/standup-2026-03-10.md"] },
-  { query: "sourdough", gold: ["recipes/bread.md"] },
-  { query: "dentist", gold: ["health/dentist.md", "journal/2026-02-02.md"] },
+  { gold: ["work/deploy-runbook.md"], query: "deploy runbook" },
+  { gold: ["work/deploy-runbook.md"], query: "canary release" },
+  { gold: ["projects/vault-search.md"], query: "bm25 ranking" },
+  { gold: ["work/standup-2026-03-10.md"], query: "gateway migration" },
+  { gold: ["recipes/bread.md"], query: "sourdough" },
+  { gold: ["health/dentist.md", "journal/2026-02-02.md"], query: "dentist" },
 
   // one inflected word: the case a prefix alone cannot answer.
-  { query: "dentists", gold: ["health/dentist.md", "journal/2026-02-02.md"] },
-  { query: "interviewer", gold: ["work/hiring.md"] },
-  { query: "invoicing", gold: ["work/billing.md"] },
+  { gold: ["health/dentist.md", "journal/2026-02-02.md"], query: "dentists" },
+  { gold: ["work/hiring.md"], query: "interviewer" },
+  { gold: ["work/billing.md"], query: "invoicing" },
 
   // content words present in the note.
-  { query: "how do I roll back a bad release", gold: ["work/oncall.md"] },
-  { query: "what temperature do I bake the bread at", gold: ["recipes/bread.md"] },
-  { query: "how long do I simmer the lentils", gold: ["recipes/soup.md"] },
-  { query: "can I overpay the mortgage without a penalty", gold: ["money/mortgage.md"] },
-  { query: "when do I plant the tomatoes", gold: ["projects/garden.md"] },
-  { query: "what is the book about concentration", gold: ["reading/deep-work.md"] },
-  { query: "who reviews the gateway changes", gold: ["people/priya.md"] },
-  { query: "why is the knowledge index safe to delete", gold: ["projects/knowledge-index.md"] },
+  { gold: ["work/oncall.md"], query: "how do I roll back a bad release" },
+  { gold: ["recipes/bread.md"], query: "what temperature do I bake the bread at" },
+  { gold: ["recipes/soup.md"], query: "how long do I simmer the lentils" },
+  { gold: ["money/mortgage.md"], query: "can I overpay the mortgage without a penalty" },
+  { gold: ["projects/garden.md"], query: "when do I plant the tomatoes" },
+  { gold: ["reading/deep-work.md"], query: "what is the book about concentration" },
+  { gold: ["people/priya.md"], query: "who reviews the gateway changes" },
+  { gold: ["projects/knowledge-index.md"], query: "why is the knowledge index safe to delete" },
   {
-    query: "what did the postmortem say about the dashboard",
     gold: ["work/postmortem-2026-01.md"],
+    query: "what did the postmortem say about the dashboard",
   },
-  { query: "how much are the quotes for rewiring the hall", gold: ["projects/house.md"] },
-  { query: "notes about hiring people", gold: ["work/hiring.md"] },
-  { query: "what happened on the quiet sunday", gold: ["journal/2026-02-02.md"] },
+  { gold: ["projects/house.md"], query: "how much are the quotes for rewiring the hall" },
+  { gold: ["work/hiring.md"], query: "notes about hiring people" },
+  { gold: ["journal/2026-02-02.md"], query: "what happened on the quiet sunday" },
 
   // words the note does not use: the residue this measures.
-  { query: "what should I cook tonight", gold: ["recipes/bread.md", "recipes/soup.md"] },
-  { query: "notes on interviewing candidates", gold: ["work/hiring.md"] },
-  { query: "what do I do when the site goes down", gold: ["work/oncall.md"] },
-  { query: "I cannot sleep because of coffee", gold: ["health/sleep.md"] },
-  { query: "feeling drained and unable to concentrate", gold: ["health/burnout.md"] },
-  { query: "which bicycle parts need replacing", gold: ["projects/bike.md"] },
-  { query: "what am I saving for retirement", gold: ["money/pension.md"] },
-  { query: "trip to portugal", gold: ["travel/lisbon.md"] },
+  { gold: ["recipes/bread.md", "recipes/soup.md"], query: "what should I cook tonight" },
+  { gold: ["work/hiring.md"], query: "notes on interviewing candidates" },
+  { gold: ["work/oncall.md"], query: "what do I do when the site goes down" },
+  { gold: ["health/sleep.md"], query: "I cannot sleep because of coffee" },
+  { gold: ["health/burnout.md"], query: "feeling drained and unable to concentrate" },
+  { gold: ["projects/bike.md"], query: "which bicycle parts need replacing" },
+  { gold: ["money/pension.md"], query: "what am I saving for retirement" },
+  { gold: ["travel/lisbon.md"], query: "trip to portugal" },
 ];

@@ -4,20 +4,31 @@ import { orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
 import { ChoiceRow, failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
-function credentialSentence(probe: HarnessProbe): string {
+const credentialSentence = (probe: HarnessProbe): string => {
   switch (probe.credentials) {
-    case "present":
+    case "present": {
       return "Signed in.";
-    case "unknown":
+    }
+    case "unknown": {
       return "Sign-in state unknown on this platform.";
-    case "absent":
+    }
+    case "absent": {
       return probe.cliPath === null
         ? "Not signed in."
         : `Not signed in — run: ${probe.loginCommand}`;
+    }
+    // no default
   }
-}
+};
 
-function HarnessRow({ probe }: { probe: HarnessProbe }) {
+const readinessLabel = (probe: HarnessProbe, ready: boolean): string => {
+  if (probe.cliPath === null) {
+    return "not installed";
+  }
+  return ready ? "ready" : "needs sign-in";
+};
+
+const HarnessRow = ({ probe }: { probe: HarnessProbe }) => {
   const ready = probe.cliPath !== null && probe.credentials === "present";
   return (
     <div className="flex items-start justify-between gap-3 py-2">
@@ -36,13 +47,13 @@ function HarnessRow({ probe }: { probe: HarnessProbe }) {
             : "shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
         }
       >
-        {ready ? "ready" : probe.cliPath === null ? "not installed" : "needs sign-in"}
+        {readinessLabel(probe, ready)}
       </span>
     </div>
   );
-}
+};
 
-export function AgentsSection() {
+export const AgentsSection = () => {
   const queryClient = useQueryClient();
   const statusQuery = useQuery({
     ...orpc.agents.status.queryOptions(),
@@ -51,11 +62,11 @@ export function AgentsSection() {
   });
   const setDefault = useMutation(
     orpc.agents.setDefault.mutationOptions({
-      onSuccess: (status) => {
-        queryClient.setQueryData(orpc.agents.status.queryKey(), status);
-      },
       onError: (cause) => {
         failed(cause, "Could not set the default agent.");
+      },
+      onSuccess: (status) => {
+        queryClient.setQueryData(orpc.agents.status.queryKey(), status);
       },
     }),
   );
@@ -80,7 +91,7 @@ export function AgentsSection() {
           <Row label="Default agent">
             <ChoiceRow
               label="Default agent"
-              options={harnesses.map((probe) => ({ value: probe.id, label: probe.displayName }))}
+              options={harnesses.map((probe) => ({ label: probe.displayName, value: probe.id }))}
               value={status.defaultId}
               onChange={(id) => {
                 setDefault.mutate({ id });
@@ -95,4 +106,4 @@ export function AgentsSection() {
       )}
     </section>
   );
-}
+};

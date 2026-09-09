@@ -22,17 +22,17 @@ export type CloudErrorCode = z.infer<typeof cloudErrorCodeSchema>;
 
 // account-deleted is 410, not 401: told "unauthorized", a client retries the credential forever
 export const CLOUD_ERROR_STATUS = {
+  "account-deleted": 410,
   "bad-request": 400,
-  unauthorized: 401,
+  "device-limit": 409,
+  "file-too-large": 413,
+  internal: 500,
   "invalid-credentials": 401,
   "not-found": 404,
   "rate-limited": 429,
-  "device-limit": 409,
   "sync-conflict": 409,
   "sync-out-of-order": 409,
-  "account-deleted": 410,
-  "file-too-large": 413,
-  internal: 500,
+  unauthorized: 401,
 } as const satisfies Record<CloudErrorCode, number>;
 
 export const SYNC_TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set([
@@ -51,17 +51,23 @@ export const cloudErrorSchema = z
     error: z
       .object({
         code: cloudErrorCodeSchema,
-        message: z.string(),
         // only on sync-conflict / sync-out-of-order: the outbox position that disagreed
         deviceSeq: z.number().int().nonnegative().optional(),
+        message: z.string(),
       })
       .strict(),
   })
   .strict();
 export type CloudError = z.infer<typeof cloudErrorSchema>;
 
-export function cloudError(code: CloudErrorCode, message: string, deviceSeq?: number): CloudError {
+export const cloudError = (
+  code: CloudErrorCode,
+  message: string,
+  deviceSeq?: number,
+): CloudError => {
   const error: CloudError["error"] = { code, message };
-  if (deviceSeq !== undefined) error.deviceSeq = deviceSeq;
+  if (deviceSeq !== undefined) {
+    error.deviceSeq = deviceSeq;
+  }
   return { error };
-}
+};

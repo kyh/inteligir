@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
 
 let store = createOpenNoteStore();
-const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) =>
+const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) => {
   store.publishOpenPath(path, change);
+};
 
-function stacks() {
+const stacks = () => {
   const state = store.state();
   return { back: state.back, forward: state.forward, open: state.openPath };
-}
+};
 
 describe("open-note navigation history", () => {
   beforeEach(() => {

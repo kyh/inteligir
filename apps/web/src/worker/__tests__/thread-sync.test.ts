@@ -1,17 +1,19 @@
+// oxlint-disable typescript/no-deprecated -- SELF is the only fetcher that runs in the tests'
+// own isolate; the cloudflare:workers loopback binding stands a second worker up, and its
+// first fetch costs seconds enough to time a test out.
 import {
   ackCapturesResponseSchema,
   captureResponseSchema,
   claimCapturesResponseSchema,
 } from "@repo/api/cloud/captures/captures-schema";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
-import {
-  pullResponseSchema,
-  pushResponseSchema,
-  type PushRequest,
-  type ThreadMetaInput,
-} from "@repo/api/cloud/sync/sync-schema";
-import { env, runInDurableObject, SELF } from "cloudflare:test";
+import { pullResponseSchema, pushResponseSchema } from "@repo/api/cloud/sync/sync-schema";
+import type { PushRequest, ThreadMetaInput } from "@repo/api/cloud/sync/sync-schema";
+import { devicePlatformSchema } from "@repo/api/cloud/sync/sync-ws";
+import { runInDurableObject, SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   awaitFrames,
   deviceHeaders,
@@ -23,15 +25,20 @@ import {
   userIdOf,
 } from "./cloud-helpers";
 
-async function push(credential: string, body: PushRequest): Promise<Response> {
-  return await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
-    method: "POST",
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
+// the attachment is the socket's whole identity across hibernation, so the test reads it as one
+const socketTagSchema = z.object({
+  deviceId: z.string().min(1),
+  platform: devicePlatformSchema,
+});
 
-async function pull(credential: string, afterSeq: number, limit?: number) {
+const push = async (credential: string, body: PushRequest): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
+    body: JSON.stringify(body),
+    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
+    method: "POST",
+  });
+
+const pull = async (credential: string, afterSeq: number, limit?: number) => {
   const query =
     limit === undefined ? `afterSeq=${afterSeq}` : `afterSeq=${afterSeq}&limit=${limit}`;
   const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?${query}`, {
@@ -39,55 +46,63 @@ async function pull(credential: string, afterSeq: number, limit?: number) {
   });
   expect(response.status).toBe(200);
   return pullResponseSchema.parse(await response.json());
-}
+};
 
-function event(
+const event = (
   threadId: string,
   deviceSeq: number,
   payload: string,
-): PushRequest["events"][number] {
-  return { threadId, deviceSeq, event: { type: "test", payload }, createdAt: deviceSeq };
-}
+): PushRequest["events"][number] => ({
+  createdAt: deviceSeq,
+  deviceSeq,
+  event: { payload, type: "test" },
+  threadId,
+});
 
-function meta(
+const meta = (
   threadId: string,
   lane: "any" | "desktop",
   updatedAt: number,
   title?: string,
-): ThreadMetaInput {
-  const meta: ThreadMetaInput = { threadId, lane, updatedAt };
+): ThreadMetaInput => {
+  const input: ThreadMetaInput = { lane, threadId, updatedAt };
   // the contract is strict: an explicit undefined title is not the same as an unsent one
-  if (title !== undefined) meta.title = title;
-  return meta;
-}
+  if (title !== undefined) {
+    input.title = title;
+  }
+  return input;
+};
 
-function capture(credential: string, text: string, idempotencyKey: string): Promise<Response> {
-  return SELF.fetch(`${ORIGIN}/v1/capture`, {
-    method: "POST",
+const capture = async (
+  credential: string,
+  text: string,
+  idempotencyKey: string,
+): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}/v1/capture`, {
+    body: JSON.stringify({ idempotencyKey, text }),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    body: JSON.stringify({ text, idempotencyKey }),
+    method: "POST",
   });
-}
 
-async function claim(credential: string) {
+const claim = async (credential: string) => {
   const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/claim`, {
-    method: "POST",
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     body: JSON.stringify({}),
+    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
+    method: "POST",
   });
   expect(response.status).toBe(200);
   return claimCapturesResponseSchema.parse(await response.json());
-}
+};
 
-async function ack(credential: string, claimToken: string, ids: string[]) {
+const ack = async (credential: string, claimToken: string, ids: string[]) => {
   const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/ack`, {
-    method: "POST",
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     body: JSON.stringify({ claimToken, ids }),
+    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
+    method: "POST",
   });
   expect(response.status).toBe(200);
   return ackCapturesResponseSchema.parse(await response.json());
-}
+};
 
 describe("thread sync log", () => {
   it("pushes, pulls, and ignores a replayed outbox batch", async () => {
@@ -95,15 +110,17 @@ describe("thread sync log", () => {
     const { credential } = await loginDevice(bearer, "Laptop");
 
     const batch: PushRequest = { events: [event("th_1", 1, "a"), event("th_1", 2, "b")] };
-    const first = pushResponseSchema.parse(await (await push(credential, batch)).json());
+    const pushed = await push(credential, batch);
+    const first = pushResponseSchema.parse(await pushed.json());
     expect(first).toEqual({ accepted: 2, duplicates: 0, lastSeq: 2 });
 
-    const replay = pushResponseSchema.parse(await (await push(credential, batch)).json());
+    const replayed = await push(credential, batch);
+    const replay = pushResponseSchema.parse(await replayed.json());
     expect(replay).toEqual({ accepted: 0, duplicates: 2, lastSeq: 2 });
 
     const page = await pull(credential, 0);
     expect(page.events.map((row) => row.deviceSeq)).toEqual([1, 2]);
-    expect(page.events[0]?.event).toEqual({ type: "test", payload: "a" });
+    expect(page.events[0]?.event).toEqual({ payload: "a", type: "test" });
     expect(page.hasMore).toBe(false);
   });
 
@@ -112,11 +129,10 @@ describe("thread sync log", () => {
     const { credential } = await loginDevice(bearer, "Laptop");
 
     await push(credential, { events: [event("th_1", 1, "a")] });
-    const retry = pushResponseSchema.parse(
-      await (
-        await push(credential, { events: [event("th_1", 1, "a"), event("th_1", 2, "b")] })
-      ).json(),
-    );
+    const retried = await push(credential, {
+      events: [event("th_1", 1, "a"), event("th_1", 2, "b")],
+    });
+    const retry = pushResponseSchema.parse(await retried.json());
     expect(retry).toEqual({ accepted: 1, duplicates: 1, lastSeq: 2 });
   });
 
@@ -132,7 +148,7 @@ describe("thread sync log", () => {
     expect(envelope.error.deviceSeq).toBe(2);
 
     const page = await pull(credential, 0);
-    expect(page.events[1]?.event).toEqual({ type: "test", payload: "b" });
+    expect(page.events[1]?.event).toEqual({ payload: "b", type: "test" });
   });
 
   it("refuses a NEW position at or below the high-water mark", async () => {
@@ -145,7 +161,8 @@ describe("thread sync log", () => {
     const envelope = cloudErrorSchema.parse(await response.json());
     expect(envelope.error.code).toBe("sync-out-of-order");
     expect(envelope.error.deviceSeq).toBe(3);
-    expect((await pull(credential, 0)).events).toHaveLength(1);
+    const page = await pull(credential, 0);
+    expect(page.events).toHaveLength(1);
   });
 
   it("refuses a batch that is not sorted, before storing any of it", async () => {
@@ -157,7 +174,8 @@ describe("thread sync log", () => {
     });
     expect(response.status).toBe(409);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("sync-out-of-order");
-    expect((await pull(credential, 0)).events).toEqual([]);
+    const page = await pull(credential, 0);
+    expect(page.events).toEqual([]);
   });
 
   it("merges devices into one log and pages by the global seq", async () => {
@@ -202,13 +220,13 @@ describe("thread sync log", () => {
 
     await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
     await push(phone.credential, { events: [], threads: [meta("th_1", "any", 2000, "Second")] });
-    await awaitFrames(desktopWs, [{ type: "dispatch", threadId: "th_1" }]);
+    await awaitFrames(desktopWs, [{ threadId: "th_1", type: "dispatch" }]);
 
     await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
     await push(phone.credential, { events: [event("th_1", 1, "after the retry")] });
     await awaitFrames(desktopWs, [
-      { type: "dispatch", threadId: "th_1" },
-      { type: "sync", seq: 1 },
+      { threadId: "th_1", type: "dispatch" },
+      { seq: 1, type: "sync" },
     ]);
 
     desktopWs.socket.close();
@@ -230,10 +248,10 @@ describe("thread sync log", () => {
     });
 
     await awaitFrames(desktopWs, [
-      { type: "sync", seq: 1 },
-      { type: "dispatch", threadId: "th_dispatch" },
+      { seq: 1, type: "sync" },
+      { threadId: "th_dispatch", type: "dispatch" },
     ]);
-    await awaitFrames(tabletWs, [{ type: "sync", seq: 1 }]);
+    await awaitFrames(tabletWs, [{ seq: 1, type: "sync" }]);
     expect(phoneWs.frames).toEqual([]);
 
     await push(phone.credential, {
@@ -241,13 +259,13 @@ describe("thread sync log", () => {
       threads: [meta("th_chat", "any", 1000)],
     });
     await awaitFrames(desktopWs, [
-      { type: "sync", seq: 1 },
-      { type: "dispatch", threadId: "th_dispatch" },
-      { type: "sync", seq: 2 },
+      { seq: 1, type: "sync" },
+      { threadId: "th_dispatch", type: "dispatch" },
+      { seq: 2, type: "sync" },
     ]);
     await awaitFrames(tabletWs, [
-      { type: "sync", seq: 1 },
-      { type: "sync", seq: 2 },
+      { seq: 1, type: "sync" },
+      { seq: 2, type: "sync" },
     ]);
     expect(phoneWs.frames).toEqual([]);
 
@@ -262,17 +280,14 @@ describe("thread sync log", () => {
     const phone = await loginDevice(bearer, "Phone");
     const desktopWs = await openSocket(desktop.credential, "desktop");
 
-    const response = pushResponseSchema.parse(
-      await (
-        await push(phone.credential, {
-          events: [],
-          threads: [meta("th_later", "desktop", 1000, "Queued")],
-        })
-      ).json(),
-    );
+    const pushed = await push(phone.credential, {
+      events: [],
+      threads: [meta("th_later", "desktop", 1000, "Queued")],
+    });
+    const response = pushResponseSchema.parse(await pushed.json());
     expect(response).toEqual({ accepted: 0, duplicates: 0, lastSeq: 0 });
 
-    await awaitFrames(desktopWs, [{ type: "dispatch", threadId: "th_later" }]);
+    await awaitFrames(desktopWs, [{ threadId: "th_later", type: "dispatch" }]);
     desktopWs.socket.close();
   });
 
@@ -285,7 +300,7 @@ describe("thread sync log", () => {
     const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
 
     const tags = await runInDurableObject(stub, (_instance, state) =>
-      state.getWebSockets().map((ws) => ws.deserializeAttachment()),
+      state.getWebSockets().map((ws) => socketTagSchema.parse(ws.deserializeAttachment())),
     );
     expect(tags).toEqual([{ deviceId: desktop.deviceId, platform: "desktop" }]);
 
@@ -294,8 +309,8 @@ describe("thread sync log", () => {
       threads: [meta("th_x", "desktop", 1000)],
     });
     await awaitFrames(desktopWs, [
-      { type: "sync", seq: 1 },
-      { type: "dispatch", threadId: "th_x" },
+      { seq: 1, type: "sync" },
+      { threadId: "th_x", type: "dispatch" },
     ]);
     desktopWs.socket.close();
   });
@@ -304,14 +319,17 @@ describe("thread sync log", () => {
     const { bearer } = await signUpUser("sync-sever@example.test");
     const doomed = await loginDevice(bearer, "Doomed Laptop");
     const socket = await openSocket(doomed.credential, "desktop");
+    // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
     const closed = new Promise<number>((resolve) => {
-      socket.socket.addEventListener("close", (close) => resolve(close.code));
+      socket.socket.addEventListener("close", (close) => {
+        resolve(close.code);
+      });
     });
 
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ deviceId: doomed.deviceId }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
 
     expect(await closed).toBe(1008);
@@ -331,14 +349,13 @@ describe("capture inbox", () => {
     const phone = await loginDevice(bearer, "Phone");
     const laptop = await loginDevice(bearer, "Laptop");
 
-    const posted = captureResponseSchema.parse(
-      await (await capture(phone.credential, "buy oat milk", "key-oat-milk-1")).json(),
-    );
+    const captured = await capture(phone.credential, "buy oat milk", "key-oat-milk-1");
+    const posted = captureResponseSchema.parse(await captured.json());
     expect(posted.duplicate).toBe(false);
 
     const laptopClaim = await claim(laptop.credential);
     expect(laptopClaim.captures).toEqual([
-      { id: posted.id, text: "buy oat milk", createdAt: posted.createdAt },
+      { createdAt: posted.createdAt, id: posted.id, text: "buy oat milk" },
     ]);
 
     const phoneClaim = await claim(phone.credential);
@@ -351,16 +368,16 @@ describe("capture inbox", () => {
       results: [{ id: posted.id, outcome: "unknown" }],
     });
 
-    expect((await claim(laptop.credential)).captures).toEqual([]);
+    const emptied = await claim(laptop.credential);
+    expect(emptied.captures).toEqual([]);
   });
 
   it("tells a lapsed claimer its rows were reclaimed rather than deleting them", async () => {
     const { bearer } = await signUpUser("capture-lapsed@example.test");
     const phone = await loginDevice(bearer, "Phone");
     const laptop = await loginDevice(bearer, "Laptop");
-    const posted = captureResponseSchema.parse(
-      await (await capture(phone.credential, "remember", "key-remember-1")).json(),
-    );
+    const captured = await capture(phone.credential, "remember", "key-remember-1");
+    const posted = captureResponseSchema.parse(await captured.json());
 
     const stale = await claim(laptop.credential);
     expect(stale.captures).toHaveLength(1);
@@ -385,16 +402,15 @@ describe("capture inbox", () => {
     const { bearer } = await signUpUser("capture-idem@example.test");
     const phone = await loginDevice(bearer, "Phone");
 
-    const first = captureResponseSchema.parse(
-      await (await capture(phone.credential, "one thought", "key-shared")).json(),
-    );
-    const retry = captureResponseSchema.parse(
-      await (await capture(phone.credential, "one thought", "key-shared")).json(),
-    );
+    const captured = await capture(phone.credential, "one thought", "key-shared");
+    const first = captureResponseSchema.parse(await captured.json());
+    const recaptured = await capture(phone.credential, "one thought", "key-shared");
+    const retry = captureResponseSchema.parse(await recaptured.json());
     expect(retry.id).toBe(first.id);
     expect(retry.duplicate).toBe(true);
 
-    expect((await claim(phone.credential)).captures).toHaveLength(1);
+    const claimed = await claim(phone.credential);
+    expect(claimed.captures).toHaveLength(1);
   });
 
   it("pings every socket when a capture lands", async () => {
@@ -423,13 +439,14 @@ describe("account deletion", () => {
     const { credential } = await loginDevice(bearer, "Laptop");
     await push(credential, { events: [event("th_1", 1, "to be purged")] });
     await capture(credential, "to be purged too", "key-purge-1");
-    expect((await pull(credential, 0)).lastSeq).toBe(1);
+    const page = await pull(credential, 0);
+    expect(page.lastSeq).toBe(1);
 
     const userId = await userIdOf(bearer);
     const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ password }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
     expect(deletion.status).toBe(200);
 
@@ -441,11 +458,11 @@ describe("account deletion", () => {
     // read off the SQL: every route refuses a tombstoned object, so a route answer would prove the tombstone, not the wipe
     const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
-      events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
       captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
+      events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
       threads: state.storage.sql.exec("SELECT COUNT(*) AS n FROM thread_meta").one().n,
     }));
-    expect(rows).toEqual({ events: 0, captures: 0, threads: 0 });
+    expect(rows).toEqual({ captures: 0, events: 0, threads: 0 });
   });
 
   it("refuses a request that verified just before the account died", async () => {
@@ -455,17 +472,17 @@ describe("account deletion", () => {
     await push(credential, { events: [event("th_1", 1, "before")] });
 
     await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ password }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
 
     // replays a request whose credential check passed before the purge, as the Worker would have forwarded it
     const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
     const inFlight = await stub.fetch("https://thread-sync/push", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-device-id": deviceId },
       body: JSON.stringify({ events: [event("th_1", 2, "after the purge")] }),
+      headers: { "content-type": "application/json", "x-device-id": deviceId },
+      method: "POST",
     });
     expect(inFlight.status).toBe(410);
     expect(cloudErrorSchema.parse(await inFlight.json()).error.code).toBe("account-deleted");

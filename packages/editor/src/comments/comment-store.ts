@@ -4,29 +4,29 @@
 
 import { create } from "zustand";
 
-export type CommentActions = {
+export interface CommentActions {
   /** False means refused; the caller strips the markers it minted. */
   create: (id: string, text: string) => Promise<boolean>;
   open: (ids: string[]) => void;
-};
+}
 
-export type PendingCreate = {
+export interface PendingCreate {
   id: string;
   path: string;
   // the selection's box when the markers were minted: a virtual anchor for the create popup
   rect: { top: number; left: number; bottom: number; right: number; width: number; height: number };
-};
+}
 
-export type CommentMeta = {
+export interface CommentMeta {
   knownIds: ReadonlySet<string>;
   resolvedIds: ReadonlySet<string>;
-};
+}
 
-type CommentSurfaceState = {
+interface CommentSurfaceState {
   meta: ReadonlyMap<string, CommentMeta>;
   actions: CommentActions | null;
   pendingCreate: PendingCreate | null;
-};
+}
 
 const EMPTY_META: CommentMeta = { knownIds: new Set<string>(), resolvedIds: new Set<string>() };
 const NO_META: ReadonlyMap<string, CommentMeta> = new Map();
@@ -38,29 +38,28 @@ export const useCommentSurface = create<CommentSurfaceState>()(() => ({
 }));
 
 // a note with no published meta yet reads as empty, so its ranges render as orphans until the sidecar loads
-export function useCommentMeta(path: string | null): CommentMeta {
-  return useCommentSurface((state) =>
-    path === null ? EMPTY_META : (state.meta.get(path) ?? EMPTY_META),
-  );
-}
+export const useCommentMeta = (path: string | null): CommentMeta =>
+  useCommentSurface((state) => (path === null ? EMPTY_META : (state.meta.get(path) ?? EMPTY_META)));
 
-export function setCommentActions(actions: CommentActions | null): void {
+export const setCommentActions = (actions: CommentActions | null): void => {
   useCommentSurface.setState({ actions });
-}
+};
 
-export function setCommentMeta(path: string, meta: CommentMeta): void {
+export const setCommentMeta = (path: string, meta: CommentMeta): void => {
   useCommentSurface.setState((state) => ({ meta: new Map(state.meta).set(path, meta) }));
-}
+};
 
-export function clearCommentMeta(path: string): void {
+export const clearCommentMeta = (path: string): void => {
   useCommentSurface.setState((state) => {
-    if (!state.meta.has(path)) return state;
+    if (!state.meta.has(path)) {
+      return state;
+    }
     const next = new Map(state.meta);
     next.delete(path);
     return { meta: next };
   });
-}
+};
 
-export function setPendingCreate(pending: PendingCreate | null): void {
+export const setPendingCreate = (pending: PendingCreate | null): void => {
   useCommentSurface.setState({ pendingCreate: pending });
-}
+};

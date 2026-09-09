@@ -1,5 +1,5 @@
 import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
-import type { List, PhrasingContent, Root, RootContent } from "mdast";
+import type { Code, List, Paragraph, PhrasingContent, Root, RootContent } from "mdast";
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 import { parseMdast } from "@repo/notes/markdown/parse";
@@ -55,218 +55,265 @@ const RICH_LABELS = {
 // and UIImage.
 const MOBILE_IMAGE_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
-function isMobileImageTarget(target: string): boolean {
+const isMobileImageTarget = (target: string): boolean => {
   const mediaType = assetMediaType(target);
   return mediaType !== null && MOBILE_IMAGE_MEDIA_TYPES.has(mediaType);
+};
+
+interface SpanStyle {
+  bold?: boolean;
+  italic?: boolean;
+  strike?: boolean;
 }
 
-type SpanStyle = { bold?: boolean; italic?: boolean; strike?: boolean };
+const spanText = (span: InlineSpan): string => (span.kind === "text" ? span.text : span.label);
 
-function spanText(span: InlineSpan): string {
-  return span.kind === "text" ? span.text : span.label;
-}
+type LeafPhrasing = Exclude<PhrasingContent, { type: "strong" | "emphasis" | "delete" | "link" }>;
 
-function projectSource(source: string): NoteBlock[] {
-  const parsed = parseMdast(source);
-  if (!parsed.ok) {
-    return [{ kind: "raw", text: source }];
-  }
-  // the parser positioned nodes against the pipe-escaped text, so raw slices must cut the same
-  // bytes.
-  return projectParsed(escapePillPipesInTables(source), parsed.root);
-}
+const wikiSpan = (
+  node: Extract<PhrasingContent, { type: "wikiLink" | "wikiEmbed" }>,
+): InlineSpan => {
+  const body = parseWikiBodyRange(node.body);
+  const label =
+    body.alias ?? (body.anchor === undefined ? body.target : `${body.target}#${body.anchor}`);
+  return node.type === "wikiEmbed" && isMobileImageTarget(body.target)
+    ? { kind: "image-embed", label, target: body.target }
+    : { kind: "wiki-link", label, target: body.target };
+};
 
-function projectParsed(source: string, root: Root): NoteBlock[] {
-  function rawSlice(node: {
+const imageAltText = (alt: string | null | undefined): string =>
+  alt === null || alt === undefined || alt === "" ? "[image]" : alt;
+
+const projectParsed = (source: string, root: Root): NoteBlock[] => {
+  const rawSlice = (node: {
     position?:
       | { start: { offset?: number | undefined }; end: { offset?: number | undefined } }
       | undefined;
-  }): string | null {
+  }): string | null => {
     const start = node.position?.start.offset;
     const end = node.position?.end.offset;
-    if (start === undefined || end === undefined) return null;
+    if (start === undefined || end === undefined) {
+      return null;
+    }
     return source.slice(start, end);
-  }
+  };
 
-  function flattenInline(nodes: readonly PhrasingContent[], style: SpanStyle = {}): InlineSpan[] {
+  const inlineLeaf = (node: LeafPhrasing, style: SpanStyle): InlineSpan | null => {
+    switch (node.type) {
+      case "text": {
+        return { kind: "text", text: node.value, ...style };
+      }
+      case "inlineCode": {
+        return { kind: "text", text: node.value, ...style, code: true };
+      }
+      case "break": {
+        return { kind: "text", text: "\n", ...style };
+      }
+      case "image": {
+        return { kind: "text", text: imageAltText(node.alt), ...style };
+      }
+      case "wikiLink":
+      case "wikiEmbed": {
+        return wikiSpan(node);
+      }
+      case "formulaPill": {
+        return { kind: "formula", label: node.display === "" ? node.source : node.display };
+      }
+      case "commentMarker":
+      case "html": {
+        return null;
+      }
+      case "footnoteReference":
+      case "imageReference":
+      case "inlineMath":
+      case "linkReference":
+      case "mdxJsxTextElement":
+      case "mdxTextExpression":
+      case "opaqueInline": {
+        return { kind: "text", text: rawSlice(node) ?? "", ...style };
+      }
+      // no default
+    }
+  };
+
+  const flattenInline = (
+    nodes: readonly PhrasingContent[],
+    style: SpanStyle = {},
+  ): InlineSpan[] => {
     const spans: InlineSpan[] = [];
     for (const node of nodes) {
-      switch (node.type) {
-        case "text":
-          spans.push({ kind: "text", text: node.value, ...style });
-          break;
-        case "strong":
-          spans.push(...flattenInline(node.children, { ...style, bold: true }));
-          break;
-        case "emphasis":
-          spans.push(...flattenInline(node.children, { ...style, italic: true }));
-          break;
-        case "delete":
-          spans.push(...flattenInline(node.children, { ...style, strike: true }));
-          break;
-        case "inlineCode":
-          spans.push({ kind: "text", text: node.value, ...style, code: true });
-          break;
-        case "break":
-          spans.push({ kind: "text", text: "\n", ...style });
-          break;
-        case "link":
-          spans.push({
-            kind: "link",
-            label: flattenInline(node.children).map(spanText).join("") || node.url,
-            url: node.url,
-          });
-          break;
-        case "image":
-          spans.push({
-            kind: "text",
-            text:
-              node.alt === null || node.alt === undefined || node.alt === "" ? "[image]" : node.alt,
-            ...style,
-          });
-          break;
-        case "wikiLink":
-        case "wikiEmbed": {
-          const body = parseWikiBodyRange(node.body);
-          const label =
-            body.alias ??
-            (body.anchor === undefined ? body.target : `${body.target}#${body.anchor}`);
-          spans.push(
-            node.type === "wikiEmbed" && isMobileImageTarget(body.target)
-              ? { kind: "image-embed", target: body.target, label }
-              : { kind: "wiki-link", target: body.target, label },
-          );
-          break;
-        }
-        case "formulaPill":
-          spans.push({ kind: "formula", label: node.display === "" ? node.source : node.display });
-          break;
-        case "commentMarker":
-          break;
-        case "html":
-          break;
-        default:
-          spans.push({ kind: "text", text: rawSlice(node) ?? "", ...style });
+      if (node.type === "strong") {
+        spans.push(...flattenInline(node.children, { ...style, bold: true }));
+        continue;
+      }
+      if (node.type === "emphasis") {
+        spans.push(...flattenInline(node.children, { ...style, italic: true }));
+        continue;
+      }
+      if (node.type === "delete") {
+        spans.push(...flattenInline(node.children, { ...style, strike: true }));
+        continue;
+      }
+      if (node.type === "link") {
+        spans.push({
+          kind: "link",
+          label: flattenInline(node.children).map(spanText).join("") || node.url,
+          url: node.url,
+        });
+        continue;
+      }
+      const leaf = inlineLeaf(node, style);
+      if (leaf !== null) {
+        spans.push(leaf);
       }
     }
     return spans;
-  }
+  };
 
-  function projectList(list: List, depth: number, blocks: NoteBlock[]): void {
+  // a callout body is its own document; the parse is re-entered, not the projection
+  const projectNested = (body: string): NoteBlock[] => {
+    const parsed = parseMdast(body);
+    if (!parsed.ok) {
+      return [{ kind: "raw", text: body }];
+    }
+    // the parser positioned nodes against the pipe-escaped text, so raw slices must cut the same
+    // bytes.
+    return projectParsed(escapePillPipesInTables(body), parsed.root);
+  };
+
+  const projectParagraph = (node: Paragraph, blocks: NoteBlock[]): void => {
+    const spans = flattenInline(node.children);
+    // a paragraph that is only embeds promotes to image blocks: an image inside a Text run
+    // cannot be sized.
+    const promotes =
+      spans.some((span) => span.kind === "image-embed") &&
+      spans.every(
+        (span) => span.kind === "image-embed" || (span.kind === "text" && span.text.trim() === ""),
+      );
+    if (!promotes) {
+      blocks.push({ kind: "paragraph", spans });
+      return;
+    }
+    for (const span of spans) {
+      if (span.kind === "image-embed") {
+        blocks.push({ kind: "image", label: span.label, target: span.target });
+      }
+    }
+  };
+
+  const projectCode = (node: Code, blocks: NoteBlock[]): void => {
+    const rich = RICH_FENCE_LANGS.get(node.lang ?? "");
+    if (rich !== undefined) {
+      blocks.push({ kind: "unsupported", label: RICH_LABELS[rich] });
+      return;
+    }
+    if (isCalloutLang(node.lang)) {
+      const payload = parseCalloutPayload(node.value);
+      if (payload !== null) {
+        blocks.push({
+          blocks: projectNested(payload.body),
+          kind: "callout",
+          label: payload.level === undefined ? payload.kind : `${payload.kind} · ${payload.level}`,
+        });
+        return;
+      }
+    }
+    blocks.push({ kind: "code", lang: node.lang ?? null, text: node.value });
+  };
+
+  const projectList = (
+    list: List,
+    depth: number,
+    blocks: NoteBlock[],
+    project: (node: RootContent, out: NoteBlock[]) => void,
+  ): void => {
     let ordinal = list.ordered === true ? (list.start ?? 1) : null;
     for (const item of list.children) {
       let first = true;
       for (const child of item.children) {
         if (child.type === "paragraph" && first) {
           blocks.push({
-            kind: "list-item",
-            depth,
-            ordinal,
             checked: item.checked ?? null,
+            depth,
+            kind: "list-item",
+            ordinal,
             spans: flattenInline(child.children),
           });
           first = false;
         } else if (child.type === "list") {
-          projectList(child, depth + 1, blocks);
+          projectList(child, depth + 1, blocks, project);
         } else {
-          projectBlock(child, blocks);
+          project(child, blocks);
         }
       }
       if (first) {
         blocks.push({
-          kind: "list-item",
-          depth,
-          ordinal,
           checked: item.checked ?? null,
+          depth,
+          kind: "list-item",
+          ordinal,
           spans: [],
         });
       }
-      if (ordinal !== null) ordinal += 1;
+      if (ordinal !== null) {
+        ordinal += 1;
+      }
     }
-  }
+  };
 
-  function projectBlock(node: RootContent, blocks: NoteBlock[]): void {
-    switch (node.type) {
-      case "heading":
-        blocks.push({ kind: "heading", depth: node.depth, spans: flattenInline(node.children) });
-        break;
-      case "paragraph": {
-        const spans = flattenInline(node.children);
-        // a paragraph that is only embeds promotes to image blocks: an image inside a Text run
-        // cannot be sized.
-        const promotes =
-          spans.some((span) => span.kind === "image-embed") &&
-          spans.every(
-            (span) =>
-              span.kind === "image-embed" || (span.kind === "text" && span.text.trim() === ""),
-          );
-        if (promotes) {
-          for (const span of spans) {
-            if (span.kind === "image-embed") {
-              blocks.push({ kind: "image", target: span.target, label: span.label });
-            }
-          }
-          break;
-        }
-        blocks.push({ kind: "paragraph", spans });
-        break;
-      }
-      case "list":
-        projectList(node, 0, blocks);
-        break;
-      case "code": {
-        const rich = RICH_FENCE_LANGS.get(node.lang ?? "");
-        if (rich !== undefined) {
-          blocks.push({ kind: "unsupported", label: RICH_LABELS[rich] });
-          break;
-        }
-        if (isCalloutLang(node.lang)) {
-          const payload = parseCalloutPayload(node.value);
-          if (payload !== null) {
-            blocks.push({
-              kind: "callout",
-              label:
-                payload.level === undefined ? payload.kind : `${payload.kind} · ${payload.level}`,
-              blocks: projectSource(payload.body),
-            });
-            break;
-          }
-        }
-        blocks.push({ kind: "code", lang: node.lang ?? null, text: node.value });
-        break;
-      }
-      case "blockquote": {
-        const inner: NoteBlock[] = [];
-        for (const child of node.children) projectBlock(child, inner);
-        blocks.push({ kind: "quote", blocks: inner });
-        break;
-      }
-      case "thematicBreak":
-        blocks.push({ kind: "divider" });
-        break;
-      case "yaml":
-      case "html":
-        break;
-      default: {
-        const raw = rawSlice(node);
-        if (raw !== null && raw.trim() !== "") {
-          blocks.push({ kind: "raw", text: raw });
-        }
-      }
+  // every node type this does not name projects as its own raw source: the reader sees the markdown
+  // rather than nothing.
+  const projectBlock = (node: RootContent, blocks: NoteBlock[]): void => {
+    if (node.type === "heading") {
+      blocks.push({ depth: node.depth, kind: "heading", spans: flattenInline(node.children) });
+      return;
     }
-  }
+    if (node.type === "paragraph") {
+      projectParagraph(node, blocks);
+      return;
+    }
+    if (node.type === "list") {
+      projectList(node, 0, blocks, projectBlock);
+      return;
+    }
+    if (node.type === "code") {
+      projectCode(node, blocks);
+      return;
+    }
+    if (node.type === "blockquote") {
+      const inner: NoteBlock[] = [];
+      for (const child of node.children) {
+        projectBlock(child, inner);
+      }
+      blocks.push({ blocks: inner, kind: "quote" });
+      return;
+    }
+    if (node.type === "thematicBreak") {
+      blocks.push({ kind: "divider" });
+      return;
+    }
+    if (node.type === "yaml" || node.type === "html") {
+      return;
+    }
+    const raw = rawSlice(node);
+    if (raw !== null && raw.trim() !== "") {
+      blocks.push({ kind: "raw", text: raw });
+    }
+  };
 
   const blocks: NoteBlock[] = [];
-  for (const child of root.children) projectBlock(child, blocks);
+  for (const child of root.children) {
+    projectBlock(child, blocks);
+  }
   return blocks;
-}
+};
 
-export function projectNote(path: string, content: string): NoteProjection {
+export const projectNote = (path: string, content: string): NoteProjection => {
   const title = docStem(path);
   const { body } = splitFrontmatter(content);
   const parsed = parseMdast(body);
   if (!parsed.ok) {
-    return { kind: "raw", title, text: content, reason: parsed.failure.message };
+    return { kind: "raw", reason: parsed.failure.message, text: content, title };
   }
-  return { kind: "note", title, blocks: projectParsed(escapePillPipesInTables(body), parsed.root) };
-}
+  return { blocks: projectParsed(escapePillPipesInTables(body), parsed.root), kind: "note", title };
+};

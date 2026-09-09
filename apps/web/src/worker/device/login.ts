@@ -1,7 +1,5 @@
-import {
-  DEVICE_CREDENTIAL_PREFIX,
-  type DeviceLoginResponse,
-} from "@repo/api/cloud/device/device-schema";
+import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
+import type { DeviceLoginResponse } from "@repo/api/cloud/device/device-schema";
 import { hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
 import { APIError } from "better-auth/api";
 import { eq } from "drizzle-orm";
@@ -19,11 +17,11 @@ type Auth = ReturnType<typeof createAuth>;
 // enforced inside the insert as well, so the cap is a property of the table rather than of a check someone raced
 const MAX_DEVICES_PER_ACCOUNT = 20;
 
-function generateDeviceCredential(): string {
+const generateDeviceCredential = (): string => {
   const buf = new Uint8Array(32);
   crypto.getRandomValues(buf);
   return DEVICE_CREDENTIAL_PREFIX + hexFromBytes(buf);
-}
+};
 
 export type LoginFailure = "invalid-credentials" | "device-limit";
 
@@ -31,9 +29,7 @@ export type LoginResult =
   | { readonly loggedIn: true; readonly response: DeviceLoginResponse }
   | { readonly loggedIn: false; readonly failure: LoginFailure };
 
-function refuseLogin(failure: LoginFailure): LoginResult {
-  return { loggedIn: false, failure };
-}
+const refuseLogin = (failure: LoginFailure): LoginResult => ({ failure, loggedIn: false });
 
 export interface LoginArgs {
   email: string;
@@ -43,12 +39,12 @@ export interface LoginArgs {
 
 // Not replay-safe: only the hash is stored, so a lost response leaves a "Never connected" device
 // to revoke from the dashboard, rather than storing the credential in the clear.
-export async function loginDevice(
+export const loginDevice = async (
   db: Db,
   d1: D1Database,
   auth: Auth,
   args: LoginArgs,
-): Promise<LoginResult> {
+): Promise<LoginResult> => {
   let signedIn: { token: string; user: { id: string } };
   try {
     signedIn = await auth.api.signInEmail({ body: { email: args.email, password: args.password } });
@@ -86,12 +82,14 @@ export async function loginDevice(
       MAX_DEVICES_PER_ACCOUNT,
     )
     .run();
-  if (inserted.meta.changes === 0) return refuseLogin("device-limit");
-  return { loggedIn: true, response: { deviceId, credential } };
-}
+  if (inserted.meta.changes === 0) {
+    return refuseLogin("device-limit");
+  }
+  return { loggedIn: true, response: { credential, deviceId } };
+};
 
 // must run first in account deletion: while a device row lives, its credential still verifies
-export async function purgeDeviceRows(db: Db, userId: string): Promise<void> {
+export const purgeDeviceRows = async (db: Db, userId: string): Promise<void> => {
   // ids read before the delete: once the rows are gone nothing else can name their limiter rows
   const owned = await db
     .select({ id: device.id })
@@ -103,4 +101,4 @@ export async function purgeDeviceRows(db: Db, userId: string): Promise<void> {
     db,
     owned.map((row) => row.id),
   );
-}
+};

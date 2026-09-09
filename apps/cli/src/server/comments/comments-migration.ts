@@ -10,26 +10,30 @@ import {
 import type { VaultService } from "../vault/vault-service";
 import type { CommentsService } from "./comments-service";
 
-export async function migrateLegacyCommentSidecars(args: {
+export const migrateLegacyCommentSidecars = async (args: {
   vault: VaultService;
   comments: CommentsService;
   warn: (message: string) => void;
-}): Promise<number> {
+}): Promise<number> => {
   const { entries } = await args.vault.listTree();
   let migrated = 0;
   for (const entry of entries) {
-    if (entry.kind !== "file" || !isLegacyCommentsSidecarPath(entry.path)) continue;
+    if (entry.kind !== "file" || !isLegacyCommentsSidecarPath(entry.path)) {
+      continue;
+    }
     const notePath = legacySidecarNotePath(entry.path);
     if ((await args.vault.statEntry(notePath)) !== "file") {
       args.warn(`${entry.path}: no note beside it; left as found`);
       continue;
     }
     try {
-      if ((await args.comments.migrateLegacy(notePath)) === "migrated") migrated += 1;
+      if ((await args.comments.migrateLegacy(notePath)) === "migrated") {
+        migrated += 1;
+      }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       args.warn(`${entry.path}: left as found; ${reason}`);
     }
   }
   return migrated;
-}
+};

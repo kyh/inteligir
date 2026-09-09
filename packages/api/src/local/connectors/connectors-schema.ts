@@ -31,32 +31,32 @@ export const CONNECTOR_SCOPES_MAX = 32;
 export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      kind: z.literal("stdio"),
-      command: z.string().min(1),
       args: z.array(z.string().min(1)).max(CONNECTOR_ARGS_MAX),
+      command: z.string().min(1),
+      kind: z.literal("stdio"),
     })
     .strict(),
   z
     .object({
-      kind: z.literal("http"),
-      url: connectorUrlSchema,
       headers: z
         .record(z.string().min(1), z.string().min(1))
         .refine((value) => Object.keys(value).length <= CONNECTOR_HEADERS_MAX, {
           message: `at most ${String(CONNECTOR_HEADERS_MAX)} headers`,
         })
         .optional(),
+      kind: z.literal("http"),
+      url: connectorUrlSchema,
     })
     .strict(),
   // tokens are never input: they arrive through the callback, live in the store, and read back as a status
   z
     .object({
-      kind: z.literal("oauth"),
-      url: connectorUrlSchema,
       authorizationEndpoint: connectorUrlSchema,
-      tokenEndpoint: connectorUrlSchema,
       clientId: z.string().min(1),
+      kind: z.literal("oauth"),
       scopes: z.array(z.string().min(1)).max(CONNECTOR_SCOPES_MAX),
+      tokenEndpoint: connectorUrlSchema,
+      url: connectorUrlSchema,
     })
     .strict(),
 ]);
@@ -69,21 +69,21 @@ export type ConnectorOauthStatus = z.infer<typeof connectorOauthStatusSchema>;
 export const connectorTransportViewSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      kind: z.literal("stdio"),
-      command: z.string().min(1),
       args: z.array(z.string()),
+      command: z.string().min(1),
+      kind: z.literal("stdio"),
     })
     .strict(),
-  z.object({ kind: z.literal("http"), url: z.string().min(1), hasAuth: z.boolean() }).strict(),
+  z.object({ hasAuth: z.boolean(), kind: z.literal("http"), url: z.string().min(1) }).strict(),
   z
     .object({
-      kind: z.literal("oauth"),
-      url: z.string().min(1),
       authorizationEndpoint: z.string().min(1),
-      tokenEndpoint: z.string().min(1),
       clientId: z.string().min(1),
+      kind: z.literal("oauth"),
       scopes: z.array(z.string()),
       status: connectorOauthStatusSchema,
+      tokenEndpoint: z.string().min(1),
+      url: z.string().min(1),
     })
     .strict(),
 ]);
@@ -91,22 +91,25 @@ export type ConnectorTransportView = z.infer<typeof connectorTransportViewSchema
 
 export const connectorViewSchema = z
   .object({
-    name: z.string().min(1),
     enabled: z.boolean(),
+    name: z.string().min(1),
     transport: connectorTransportViewSchema,
   })
   .strict();
 export type ConnectorView = z.infer<typeof connectorViewSchema>;
 
-export function connectorTarget(transport: ConnectorTransportView): string {
+export const connectorTarget = (transport: ConnectorTransportView): string => {
   switch (transport.kind) {
-    case "stdio":
+    case "stdio": {
       return [transport.command, ...transport.args].join(" ");
+    }
     case "http":
-    case "oauth":
+    case "oauth": {
       return transport.url;
+    }
+    // no default
   }
-}
+};
 
 export const connectorsResponseSchema = z
   .object({ servers: z.array(connectorViewSchema) })
@@ -122,7 +125,7 @@ export const connectorRemoveRequestSchema = z.object({ name: connectorNameSchema
 export type ConnectorRemoveRequest = z.infer<typeof connectorRemoveRequestSchema>;
 
 export const connectorToggleRequestSchema = z
-  .object({ name: connectorNameSchema, enabled: z.boolean() })
+  .object({ enabled: z.boolean(), name: connectorNameSchema })
   .strict();
 export type ConnectorToggleRequest = z.infer<typeof connectorToggleRequestSchema>;
 
@@ -139,7 +142,7 @@ export const connectorOauthBeginRequestSchema = z
 export type ConnectorOauthBeginRequest = z.infer<typeof connectorOauthBeginRequestSchema>;
 
 export const connectorOauthBeginResponseSchema = z
-  .object({ url: z.string().min(1), opened: z.boolean() })
+  .object({ opened: z.boolean(), url: z.string().min(1) })
   .strict();
 export type ConnectorOauthBeginResponse = z.infer<typeof connectorOauthBeginResponseSchema>;
 

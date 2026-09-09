@@ -14,7 +14,7 @@ const ASSET_HEADERS = {
   "x-content-type-options": "nosniff",
 };
 
-export async function handleVaultAsset(c: Context, vault: VaultService): Promise<Response> {
+export const handleVaultAsset = async (c: Context, vault: VaultService): Promise<Response> => {
   const query = vaultAssetQuerySchema.safeParse(
     Object.fromEntries(new URL(c.req.url).searchParams),
   );
@@ -33,15 +33,15 @@ export async function handleVaultAsset(c: Context, vault: VaultService): Promise
     }
     const asset = await vault.readBytes(query.data.path);
     return new Response(asset.bytes, {
-      status: 200,
       headers: { ...ASSET_HEADERS, "content-type": mediaType, etag: asset.etag },
+      status: 200,
     });
-  } catch (cause) {
-    const status = vaultRefusalStatus(cause);
+  } catch (error) {
+    const status = vaultRefusalStatus(error);
     if (status === null) {
-      throw cause;
+      throw error;
     }
     // raw Response: c.text wants a literal StatusCode and this status is a plain number.
-    return new Response(cause instanceof Error ? cause.message : "Refused", { status });
+    return new Response(error instanceof Error ? error.message : "Refused", { status });
   }
-}
+};

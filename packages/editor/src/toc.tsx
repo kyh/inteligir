@@ -2,12 +2,18 @@
 // workspace <main>, not a PlateContainer.
 
 import { useEffect, useRef, useState } from "react";
-import { ElementApi, KEYS, NodeApi, type Path, type SlateEditor, type TElement } from "platejs";
+import { ElementApi, KEYS, NodeApi } from "platejs";
+import type { Path, SlateEditor, TElement } from "platejs";
 import { useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "cn";
 
-export type HeadingItem = { id: string; path: Path; depth: number; title: string };
+export interface HeadingItem {
+  id: string;
+  path: Path;
+  depth: number;
+  title: string;
+}
 
 const HEADING_DEPTH = new Map<string, number>([
   [KEYS.h1, 1],
@@ -20,21 +26,24 @@ const HEADER_OFFSET = 64;
 const SCROLL_DURATION_MS = 200;
 
 // `behavior: "smooth"` is ignored by scrollIntoView and scrollTo on this scroller.
-function tweenScrollTo(scroller: Element, el: HTMLElement): void {
+const tweenScrollTo = (scroller: Element, el: HTMLElement): void => {
   const from = scroller.scrollTop;
   const to =
     el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + from - HEADER_OFFSET;
   const start = performance.now();
   const step = (now: number) => {
     const t = Math.min(1, (now - start) / SCROLL_DURATION_MS);
-    const eased = 1 - (1 - t) ** 3; // easeOutCubic
+    // easeOutCubic
+    const eased = 1 - (1 - t) ** 3;
     scroller.scrollTop = from + (to - from) * eased;
-    if (t < 1) requestAnimationFrame(step);
+    if (t < 1) {
+      requestAnimationFrame(step);
+    }
   };
   requestAnimationFrame(step);
-}
+};
 
-export function collectHeadings(editor: SlateEditor): HeadingItem[] {
+export const collectHeadings = (editor: SlateEditor): HeadingItem[] => {
   const out: HeadingItem[] = [];
   for (const [node, path] of editor.api.nodes<TElement>({
     at: [],
@@ -42,63 +51,75 @@ export function collectHeadings(editor: SlateEditor): HeadingItem[] {
   })) {
     const title = NodeApi.string(node).trim();
     if (title) {
-      out.push({ id: path.join("."), path, depth: HEADING_DEPTH.get(node.type) ?? 1, title });
+      out.push({ depth: HEADING_DEPTH.get(node.type) ?? 1, id: path.join("."), path, title });
     }
   }
   return out;
-}
+};
 
 // resolved through the row's own node, not by index among the editable's `<h*>`s: that dom
 // also holds headings the outline skips (empty ones) and never listed (a transclusion's).
-export function headingElement(editor: SlateEditor, heading: HeadingItem): HTMLElement | null {
+export const headingElement = (editor: SlateEditor, heading: HeadingItem): HTMLElement | null => {
   const entry = editor.api.node<TElement>(heading.path);
-  if (entry === undefined) return null;
+  if (entry === undefined) {
+    return null;
+  }
   const [node] = entry;
-  if (!ElementApi.isElement(node) || !HEADING_DEPTH.has(node.type)) return null;
+  if (!ElementApi.isElement(node) || !HEADING_DEPTH.has(node.type)) {
+    return null;
+  }
   return editor.api.toDOMNode(node) ?? null;
-}
+};
 
 // the palette's jump: the rail's own scroll, and the caret at the heading so typing continues
 // there once the dialog hands focus back; no focus() here, like the find bar's jump, so a
 // jsdom mount does not arm slate-react's deferred DOM-selection sync.
-export function goToHeading(editor: SlateEditor, heading: HeadingItem): boolean {
+export const goToHeading = (editor: SlateEditor, heading: HeadingItem): boolean => {
   const el = headingElement(editor, heading);
-  if (el === null) return false;
+  if (el === null) {
+    return false;
+  }
   const scroller = el.closest("[data-editor-scroller]");
-  if (scroller !== null) tweenScrollTo(scroller, el);
+  if (scroller !== null) {
+    tweenScrollTo(scroller, el);
+  }
   const start = editor.api.start(heading.path);
-  if (start !== undefined) editor.tf.select(start);
+  if (start !== undefined) {
+    editor.tf.select(start);
+  }
   return true;
-}
+};
 
 export const TOC_RAIL_CAP = 20;
 
 // the window slides so the active row is always inside it; cut at a fixed index, every heading
 // past the cap would highlight nothing.
-export function railWindow(count: number, activeIndex: number) {
+export const railWindow = (count: number, activeIndex: number) => {
   const active = Math.max(0, Math.min(activeIndex, count - 1));
   const start = Math.max(0, active - TOC_RAIL_CAP + 1);
-  return { start, end: start + TOC_RAIL_CAP };
-}
+  return { end: start + TOC_RAIL_CAP, start };
+};
 
 // collectHeadings returns a fresh array and useEditorSelector's default equality is `===`, so
 // without this the scrollspy effect re-arms on every keystroke. `title` is compared on purpose:
 // typing inside a heading changes no id or depth.
-function sameHeadings(a: readonly HeadingItem[], b: readonly HeadingItem[]): boolean {
-  if (a.length !== b.length) return false;
+const sameHeadings = (a: readonly HeadingItem[], b: readonly HeadingItem[]): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
   return a.every((h, i) => {
     const other = b[i];
     return (
       other !== undefined && h.id === other.id && h.depth === other.depth && h.title === other.title
     );
   });
-}
+};
 
 // under this the rail is a floating dash beside a note that needs no map; ⌘⇧O still reaches
 // every heading
 const TOC_MIN_HEADINGS = 3;
 
-export function TableOfContents() {
+export const TableOfContents = () => {
   const editor = useEditorRef();
   const headings = useEditorSelector(() => collectHeadings(editor), [], {
     equalityFn: sameHeadings,
@@ -110,28 +131,38 @@ export function TableOfContents() {
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const scroller = rootRef.current?.closest("[data-editor-scroller]");
-    if (!scroller || headings.length === 0) return;
+    if (!scroller || headings.length === 0) {
+      return;
+    }
     const onScroll = () => {
       const scannerY = scroller.getBoundingClientRect().top + HEADER_OFFSET + 8;
       let active = 0;
-      headings.forEach((heading, i) => {
+      for (const [i, heading] of headings.entries()) {
         const el = headingElement(editor, heading);
-        if (el !== null && el.getBoundingClientRect().top <= scannerY) active = i;
-      });
+        if (el !== null && el.getBoundingClientRect().top <= scannerY) {
+          active = i;
+        }
+      }
       setActiveIndex(active);
     };
     onScroll();
     scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => scroller.removeEventListener("scroll", onScroll);
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+    };
   }, [headings, editor]);
 
-  if (headings.length < TOC_MIN_HEADINGS) return null;
+  if (headings.length < TOC_MIN_HEADINGS) {
+    return null;
+  }
 
   const scrollTo = (index: number) => {
     const heading = headings[index];
     const el = heading === undefined ? null : headingElement(editor, heading);
     const scroller = rootRef.current?.closest("[data-editor-scroller]");
-    if (el !== null && scroller) tweenScrollTo(scroller, el);
+    if (el !== null && scroller) {
+      tweenScrollTo(scroller, el);
+    }
     setActiveIndex(index);
   };
 
@@ -163,7 +194,9 @@ export function TableOfContents() {
             <button
               key={h.id}
               type="button"
-              onClick={() => scrollTo(i)}
+              onClick={() => {
+                scrollTo(i);
+              }}
               style={{ paddingLeft: `${8 + 12 * (h.depth - 1)}px` }}
               className={cn(
                 "block w-full truncate rounded-md py-1 pr-2 text-left text-xs transition-colors hover:bg-accent",
@@ -177,4 +210,4 @@ export function TableOfContents() {
       </div>
     </div>
   );
-}
+};

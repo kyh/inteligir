@@ -1,7 +1,8 @@
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 
-import { setNotePinned, type PinNoteApi } from "../pin-note";
+import { setNotePinned } from "../pin-note";
+import type { PinNoteApi } from "../pin-note";
 
 interface Written {
   path: string;
@@ -9,20 +10,23 @@ interface Written {
   expectedHash?: string;
 }
 
-function fakeApi(disk: string, writes: Written[], refuse: string | null = null): PinNoteApi {
-  return {
-    vault: {
-      read: () => Promise.resolve({ path: "notes/a.md", content: disk }),
-      write: (input) => {
-        if (refuse !== null) return Promise.reject(new Error(refuse));
-        const written: Written = { path: input.path, content: input.content };
-        if (input.expectedHash !== undefined) written.expectedHash = input.expectedHash;
-        writes.push(written);
-        return Promise.resolve({ path: input.path });
-      },
+const fakeApi = (disk: string, writes: Written[], refuse: string | null = null): PinNoteApi => ({
+  /* oxlint-disable require-await -- the vault is an async port; these fakes answer from memory */
+  vault: {
+    read: async () => ({ content: disk, path: "notes/a.md" }),
+    write: async (input) => {
+      if (refuse !== null) {
+        throw new Error(refuse);
+      }
+      const written: Written = { content: input.content, path: input.path };
+      if (input.expectedHash !== undefined) {
+        written.expectedHash = input.expectedHash;
+      }
+      writes.push(written);
+      return { path: input.path };
     },
-  };
-}
+  },
+});
 
 describe("pinning a note that is not open", () => {
   it("writes the pinned bytes against the hash of what it read", async () => {
@@ -32,9 +36,9 @@ describe("pinning a note that is not open", () => {
     expect(outcome).toEqual({ kind: "done" });
     expect(writes).toEqual([
       {
-        path: "notes/a.md",
         content: "---\ntitle: A\npinned: true\n---\nbody\n",
         expectedHash: await contentHashHex(disk),
+        path: "notes/a.md",
       },
     ]);
   });
@@ -67,9 +71,9 @@ describe("pinning a note that is not open", () => {
       "notes/a.md",
       true,
     );
-    expect(outcome).toEqual({
-      kind: "refused",
-      message: expect.stringContaining("notes/a.md"),
-    });
+    expect(outcome.kind).toBe("refused");
+    if (outcome.kind === "refused") {
+      expect(outcome.message).toContain("notes/a.md");
+    }
   });
 });

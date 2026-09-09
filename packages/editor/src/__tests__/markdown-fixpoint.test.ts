@@ -1,3 +1,4 @@
+import type * as PlatejsMarkdown from "@platejs/markdown";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,19 +13,31 @@ import {
 // Every real input is a pass-1 fixpoint, so the degrade paths are exercised by
 // faking serializer drift on magic tokens.
 vi.mock("@platejs/markdown", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@platejs/markdown")>();
+  const original = await importOriginal<typeof PlatejsMarkdown>();
   const serializeMd: typeof original.serializeMd = (editor, options) => {
     const text = JSON.stringify(options?.value ?? "");
     // never settles
-    const forever = /driftforever(x*)/.exec(text);
-    if (forever) return `driftforever${forever[1] ?? ""}x\n`;
+    const forever = /driftforever(?<xs>x*)/u.exec(text);
+    if (forever) {
+      return `driftforever${forever.groups?.xs ?? ""}x\n`;
+    }
     // settles on pass 2
-    if (text.includes("drift  slow")) return "drift  slow\n";
-    if (text.includes("drift slow")) return "drift  slow\n";
-    if (text.includes("driftslow")) return "drift slow\n";
+    if (text.includes("drift  slow")) {
+      return "drift  slow\n";
+    }
+    if (text.includes("drift slow")) {
+      return "drift  slow\n";
+    }
+    if (text.includes("driftslow")) {
+      return "drift slow\n";
+    }
     // settles on pass 2 while losing letters
-    if (text.includes("driftlossy")) return "drift lost\n";
-    if (text.includes("drift lost")) return "drift lost\n";
+    if (text.includes("driftlossy")) {
+      return "drift lost\n";
+    }
+    if (text.includes("drift lost")) {
+      return "drift lost\n";
+    }
     return original.serializeMd(editor, options);
   };
   return { ...original, serializeMd };

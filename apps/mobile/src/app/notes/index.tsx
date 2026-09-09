@@ -5,11 +5,53 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { refreshNotes, useNotesTree, useSyncStatus } from "@/lib/app-runtime";
+import type { NotesTreeState } from "@/notes/notes-store";
+import type { SyncStatus } from "@/sync/sync-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+
+const styles = StyleSheet.create({
+  body: { fontSize: 16, textAlign: "center" },
+  caption: { fontSize: 13 },
+  empty: { alignItems: "center", gap: SPACE.sm, paddingHorizontal: SPACE.xxl, paddingVertical: 96 },
+  list: { paddingBottom: 32, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
+  pressed: { opacity: 0.7 },
+  row: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    gap: 2,
+    marginBottom: SPACE.sm,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  screen: { flex: 1 },
+  title: { fontSize: 16 },
+});
+
+const Empty = ({ text }: { text: string }) => {
+  const theme = useTheme();
+  return (
+    <View style={styles.empty}>
+      <Text style={[styles.body, { color: theme.mutedForeground }]}>{text}</Text>
+    </View>
+  );
+};
+
+const emptyLabel = (status: SyncStatus, tree: NotesTreeState): string => {
+  if (status.state !== "signed-in") {
+    return "Sign in to read your notes.";
+  }
+  if (tree.state === "idle" || tree.state === "loading") {
+    return "Loading your vault…";
+  }
+  if (tree.state === "empty" || tree.state === "error") {
+    return tree.message;
+  }
+  return "No notes yet — write one on your desktop.";
+};
 
 // FlatList, not ScrollView: a vault can hold thousands of docs and an eager row per doc janks the
 // open.
-export default function NotesScreen() {
+const NotesScreen = () => {
   const theme = useTheme();
   const router = useRouter();
   const status = useSyncStatus();
@@ -28,14 +70,7 @@ export default function NotesScreen() {
     status.state === "signed-in" && tree.state === "ready"
       ? tree.entries.filter((entry) => isDocPath(entry.path))
       : [];
-  const emptyText =
-    status.state !== "signed-in"
-      ? "Sign in to read your notes."
-      : tree.state === "loading" || tree.state === "idle"
-        ? "Loading your vault…"
-        : tree.state === "empty" || tree.state === "error"
-          ? tree.message
-          : "No notes yet — write one on your desktop.";
+  const emptyText = emptyLabel(status, tree);
 
   return (
     <SafeAreaView
@@ -46,7 +81,14 @@ export default function NotesScreen() {
       <FlatList
         style={styles.screen}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void refresh();
+            }}
+          />
+        }
         data={docs}
         keyExtractor={(entry) => entry.path}
         ListEmptyComponent={<Empty text={emptyText} />}
@@ -56,55 +98,30 @@ export default function NotesScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.row,
-                { borderColor: theme.border, backgroundColor: theme.card },
+                { backgroundColor: theme.card, borderColor: theme.border },
                 pressed && styles.pressed,
               ]}
-              onPress={() =>
+              onPress={() => {
                 router.push({
-                  pathname: "/notes/[...path]",
                   params: { path: entry.path.split("/") },
-                })
-              }
+                  pathname: "/notes/[...path]",
+                });
+              }}
             >
               <Text style={[styles.title, { color: theme.cardForeground }]} numberOfLines={1}>
                 {docStem(entry.path)}
               </Text>
-              {dir !== "" ? (
+              {dir === "" ? null : (
                 <Text style={[styles.caption, { color: theme.mutedForeground }]} numberOfLines={1}>
                   {dir}
                 </Text>
-              ) : null}
+              )}
             </Pressable>
           );
         }}
       />
     </SafeAreaView>
   );
-}
+};
 
-function Empty({ text }: { text: string }) {
-  const theme = useTheme();
-  return (
-    <View style={styles.empty}>
-      <Text style={[styles.body, { color: theme.mutedForeground }]}>{text}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  list: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md, paddingBottom: 32 },
-  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96, paddingHorizontal: SPACE.xxl },
-  body: { fontSize: 16, textAlign: "center" },
-  row: {
-    gap: 2,
-    marginBottom: SPACE.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-  title: { fontSize: 16 },
-  caption: { fontSize: 13 },
-  pressed: { opacity: 0.7 },
-});
+export default NotesScreen;

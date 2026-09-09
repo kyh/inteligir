@@ -21,10 +21,10 @@ describe("queued thread messages", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
     const first = createQueuedThreadMessage(db, noopNotifier, {
-      threadId: thread.id,
       text: "first",
+      threadId: thread.id,
     });
-    createQueuedThreadMessage(db, noopNotifier, { threadId: thread.id, text: "second" });
+    createQueuedThreadMessage(db, noopNotifier, { text: "second", threadId: thread.id });
 
     const claimed = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
     expect(claimed?.id).toBe(first.id);
@@ -40,8 +40,8 @@ describe("queued thread messages", () => {
     const db = openTempDb();
     const rival = createConnection(db.$client.name);
     const thread = createThread(db, noopNotifier, {});
-    createQueuedThreadMessage(db, noopNotifier, { threadId: thread.id, text: "one" });
-    createQueuedThreadMessage(db, noopNotifier, { threadId: thread.id, text: "two" });
+    createQueuedThreadMessage(db, noopNotifier, { text: "one", threadId: thread.id });
+    createQueuedThreadMessage(db, noopNotifier, { text: "two", threadId: thread.id });
 
     const first = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
     const second = claimNextQueuedThreadMessage(rival, noopNotifier, thread.id);
@@ -53,8 +53,8 @@ describe("queued thread messages", () => {
     }
     expect(
       deleteClaimedQueuedThreadMessage(rival, noopNotifier, {
-        id: first.id,
         claimToken: "claim_forged",
+        id: first.id,
       }),
     ).toBe(false);
   });
@@ -64,7 +64,7 @@ describe("queued thread messages", () => {
     const thread = createThread(db, noopNotifier, {});
     const texts = Array.from({ length: 20 }, (_, index) => `message-${index}`);
     for (const text of texts) {
-      createQueuedThreadMessage(db, noopNotifier, { threadId: thread.id, text });
+      createQueuedThreadMessage(db, noopNotifier, { text, threadId: thread.id });
     }
     expect(listQueuedThreadMessages(db, thread.id).map((row) => row.text)).toEqual(texts);
     const drained: string[] = [];
@@ -81,7 +81,7 @@ describe("queued thread messages", () => {
   it("release puts a claim back; delete needs the claim token", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
-    createQueuedThreadMessage(db, noopNotifier, { threadId: thread.id, text: "only" });
+    createQueuedThreadMessage(db, noopNotifier, { text: "only", threadId: thread.id });
 
     const claimed = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
     if (!claimed) {
@@ -89,8 +89,8 @@ describe("queued thread messages", () => {
     }
     expect(
       deleteClaimedQueuedThreadMessage(db, noopNotifier, {
-        id: claimed.id,
         claimToken: "claim_wrong",
+        id: claimed.id,
       }),
     ).toBe(false);
 
@@ -112,14 +112,14 @@ describe("pending interactions", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
     const created = createPendingInteraction(db, noopNotifier, {
-      threadId: thread.id,
-      requestKey: "req-1",
       payload: JSON.stringify({ kind: "approval" }),
+      requestKey: "req-1",
+      threadId: thread.id,
     });
     const replayed = createPendingInteraction(db, noopNotifier, {
-      threadId: thread.id,
-      requestKey: "req-1",
       payload: JSON.stringify({ kind: "approval-retry" }),
+      requestKey: "req-1",
+      threadId: thread.id,
     });
     expect(replayed.id).toBe(created.id);
     expect(replayed.payload).toBe(created.payload);
@@ -130,15 +130,15 @@ describe("pending interactions", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
     const interaction = createPendingInteraction(db, noopNotifier, {
-      threadId: thread.id,
-      requestKey: "req-1",
       payload: "{}",
+      requestKey: "req-1",
+      threadId: thread.id,
     });
 
     const resolved = resolvePendingInteraction(db, noopNotifier, {
       id: interaction.id,
-      threadId: thread.id,
       resolution: "allow",
+      threadId: thread.id,
     });
     expect(resolved.kind).toBe("resolved");
     if (resolved.kind === "resolved") {
@@ -149,15 +149,15 @@ describe("pending interactions", () => {
 
     const again = resolvePendingInteraction(db, noopNotifier, {
       id: interaction.id,
-      threadId: thread.id,
       resolution: "deny",
+      threadId: thread.id,
     });
     expect(again.kind).toBe("already-resolved");
 
     const missing = resolvePendingInteraction(db, noopNotifier, {
       id: "pint_missing",
-      threadId: thread.id,
       resolution: "allow",
+      threadId: thread.id,
     });
     expect(missing.kind).toBe("not-found");
   });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef } from "react";
 import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
@@ -10,6 +10,7 @@ import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { createDebouncer } from "@repo/editor/lib/debounce";
+import type { Debouncer } from "@repo/editor/lib/debounce";
 import {
   cancelFormulaRecompute,
   scheduleFormulaRecompute,
@@ -20,21 +21,23 @@ import { TableOfContents } from "@repo/editor/toc";
 // bounds per-keystroke work; the 600ms autosave debounce downstream gates the write.
 const SERIALIZE_DEBOUNCE_MS = 150;
 
-function seedValue(md: string): Value {
+const seedValue = (md: string): Value => {
   const parsed = parseMarkdown(md);
-  if (parsed.ok) return parsed.value;
+  if (parsed.ok) {
+    return parsed.value;
+  }
   console.error("MarkdownEditor: seed markdown failed to parse", parsed.reason);
   return [{ children: [{ text: "" }], type: "p" }];
-}
+};
 
-type Props = {
+interface Props {
   path: string;
   value: string;
   onChange: (markdown: string) => void;
   onRegisterSerializeFlush?: (flush: () => void) => void;
-};
+}
 
-export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush }: Props) {
+export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush }: Props) => {
   const editor = usePlateEditor({
     plugins: EDITOR_KIT,
     value: () => seedValue(value),
@@ -44,8 +47,9 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   const lastValueProp = useRef(value);
   // Seeding makes Plate emit onChange with the normalized text; that echo must not count as an
   // edit or it autosaves a normalized rewrite over the file.
-  const [initialSeed] = useState(() =>
-    serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY }),
+  const initialSeed = useMemo(
+    () => serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY }),
+    [editor],
   );
   const seeded = useRef<string | null>(initialSeed);
 
@@ -56,7 +60,9 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   const onChangeRef = useRef(onChange);
   const doSerialize = useCallback(() => {
     const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-    if (md === seeded.current) return;
+    if (md === seeded.current) {
+      return;
+    }
     seeded.current = null;
     lastValueProp.current = md;
     onChangeRef.current(md);
@@ -67,35 +73,61 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
-  // the Effect Event keeps the debouncer's one stable closure dispatching to the latest doSerialize.
-  const runSerialize = useEffectEvent(() => doSerialize());
-  const [scheduler] = useState(() => createDebouncer(runSerialize, SERIALIZE_DEBOUNCE_MS));
+  // One debouncer for the editor's life — rebuilding it would drop a pending flush — so it is
+  // built on first use, and its callback reads the ref rather than closing over one doSerialize.
+  const doSerializeRef = useRef(doSerialize);
+  useLayoutEffect(() => {
+    doSerializeRef.current = doSerialize;
+  }, [doSerialize]);
+  const schedulerRef = useRef<Debouncer | null>(null);
+  const getScheduler = useCallback((): Debouncer => {
+    const existing = schedulerRef.current;
+    if (existing !== null) {
+      return existing;
+    }
+    const created = createDebouncer(() => {
+      doSerializeRef.current();
+    }, SERIALIZE_DEBOUNCE_MS);
+    schedulerRef.current = created;
+    return created;
+  }, []);
 
   // Flush first: an in-debounce keystroke must reach the controller before the external
   // content overwrites the surface and resets `seeded`.
   useEffect(() => {
-    if (value === lastValueProp.current) return;
-    scheduler.flush();
+    if (value === lastValueProp.current) {
+      return;
+    }
+    getScheduler().flush();
     lastValueProp.current = value;
     editor.tf.setValue(seedValue(value));
     seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
     publishStats();
-  }, [value, editor, scheduler, publishStats]);
+  }, [value, editor, getScheduler, publishStats]);
 
   const registerSerializeFlush = useEffectEvent((flush: () => void) => {
     onRegisterSerializeFlush?.(flush);
   });
   useEffect(() => {
-    registerSerializeFlush(() => scheduler.flush());
-  }, [scheduler]);
+    registerSerializeFlush(() => {
+      getScheduler().flush();
+    });
+  }, [getScheduler]);
 
   // onChange routes by `path`, so a flush after a note switch no-ops.
-  useEffect(() => () => scheduler.flush(), [scheduler]);
+  useEffect(
+    () => () => {
+      getScheduler().flush();
+    },
+    [getScheduler],
+  );
 
   // a referenced variable in another note may have changed.
   useEffect(() => {
     scheduleFormulaRecompute(editor);
-    let unsubscribe = (): void => {};
+    let unsubscribe = (): void => {
+      /* empty */
+    };
     try {
       unsubscribe = getEditorHostIo().onVaultChanged(() => {
         scheduleFormulaRecompute(editor);
@@ -122,8 +154,10 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
       editor={editor}
       onChange={() => {
         // selection-only flushes never change bytes; skip the serialize and the re-render it triggers.
-        if (editor.operations.every((op) => op.type === "set_selection")) return;
-        scheduler.schedule();
+        if (editor.operations.every((op) => op.type === "set_selection")) {
+          return;
+        }
+        getScheduler().schedule();
       }}
     >
       <EditorContainer>
@@ -132,4 +166,4 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
       <TableOfContents />
     </Plate>
   );
-}
+};

@@ -2,13 +2,14 @@ import type { ViewContext } from "@repo/domain/view-context";
 import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
 
 import type { client } from "../api";
-import { sendToThread, type ComposerSendOutcome } from "./send-to-thread";
+import { sendToThread } from "./send-to-thread";
+import type { ComposerSendOutcome } from "./send-to-thread";
 
-function actionTitle(prompt: string): string {
+const actionTitle = (prompt: string): string => {
   const firstLine = prompt.split("\n", 1)[0]?.trim() ?? "";
   const title = firstLine === "" ? "Action" : firstLine;
   return title.length > 60 ? `${title.slice(0, 59)}…` : title;
-}
+};
 
 export interface CreateActionArgs {
   prompt: string;
@@ -25,19 +26,19 @@ export interface CreateActionResult {
   send: ComposerSendOutcome;
 }
 
-async function createActionThread(api: typeof client, args: CreateActionArgs): Promise<string> {
+const createActionThread = async (api: typeof client, args: CreateActionArgs): Promise<string> => {
   const createBody: CreateThreadRequest = { title: actionTitle(args.prompt) };
   if (args.docPath !== null) {
     createBody.originDocPath = args.docPath;
   }
   const { thread } = await api.threads.create(createBody);
   return thread.id;
-}
+};
 
-export async function createAction(
+export const createAction = async (
   api: typeof client,
   args: CreateActionArgs,
-): Promise<CreateActionResult> {
+): Promise<CreateActionResult> => {
   const threadId = args.threadId ?? (await createActionThread(api, args));
   const contextPaths = args.contextPaths ?? [];
   const text =
@@ -54,4 +55,4 @@ export async function createAction(
   }
   const send = await sendToThread(api, sendArgs);
   return { send, threadId };
-}
+};

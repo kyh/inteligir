@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { analyzeMarkdown, toCanonical } from "@repo/editor/markdown/markdown-doc";
 import { commentSidecarSchema } from "@repo/notes/comments/sidecar-schema";
@@ -7,11 +7,11 @@ import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { resolveSeedDir } from "inteligir/server/vault/seed-vault";
 
 // asserted here rather than beside the seed: the fixpoint serializer is browser-side.
-const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
-const seedDir = join(REPO_ROOT, "apps", "cli", "seed");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../../..");
+const seedDir = path.join(REPO_ROOT, "apps", "cli", "seed");
 const entries = readdirSync(seedDir);
 const docs = entries.filter((name) => name.endsWith(".md"));
-const storeDir = join(seedDir, ".inteligir", "comments");
+const storeDir = path.join(seedDir, ".inteligir", "comments");
 const stores = readdirSync(storeDir);
 
 describe("seed vault", () => {
@@ -25,7 +25,7 @@ describe("seed vault", () => {
   });
 
   it.each(docs)("%s is byte-canonical through the fixpoint", (name) => {
-    const raw = readFileSync(join(seedDir, name), "utf8");
+    const raw = readFileSync(path.join(seedDir, name), "utf-8");
     expect(toCanonical(raw)).toBe(raw);
     expect(analyzeMarkdown(raw)).toEqual({ canonical: true, rawReason: null, richSafe: true });
   });
@@ -34,22 +34,24 @@ describe("seed vault", () => {
     "%s parses under the sidecar schema and is keyed by a shipped note's id",
     (name) => {
       const parsed = commentSidecarSchema.parse(
-        JSON.parse(readFileSync(join(storeDir, name), "utf8")),
+        JSON.parse(readFileSync(path.join(storeDir, name), "utf-8")),
       );
       expect(Object.keys(parsed).length).toBeGreaterThan(0);
-      const ids = docs.map((doc) => frontmatterId(readFileSync(join(seedDir, doc), "utf8")));
+      const ids = docs.map((doc) => frontmatterId(readFileSync(path.join(seedDir, doc), "utf-8")));
       expect(ids).toContain(name.replace(/\.json$/u, ""));
     },
   );
 
   it("every referenced asset ships, and no shipped asset is orphaned", () => {
-    const shipped = readdirSync(join(seedDir, "assets")).toSorted();
+    const shipped = readdirSync(path.join(seedDir, "assets")).toSorted();
     const referenced = new Set<string>();
     for (const name of docs) {
-      const raw = readFileSync(join(seedDir, name), "utf8");
-      for (const match of raw.matchAll(/\(assets\/([^)]+)\)/gu)) {
-        const file = match[1];
-        if (file !== undefined) referenced.add(file);
+      const raw = readFileSync(path.join(seedDir, name), "utf-8");
+      for (const match of raw.matchAll(/\(assets\/(?<file>[^)]+)\)/gu)) {
+        const file = match.groups?.file;
+        if (file !== undefined) {
+          referenced.add(file);
+        }
       }
     }
     expect([...referenced].toSorted((a, b) => a.localeCompare(b))).toEqual(

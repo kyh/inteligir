@@ -12,19 +12,19 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { createThread } from "../threads";
 import { openTempDbWithPath } from "./open-temp-db";
 
-function turnStarted(threadId: string, turnId: string): ThreadEvent {
-  return { type: "turn/started", threadId, scope: turnScope(turnId) };
-}
+const turnStarted = (threadId: string, turnId: string): ThreadEvent => ({
+  scope: turnScope(turnId),
+  threadId,
+  type: "turn/started",
+});
 
-function agentDelta(threadId: string, turnId: string, delta: string): ThreadEvent {
-  return {
-    type: "item/agentMessage/delta",
-    threadId,
-    itemId: "item_1",
-    delta,
-    scope: turnScope(turnId),
-  };
-}
+const agentDelta = (threadId: string, turnId: string, delta: string): ThreadEvent => ({
+  delta,
+  itemId: "item_1",
+  scope: turnScope(turnId),
+  threadId,
+  type: "item/agentMessage/delta",
+});
 
 describe("appendEvents", () => {
   it("assigns contiguous per-thread sequences across batches", () => {
@@ -77,15 +77,15 @@ describe("appendEvents", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     const request: ThreadEvent = {
-      type: "client/turn/requested",
-      threadId: thread.id,
-      text: "hello",
       scope: threadScope(),
+      text: "hello",
+      threadId: thread.id,
+      type: "client/turn/requested",
     };
     appendEvents(db, noopNotifier, [request, turnStarted(thread.id, "turn_1")]);
     const stored = listStoredThreadEvents(db, { threadId: thread.id });
     expect(stored.map((entry) => entry.event)).toEqual([request, turnStarted(thread.id, "turn_1")]);
-    expect(listStoredThreadEvents(db, { threadId: thread.id, afterSequence: 1 })).toHaveLength(1);
+    expect(listStoredThreadEvents(db, { afterSequence: 1, threadId: thread.id })).toHaveLength(1);
   });
 
   it("enforces the scope CHECK at the database, not only at parse", () => {
@@ -107,9 +107,9 @@ describe("scope policy at the write", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     const invalid: ThreadEvent = {
-      type: "turn/started",
-      threadId: thread.id,
       scope: threadScope(),
+      threadId: thread.id,
+      type: "turn/started",
     };
     expect(() => appendEvents(db, noopNotifier, [invalid])).toThrow(/requires turn scope/u);
     expect(getMaxSequence(db, thread.id)).toBe(0);
@@ -119,9 +119,9 @@ describe("scope policy at the write", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     const invalid: ThreadEvent = {
-      type: "turn/started",
-      threadId: thread.id,
       scope: threadScope(),
+      threadId: thread.id,
+      type: "turn/started",
     };
     expect(() =>
       appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1"), invalid]),

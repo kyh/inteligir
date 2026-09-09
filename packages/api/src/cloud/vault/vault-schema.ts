@@ -1,16 +1,16 @@
-import { isIgnoredEntryName, parseVaultPath } from "@repo/notes/knowledge/vault-path";
+import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import { z } from "zod";
-import { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
 
-export { assetMediaType, VAULT_ASSET_MEDIA_TYPES };
+export { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
+export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
 
 // these shapes are final at birth: .strict() on every response means a stale phone's parse
 // refuses an added field as malformed, so a field this wire might ever want has to be here now.
 
 export const VAULT_API_PATHS = {
-  tree: "/v1/vault/tree",
-  file: "/v1/vault/file",
   asset: "/v1/vault/asset",
+  file: "/v1/vault/file",
+  tree: "/v1/vault/tree",
 } as const;
 
 export const VAULT_TREE_MAX_ENTRIES = 500;
@@ -26,7 +26,6 @@ const commitShaSchema = gitOidSchema;
 
 // a git push can place git's machinery and staging files in the hosted tree; the read routes
 // must hide what the local engine would never list
-export { isIgnoredEntryName };
 
 // the parse must be the identity: these values address git trees verbatim, so a path the
 // grammar would normalize is refused rather than silently renamed
@@ -46,9 +45,9 @@ const vaultPathSchema = z.string().superRefine((value, ctx) => {
 
 export const vaultTreeQuerySchema = z
   .object({
-    ref: commitShaSchema.optional(),
     after: vaultPathSchema.optional(),
     limit: z.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
+    ref: commitShaSchema.optional(),
   })
   .strict();
 export type VaultTreeQuery = z.infer<typeof vaultTreeQuerySchema>;
@@ -82,9 +81,9 @@ export type VaultFileQuery = z.infer<typeof vaultFileQuerySchema>;
 export const vaultFileResponseSchema = z
   .object({
     commit: commitShaSchema,
-    path: vaultPathSchema,
-    oid: gitOidSchema,
     content: z.string(),
+    oid: gitOidSchema,
+    path: vaultPathSchema,
   })
   .strict();
 export type VaultFileResponse = z.infer<typeof vaultFileResponseSchema>;

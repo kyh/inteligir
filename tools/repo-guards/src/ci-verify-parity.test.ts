@@ -47,7 +47,7 @@ const MANUAL_SMOKES = new Map<string, string>([
 
 const scriptTableSchema = z.looseObject({ scripts: z.record(z.string(), z.unknown()) });
 
-function rootScripts() {
+const rootScripts = () => {
   const parsed = scriptTableSchema.safeParse(JSON.parse(sourceOf(ROOT_MANIFEST)));
   if (!parsed.success) {
     throw new Error(`${ROOT_MANIFEST}: expected an object at "scripts"`);
@@ -55,19 +55,21 @@ function rootScripts() {
   const scripts: Record<string, string> = {};
   for (const [name, body] of Object.entries(parsed.data.scripts)) {
     const script = z.string().safeParse(body);
-    if (!script.success) throw new Error(`${ROOT_MANIFEST}: scripts.${name} is not a string`);
+    if (!script.success) {
+      throw new Error(`${ROOT_MANIFEST}: scripts.${name} is not a string`);
+    }
     scripts[name] = script.data;
   }
   return scripts;
-}
+};
 
-function verifyChain(scripts: Record<string, string>): string[] {
+const verifyChain = (scripts: Record<string, string>): string[] => {
   const body = scripts[VERIFY_SCRIPT];
   if (body === undefined) {
     throw new Error(`${ROOT_MANIFEST}: no "${VERIFY_SCRIPT}" script to compare CI against`);
   }
   return body.split("&&").map((link) => {
-    const name = /^\s*pnpm\s+([\w:-]+)\s*$/.exec(link)?.[1];
+    const name = /^\s*pnpm\s+(?<name>[\w:-]+)\s*$/u.exec(link)?.groups?.name;
     if (name === undefined || scripts[name] === undefined) {
       throw new Error(
         `${ROOT_MANIFEST}: "${VERIFY_SCRIPT}" runs \`${link.trim()}\`, which is not a plain \`pnpm <script>\`.\n` +
@@ -77,7 +79,7 @@ function verifyChain(scripts: Record<string, string>): string[] {
     }
     return name;
   });
-}
+};
 
 interface WorkflowStep {
   id: string;
@@ -107,29 +109,37 @@ const triggersSchema = z
 // z.unknown() is not implicitly optional in zod 4: without .optional() an absent key fails the
 // parse, which would downgrade "this gate has no jobs" from a thrown error to a skipped workflow.
 const workflowSchema = z
-  .looseObject({ on: triggersSchema.optional(), jobs: z.unknown().optional() })
+  .looseObject({ jobs: z.unknown().optional(), on: triggersSchema.optional() })
   .catch({});
 
 const jobsSchema = z.record(z.string(), z.looseObject({ steps: z.array(z.unknown()).optional() }));
 
-const runStepSchema = z.looseObject({ run: z.string(), name: z.unknown().optional() });
+const runStepSchema = z.looseObject({ name: z.unknown().optional(), run: z.string() });
 
-function gateWorkflows(): GateWorkflow[] {
+const gateWorkflows = (): GateWorkflow[] => {
   const dir = path.join(REPO_ROOT, WORKFLOW_DIR);
   const found: GateWorkflow[] = [];
   for (const entry of fs.readdirSync(dir).toSorted()) {
-    if (!/\.ya?ml$/.test(entry)) continue;
+    if (!/\.ya?ml$/u.test(entry)) {
+      continue;
+    }
     const workflow = workflowSchema.parse(
-      parseYaml(fs.readFileSync(path.join(dir, entry), "utf8")),
+      parseYaml(fs.readFileSync(path.join(dir, entry), "utf-8")),
     );
-    if (!(workflow.on ?? []).some((trigger) => GATE_TRIGGERS.includes(trigger))) continue;
+    if (!(workflow.on ?? []).some((trigger) => GATE_TRIGGERS.includes(trigger))) {
+      continue;
+    }
     const jobs = jobsSchema.safeParse(workflow.jobs);
-    if (!jobs.success) throw new Error(`${WORKFLOW_DIR}/${entry}: expected an object at "jobs"`);
+    if (!jobs.success) {
+      throw new Error(`${WORKFLOW_DIR}/${entry}: expected an object at "jobs"`);
+    }
     const steps: WorkflowStep[] = [];
     for (const [jobName, job] of Object.entries(jobs.data)) {
       for (const jobStep of job.steps ?? []) {
         const step = runStepSchema.safeParse(jobStep);
-        if (!step.success) continue;
+        if (!step.success) {
+          continue;
+        }
         const name = z.string().safeParse(step.data.name);
         if (!name.success) {
           throw new Error(
@@ -140,21 +150,21 @@ function gateWorkflows(): GateWorkflow[] {
         }
         steps.push({
           id: `${entry}:${name.data}`,
-          workflow: entry,
           name: name.data,
           run: step.data.run.trim(),
+          workflow: entry,
         });
       }
     }
     found.push({ file: entry, steps });
   }
   return found;
-}
+};
 
-function scriptRunBy(step: WorkflowStep, scripts: Record<string, string>): string | null {
-  const name = /^pnpm\s+([\w:-]+)$/.exec(step.run)?.[1];
+const scriptRunBy = (step: WorkflowStep, scripts: Record<string, string>): string | null => {
+  const name = /^pnpm\s+(?<name>[\w:-]+)$/u.exec(step.run)?.groups?.name;
   return name !== undefined && scripts[name] !== undefined ? name : null;
-}
+};
 
 describe("CI does not drift from `pnpm verify`", () => {
   const scripts = rootScripts();
@@ -173,7 +183,9 @@ describe("CI does not drift from `pnpm verify`", () => {
     const violations: string[] = [];
     for (const gate of gates) {
       const invoked = gate.steps.map((step) => scriptRunBy(step, scripts));
-      if (invoked.includes(VERIFY_SCRIPT)) continue;
+      if (invoked.includes(VERIFY_SCRIPT)) {
+        continue;
+      }
 
       const ranInOrder = invoked.filter(
         (name): name is string => name !== null && chain.includes(name),
@@ -206,10 +218,16 @@ describe("CI does not drift from `pnpm verify`", () => {
       const callsVerify = gate.steps.some((step) => scriptRunBy(step, scripts) === VERIFY_SCRIPT);
       for (const step of gate.steps) {
         const script = scriptRunBy(step, scripts);
-        if (script === VERIFY_SCRIPT) continue;
-        if (!callsVerify && script !== null && chain.includes(script)) continue;
+        if (script === VERIFY_SCRIPT) {
+          continue;
+        }
+        if (!callsVerify && script !== null && chain.includes(script)) {
+          continue;
+        }
         const reason = DECLARED_CI_EXTRAS.get(step.id);
-        if (reason !== undefined && reason.length > 0) continue;
+        if (reason !== undefined && reason.length > 0) {
+          continue;
+        }
         violations.push(
           `UNDECLARED CI STEP  ${step.id}\n` +
             `  runs: ${step.run.split("\n")[0]}\n` +
@@ -227,12 +245,19 @@ describe("CI does not drift from `pnpm verify`", () => {
       const manifest = scriptTableSchema.safeParse(
         JSON.parse(sourceOf(path.posix.join(workspace.dir, "package.json"))),
       );
-      if (!manifest.success) continue;
-      if (manifest.data.scripts[SMOKE_SCRIPT] === undefined) continue;
+      if (!manifest.success) {
+        continue;
+      }
+      if (manifest.data.scripts[SMOKE_SCRIPT] === undefined) {
+        continue;
+      }
       const invocation = new RegExp(
-        `--filter[= ]${workspace.name.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")}\\s+${SMOKE_SCRIPT}\\b`,
+        `--filter[= ]${workspace.name.replaceAll(/[/\\^$*+?.()|[\]{}]/gu, "\\$&")}\\s+${SMOKE_SCRIPT}\\b`,
+        "u",
       );
-      if (Object.values(scripts).some((body) => invocation.test(body))) continue;
+      if (Object.values(scripts).some((body) => invocation.test(body))) {
+        continue;
+      }
       violations.push(
         `UNREACHABLE SMOKE  ${workspace.dir}/package.json declares "${SMOKE_SCRIPT}"\n` +
           `  rule: every smoke has a root script that runs it — one reachable only through \`pnpm --filter ${workspace.name} ${SMOKE_SCRIPT}\` is one nobody runs, and neither \`verify\` nor CI can be held against a command that has no name\n` +
@@ -254,9 +279,13 @@ describe("CI does not drift from `pnpm verify`", () => {
       [],
     );
     for (const name of rootSmokes) {
-      if (ranByGate.has(name)) continue;
+      if (ranByGate.has(name)) {
+        continue;
+      }
       const reason = MANUAL_SMOKES.get(name);
-      if (reason !== undefined && reason.length > 0) continue;
+      if (reason !== undefined && reason.length > 0) {
+        continue;
+      }
       violations.push(
         `UNDECLARED MANUAL SMOKE  ${ROOT_MANIFEST}: "${name}"\n` +
           `  rule: a smoke no gate runs is one a developer has to know to run, so what keeps it out of CI is written down rather than assumed\n` +

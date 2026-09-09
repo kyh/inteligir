@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import type { DbConnection } from "./connection";
@@ -11,15 +11,15 @@ const SOURCE_MIGRATIONS_FOLDER = fileURLToPath(new URL("../drizzle", import.meta
 
 // every migration bumps meta.schema_version to its own generation, so the entry count is the
 // version.
-function latestSchemaVersion(migrationsFolder: string): number {
-  const journalPath = join(migrationsFolder, "meta", "_journal.json");
-  const journal = parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
+const latestSchemaVersion = (migrationsFolder: string): number => {
+  const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
+  const journal = parseMigrationJournal(readFileSync(journalPath, "utf-8"), journalPath);
   return journal.entries.length;
-}
+};
 
 // returns the ceiling getSchemaVersion refuses above: an older build opening a newer database
 // applies nothing and would otherwise read it as if it understood it.
-export function runMigrations(db: DbConnection, migrationsFolder?: string): number {
+export const runMigrations = (db: DbConnection, migrationsFolder?: string): number => {
   const folder = migrationsFolder ?? SOURCE_MIGRATIONS_FOLDER;
   // `PRAGMA foreign_keys=OFF` is a silent no-op inside a transaction, and drizzle wraps each
   // migration in one, so a table-rebuild's DROP of a parent would cascade-wipe its children.
@@ -37,4 +37,4 @@ export function runMigrations(db: DbConnection, migrationsFolder?: string): numb
     );
   }
   return latestSchemaVersion(folder);
-}
+};

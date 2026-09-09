@@ -6,23 +6,27 @@ import { chooseSpellcheck, useDesktopSpellcheck } from "../desktop-spellcheck";
 import { failed, Row } from "./settings-chrome";
 
 // the checked list, or the one the session would fall back to; a toggle must not leave it empty
-function nextLanguages(state: SpellcheckState, code: string, on: boolean): string[] | null {
+const nextLanguages = (state: SpellcheckState, code: string, on: boolean): string[] | null => {
   const current = state.languages.length === 0 ? ["en-US"] : state.languages;
-  if (on) return current.includes(code) ? current : [...current, code];
+  if (on) {
+    return current.includes(code) ? current : [...current, code];
+  }
   const rest = current.filter((each) => each !== code);
   return rest.length === 0 ? null : rest;
-}
+};
 
-function languageLabel(code: string): string {
+const languageLabel = (code: string): string => {
   try {
     return new Intl.DisplayNames(undefined, { type: "language" }).of(code) ?? code;
   } catch {
     return code;
   }
-}
+};
 
 // rendered only under the shell: a browser tab owns its own spell check
-export function SpellcheckRows() {
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- a fieldset cannot sit inside a <dd> row, and the
+   language chips are styled buttons wearing the checkbox role a native input would not let them keep */
+export const SpellcheckRows = () => {
   const spellcheck = useDesktopSpellcheck();
   const [pending, setPending] = useState(false);
   if (spellcheck.kind !== "state") {
@@ -31,13 +35,14 @@ export function SpellcheckRows() {
   const { state } = spellcheck;
   const choose = (enabled: boolean, languages: readonly string[]): void => {
     setPending(true);
-    void chooseSpellcheck({ enabled, languages: [...languages] })
-      .catch((cause: unknown) => {
-        failed(cause, "The spell checker did not answer.");
-      })
-      .finally(() => {
-        setPending(false);
-      });
+    void (async () => {
+      try {
+        await chooseSpellcheck({ enabled, languages: [...languages] });
+      } catch (error) {
+        failed(error, "The spell checker did not answer.");
+      }
+      setPending(false);
+    })();
   };
   return (
     <>
@@ -77,7 +82,9 @@ export function SpellcheckRows() {
                   )}
                   onClick={() => {
                     const languages = nextLanguages(state, code, !on);
-                    if (languages !== null) choose(state.enabled, languages);
+                    if (languages !== null) {
+                      choose(state.enabled, languages);
+                    }
                   }}
                 >
                   {languageLabel(code)}
@@ -93,4 +100,5 @@ export function SpellcheckRows() {
       </Row>
     </>
   );
-}
+};
+/* oxlint-enable jsx-a11y/prefer-tag-over-role */

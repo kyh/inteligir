@@ -12,7 +12,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
 import { z } from "zod";
-import { CommandPalette, type CommandPaletteProps, type PaletteRequest } from "../command-palette";
+import { CommandPalette } from "../command-palette";
+import type { CommandPaletteProps, PaletteActions, PaletteRequest } from "../command-palette";
+import type { NoteSearchSource } from "../note-search";
 
 export interface KnowledgeFakes {
   matches?: (request: KnowledgeMatchesRequest) => KnowledgeMatchesResponse;
@@ -22,29 +24,32 @@ export interface KnowledgeFakes {
 const EMPTY_FAMILY = { rows: [], total: 0 };
 
 const noProblems: KnowledgeProblemsResponse = {
-  unresolvedLinks: EMPTY_FAMILY,
+  duplicateStems: EMPTY_FAMILY,
   missingEmbeds: EMPTY_FAMILY,
   orphans: EMPTY_FAMILY,
-  duplicateStems: EMPTY_FAMILY,
+  unresolvedLinks: EMPTY_FAMILY,
 };
 
 const requestBodySchema = z.object({ json: z.unknown() });
 const matchesRequestSchema = z.object({
-  q: z.string(),
   caseSensitive: z.boolean(),
-  wholeWord: z.boolean(),
   limit: z.number(),
+  q: z.string(),
+  wholeWord: z.boolean(),
 });
 
-function answer(json: KnowledgeMatchesResponse | KnowledgeProblemsResponse): Response {
-  return new Response(JSON.stringify({ json }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
-}
+const answer = (json: KnowledgeMatchesResponse | KnowledgeProblemsResponse): Response =>
+  Response.json(
+    { json },
+    {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    },
+  );
 
 // every procedure the palette's pages call; anything else is a 404 the query reports as an error
-export function stubKnowledgeFetch(fakes: KnowledgeFakes): void {
+export const stubKnowledgeFetch = (fakes: KnowledgeFakes): void => {
+  // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
   vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input instanceof Request ? input.url : input), "http://localhost");
     const procedure = url.pathname.slice(`${RPC_PREFIX}/`.length);
@@ -58,15 +63,42 @@ export function stubKnowledgeFetch(fakes: KnowledgeFakes): void {
     }
     return new Response("not stubbed", { status: 404 });
   });
-}
+};
 
-export const defaultRequest: PaletteRequest = { page: "root", nonce: 1 };
+export const defaultRequest: PaletteRequest = { nonce: 1, page: "root" };
 
-export function renderWithQueries(props: CommandPaletteProps) {
+// oxlint-disable-next-line require-await -- the search source is an async port; this fake answers from memory
+export const emptySearchSource: NoteSearchSource = async () => [];
+
+// Every verb the palette can run, each a mock typed by the contract it stands for. A test
+// spreads its own over the ones it asserts on.
+export const makeActions = () =>
+  ({
+    exportPdf: null,
+    findInNote: null,
+    goToHeading: vi.fn<PaletteActions["goToHeading"]>(),
+    insertTemplate: null,
+    listHeadings: null,
+    moveNote: vi.fn<PaletteActions["moveNote"]>(),
+    newNote: vi.fn<PaletteActions["newNote"]>(),
+    newNoteFromTemplate: vi.fn<PaletteActions["newNoteFromTemplate"]>(),
+    openDailyNote: vi.fn<PaletteActions["openDailyNote"]>(),
+    openDeletedNotes: vi.fn<PaletteActions["openDeletedNotes"]>(),
+    openMatch: vi.fn<PaletteActions["openMatch"]>(),
+    openNote: vi.fn<PaletteActions["openNote"]>(),
+    openProblemLink: vi.fn<PaletteActions["openProblemLink"]>(),
+    openSettings: vi.fn<PaletteActions["openSettings"]>(),
+    openThread: vi.fn<PaletteActions["openThread"]>(),
+    pin: null,
+    replaceAll: vi.fn<PaletteActions["replaceAll"]>(async () => {}),
+    syncNow: vi.fn<PaletteActions["syncNow"]>(),
+  }) satisfies PaletteActions;
+
+export const renderWithQueries = (props: CommandPaletteProps) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <CommandPalette {...props} />
     </QueryClientProvider>,
   );
-}
+};

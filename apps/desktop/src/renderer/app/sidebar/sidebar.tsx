@@ -34,16 +34,12 @@ import {
   useVaultSwitch,
 } from "../desktop-vaults";
 import { FoldSection } from "../fold-section";
-import {
-  readTreeSort,
-  writeTreeSort,
-  type RailSection,
-  type RailSections,
-  type TreeSort,
-} from "../prefs";
+import { readTreeSort, writeTreeSort } from "../prefs";
+import type { RailSection, RailSections, TreeSort } from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
 import { usePinnedPaths, useVaultTree, vaultFolders } from "../vault-hooks";
-import { FileTree, type PendingCreate, type TreeLoadState, type TreeOps } from "./file-tree";
+import { FileTree } from "./file-tree";
+import type { PendingCreate, TreeLoadState, TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
 import { TagsPane } from "./tags-pane";
 import { createDirFor, useTreeState } from "./tree-state";
@@ -51,19 +47,18 @@ import { createDirFor, useTreeState } from "./tree-state";
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 
 // "" is the vault root. The folder itself is not a row: its children are.
-export function entriesUnder(entries: readonly VaultEntry[], folder: string): VaultEntry[] {
-  return entries.filter(
+export const entriesUnder = (entries: readonly VaultEntry[], folder: string): VaultEntry[] =>
+  entries.filter(
     (entry) =>
       !isVaultMetadataPath(entry.path) && (folder === "" || entry.path.startsWith(`${folder}/`)),
   );
-}
 
-function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
+const treeLoadState = (query: ReturnType<typeof useVaultTree>): TreeLoadState => {
   if (query.isError) {
     return "failed";
   }
   return query.data === undefined ? "loading" : "loaded";
-}
+};
 
 const VAULT_TRIGGER_CLASS =
   "flex h-chrome-row max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
@@ -74,9 +69,11 @@ const RECENT_LIMIT = 8;
 // The vault is the server's: switching it restarts the child and replaces this window, and the
 // folder is picked in main, so this is a menu over what main remembers. A browser tab has no
 // bridge and did not start the server, so it gets the name alone.
-function VaultButton({ vaultName }: { vaultName: string }) {
+const VaultButton = ({ vaultName }: { vaultName: string }) => {
   const vaults = useDesktopVaults();
-  const { busy, run } = useVaultSwitch(toast.error);
+  const { busy, run } = useVaultSwitch((message) => {
+    toast.error(message);
+  });
   // no icon: the row is the name's, and a long vault name is the whole point of the row; the
   // chevron sits beside the name, not at the rail's edge, so it reads as one control
   const label = <span className="min-w-0 truncate">{vaultName}</span>;
@@ -100,7 +97,9 @@ function VaultButton({ vaultName }: { vaultName: string }) {
             key={vault.path}
             className="h-auto py-1.5"
             onClick={() => {
-              run("opening", () => openRecentVault(vault.path));
+              run("opening", async () => {
+                await openRecentVault(vault.path);
+              });
             }}
           >
             <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -125,22 +124,20 @@ function VaultButton({ vaultName }: { vaultName: string }) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+};
 
 // the breadcrumb sets the scope; this is where it is seen and cleared
-function FolderScopeHeader({ folder, onClear }: { folder: string; onClear: () => void }) {
-  return (
-    <div className="flex items-center gap-1 px-1.5 py-1">
-      <Button variant="ghost" size="icon-compact" aria-label="Whole vault" onClick={onClear}>
-        <ArrowLeftIcon />
-      </Button>
-      <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium" title={folder}>
-        {folder}
-      </span>
-    </div>
-  );
-}
+const FolderScopeHeader = ({ folder, onClear }: { folder: string; onClear: () => void }) => (
+  <div className="flex items-center gap-1 px-1.5 py-1">
+    <Button variant="ghost" size="icon-compact" aria-label="Whole vault" onClick={onClear}>
+      <ArrowLeftIcon />
+    </Button>
+    <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+    <span className="min-w-0 flex-1 truncate text-sm font-medium" title={folder}>
+      {folder}
+    </span>
+  </div>
+);
 
 export interface SidebarRailContentProps {
   openPath: string | null;
@@ -159,7 +156,7 @@ export interface SidebarRailContentProps {
   onFolderChange: (folder: string) => void;
 }
 
-export function SidebarRailContent({
+export const SidebarRailContent = ({
   openPath,
   onOpenFile,
   ops,
@@ -170,7 +167,7 @@ export function SidebarRailContent({
   onSelectTag,
   folder,
   onFolderChange,
-}: SidebarRailContentProps) {
+}: SidebarRailContentProps) => {
   const treeQuery = useVaultTree();
   const pinnedPaths = usePinnedPaths();
   const tree = useTreeState();
@@ -179,7 +176,10 @@ export function SidebarRailContent({
   // not persisted: a filter is a question about now
   const [treeFilter, setTreeFilter] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [insetTitleBar] = useState(hasInsetTitleBar);
+  const handleCollapseAll = tree.collapseAll;
+  const handleSetPinned = ops.setPinned;
 
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
   const folders = useMemo(() => new Set(vaultFolders(entries)), [entries]);
@@ -254,7 +254,7 @@ export function SidebarRailContent({
         variant="ghost"
         size="icon-compact"
         aria-label="Collapse all"
-        onClick={tree.collapseAll}
+        onClick={handleCollapseAll}
       >
         <ChevronsDownUpIcon />
       </Button>
@@ -292,7 +292,7 @@ export function SidebarRailContent({
             scope={scope}
             openPath={openPath}
             onOpenFile={onOpenFile}
-            onSetPinned={ops.setPinned}
+            onSetPinned={handleSetPinned}
             limit={RECENT_LIMIT}
           />
         </FoldSection>
@@ -328,13 +328,17 @@ export function SidebarRailContent({
             <FileTree
               entries={scoped}
               loadState={treeLoadState(treeQuery)}
-              onRetry={() => void treeQuery.refetch()}
+              onRetry={() => {
+                void treeQuery.refetch();
+              }}
               openPath={openPath}
               onOpenFile={onOpenFile}
               ops={ops}
               state={tree}
               pendingCreate={pendingCreate}
-              onPendingCreateDone={() => setPendingCreate(null)}
+              onPendingCreateDone={() => {
+                setPendingCreate(null);
+              }}
               rootDir={scope}
               onMoveRequest={onMoveRequest}
               pinnedPaths={pinnedPaths}
@@ -358,7 +362,7 @@ export function SidebarRailContent({
               scope={scope}
               openPath={openPath}
               onOpenFile={onOpenFile}
-              onSetPinned={ops.setPinned}
+              onSetPinned={handleSetPinned}
               selectedTag={selectedTag}
               onSelectTag={onSelectTag}
             />
@@ -367,4 +371,4 @@ export function SidebarRailContent({
       </div>
     </>
   );
-}
+};

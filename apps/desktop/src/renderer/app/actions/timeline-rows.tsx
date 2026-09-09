@@ -1,5 +1,6 @@
 import type { ViewContext } from "@repo/domain/view-context";
 import type {
+  TimelineErrorRow,
   TimelineFileChange,
   TimelineRow,
   TimelineTurnRow,
@@ -10,7 +11,8 @@ import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { cn } from "cn";
-import { memo, type ReactNode } from "react";
+import { memo } from "react";
+import type { ReactNode } from "react";
 
 const COMMAND_OUTPUT_LINES = 40;
 
@@ -20,30 +22,20 @@ const CHANGE_MARKS = {
   update: "±",
 } satisfies Record<TimelineFileChange["kind"], string>;
 
-function firstLine(text: string): string {
-  return text.split("\n", 1)[0] ?? "";
-}
+const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
 
-function ViewContextAttribution({ context }: { context: ViewContext }) {
-  return (
-    <div className="max-w-[85%] truncate px-3 text-xs text-muted-foreground">
-      {context.resource}
-    </div>
-  );
-}
+const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
+  <div className="max-w-[85%] truncate px-3 text-xs text-muted-foreground">{context.resource}</div>
+);
 
-function isThought(row: TimelineRow): boolean {
-  return row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan");
-}
+const isThought = (row: TimelineRow): boolean =>
+  row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan");
 
-function isAction(row: TimelineRow): boolean {
-  return (
-    row.kind === "work" &&
-    (row.workKind === "command" || row.workKind === "file-change" || row.workKind === "tool")
-  );
-}
+const isAction = (row: TimelineRow): boolean =>
+  row.kind === "work" &&
+  (row.workKind === "command" || row.workKind === "file-change" || row.workKind === "tool");
 
-function thoughtRow(row: TimelineWorkRow): ReactNode {
+const thoughtRow = (row: TimelineWorkRow): ReactNode => {
   if (row.workKind === "reasoning") {
     return row.text.trim() === "" ? null : (
       <ThinkingReasoning key={row.id} pending={row.status === "pending"}>
@@ -59,9 +51,9 @@ function thoughtRow(row: TimelineWorkRow): ReactNode {
     );
   }
   return null;
-}
+};
 
-function actionChip(row: TimelineWorkRow): ReactNode {
+const actionChip = (row: TimelineWorkRow): ReactNode => {
   switch (row.workKind) {
     case "command": {
       const failed = row.exitCode !== null && row.exitCode !== 0;
@@ -107,7 +99,7 @@ function actionChip(row: TimelineWorkRow): ReactNode {
         </ToolChip>
       );
     }
-    case "tool":
+    case "tool": {
       return (
         <ToolChip
           key={row.id}
@@ -119,17 +111,29 @@ function actionChip(row: TimelineWorkRow): ReactNode {
           {row.error === null ? null : <ToolChipDetail>{row.error}</ToolChipDetail>}
         </ToolChip>
       );
+    }
     case "reasoning":
-    case "plan":
+    case "plan": {
       return null;
+    }
+    default: {
+      const exhaustive: never = row;
+      return exhaustive;
+    }
   }
-}
+};
 
-function countLabel(count: number, one: string, many: string): string {
-  return count === 1 ? `1 ${one}` : `${String(count)} ${many}`;
-}
+const countLabel = (count: number, one: string, many: string): string =>
+  count === 1 ? `1 ${one}` : `${String(count)} ${many}`;
 
-function TurnRowView({ row }: { row: TimelineTurnRow }) {
+const ErrorRowView = ({ row }: { row: TimelineErrorRow }) => (
+  <div className="text-xs text-destructive">
+    {row.message}
+    {row.detail === null ? null : <span className="opacity-70"> — {row.detail}</span>}
+  </div>
+);
+
+const TurnRowView = ({ row }: { row: TimelineTurnRow }) => {
   const thoughts = row.children.filter(isThought);
   const actions = row.children.filter(isAction);
   const errors = row.children.filter((child) => child.kind === "error");
@@ -144,7 +148,7 @@ function TurnRowView({ row }: { row: TimelineTurnRow }) {
     >
       {thoughts.length === 0 ? null : (
         <Thinking working={working} doneLabel={countLabel(thoughts.length, "thought", "thoughts")}>
-          {thoughts.map((child) => (child.kind === "work" ? thoughtRow(child) : null))}
+          {thoughts.map((child): ReactNode => (child.kind === "work" ? thoughtRow(child) : null))}
         </Thinking>
       )}
       {actions.length === 0 ? null : (
@@ -152,11 +156,11 @@ function TurnRowView({ row }: { row: TimelineTurnRow }) {
           summary={countLabel(actions.length, "tool call", "tool calls")}
           defaultExpanded={false}
         >
-          {actions.map((child) => (child.kind === "work" ? actionChip(child) : null))}
+          {actions.map((child): ReactNode => (child.kind === "work" ? actionChip(child) : null))}
         </ToolChipList>
       )}
       {errors.map((child) => (
-        <TimelineRowView key={child.id} row={child} />
+        <ErrorRowView key={child.id} row={child} />
       ))}
       {working ? <LoadingState label="Working" startedAt={row.createdAt} /> : null}
       {row.status === "interrupted" ? (
@@ -164,12 +168,11 @@ function TurnRowView({ row }: { row: TimelineTurnRow }) {
       ) : null}
     </div>
   );
-}
+};
 
-// memoized on `row`: `applyTimelineDelta` preserves untouched rows' identity, and a turn row carries its subtree.
-export const TimelineRowView = memo(function TimelineRowView({ row }: { row: TimelineRow }) {
+const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
   switch (row.kind) {
-    case "conversation":
+    case "conversation": {
       if (row.role === "user") {
         return (
           <div className="flex flex-col items-end gap-0.5">
@@ -182,16 +185,22 @@ export const TimelineRowView = memo(function TimelineRowView({ row }: { row: Tim
       }
       // `animate` off: the projection already grows this row per delta, so the per-word reveal would trail the stream.
       return <StreamingText text={row.text} animate={false} />;
-    case "error":
-      return (
-        <div className="text-xs text-destructive">
-          {row.message}
-          {row.detail !== null ? <span className="opacity-70"> — {row.detail}</span> : null}
-        </div>
-      );
-    case "turn":
+    }
+    case "error": {
+      return <ErrorRowView row={row} />;
+    }
+    case "turn": {
       return <TurnRowView row={row} />;
-    case "work":
+    }
+    case "work": {
       return null;
+    }
+    default: {
+      const exhaustive: never = row;
+      return exhaustive;
+    }
   }
-});
+};
+
+// memoized on `row`: `applyTimelineDelta` preserves untouched rows' identity, and a turn row carries its subtree.
+export const TimelineRowView = memo(TimelineRowContent);

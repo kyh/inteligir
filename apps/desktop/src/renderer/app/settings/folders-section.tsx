@@ -9,11 +9,9 @@ import { useState } from "react";
 import { isDefinedError, orpc } from "../api";
 import { failed, SectionHeading } from "./settings-chrome";
 
-function useConnectedFolders() {
-  return useQuery({ ...orpc.folders.list.queryOptions(), staleTime: 0 });
-}
+const useConnectedFolders = () => useQuery({ ...orpc.folders.list.queryOptions(), staleTime: 0 });
 
-export function FoldersSection() {
+export const FoldersSection = () => {
   const queryClient = useQueryClient();
   const foldersQuery = useConnectedFolders();
   const [draft, setDraft] = useState("");
@@ -31,11 +29,6 @@ export function FoldersSection() {
   // else is about the connection and toasts.
   const addFolder = useMutation(
     orpc.folders.add.mutationOptions({
-      onMutate: clearError,
-      onSuccess: (response) => {
-        refresh(response);
-        setDraft("");
-      },
       onError: (cause) => {
         if (isDefinedError(cause)) {
           setError(cause.message);
@@ -43,13 +36,16 @@ export function FoldersSection() {
         }
         failed(cause, "Could not add the folder.");
       },
+      onMutate: clearError,
+      onSuccess: (response) => {
+        refresh(response);
+        setDraft("");
+      },
     }),
   );
 
   const removeFolder = useMutation(
     orpc.folders.remove.mutationOptions({
-      onMutate: clearError,
-      onSuccess: refresh,
       onError: (cause) => {
         if (isDefinedError(cause)) {
           setError(cause.message);
@@ -57,6 +53,8 @@ export function FoldersSection() {
         }
         failed(cause, "Could not remove the folder.");
       },
+      onMutate: clearError,
+      onSuccess: refresh,
     }),
   );
 
@@ -76,8 +74,8 @@ export function FoldersSection() {
     <section className="space-y-2">
       <SectionHeading>Connected folders</SectionHeading>
       <p className="text-xs text-muted-foreground">
-        Folders the agent is pointed at as read-only reference context. Applies from the agent's
-        next session.
+        Folders the agent is pointed at as read-only reference context. Applies from the
+        agent&apos;s next session.
       </p>
       {folders.length === 0 ? (
         <p className="text-xs text-muted-foreground">No folders connected.</p>
@@ -127,7 +125,7 @@ export function FoldersSection() {
           Connect
         </Button>
       </form>
-      {error !== null ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error === null ? null : <p className="text-xs text-destructive">{error}</p>}
     </section>
   );
-}
+};

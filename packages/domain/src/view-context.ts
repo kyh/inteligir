@@ -8,11 +8,11 @@ import { z } from "zod";
 // compile error.
 export const viewContextSchema = z.discriminatedUnion("surface", [
   z.object({
-    surface: z.literal("doc"),
     // held to the vault path grammar at the wire boundary; this leaf carries only zod.
     resource: z.string().min(1),
     // sha-256 hex of the note's bytes at send time.
     revision: z.string().min(1),
+    surface: z.literal("doc"),
   }),
 ]);
 export type ViewContext = z.infer<typeof viewContextSchema>;

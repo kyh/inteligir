@@ -6,11 +6,10 @@ import { describe, expect, it } from "vitest";
 import { workspaces } from "./repo";
 
 // a deliberate version split, with its reason; empty is the healthy state.
-const DECLARED_SPLITS = new Set<string>([]);
+const DECLARED_SPLITS = new Set<string>();
 
-function isExemptSpec(spec: string): boolean {
-  return spec.startsWith("workspace:") || spec.startsWith("catalog:");
-}
+const isExemptSpec = (spec: string): boolean =>
+  spec.startsWith("workspace:") || spec.startsWith("catalog:");
 
 describe("catalog spelling", () => {
   it("a dependency in two or more manifests is spelled catalog:", () => {
@@ -20,13 +19,17 @@ describe("catalog spelling", () => {
       const groups = [workspace.manifest.dependencies, workspace.manifest.devDependencies];
       for (const group of groups) {
         for (const [name, spec] of Object.entries(group ?? {})) {
-          if (spec.startsWith("workspace:")) continue;
+          if (spec.startsWith("workspace:")) {
+            continue;
+          }
           const holders = namedBy.get(name) ?? new Set<string>();
           holders.add(workspace.name);
           namedBy.set(name, holders);
-          if (isExemptSpec(spec)) continue;
+          if (isExemptSpec(spec)) {
+            continue;
+          }
           const rows = inlineBy.get(name) ?? [];
-          rows.push({ workspace: workspace.name, spec });
+          rows.push({ spec, workspace: workspace.name });
           inlineBy.set(name, rows);
         }
       }
@@ -37,11 +40,16 @@ describe("catalog spelling", () => {
       a[0].localeCompare(b[0]),
     )) {
       const holderCount = namedBy.get(name)?.size ?? 0;
-      if (holderCount < 2) continue;
-      if (DECLARED_SPLITS.has(name)) continue;
+      if (holderCount < 2) {
+        continue;
+      }
+      if (DECLARED_SPLITS.has(name)) {
+        continue;
+      }
       violations.push(
-        `${name} — named by ${String(holderCount)} workspaces, spelled inline in ` +
-          rows.map((row) => `${row.workspace} (${row.spec})`).join(", "),
+        `${name} — named by ${String(holderCount)} workspaces, spelled inline in ${rows
+          .map((row) => `${row.workspace} (${row.spec})`)
+          .join(", ")}`,
       );
     }
 
@@ -49,9 +57,11 @@ describe("catalog spelling", () => {
       violations,
       violations.length === 0
         ? ""
-        : `MULTI-MANIFEST DEPENDENCIES SPELLED INLINE\n` +
-            violations.map((line) => `  ${line}`).join("\n") +
-            `\n  rule: a package two workspaces name is one version the repo has to agree on — move the range to pnpm-workspace.yaml's catalog and spell every manifest "catalog:"\n` +
+        : `MULTI-MANIFEST DEPENDENCIES SPELLED INLINE\n${violations
+            .map((line) => `  ${line}`)
+            .join(
+              "\n",
+            )}\n  rule: a package two workspaces name is one version the repo has to agree on — move the range to pnpm-workspace.yaml's catalog and spell every manifest "catalog:"\n` +
             `  (a deliberate version split is a DECLARED_SPLITS row in this file, with its reason)`,
     ).toEqual([]);
   });

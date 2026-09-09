@@ -1,26 +1,25 @@
-import {
-  KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
-  type KnowledgeTagNotesRequest,
-} from "@repo/api/local/knowledge/knowledge-schema";
+import { KNOWLEDGE_TAG_NOTES_MAX_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
+import type { KnowledgeTagNotesRequest } from "@repo/api/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
-import { apiFor, type CliDeps } from "../context";
+import { apiFor } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
-export function tagCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "tag", description: "One tag, across every note" },
+export const tagCommand = (deps: CliDeps) =>
+  defineCommand({
+    meta: { description: "One tag, across every note", name: "tag" },
     subCommands: {
       notes: defineCommand({
-        meta: {
-          name: "notes",
-          description: "Every note holding the tag or one nested under it, by path",
-        },
         args: {
-          tag: { type: "positional", required: true, description: "The tag, without the #" },
-          limit: { type: "string", description: "Page size (1–500, default 100)" },
-          offset: { type: "string", description: "Rows to skip, for the next page" },
+          limit: { description: "Page size (1–500, default 100)", type: "string" },
+          offset: { description: "Rows to skip, for the next page", type: "string" },
+          tag: { description: "The tag, without the #", required: true, type: "positional" },
           ...jsonArg,
+        },
+        meta: {
+          description: "Every note holding the tag or one nested under it, by path",
+          name: "notes",
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
@@ -31,11 +30,13 @@ export function tagCommand(deps: CliDeps) {
           const request: KnowledgeTagNotesRequest = { tag: args.tag };
           if (args.limit !== undefined) {
             request.limit = parseBoundedInteger(args.limit, "--limit", {
-              min: 1,
               max: KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+              min: 1,
             });
           }
-          if (args.offset !== undefined) request.offset = offset;
+          if (args.offset !== undefined) {
+            request.offset = offset;
+          }
           const body = await api.knowledge.tagNotes(request);
           if (outputJson(args, body)) {
             return;
@@ -55,14 +56,14 @@ export function tagCommand(deps: CliDeps) {
       }),
 
       rename: defineCommand({
-        meta: {
-          name: "rename",
-          description: "Rename a tag, and the tags nested under it, in every note that holds it",
-        },
         args: {
-          from: { type: "positional", required: true, description: "The tag, without the #" },
-          to: { type: "positional", required: true, description: "The new name, without the #" },
+          from: { description: "The tag, without the #", required: true, type: "positional" },
+          to: { description: "The new name, without the #", required: true, type: "positional" },
           ...jsonArg,
+        },
+        meta: {
+          description: "Rename a tag, and the tags nested under it, in every note that holds it",
+          name: "rename",
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
@@ -81,4 +82,3 @@ export function tagCommand(deps: CliDeps) {
       }),
     },
   });
-}

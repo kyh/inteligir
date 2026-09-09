@@ -63,16 +63,18 @@ import { useState } from "react";
 
 import { Demo, GallerySection } from "./gallery-chrome";
 
+// a literal `//` in JSX children reads as a comment, so the sample line is a value
+const VAULT_COMMENT = "// four notes, one unresolved link";
 const TABLE_COLUMNS = "minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)";
 const DIFF_COLUMNS = ["2rem", "minmax(0,1fr)", "minmax(0,1fr)"] as const;
 
 const NOTES = [
-  { title: "Release checklist", status: "indexed", links: "4" },
-  { title: "Weekly review", status: "indexed", links: "2" },
-  { title: "Kitchen Sink", status: "pending", links: "0" },
+  { links: "4", status: "indexed", title: "Release checklist" },
+  { links: "2", status: "indexed", title: "Weekly review" },
+  { links: "0", status: "pending", title: "Kitchen Sink" },
 ];
 
-export function DataSection() {
+export const DataSection = () => {
   const [filter, setFilter] = useState("All");
   const [query, setQuery] = useState("back");
   const [included, setIncluded] = useState<ReadonlySet<string>>(new Set(["title"]));
@@ -89,7 +91,7 @@ export function DataSection() {
         stack
       >
         <div className="w-full max-w-md">
-          <CodeBlock code={'const vault = await openVault("~/notes");'}>
+          <CodeBlock code='const vault = await openVault("~/notes");'>
             <CodeBlockHeader>
               <CodeBlockTitle language="ts">vault.ts</CodeBlockTitle>
               <CodeBlockCopy />
@@ -101,7 +103,7 @@ export function DataSection() {
                 <CodeToken tone="string">&quot;~/notes&quot;</CodeToken>);
               </CodeBlockLine>
               <CodeBlockLine>
-                <CodeToken tone="punctuation">{"// four notes, one unresolved link"}</CodeToken>
+                <CodeToken tone="punctuation">{VAULT_COMMENT}</CodeToken>
               </CodeBlockLine>
             </CodeBlockBody>
           </CodeBlock>
@@ -124,8 +126,8 @@ export function DataSection() {
               </DiffTableHead>
               <DiffTableBody>
                 {[
-                  { id: "title", before: "Release checklist", after: "Release checklist v2" },
-                  { id: "status", before: "draft", after: "review" },
+                  { after: "Release checklist v2", before: "Release checklist", id: "title" },
+                  { after: "review", before: "draft", id: "status" },
                 ].map((row) => (
                   <DiffRow
                     key={row.id}
@@ -134,8 +136,11 @@ export function DataSection() {
                     onToggle={() => {
                       setIncluded((prior) => {
                         const next = new Set(prior);
-                        if (next.has(row.id)) next.delete(row.id);
-                        else next.add(row.id);
+                        if (next.has(row.id)) {
+                          next.delete(row.id);
+                        } else {
+                          next.add(row.id);
+                        }
                         return next;
                       });
                     }}
@@ -229,7 +234,7 @@ export function DataSection() {
         stack
       >
         <div className="w-full max-w-lg">
-          <RecordsTable defaultWidths={{ title: 200, status: 120 }} label="Notes">
+          <RecordsTable defaultWidths={{ status: 120, title: 200 }} label="Notes">
             <RecordsTableHeader>
               <RecordsColumnHeader column="title" resizable>
                 Note
@@ -301,4 +306,4 @@ export function DataSection() {
       </Demo>
     </GallerySection>
   );
-}
+};

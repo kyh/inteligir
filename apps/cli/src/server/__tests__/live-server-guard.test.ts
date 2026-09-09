@@ -1,46 +1,54 @@
 import { spawn } from "node:child_process";
-import { createServer, type Server } from "node:http";
+import { once } from "node:events";
+import { createServer } from "node:http";
+import type { Server } from "node:http";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
 import { writeServerFile } from "../server-file";
 import { assertNoLiveServer } from "../serve";
 
-function closeWedged(server: Server): Promise<void> {
+const closeWedged = async (server: Server): Promise<void> => {
   server.closeAllConnections();
-  return new Promise<void>((resolve) => server.close(() => resolve()));
-}
+  server.close();
+  await once(server, "close");
+};
 
-async function wedgedListener(): Promise<number> {
+const wedgedListener = async (): Promise<number> => {
   const server = createServer(() => {
     // no response on purpose: the connection stays open.
   });
-  onTestFinished(() => closeWedged(server));
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  onTestFinished(async () => {
+    await closeWedged(server);
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
   return boundAddressSchema.parse(server.address()).port;
-}
+};
 
-async function freePort(): Promise<number> {
+const freePort = async (): Promise<number> => {
   const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
   const { port } = boundAddressSchema.parse(server.address());
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  server.close();
+  await once(server, "close");
   return port;
-}
+};
 
-async function reapedPid(): Promise<number> {
+const reapedPid = async (): Promise<number> => {
   const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
-  const pid = child.pid;
-  await new Promise<void>((resolve) => child.on("exit", () => resolve()));
+  const { pid } = child;
+  await once(child, "exit");
   if (pid === undefined) {
     throw new Error("the probe child was never spawned");
   }
   return pid;
-}
+};
 
-function rowFor(dataDir: string, port: number, pid: number): void {
-  writeServerFile(dataDir, { port, token: "probe-token", vaultDir: `${dataDir}/vault`, pid });
-}
+const rowFor = (dataDir: string, port: number, pid: number): void => {
+  writeServerFile(dataDir, { pid, port, token: "probe-token", vaultDir: `${dataDir}/vault` });
+};
 
 describe("assertNoLiveServer", () => {
   it("refuses a boot whose owner is alive but not answering, naming the pid", async () => {

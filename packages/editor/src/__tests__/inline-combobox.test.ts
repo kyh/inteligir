@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ElementApi, KEYS, createSlateEditor, type TElement } from "platejs";
+import type { MockInstance } from "vitest";
+import { ElementApi, KEYS, createSlateEditor } from "platejs";
+import type { TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import {
@@ -14,35 +16,39 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY } from "@repo/editor/markdown/markdown-doc";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 
-function makeEditor(text: string) {
-  return createSlateEditor({
+const makeEditor = (text: string) =>
+  createSlateEditor({
     plugins: EDITOR_KIT,
     value: [{ children: [{ text }], type: "p" }],
   });
-}
 
 type Editor = ReturnType<typeof makeEditor>;
 
-function out(editor: Editor): string {
-  return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-}
+const out = (editor: Editor): string =>
+  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
-function findByType(editor: Editor, type: string): TElement | null {
+const findByType = (editor: Editor, type: string): TElement | null => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {
-    if (ElementApi.isElement(node)) return node;
+    if (ElementApi.isElement(node)) {
+      return node;
+    }
   }
   return null;
-}
+};
 
-function openCombobox(editor: Editor, trigger: string, type: string): TElement {
+const openCombobox = (editor: Editor, trigger: string, type: string): TElement => {
   const end = editor.api.end([0]);
-  if (!end) throw new Error("no end point");
+  if (!end) {
+    throw new Error("no end point");
+  }
   editor.tf.select(end);
   editor.tf.insertText(trigger);
   const element = findByType(editor, type);
-  if (!element) throw new Error(`trigger '${trigger}' did not insert a ${type} element`);
+  if (!element) {
+    throw new Error(`trigger '${trigger}' did not insert a ${type} element`);
+  }
   return element;
-}
+};
 
 describe("inline combobox cancel safety (the about:blank crash class)", () => {
   it("escape cancel restores the trigger + query bytes", () => {
@@ -54,13 +60,15 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   });
 
   it("survives the crash recipe: escape cancel → 10 rapid undos, ×5 runs", () => {
-    for (let run = 0; run < 5; run++) {
+    for (let run = 0; run < 5; run += 1) {
       const editor = makeEditor("hello ");
       const seed = out(editor);
       const element = openCombobox(editor, "/", KEYS.slashInput);
       cancelComboboxInput(editor, element, { cause: "escape", restoreText: "/tada" });
       expect(() => {
-        for (let i = 0; i < 10; i++) editor.undo();
+        for (let i = 0; i < 10; i += 1) {
+          editor.undo();
+        }
       }).not.toThrow();
       expect(out(editor)).toBe(seed);
       expect(findByType(editor, KEYS.slashInput)).toBeNull();
@@ -72,7 +80,7 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
     const element = openCombobox(editor, "/", KEYS.slashInput);
     cancelComboboxInput(editor, element, { cause: "escape", restoreText: "/tada" });
     expect(() => {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 5; i += 1) {
         editor.undo();
         editor.redo();
         editor.undo();
@@ -87,11 +95,13 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   it("cancel after an undo removed the element is a strict no-op", () => {
     const editor = makeEditor("hello ");
     const element = openCombobox(editor, "/", KEYS.slashInput);
-    while (findByType(editor, KEYS.slashInput)) editor.undo();
+    while (findByType(editor, KEYS.slashInput)) {
+      editor.undo();
+    }
     const before = out(editor);
-    expect(() =>
-      cancelComboboxInput(editor, element, { cause: "deselect", restoreText: "/tada" }),
-    ).not.toThrow();
+    expect(() => {
+      cancelComboboxInput(editor, element, { cause: "deselect", restoreText: "/tada" });
+    }).not.toThrow();
     expect(out(editor)).toBe(before);
   });
 
@@ -108,12 +118,18 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
     const element = openCombobox(editor, "/", KEYS.slashInput);
     commitComboboxInput(editor, element, false);
     const end = editor.api.end([0]);
-    if (!end) throw new Error("no end point");
+    if (!end) {
+      throw new Error("no end point");
+    }
     editor.tf.insertText("done", { at: end });
     expect(out(editor)).toBe("hello done\n");
     expect(() => {
-      for (let i = 0; i < 10; i++) editor.undo();
-      for (let i = 0; i < 10; i++) editor.redo();
+      for (let i = 0; i < 10; i += 1) {
+        editor.undo();
+      }
+      for (let i = 0; i < 10; i += 1) {
+        editor.redo();
+      }
     }).not.toThrow();
     expect(out(editor)).toBe("hello done\n");
   });
@@ -121,29 +137,43 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   it("commit after external removal is a no-op", () => {
     const editor = makeEditor("hello ");
     const element = openCombobox(editor, "/", KEYS.slashInput);
-    while (findByType(editor, KEYS.slashInput)) editor.undo();
-    expect(() => commitComboboxInput(editor, element, false)).not.toThrow();
+    while (findByType(editor, KEYS.slashInput)) {
+      editor.undo();
+    }
+    expect(() => {
+      commitComboboxInput(editor, element, false);
+    }).not.toThrow();
   });
 
   it("absorbs keystrokes that raced into the element's hidden text child", () => {
     const editor = makeEditor("");
     const element = openCombobox(editor, "/", KEYS.slashInput);
     const path = editor.api.findPath(element);
-    if (!path) throw new Error("element path missing");
+    if (!path) {
+      throw new Error("element path missing");
+    }
     editor.tf.select({ offset: 0, path: [...path, 0] });
     editor.tf.insertText("t", { voids: true });
     const raced = findByType(editor, KEYS.slashInput);
     expect(raced ? racedComboboxText(raced) : "").toBe("t");
-    if (!raced) throw new Error("element missing");
+    if (!raced) {
+      throw new Error("element missing");
+    }
     expect(absorbRacedComboboxText(editor, raced)).toBe("t");
     const cleared = findByType(editor, KEYS.slashInput);
     expect(cleared ? racedComboboxText(cleared) : "?").toBe("");
-    if (!cleared) throw new Error("element missing");
+    if (!cleared) {
+      throw new Error("element missing");
+    }
     cancelComboboxInput(editor, cleared, { cause: "escape", restoreText: "/tada" });
     expect(out(editor)).toBe("/tada\n");
     expect(() => {
-      for (let i = 0; i < 10; i++) editor.undo();
-      for (let i = 0; i < 10; i++) editor.redo();
+      for (let i = 0; i < 10; i += 1) {
+        editor.undo();
+      }
+      for (let i = 0; i < 10; i += 1) {
+        editor.redo();
+      }
     }).not.toThrow();
     expect(out(editor)).toBe("/tada\n");
   });
@@ -159,7 +189,8 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
     for (const word of ["deep", "tada"]) {
       let value = "";
       let caret = 0;
-      for (const [i, char] of Array.from(word).entries()) {
+      // oxlint-disable-next-line typescript/no-misused-spread -- "deep" and "tada" are ASCII; the per-character sequence is the subject
+      for (const [i, char] of [...word].entries()) {
         const next = value.slice(0, caret) + char + value.slice(caret);
         const reported = i === 0 ? caret : caret + 1;
         caret = reconcileInsertionCaret(value, next, reported) ?? reported;
@@ -194,9 +225,9 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
 });
 
 describe("combobox trigger nodes are excluded from serialization", () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+  let warn: MockInstance<typeof console.warn>;
   beforeEach(() => {
-    warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   });
   afterEach(() => {
     warn.mockRestore();
@@ -211,7 +242,9 @@ describe("combobox trigger nodes are excluded from serialization", () => {
     ]) {
       const editor = makeEditor("before after");
       editor.tf.select({ offset: 7, path: [0, 0] });
-      for (const key of trigger.keys) editor.tf.insertText(key);
+      for (const key of trigger.keys) {
+        editor.tf.insertText(key);
+      }
       expect(findByType(editor, trigger.type)).not.toBeNull();
       const md = out(editor);
       expect(md).toBe(trigger.expected);

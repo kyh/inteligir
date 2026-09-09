@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { forwardRef, type CSSProperties } from "react";
+import type { CSSProperties, ReactNode, RefAttributes } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva } from "class-variance-authority";
 
@@ -20,32 +20,32 @@ const buttonStructure = cva(
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   ],
   {
+    compoundVariants: [
+      { className: "pl-[6px]", iconLeft: true, size: "compact" },
+      { className: "pl-[10px]", iconLeft: true, size: "default" },
+      { className: "pr-[6px]", iconRight: true, size: "compact" },
+      { className: "pr-[10px]", iconRight: true, size: "default" },
+    ],
+    defaultVariants: {
+      size: "default",
+      variant: "primary",
+    },
     variants: {
-      variant: {
-        primary: "text-background",
-        secondary: "text-foreground",
-        tertiary: "text-foreground",
-        ghost: "text-muted-foreground hover:text-foreground",
-        destructive: "text-destructive-foreground",
-      },
+      iconLeft: { true: "" },
+      iconRight: { true: "" },
       size: {
-        default: "h-9 gap-1.5 px-4 text-[13px]",
         compact: "h-7 gap-1 px-3 text-[12px] [&_svg:not([class*='size-'])]:size-3.5",
+        default: "h-9 gap-1.5 px-4 text-[13px]",
         icon: "h-9 w-9 p-0",
         "icon-compact": "h-7 w-7 p-0 [&_svg:not([class*='size-'])]:size-3.5",
       },
-      iconLeft: { true: "" },
-      iconRight: { true: "" },
-    },
-    compoundVariants: [
-      { size: "compact", iconLeft: true, className: "pl-[6px]" },
-      { size: "default", iconLeft: true, className: "pl-[10px]" },
-      { size: "compact", iconRight: true, className: "pr-[6px]" },
-      { size: "default", iconRight: true, className: "pr-[10px]" },
-    ],
-    defaultVariants: {
-      variant: "primary",
-      size: "default",
+      variant: {
+        destructive: "text-destructive-foreground",
+        ghost: "text-muted-foreground hover:text-foreground",
+        primary: "text-background",
+        secondary: "text-foreground",
+        tertiary: "text-foreground",
+      },
     },
   },
 );
@@ -58,48 +58,48 @@ type ButtonSize = "default" | "compact" | "icon" | "icon-compact";
 // collapses the spread 1px per side, where a scale would warp a wide button. fills are opaque
 // color-mix, not alpha, so the fill and its spread ring never seam.
 const bgVariants = {
+  destructive:
+    "[--btn-bg:var(--destructive)] group-hover:[--btn-bg:color-mix(in_oklab,var(--destructive)_90%,var(--background))] group-active:[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
+  ghost:
+    "bg-transparent shadow-[0_0_0_1px_transparent] group-hover:bg-hover group-hover:shadow-[0_0_0_1px_var(--hover)] group-active:bg-active group-active:shadow-[0_0_0_0px_var(--active)]",
   primary:
     "[--btn-bg:var(--foreground)] group-hover:[--btn-bg:color-mix(in_oklab,var(--foreground)_90%,var(--background))] group-active:[--btn-bg:color-mix(in_oklab,var(--foreground)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   secondary:
     "[--btn-bg:var(--accent)] group-hover:[--btn-bg:color-mix(in_oklab,var(--accent)_80%,var(--background))] group-active:[--btn-bg:var(--accent)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   tertiary:
     "bg-transparent shadow-[0_0_0_1px_var(--border),inset_0_0_0_0px_var(--border)] group-hover:bg-hover group-active:bg-active group-active:shadow-[0_0_0_0px_var(--border),inset_0_0_0_1px_var(--border)]",
-  ghost:
-    "bg-transparent shadow-[0_0_0_1px_transparent] group-hover:bg-hover group-hover:shadow-[0_0_0_1px_var(--hover)] group-active:bg-active group-active:shadow-[0_0_0_0px_var(--active)]",
-  destructive:
-    "[--btn-bg:var(--destructive)] group-hover:[--btn-bg:color-mix(in_oklab,var(--destructive)_90%,var(--background))] group-active:[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
 } satisfies Record<ButtonVariant, string>;
 
 const activeBgVariants = {
+  destructive:
+    "[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
+  ghost: "bg-active shadow-[0_0_0_1px_var(--active)] group-active:shadow-[0_0_0_0px_var(--active)]",
   primary:
     "[--btn-bg:color-mix(in_oklab,var(--foreground)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   secondary:
     "[--btn-bg:var(--accent)] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
   tertiary:
     "bg-active shadow-[0_0_0_1px_var(--border),inset_0_0_0_0px_var(--border)] group-active:shadow-[0_0_0_0px_var(--border),inset_0_0_0_1px_var(--border)]",
-  ghost: "bg-active shadow-[0_0_0_1px_var(--active)] group-active:shadow-[0_0_0_0px_var(--active)]",
-  destructive:
-    "[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
 } satisfies Record<ButtonVariant, string>;
 
 // class-string consumers cannot carry the layered press surface, so they get the flat palette on the root.
 const flatBgVariants = {
+  destructive: "bg-destructive hover:bg-destructive/90",
+  ghost: "bg-transparent hover:bg-hover active:bg-active",
   primary: "bg-foreground hover:bg-foreground/90 active:bg-foreground/80",
   secondary: "bg-accent hover:bg-accent/80",
   tertiary: "bg-transparent shadow-[inset_0_0_0_1px_var(--border)] hover:bg-hover active:bg-active",
-  ghost: "bg-transparent hover:bg-hover active:bg-active",
-  destructive: "bg-destructive hover:bg-destructive/90",
 } satisfies Record<ButtonVariant, string>;
 
-function buttonVariants(props?: {
+const buttonVariants = (props?: {
   variant?: ButtonVariant | null;
   size?: ButtonSize | null;
   className?: string;
-}): string {
+}): string => {
   const variant = props?.variant ?? "primary";
   const size = props?.size ?? "default";
-  return cn(buttonStructure({ variant, size }), flatBgVariants[variant], props?.className);
-}
+  return cn(buttonStructure({ size, variant }), flatBgVariants[variant], props?.className);
+};
 
 interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style"> {
   className?: string;
@@ -112,129 +112,164 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
   active?: boolean;
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      className,
-      variant,
-      size,
-      loading = false,
-      leadingIcon: LeadingIcon,
-      trailingIcon: TrailingIcon,
-      active = false,
-      disabled,
-      children,
-      style,
-      "aria-label": ariaLabel,
-      title,
-      ...props
-    },
-    ref,
-  ) => {
-    const contextSize = useSizeVariant();
-    const resolvedSize: ButtonSize = size ?? (contextSize === "compact" ? "compact" : "default");
-    const resolvedVariant = variant ?? "primary";
-    const isIconOnly = resolvedSize === "icon" || resolvedSize === "icon-compact";
-    const isCompact = resolvedSize === "compact" || resolvedSize === "icon-compact";
-    const iconSize = isCompact ? 14 : 16;
-    // size-* spelling on purpose: the base [&_svg:not([class*='size-'])] guard must skip the spinner.
-    const spinnerSizeClass = isCompact ? "size-7" : "size-9";
-    const radius = useRadius();
-    // text-box only applies to block containers, so the trim lives on the label span, not the flex root.
-    const labelTrimClass = "[text-box:trim-both_cap_alphabetic]";
-    const bgClass = active ? activeBgVariants[resolvedVariant] : bgVariants[resolvedVariant];
+// text-box only applies to block containers, so the trim lives on the label span, not the flex root.
+const labelTrimClass = "[text-box:trim-both_cap_alphabetic]";
 
-    const internals = (
+interface ButtonLabelProps {
+  children: ReactNode;
+  iconSize: number;
+  isIconOnly: boolean;
+  leadingIcon: IconComponent | undefined;
+  loading: boolean;
+  spinnerSizeClass: string;
+  trailingIcon: IconComponent | undefined;
+}
+
+const ButtonLabel = ({
+  children,
+  iconSize,
+  isIconOnly,
+  leadingIcon: LeadingIcon,
+  loading,
+  spinnerSizeClass,
+  trailingIcon: TrailingIcon,
+}: ButtonLabelProps) => {
+  if (loading) {
+    return (
       <>
-        <span
-          aria-hidden
-          className={cn(
-            "absolute inset-px rounded-[inherit] transition-[box-shadow,background-color] [transition-duration:180ms,80ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1),ease] group-active:[transition-duration:80ms,80ms]",
-            bgClass,
-          )}
-        />
-        <span className="relative inline-flex items-center justify-center gap-[inherit]">
-          {loading ? (
-            <>
-              <span className="flex items-center justify-center gap-[inherit] opacity-0">
-                {LeadingIcon && !isIconOnly && <LeadingIcon size={iconSize} strokeWidth={2} />}
-                {children}
-                {TrailingIcon && !isIconOnly && <TrailingIcon size={iconSize} strokeWidth={2} />}
-              </span>
-              <span className="absolute inset-0 flex items-center justify-center">
-                <svg className={spinnerSizeClass} viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M 12 12 C 14 8.5 19 8.5 19 12 C 19 15.5 14 15.5 12 12 C 10 8.5 5 8.5 5 12 C 5 15.5 10 15.5 12 12 Z"
-                    stroke="currentColor"
-                    strokeWidth="1.125"
-                    strokeLinecap="round"
-                    pathLength="100"
-                    style={{
-                      strokeDasharray: "15 85",
-                      animation:
-                        "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
-                    }}
-                  />
-                </svg>
-              </span>
-            </>
-          ) : isIconOnly ? (
-            <span className="[&_svg]:transition-[stroke-width] [&_svg]:duration-80 [&_svg]:stroke-[1.5] group-hover:[&_svg]:stroke-[2]">
-              {children}
-            </span>
-          ) : (
-            <>
-              {LeadingIcon && (
-                <LeadingIcon
-                  size={iconSize}
-                  strokeWidth={1.5}
-                  className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
-                />
-              )}
-              <span className={labelTrimClass}>{children}</span>
-              {TrailingIcon && (
-                <TrailingIcon
-                  size={iconSize}
-                  strokeWidth={1.5}
-                  className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
-                />
-              )}
-            </>
-          )}
+        <span className="flex items-center justify-center gap-[inherit] opacity-0">
+          {LeadingIcon && !isIconOnly && <LeadingIcon size={iconSize} strokeWidth={2} />}
+          {children}
+          {TrailingIcon && !isIconOnly && <TrailingIcon size={iconSize} strokeWidth={2} />}
+        </span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          <svg className={spinnerSizeClass} viewBox="0 0 24 24" fill="none">
+            <path
+              d="M 12 12 C 14 8.5 19 8.5 19 12 C 19 15.5 14 15.5 12 12 C 10 8.5 5 8.5 5 12 C 5 15.5 10 15.5 12 12 Z"
+              stroke="currentColor"
+              strokeWidth="1.125"
+              strokeLinecap="round"
+              pathLength="100"
+              style={{
+                animation: "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
+                strokeDasharray: "15 85",
+              }}
+            />
+          </svg>
         </span>
       </>
     );
+  }
 
-    const rootClassName = cn(
-      buttonStructure({
-        variant: resolvedVariant,
-        size: resolvedSize,
-        iconLeft: !isIconOnly && !!LeadingIcon,
-        iconRight: !isIconOnly && !!TrailingIcon,
-      }),
-      radius.button,
-      className,
+  if (isIconOnly) {
+    return (
+      <span className="[&_svg]:transition-[stroke-width] [&_svg]:duration-80 [&_svg]:stroke-[1.5] group-hover:[&_svg]:stroke-[2]">
+        {children}
+      </span>
     );
+  }
 
-    // an icon-only button says nothing on its face: its label becomes the product's tooltip
-    // and its accessible name, and the native title is dropped so the OS does not show a second one.
-    const iconLabel = isIconOnly ? (ariaLabel ?? title) : undefined;
-    const element = (
-      <ButtonPrimitive
-        ref={ref}
-        className={rootClassName}
-        disabled={disabled || loading}
-        style={style}
-        aria-label={ariaLabel ?? iconLabel}
-        title={isIconOnly ? undefined : title}
-        {...props}
-      >
-        {internals}
-      </ButtonPrimitive>
-    );
-    return iconLabel === undefined ? element : <Tooltip content={iconLabel}>{element}</Tooltip>;
-  },
-);
+  return (
+    <>
+      {LeadingIcon && (
+        <LeadingIcon
+          size={iconSize}
+          strokeWidth={1.5}
+          className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
+        />
+      )}
+      <span className={labelTrimClass}>{children}</span>
+      {TrailingIcon && (
+        <TrailingIcon
+          size={iconSize}
+          strokeWidth={1.5}
+          className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
+        />
+      )}
+    </>
+  );
+};
+
+const Button = ({
+  className,
+  variant,
+  size,
+  loading = false,
+  leadingIcon: LeadingIcon,
+  trailingIcon: TrailingIcon,
+  active = false,
+  disabled,
+  children,
+  style,
+  "aria-label": ariaLabel,
+  title,
+  ref,
+  ...props
+}: ButtonProps & RefAttributes<HTMLButtonElement>) => {
+  const contextSize = useSizeVariant();
+  const resolvedSize: ButtonSize = size ?? (contextSize === "compact" ? "compact" : "default");
+  const resolvedVariant = variant ?? "primary";
+  const isIconOnly = resolvedSize === "icon" || resolvedSize === "icon-compact";
+  const isCompact = resolvedSize === "compact" || resolvedSize === "icon-compact";
+  const iconSize = isCompact ? 14 : 16;
+  // size-* spelling on purpose: the base [&_svg:not([class*='size-'])] guard must skip the spinner.
+  const spinnerSizeClass = isCompact ? "size-7" : "size-9";
+  const radius = useRadius();
+  const bgClass = active ? activeBgVariants[resolvedVariant] : bgVariants[resolvedVariant];
+
+  const internals = (
+    <>
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-px rounded-[inherit] transition-[box-shadow,background-color] [transition-duration:180ms,80ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1),ease] group-active:[transition-duration:80ms,80ms]",
+          bgClass,
+        )}
+      />
+      <span className="relative inline-flex items-center justify-center gap-[inherit]">
+        <ButtonLabel
+          iconSize={iconSize}
+          isIconOnly={isIconOnly}
+          leadingIcon={LeadingIcon}
+          loading={loading}
+          spinnerSizeClass={spinnerSizeClass}
+          trailingIcon={TrailingIcon}
+        >
+          {children}
+        </ButtonLabel>
+      </span>
+    </>
+  );
+
+  const rootClassName = cn(
+    buttonStructure({
+      iconLeft: !isIconOnly && !!LeadingIcon,
+      iconRight: !isIconOnly && !!TrailingIcon,
+      size: resolvedSize,
+      variant: resolvedVariant,
+    }),
+    radius.button,
+    className,
+  );
+
+  // an icon-only button says nothing on its face: its label becomes the product's tooltip
+  // and its accessible name, and the native title is dropped so the OS does not show a second one.
+  const iconLabel = isIconOnly ? (ariaLabel ?? title) : undefined;
+  const element = (
+    <ButtonPrimitive
+      ref={ref}
+      className={rootClassName}
+      disabled={disabled ?? loading}
+      style={style}
+      aria-label={ariaLabel ?? iconLabel}
+      title={isIconOnly ? undefined : title}
+      {...props}
+    >
+      {internals}
+    </ButtonPrimitive>
+  );
+  return iconLabel === undefined ? element : <Tooltip content={iconLabel}>{element}</Tooltip>;
+};
 
 Button.displayName = "Button";
 

@@ -2,61 +2,37 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import type { SpellcheckChoice, SpellcheckState } from "../../../spellcheck-state";
-import { initialUpdateState } from "../../../update-state";
 import { applyStoredSpellcheck, chooseSpellcheck } from "../desktop-spellcheck";
 import { readSpellcheck, writeSpellcheck } from "../prefs";
+import { inertBridge } from "./inert-bridge";
 
-const inert = initialUpdateState("0.0.0", "a test stub");
-const inertVaults = {
-  current: { path: "/home/me/Inteligir", name: "Inteligir" },
-  recent: [],
-  blocked: null,
-};
+const state = (choice: SpellcheckChoice | null): SpellcheckState => ({
+  available: ["en-US", "de-DE"],
+  enabled: choice?.enabled ?? true,
+  languages: choice?.languages ?? [],
+  languagesConfigurable: true,
+});
 
-function state(choice: SpellcheckChoice | null): SpellcheckState {
-  return {
-    enabled: choice?.enabled ?? true,
-    languages: choice?.languages ?? [],
-    available: ["en-US", "de-DE"],
-    languagesConfigurable: true,
-  };
-}
-
-function installBridge() {
+const installBridge = () => {
   const applied: SpellcheckChoice[] = [];
   const log = { applied, reads: 0 };
   window.desktopBridge = {
-    socketOrigin: "http://127.0.0.1:1",
-    updates: {
-      getState: () => Promise.resolve(inert),
-      check: () => Promise.resolve(inert),
-      download: () => Promise.resolve(inert),
-      install: () => Promise.resolve(inert),
-      onState: () => () => {},
-    },
+    ...inertBridge(),
+    /* oxlint-disable require-await -- the bridge is an async port; this fake answers from memory */
     spellcheck: {
-      getState: () => {
-        log.reads += 1;
-        return Promise.resolve(state(null));
-      },
-      apply: (choice) => {
+      apply: async (choice) => {
         log.applied.push(choice);
-        return Promise.resolve(state(choice));
+        return state(choice);
+      },
+      getState: async () => {
+        log.reads += 1;
+        return state(null);
       },
     },
-    paths: {
-      reveal: () => Promise.resolve({ ok: true }),
-      open: () => Promise.resolve({ ok: true }),
-    },
-    vaults: {
-      getState: () => Promise.resolve(inertVaults),
-      pick: () => Promise.resolve(inertVaults),
-      open: () => Promise.resolve(inertVaults),
-      forget: () => Promise.resolve(inertVaults),
-    },
+    /* oxlint-enable require-await */
   };
   return log;
-}
+};
 
 afterEach(() => {
   delete window.desktopBridge;

@@ -2,7 +2,8 @@
 // openIds store and chevron hooks, and its flat-model hider is inert here. Open state lives in
 // that store, never on the node, so collapsing cannot dirty the document.
 
-import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule, type Path } from "platejs";
+import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule } from "platejs";
+import type { Path } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { BaseTogglePlugin } from "@platejs/toggle";
 import { TogglePlugin } from "@platejs/toggle/react";
@@ -12,34 +13,40 @@ import { ToggleElement } from "@repo/editor/nodes/toggle-node";
 
 export const ToggleBaseKit = [BaseTogglePlugin];
 
-export function wrapBlockInToggle(editor: PlateEditor, at: Path): void {
+export const wrapBlockInToggle = (editor: PlateEditor, at: Path): void => {
   editor.tf.withoutNormalizing(() => {
     const entry = editor.api.node(at);
-    if (!entry || !ElementApi.isElement(entry[0]) || entry[0].type === KEYS.toggle) return;
+    if (!entry || !ElementApi.isElement(entry[0]) || entry[0].type === KEYS.toggle) {
+      return;
+    }
     // list props on the summary would serialize inside `<toggle>`.
     editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
     editor.tf.wrapNodes({ children: [], type: KEYS.toggle }, { at });
   });
   const toggle = editor.api.node(at);
   const id = toggle ? stringProp(toggle[0], "id") : undefined;
-  if (id) editor.getApi(TogglePlugin).toggle.toggleIds([id], true);
-}
+  if (id !== undefined && id !== "") {
+    editor.getApi(TogglePlugin).toggle.toggleIds([id], true);
+  }
+};
 
-export function insertToggle(editor: PlateEditor): void {
+export const insertToggle = (editor: PlateEditor): void => {
   const block = editor.api.block();
-  if (!block) return;
+  if (!block) {
+    return;
+  }
   wrapBlockInToggle(editor, block[1]);
-}
+};
 
 const toggleInputRule = createBlockStartInputRule({
-  match: "+",
-  trigger: " ",
-  enabled: ({ editor }) => !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),
   apply: ({ editor }, match) => {
     editor.tf.delete({ at: match.range });
     insertToggle(editor);
     return true;
   },
+  enabled: ({ editor }) => !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),
+  match: "+",
+  trigger: " ",
 });
 
 export const ToggleKit = [

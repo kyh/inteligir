@@ -28,31 +28,31 @@ import {
 } from "./threads-schema";
 
 export const threadsContract = {
-  list: oc.output(listThreadsResponseSchema),
-
-  get: oc.input(threadIdQuerySchema).output(getThreadResponseSchema).errors({ NOT_FOUND: {} }),
-
-  create: oc.input(createThreadRequestSchema).output(threadResponseSchema),
+  answerInteraction: oc
+    .input(answerInteractionRequestSchema)
+    .output(answerInteractionResponseSchema)
+    .errors({ ALREADY_RESOLVED, INVALID_RESOLUTION, NOT_FOUND: {} }),
 
   archive: oc
     .input(archiveThreadRequestSchema)
     .output(threadResponseSchema)
     .errors({ NOT_FOUND: {} }),
 
-  send: oc.input(sendMessageRequestSchema).output(sendMessageResponseSchema).errors({
-    NOT_FOUND: {},
-    ARCHIVED,
-    STALE_TURN,
-    PROVIDER_UNAVAILABLE,
-    DISPATCH_FAILED,
-  }),
+  create: oc.input(createThreadRequestSchema).output(threadResponseSchema),
 
-  timeline: oc.input(timelineQuerySchema).output(timelineResponseSchema).errors({ NOT_FOUND: {} }),
+  get: oc.input(threadIdQuerySchema).output(getThreadResponseSchema).errors({ NOT_FOUND: {} }),
+
+  list: oc.output(listThreadsResponseSchema),
 
   listInteractions: oc.input(listInteractionsQuerySchema).output(listInteractionsResponseSchema),
 
-  answerInteraction: oc
-    .input(answerInteractionRequestSchema)
-    .output(answerInteractionResponseSchema)
-    .errors({ NOT_FOUND: {}, ALREADY_RESOLVED, INVALID_RESOLUTION }),
+  send: oc.input(sendMessageRequestSchema).output(sendMessageResponseSchema).errors({
+    ARCHIVED,
+    DISPATCH_FAILED,
+    NOT_FOUND: {},
+    PROVIDER_UNAVAILABLE,
+    STALE_TURN,
+  }),
+
+  timeline: oc.input(timelineQuerySchema).output(timelineResponseSchema).errors({ NOT_FOUND: {} }),
 };

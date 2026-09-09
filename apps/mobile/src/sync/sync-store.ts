@@ -17,14 +17,11 @@ export interface ApplyThreadEventsArgs {
 }
 
 export interface SyncStore {
-  readCursor(): number;
-  writeCursor(seq: number): void;
-  applyThreadEvents(args: ApplyThreadEventsArgs): void;
-  // property-function types, not method shorthand: these are passed by reference to
-  // useSyncExternalStore, and a method reference trips the unbound-method lint.
+  readCursor: () => number;
+  writeCursor: (seq: number) => void;
+  applyThreadEvents: (args: ApplyThreadEventsArgs) => void;
   snapshotThreads: () => readonly StoredThread[];
   snapshotThread: (threadId: string) => StoredThread | null;
   subscribeThreads: (onChange: () => void) => () => void;
-
-  reset(): void;
+  reset: () => void;
 }

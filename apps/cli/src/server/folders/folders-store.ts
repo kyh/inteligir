@@ -11,9 +11,9 @@ export class FoldersStore {
   constructor(dataDir: string) {
     this.file = new JsonFileStore({
       dataDir,
+      empty: { folders: [] },
       fileName: "connected-folders.json",
       schema: foldersFileSchema,
-      empty: { folders: [] },
     });
   }
 

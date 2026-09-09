@@ -12,7 +12,7 @@ const EDITOR = path.resolve(import.meta.dirname, "..");
 // both roots: EDITOR_KIT pulls in the reach-back surface (host, comment store, slash menu) base-kit never sees
 const ENTRIES = ["kits/base-kit.ts", "kits/editor-kit.ts"] as const;
 
-function resolve(specifier: string, fromFile: string): string | null {
+const resolve = (specifier: string, fromFile: string): string | null => {
   let base: string;
   if (specifier.startsWith("@repo/editor/")) {
     base = path.join(EDITOR, specifier.slice("@repo/editor/".length));
@@ -28,67 +28,87 @@ function resolve(specifier: string, fromFile: string): string | null {
     path.join(base, "index.ts"),
     path.join(base, "index.tsx"),
   ]) {
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
   }
   return null;
-}
+};
 
 // comments are stripped first so a specifier quoted in prose never counts as an edge
-function eagerImports(file: string): string[] {
+const eagerImports = (file: string): string[] => {
   const source = fs
-    .readFileSync(file, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/.*$/gm, "");
+    .readFileSync(file, "utf-8")
+    .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
+    .replaceAll(/^\s*\/\/.*$/gmu, "");
 
   const specifiers: string[] = [];
-  const importRe = /import\s+(?:(type)\s+)?([\s\S]*?)\s*from\s*["']([^"']+)["']/g;
+  const importRe =
+    /import\s+(?:(?<type>type)\s+)?(?<clause>[\s\S]*?)\s*from\s*["'](?<specifier>[^"']+)["']/gu;
   for (const match of source.matchAll(importRe)) {
-    const typeKeyword = match[1];
-    const clause = match[2] ?? "";
-    const specifier = match[3];
-    if (specifier === undefined) continue;
-    if (typeKeyword !== undefined) continue;
+    const typeKeyword = match.groups?.type;
+    const clause = match.groups?.clause ?? "";
+    const specifier = match.groups?.specifier;
+    if (specifier === undefined) {
+      continue;
+    }
+    if (typeKeyword !== undefined) {
+      continue;
+    }
     // erased only if every binding is a type
-    const named = clause.match(/^\{([\s\S]*)\}$/);
-    if (named?.[1] !== undefined) {
-      const bindings = named[1]
+    const inner = /^\{(?<bindings>[\s\S]*)\}$/u.exec(clause)?.groups?.bindings;
+    if (inner !== undefined) {
+      const bindings = inner
         .split(",")
         .map((binding) => binding.trim())
         .filter(Boolean);
-      if (bindings.length > 0 && bindings.every((binding) => binding.startsWith("type "))) continue;
+      if (bindings.length > 0 && bindings.every((binding) => binding.startsWith("type "))) {
+        continue;
+      }
     }
     specifiers.push(specifier);
   }
-  for (const match of source.matchAll(/import\s+["']([^"']+)["']/g)) {
-    if (match[1] !== undefined) specifiers.push(match[1]);
+  for (const match of source.matchAll(/import\s+["'](?<specifier>[^"']+)["']/gu)) {
+    const bare = match.groups?.specifier;
+    if (bare !== undefined) {
+      specifiers.push(bare);
+    }
   }
   return specifiers;
-}
+};
 
-function findCycle(entry: string): string[] | null {
+const findCycle = (entry: string): string[] | null => {
   const onStack = new Set<string>();
   const done = new Set<string>();
   const stack: string[] = [];
 
-  function visit(file: string): string[] | null {
-    if (onStack.has(file)) return [...stack.slice(stack.indexOf(file)), file];
-    if (done.has(file)) return null;
+  const visit = (file: string): string[] | null => {
+    if (onStack.has(file)) {
+      return [...stack.slice(stack.indexOf(file)), file];
+    }
+    if (done.has(file)) {
+      return null;
+    }
     onStack.add(file);
     stack.push(file);
     for (const specifier of eagerImports(file)) {
       const target = resolve(specifier, file);
-      if (target === null) continue;
+      if (target === null) {
+        continue;
+      }
       const cycle = visit(target);
-      if (cycle !== null) return cycle;
+      if (cycle !== null) {
+        return cycle;
+      }
     }
     stack.pop();
     onStack.delete(file);
     done.add(file);
     return null;
-  }
+  };
 
   return visit(entry);
-}
+};
 
 describe("editor kit import graph", () => {
   it.each(ENTRIES)("has no eager import cycle rooted at %s", (relative) => {
@@ -113,11 +133,15 @@ describe("editor kit import graph", () => {
     const queue = [path.join(EDITOR, relative)];
     while (queue.length > 0) {
       const file = queue.pop();
-      if (file === undefined || seen.has(file)) continue;
+      if (file === undefined || seen.has(file)) {
+        continue;
+      }
       seen.add(file);
       for (const specifier of eagerImports(file)) {
         const target = resolve(specifier, file);
-        if (target !== null) queue.push(target);
+        if (target !== null) {
+          queue.push(target);
+        }
       }
     }
     expect(seen.size).toBeGreaterThan(10);

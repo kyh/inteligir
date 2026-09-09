@@ -8,8 +8,8 @@ export const ACCOUNT_API_PATHS = {
 
 export const accountResponseSchema = z
   .object({
-    id: z.string().min(1),
     email: z.string().min(1),
+    id: z.string().min(1),
   })
   .strict();
 export type AccountResponse = z.infer<typeof accountResponseSchema>;

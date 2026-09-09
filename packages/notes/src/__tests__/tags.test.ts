@@ -71,14 +71,14 @@ describe("TagIndex", () => {
     const index = new TagIndex();
     index.set("a.md", ["Meta"]);
     index.set("b.md", ["meta"]);
-    expect(index.all()).toEqual([{ tag: "Meta", count: 2 }]);
+    expect(index.all()).toEqual([{ count: 2, tag: "Meta" }]);
     expect(index.notesWithTag("META")).toEqual(["a.md", "b.md"]);
   });
 
   it("dedupes per-doc duplicates (frontmatter + inline of the same tag)", () => {
     const index = new TagIndex();
     index.set("a.md", ["meta", "Meta", "meta"]);
-    expect(index.all()).toEqual([{ tag: "meta", count: 1 }]);
+    expect(index.all()).toEqual([{ count: 1, tag: "meta" }]);
   });
 
   it("orders by count desc, then alphabetically", () => {
@@ -86,8 +86,8 @@ describe("TagIndex", () => {
     index.set("a.md", ["zebra", "alpha"]);
     index.set("b.md", ["alpha"]);
     expect(index.all()).toEqual([
-      { tag: "alpha", count: 2 },
-      { tag: "zebra", count: 1 },
+      { count: 2, tag: "alpha" },
+      { count: 1, tag: "zebra" },
     ]);
   });
 
@@ -96,7 +96,7 @@ describe("TagIndex", () => {
     index.set("a.md", ["shared", "onlya"]);
     index.set("b.md", ["shared"]);
     index.remove("a.md");
-    expect(index.all()).toEqual([{ tag: "shared", count: 1 }]);
+    expect(index.all()).toEqual([{ count: 1, tag: "shared" }]);
     expect(index.notesWithTag("onlya")).toEqual([]);
   });
 
@@ -115,9 +115,9 @@ describe("KnowledgeIndex — tags", () => {
     index.setDoc("a.md", "---\ntags: [meta, demo]\n---\n\n# A\n");
     index.setDoc("b.md", "# B\n\nInline #meta and #project.\n");
     expect(index.tags()).toEqual([
-      { tag: "meta", count: 2 },
-      { tag: "demo", count: 1 },
-      { tag: "project", count: 1 },
+      { count: 2, tag: "meta" },
+      { count: 1, tag: "demo" },
+      { count: 1, tag: "project" },
     ]);
     expect(index.notesWithTag("meta")).toEqual(["a.md", "b.md"]);
     expect(index.notesWithTag("project")).toEqual(["b.md"]);

@@ -11,37 +11,35 @@ import {
   readingMinutes,
 } from "@repo/editor/note-stats";
 
-function editorOver(value: Value) {
-  return createPlateEditor({ plugins: EDITOR_KIT, value });
-}
+const editorOver = (value: Value) => createPlateEditor({ plugins: EDITOR_KIT, value });
 
 describe("the count beside the outline", () => {
   it("counts words per block, so two list items are two words apart", () => {
     const editor = editorOver([
-      { type: "p", children: [{ text: "Hello  wide " }, { text: "world", bold: true }] },
+      { children: [{ text: "Hello  wide " }, { bold: true, text: "world" }], type: "p" },
       {
-        type: "ul",
         children: [
-          { type: "li", children: [{ type: "lic", children: [{ text: "one" }] }] },
-          { type: "li", children: [{ type: "lic", children: [{ text: "two" }] }] },
+          { children: [{ children: [{ text: "one" }], type: "lic" }], type: "li" },
+          { children: [{ children: [{ text: "two" }], type: "lic" }], type: "li" },
         ],
+        type: "ul",
       },
     ]);
-    expect(collectNoteStats(editor)).toEqual({ words: 5, characters: 23 });
+    expect(collectNoteStats(editor)).toEqual({ characters: 23, words: 5 });
   });
 
   it("counts a frontmatter node as nothing", () => {
     const editor = editorOver([
-      { type: "frontmatter", value: "title: Big\ntags: [a, b]", children: [{ text: "" }] },
-      { type: "p", children: [{ text: "body" }] },
+      { children: [{ text: "" }], type: "frontmatter", value: "title: Big\ntags: [a, b]" },
+      { children: [{ text: "body" }], type: "p" },
     ]);
-    expect(collectNoteStats(editor)).toEqual({ words: 1, characters: 4 });
+    expect(collectNoteStats(editor)).toEqual({ characters: 4, words: 1 });
   });
 
   it("calls an empty note empty", () => {
-    expect(collectNoteStats(editorOver([{ type: "p", children: [{ text: "" }] }]))).toEqual({
-      words: 0,
+    expect(collectNoteStats(editorOver([{ children: [{ text: "" }], type: "p" }]))).toEqual({
       characters: 0,
+      words: 0,
     });
   });
 });
@@ -57,8 +55,8 @@ describe("reading time", () => {
 
 describe("the published numbers", () => {
   it("answer for their own path only, and go with the editor", () => {
-    publishNoteStats("a.md", { words: 3, characters: 12 });
-    expect(readNoteStats("a.md")).toEqual({ words: 3, characters: 12 });
+    publishNoteStats("a.md", { characters: 12, words: 3 });
+    expect(readNoteStats("a.md")).toEqual({ characters: 12, words: 3 });
     expect(readNoteStats("b.md")).toBeNull();
     clearNoteStats("a.md");
     expect(readNoteStats("a.md")).toBeNull();

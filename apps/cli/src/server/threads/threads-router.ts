@@ -29,25 +29,35 @@ const archive = base.threads.archive.handler(({ context, input, errors }) => {
 const send = base.threads.send.handler(({ context, input, errors }) => {
   const outcome = context.threads.send(input);
   switch (outcome.kind) {
-    case "started":
+    case "started": {
       return { kind: "started", turnId: outcome.turnId };
-    case "queued":
+    }
+    case "queued": {
       return { kind: "queued", queuedMessageId: outcome.queuedMessageId };
-    case "not-found":
+    }
+    case "not-found": {
       throw errors.NOT_FOUND({ message: THREAD_NOT_FOUND });
-    case "provider-unavailable":
+    }
+    case "provider-unavailable": {
       throw errors.PROVIDER_UNAVAILABLE({ message: outcome.message });
-    case "dispatch-failed":
+    }
+    case "dispatch-failed": {
       throw errors.DISPATCH_FAILED({
         message: "The agent provider failed to accept the turn",
       });
-    case "conflict":
+    }
+    case "conflict": {
       switch (outcome.error) {
-        case "archived":
+        case "archived": {
           throw errors.ARCHIVED({ message: outcome.message });
-        case "stale_turn":
+        }
+        case "stale_turn": {
           throw errors.STALE_TURN({ message: outcome.message });
+        }
+        // no default
       }
+    }
+    // no default
   }
 });
 
@@ -66,24 +76,29 @@ const listInteractions = base.threads.listInteractions.handler(({ context, input
 const answerInteraction = base.threads.answerInteraction.handler(({ context, input, errors }) => {
   const outcome = context.threads.answerInteraction(input);
   switch (outcome.kind) {
-    case "resolved":
+    case "resolved": {
       return { interaction: outcome.interaction };
-    case "already-resolved":
+    }
+    case "already-resolved": {
       throw errors.ALREADY_RESOLVED({ message: "The interaction was already answered" });
-    case "invalid-resolution":
+    }
+    case "invalid-resolution": {
       throw errors.INVALID_RESOLUTION({ message: outcome.message });
-    case "not-found":
+    }
+    case "not-found": {
       throw errors.NOT_FOUND({ message: "Interaction not found" });
+    }
+    // no default
   }
 });
 
 export const threadsRouter = {
-  list,
-  get,
-  create,
+  answerInteraction,
   archive,
+  create,
+  get,
+  list,
+  listInteractions,
   send,
   timeline,
-  listInteractions,
-  answerInteraction,
 };

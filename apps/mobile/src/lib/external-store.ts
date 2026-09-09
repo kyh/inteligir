@@ -6,14 +6,16 @@ export interface ExternalStore<T> {
 
 export type ReadableStore<T> = Pick<ExternalStore<T>, "get" | "subscribe">;
 
-export function createExternalStore<T>(initial: T): ExternalStore<T> {
+export const createExternalStore = <T>(initial: T): ExternalStore<T> => {
   let value = initial;
   const listeners = new Set<() => void>();
   return {
     get: () => value,
     set: (next) => {
       value = next;
-      for (const listener of listeners) listener();
+      for (const listener of listeners) {
+        listener();
+      }
     },
     subscribe: (onChange) => {
       listeners.add(onChange);
@@ -22,4 +24,4 @@ export function createExternalStore<T>(initial: T): ExternalStore<T> {
       };
     },
   };
-}
+};

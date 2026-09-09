@@ -3,41 +3,40 @@ import {
   changedMessageLenientSchema,
   serverMessageLenientSchema,
   serverMessageSchema,
-  type ServerMessage,
 } from "@repo/api/local/notifications";
-import { WsBus, type BusSocket } from "../ws-bus";
+import type { ServerMessage } from "@repo/api/local/notifications";
+import { WsBus } from "../ws-bus";
+import type { BusSocket } from "../ws-bus";
 
 interface FakeSocket extends BusSocket {
   closed: { code: number | undefined; reason: string | undefined } | null;
   sent: string[];
 }
 
-function createFakeSocket(): FakeSocket {
+const createFakeSocket = (): FakeSocket => {
   const socket: FakeSocket = {
-    closed: null,
-    readyState: 1,
-    sent: [],
     close(code?: number, reason?: string) {
       socket.closed = { code, reason };
     },
+    closed: null,
+    readyState: 1,
     send(data: string) {
       socket.sent.push(data);
     },
+    sent: [],
   };
   return socket;
-}
+};
 
-function createBus(): WsBus {
-  return new WsBus();
-}
+const createBus = (): WsBus => new WsBus();
 
-function lastFrame(socket: FakeSocket): ServerMessage {
+const lastFrame = (socket: FakeSocket): ServerMessage => {
   const raw = socket.sent.at(-1);
   if (raw === undefined) {
     throw new Error("socket received no frames");
   }
   return serverMessageLenientSchema.parse(JSON.parse(raw));
-}
+};
 
 describe("registerClient", () => {
   it("acks with the hello frame", () => {
@@ -62,10 +61,10 @@ describe("subscribe/broadcast", () => {
     bus.notifyDoc("d1", ["content-changed"]);
 
     expect(lastFrame(vaultSocket)).toEqual({
-      type: "changed",
+      changes: ["content-changed"],
       entity: "doc",
       id: "d1",
-      changes: ["content-changed"],
+      type: "changed",
     });
     expect(threadSocket.sent).toHaveLength(1);
   });
@@ -123,11 +122,11 @@ describe("handleMessage", () => {
     const socket = createFakeSocket();
     bus.registerClient(socket);
 
-    bus.handleMessage(socket, JSON.stringify({ type: "subscribe", target: { kind: "vault" } }));
+    bus.handleMessage(socket, JSON.stringify({ target: { kind: "vault" }, type: "subscribe" }));
     bus.notifyVault(["files-changed"]);
     expect(socket.sent).toHaveLength(2);
 
-    bus.handleMessage(socket, JSON.stringify({ type: "unsubscribe", target: { kind: "vault" } }));
+    bus.handleMessage(socket, JSON.stringify({ target: { kind: "vault" }, type: "unsubscribe" }));
     bus.notifyVault(["files-changed"]);
     expect(socket.sent).toHaveLength(2);
     expect(socket.closed).toBeNull();
@@ -138,7 +137,7 @@ describe("handleMessage", () => {
     const socket = createFakeSocket();
     bus.registerClient(socket);
     const payload = new TextEncoder().encode(
-      JSON.stringify({ type: "subscribe", target: { kind: "vault" } }),
+      JSON.stringify({ target: { kind: "vault" }, type: "subscribe" }),
     );
     bus.handleMessage(socket, payload);
     bus.notifyVault(["files-changed"]);
@@ -156,7 +155,7 @@ describe("handleMessage", () => {
     bus.registerClient(unknownTarget);
     bus.handleMessage(
       unknownTarget,
-      JSON.stringify({ type: "subscribe", target: { kind: "nope" } }),
+      JSON.stringify({ target: { kind: "nope" }, type: "subscribe" }),
     );
     expect(unknownTarget.closed).toEqual({
       code: 1008,
@@ -167,7 +166,7 @@ describe("handleMessage", () => {
     bus.registerClient(extraField);
     bus.handleMessage(
       extraField,
-      JSON.stringify({ type: "subscribe", target: { kind: "vault" }, extra: 1 }),
+      JSON.stringify({ extra: 1, target: { kind: "vault" }, type: "subscribe" }),
     );
     expect(extraField.closed).toEqual({
       code: 1008,
@@ -206,30 +205,30 @@ describe("outbound frames against the contract schemas", () => {
 
     const [, named, unnamed] = socket.sent;
     expect(JSON.parse(named ?? "null")).toEqual({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed"],
+      entity: "vault",
       paths: ["notes/a.md", "notes/b.md"],
+      type: "changed",
     });
     expect(JSON.parse(unnamed ?? "null")).toEqual({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed"],
+      entity: "vault",
+      type: "changed",
     });
   });
 
   it("a future server's extra kinds would be filtered, not fatal", () => {
     const futureFrame = {
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed", "kind-from-the-future"],
+      entity: "vault",
       metadata: { newField: 1 },
+      type: "changed",
     };
     const parsed = changedMessageLenientSchema.parse(futureFrame);
     expect(parsed).toEqual({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed"],
+      entity: "vault",
+      type: "changed",
     });
   });
 });
@@ -273,21 +272,23 @@ describe("closing the bus down", () => {
       throw new Error("already closing");
     };
     bus.registerClient(socket);
-    expect(() => bus.closeAllClients()).not.toThrow();
+    expect(() => {
+      bus.closeAllClients();
+    }).not.toThrow();
   });
 
   it("terminates the transport of a client that ignored its close frame", () => {
     const bus = createBus();
     let terminated = 0;
     const socket: BusSocket = {
-      readyState: 1,
       close: () => {},
-      send: () => {},
       raw: {
         terminate: () => {
           terminated += 1;
         },
       },
+      readyState: 1,
+      send: () => {},
     };
     bus.registerClient(socket);
     bus.terminateAllClients();
@@ -297,6 +298,8 @@ describe("closing the bus down", () => {
   it("tolerates a socket with no raw transport at all", () => {
     const bus = createBus();
     bus.registerClient(createFakeSocket());
-    expect(() => bus.terminateAllClients()).not.toThrow();
+    expect(() => {
+      bus.terminateAllClients();
+    }).not.toThrow();
   });
 });

@@ -15,18 +15,23 @@ import {
 } from "./comments-schema";
 
 // PAYLOAD_TOO_LARGE is reachable: a sidecar past the vault's read cap
-const VAULT_REFUSALS = { INVALID_PATH, NOT_FOUND: {}, CONFLICT: {}, PAYLOAD_TOO_LARGE: {} };
+const VAULT_REFUSALS = { CONFLICT: {}, INVALID_PATH, NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} };
 
 export const commentsContract = {
+  add: oc
+    .input(commentsAddRequestSchema)
+    .output(commentsResponseSchema)
+    .errors({ ...VAULT_REFUSALS, BAD_REQUEST: {} }),
+
   // a list against a missing note still answers its sidecar, so no NOT_FOUND here
   list: oc
     .input(commentsListRequestSchema)
     .output(commentsResponseSchema)
-    .errors({ INVALID_PATH, CONFLICT: {}, PAYLOAD_TOO_LARGE: {} }),
+    .errors({ CONFLICT: {}, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
 
-  add: oc
-    .input(commentsAddRequestSchema)
-    .output(commentsResponseSchema)
+  remove: oc
+    .input(commentsRemoveRequestSchema)
+    .output(commentsRemoveResponseSchema)
     .errors({ ...VAULT_REFUSALS, BAD_REQUEST: {} }),
 
   reply: oc
@@ -37,10 +42,5 @@ export const commentsContract = {
   resolve: oc
     .input(commentsResolveRequestSchema)
     .output(commentsResponseSchema)
-    .errors({ ...VAULT_REFUSALS, BAD_REQUEST: {} }),
-
-  remove: oc
-    .input(commentsRemoveRequestSchema)
-    .output(commentsRemoveResponseSchema)
     .errors({ ...VAULT_REFUSALS, BAD_REQUEST: {} }),
 };

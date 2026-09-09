@@ -1,14 +1,20 @@
+/* oxlint-disable max-classes-per-file -- the refusal class is the store's contract; a consumer catches it where it constructs the store */
 // The one shape every app-written JSON file in the data dir takes: not config.json, which is
 // read once at boot and never written by the app, but a file read per use so a Settings or
 // CLI edit reaches the next paste, thread or session without a reboot. Malformed bytes are an
 // ERROR, never the empty value: an empty value lets the next write erase what the bytes held.
 
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import type { z } from "zod";
 import { stagedWriteFileSync } from "./staged-write";
 
-export class JsonFileStoreError extends Error {}
+export class JsonFileStoreError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "JsonFileStoreError";
+  }
+}
 
 export interface JsonFileStoreArgs<TSchema extends z.ZodType> {
   dataDir: string;
@@ -25,14 +31,14 @@ export class JsonFileStore<TSchema extends z.ZodType> {
   private readonly args: JsonFileStoreArgs<TSchema>;
 
   constructor(args: JsonFileStoreArgs<TSchema>) {
-    this.path = join(args.dataDir, args.fileName);
+    this.path = path.join(args.dataDir, args.fileName);
     this.args = args;
   }
 
   read(): z.output<TSchema> {
     let raw: string;
     try {
-      raw = readFileSync(this.path, "utf8");
+      raw = readFileSync(this.path, "utf-8");
     } catch {
       return this.args.empty;
     }

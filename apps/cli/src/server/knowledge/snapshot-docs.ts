@@ -10,24 +10,29 @@ const SNAPSHOT_CONCURRENCY = 8;
 
 export interface DocSnapshots {
   docs: Map<string, string>;
-  skipped: Array<{ path: string; reason: VaultRenameSkipReason }>;
+  skipped: { path: string; reason: VaultRenameSkipReason }[];
 }
 
-export async function snapshotDocs(
+export const snapshotDocs = async (
   service: Pick<VaultService, "read">,
   candidates: readonly string[],
-): Promise<DocSnapshots> {
-  const snapshots = await mapWithConcurrency(candidates, SNAPSHOT_CONCURRENCY, async (candidate) =>
-    service
-      .read(candidate)
-      .then((file) => file.content)
-      .catch(() => null),
+): Promise<DocSnapshots> => {
+  const snapshots = await mapWithConcurrency(
+    candidates,
+    SNAPSHOT_CONCURRENCY,
+    async (candidate) =>
+      await service
+        .read(candidate)
+        .then((file) => file.content)
+        .catch(() => null),
   );
   const docs = new Map<string, string>();
   const skipped: DocSnapshots["skipped"] = [];
   for (const [index, snapshot] of snapshots.entries()) {
     const candidate = candidates[index];
-    if (candidate === undefined) continue;
+    if (candidate === undefined) {
+      continue;
+    }
     if (snapshot === null) {
       skipped.push({ path: candidate, reason: "unreadable" });
       continue;
@@ -35,4 +40,4 @@ export async function snapshotDocs(
     docs.set(candidate, snapshot);
   }
   return { docs, skipped };
-}
+};

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "cn";
 
-export function BarButton({
+export const BarButton = ({
   onClick,
   label,
   children,
@@ -16,13 +16,15 @@ export function BarButton({
   label?: string;
   children: ReactNode;
   variant?: "default" | "primary" | "danger";
-}) {
+}) => {
   const button = (
     <button
       type="button"
       aria-label={label}
       onClick={onClick}
-      onMouseDown={(event) => event.preventDefault()}
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
       className={cn(
         "flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors [&_svg]:size-3.5",
         variant === "default" && "text-foreground hover:bg-accent",
@@ -34,4 +36,4 @@ export function BarButton({
     </button>
   );
   return label === undefined ? button : <Tooltip content={label}>{button}</Tooltip>;
-}
+};

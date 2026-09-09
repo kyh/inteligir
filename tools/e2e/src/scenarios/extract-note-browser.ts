@@ -1,8 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
+import {
+  agentBrowserSession,
+  closeQuietly,
+  parseEval,
+  probeHeadlessOrSkip,
+} from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -19,13 +24,13 @@ const DISK_DEADLINE_MS = 30_000;
 const TOOLBAR_DEADLINE_MS = 10_000;
 
 export const extractNoteBrowser: Scenario = {
-  name: "extract-note-browser",
   description: "the selection toolbar extracts the selected block to a new note and leaves a link",
+  name: "extract-note-browser",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, NOTE), DOC, "utf8");
+        await writeFile(path.join(vaultDir, NOTE), DOC, "utf-8");
       },
     });
     try {
@@ -43,7 +48,7 @@ export const extractNoteBrowser: Scenario = {
           "eval",
           `JSON.stringify((() => { const el = [...document.querySelectorAll('${EDITOR} p')].find((p) => p.textContent === ${JSON.stringify(SECOND)}); const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + r.height / 2), right: Math.round(r.right) }; })())`,
         ]),
-        z.object({ x: z.number(), y: z.number(), right: z.number() }),
+        z.object({ right: z.number(), x: z.number(), y: z.number() }),
       );
       await agentBrowser(["mouse", "move", String(box.x + 1), String(box.y)]);
       await agentBrowser(["mouse", "down"]);
@@ -58,7 +63,7 @@ export const extractNoteBrowser: Scenario = {
             "eval",
             `JSON.stringify({ selected: String(window.getSelection()), button: document.querySelectorAll('button[aria-label="Extract to new note"]').length })`,
           ]),
-          z.object({ selected: z.string(), button: z.number() }),
+          z.object({ button: z.number(), selected: z.string() }),
         );
         if (state.button > 0) {
           break;
@@ -82,8 +87,10 @@ export const extractNoteBrowser: Scenario = {
       ctx.log("the new note holds the block's bytes and the old note links to it");
       const deadline = Date.now() + DISK_DEADLINE_MS;
       for (;;) {
-        const extracted = await readFile(join(app.vaultDir, EXTRACTED), "utf8").catch(() => null);
-        const source = await readFile(join(app.vaultDir, NOTE), "utf8");
+        const extracted = await readFile(path.join(app.vaultDir, EXTRACTED), "utf-8").catch(
+          () => null,
+        );
+        const source = await readFile(path.join(app.vaultDir, NOTE), "utf-8");
         if (extracted !== null && source.includes("[[Second paragraph]]")) {
           expect(extracted === `${SECOND}\n`, `the extracted note is not the block:\n${extracted}`);
           expect(source.includes(FIRST), `the first paragraph was lost:\n${source}`);
@@ -97,7 +104,7 @@ export const extractNoteBrowser: Scenario = {
         await delay(250);
       }
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

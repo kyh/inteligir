@@ -17,30 +17,30 @@ export interface CreatePendingInteractionInput {
 
 // idempotent on (threadId, requestKey): a provider retrying a request gets its row back, not a
 // second prompt.
-export function createPendingInteraction(
+export const createPendingInteraction = (
   db: DbConnection,
   notifier: DbNotifier,
   input: CreatePendingInteractionInput,
-): PendingInteractionRow {
+): PendingInteractionRow => {
   const now = Date.now();
   const inserted = db
     .insert(pendingInteractions)
     .values({
+      createdAt: now,
       id: createPendingInteractionId(),
+      payload: input.payload,
+      requestKey: input.requestKey,
+      resolution: null,
+      resolvedAt: null,
+      status: "pending",
       threadId: input.threadId,
       turnId: input.turnId ?? null,
-      requestKey: input.requestKey,
-      status: "pending",
-      payload: input.payload,
-      resolution: null,
-      createdAt: now,
-      resolvedAt: null,
       updatedAt: now,
     })
     .onConflictDoNothing()
     .returning()
     .get();
-  if (inserted) {
+  if (inserted !== undefined) {
     notifier.notifyThread(input.threadId, ["interactions-changed"]);
     return inserted;
   }
@@ -58,17 +58,16 @@ export function createPendingInteraction(
     throw new Error("pending interaction conflicted but no existing row was found");
   }
   return existing;
-}
+};
 
-export function getPendingInteraction(db: DbConnection, id: string): PendingInteractionRow | null {
-  return db.select().from(pendingInteractions).where(eq(pendingInteractions.id, id)).get() ?? null;
-}
+export const getPendingInteraction = (db: DbConnection, id: string): PendingInteractionRow | null =>
+  db.select().from(pendingInteractions).where(eq(pendingInteractions.id, id)).get() ?? null;
 
-export function listOpenPendingInteractions(
+export const listOpenPendingInteractions = (
   db: DbConnection,
   threadId: string,
-): PendingInteractionRow[] {
-  return db
+): PendingInteractionRow[] =>
+  db
     .select()
     .from(pendingInteractions)
     .where(
@@ -79,26 +78,24 @@ export function listOpenPendingInteractions(
     )
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
     .all();
-}
 
-export function listAllOpenPendingInteractions(db: DbConnection): PendingInteractionRow[] {
-  return db
+export const listAllOpenPendingInteractions = (db: DbConnection): PendingInteractionRow[] =>
+  db
     .select()
     .from(pendingInteractions)
     .where(inArray(pendingInteractions.status, ["pending", "resolving"]))
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
     .all();
-}
 
-export function interruptPendingInteraction(
+export const interruptPendingInteraction = (
   db: DbConnection,
   notifier: DbNotifier,
   args: { id: string; threadId: string },
-): boolean {
+): boolean => {
   const now = Date.now();
   const updated = db
     .update(pendingInteractions)
-    .set({ status: "interrupted", resolvedAt: now, updatedAt: now })
+    .set({ resolvedAt: now, status: "interrupted", updatedAt: now })
     .where(
       and(
         eq(pendingInteractions.id, args.id),
@@ -108,22 +105,22 @@ export function interruptPendingInteraction(
     )
     .returning()
     .get();
-  if (updated) {
+  if (updated !== undefined) {
     notifier.notifyThread(args.threadId, ["interactions-changed"]);
     return true;
   }
   return false;
-}
+};
 
-export function interruptOpenPendingInteractions(
+export const interruptOpenPendingInteractions = (
   db: DbConnection,
   notifier: DbNotifier,
   threadId: string,
-): number {
+): number => {
   const now = Date.now();
   const interrupted = db
     .update(pendingInteractions)
-    .set({ status: "interrupted", resolvedAt: now, updatedAt: now })
+    .set({ resolvedAt: now, status: "interrupted", updatedAt: now })
     .where(
       and(
         eq(pendingInteractions.threadId, threadId),
@@ -136,7 +133,7 @@ export function interruptOpenPendingInteractions(
     notifier.notifyThread(threadId, ["interactions-changed"]);
   }
   return interrupted.length;
-}
+};
 
 export type ResolvePendingInteractionOutcome =
   | { kind: "resolved"; interaction: PendingInteractionRow }
@@ -149,15 +146,15 @@ export interface ResolvePendingInteractionArgs {
   resolution: string;
 }
 
-export function resolvePendingInteraction(
+export const resolvePendingInteraction = (
   db: DbConnection,
   notifier: DbNotifier,
   args: ResolvePendingInteractionArgs,
-): ResolvePendingInteractionOutcome {
+): ResolvePendingInteractionOutcome => {
   const now = Date.now();
   const updated = db
     .update(pendingInteractions)
-    .set({ status: "resolved", resolution: args.resolution, resolvedAt: now, updatedAt: now })
+    .set({ resolution: args.resolution, resolvedAt: now, status: "resolved", updatedAt: now })
     .where(
       and(
         eq(pendingInteractions.id, args.id),
@@ -167,13 +164,13 @@ export function resolvePendingInteraction(
     )
     .returning()
     .get();
-  if (updated) {
+  if (updated !== undefined) {
     notifier.notifyThread(args.threadId, ["interactions-changed"]);
-    return { kind: "resolved", interaction: updated };
+    return { interaction: updated, kind: "resolved" };
   }
   const existing = getPendingInteraction(db, args.id);
   if (existing === null || existing.threadId !== args.threadId) {
     return { kind: "not-found" };
   }
-  return { kind: "already-resolved", interaction: existing };
-}
+  return { interaction: existing, kind: "already-resolved" };
+};

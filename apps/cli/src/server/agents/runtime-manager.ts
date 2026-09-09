@@ -3,10 +3,10 @@
 // defers auto-commit and blocks sync, so a provider that hangs rather than exiting is bounded by
 // the watchdog rather than trusted.
 
-import {
-  createAcpAgentRuntime,
-  type AcpAgentRuntimeOptions,
-  type AcpMcpServerConfig,
+import { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
+import type {
+  AcpAgentRuntimeOptions,
+  AcpMcpServerConfig,
 } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
@@ -29,20 +29,23 @@ import type {
   TurnDriverStartArgs,
 } from "../threads/turn-driver";
 import type { GitEngine } from "../vault/git-engine";
-import {
-  beginAgentTurnWrites,
-  createVaultPathResolver,
-  type AgentTurnWrites,
-  type VaultPathResolver,
-} from "./agent-commits";
+import { beginAgentTurnWrites, createVaultPathResolver } from "./agent-commits";
+import type { AgentTurnWrites, VaultPathResolver } from "./agent-commits";
 import { toInstructions } from "./agent-instructions";
-import { toShellEnv, type AgentSessionFacts } from "./agent-shell-env";
+import { toShellEnv } from "./agent-shell-env";
+import type { AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
-import { createInteractionWaiters, type InteractionWaiters } from "./interaction-waiters";
+import { createInteractionWaiters } from "./interaction-waiters";
+import type { InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
 
 // arrives on every token tick beside the persisted tokenUsage half; not worth a debug line each time.
+type FileChangeProviderItem = Extract<
+  Extract<ProviderEvent, { type: "item/started" }>["item"],
+  { type: "fileChange" }
+>;
+
 const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<ProviderEvent["type"]> = new Set([
   "thread/contextWindowUsage/updated",
 ]);
@@ -56,7 +59,7 @@ const DEFAULT_TURN_IDLE_TIMEOUT_MS = 10 * 60_000;
 
 // a sweep over per-turn timestamps: a streaming turn produces thousands of frames, and
 // re-arming a timeout per frame buys nothing over a bounded-lag check.
-const WATCHDOG_SWEEP_INTERVAL_MS = 1_000;
+const WATCHDOG_SWEEP_INTERVAL_MS = 1000;
 
 export interface AcpRuntimeManagerDeps {
   db: DbConnection;
@@ -82,7 +85,7 @@ export interface AcpRuntimeManagerDeps {
 
 export interface AcpRuntimeManager {
   createTurnDriver: CreateTurnDriver;
-  dispose(): Promise<void>;
+  dispose: () => Promise<void>;
 }
 
 interface ActiveTurn {
@@ -103,9 +106,9 @@ class AcpTurnDriver implements TurnDriver {
   private readonly resolveVaultPath: VaultPathResolver;
   private runtime: AgentRuntime | null = null;
   private reapTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly events = new ProviderEventCoalescer((threadId, batch) =>
-    this.sink.ingestProviderEvents(threadId, batch),
-  );
+  private readonly events = new ProviderEventCoalescer((threadId, batch) => {
+    this.sink.ingestProviderEvents(threadId, batch);
+  });
   private readonly turnsByThreadId = new Map<string, ActiveTurn>();
   private readonly exitGenerationByThreadId = new Map<string, number>();
   private readonly waiters: InteractionWaiters;
@@ -118,14 +121,20 @@ class AcpTurnDriver implements TurnDriver {
     this.resolveVaultPath = createVaultPathResolver(deps.vaultDir);
     this.waiters = createInteractionWaiters({
       db: deps.db,
+      debug: (message) => {
+        this.debug(message);
+      },
       notifier: deps.notifier,
-      debug: (message) => this.debug(message),
-      onWaitSettled: (threadId) => this.noteTurnActivity(threadId),
+      onWaitSettled: (threadId) => {
+        this.noteTurnActivity(threadId);
+      },
     });
     const budgetMs = deps.turnIdleTimeoutMs ?? DEFAULT_TURN_IDLE_TIMEOUT_MS;
     if (deps.turnIdleTimeoutMs !== null) {
       this.watchdogTimer = setInterval(
-        () => this.sweepIdleTurns(budgetMs),
+        () => {
+          this.sweepIdleTurns(budgetMs);
+        },
         // a budget below the sweep cadence still fails within ~2x its bound.
         Math.min(budgetMs, WATCHDOG_SWEEP_INTERVAL_MS),
       );
@@ -143,10 +152,10 @@ class AcpTurnDriver implements TurnDriver {
     }
     const createRuntime = this.deps.createRuntime ?? createAcpAgentRuntime;
     const runtimeOptions: AcpAgentRuntimeOptions = {
-      workspacePath: this.deps.vaultDir,
-      onEvent: (event) => this.onRuntimeEvent(event),
-      onInteractiveRequest: (request) => this.onInteractiveRequest(request),
-      onStderr: (line) => this.debug(`agent: ${line}`),
+      onEvent: (event) => {
+        this.onRuntimeEvent(event);
+      },
+      onInteractiveRequest: async (request) => await this.onInteractiveRequest(request),
       onProcessExit: (info) => {
         for (const thread of info.threads) {
           const generationAtExit = this.exitGenerationByThreadId.get(thread.threadId) ?? 0;
@@ -170,21 +179,29 @@ class AcpTurnDriver implements TurnDriver {
           this.failTurn(
             thread.threadId,
             new Error(
-              `The ${info.providerId} process exited mid-turn${info.stderr !== null ? `: ${info.stderr}` : ""}`,
+              `The ${info.providerId} process exited mid-turn${info.stderr === null ? "" : `: ${info.stderr}`}`,
             ),
           );
         }
       },
+      onStderr: (line) => {
+        this.debug(`agent: ${line}`);
+      },
+      workspacePath: this.deps.vaultDir,
     };
     runtimeOptions.shellEnv = () => ({
       ...toShellEnv(this.deps.sessionFacts(), this.deps.hostEnv),
     });
-    if (this.deps.model !== null) runtimeOptions.model = this.deps.model;
+    if (this.deps.model !== null) {
+      runtimeOptions.model = this.deps.model;
+    }
     runtimeOptions.mcpServers = this.deps.mcpServers;
-    if (this.deps.spawnAdapter !== undefined) runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
+    if (this.deps.spawnAdapter !== undefined) {
+      runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
+    }
     const runtime = createRuntime(runtimeOptions);
     this.runtime = runtime;
-    const reapIntervalMs = this.deps.reapIntervalMs;
+    const { reapIntervalMs } = this.deps;
     if (reapIntervalMs !== null) {
       this.reapTimer = setInterval(() => {
         void (async () => {
@@ -219,21 +236,27 @@ class AcpTurnDriver implements TurnDriver {
       throw new Error(`Thread ${args.threadId} already has a running turn`);
     }
     this.turnsByThreadId.set(args.threadId, {
+      acceptedGeneration: null,
+      lastEventAt: Date.now(),
       ourTurnId: args.turnId,
       providerTurnId: null,
-      started: false,
-      acceptedGeneration: null,
       settled: false,
+      started: false,
       writes: beginAgentTurnWrites({
         git: this.deps.git,
         threadId: args.threadId,
         turnId: args.turnId,
       }),
-      lastEventAt: Date.now(),
     });
-    void this.dispatchTurn(args).catch((cause: unknown) => {
-      this.failTurn(args.threadId, cause);
-    });
+    void this.runDispatch(args);
+  }
+
+  private async runDispatch(args: TurnDriverStartArgs): Promise<void> {
+    try {
+      await this.dispatchTurn(args);
+    } catch (error) {
+      this.failTurn(args.threadId, error);
+    }
   }
 
   private noteTurnActivity(threadId: string): void {
@@ -276,8 +299,8 @@ class AcpTurnDriver implements TurnDriver {
       ? undefined
       : await this.openThreadSession(runtime, args.threadId);
     await runtime.runTurn({
-      threadId: args.threadId,
       input: turnPromptInput(args.text, args.viewContext, instructions),
+      threadId: args.threadId,
     });
   }
 
@@ -292,14 +315,14 @@ class AcpTurnDriver implements TurnDriver {
     if (persisted !== null) {
       try {
         const resumed = await runtime.resumeThread({
-          threadId,
-          providerThreadId: persisted,
           providerId,
+          providerThreadId: persisted,
+          threadId,
         });
         setThreadProviderSession(this.deps.db, {
-          threadId,
           providerId,
           providerThreadId: resumed.providerThreadId,
+          threadId,
         });
         return instructions;
       } catch (error) {
@@ -312,11 +335,11 @@ class AcpTurnDriver implements TurnDriver {
         );
       }
     }
-    const started = await runtime.startThread({ threadId, providerId });
+    const started = await runtime.startThread({ providerId, threadId });
     setThreadProviderSession(this.deps.db, {
-      threadId,
       providerId,
       providerThreadId: started.providerThreadId,
+      threadId,
     });
     return instructions;
   }
@@ -326,7 +349,7 @@ class AcpTurnDriver implements TurnDriver {
   }
 
   private onRuntimeEvent(event: ProviderEvent): void {
-    const threadId = event.threadId;
+    const { threadId } = event;
     if (threadId.length === 0) {
       this.debug(`dropped unstamped provider event ${event.type}`);
       return;
@@ -335,17 +358,7 @@ class AcpTurnDriver implements TurnDriver {
     this.noteTurnActivity(threadId);
 
     if (event.type === "turn/started") {
-      if (state === undefined || state.settled || state.started) {
-        this.debug(`dropped ${event.type} for thread ${threadId}: no dispatched turn awaits it`);
-        return;
-      }
-      state.providerTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
-      state.started = true;
-      state.acceptedGeneration = this.exitGenerationByThreadId.get(threadId) ?? 0;
-      const mapped = mapProviderEvent(event, state.ourTurnId);
-      if (mapped.kind === "mapped") {
-        this.events.push(threadId, mapped.event);
-      }
+      this.onTurnStarted(event, state);
       return;
     }
 
@@ -370,20 +383,7 @@ class AcpTurnDriver implements TurnDriver {
       (event.type === "item/started" || event.type === "item/completed") &&
       event.item.type === "fileChange"
     ) {
-      const reportedPaths = event.item.changes.flatMap((change) => [
-        change.path,
-        ...(change.movePath !== undefined ? [change.movePath] : []),
-      ]);
-      const vaultPaths: string[] = [];
-      for (const reported of reportedPaths) {
-        const rel = this.resolveVaultPath(reported);
-        if (rel === null) {
-          this.debug(`ignored a reported write outside the vault: ${reported}`);
-          continue;
-        }
-        vaultPaths.push(rel);
-      }
-      state.writes.recordPaths(vaultPaths);
+      state.writes.recordPaths(this.vaultPathsOf(event.item.changes));
     }
 
     const mapped = mapProviderEvent(event, hostTurnId);
@@ -403,7 +403,42 @@ class AcpTurnDriver implements TurnDriver {
     this.events.push(threadId, mapped.event);
   }
 
-  private onInteractiveRequest(
+  private onTurnStarted(
+    event: Extract<ProviderEvent, { type: "turn/started" }>,
+    state: ActiveTurn | undefined,
+  ): void {
+    const { threadId } = event;
+    if (state === undefined || state.settled || state.started) {
+      this.debug(`dropped ${event.type} for thread ${threadId}: no dispatched turn awaits it`);
+      return;
+    }
+    state.providerTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
+    state.started = true;
+    state.acceptedGeneration = this.exitGenerationByThreadId.get(threadId) ?? 0;
+    const mapped = mapProviderEvent(event, state.ourTurnId);
+    if (mapped.kind === "mapped") {
+      this.events.push(threadId, mapped.event);
+    }
+  }
+
+  private vaultPathsOf(changes: FileChangeProviderItem["changes"]): string[] {
+    const reportedPaths = changes.flatMap((change) => [
+      change.path,
+      ...(change.movePath === undefined ? [] : [change.movePath]),
+    ]);
+    const vaultPaths: string[] = [];
+    for (const reported of reportedPaths) {
+      const rel = this.resolveVaultPath(reported);
+      if (rel === null) {
+        this.debug(`ignored a reported write outside the vault: ${reported}`);
+        continue;
+      }
+      vaultPaths.push(rel);
+    }
+    return vaultPaths;
+  }
+
+  private async onInteractiveRequest(
     create: PendingInteractionCreate,
   ): Promise<PendingInteractionResolution> {
     const state = this.turnsByThreadId.get(create.threadId);
@@ -411,7 +446,7 @@ class AcpTurnDriver implements TurnDriver {
       state !== undefined && !state.settled && state.providerTurnId === create.turnId
         ? state.ourTurnId
         : null;
-    return this.waiters.park(create, hostTurnId);
+    return await this.waiters.park(create, hostTurnId);
   }
 
   private settleTurn(threadId: string): void {
@@ -425,11 +460,17 @@ class AcpTurnDriver implements TurnDriver {
     this.turnsByThreadId.delete(threadId);
     this.waiters.cancel(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
-    void state.writes.finish().catch((cause: unknown) => {
+    void this.finishWrites(threadId, state.writes);
+  }
+
+  private async finishWrites(threadId: string, writes: AgentTurnWrites): Promise<void> {
+    try {
+      await writes.finish();
+    } catch (error) {
       this.debug(
-        `settling the write set for thread ${threadId} failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `settling the write set for thread ${threadId} failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-    });
+    }
   }
 
   private failTurn(threadId: string, cause: unknown): void {
@@ -446,17 +487,17 @@ class AcpTurnDriver implements TurnDriver {
     const events: ThreadEvent[] = [];
     if (!state.started) {
       state.started = true;
-      events.push({ type: "turn/started", threadId, scope });
+      events.push({ scope, threadId, type: "turn/started" });
     }
     events.push(
       {
-        type: "provider/error",
-        threadId,
-        message: "The agent provider failed",
         detail: cause instanceof Error ? cause.message : String(cause),
+        message: "The agent provider failed",
         scope: threadScope(),
+        threadId,
+        type: "provider/error",
       },
-      { type: "turn/completed", threadId, status: "failed", scope },
+      { scope, status: "failed", threadId, type: "turn/completed" },
     );
     this.settleTurn(threadId);
     this.sink.ingestProviderEvents(threadId, events);
@@ -481,7 +522,7 @@ class AcpTurnDriver implements TurnDriver {
   }
 }
 
-export function createAcpRuntimeManager(deps: AcpRuntimeManagerDeps): AcpRuntimeManager {
+export const createAcpRuntimeManager = (deps: AcpRuntimeManagerDeps): AcpRuntimeManager => {
   let driver: AcpTurnDriver | null = null;
   return {
     createTurnDriver: (sink) => {
@@ -496,4 +537,4 @@ export function createAcpRuntimeManager(deps: AcpRuntimeManagerDeps): AcpRuntime
       await driver?.dispose();
     },
   };
-}
+};

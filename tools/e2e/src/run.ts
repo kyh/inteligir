@@ -1,10 +1,11 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { ScenarioSkip } from "./harness/assert";
-import { killAllLiveGroups, type TrackedProcess } from "./harness/tracked-child";
-import { createScenarioContext, type Scenario } from "./harness/scenario";
+import path from "node:path";
+import { ScenarioSkipError } from "./harness/scenario-skip-error";
+import { killAllLiveGroups } from "./harness/tracked-child";
+import type { TrackedProcess } from "./harness/tracked-child";
+import { createScenarioContext } from "./harness/scenario";
+import type { Scenario } from "./harness/scenario";
 import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
@@ -58,8 +59,8 @@ interface CliOptions {
   list: boolean;
 }
 
-function parseArgs(argv: readonly string[]): CliOptions {
-  const options: CliOptions = { only: [], keep: false, list: false };
+const parseArgs = (argv: readonly string[]): CliOptions => {
+  const options: CliOptions = { keep: false, list: false, only: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--keep") {
@@ -78,9 +79,9 @@ function parseArgs(argv: readonly string[]): CliOptions {
     }
   }
   return options;
-}
+};
 
-function selectScenarios(options: CliOptions): readonly Scenario[] {
+const selectScenarios = (options: CliOptions): readonly Scenario[] => {
   if (options.only.length === 0) {
     return SCENARIOS;
   }
@@ -94,49 +95,45 @@ function selectScenarios(options: CliOptions): readonly Scenario[] {
   }
   const wanted = new Set(options.only);
   return SCENARIOS.filter((scenario) => wanted.has(scenario.name));
-}
+};
 
 type ScenarioOutcome =
   | { kind: "pass"; durationMs: number }
   | { kind: "skip"; durationMs: number; reason: string }
   | { kind: "fail"; durationMs: number; error: string };
 
-function seconds(durationMs: number): string {
-  return `${(durationMs / 1_000).toFixed(1)}s`;
-}
+const seconds = (durationMs: number): string => `${(durationMs / 1000).toFixed(1)}s`;
 
-function timestamp(): string {
-  return new Date().toISOString().slice(11, 19);
-}
+const timestamp = (): string => new Date().toISOString().slice(11, 19);
 
-async function runScenario(
+const runScenario = async (
   scenario: Scenario,
   options: CliOptions,
   repoRoot: string,
   scratchRoot: string,
-): Promise<{ outcome: ScenarioOutcome; teardownClean: boolean }> {
+): Promise<{ outcome: ScenarioOutcome; teardownClean: boolean }> => {
   const startedAt = Date.now();
-  const scratchDir = join(scratchRoot, scenario.name);
+  const scratchDir = path.join(scratchRoot, scenario.name);
   await mkdir(scratchDir, { recursive: true });
   const instances: TrackedProcess[] = [];
   const log = (message: string) => {
     console.log(`${timestamp()} [${scenario.name}] ${message}`);
   };
   const context = createScenarioContext({
+    instances,
+    log,
     repoRoot,
     scratchDir,
-    log,
-    instances,
   });
 
   let outcome: ScenarioOutcome;
   let teardownClean = true;
   try {
     await scenario.run(context);
-    outcome = { kind: "pass", durationMs: Date.now() - startedAt };
+    outcome = { durationMs: Date.now() - startedAt, kind: "pass" };
   } catch (error) {
-    if (error instanceof ScenarioSkip) {
-      outcome = { kind: "skip", durationMs: Date.now() - startedAt, reason: error.message };
+    if (error instanceof ScenarioSkipError) {
+      outcome = { durationMs: Date.now() - startedAt, kind: "skip", reason: error.message };
     } else {
       const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
       const tails = instances
@@ -149,9 +146,9 @@ async function runScenario(
         .filter((tail) => tail.length > 0)
         .join("\n");
       outcome = {
-        kind: "fail",
         durationMs: Date.now() - startedAt,
         error: tails.length === 0 ? message : `${message}\n${tails}`,
+        kind: "fail",
       };
     }
   } finally {
@@ -170,7 +167,7 @@ async function runScenario(
       console.error(`${timestamp()} [${scenario.name}] scratch kept at ${scratchDir}`);
     } else if (!options.keep) {
       try {
-        await rm(scratchDir, { recursive: true, force: true });
+        await rm(scratchDir, { force: true, recursive: true });
       } catch (error) {
         console.error(
           `${timestamp()} [${scenario.name}] could not remove scratch ${scratchDir}: ${error instanceof Error ? error.message : String(error)}`,
@@ -179,11 +176,11 @@ async function runScenario(
     }
   }
   return { outcome, teardownClean };
-}
+};
 
 // SIGKILL of the runner itself cannot be trapped; those orphans are accepted (scratch is per-run
 // under tmpdir).
-function installSignalCleanup(): void {
+const installSignalCleanup = (): void => {
   const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
   for (const signal of signals) {
     process.on(signal, () => {
@@ -191,9 +188,9 @@ function installSignalCleanup(): void {
       process.exit(signal === "SIGINT" ? 130 : 143);
     });
   }
-}
+};
 
-async function main(): Promise<number> {
+const main = async (): Promise<number> => {
   const options = parseArgs(process.argv.slice(2));
   if (options.list) {
     for (const scenario of SCENARIOS) {
@@ -203,8 +200,8 @@ async function main(): Promise<number> {
   }
   installSignalCleanup();
   const selected = selectScenarios(options);
-  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-  const scratchRoot = await mkdtemp(join(tmpdir(), "inteligir-e2e-"));
+  const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
+  const scratchRoot = await mkdtemp(path.join(tmpdir(), "inteligir-e2e-"));
   console.log(`e2e: ${selected.length} scenario(s), scratch=${scratchRoot}`);
 
   const outcomes = new Map<string, ScenarioOutcome>();
@@ -228,7 +225,7 @@ async function main(): Promise<number> {
     console.log(`\nscratch kept at ${scratchRoot}`);
   } else {
     try {
-      await rm(scratchRoot, { recursive: true, force: true });
+      await rm(scratchRoot, { force: true, recursive: true });
     } catch (error) {
       console.error(
         `could not remove scratch root ${scratchRoot}: ${error instanceof Error ? error.message : String(error)}`,
@@ -256,7 +253,7 @@ async function main(): Promise<number> {
     console.log(" FAIL  (teardown) — a process group survived SIGKILL; see the log above");
   }
   return failed === 0 && everyTeardownClean ? 0 : 1;
-}
+};
 
 try {
   process.exitCode = await main();

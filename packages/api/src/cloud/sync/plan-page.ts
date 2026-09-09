@@ -1,7 +1,8 @@
 // one planner for every client: two would be two answers to "did this row move the
 // cursor?". a skip is a step of its own because the cursor still has to move past those rows.
 
-import { threadEventSchema, type ThreadEvent } from "@repo/domain/provider-event";
+import { threadEventSchema } from "@repo/domain/provider-event";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { SyncEventRow } from "./sync-schema";
 
 export interface PlannedLogRow {
@@ -20,7 +21,7 @@ export interface LogPlan {
   skipped: readonly string[];
 }
 
-export function planPage(rows: readonly SyncEventRow[], deviceId: string): LogPlan {
+export const planPage = (rows: readonly SyncEventRow[], deviceId: string): LogPlan => {
   const steps: LogPlanStep[] = [];
   const skipped: string[] = [];
   for (const row of rows) {
@@ -35,7 +36,7 @@ export function planPage(rows: readonly SyncEventRow[], deviceId: string): LogPl
       if (last?.kind === "skip") {
         last.cursor = row.seq;
       } else {
-        steps.push({ kind: "skip", cursor: row.seq });
+        steps.push({ cursor: row.seq, kind: "skip" });
       }
       continue;
     }
@@ -48,7 +49,7 @@ export function planPage(rows: readonly SyncEventRow[], deviceId: string): LogPl
       last.rows.push(planned);
       continue;
     }
-    steps.push({ kind: "apply", threadId: row.threadId, rows: [planned] });
+    steps.push({ kind: "apply", rows: [planned], threadId: row.threadId });
   }
-  return { steps, skipped };
-}
+  return { skipped, steps };
+};

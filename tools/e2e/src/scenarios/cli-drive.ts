@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { exec, hermeticProcessEnv, type ExecResult } from "../harness/exec";
+import { exec, hermeticProcessEnv } from "../harness/exec";
+import type { ExecResult } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
 
 const NOTE_PATH = "notes/cli-drive.md";
@@ -19,28 +20,28 @@ const searchHitSchema = z.looseObject({ path: z.string() });
 const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string() }) });
 
 export const cliDrive: Scenario = {
-  name: "cli-drive",
   description: "the CLI drives a real instance: vault write, search, action new+wait+show",
+  name: "cli-drive",
   // no build step: bin/inteligir runs src/ under tsx in a checkout; the published bundle is pnpm
   // smoke:cli's to test.
   async run(ctx) {
     const app = await ctx.boot({
-      name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
+      name: "solo",
     });
 
     // composed by the server's own resolver, so a broken PATH or a missing bin fails here.
-    const cliBinDir = resolveCliBinDir(join(ctx.repoRoot, "apps", "cli", "bin"));
+    const cliBinDir = resolveCliBinDir(path.join(ctx.repoRoot, "apps", "cli", "bin"));
     expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
     const agentShellEnv = toShellEnv(
-      { dataDir: app.dataDir, cliBinDir, skillsDir: null, connectedDirs: [] },
+      { cliBinDir, connectedDirs: [], dataDir: app.dataDir, skillsDir: null },
       hermeticProcessEnv(),
     );
 
     // the bare name through PATH, as an agent's bash finds it; an absolute path would leave that
     // flow untested.
-    const cli = (...argv: string[]): Promise<ExecResult> =>
-      exec("inteligir", argv, {
+    const cli = async (...argv: string[]): Promise<ExecResult> =>
+      await exec("inteligir", argv, {
         env: { ...hermeticProcessEnv(), ...agentShellEnv },
         timeoutMs: 60_000,
       });
@@ -54,7 +55,7 @@ export const cliDrive: Scenario = {
     const readBack = await cli("vault", "read", NOTE_PATH);
     expectEq(readBack.stdout, NOTE_CONTENT, "CLI read-back matches");
     expectEq(
-      await readFile(join(app.vaultDir, NOTE_PATH), "utf8"),
+      await readFile(path.join(app.vaultDir, NOTE_PATH), "utf-8"),
       NOTE_CONTENT,
       "written bytes on disk",
     );

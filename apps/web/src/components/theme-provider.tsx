@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-import { parseTheme, type Theme, ThemeProvider as UiThemeProvider } from "@repo/ui/lib/theme";
+import { parseTheme, ThemeProvider as UiThemeProvider } from "@repo/ui/lib/theme";
+import type { Theme } from "@repo/ui/lib/theme";
 
 // the no-flash inline script in __root.tsx reads the same key and fallback; keep them in sync
 export const THEME_STORAGE_KEY = "theme";
@@ -11,37 +12,39 @@ const listeners = new Set<() => void>();
 // holds the choice when storage is blocked, so the toggle still works for the session
 let unpersisted: Theme | null = null;
 
-function subscribe(listener: () => void): () => void {
+const subscribe = (listener: () => void): (() => void) => {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
-}
+};
 
-function getSnapshot(): Theme {
-  if (unpersisted !== null) return unpersisted;
+const getSnapshot = (): Theme => {
+  if (unpersisted !== null) {
+    return unpersisted;
+  }
   try {
     return parseTheme(localStorage.getItem(THEME_STORAGE_KEY)) ?? THEME_FALLBACK;
   } catch {
     return THEME_FALLBACK;
   }
-}
+};
 
-function getServerSnapshot(): Theme {
-  return THEME_FALLBACK;
-}
+const getServerSnapshot = (): Theme => THEME_FALLBACK;
 
-function setTheme(next: Theme): void {
+const setTheme = (next: Theme): void => {
   try {
     localStorage.setItem(THEME_STORAGE_KEY, next);
     unpersisted = null;
   } catch {
     unpersisted = next;
   }
-  for (const listener of listeners) listener();
-}
+  for (const listener of listeners) {
+    listener();
+  }
+};
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
+export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   return (
@@ -49,4 +52,4 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </UiThemeProvider>
   );
-}
+};

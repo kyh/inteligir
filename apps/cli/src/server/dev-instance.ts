@@ -5,24 +5,23 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
+import path from "node:path";
 
 const DEV_HASH_LENGTH = 12;
 const DEV_PORT_BASE = 21_000;
-const DEV_PORT_BUCKETS = 8_000;
+const DEV_PORT_BUCKETS = 8000;
 
 // bind-side only: nothing probes when dialing, the bound port is read from server.json.
 export const DEV_PORT_PROBE_LIMIT = 10;
 
 const CHECKOUT_MARKER = "pnpm-workspace.yaml";
 
-function createCheckoutHash(checkoutPath: string): string {
-  return createHash("sha256").update(checkoutPath).digest("hex");
-}
+const createCheckoutHash = (checkoutPath: string): string =>
+  createHash("sha256").update(checkoutPath).digest("hex");
 
 // `pnpm dev` runs from apps/desktop and `pnpm cli` from wherever the developer stands; hashing
 // those raw gives the cli a different instance than the server. realpathed for the same reason.
-export function resolveCheckoutRoot(startDir: string = process.cwd()): string {
+export const resolveCheckoutRoot = (startDir: string = process.cwd()): string => {
   let current: string;
   try {
     current = realpathSync(startDir);
@@ -31,18 +30,21 @@ export function resolveCheckoutRoot(startDir: string = process.cwd()): string {
   }
   const anchor = current;
   for (;;) {
-    if (existsSync(join(current, CHECKOUT_MARKER))) return current;
-    const parent = dirname(current);
-    if (parent === current) return anchor;
+    if (existsSync(path.join(current, CHECKOUT_MARKER))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return anchor;
+    }
     current = parent;
   }
-}
+};
 
-export function resolveDevInstanceId(checkoutPath: string): string {
-  return createCheckoutHash(checkoutPath).slice(0, DEV_HASH_LENGTH);
-}
+export const resolveDevInstanceId = (checkoutPath: string): string =>
+  createCheckoutHash(checkoutPath).slice(0, DEV_HASH_LENGTH);
 
-export function resolveDevDefaultPort(checkoutPath: string): number {
+export const resolveDevDefaultPort = (checkoutPath: string): number => {
   const hash = createCheckoutHash(checkoutPath);
   return DEV_PORT_BASE + (Number.parseInt(hash.slice(0, 8), 16) % DEV_PORT_BUCKETS);
-}
+};

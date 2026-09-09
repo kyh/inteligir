@@ -15,25 +15,17 @@ const FALLBACK_ERROR = "Something went wrong — try again.";
 
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
-async function refusalMessage(response: Response): Promise<string> {
+const refusalMessage = async (response: Response): Promise<string> => {
   const body = refusalSchema.safeParse(await response.json().catch(() => null));
   return body.success ? body.data.message : FALLBACK_ERROR;
-}
+};
 
-export const Route = createFileRoute("/app/sign-up")({
-  ssr: ssrWhenSignedOut,
-  beforeLoad: async () => {
-    if ((await currentSession()) !== null) throw redirect({ to: "/" });
-  },
-  component: SignUpPage,
-});
-
-function SignUpPage() {
+const SignUpPage = () => {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusy(true);
@@ -106,4 +98,14 @@ function SignUpPage() {
       </form>
     </AuthShell>
   );
-}
+};
+
+export const Route = createFileRoute("/app/sign-up")({
+  ssr: ssrWhenSignedOut,
+  beforeLoad: async () => {
+    if ((await currentSession()) !== null) {
+      redirect({ to: "/", throw: true });
+    }
+  },
+  component: SignUpPage,
+});

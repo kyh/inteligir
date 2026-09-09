@@ -1,25 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { ElementApi, KEYS, TextApi, type Value } from "platejs";
+import { ElementApi, KEYS, TextApi } from "platejs";
+import type { Value } from "platejs";
 
 import { ALERT_VARIANT_KEY, stripAlertMarkers } from "@repo/editor/transclusion";
 
-function quote(...lines: string[]): Value {
-  return [
-    {
-      type: KEYS.blockquote,
-      children: [{ type: KEYS.p, children: [{ text: lines.join("\n") }] }],
-    },
-  ];
-}
+const quote = (...lines: string[]): Value => [
+  {
+    children: [{ children: [{ text: lines.join("\n") }], type: KEYS.p }],
+    type: KEYS.blockquote,
+  },
+];
 
-function firstText(value: Value): string {
-  const block = value[0];
-  if (!block) throw new Error("no block");
-  const para = block.children[0];
-  if (!para || !ElementApi.isElement(para)) throw new Error("no paragraph");
-  const leaf = para.children[0];
+const firstText = (value: Value): string => {
+  const [block] = value;
+  if (!block) {
+    throw new Error("no block");
+  }
+  const [para] = block.children;
+  if (!para || !ElementApi.isElement(para)) {
+    throw new Error("no paragraph");
+  }
+  const [leaf] = para.children;
   return leaf && TextApi.isText(leaf) ? leaf.text : "";
-}
+};
 
 describe("stripAlertMarkers", () => {
   it("removes a marker-only first line and records the variant", () => {
@@ -51,7 +54,7 @@ describe("stripAlertMarkers", () => {
     const plain = quote("Just a quotation.");
     expect(stripAlertMarkers(plain)).toEqual(plain);
 
-    const paragraph: Value = [{ type: KEYS.p, children: [{ text: "[!TIP]" }] }];
+    const paragraph: Value = [{ children: [{ text: "[!TIP]" }], type: KEYS.p }];
     expect(stripAlertMarkers(paragraph)).toEqual(paragraph);
   });
 
@@ -63,19 +66,19 @@ describe("stripAlertMarkers", () => {
   it("keeps sibling blocks and later paragraphs of the quote", () => {
     const input: Value = [
       {
-        type: KEYS.blockquote,
         children: [
-          { type: KEYS.p, children: [{ text: "[!WARNING]" }] },
-          { type: KEYS.p, children: [{ text: "second paragraph" }] },
+          { children: [{ text: "[!WARNING]" }], type: KEYS.p },
+          { children: [{ text: "second paragraph" }], type: KEYS.p },
         ],
+        type: KEYS.blockquote,
       },
-      { type: KEYS.p, children: [{ text: "after" }] },
+      { children: [{ text: "after" }], type: KEYS.p },
     ];
     const out = stripAlertMarkers(input);
 
     expect(out).toHaveLength(2);
     expect(out[0]?.children).toHaveLength(2);
     expect(firstText(out)).toBe("");
-    expect(out[1]).toEqual({ type: KEYS.p, children: [{ text: "after" }] });
+    expect(out[1]).toEqual({ children: [{ text: "after" }], type: KEYS.p });
   });
 });

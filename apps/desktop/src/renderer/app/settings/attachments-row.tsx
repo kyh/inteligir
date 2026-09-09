@@ -1,7 +1,5 @@
-import {
-  DEFAULT_ATTACHMENTS_FOLDER,
-  type AttachmentLocation,
-} from "@repo/api/local/vault/vault-schema";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/api/local/vault/vault-schema";
+import type { AttachmentLocation } from "@repo/api/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,24 +10,24 @@ import { ChoiceRow, failed, Row } from "./settings-chrome";
 type Choice = AttachmentLocation["kind"];
 
 const CHOICES: readonly { value: Choice; label: string }[] = [
-  { value: "folder", label: "A folder" },
-  { value: "beside-note", label: "Beside the note" },
-  { value: "root", label: "Vault root" },
+  { label: "A folder", value: "folder" },
+  { label: "Beside the note", value: "beside-note" },
+  { label: "Vault root", value: "root" },
 ];
 
-export function AttachmentsRow() {
+export const AttachmentsRow = () => {
   const queryClient = useQueryClient();
   // the CLI can change this between two visits; opening the page re-reads it
   const prefsQuery = useQuery({ ...orpc.vault.prefs.queryOptions(), staleTime: 0 });
   const [folderDraft, setFolderDraft] = useState<string | null>(null);
   const setPrefs = useMutation(
     orpc.vault.setPrefs.mutationOptions({
+      onError: (cause) => {
+        failed(cause, "Could not change where attachments land.");
+      },
       onSuccess: (response) => {
         queryClient.setQueryData(orpc.vault.prefs.queryKey(), response);
         setFolderDraft(null);
-      },
-      onError: (cause) => {
-        failed(cause, "Could not change where attachments land.");
       },
     }),
   );
@@ -83,4 +81,4 @@ export function AttachmentsRow() {
       </span>
     </Row>
   );
-}
+};

@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import nodePath from "node:path";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { serveStatic } from "@hono/node-server/serve-static";
 import {
@@ -14,7 +14,8 @@ import {
 } from "@repo/api/local/routes";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
+import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { isSameOriginBrowserRequest } from "./browser-request";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
@@ -25,7 +26,8 @@ import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
 import { presentedCredential, serverTokenCookie, tokenAccepted } from "./server-file";
 import { handleVaultAsset } from "./vault/asset-route";
-import type { VoiceStreamConnection, VoiceStreamHub } from "./voice/voice-stream-hub";
+import type { VoiceStreamConnection } from "./voice/voice-stream-connection";
+import type { VoiceStreamHub } from "./voice/voice-stream-hub";
 import type { WsBus } from "./ws-bus";
 
 export interface CreateAppArgs {
@@ -41,13 +43,16 @@ export interface CreateAppArgs {
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
 const STATIC_NO_STORE_CACHE_CONTROL = "no-store";
 
-type AppEnv = { Variables: { staticFilePath?: string } };
+interface AppEnv {
+  Variables: { staticFilePath?: string };
+}
 
 // stamped after the chain answers: serveStatic's onFound header writes land after its
 // Response is built and never reach the wire.
 const staticCacheControl =
   (cacheControl: string): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
+    // oxlint-disable-next-line node/callback-return -- hono's next() resolves after the downstream handlers; the header is stamped on their response
     await next();
     if (c.get("staticFilePath") !== undefined) {
       c.res.headers.set("cache-control", cacheControl);
@@ -57,7 +62,10 @@ const staticCacheControl =
 // below this a refusal is control flow, not a fault; the log is the only place internals may appear.
 const SERVER_FAULT_STATUS = 500;
 
-export function createApp(args: CreateAppArgs) {
+const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
+  cause instanceof ORPCError;
+
+export const createApp = (args: CreateAppArgs) => {
   const app = new Hono<AppEnv>();
   const nodeWebSocket = createNodeWebSocket({ app });
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
@@ -68,7 +76,7 @@ export function createApp(args: CreateAppArgs) {
   // oauth browser landing (a cross-site top-level navigation carries none; its single-use state
   // stands in). a cookie is ambient and loopback "site" ignores the port, so a co-resident page
   // on another 127.0.0.1 port carries it: a cookie-authed request must also prove same-origin.
-  const requireServerToken = async (c: Context, next: Next) => {
+  const requireServerToken: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
     const credential = presentedCredential({
       authorization: c.req.header("authorization"),
       cookie: c.req.header("cookie"),
@@ -79,13 +87,14 @@ export function createApp(args: CreateAppArgs) {
     if (
       credential.carrier === "cookie" &&
       !isSameOriginBrowserRequest({
-        secFetchSite: c.req.header("sec-fetch-site"),
-        origin: c.req.header("origin"),
         host: c.req.header("host"),
+        origin: c.req.header("origin"),
+        secFetchSite: c.req.header("sec-fetch-site"),
       })
     ) {
       return c.text("This cross-origin request cannot use the session cookie", 403);
     }
+    // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
     await next();
     return undefined;
   };
@@ -94,7 +103,7 @@ export function createApp(args: CreateAppArgs) {
     errorStatusMap: ERROR_STATUS_MAP,
     interceptors: [
       onError((cause: unknown) => {
-        if (cause instanceof ORPCError && errorStatus(cause.code) < SERVER_FAULT_STATUS) {
+        if (isOrpcError(cause) && errorStatus(cause.code) < SERVER_FAULT_STATUS) {
           return;
         }
         console.error("rpc error", cause);
@@ -105,25 +114,34 @@ export function createApp(args: CreateAppArgs) {
   app.use(`${RPC_PREFIX}/*`, requireServerToken);
   app.all(`${RPC_PREFIX}/*`, async (c) => {
     const { response } = await rpc.handle(c.req.raw, {
-      prefix: RPC_PREFIX,
       context: { ...args.context, requestHost: c.req.header("host") },
+      prefix: RPC_PREFIX,
     });
     return response ?? c.text("Not found", 404);
   });
 
   app.get(HEALTH_PATH, (c) => c.json({ ok: true } as const));
 
-  app.get(VAULT_ASSET_PATH, requireServerToken, (c) =>
-    handleVaultAsset(c, args.context.vault.service),
+  app.get(
+    VAULT_ASSET_PATH,
+    requireServerToken,
+    async (c) => await handleVaultAsset(c, args.context.vault.service),
   );
 
   app.get(
     WS_PATH,
     requireServerToken,
     upgradeWebSocket(() => ({
-      onOpen: (_event, socket) => args.bus.registerClient(socket),
-      onMessage: (event, socket) => args.bus.handleMessage(socket, event.data),
-      onClose: (_event, socket) => args.bus.unregisterClient(socket),
+      onClose: (_event, socket) => {
+        args.bus.unregisterClient(socket);
+      },
+      onMessage: (event, socket) => {
+        // oxlint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access -- the linter's checker does not resolve @types/node's conditional MessageEvent global; tsc does
+        args.bus.handleMessage(socket, event.data);
+      },
+      onOpen: (_event, socket) => {
+        args.bus.registerClient(socket);
+      },
     })),
   );
 
@@ -134,15 +152,16 @@ export function createApp(args: CreateAppArgs) {
     upgradeWebSocket(() => {
       let connection: VoiceStreamConnection | null = null;
       return {
-        onOpen: (_event, socket) => {
-          connection = args.voiceStreamHub.open(socket);
-        },
-        onMessage: (event) => {
-          connection?.receive(event.data);
-        },
         onClose: () => {
           void connection?.dispose();
           connection = null;
+        },
+        onMessage: (event) => {
+          // oxlint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access -- the linter's checker does not resolve @types/node's conditional MessageEvent global; tsc does
+          connection?.receive(event.data);
+        },
+        onOpen: (_event, socket) => {
+          connection = args.voiceStreamHub.open(socket);
         },
       };
     }),
@@ -158,9 +177,9 @@ export function createApp(args: CreateAppArgs) {
   });
 
   if (args.clientDir !== null) {
-    const clientDir = resolve(args.clientDir);
+    const clientDir = nodePath.resolve(args.clientDir);
     // read once: the bundle is immutable for this process's life.
-    const shellDocument = readFileSync(join(clientDir, "index.html"), "utf8");
+    const shellDocument = readFileSync(nodePath.join(clientDir, "index.html"), "utf-8");
     const configuredOrigin = `http://127.0.0.1:${String(args.configuredPort)}`;
     // the ws origin comes from the caller's own host header: a dev port may have been probed
     // upward at bind, and a connect-src naming the configured port refuses this app's own socket.
@@ -169,15 +188,16 @@ export function createApp(args: CreateAppArgs) {
         wsOrigin: websocketOrigin(loopbackRequestOrigin(host) ?? configuredOrigin),
       });
     const serveClientFile = serveStatic<AppEnv>({
-      root: clientDir,
       onFound: (path, c) => {
         c.set("staticFilePath", path);
       },
+      root: clientDir,
     });
 
     // stamped by content type, not route: serveStatic answers index.html for `/` and the fallback
     // reads the same file for deep links. also where the browser gets its cookie: it cannot set a header.
     const documentHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
+      // oxlint-disable-next-line node/callback-return -- hono's next() resolves after the downstream handlers; the headers are stamped on their response
       await next();
       if (!(c.res.headers.get("content-type") ?? "").includes("text/html")) {
         return;
@@ -210,4 +230,4 @@ export function createApp(args: CreateAppArgs) {
   }
 
   return { app, injectWebSocket };
-}
+};

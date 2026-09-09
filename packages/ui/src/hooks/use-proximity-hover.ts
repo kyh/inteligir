@@ -1,14 +1,6 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type MouseEvent,
-  type RefObject,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, MouseEvent, RefObject, SetStateAction } from "react";
 
 export interface ItemRect {
   top: number;
@@ -42,10 +34,104 @@ interface UseProximityHoverReturn {
 // publishing zeroed rects; the cap keeps a list hidden for good from spinning forever
 const measurementAttempts = 3;
 
-export function useProximityHover<T extends HTMLElement>(
+const pickIndexXY = (
+  container: HTMLElement,
+  containerRect: DOMRect,
+  rects: ItemRect[],
+  mouseX: number,
+  mouseY: number,
+): number | null => {
+  let closestIndex: number | null = null;
+  let closestDistance = Infinity;
+  let containingIndex: number | null = null;
+
+  const scrollX = container.scrollLeft;
+  const scrollY = container.scrollTop;
+  const borderX = container.clientLeft;
+  const borderY = container.clientTop;
+  // map layout coords into viewport space, correcting for ancestor scale on each axis
+  const scaleX = container.offsetWidth > 0 ? containerRect.width / container.offsetWidth : 1;
+  const scaleY = container.offsetHeight > 0 ? containerRect.height / container.offsetHeight : 1;
+
+  for (let index = 0; index < rects.length; index += 1) {
+    const r = rects[index];
+    if (!r) {
+      continue;
+    }
+
+    const left = containerRect.left + (borderX + r.left - scrollX) * scaleX;
+    const top = containerRect.top + (borderY + r.top - scrollY) * scaleY;
+    const width = r.width * scaleX;
+    const height = r.height * scaleY;
+
+    if (mouseX >= left && mouseX <= left + width && mouseY >= top && mouseY <= top + height) {
+      containingIndex = index;
+    }
+
+    const dx = mouseX - (left + width / 2);
+    const dy = mouseY - (top + height / 2);
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  }
+
+  return containingIndex ?? closestIndex;
+};
+
+const pickIndexAlongAxis = (
+  container: HTMLElement,
+  containerRect: DOMRect,
+  rects: ItemRect[],
+  axis: "x" | "y",
+  mousePos: number,
+): number | null => {
+  let closestIndex: number | null = null;
+  let closestDistance = Infinity;
+  let containingIndex: number | null = null;
+
+  const scrollOffset = axis === "x" ? container.scrollLeft : container.scrollTop;
+  const borderOffset = axis === "x" ? container.clientLeft : container.clientTop;
+  const containerEdge = axis === "x" ? containerRect.left : containerRect.top;
+  // item rects are layout values while the container rect carries any ancestor scale, so
+  // the factor maps them into the cursor's space
+  const layoutSize = axis === "x" ? container.offsetWidth : container.offsetHeight;
+  const visualSize = axis === "x" ? containerRect.width : containerRect.height;
+  const scale = layoutSize > 0 ? visualSize / layoutSize : 1;
+
+  for (let index = 0; index < rects.length; index += 1) {
+    const r = rects[index];
+    if (!r) {
+      continue;
+    }
+
+    const contentPos = axis === "x" ? r.left : r.top;
+    const itemStart = containerEdge + (borderOffset + contentPos - scrollOffset) * scale;
+    const itemSize = (axis === "x" ? r.width : r.height) * scale;
+    const itemEnd = itemStart + itemSize;
+
+    if (mousePos >= itemStart && mousePos <= itemEnd) {
+      containingIndex = index;
+    }
+
+    const itemCenter = itemStart + itemSize / 2;
+    const distance = Math.abs(mousePos - itemCenter);
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  }
+
+  return containingIndex ?? closestIndex;
+};
+
+export const useProximityHover = <T extends HTMLElement>(
   containerRef: RefObject<T | null>,
   options: UseProximityHoverOptions = {},
-): UseProximityHoverReturn {
+): UseProximityHoverReturn => {
   const { axis = "y" } = options;
   const itemsRef = useRef(new Map<number, HTMLElement>());
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -58,10 +144,12 @@ export function useProximityHover<T extends HTMLElement>(
 
   const runMeasurement = useCallback(() => {
     const container = containerRef.current;
-    if (!container) return false;
+    if (!container) {
+      return false;
+    }
     const rects: ItemRect[] = [];
     let everyItemHasLayout = true;
-    itemsRef.current.forEach((element, index) => {
+    for (const [index, element] of itemsRef.current) {
       // an element in a display:none or not-yet-laid-out popup has no offsetParent and reports 0
       // for every offset, which would pin overlays to the top; position: fixed items also lack an
       // offsetParent but do have a size, so the box is the test
@@ -69,24 +157,29 @@ export function useProximityHover<T extends HTMLElement>(
         element.offsetParent !== null || element.offsetWidth > 0 || element.offsetHeight > 0;
       if (!hasLayoutBox) {
         everyItemHasLayout = false;
-        return;
+        continue;
       }
       // offset*, not getBoundingClientRect: layout values ignore the parent motion.div's scale
       // transform and match the space position: absolute children use
       rects[index] = {
-        top: element.offsetTop,
         height: element.offsetHeight,
         left: element.offsetLeft,
+        top: element.offsetTop,
         width: element.offsetWidth,
       };
-    });
-    if (!everyItemHasLayout) return false;
+    }
+    if (!everyItemHasLayout) {
+      return false;
+    }
     const prev = itemRectsRef.current;
     let changed = prev.length !== rects.length;
-    for (let i = 0; !changed && i < rects.length; i++) {
+    for (let i = 0; !changed && i < rects.length; i += 1) {
       const p = prev[i];
       const r = rects[i];
-      if (p === r) continue; // both undefined (sparse slot)
+      // both undefined (sparse slot)
+      if (p === r) {
+        continue;
+      }
       changed =
         !p ||
         !r ||
@@ -137,7 +230,9 @@ export function useProximityHover<T extends HTMLElement>(
   const itemRoRef = useRef<ResizeObserver | null>(null);
   const getItemRo = useCallback(() => {
     if (itemRoRef.current === null && globalThis.ResizeObserver !== undefined) {
-      itemRoRef.current = new ResizeObserver(() => scheduleMeasurement(measurementAttempts));
+      itemRoRef.current = new ResizeObserver(() => {
+        scheduleMeasurement(measurementAttempts);
+      });
     }
     return itemRoRef.current;
   }, [scheduleMeasurement]);
@@ -149,7 +244,9 @@ export function useProximityHover<T extends HTMLElement>(
         getItemRo()?.observe(element);
       } else {
         const previous = itemsRef.current.get(index);
-        if (previous) itemRoRef.current?.unobserve(previous);
+        if (previous) {
+          itemRoRef.current?.unobserve(previous);
+        }
         itemsRef.current.delete(index);
       }
       remeasure();
@@ -169,97 +266,20 @@ export function useProximityHover<T extends HTMLElement>(
       rafIdRef.current = requestAnimationFrame(() => {
         rafIdRef.current = null;
         const container = containerRef.current;
-        if (!container) return;
+        if (!container) {
+          return;
+        }
 
         const containerRect = container.getBoundingClientRect();
+        const rects = itemRectsRef.current;
 
         if (axis === "xy") {
-          let closestIndex: number | null = null;
-          let closestDistance = Infinity;
-          let containingIndex: number | null = null;
-
-          const rects = itemRectsRef.current;
-          const scrollX = container.scrollLeft;
-          const scrollY = container.scrollTop;
-          const borderX = container.clientLeft;
-          const borderY = container.clientTop;
-          // map layout coords into viewport space, correcting for ancestor scale on each axis
-          const scaleX =
-            container.offsetWidth > 0 ? containerRect.width / container.offsetWidth : 1;
-          const scaleY =
-            container.offsetHeight > 0 ? containerRect.height / container.offsetHeight : 1;
-
-          for (let index = 0; index < rects.length; index++) {
-            const r = rects[index];
-            if (!r) continue;
-
-            const left = containerRect.left + (borderX + r.left - scrollX) * scaleX;
-            const top = containerRect.top + (borderY + r.top - scrollY) * scaleY;
-            const width = r.width * scaleX;
-            const height = r.height * scaleY;
-
-            if (
-              mouseX >= left &&
-              mouseX <= left + width &&
-              mouseY >= top &&
-              mouseY <= top + height
-            ) {
-              containingIndex = index;
-            }
-
-            const dx = mouseX - (left + width / 2);
-            const dy = mouseY - (top + height / 2);
-            const distance = Math.hypot(dx, dy);
-
-            if (distance < closestDistance) {
-              closestDistance = distance;
-              closestIndex = index;
-            }
-          }
-
-          setActiveIndex(containingIndex ?? closestIndex);
+          setActiveIndex(pickIndexXY(container, containerRect, rects, mouseX, mouseY));
           return;
         }
 
         const mousePos = axis === "x" ? mouseX : mouseY;
-
-        let closestIndex: number | null = null;
-        let closestDistance = Infinity;
-        let containingIndex: number | null = null;
-
-        const rects = itemRectsRef.current;
-        const scrollOffset = axis === "x" ? container.scrollLeft : container.scrollTop;
-        const borderOffset = axis === "x" ? container.clientLeft : container.clientTop;
-        const containerEdge = axis === "x" ? containerRect.left : containerRect.top;
-        // item rects are layout values while the container rect carries any ancestor scale, so
-        // the factor maps them into the cursor's space
-        const layoutSize = axis === "x" ? container.offsetWidth : container.offsetHeight;
-        const visualSize = axis === "x" ? containerRect.width : containerRect.height;
-        const scale = layoutSize > 0 ? visualSize / layoutSize : 1;
-
-        for (let index = 0; index < rects.length; index++) {
-          const r = rects[index];
-          if (!r) continue;
-
-          const contentPos = axis === "x" ? r.left : r.top;
-          const itemStart = containerEdge + (borderOffset + contentPos - scrollOffset) * scale;
-          const itemSize = (axis === "x" ? r.width : r.height) * scale;
-          const itemEnd = itemStart + itemSize;
-
-          if (mousePos >= itemStart && mousePos <= itemEnd) {
-            containingIndex = index;
-          }
-
-          const itemCenter = itemStart + itemSize / 2;
-          const distance = Math.abs(mousePos - itemCenter);
-
-          if (distance < closestDistance) {
-            closestDistance = distance;
-            closestIndex = index;
-          }
-        }
-
-        setActiveIndex(containingIndex ?? closestIndex);
+        setActiveIndex(pickIndexAlongAxis(container, containerRect, rects, axis, mousePos));
       });
     },
     [axis, containerRef],
@@ -281,14 +301,20 @@ export function useProximityHover<T extends HTMLElement>(
   // overlays on every reflow would flicker them
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || globalThis.ResizeObserver === undefined) return;
-    const ro = new ResizeObserver(() => scheduleMeasurement(measurementAttempts));
+    if (!container || globalThis.ResizeObserver === undefined) {
+      return;
+    }
+    const ro = new ResizeObserver(() => {
+      scheduleMeasurement(measurementAttempts);
+    });
     ro.observe(container);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+    };
   }, [containerRef, scheduleMeasurement]);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
       }
@@ -297,21 +323,22 @@ export function useProximityHover<T extends HTMLElement>(
       }
       itemRoRef.current?.disconnect();
       itemRoRef.current = null;
-    };
-  }, []);
+    },
+    [],
+  );
 
   return {
     activeIndex,
-    setActiveIndex,
-    itemRects,
-    isMeasured,
-    session,
     handlers: {
-      onMouseMove: handleMouseMove,
       onMouseEnter: handleMouseEnter,
       onMouseLeave: handleMouseLeave,
+      onMouseMove: handleMouseMove,
     },
-    registerItem,
+    isMeasured,
+    itemRects,
     measureItems,
+    registerItem,
+    session,
+    setActiveIndex,
   };
-}
+};

@@ -15,11 +15,11 @@ describe("the scoped list's count", () => {
 });
 
 const TAGS = [
-  { tag: "project", count: 3 },
-  { tag: "area/deep", count: 2 },
-  { tag: "area", count: 1 },
-  { tag: "area/wide", count: 4 },
-  { tag: "idea", count: 1 },
+  { count: 3, tag: "project" },
+  { count: 2, tag: "area/deep" },
+  { count: 1, tag: "area" },
+  { count: 4, tag: "area/wide" },
+  { count: 1, tag: "idea" },
 ];
 
 describe("folding tags by /", () => {
@@ -30,7 +30,7 @@ describe("folding tags by /", () => {
       ["project", 3, 3],
       ["idea", 1, 1],
     ]);
-    const area = roots[0];
+    const [area] = roots;
     expect(area?.children.map((node) => [node.name, node.total])).toEqual([
       ["wide", 4],
       ["deep", 2],
@@ -38,7 +38,7 @@ describe("folding tags by /", () => {
   });
 
   it("makes a parent row for a level no note uses bare", () => {
-    const roots = foldTags([{ tag: "a/b/c", count: 1 }]);
+    const roots = foldTags([{ count: 1, tag: "a/b/c" }]);
     expect(roots.map((node) => [node.tag, node.count, node.total])).toEqual([["a", 0, 1]]);
     expect(roots[0]?.children[0]?.tag).toBe("a/b");
   });
@@ -46,8 +46,8 @@ describe("folding tags by /", () => {
 
 describe("the tags view", () => {
   it("lists roots folded, expands a family, and answers select and rename", () => {
-    const onSelect = vi.fn();
-    const onRename = vi.fn();
+    const onSelect = vi.fn<(tag: string) => void>();
+    const onRename = vi.fn<(tag: string) => void>();
     render(<TagsView tags={TAGS} loaded onSelect={onSelect} onRename={onRename} />);
     expect(screen.queryByText("#deep")).toBeNull();
     fireEvent.click(screen.getByLabelText("Expand area"));
@@ -60,10 +60,22 @@ describe("the tags view", () => {
 
   it("says why it is empty once the index has answered, and not before", () => {
     const { rerender } = render(
-      <TagsView tags={[]} loaded={false} onSelect={vi.fn()} onRename={vi.fn()} />,
+      <TagsView
+        tags={[]}
+        loaded={false}
+        onSelect={vi.fn<(tag: string) => void>()}
+        onRename={vi.fn<(tag: string) => void>()}
+      />,
     );
-    expect(screen.queryByText(/No tags yet/)).toBeNull();
-    rerender(<TagsView tags={[]} loaded onSelect={vi.fn()} onRename={vi.fn()} />);
-    expect(screen.getByText(/No tags yet/)).toBeDefined();
+    expect(screen.queryByText(/No tags yet/u)).toBeNull();
+    rerender(
+      <TagsView
+        tags={[]}
+        loaded
+        onSelect={vi.fn<(tag: string) => void>()}
+        onRename={vi.fn<(tag: string) => void>()}
+      />,
+    );
+    expect(screen.getByText(/No tags yet/u)).toBeDefined();
   });
 });

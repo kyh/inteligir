@@ -18,28 +18,28 @@ import {
 } from "../model-store";
 
 const FIXTURE = readFileSync(
-  fileURLToPath(new URL("./fixtures/test-model.tar.bz2", import.meta.url)),
+  fileURLToPath(new URL("fixtures/test-model.tar.bz2", import.meta.url)),
 );
 
-function specFor(archive: Buffer): VoiceModelSpec {
-  return {
-    id: "test-model",
-    label: "Test model",
-    sizeBytes: archive.byteLength,
-    sha256: createHash("sha256").update(archive).digest("hex"),
-    url: "https://models.test/model.tar.bz2",
-    files: {
-      encoder: "encoder.onnx",
-      decoder: "decoder.onnx",
-      joiner: "joiner.onnx",
-      tokens: "tokens.txt",
-    },
-  };
-}
+const specFor = (archive: Buffer): VoiceModelSpec => ({
+  files: {
+    decoder: "decoder.onnx",
+    encoder: "encoder.onnx",
+    joiner: "joiner.onnx",
+    tokens: "tokens.txt",
+  },
+  id: "test-model",
+  label: "Test model",
+  sha256: createHash("sha256").update(archive).digest("hex"),
+  sizeBytes: archive.byteLength,
+  url: "https://models.test/model.tar.bz2",
+});
 
 // two chunks, so progress is observable.
-function fetchServing(body: Buffer): typeof fetch {
-  return async () =>
+const fetchServing =
+  (body: Buffer): typeof fetch =>
+  // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
+  async () =>
     new Response(
       new ReadableStream<Uint8Array>({
         start(controller) {
@@ -50,7 +50,6 @@ function fetchServing(body: Buffer): typeof fetch {
         },
       }),
     );
-}
 
 describe("downloadModel", () => {
   it("extracts every model file, drops the rest, and reports progress to the size", async () => {
@@ -58,16 +57,18 @@ describe("downloadModel", () => {
     const spec = specFor(FIXTURE);
     const progress: number[] = [];
     await downloadModel({
-      modelDir,
-      spec,
-      signal: new AbortController().signal,
-      onProgress: (received) => progress.push(received),
       fetchImpl: fetchServing(FIXTURE),
+      modelDir,
+      onProgress: (received) => {
+        progress.push(received);
+      },
+      signal: new AbortController().signal,
+      spec,
     });
 
     const files = resolveModelFiles(modelDir, spec);
-    expect(readFileSync(files.encoder, "utf8")).toBe("encoder-bytes");
-    expect(readFileSync(files.tokens, "utf8")).toBe("a b c\n");
+    expect(readFileSync(files.encoder, "utf-8")).toBe("encoder-bytes");
+    expect(readFileSync(files.tokens, "utf-8")).toBe("a b c\n");
     expect(await isModelInstalled(modelDir, spec)).toBe(true);
     expect(existsSync(`${modelDirFor(modelDir, spec)}/test_wavs`)).toBe(false);
     expect(progress.at(-1)).toBe(FIXTURE.byteLength);
@@ -80,11 +81,11 @@ describe("downloadModel", () => {
     const tampered = Buffer.concat([FIXTURE.subarray(0, FIXTURE.byteLength - 1), Buffer.from([0])]);
     await expect(
       downloadModel({
-        modelDir,
-        spec,
-        signal: new AbortController().signal,
-        onProgress: () => undefined,
         fetchImpl: fetchServing(tampered),
+        modelDir,
+        onProgress: () => {},
+        signal: new AbortController().signal,
+        spec,
       }),
     ).rejects.toThrow(ModelDownloadError);
     expect(await isModelInstalled(modelDir, spec)).toBe(false);
@@ -96,11 +97,11 @@ describe("downloadModel", () => {
     const spec = specFor(FIXTURE);
     await expect(
       downloadModel({
-        modelDir,
-        spec,
-        signal: new AbortController().signal,
-        onProgress: () => undefined,
         fetchImpl: fetchServing(Buffer.concat([FIXTURE, Buffer.alloc(1024)])),
+        modelDir,
+        onProgress: () => {},
+        signal: new AbortController().signal,
+        spec,
       }),
     ).rejects.toThrow(/larger than/u);
     expect(await isModelInstalled(modelDir, spec)).toBe(false);
@@ -111,11 +112,11 @@ describe("downloadModel", () => {
     const spec = specFor(FIXTURE);
     await expect(
       downloadModel({
-        modelDir,
-        spec,
-        signal: new AbortController().signal,
-        onProgress: () => undefined,
         fetchImpl: fetchServing(FIXTURE.subarray(0, 32)),
+        modelDir,
+        onProgress: () => {},
+        signal: new AbortController().signal,
+        spec,
       }),
     ).rejects.toThrow(/not the/u);
     expect(await isModelInstalled(modelDir, spec)).toBe(false);
@@ -125,13 +126,13 @@ describe("downloadModel", () => {
     const modelDir = makeTempDir("inteligir-models-");
     await expect(
       downloadModel({
-        modelDir,
-        spec: specFor(FIXTURE),
-        signal: new AbortController().signal,
-        onProgress: () => undefined,
-        fetchImpl: async () => {
+        fetchImpl: () => {
           throw new Error("getaddrinfo ENOTFOUND");
         },
+        modelDir,
+        onProgress: () => {},
+        signal: new AbortController().signal,
+        spec: specFor(FIXTURE),
       }),
     ).rejects.toThrow(/models\.test/u);
   });
@@ -140,11 +141,12 @@ describe("downloadModel", () => {
     const modelDir = makeTempDir("inteligir-models-");
     await expect(
       downloadModel({
-        modelDir,
-        spec: specFor(FIXTURE),
-        signal: new AbortController().signal,
-        onProgress: () => undefined,
+        // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
         fetchImpl: async () => new Response("gone", { status: 404 }),
+        modelDir,
+        onProgress: () => {},
+        signal: new AbortController().signal,
+        spec: specFor(FIXTURE),
       }),
     ).rejects.toThrow(/404/u);
   });
@@ -180,11 +182,11 @@ describe("removeModel", () => {
     const modelDir = makeTempDir("inteligir-models-");
     const spec = specFor(FIXTURE);
     await downloadModel({
-      modelDir,
-      spec,
-      signal: new AbortController().signal,
-      onProgress: () => undefined,
       fetchImpl: fetchServing(FIXTURE),
+      modelDir,
+      onProgress: () => {},
+      signal: new AbortController().signal,
+      spec,
     });
     expect(await isModelInstalled(modelDir, spec)).toBe(true);
 

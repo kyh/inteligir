@@ -12,10 +12,10 @@ describe("draftToRequest", () => {
   it("builds an http transport and carries the auth header only when whole", () => {
     const whole = draftToRequest({
       ...EMPTY_DRAFT,
-      name: "exa",
-      url: "https://mcp.exa.ai/mcp",
       headerName: "x-api-key",
       headerValue: "sk",
+      name: "exa",
+      url: "https://mcp.exa.ai/mcp",
     });
     expect(whole).toEqual({
       ok: true,
@@ -24,9 +24,9 @@ describe("draftToRequest", () => {
 
     const half = draftToRequest({
       ...EMPTY_DRAFT,
+      headerName: "x-api-key",
       name: "exa",
       url: "https://mcp.exa.ai/mcp",
-      headerName: "x-api-key",
     });
     expect(half.ok).toBe(false);
   });
@@ -40,10 +40,10 @@ describe("draftToRequest", () => {
     expect(
       draftToRequest({
         ...EMPTY_DRAFT,
-        name: "files",
-        kind: "stdio",
-        command: "npx",
         argsText: "-y\nserver-files\n\n",
+        command: "npx",
+        kind: "stdio",
+        name: "files",
       }),
     ).toEqual({
       ok: true,

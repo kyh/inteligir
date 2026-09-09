@@ -17,36 +17,46 @@ interface HighlightBox {
   shown: boolean;
 }
 
-const HIDDEN: HighlightBox = { top: 0, height: 0, shown: false };
+const HIDDEN: HighlightBox = { height: 0, shown: false, top: 0 };
 
-function GlideList({ className, children, highlightClassName, ...props }: GlideListProps) {
+const GlideList = ({ className, children, highlightClassName, ...props }: GlideListProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<HighlightBox>(HIDDEN);
 
   const measure = useCallback((target: EventTarget | null) => {
     const host = hostRef.current;
-    if (host === null || !(target instanceof Element)) return;
+    if (host === null || !(target instanceof Element)) {
+      return;
+    }
     const row = target.closest("[data-menu-row]");
-    if (row === null || !host.contains(row)) return;
+    if (row === null || !host.contains(row)) {
+      return;
+    }
     const hostBox = host.getBoundingClientRect();
     const rowBox = row.getBoundingClientRect();
-    setBox({ top: rowBox.top - hostBox.top, height: rowBox.height, shown: true });
+    setBox({ height: rowBox.height, shown: true, top: rowBox.top - hostBox.top });
   }, []);
 
   const onPointerMove = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => measure(event.target),
+    (event: PointerEvent<HTMLDivElement>) => {
+      measure(event.target);
+    },
     [measure],
   );
   const onFocus = useCallback(
-    (event: FocusEvent<HTMLDivElement>) => measure(event.target),
+    (event: FocusEvent<HTMLDivElement>) => {
+      measure(event.target);
+    },
     [measure],
   );
-  const clear = useCallback(() => setBox(HIDDEN), []);
+  const clear = useCallback(() => {
+    setBox(HIDDEN);
+  }, []);
 
   const style: CSSProperties = {
-    transform: `translateY(${String(box.top)}px)`,
     height: box.height,
     opacity: box.shown ? 1 : 0,
+    transform: `translateY(${String(box.top)}px)`,
   };
 
   return (
@@ -73,6 +83,6 @@ function GlideList({ className, children, highlightClassName, ...props }: GlideL
       {children}
     </div>
   );
-}
+};
 
 export { GlideList };

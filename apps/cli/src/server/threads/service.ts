@@ -7,25 +7,27 @@
 import {
   approvalPendingInteractionPayloadSchema,
   parseApprovalResolution,
-  type ApprovalPendingInteractionPayload,
 } from "@repo/domain/pending-interactions";
-import { writeTransaction, type DbConnection, type DbTransaction } from "@repo/db/connection";
+import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
+import { writeTransaction } from "@repo/db/connection";
+import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
   turnStartOriginDeviceId,
-  type SyncedEventInput,
 } from "@repo/db/events";
+import type { SyncedEventInput } from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
-import { NotificationBuffer, type DbNotifier } from "@repo/domain/notifier";
+import { NotificationBuffer } from "@repo/domain/notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import {
   getPendingInteraction,
   interruptOpenPendingInteractions,
   listAllOpenPendingInteractions,
   listOpenPendingInteractions,
   resolvePendingInteraction,
-  type PendingInteractionRow,
 } from "@repo/db/pending-interactions";
+import type { PendingInteractionRow } from "@repo/db/pending-interactions";
 import {
   claimNextQueuedThreadMessageInTransaction,
   createQueuedThreadMessageInTransaction,
@@ -33,8 +35,8 @@ import {
   listQueuedThreadMessages,
   releaseAllQueuedMessageClaims,
   releaseQueuedMessageClaim,
-  type ClaimedQueuedThreadMessageRow,
 } from "@repo/db/queued-messages";
+import type { ClaimedQueuedThreadMessageRow } from "@repo/db/queued-messages";
 import { writeSyncCursor } from "@repo/db/sync-outbox";
 import {
   applyThreadLifecycleEventInTransaction,
@@ -43,9 +45,8 @@ import {
   ensureThreadInTransaction,
   getThread,
   listThreads,
-  type CreateThreadInput,
-  type ThreadRow,
 } from "@repo/db/threads";
+import type { CreateThreadInput, ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId, threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { ViewContext } from "@repo/domain/view-context";
@@ -61,9 +62,15 @@ import type {
   TimelineResponse,
 } from "@repo/api/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
+import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 import { ThreadTimelineProjector } from "./timeline-projection";
-import { TurnDriverUnavailableError, type CreateTurnDriver, type TurnDriver } from "./turn-driver";
-import type { ProviderEventSink, TurnDriverStartArgs } from "./turn-driver";
+import { TurnDriverUnavailableError } from "./turn-driver";
+import type {
+  CreateTurnDriver,
+  TurnDriver,
+  ProviderEventSink,
+  TurnDriverStartArgs,
+} from "./turn-driver";
 
 // threads-router switches exhaustively over this, so a new member breaks there rather than becoming a 500.
 const SEND_CONFLICT_CODES = ["stale_turn", "archived"] as const;
@@ -94,16 +101,11 @@ export type AnswerInteractionOutcome =
   | { kind: "already-resolved" }
   | { kind: "invalid-resolution"; message: string };
 
-export class ThreadEventThreadIdMismatchError extends Error {
-  constructor(expected: string, actual: string) {
-    super(`Ingest for thread ${expected} carried an event for thread ${actual}`);
-    this.name = "ThreadEventThreadIdMismatchError";
-  }
-}
+export { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 
 // inside the transaction that writes the events: an event is owed to the account's log exactly when it is in the local one.
 export interface ThreadSyncHooks {
-  enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;
+  enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;
 }
 
 export interface ThreadServiceArgs {
@@ -113,22 +115,22 @@ export interface ThreadServiceArgs {
   sync?: ThreadSyncHooks;
 }
 
-function toWireThread(row: ThreadRow): Thread {
-  return {
-    id: row.id,
-    title: row.title,
-    status: row.status,
-    activeTurnId: row.activeTurnId,
-    originDocPath: row.originDocPath,
-    providerId: row.providerId,
-    archivedAt: row.archivedAt,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-}
+const toWireThread = (row: ThreadRow): Thread => ({
+  activeTurnId: row.activeTurnId,
+  archivedAt: row.archivedAt,
+  createdAt: row.createdAt,
+  id: row.id,
+  originDocPath: row.originDocPath,
+  providerId: row.providerId,
+  status: row.status,
+  title: row.title,
+  updatedAt: row.updatedAt,
+});
 
 // null for unparseable bytes: deny is always answerable, so it costs one card's detail rather than the thread.
-function parseStoredApprovalPayload(payloadJson: string): ApprovalPendingInteractionPayload | null {
+const parseStoredApprovalPayload = (
+  payloadJson: string,
+): ApprovalPendingInteractionPayload | null => {
   let raw: unknown;
   try {
     raw = JSON.parse(payloadJson);
@@ -137,22 +139,74 @@ function parseStoredApprovalPayload(payloadJson: string): ApprovalPendingInterac
   }
   const parsed = approvalPendingInteractionPayloadSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
-}
+};
 
-function toWirePendingInteraction(row: PendingInteractionRow): PendingInteraction {
+const toWirePendingInteraction = (row: PendingInteractionRow): PendingInteraction => {
   const payload = parseStoredApprovalPayload(row.payload);
   return {
+    createdAt: row.createdAt,
     id: row.id,
+    payload,
+    requestKey: row.requestKey,
+    resolution: row.resolution,
+    resolvedAt: row.resolvedAt,
+    status: row.status,
     threadId: row.threadId,
     turnId: row.turnId,
-    requestKey: row.requestKey,
-    status: row.status,
-    payload,
-    resolution: row.resolution,
-    createdAt: row.createdAt,
-    resolvedAt: row.resolvedAt,
   };
-}
+};
+
+// the same parse the runtime's answer path runs, so a resolution this passes is never silently denied downstream.
+const invalidResolutionMessage = (payloadJson: string, resolution: string): string | null => {
+  const payload = parseStoredApprovalPayload(payloadJson);
+  if (payload === null) {
+    return null;
+  }
+  const parsed = parseApprovalResolution(resolution, payload);
+  return parsed.ok ? null : parsed.reason;
+};
+
+const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
+  const turnId = getThreadEventScopeTurnId(event.scope) ?? null;
+  switch (event.type) {
+    case "turn/started": {
+      // the scope policy makes a turn-less turn/started unparseable; the null branch guards a policy change.
+      return turnId === null ? null : { turnId, type: "run.started" };
+    }
+    case "turn/completed": {
+      // an interrupted turn still settled: only a failed one reads as an error.
+      return event.status === "failed"
+        ? { turnId, type: "run.failed" }
+        : { turnId, type: "run.succeeded" };
+    }
+    case "client/turn/requested":
+    case "item/agentMessage/delta":
+    case "item/commandExecution/outputDelta":
+    case "item/completed":
+    case "item/plan/delta":
+    case "item/reasoning/summaryTextDelta":
+    case "item/reasoning/textDelta":
+    case "item/started":
+    case "provider/error":
+    case "thread/tokenUsage/updated": {
+      return null;
+    }
+    // no default
+  }
+};
+
+// a queued message carries no view context: it drains minutes later, long
+// after the screen it described; storing one gives away the immediacy that keeps it honest.
+const queueInTransaction = (
+  tx: DbTransaction,
+  threadId: string,
+  text: string,
+  buffer: NotificationBuffer,
+): SendDecision => {
+  const queued = createQueuedThreadMessageInTransaction(tx, { text, threadId });
+  buffer.notifyThread(threadId, ["queue-changed"]);
+  return { kind: "done", outcome: { kind: "queued", queuedMessageId: queued.id } };
+};
 
 export class ThreadService implements ProviderEventSink {
   private readonly db: DbConnection;
@@ -186,8 +240,12 @@ export class ThreadService implements ProviderEventSink {
 
   create(input: CreateThreadRequest): Thread {
     const created: CreateThreadInput = {};
-    if (input.title !== undefined) created.title = input.title;
-    if (input.originDocPath !== undefined) created.originDocPath = input.originDocPath;
+    if (input.title !== undefined) {
+      created.title = input.title;
+    }
+    if (input.originDocPath !== undefined) {
+      created.originDocPath = input.originDocPath;
+    }
     return toWireThread(createThread(this.db, this.notifier, created));
   }
 
@@ -201,15 +259,15 @@ export class ThreadService implements ProviderEventSink {
       return null;
     }
     return {
-      thread: toWireThread(thread),
       pendingInteractions: listOpenPendingInteractions(this.db, threadId).map(
         toWirePendingInteraction,
       ),
       queuedMessages: listQueuedThreadMessages(this.db, threadId).map((row) => ({
+        createdAt: row.createdAt,
         id: row.id,
         text: row.text,
-        createdAt: row.createdAt,
       })),
+      thread: toWireThread(thread),
     };
   }
 
@@ -250,15 +308,15 @@ export class ThreadService implements ProviderEventSink {
     if (thread.archivedAt !== null) {
       return {
         kind: "done",
-        outcome: { kind: "conflict", error: "archived", message: "The thread is archived" },
+        outcome: { error: "archived", kind: "conflict", message: "The thread is archived" },
       };
     }
     if (request.expectedTurnId !== undefined && request.expectedTurnId !== thread.activeTurnId) {
       return {
         kind: "done",
         outcome: {
-          kind: "conflict",
           error: "stale_turn",
+          kind: "conflict",
           message: "The turn this message addressed is no longer the open one",
         },
       };
@@ -266,26 +324,16 @@ export class ThreadService implements ProviderEventSink {
 
     switch (thread.status) {
       case "idle":
-      case "error":
+      case "error": {
         return this.prepareTurnInTransaction(tx, thread, request.text, request.viewContext, buffer);
+      }
       case "active":
       case "starting":
-      case "stopping":
-        return this.queueInTransaction(tx, thread.id, request.text, buffer);
+      case "stopping": {
+        return queueInTransaction(tx, thread.id, request.text, buffer);
+      }
+      // no default
     }
-  }
-
-  // a queued message carries no view context: it drains minutes later, long
-  // after the screen it described; storing one gives away the immediacy that keeps it honest.
-  private queueInTransaction(
-    tx: DbTransaction,
-    threadId: string,
-    text: string,
-    buffer: NotificationBuffer,
-  ): SendDecision {
-    const queued = createQueuedThreadMessageInTransaction(tx, { threadId, text });
-    buffer.notifyThread(threadId, ["queue-changed"]);
-    return { kind: "done", outcome: { kind: "queued", queuedMessageId: queued.id } };
   }
 
   // takes the loaded row: the dispatch must carry what this transaction read, not what a second query could observe.
@@ -298,46 +346,50 @@ export class ThreadService implements ProviderEventSink {
   ): SendDecision {
     const threadId = thread.id;
     const outcome = applyThreadLifecycleEventInTransaction(tx, {
-      threadId,
       event: { type: "run.preparing" },
+      threadId,
     });
     if (!outcome.applied) {
       // the drain's case: an archive landed between the settle and the claim.
       return {
         kind: "done",
         outcome: {
-          kind: "conflict",
           error: "stale_turn",
+          kind: "conflict",
           message: `Cannot start a turn: ${outcome.detail}`,
         },
       };
     }
     buffer.notifyThread(threadId, ["status-changed"]);
     const requested: Extract<ThreadEvent, { type: "client/turn/requested" }> = {
-      type: "client/turn/requested",
-      threadId,
-      text,
       scope: threadScope(),
+      text,
+      threadId,
+      type: "client/turn/requested",
     };
-    if (viewContext !== undefined) requested.viewContext = viewContext;
+    if (viewContext !== undefined) {
+      requested.viewContext = viewContext;
+    }
     this.appendLocal(tx, [requested]);
     buffer.notifyThread(threadId, ["events-appended"]);
     return {
       kind: "dispatch",
+      text,
       threadId,
       turnId: createTurnId(),
-      text,
       viewContext,
     };
   }
 
   private dispatchTurn(decision: Extract<SendDecision, { kind: "dispatch" }>): SendOutcome {
     const start: TurnDriverStartArgs = {
+      text: decision.text,
       threadId: decision.threadId,
       turnId: decision.turnId,
-      text: decision.text,
     };
-    if (decision.viewContext !== undefined) start.viewContext = decision.viewContext;
+    if (decision.viewContext !== undefined) {
+      start.viewContext = decision.viewContext;
+    }
     try {
       this.driver.startTurn(start);
     } catch (error) {
@@ -359,11 +411,11 @@ export class ThreadService implements ProviderEventSink {
   private failTurnlessRun(threadId: string, message: string): void {
     const buffer = new NotificationBuffer();
     writeTransaction(this.db, (tx) => {
-      this.appendLocal(tx, [{ type: "provider/error", threadId, message, scope: threadScope() }]);
+      this.appendLocal(tx, [{ message, scope: threadScope(), threadId, type: "provider/error" }]);
       buffer.notifyThread(threadId, ["events-appended"]);
       const outcome = applyThreadLifecycleEventInTransaction(tx, {
+        event: { turnId: null, type: "run.failed" },
         threadId,
-        event: { type: "run.failed", turnId: null },
       });
       if (outcome.applied) {
         buffer.notifyThread(threadId, ["status-changed"]);
@@ -382,7 +434,7 @@ export class ThreadService implements ProviderEventSink {
       return { kind: "full", timeline: full };
     }
     const base = this.timelines.prefix(query.threadId, query.afterSequence);
-    return { kind: "delta", delta: computeTimelineDelta(base, full) };
+    return { delta: computeTimelineDelta(base, full), kind: "delta" };
   }
 
   answerInteraction(request: AnswerInteractionRequest): AnswerInteractionOutcome {
@@ -396,8 +448,8 @@ export class ThreadService implements ProviderEventSink {
     }
     const outcome = resolvePendingInteraction(this.db, this.notifier, {
       id: request.interactionId,
-      threadId: request.threadId,
       resolution: request.resolution,
+      threadId: request.threadId,
     });
     switch (outcome.kind) {
       case "resolved": {
@@ -405,17 +457,20 @@ export class ThreadService implements ProviderEventSink {
         // after the row is resolved: a crash between the two leaves a resolved
         // row and a provider request the turn-end timeout settles.
         this.driver.onInteractionResolved?.(interaction);
-        return { kind: "resolved", interaction };
+        return { interaction, kind: "resolved" };
       }
-      case "already-resolved":
+      case "already-resolved": {
         return { kind: "already-resolved" };
-      case "not-found":
+      }
+      case "not-found": {
         return { kind: "not-found" };
+      }
+      // no default
     }
   }
 
   ingestProviderEvents(threadId: string, events: readonly ThreadEvent[]): void {
-    this.ingest({ origin: "local", threadId, events });
+    this.ingest({ events, origin: "local", threadId });
   }
 
   // the same ingest, marked remote: the thread row is created with the log's
@@ -427,10 +482,10 @@ export class ThreadService implements ProviderEventSink {
     cursor: number;
   }): void {
     this.ingest({
-      origin: "remote",
-      threadId: args.threadId,
-      rows: args.rows,
       cursor: args.cursor,
+      origin: "remote",
+      rows: args.rows,
+      threadId: args.threadId,
     });
   }
 
@@ -476,8 +531,8 @@ export class ThreadService implements ProviderEventSink {
           continue;
         }
         const outcome = applyThreadLifecycleEventInTransaction(tx, {
-          threadId,
           event: lifecycleEvent,
+          threadId,
         });
         if (!outcome.applied) {
           // a late completion for a superseded turn is expected traffic.
@@ -543,7 +598,7 @@ export class ThreadService implements ProviderEventSink {
       ) {
         continue;
       }
-      const activeTurnId = thread.activeTurnId;
+      const { activeTurnId } = thread;
       if (
         activeTurnId !== null &&
         turnStartOriginDeviceId(this.db, {
@@ -558,43 +613,17 @@ export class ThreadService implements ProviderEventSink {
         this.failTurnlessRun(thread.id, message);
       } else {
         this.ingestProviderEvents(thread.id, [
-          { type: "provider/error", threadId: thread.id, message, scope: threadScope() },
+          { message, scope: threadScope(), threadId: thread.id, type: "provider/error" },
           {
-            type: "turn/completed",
-            threadId: thread.id,
-            status: "failed",
             scope: turnScope(activeTurnId),
+            status: "failed",
+            threadId: thread.id,
+            type: "turn/completed",
           },
         ]);
       }
       // the provider requests behind these rows died with the old process; a restarted provider raises fresh rows.
       interruptOpenPendingInteractions(this.db, this.notifier, thread.id);
     }
-  }
-}
-
-// the same parse the runtime's answer path runs, so a resolution this passes is never silently denied downstream.
-function invalidResolutionMessage(payloadJson: string, resolution: string): string | null {
-  const payload = parseStoredApprovalPayload(payloadJson);
-  if (payload === null) {
-    return null;
-  }
-  const parsed = parseApprovalResolution(resolution, payload);
-  return parsed.ok ? null : parsed.reason;
-}
-
-function lifecycleEventFor(event: ThreadEvent): ThreadLifecycleEvent | null {
-  const turnId = getThreadEventScopeTurnId(event.scope) ?? null;
-  switch (event.type) {
-    case "turn/started":
-      // the scope policy makes a turn-less turn/started unparseable; the null branch guards a policy change.
-      return turnId === null ? null : { type: "run.started", turnId };
-    case "turn/completed":
-      // an interrupted turn still settled: only a failed one reads as an error.
-      return event.status === "failed"
-        ? { type: "run.failed", turnId }
-        : { type: "run.succeeded", turnId };
-    default:
-      return null;
   }
 }

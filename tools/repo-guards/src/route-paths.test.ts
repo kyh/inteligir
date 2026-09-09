@@ -16,20 +16,20 @@ import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 const NAMESPACES = [
   {
     home: "packages/api/src/local/local-routes.ts",
-    use: "the constants in @repo/api/local/routes",
     paths: [VOICE_STREAM_PATH, VAULT_ASSET_PATH, HEALTH_PATH, RPC_PREFIX],
+    use: "the constants in @repo/api/local/routes",
   },
   {
     home: "packages/api/src/cloud/vault/vault-schema.ts",
-    use: "VAULT_API_PATHS from @repo/api/cloud/vault/vault-schema",
     paths: Object.values(VAULT_API_PATHS),
+    use: "VAULT_API_PATHS from @repo/api/cloud/vault/vault-schema",
   },
 ];
 
 // longest first, so the cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
 // contains.
 const GUARDED = NAMESPACES.flatMap((namespace) =>
-  namespace.paths.map((path) => ({ path, home: namespace.home, use: namespace.use })),
+  namespace.paths.map((path) => ({ home: namespace.home, path, use: namespace.use })),
 ).toSorted((left, right) => right.path.length - left.path.length);
 
 const ELSEWHERE = new Map<string, string>([
@@ -55,31 +55,27 @@ interface Hit extends Spelled {
 
 // not followed by a word character or a dash, which tells `"/vault/asset?path="` from
 // `"./vault/asset-route"`.
-function spells(source: string, path: string): boolean {
-  return new RegExp(`${path}(?![\\w-])`, "u").test(source);
-}
+const spells = (source: string, path: string): boolean =>
+  new RegExp(`${path}(?![\\w-])`, "u").test(source);
 
-function spellings(source: string): Spelled[] {
-  return GUARDED.filter((row) => spells(source, row.path)).slice(0, 1);
-}
+const spellings = (source: string): Spelled[] =>
+  GUARDED.filter((row) => spells(source, row.path)).slice(0, 1);
 
-function sweptFiles(): string[] {
-  return workspaces()
+const sweptFiles = (): string[] =>
+  workspaces()
     .flatMap((workspace) => workspaceSourceFiles(workspace))
     .filter((file) => !isTestFile(file))
     .toSorted();
-}
 
-function hits(files: readonly string[]): Hit[] {
-  return files.flatMap((file) =>
+const hits = (files: readonly string[]): Hit[] =>
+  files.flatMap((file) =>
     spellings(sourceOf(file)).map((row) => ({
       file,
-      path: row.path,
       home: row.home,
+      path: row.path,
       use: row.use,
     })),
   );
-}
 
 describe("one spelling per non-procedure route path", () => {
   const files = sweptFiles();
@@ -106,8 +102,12 @@ describe("one spelling per non-procedure route path", () => {
   it("nothing outside the contract writes one as a literal", () => {
     const violations: string[] = [];
     for (const hit of hits(files)) {
-      if (hit.file === hit.home) continue;
-      if (ELSEWHERE.has(hit.file)) continue;
+      if (hit.file === hit.home) {
+        continue;
+      }
+      if (ELSEWHERE.has(hit.file)) {
+        continue;
+      }
       violations.push(
         `HAND-SPELLED ROUTE PATH  ${hit.file}\n` +
           `  found: the literal "${hit.path}…"\n` +

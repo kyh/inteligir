@@ -2,37 +2,37 @@
 
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { platformShortcutModifier, type ShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
 import {
   bindingFor,
   GLOBAL_SHORTCUTS,
   globalShortcutFor,
   useGlobalShortcuts,
-  type GlobalShortcutAction,
 } from "../global-shortcuts";
+import type { GlobalShortcutAction } from "../global-shortcuts";
 
 afterEach(cleanup);
 
-function keydown(init: KeyboardEventInit): KeyboardEvent {
-  return new KeyboardEvent("keydown", { key: "k", ...init });
-}
+const keydown = (init: KeyboardEventInit): KeyboardEvent =>
+  new KeyboardEvent("keydown", { key: "k", ...init });
 
-function mountListener(modifier: ShortcutModifier): GlobalShortcutAction[] {
+const mountListener = (modifier: ShortcutModifier): GlobalShortcutAction[] => {
   const fired: GlobalShortcutAction[] = [];
-  function Harnessed() {
+  const Harnessed = () => {
     useGlobalShortcuts(modifier, (action) => {
       fired.push(action);
     });
     return <div />;
-  }
+  };
   render(<Harnessed />);
   return fired;
-}
+};
 
 describe("the window listener", () => {
   it("fires the table's action for a claimed key", () => {
     const fired = mountListener("ctrl");
-    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    fireEvent.keyDown(window, { ctrlKey: true, key: "k" });
     expect(fired).toEqual(["open-action-composer"]);
   });
 
@@ -46,8 +46,8 @@ describe("the window listener", () => {
     const fired = mountListener("ctrl");
     for (const shortcut of GLOBAL_SHORTCUTS) {
       fireEvent.keyDown(window, {
-        key: shortcut.key,
         ctrlKey: true,
+        key: shortcut.key,
         shiftKey: shortcut.shift === true,
       });
     }
@@ -73,8 +73,8 @@ describe("the matcher", () => {
 
   it("refuses a combination carrying any other modifier", () => {
     expect(globalShortcutFor(keydown({ metaKey: true, shiftKey: true }), "meta")).toBeNull();
-    expect(globalShortcutFor(keydown({ metaKey: true, altKey: true }), "meta")).toBeNull();
-    expect(globalShortcutFor(keydown({ metaKey: true, ctrlKey: true }), "meta")).toBeNull();
+    expect(globalShortcutFor(keydown({ altKey: true, metaKey: true }), "meta")).toBeNull();
+    expect(globalShortcutFor(keydown({ ctrlKey: true, metaKey: true }), "meta")).toBeNull();
     expect(globalShortcutFor(keydown({}), "meta")).toBeNull();
   });
 
@@ -86,7 +86,7 @@ describe("the matcher", () => {
       globalShortcutFor(keydown({ key: "F", metaKey: true, shiftKey: true }), "meta")?.action,
     ).toBe("open-search");
     expect(
-      globalShortcutFor(keydown({ key: "f", metaKey: true, shiftKey: true, altKey: true }), "meta"),
+      globalShortcutFor(keydown({ altKey: true, key: "f", metaKey: true, shiftKey: true }), "meta"),
     ).toBeNull();
   });
 });

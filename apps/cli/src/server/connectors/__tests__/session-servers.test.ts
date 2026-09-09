@@ -1,14 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { composeSessionMcpServers } from "../session-servers";
 
 const OAUTH_ROW = {
-  kind: "oauth" as const,
-  url: "https://mcp.example.com/sse",
   authorizationEndpoint: "https://auth.example.com/authorize",
-  tokenEndpoint: "https://auth.example.com/token",
   clientId: "client-1",
+  kind: "oauth" as const,
   scopes: ["read"],
+  tokenEndpoint: "https://auth.example.com/token",
+  url: "https://mcp.example.com/sse",
 };
 
 describe("composeSessionMcpServers", () => {
@@ -16,19 +16,19 @@ describe("composeSessionMcpServers", () => {
     const servers = await composeSessionMcpServers(
       {
         enabledForSessions: () => [
-          { name: "local", transport: { kind: "stdio", command: "srv", args: ["--x"] } },
+          { name: "local", transport: { args: ["--x"], command: "srv", kind: "stdio" } },
           {
             name: "hosted",
             transport: {
+              headers: { "X-K": "v" },
               kind: "http",
               url: "https://mcp.example.com/http",
-              headers: { "X-K": "v" },
             },
           },
           { name: "linear", transport: OAUTH_ROW },
         ],
       },
-      { freshAccessToken: () => Promise.resolve("tok-123") },
+      { freshAccessToken: vi.fn<() => Promise<string | null>>().mockResolvedValue("tok-123") },
     );
     expect(servers).toEqual([
       { args: ["--x"], command: "srv", kind: "stdio", name: "local" },
@@ -52,10 +52,10 @@ describe("composeSessionMcpServers", () => {
       {
         enabledForSessions: () => [
           { name: "linear", transport: OAUTH_ROW },
-          { name: "local", transport: { kind: "stdio", command: "srv", args: [] } },
+          { name: "local", transport: { args: [], command: "srv", kind: "stdio" } },
         ],
       },
-      { freshAccessToken: () => Promise.resolve(null) },
+      { freshAccessToken: vi.fn<() => Promise<string | null>>().mockResolvedValue(null) },
     );
     expect(servers).toEqual([{ args: [], command: "srv", kind: "stdio", name: "local" }]);
   });
@@ -67,7 +67,7 @@ describe("composeSessionMcpServers", () => {
           { name: "plain", transport: { kind: "http", url: "https://mcp.example.com/h" } },
         ],
       },
-      { freshAccessToken: () => Promise.resolve(null) },
+      { freshAccessToken: vi.fn<() => Promise<string | null>>().mockResolvedValue(null) },
     );
     expect(servers[0] !== undefined && "headers" in servers[0]).toBe(false);
   });

@@ -1,7 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023"],
+    // this program compiles apps/cli's server, which it hosts in-process and which targets ES2024.
+    "lib": ["ES2024"],
     "types": ["node"],
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.main.json"
   },

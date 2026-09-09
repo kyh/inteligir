@@ -1,7 +1,7 @@
 export const siteConfig = {
+  description: "The workspace for knowledge work.",
   name: "Inteligir",
   shortName: "Inteligir",
-  description: "The workspace for knowledge work.",
-  url: "https://inteligir.com",
   twitter: "@kaiyuhsu",
+  url: "https://inteligir.com",
 };

@@ -1,5 +1,5 @@
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   authorizationHeader,
@@ -15,7 +15,7 @@ import {
 } from "../server-file";
 import { makeTempDir } from "./temp-dir";
 
-const ROW = { port: 4664, token: "tok", vaultDir: "/vault", pid: 42 };
+const ROW = { pid: 42, port: 4664, token: "tok", vaultDir: "/vault" };
 
 describe("the server file", () => {
   it("round-trips the row a caller needs to reach this instance", () => {
@@ -28,18 +28,19 @@ describe("the server file", () => {
     // writeFileSync's mode applies only on create, so the chmod simulates a file inherited from a laxer umask.
     const dataDir = makeTempDir("inteligir-server-file-");
     writeServerFile(dataDir, ROW);
-    chmodSync(join(dataDir, SERVER_FILE_NAME), 0o644);
+    chmodSync(path.join(dataDir, SERVER_FILE_NAME), 0o644);
     writeServerFile(dataDir, { ...ROW, port: 4665 });
-    expect(statSync(join(dataDir, SERVER_FILE_NAME)).mode & 0o777).toBe(0o600);
+    // oxlint-disable-next-line no-bitwise -- masking the permission bits out of a stat mode
+    expect(statSync(path.join(dataDir, SERVER_FILE_NAME)).mode & 0o777).toBe(0o600);
   });
 
   it("answers null for a data dir with no server, and for a row it cannot parse", () => {
     const dataDir = makeTempDir("inteligir-server-file-");
     expect(readServerFile(dataDir)).toBeNull();
     mkdirSync(dataDir, { recursive: true });
-    writeFileSync(join(dataDir, SERVER_FILE_NAME), "{ not json", "utf8");
+    writeFileSync(path.join(dataDir, SERVER_FILE_NAME), "{ not json", "utf-8");
     expect(readServerFile(dataDir)).toBeNull();
-    writeFileSync(join(dataDir, SERVER_FILE_NAME), JSON.stringify({ port: 4664 }), "utf8");
+    writeFileSync(path.join(dataDir, SERVER_FILE_NAME), JSON.stringify({ port: 4664 }), "utf-8");
     expect(readServerFile(dataDir)).toBeNull();
   });
 
@@ -48,7 +49,9 @@ describe("the server file", () => {
     writeServerFile(dataDir, ROW);
     removeServerFile(dataDir);
     expect(readServerFile(dataDir)).toBeNull();
-    expect(() => removeServerFile(dataDir)).not.toThrow();
+    expect(() => {
+      removeServerFile(dataDir);
+    }).not.toThrow();
   });
 
   it("mints a fresh token per boot — a persisted one is replayable", () => {
@@ -60,7 +63,7 @@ describe("the server file", () => {
     const dataDir = makeTempDir("inteligir-server-file-");
     const token = mintServerToken();
     writeServerFile(dataDir, { ...ROW, token });
-    expect(readFileSync(join(dataDir, SERVER_FILE_NAME), "utf8")).toContain(token);
+    expect(readFileSync(path.join(dataDir, SERVER_FILE_NAME), "utf-8")).toContain(token);
   });
 });
 
@@ -68,13 +71,13 @@ describe("what a request presents", () => {
   it("reads the bearer, and prefers it over a cookie", () => {
     expect(
       presentedCredential({ authorization: authorizationHeader("header-tok"), cookie: undefined }),
-    ).toEqual({ token: "header-tok", carrier: "header" });
+    ).toEqual({ carrier: "header", token: "header-tok" });
     expect(
       presentedCredential({
         authorization: authorizationHeader("header-tok"),
         cookie: `${SERVER_TOKEN_COOKIE}=cookie-tok`,
       }),
-    ).toEqual({ token: "header-tok", carrier: "header" });
+    ).toEqual({ carrier: "header", token: "header-tok" });
   });
 
   it("reads the cookie out of a header carrying several", () => {
@@ -83,7 +86,7 @@ describe("what a request presents", () => {
         authorization: undefined,
         cookie: `theme=dark; ${SERVER_TOKEN_COOKIE}=cookie-tok; other=1`,
       }),
-    ).toEqual({ token: "cookie-tok", carrier: "cookie" });
+    ).toEqual({ carrier: "cookie", token: "cookie-tok" });
   });
 
   it("is null for anything that is not a credential", () => {

@@ -15,9 +15,9 @@ export interface RenameTagArgs {
   to: string;
 }
 
-export async function renameTagAcrossVault(
+export const renameTagAcrossVault = async (
   args: RenameTagArgs,
-): Promise<KnowledgeRenameTagResponse> {
+): Promise<KnowledgeRenameTagResponse> => {
   const { service, knowledge, from, to } = args;
   const candidates = await knowledge.tagRenameCandidates(from);
   const { docs, skipped } = await snapshotDocs(service, candidates);
@@ -25,7 +25,9 @@ export async function renameTagAcrossVault(
   const rewritten: string[] = [];
   for (const [path, content] of computeTagRenameEdits(docs, from, to)) {
     const snapshot = docs.get(path);
-    if (snapshot === undefined) continue;
+    if (snapshot === undefined) {
+      continue;
+    }
     const result = await service.writeIfUnchanged(path, snapshot, content);
     if (result.applied) {
       rewritten.push(path);
@@ -33,5 +35,5 @@ export async function renameTagAcrossVault(
       skipped.push({ path, reason: result.reason });
     }
   }
-  return { from, to, rewritten, skipped };
-}
+  return { from, rewritten, skipped, to };
+};

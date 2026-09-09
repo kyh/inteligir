@@ -17,55 +17,55 @@ interface CountedRow<Row extends TimelineRow> {
   renders: () => number;
 }
 
-function counted<Row extends TimelineRow>(row: Row): CountedRow<Row> {
+const counted = <Row extends TimelineRow>(row: Row): CountedRow<Row> => {
   let renders = 0;
   const { kind } = row;
   const counting = Object.defineProperty({ ...row }, "kind", {
+    enumerable: true,
     get: () => {
       renders += 1;
       return kind;
     },
-    enumerable: true,
   });
-  return { row: counting, renders: () => renders };
-}
+  return { renders: () => renders, row: counting };
+};
 
-const base = { threadId: "thr_1", createdAt: 1_000 };
+const base = { createdAt: 1000, threadId: "thr_1" };
 
 const assistant = (text: string, seq: number): TimelineRow => ({
   ...base,
+  id: "item:turn_1:item_a",
   kind: "conversation",
   role: "assistant",
-  id: "item:turn_1:item_a",
-  turnId: "turn_1",
-  text,
-  viewContext: null,
-  sourceSeqStart: 5,
   sourceSeqEnd: seq,
+  sourceSeqStart: 5,
+  text,
+  turnId: "turn_1",
+  viewContext: null,
 });
 
 const pendingTurn: TimelineTurnRow = {
   ...base,
-  kind: "turn",
-  id: "turn:turn_1",
-  turnId: "turn_1",
-  status: "pending",
-  completedAt: null,
   children: [
     {
       ...base,
-      kind: "work",
-      workKind: "reasoning",
       id: "item:turn_1:item_r",
-      turnId: "turn_1",
+      kind: "work",
+      sourceSeqEnd: 4,
+      sourceSeqStart: 3,
       status: "completed",
       text: "Scanning the vault…",
-      sourceSeqStart: 3,
-      sourceSeqEnd: 4,
+      turnId: "turn_1",
+      workKind: "reasoning",
     },
   ],
-  sourceSeqStart: 2,
+  completedAt: null,
+  id: "turn:turn_1",
+  kind: "turn",
   sourceSeqEnd: 4,
+  sourceSeqStart: 2,
+  status: "pending",
+  turnId: "turn_1",
 };
 
 const List = ({ rows }: { rows: readonly TimelineRow[] }) => (
@@ -93,14 +93,14 @@ it("re-renders only the row a delta actually replaced", () => {
 
 const userMessage = (viewContext: TimelineConversationRow["viewContext"]): TimelineRow => ({
   ...base,
+  id: "user:1",
   kind: "conversation",
   role: "user",
-  id: "user:1",
-  turnId: null,
-  text: "make this shorter",
-  viewContext,
-  sourceSeqStart: 1,
   sourceSeqEnd: 1,
+  sourceSeqStart: 1,
+  text: "make this shorter",
+  turnId: null,
+  viewContext,
 });
 
 it("attributes a user message to what the sender was looking at", () => {
@@ -108,9 +108,9 @@ it("attributes a user message to what the sender was looking at", () => {
     <List
       rows={[
         userMessage({
-          surface: "doc",
           resource: "Notes/Plans.md",
           revision: "a".repeat(64),
+          surface: "doc",
         }),
       ]}
     />,

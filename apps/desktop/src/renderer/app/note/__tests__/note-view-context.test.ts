@@ -1,10 +1,12 @@
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
-import { readNoteViewContext, type OpenNoteView } from "../note-view-context";
+import { readNoteViewContext } from "../note-view-context";
+import type { OpenNoteView } from "../note-view-context";
 
-function openNote(disk: { content: string }, buffer: string) {
+const openNote = (disk: { content: string }, buffer: string) => {
   const calls: string[] = [];
   const view: OpenNoteView = {
+    // oxlint-disable-next-line require-await -- the view's save is an async port; this fake answers from memory
     flush: async () => {
       calls.push("flush");
       disk.content = buffer;
@@ -14,8 +16,8 @@ function openNote(disk: { content: string }, buffer: string) {
       return { content: buffer };
     },
   };
-  return { view, calls };
-}
+  return { calls, view };
+};
 
 describe("readNoteViewContext", () => {
   it("flushes the dirty buffer first, so the revision is what is then on disk", async () => {
@@ -28,9 +30,9 @@ describe("readNoteViewContext", () => {
     expect(calls).toEqual(["flush", "read"]);
     expect(disk.content).toBe(buffer);
     expect(context).toEqual({
-      surface: "doc",
       resource: "Notes/Plans.md",
       revision: await contentHashHex(disk.content),
+      surface: "doc",
     });
     expect(context.revision).not.toBe(await contentHashHex("# Plans\n"));
   });
@@ -38,7 +40,10 @@ describe("readNoteViewContext", () => {
   it("still answers when the save failed — the buffer is what the user sees", async () => {
     const buffer = "unsaved";
     const view: OpenNoteView = {
-      flush: () => Promise.reject(new Error("the note could not be saved")),
+      // oxlint-disable-next-line require-await -- the view's save is an async port; this fake refuses from memory
+      flush: async () => {
+        throw new Error("the note could not be saved");
+      },
       read: () => ({ content: buffer }),
     };
 

@@ -2,15 +2,17 @@
 // rather than pushing it out, so a steady burst still fires at the first deadline.
 
 export interface CoalescingTimer {
-  arm(): void;
-  clear(): void;
+  arm: () => void;
+  clear: () => void;
 }
 
-export function createCoalescingTimer(delayMs: number, fire: () => void): CoalescingTimer {
+export const createCoalescingTimer = (delayMs: number, fire: () => void): CoalescingTimer => {
   let timer: ReturnType<typeof setTimeout> | null = null;
   return {
     arm() {
-      if (timer !== null) return;
+      if (timer !== null) {
+        return;
+      }
       timer = setTimeout(() => {
         timer = null;
         fire();
@@ -18,9 +20,11 @@ export function createCoalescingTimer(delayMs: number, fire: () => void): Coales
       timer.unref?.();
     },
     clear() {
-      if (timer === null) return;
+      if (timer === null) {
+        return;
+      }
       clearTimeout(timer);
       timer = null;
     },
   };
-}
+};

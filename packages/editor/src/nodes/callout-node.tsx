@@ -1,4 +1,5 @@
-import { PlateElement, type PlateElementProps } from "platejs/react";
+import { PlateElement } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "cn";
 
@@ -15,9 +16,9 @@ const VARIANT_ACCENTS = new Map([
   ["warning", "border-amber-500/60 bg-amber-500/[0.05]"],
 ]);
 
-export function CalloutElement(props: PlateElementProps) {
+export const CalloutElement = (props: PlateElementProps) => {
   const variant = stringProp(props.element, "variant")?.toLowerCase() ?? "";
-  const icon = stringProp(props.element, "icon") ?? null;
+  const icon = stringProp(props.element, "icon") ?? "";
   const accent = VARIANT_ACCENTS.get(variant) ?? "border-border bg-muted/40";
 
   return (
@@ -37,4 +38,4 @@ export function CalloutElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};

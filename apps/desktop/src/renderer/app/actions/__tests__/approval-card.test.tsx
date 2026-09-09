@@ -5,38 +5,39 @@ import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-int
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalCard, approvalOffer, decisionFromAnswers } from "../approval-card";
+import type { ApprovalCardProps } from "../approval-card";
 
 afterEach(cleanup);
 
-function interactionWith(payload: ApprovalPendingInteractionPayload | null): PendingInteraction {
-  return {
-    id: "pint_1",
-    threadId: "thr_1",
-    turnId: "turn_1",
-    requestKey: "req-1",
-    status: "pending",
-    payload,
-    resolution: null,
-    createdAt: 1,
-    resolvedAt: null,
-  };
-}
+const interactionWith = (
+  payload: ApprovalPendingInteractionPayload | null,
+): PendingInteraction => ({
+  createdAt: 1,
+  id: "pint_1",
+  payload,
+  requestKey: "req-1",
+  resolution: null,
+  resolvedAt: null,
+  status: "pending",
+  threadId: "thr_1",
+  turnId: "turn_1",
+});
 
 const commandPayload: ApprovalPendingInteractionPayload = {
+  availableDecisions: ["allow_once", "deny"],
   kind: "approval",
+  reason: "The command deletes files.",
   subject: {
-    kind: "command",
-    itemId: "item_1",
     command: "rm -rf node_modules",
     cwd: null,
+    itemId: "item_1",
+    kind: "command",
   },
-  reason: "The command deletes files.",
-  availableDecisions: ["allow_once", "deny"],
 };
 
 describe("ApprovalCard", () => {
   it("renders the offered decisions and answers with the clicked one", () => {
-    const onAnswer = vi.fn();
+    const onAnswer = vi.fn<ApprovalCardProps["onAnswer"]>();
     render(<ApprovalCard interaction={interactionWith(commandPayload)} onAnswer={onAnswer} />);
     expect(screen.getByText("$ rm -rf node_modules")).toBeTruthy();
     expect(screen.getByText("The command deletes files.")).toBeTruthy();
@@ -46,14 +47,14 @@ describe("ApprovalCard", () => {
   });
 
   it("always offers Deny", () => {
-    const onAnswer = vi.fn();
+    const onAnswer = vi.fn<ApprovalCardProps["onAnswer"]>();
     render(<ApprovalCard interaction={interactionWith(commandPayload)} onAnswer={onAnswer} />);
     fireEvent.click(screen.getByText("Deny"));
     expect(onAnswer).toHaveBeenCalledWith("pint_1", "deny");
   });
 
   it("falls back to a deny-only card when the host could not read the payload", () => {
-    const onAnswer = vi.fn();
+    const onAnswer = vi.fn<ApprovalCardProps["onAnswer"]>();
     render(<ApprovalCard interaction={interactionWith(null)} onAnswer={onAnswer} />);
     expect(screen.getByText("The agent asked for approval.")).toBeTruthy();
     expect(screen.queryByText("Allow once")).toBeNull();
@@ -62,7 +63,7 @@ describe("ApprovalCard", () => {
   });
 
   it("disables the buttons while an answer is in flight", () => {
-    const onAnswer = vi.fn();
+    const onAnswer = vi.fn<ApprovalCardProps["onAnswer"]>();
     render(
       <ApprovalCard interaction={interactionWith(commandPayload)} onAnswer={onAnswer} disabled />,
     );
@@ -79,13 +80,13 @@ describe("ApprovalCard", () => {
   });
 
   it("takes the picked option id as the resolution verb, and nothing else", () => {
-    expect(decisionFromAnswers([{ questionId: "pint_1", optionIds: ["allow_once"] }])).toBe(
+    expect(decisionFromAnswers([{ optionIds: ["allow_once"], questionId: "pint_1" }])).toBe(
       "allow_once",
     );
     expect(
-      decisionFromAnswers([{ questionId: "pint_1", optionIds: [], custom: "maybe" }]),
+      decisionFromAnswers([{ custom: "maybe", optionIds: [], questionId: "pint_1" }]),
     ).toBeNull();
-    expect(decisionFromAnswers([{ questionId: "pint_1", optionIds: ["nonsense"] }])).toBeNull();
+    expect(decisionFromAnswers([{ optionIds: ["nonsense"], questionId: "pint_1" }])).toBeNull();
     expect(decisionFromAnswers([])).toBeNull();
   });
 });

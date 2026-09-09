@@ -6,6 +6,8 @@ import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // schema_version is seeded by the first migration and bumped by every later one.
+/* oxlint-disable sort-keys -- a table's column order is the CREATE TABLE order drizzle-kit
+   emits; sorting it makes the next generated migration recreate every table. */
 export const meta = sqliteTable("meta", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
@@ -170,3 +172,4 @@ export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
   id: text("id").primaryKey(),
   appliedAt: integer("applied_at").notNull(),
 });
+/* oxlint-enable sort-keys */

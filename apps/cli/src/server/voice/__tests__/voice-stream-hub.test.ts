@@ -1,37 +1,38 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  MAX_CONCURRENT_STREAM_SESSIONS,
-  STREAM_IDLE_TIMEOUT_MS,
-  VoiceStreamHub,
-  type VoiceStreamSocket,
-} from "../voice-stream-hub";
+import { STREAM_IDLE_TIMEOUT_MS } from "../voice-stream-connection";
+import type { VoiceStreamSocket } from "../voice-stream-connection";
+import { MAX_CONCURRENT_STREAM_SESSIONS, VoiceStreamHub } from "../voice-stream-hub";
 import type { StreamHandlers, StreamSession } from "../stream-session";
 import type { VoiceService } from "../voice-service";
 
 interface FakeSocket {
   socket: VoiceStreamSocket;
   sent: string[];
-  closes: Array<{ code: number | undefined; reason: string | undefined }>;
+  closes: { code: number | undefined; reason: string | undefined }[];
   terminated: () => number;
 }
 
 // records its close but never fires onClose: a stuck client.
-function fakeSocket(): FakeSocket {
+const fakeSocket = (): FakeSocket => {
   const sent: string[] = [];
-  const closes: Array<{ code: number | undefined; reason: string | undefined }> = [];
+  const closes: { code: number | undefined; reason: string | undefined }[] = [];
   let terminated = 0;
   const socket: VoiceStreamSocket = {
-    send: (data) => sent.push(data),
-    close: (code, reason) => closes.push({ code, reason }),
-    readyState: 1,
+    close: (code, reason) => {
+      closes.push({ code, reason });
+    },
     raw: {
       terminate: () => {
         terminated += 1;
       },
     },
+    readyState: 1,
+    send: (data) => {
+      sent.push(data);
+    },
   };
-  return { socket, sent, closes, terminated: () => terminated };
-}
+  return { closes, sent, socket, terminated: () => terminated };
+};
 
 interface FakeSession extends StreamSession {
   pushed: ArrayBuffer[];
@@ -40,41 +41,47 @@ interface FakeSession extends StreamSession {
   handlers: StreamHandlers;
 }
 
-function makeFakeSession(handlers: StreamHandlers): FakeSession {
+const makeFakeSession = (handlers: StreamHandlers): FakeSession => {
   const session: FakeSession = {
-    pushed: [],
-    finalized: 0,
+    dispose: () => {
+      session.disposed = true;
+    },
     disposed: false,
-    handlers,
-    pushPcm: (pcm) => session.pushed.push(pcm),
     finalize: () => {
       session.finalized += 1;
     },
-    dispose: async () => {
-      session.disposed = true;
+    finalized: 0,
+    handlers,
+    pushPcm: (pcm) => {
+      session.pushed.push(pcm);
     },
+    pushed: [],
   };
   return session;
-}
+};
 
-function fakeVoice() {
+const fakeVoice = () => {
   let created = 0;
   const sessions: FakeSession[] = [];
   const model = { id: "fake", label: "Fake", sizeBytes: 1 };
   const voice: VoiceService = {
-    status: async () => ({ state: "ready", model }),
-    install: async () => ({ state: "ready", model }),
-    remove: async () => ({ state: "ready", model }),
     createStreamSession: (handlers) => {
       created += 1;
       const session = makeFakeSession(handlers);
       sessions.push(session);
       return session;
     },
-    dispose: async () => undefined,
+    dispose: async () => {
+      // nothing to stop
+    },
+    /* oxlint-disable require-await -- VoiceService is an async port; this fake answers from memory */
+    install: async () => ({ model, state: "ready" }),
+    remove: async () => ({ model, state: "ready" }),
+    status: async () => ({ model, state: "ready" }),
+    /* oxlint-enable require-await */
   };
-  return { voice, created: () => created, sessions };
-}
+  return { created: () => created, sessions, voice };
+};
 
 afterEach(() => {
   vi.useRealTimers();
@@ -87,8 +94,10 @@ describe("VoiceStreamHub teardown", () => {
     const fake = fakeSocket();
     hub.open(fake.socket);
     expect(hub.size).toBe(1);
-    const session = sessions[0];
-    if (session === undefined) throw new Error("no session");
+    const [session] = sessions;
+    if (session === undefined) {
+      throw new Error("no session");
+    }
 
     hub.closeAllClients();
     expect(fake.closes.at(-1)?.code).toBe(1001);
@@ -126,8 +135,10 @@ describe("VoiceStreamHub idle reap", () => {
     const hub = new VoiceStreamHub(voice);
     const fake = fakeSocket();
     hub.open(fake.socket);
-    const session = sessions[0];
-    if (session === undefined) throw new Error("no session");
+    const [session] = sessions;
+    if (session === undefined) {
+      throw new Error("no session");
+    }
 
     vi.advanceTimersByTime(STREAM_IDLE_TIMEOUT_MS + 1);
     expect(fake.terminated()).toBe(1);

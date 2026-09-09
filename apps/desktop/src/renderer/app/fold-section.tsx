@@ -6,7 +6,7 @@ import { ChevronRightIcon } from "lucide-react";
 // on hover or focus. The body mounts only while open, since unfolding is what starts the reads
 // behind some sections. A `fill` section takes a share of its column and hands its children the
 // column to scroll in.
-export function FoldSection({
+export const FoldSection = ({
   label,
   summary,
   actions,
@@ -22,7 +22,12 @@ export function FoldSection({
   onOpenChange: (open: boolean) => void;
   fill?: boolean;
   children: React.ReactNode;
-}) {
+}) => {
+  const body = fill ? (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+  ) : (
+    children
+  );
   return (
     <div
       className={cn(
@@ -53,11 +58,7 @@ export function FoldSection({
           </div>
         )}
       </div>
-      {!open ? null : fill ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
-      ) : (
-        children
-      )}
+      {open ? body : null}
     </div>
   );
-}
+};

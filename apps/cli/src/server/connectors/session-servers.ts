@@ -5,10 +5,10 @@ import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import type { ConnectorsService } from "./connectors-service";
 import type { ConnectorOauthFlow } from "./oauth-flow";
 
-export async function composeSessionMcpServers(
+export const composeSessionMcpServers = async (
   connectors: Pick<ConnectorsService, "enabledForSessions">,
   oauth: Pick<ConnectorOauthFlow, "freshAccessToken">,
-): Promise<AcpMcpServerConfig[]> {
+): Promise<AcpMcpServerConfig[]> => {
   const servers: AcpMcpServerConfig[] = [];
   for (const row of connectors.enabledForSessions()) {
     if (row.transport.kind === "stdio") {
@@ -45,4 +45,4 @@ export async function composeSessionMcpServers(
     servers.push(server);
   }
   return servers;
-}
+};

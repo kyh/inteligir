@@ -5,7 +5,7 @@ const LOCAL_HOSTS = ["127.0.0.1", "localhost"] as const;
 // a foreign hostname answers null: the server binds 127.0.0.1 only, and honoring
 // one would let a DNS-rebinding page mint a matching Origin/Host pair. this
 // answers which address, never who — a Host header authenticates nothing.
-export function loopbackRequestOrigin(host: string | undefined): string | null {
+export const loopbackRequestOrigin = (host: string | undefined): string | null => {
   if (host === undefined || host.length === 0) {
     return null;
   }
@@ -25,4 +25,4 @@ export function loopbackRequestOrigin(host: string | undefined): string | null {
     return null;
   }
   return url.origin;
-}
+};

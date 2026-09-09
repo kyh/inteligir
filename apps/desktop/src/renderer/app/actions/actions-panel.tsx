@@ -5,8 +5,8 @@ import {
   TaskItemRow,
   TaskList,
   TaskStatusLabel,
-  type TaskStatus,
 } from "@repo/ui/ai/task-rows";
+import type { TaskStatus } from "@repo/ui/ai/task-rows";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
@@ -27,7 +27,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { orpc } from "../api";
 import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
-import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../thread-activity";
+import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
+import type { ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 import { NoteFacts } from "./note-facts";
@@ -67,7 +68,7 @@ export interface ActionsPanelProps {
   noteMetadata: NoteMetadataActions;
 }
 
-function InlineProperties({
+const InlineProperties = ({
   docPath,
   open,
   onOpenChange,
@@ -75,22 +76,22 @@ function InlineProperties({
   docPath: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}) => {
   const editor = open ? getLiveEditor(docPath) : null;
   return (
     <FoldSection label="Properties" open={open} onOpenChange={onOpenChange}>
       <div className="px-3 pb-2">
-        {editor !== null ? (
-          <PropertiesPanel editor={editor} />
-        ) : (
+        {editor === null ? (
           <p className="pb-1 text-xs text-muted-foreground">Open the note to edit properties.</p>
+        ) : (
+          <PropertiesPanel editor={editor} />
         )}
       </div>
     </FoldSection>
   );
-}
+};
 
-function NoteMetadataTab({
+const NoteMetadataTab = ({
   docPath,
   propertiesOpen,
   onPropertiesOpenChange,
@@ -102,9 +103,10 @@ function NoteMetadataTab({
   onPropertiesOpenChange: (open: boolean) => void;
   onOpenDoc: (path: string) => void;
   actions: NoteMetadataActions;
-}) {
+}) => {
   const pinnedPaths = usePinnedPaths();
   const pinned = docPath !== null && pinnedPaths.has(docPath);
+  const { deleteNote, openDeletedNotes } = actions;
   if (docPath === null) {
     return <p className="p-3 text-sm text-muted-foreground">Open a note to see its metadata.</p>;
   }
@@ -135,7 +137,7 @@ function NoteMetadataTab({
             size="compact"
             leadingIcon={Trash2Icon}
             className="text-destructive hover:text-destructive"
-            onClick={actions.deleteNote}
+            onClick={deleteNote}
           >
             Delete note
           </Button>
@@ -143,7 +145,7 @@ function NoteMetadataTab({
             variant="ghost"
             size="compact"
             leadingIcon={ArchiveRestoreIcon}
-            onClick={actions.openDeletedNotes}
+            onClick={openDeletedNotes}
           >
             Deleted notes…
           </Button>
@@ -151,17 +153,23 @@ function NoteMetadataTab({
       </div>
     </div>
   );
-}
+};
 
 // picks the badge only; the wording stays THREAD_ACTIVITY_LABELS.
 const ACTIVITY_TASK_STATUS = {
-  running: "running",
+  archived: "done",
   done: "done",
   failed: "failed",
-  archived: "done",
+  running: "running",
 } satisfies Record<ThreadActivity, TaskStatus>;
 
-function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: string) => void }) {
+const ActionRow = ({
+  thread,
+  onSelect,
+}: {
+  thread: Thread;
+  onSelect: (threadId: string) => void;
+}) => {
   const activity = threadActivity(thread);
   return (
     <TaskItem>
@@ -176,9 +184,9 @@ function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: 
       </TaskItemRow>
     </TaskItem>
   );
-}
+};
 
-function ActionDetail({
+const ActionDetail = ({
   threadId,
   onBack,
   onOpenDoc,
@@ -186,7 +194,7 @@ function ActionDetail({
   threadId: string;
   onBack: () => void;
   onOpenDoc: (path: string) => void;
-}) {
+}) => {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const detailQuery = useThreadDetail(threadId);
@@ -221,21 +229,20 @@ function ActionDetail({
     void (async () => {
       try {
         const outcome = await sendToThread(api, {
-          threadId,
-          text: trimmed,
           activeTurnId: detailQuery.data?.thread.activeTurnId ?? null,
+          text: trimmed,
+          threadId,
         });
         if (outcome.kind === "refused") {
           toast.error(outcome.message);
-          return;
+        } else {
+          setText("");
         }
-        setText("");
       } catch {
         toast.error("Could not reach the agent.");
-      } finally {
-        setSending(false);
-        invalidate();
       }
+      setSending(false);
+      invalidate();
     })();
   };
 
@@ -245,9 +252,8 @@ function ActionDetail({
         await api.threads.answerInteraction({ interactionId, resolution, threadId });
       } catch {
         toast.error("Could not answer the approval.");
-      } finally {
-        invalidate();
       }
+      invalidate();
     })();
   };
 
@@ -258,9 +264,8 @@ function ActionDetail({
         onBack();
       } catch {
         toast.error("Could not archive the action.");
-      } finally {
-        invalidate();
       }
+      invalidate();
     })();
   };
 
@@ -318,9 +323,9 @@ function ActionDetail({
       </div>
     </div>
   );
-}
+};
 
-export function ActionsPanel({
+export const ActionsPanel = ({
   docPath,
   tab,
   onTabChange,
@@ -329,7 +334,7 @@ export function ActionsPanel({
   onSelectThread,
   onOpenDoc,
   noteMetadata,
-}: ActionsPanelProps) {
+}: ActionsPanelProps) => {
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const threadsQuery = useThreads();
   const threads = threadsQuery.data?.threads ?? [];
@@ -342,7 +347,9 @@ export function ActionsPanel({
       value={tab}
       onValueChange={(value) => {
         const next = PANEL_TABS.find((name) => name === value);
-        if (next !== undefined) onTabChange(next);
+        if (next !== undefined) {
+          onTabChange(next);
+        }
       }}
       className="h-full"
     >
@@ -371,15 +378,7 @@ export function ActionsPanel({
         />
       </TabsContent>
       <TabsContent value="actions">
-        {selectedThreadId !== null ? (
-          <ActionDetail
-            threadId={selectedThreadId}
-            onBack={() => {
-              onSelectThread(null);
-            }}
-            onOpenDoc={onOpenDoc}
-          />
-        ) : (
+        {selectedThreadId === null ? (
           <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
             {noteActions.length > 0 ? (
               <>
@@ -411,8 +410,16 @@ export function ActionsPanel({
               </p>
             ) : null}
           </div>
+        ) : (
+          <ActionDetail
+            threadId={selectedThreadId}
+            onBack={() => {
+              onSelectThread(null);
+            }}
+            onOpenDoc={onOpenDoc}
+          />
         )}
       </TabsContent>
     </Tabs>
   );
-}
+};

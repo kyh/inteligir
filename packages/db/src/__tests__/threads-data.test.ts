@@ -1,7 +1,8 @@
 import { createConnection } from "../connection";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import { describe, expect, it } from "vitest";
-import { noopNotifier, type DbNotifier } from "@repo/domain/notifier";
+import { noopNotifier } from "@repo/domain/notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import { openTempDb } from "./open-temp-db";
 import {
   applyThreadLifecycleEvent,
@@ -22,18 +23,18 @@ interface RecordingNotifier {
   threadChanges: RecordedThreadChange[];
 }
 
-function recordingNotifier(): RecordingNotifier {
+const recordingNotifier = (): RecordingNotifier => {
   const threadChanges: RecordedThreadChange[] = [];
   return {
-    threadChanges,
     notifier: {
       ...noopNotifier,
       notifyThread(threadId, changes) {
-        threadChanges.push({ threadId, changes });
+        threadChanges.push({ changes, threadId });
       },
     },
+    threadChanges,
   };
-}
+};
 
 describe("thread CRUD", () => {
   it("creates idle threads and fires thread-created", () => {
@@ -44,7 +45,7 @@ describe("thread CRUD", () => {
     expect(thread.title).toBe("Research");
     expect(thread.originDocPath).toBeNull();
     expect(getThread(db, thread.id)).toEqual(thread);
-    expect(threadChanges).toEqual([{ threadId: thread.id, changes: ["thread-created"] }]);
+    expect(threadChanges).toEqual([{ changes: ["thread-created"], threadId: thread.id }]);
   });
 
   it("stores the doc attachment", () => {
@@ -71,7 +72,7 @@ describe("thread CRUD", () => {
     expect(archived?.archivedAt).not.toBeNull();
     const again = archiveThread(db, notifier, thread.id);
     expect(again?.archivedAt).toBe(archived?.archivedAt);
-    expect(threadChanges).toEqual([{ threadId: thread.id, changes: ["archived-changed"] }]);
+    expect(threadChanges).toEqual([{ changes: ["archived-changed"], threadId: thread.id }]);
   });
 });
 
@@ -83,12 +84,12 @@ describe("applyThreadLifecycleEvent", () => {
 
     for (const [event, expectedStatus, expectedTurn] of [
       [{ type: "run.preparing" }, "starting", null],
-      [{ type: "run.started", turnId: "turn_1" }, "active", "turn_1"],
-      [{ type: "run.succeeded", turnId: "turn_1" }, "idle", null],
+      [{ turnId: "turn_1", type: "run.started" }, "active", "turn_1"],
+      [{ turnId: "turn_1", type: "run.succeeded" }, "idle", null],
     ] as const) {
       const outcome = applyThreadLifecycleEvent(db, notifier, {
-        threadId: thread.id,
         event,
+        threadId: thread.id,
       });
       expect(outcome.applied).toBe(true);
       if (outcome.applied) {
@@ -107,21 +108,21 @@ describe("applyThreadLifecycleEvent", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
     applyThreadLifecycleEvent(db, noopNotifier, {
+      event: { turnId: "turn_a", type: "run.started" },
       threadId: thread.id,
-      event: { type: "run.started", turnId: "turn_a" },
     });
     applyThreadLifecycleEvent(db, noopNotifier, {
+      event: { turnId: "turn_a", type: "run.succeeded" },
       threadId: thread.id,
-      event: { type: "run.succeeded", turnId: "turn_a" },
     });
     applyThreadLifecycleEvent(db, noopNotifier, {
+      event: { turnId: "turn_b", type: "run.started" },
       threadId: thread.id,
-      event: { type: "run.started", turnId: "turn_b" },
     });
 
     const stale = applyThreadLifecycleEvent(db, noopNotifier, {
+      event: { turnId: "turn_a", type: "run.succeeded" },
       threadId: thread.id,
-      event: { type: "run.succeeded", turnId: "turn_a" },
     });
     expect(stale).toMatchObject({ applied: false, reason: "stale-turn" });
     const row = getThread(db, thread.id);
@@ -134,21 +135,21 @@ describe("applyThreadLifecycleEvent", () => {
     const thread = createThread(db, noopNotifier, {});
 
     const illegal = applyThreadLifecycleEvent(db, noopNotifier, {
+      event: { turnId: null, type: "stop.settled" },
       threadId: thread.id,
-      event: { type: "stop.settled", turnId: null },
     });
     expect(illegal).toMatchObject({ applied: false, reason: "illegal-transition" });
 
     const missing = applyThreadLifecycleEvent(db, noopNotifier, {
-      threadId: "thr_missing",
       event: { type: "run.preparing" },
+      threadId: "thr_missing",
     });
     expect(missing).toMatchObject({ applied: false, reason: "not-found" });
 
     archiveThread(db, noopNotifier, thread.id);
     const superseded = applyThreadLifecycleEvent(db, noopNotifier, {
-      threadId: thread.id,
       event: { type: "run.preparing" },
+      threadId: thread.id,
     });
     expect(superseded).toMatchObject({ applied: false, reason: "superseded" });
   });
@@ -159,24 +160,24 @@ describe("applyThreadLifecycleEvent", () => {
     const thread = createThread(db, noopNotifier, {});
 
     const first = applyThreadLifecycleEvent(db, noopNotifier, {
+      event: { turnId: "turn_1", type: "run.started" },
       threadId: thread.id,
-      event: { type: "run.started", turnId: "turn_1" },
     });
     expect(first.applied).toBe(true);
     const rivalStart = applyThreadLifecycleEvent(rival, noopNotifier, {
+      event: { turnId: "turn_2", type: "run.started" },
       threadId: thread.id,
-      event: { type: "run.started", turnId: "turn_2" },
     });
     expect(rivalStart).toMatchObject({ applied: false, reason: "illegal-transition" });
 
     const rivalSettle = applyThreadLifecycleEvent(rival, noopNotifier, {
+      event: { turnId: "turn_1", type: "run.succeeded" },
       threadId: thread.id,
-      event: { type: "run.succeeded", turnId: "turn_1" },
     });
     expect(rivalSettle.applied).toBe(true);
     const staleSettle = applyThreadLifecycleEvent(db, noopNotifier, {
+      event: { turnId: "turn_1", type: "run.succeeded" },
       threadId: thread.id,
-      event: { type: "run.succeeded", turnId: "turn_1" },
     });
     expect(staleSettle).toMatchObject({ applied: false, reason: "stale-turn" });
     expect(getThread(db, thread.id)?.status).toBe("idle");

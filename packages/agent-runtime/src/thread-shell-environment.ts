@@ -7,10 +7,10 @@ interface BuildThreadShellEnvironmentArgs {
   threadId: string;
 }
 
-export function buildThreadShellEnvironment(
+export const buildThreadShellEnvironment = (
   args: BuildThreadShellEnvironmentArgs,
-): AgentRuntimeShellEnvironment {
+): AgentRuntimeShellEnvironment => {
   const env: AgentRuntimeShellEnvironment = { ...args.baseShellEnv };
-  env["INTELIGIR_THREAD_ID"] = args.threadId;
+  env.INTELIGIR_THREAD_ID = args.threadId;
   return env;
-}
+};

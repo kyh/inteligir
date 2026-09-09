@@ -1,7 +1,8 @@
 // a genuine overlap keeps mine (the buffer is the user's work) and reports the conflict.
 // unstable regions not separated by a stable line are grouped, as classic diff3 does.
 
-import { diffLines, splitLinesLf, type DiffHunk } from "./line-diff";
+import { diffLines, splitLinesLf } from "./line-diff";
+import type { DiffHunk } from "./line-diff";
 
 export interface Diff3Result {
   merged: string;
@@ -20,7 +21,7 @@ interface RegionHunks {
 }
 
 // element-wise, never joined strings: segmentation participates in equality.
-function segmentsEqual(a: readonly string[], b: readonly string[]): boolean {
+const segmentsEqual = (a: readonly string[], b: readonly string[]): boolean => {
   if (a.length !== b.length) {
     return false;
   }
@@ -30,11 +31,11 @@ function segmentsEqual(a: readonly string[], b: readonly string[]): boolean {
     }
   }
   return true;
-}
+};
 
-export function diff3(base: string, mine: string, theirs: string): Diff3Result {
+export const diff3 = (base: string, mine: string, theirs: string): Diff3Result => {
   if (mine === theirs) {
-    return { merged: mine, conflicted: false };
+    return { conflicted: false, merged: mine };
   }
   const baseLines = splitLinesLf(base);
   const mineLines = splitLinesLf(mine);
@@ -73,9 +74,9 @@ export function diff3(base: string, mine: string, theirs: string): Diff3Result {
     let progressed = true;
     while (progressed) {
       progressed = false;
-      const sides: Array<{ cursor: SideCursor; bucket: DiffHunk[] }> = [
-        { cursor: mineCursor, bucket: inRegion.mine },
-        { cursor: theirsCursor, bucket: inRegion.theirs },
+      const sides: { cursor: SideCursor; bucket: DiffHunk[] }[] = [
+        { bucket: inRegion.mine, cursor: mineCursor },
+        { bucket: inRegion.theirs, cursor: theirsCursor },
       ];
       for (const { cursor, bucket } of sides) {
         for (;;) {
@@ -117,5 +118,5 @@ export function diff3(base: string, mine: string, theirs: string): Diff3Result {
     baseLine = regionEnd;
   }
 
-  return { merged: merged.join("\n"), conflicted };
-}
+  return { conflicted, merged: merged.join("\n") };
+};

@@ -29,55 +29,51 @@ export interface HarnessDefinition {
   envOmit: readonly string[];
 }
 
-function resolveAdapterEntry(specifier: string): string {
-  return require.resolve(specifier);
-}
+const resolveAdapterEntry = (specifier: string): string => require.resolve(specifier);
 
 export const HARNESSES = {
   claude: {
-    id: "claude",
-    displayName: "Claude Code",
-    vendorBinary: "claude",
-    loginCommand: "claude /login",
-    adapterEntry: resolveAdapterEntry("@zed-industries/claude-code-acp/dist/index.js"),
     adapterArgs: [],
+    adapterEntry: resolveAdapterEntry("@zed-industries/claude-code-acp/dist/index.js"),
+    applyModel: (model: string, env: Record<string, string>) => {
+      env.ANTHROPIC_MODEL = model;
+    },
     credentialProbes: [
       { kind: "home-file", relativePath: ".claude/.credentials.json" },
       { kind: "macos-keychain", service: "Claude Code-credentials" },
     ],
-    supportsLoadSession: true,
-    applyModel: (model: string, env: Record<string, string>) => {
-      env["ANTHROPIC_MODEL"] = model;
-    },
+    displayName: "Claude Code",
     envOmit: ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"],
+    id: "claude",
+    loginCommand: "claude /login",
+    supportsLoadSession: true,
+    vendorBinary: "claude",
   },
   codex: {
-    id: "codex",
-    displayName: "Codex",
-    vendorBinary: "codex",
-    loginCommand: "codex login",
-    adapterEntry: resolveAdapterEntry("@zed-industries/codex-acp/bin/codex-acp.js"),
     adapterArgs: [],
-    credentialProbes: [{ kind: "home-file", relativePath: ".codex/auth.json" }],
-    supportsLoadSession: true,
+    adapterEntry: resolveAdapterEntry("@zed-industries/codex-acp/bin/codex-acp.js"),
     applyModel: (model: string, _env: Record<string, string>, args: string[]) => {
       args.push("-c", `model=${JSON.stringify(model)}`);
     },
+    credentialProbes: [{ kind: "home-file", relativePath: ".codex/auth.json" }],
+    displayName: "Codex",
     envOmit: [],
+    id: "codex",
+    loginCommand: "codex login",
+    supportsLoadSession: true,
+    vendorBinary: "codex",
   },
 } satisfies Record<HarnessId, HarnessDefinition>;
 
 export const HARNESS_IDS: readonly HarnessId[] = ["claude", "codex"];
 
-export function isHarnessId(value: string): value is HarnessId {
-  return value in HARNESSES;
-}
+export const isHarnessId = (value: string): value is HarnessId => value in HARNESSES;
 
-export function requireHarness(providerId: string): HarnessDefinition {
+export const requireHarness = (providerId: string): HarnessDefinition => {
   if (!isHarnessId(providerId)) {
     throw new Error(
       `Unknown provider "${providerId}". Available providers: ${HARNESS_IDS.join(", ")}`,
     );
   }
   return HARNESSES[providerId];
-}
+};

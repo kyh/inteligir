@@ -14,12 +14,8 @@ import { MicButton } from "../voice/mic-button";
 import { useVoiceStatus } from "../voice-hooks";
 import { useWikiTargets } from "../vault-hooks";
 import { createAction } from "./action-service";
-import {
-  activeMentionAt,
-  filterMentionTargets,
-  MentionCombobox,
-  type MentionSpan,
-} from "./mention-combobox";
+import { activeMentionAt, filterMentionTargets, MentionCombobox } from "./mention-combobox";
+import type { MentionSpan } from "./mention-combobox";
 
 interface PendingAction {
   threadId: string;
@@ -35,14 +31,14 @@ export interface ActionComposerProps {
   onLaunched: (threadId: string) => void;
 }
 
-export function ActionComposer({
+export const ActionComposer = ({
   open,
   onOpenChange,
   seed,
   docPath,
   readViewContext,
   onLaunched,
-}: ActionComposerProps) {
+}: ActionComposerProps) => {
   const { api } = useWorkspace();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -55,16 +51,26 @@ export function ActionComposer({
   const [mentionIndex, setMentionIndex] = useState(0);
   const [dictationPartial, setDictationPartial] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
+  // the seed applies at open; a mid-open seed change must not clobber typing
+  const seedRef = useRef(seed);
   const voiceStatus = useVoiceStatus().data;
   const wikiTargets = useWikiTargets();
 
+  useEffect(() => {
+    seedRef.current = seed;
+  }, [seed]);
+
+  // The composer outlives a close — the thread a refused send created is retried into on the
+  // next open — so remounting it under a `key`, React's own answer here, would drop that.
+  /* oxlint-disable react/set-state-in-effect -- see above */
   useEffect(() => {
     if (open) {
       setAttached(true);
       setMentions([]);
       setMention(null);
-      if (seed !== null) {
-        setText(seed);
+      const opened = seedRef.current;
+      if (opened !== null) {
+        setText(opened);
       }
       requestAnimationFrame(() => {
         const field = fieldRef.current;
@@ -74,9 +80,8 @@ export function ActionComposer({
     } else {
       setDictationPartial(null);
     }
-    // the seed applies at open; a mid-open seed change must not clobber typing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+  /* oxlint-enable react/set-state-in-effect */
 
   if (!open) {
     return null;
@@ -109,7 +114,7 @@ export function ActionComposer({
     setText(text.slice(0, mention.start) + text.slice(caret));
     setMentions((prior) => (prior.includes(target.path) ? prior : [...prior, target.path]));
     setMention(null);
-    const start = mention.start;
+    const { start } = mention;
     fieldRef.current?.focus();
     requestAnimationFrame(() => {
       fieldRef.current?.setSelectionRange(start, start);
@@ -142,32 +147,33 @@ export function ActionComposer({
           viewContext,
         });
         if (created.send.kind === "refused") {
-          setPending({ threadId: created.threadId, docPath: attachedPath });
+          setPending({ docPath: attachedPath, threadId: created.threadId });
           toast.error(created.send.message);
-          return;
+        } else {
+          setPending(null);
+          setText("");
+          setMentions([]);
+          onOpenChange(false);
+          onLaunched(created.threadId);
         }
-        setPending(null);
-        setText("");
-        setMentions([]);
-        onOpenChange(false);
-        onLaunched(created.threadId);
       } catch {
         toast.error("Could not start the action.");
-      } finally {
-        setSending(false);
       }
+      setSending(false);
     })();
   };
 
   return (
     <>
       <div
+        role="presentation"
         className="absolute inset-0 z-30"
         onPointerDown={() => {
           onOpenChange(false);
         }}
       />
       <div
+        role="presentation"
         className="absolute inset-x-0 bottom-10 z-40 flex justify-center px-6"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -176,8 +182,12 @@ export function ActionComposer({
           }
         }}
       >
-        <div role="dialog" aria-label="Action composer" className="w-full max-w-xl">
-          {dictationPartial !== null ? (
+        <dialog
+          open
+          aria-label="Action composer"
+          className="static h-auto w-full max-w-xl bg-transparent text-inherit"
+        >
+          {dictationPartial === null ? null : (
             <div
               data-dictation-preview=""
               aria-live="polite"
@@ -185,7 +195,7 @@ export function ActionComposer({
             >
               {dictationPartial === "" ? "Listening…" : dictationPartial}
             </div>
-          ) : null}
+          )}
 
           <div className="relative">
             <MentionCombobox
@@ -198,7 +208,7 @@ export function ActionComposer({
               topSlot={
                 docPath !== null || mentions.length > 0 ? (
                   <>
-                    {docPath !== null ? (
+                    {docPath === null ? null : (
                       <Badge
                         variant="outline"
                         className={cn(
@@ -232,7 +242,7 @@ export function ActionComposer({
                           </button>
                         )}
                       </Badge>
-                    ) : null}
+                    )}
                     {mentions.map((path) => (
                       <Badge key={path} variant="outline" className="gap-1 bg-surface-raised">
                         <FileTextIcon className="size-3" />
@@ -257,7 +267,9 @@ export function ActionComposer({
               onValueChange={(value) => {
                 setText(value);
                 const field = fieldRef.current;
-                if (field !== null) syncMention(value, field.selectionStart);
+                if (field !== null) {
+                  syncMention(value, field.selectionStart);
+                }
               }}
               onSend={() => {
                 submit();
@@ -280,9 +292,6 @@ export function ActionComposer({
                 "aria-label": "Ask the agent",
                 onBlur: () => {
                   setMention(null);
-                },
-                onSelect: (event) => {
-                  syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
                 },
                 onKeyDown: (event) => {
                   if (mention !== null && mentionOptions.length > 0) {
@@ -315,11 +324,14 @@ export function ActionComposer({
                     submit();
                   }
                 },
+                onSelect: (event) => {
+                  syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
+                },
               }}
             />
           </div>
-        </div>
+        </dialog>
       </div>
     </>
   );
-}
+};

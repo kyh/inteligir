@@ -3,17 +3,14 @@ import { describe, expect, it } from "vitest";
 import { planSearchQuery, stemText, tokenize } from "../knowledge/search-query";
 
 // `a AND b*`: the `*` marks the prefix term
-function plans(query: string): string[] {
-  return planSearchQuery(query).map((planned) =>
+const plans = (query: string): string[] =>
+  planSearchQuery(query).map((planned) =>
     planned.terms
       .map((term) => (term.prefix ? `${term.token}*` : term.token))
       .join(planned.match === "all" ? " AND " : " OR "),
   );
-}
 
-function plan(query: string): string | undefined {
-  return plans(query)[0];
-}
+const plan = (query: string): string | undefined => plans(query)[0];
 
 describe("tokenize", () => {
   it("lowercases, folds diacritics, and splits on non-word runs", () => {
@@ -39,14 +36,14 @@ describe("stemming", () => {
 
   it("gives every term the stem a whole-word match asks for", () => {
     expect(planSearchQuery("interviewing candidates")[0]?.terms).toEqual([
-      { token: "interviewing", stem: "interview", prefix: false },
-      { token: "candidates", stem: "candid", prefix: true },
+      { prefix: false, stem: "interview", token: "interviewing" },
+      { prefix: true, stem: "candid", token: "candidates" },
     ]);
   });
 
   it("keeps the typed term's literal token, which is what prefix-matches", () => {
     expect(planSearchQuery("runn")[0]?.terms).toEqual([
-      { token: "runn", stem: "runn", prefix: true },
+      { prefix: true, stem: "runn", token: "runn" },
     ]);
   });
 });

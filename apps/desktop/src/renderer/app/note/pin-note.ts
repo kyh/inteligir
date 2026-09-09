@@ -1,7 +1,8 @@
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
 import { pinnedFrontmatterYaml, setFrontmatterPinned } from "@repo/notes/markdown/frontmatter";
-import { rewriteNote, type RewriteNoteApi } from "./rewrite-note";
+import { rewriteNote } from "./rewrite-note";
+import type { RewriteNoteApi } from "./rewrite-note";
 
 export type PinNoteApi = RewriteNoteApi;
 
@@ -14,18 +15,22 @@ export type PinNoteOutcome =
 // properties panel writes, through the live editor's frontmatter node, so the buffer and the
 // autosave carry it. Any other note goes through the guarded rewrite; a note that moved
 // underneath is refused, never merged: a pin is one click to repeat.
-export async function setNotePinned(
+export const setNotePinned = async (
   api: RewriteNoteApi,
   path: string,
   pinned: boolean,
-): Promise<PinNoteOutcome> {
+): Promise<PinNoteOutcome> => {
   const verb = pinned ? "pin" : "unpin";
   const unreadable = `Could not ${verb} ${path}: its frontmatter is not valid YAML.`;
   const editor = getLiveEditor(path);
   if (editor !== null) {
     const verdict = pinnedFrontmatterYaml(readFrontmatterRaw(editor), pinned);
-    if (verdict.kind === "invalid") return { kind: "refused", message: unreadable };
-    if (verdict.kind === "unchanged") return { kind: "unchanged" };
+    if (verdict.kind === "invalid") {
+      return { kind: "refused", message: unreadable };
+    }
+    if (verdict.kind === "unchanged") {
+      return { kind: "unchanged" };
+    }
     writeFrontmatterRaw(editor, verdict.yaml);
     return { kind: "done" };
   }
@@ -35,18 +40,26 @@ export async function setNotePinned(
     return next === null ? { content, result: "invalid" } : { content: next, result: "edited" };
   });
   switch (outcome.kind) {
-    case "written":
+    case "written": {
       return { kind: "done" };
-    case "unchanged":
+    }
+    case "unchanged": {
       return outcome.result === "invalid"
         ? { kind: "refused", message: unreadable }
         : { kind: "unchanged" };
-    case "changed":
+    }
+    case "changed": {
       return {
         kind: "refused",
         message: `Could not ${verb} ${path}: it changed since it was read.`,
       };
-    case "failed":
+    }
+    case "failed": {
       return { kind: "refused", message: `Could not ${verb} ${path}: ${outcome.message}` };
+    }
+    default: {
+      const exhaustive: never = outcome;
+      return exhaustive;
+    }
   }
-}
+};

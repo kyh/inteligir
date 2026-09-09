@@ -21,7 +21,7 @@ import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const noop = (): void => undefined;
 
-export function InputsSection() {
+export const InputsSection = () => {
   const [checked, setChecked] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [message, setMessage] = useState("");
@@ -124,8 +124,8 @@ export function InputsSection() {
         <div className="w-full max-w-xl">
           <PromptBar>
             <PromptBarSources>
-              <PromptBarSource onRemove={() => undefined}>Getting Started.md</PromptBarSource>
-              <PromptBarSource onRemove={() => undefined}>Use Cases.md</PromptBarSource>
+              <PromptBarSource onRemove={noop}>Getting Started.md</PromptBarSource>
+              <PromptBarSource onRemove={noop}>Use Cases.md</PromptBarSource>
             </PromptBarSources>
             <PromptBarField
               value={prompt}
@@ -151,4 +151,4 @@ export function InputsSection() {
       </Demo>
     </GallerySection>
   );
-}
+};

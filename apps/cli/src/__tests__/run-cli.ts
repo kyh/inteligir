@@ -22,14 +22,14 @@ export interface RunArgs {
   stdin?: Uint8Array;
 }
 
-export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
+export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
   const deps: CliDeps = {
     env: { ...args.env },
     homeDir: args.homeDir,
     resolveServer: () => ({
       baseUrl: args.baseUrl,
-      token: FIXTURE_SERVER_TOKEN,
       dataDir: "/fixture/data",
+      token: FIXTURE_SERVER_TOKEN,
       vaultDir: "/fixture/vault",
     }),
   };
@@ -55,7 +55,7 @@ export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
   }
   try {
     const code = await runCli(["node", "inteligir", ...args.argv], deps);
-    return { code, stdout: stdout.replace(ANSI, ""), stderr: stderr.replace(ANSI, "") };
+    return { code, stderr: stderr.replace(ANSI, ""), stdout: stdout.replace(ANSI, "") };
   } finally {
     outSpy.mockRestore();
     errSpy.mockRestore();
@@ -63,4 +63,4 @@ export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
       Object.defineProperty(process, "stdin", stdinDescriptor);
     }
   }
-}
+};

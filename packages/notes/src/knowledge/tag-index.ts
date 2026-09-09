@@ -1,10 +1,13 @@
-export type TagCount = { tag: string; count: number };
+export interface TagCount {
+  tag: string;
+  count: number;
+}
 
-type TagEntry = {
+interface TagEntry {
   display: string;
   /** path → the display case that doc wrote, so a scoped view can render a surviving note's spelling */
   paths: Map<string, string>;
-};
+}
 
 export class TagIndex {
   private readonly tags = new Map<string, TagEntry>();
@@ -16,9 +19,13 @@ export class TagIndex {
     const seen = new Set<string>();
     for (const raw of tags) {
       const display = raw.trim();
-      if (display === "") continue;
+      if (display === "") {
+        continue;
+      }
       const key = display.toLowerCase();
-      if (seen.has(key)) continue;
+      if (seen.has(key)) {
+        continue;
+      }
       seen.add(key);
       keys.push(key);
       let entry = this.tags.get(key);
@@ -28,17 +35,25 @@ export class TagIndex {
       }
       entry.paths.set(path, display);
     }
-    if (keys.length > 0) this.docTags.set(path, keys);
+    if (keys.length > 0) {
+      this.docTags.set(path, keys);
+    }
   }
 
   remove(path: string): void {
     const keys = this.docTags.get(path);
-    if (!keys) return;
+    if (!keys) {
+      return;
+    }
     for (const key of keys) {
       const entry = this.tags.get(key);
-      if (!entry) continue;
+      if (!entry) {
+        continue;
+      }
       entry.paths.delete(path);
-      if (entry.paths.size === 0) this.tags.delete(key);
+      if (entry.paths.size === 0) {
+        this.tags.delete(key);
+      }
     }
     this.docTags.delete(path);
   }
@@ -51,7 +66,7 @@ export class TagIndex {
   all(): TagCount[] {
     const counts: TagCount[] = [];
     for (const entry of this.tags.values()) {
-      counts.push({ tag: entry.display, count: entry.paths.size });
+      counts.push({ count: entry.paths.size, tag: entry.display });
     }
     return counts.toSorted(
       (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),

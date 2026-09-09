@@ -10,20 +10,26 @@ export interface MentionSpan {
 }
 
 // the `@` must begin a word so an email address never opens the picker.
-export function activeMentionAt(text: string, caret: number): MentionSpan | null {
+export const activeMentionAt = (text: string, caret: number): MentionSpan | null => {
   const start = text.lastIndexOf("@", caret - 1);
-  if (start === -1) return null;
-  if (start > 0 && !/\s/u.test(text.charAt(start - 1))) return null;
+  if (start === -1) {
+    return null;
+  }
+  if (start > 0 && !/\s/u.test(text.charAt(start - 1))) {
+    return null;
+  }
   const query = text.slice(start + 1, caret);
-  if (/\s/u.test(query)) return null;
-  return { start, query };
-}
+  if (/\s/u.test(query)) {
+    return null;
+  }
+  return { query, start };
+};
 
-export function filterMentionTargets(
+export const filterMentionTargets = (
   targets: readonly WikiTargetWire[],
   query: string,
   attached: ReadonlySet<string>,
-): WikiTargetWire[] {
+): WikiTargetWire[] => {
   const needle = query.toLowerCase();
   return targets
     .filter((target) => target.type === "doc" && !attached.has(target.path))
@@ -35,7 +41,7 @@ export function filterMentionTargets(
         (target.aliases ?? []).some((alias) => alias.toLowerCase().includes(needle)),
     )
     .slice(0, MENTION_MAX_ROWS);
-}
+};
 
 export interface MentionComboboxProps {
   options: readonly WikiTargetWire[];
@@ -44,7 +50,14 @@ export interface MentionComboboxProps {
   onPick: (target: WikiTargetWire) => void;
 }
 
-export function MentionCombobox({ options, activeIndex, onHover, onPick }: MentionComboboxProps) {
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- a popup listbox over the composer's textarea;
+   a native select and its options are a different control entirely */
+export const MentionCombobox = ({
+  options,
+  activeIndex,
+  onHover,
+  onPick,
+}: MentionComboboxProps) => {
   if (options.length === 0) {
     return null;
   }
@@ -81,4 +94,5 @@ export function MentionCombobox({ options, activeIndex, onHover, onPick }: Menti
       ))}
     </div>
   );
-}
+};
+/* oxlint-enable jsx-a11y/prefer-tag-over-role */

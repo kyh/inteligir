@@ -20,9 +20,7 @@ export interface ScriptedDriverDeps {
   onError?: (message: string) => void;
 }
 
-export function scriptedNotePath(threadId: string): string {
-  return `Agent/${threadId}.md`;
-}
+export const scriptedNotePath = (threadId: string): string => `Agent/${threadId}.md`;
 
 class ScriptedTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
@@ -43,8 +41,8 @@ class ScriptedTurnDriver implements TurnDriver {
       .join("\n\n");
     const text = `Noted: ${prompt}`;
     this.sink.ingestProviderEvents(args.threadId, [
-      { type: "turn/started", threadId: args.threadId, scope },
-      ...agentMessageEvents({ threadId: args.threadId, itemId, text, scope }),
+      { scope, threadId: args.threadId, type: "turn/started" },
+      ...agentMessageEvents({ itemId, scope, text, threadId: args.threadId }),
     ]);
     this.lastTurn = this.runFileHalf(args, scope);
   }
@@ -67,39 +65,42 @@ class ScriptedTurnDriver implements TurnDriver {
       turnCommit.recordPaths([written.path]);
       this.sink.ingestProviderEvents(args.threadId, [
         {
-          type: "item/completed",
-          threadId: args.threadId,
           item: {
-            type: "fileChange",
-            id: fileItemId,
-            changes: [{ path: written.path, kind: "add" }],
-            status: "completed",
             approvalStatus: null,
+            changes: [{ kind: "add", path: written.path }],
+            id: fileItemId,
+            status: "completed",
+            type: "fileChange",
           },
           scope,
+          threadId: args.threadId,
+          type: "item/completed",
         },
       ]);
       await turnCommit.finish();
       this.sink.ingestProviderEvents(args.threadId, [
-        { type: "turn/completed", threadId: args.threadId, status: "completed", scope },
+        { scope, status: "completed", threadId: args.threadId, type: "turn/completed" },
       ]);
     } catch (error) {
       this.deps.onError?.(error instanceof Error ? error.message : String(error));
-      await turnCommit.finish().catch(() => {});
+      await turnCommit.finish().catch(() => {
+        /* empty */
+      });
       this.sink.ingestProviderEvents(args.threadId, [
         {
-          type: "provider/error",
-          threadId: args.threadId,
-          message: "Scripted turn failed",
           detail: error instanceof Error ? error.message : String(error),
+          message: "Scripted turn failed",
           scope,
+          threadId: args.threadId,
+          type: "provider/error",
         },
-        { type: "turn/completed", threadId: args.threadId, status: "failed", scope },
+        { scope, status: "failed", threadId: args.threadId, type: "turn/completed" },
       ]);
     }
   }
 }
 
-export function createScriptedTurnDriverFactory(deps: ScriptedDriverDeps): CreateTurnDriver {
-  return (sink) => new ScriptedTurnDriver(sink, deps);
-}
+export const createScriptedTurnDriverFactory =
+  (deps: ScriptedDriverDeps): CreateTurnDriver =>
+  (sink) =>
+    new ScriptedTurnDriver(sink, deps);

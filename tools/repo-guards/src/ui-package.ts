@@ -15,19 +15,19 @@ export interface UiRoot {
   subpath: string;
 }
 
-export function sweptRoots(): UiRoot[] {
+export const sweptRoots = (): UiRoot[] => {
   const manifestPath = path.join(REPO_ROOT, UI_DIR, "package.json");
   const parsed = z
     .looseObject({ exports: z.record(z.string(), z.string()) })
-    .safeParse(JSON.parse(fs.readFileSync(manifestPath, "utf8")));
+    .safeParse(JSON.parse(fs.readFileSync(manifestPath, "utf-8")));
   if (!parsed.success) {
     throw new Error(`${manifestPath}: expected an "exports" map of subpath → file`);
   }
   const roots: UiRoot[] = [];
   for (const [key, target] of Object.entries(parsed.data.exports)) {
-    const wildcard = /^\.\/([\w-]+)\/\*$/.exec(key);
-    if (wildcard?.[1] !== undefined && target.startsWith("./src/")) {
-      roots.push({ dir: wildcard[1], subpath: wildcard[1] });
+    const dir = /^\.\/(?<dir>[\w-]+)\/\*$/u.exec(key)?.groups?.dir;
+    if (dir !== undefined && target.startsWith("./src/")) {
+      roots.push({ dir, subpath: dir });
     }
   }
   if (roots.length === 0) {
@@ -36,4 +36,4 @@ export function sweptRoots(): UiRoot[] {
     );
   }
   return roots;
-}
+};

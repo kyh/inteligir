@@ -1,6 +1,5 @@
-import { chmodSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, readFileSync, statSync, writeFileSync, readdirSync } from "node:fs";
+import nodePath from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   clearDeviceCredential,
@@ -11,7 +10,7 @@ import {
 } from "../credential-store";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-const CREDENTIAL = { deviceId: "dev_1", credential: `igd_${"a".repeat(64)}` };
+const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 
 describe("the device credential at rest", () => {
   it("round-trips, and appears in no other file in the data dir", () => {
@@ -23,7 +22,7 @@ describe("the device credential at rest", () => {
     const leaked = readdirSync(dataDir).filter(
       (name) =>
         name !== DEVICE_CREDENTIAL_FILE_NAME &&
-        readFileSync(join(dataDir, name), "utf8").includes(CREDENTIAL.credential),
+        readFileSync(nodePath.join(dataDir, name), "utf-8").includes(CREDENTIAL.credential),
     );
     expect(leaked).toEqual([]);
   });
@@ -36,6 +35,7 @@ describe("the device credential at rest", () => {
     chmodSync(path, 0o644);
 
     writeDeviceCredential(dataDir, CREDENTIAL);
+    // oxlint-disable-next-line no-bitwise -- a file mode is a bit field; the mask reads the permission bits
     expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
@@ -51,7 +51,7 @@ describe("the device credential at rest", () => {
 
     writeFileSync(
       deviceCredentialPath(dataDir),
-      JSON.stringify({ deviceId: "dev_1", credential: "nope" }),
+      JSON.stringify({ credential: "nope", deviceId: "dev_1" }),
     );
     expect(readDeviceCredential(dataDir)).toBeNull();
   });

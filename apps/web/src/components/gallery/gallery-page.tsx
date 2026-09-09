@@ -1,7 +1,8 @@
 // not a consumer for the orphan guard: a gallery proves a component renders, not that the product needs it.
 
 import { Button } from "@repo/ui/components/button";
-import { useTheme, type Theme } from "@repo/ui/lib/theme";
+import { useTheme } from "@repo/ui/lib/theme";
+import type { Theme } from "@repo/ui/lib/theme";
 import { cn } from "cn";
 import { ArrowLeftIcon } from "lucide-react";
 
@@ -29,12 +30,12 @@ const NAV = [
 ] as const;
 
 const THEMES: readonly { value: Theme; label: string }[] = [
-  { value: "system", label: "System" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
+  { label: "System", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
 ];
 
-export function GalleryPage({ onBack }: { onBack: () => void }) {
+export const GalleryPage = ({ onBack }: { onBack: () => void }) => {
   const { theme, setTheme } = useTheme();
 
   return (
@@ -111,4 +112,4 @@ export function GalleryPage({ onBack }: { onBack: () => void }) {
       </div>
     </div>
   );
-}
+};

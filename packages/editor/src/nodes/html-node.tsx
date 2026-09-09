@@ -3,7 +3,8 @@
 // hand the payload this origin's storage and API. The CSP's `frame-src 'self'` admits the srcdoc
 // frame, so the sandbox is what contains the payload.
 
-import { type PlateElementProps, PlateElement } from "platejs/react";
+import { PlateElement } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 import { useState } from "react";
 
 import { stringProp } from "@repo/editor/node-props";
@@ -13,7 +14,7 @@ import { setBlockValue } from "./rich-block-value";
 
 type HtmlMode = "source" | "preview" | "run";
 
-function SourceView({ value }: { value: string }) {
+const SourceView = ({ value }: { value: string }) => {
   const lines = value.split("\n");
   const head = lines.slice(0, 12).join("\n");
   return (
@@ -22,9 +23,50 @@ function SourceView({ value }: { value: string }) {
       {lines.length > 12 ? `\n… ${String(lines.length - 12)} more lines` : ""}
     </pre>
   );
-}
+};
 
-export function HtmlElement(props: PlateElementProps) {
+// a sandboxed srcdoc frame prints blank on some engines; print gets the source.
+const HtmlBody = ({
+  editing,
+  mode,
+  onCancel,
+  onSave,
+  value,
+}: {
+  editing: boolean;
+  mode: HtmlMode;
+  onCancel: () => void;
+  onSave: (next: string) => void;
+  value: string;
+}) => {
+  if (editing) {
+    return (
+      <PayloadEditor initial={value} validate={() => null} onCancel={onCancel} onSave={onSave} />
+    );
+  }
+  if (value.trim() === "") {
+    return <DegradedPayloadView reason="Empty html block." value={value} />;
+  }
+  if (mode === "source") {
+    return <SourceView value={value} />;
+  }
+  return (
+    <>
+      <iframe
+        key={mode}
+        title="HTML preview"
+        srcDoc={value}
+        sandbox={mode === "run" ? "allow-scripts" : ""}
+        className="h-96 w-full border-0 bg-white print:hidden"
+      />
+      <div className="hidden print:block">
+        <SourceView value={value} />
+      </div>
+    </>
+  );
+};
+
+export const HtmlElement = (props: PlateElementProps) => {
   const [mode, setMode] = useState<HtmlMode>("source");
   const [editing, setEditing] = useState(false);
   const value = stringProp(props.element, "value") ?? "";
@@ -46,7 +88,6 @@ export function HtmlElement(props: PlateElementProps) {
     </button>
   );
 
-  // a sandboxed srcdoc frame prints blank on some engines; print gets the source.
   return (
     <PlateElement {...props}>
       <RichBlockCard
@@ -68,38 +109,20 @@ export function HtmlElement(props: PlateElementProps) {
           </span>
         }
       >
-        {editing ? (
-          <PayloadEditor
-            initial={value}
-            validate={() => null}
-            onCancel={() => {
-              setEditing(false);
-            }}
-            onSave={(next) => {
-              setBlockValue(props.editor, props.element, next);
-              setEditing(false);
-            }}
-          />
-        ) : value.trim() === "" ? (
-          <DegradedPayloadView reason="Empty html block." value={value} />
-        ) : mode === "source" ? (
-          <SourceView value={value} />
-        ) : (
-          <>
-            <iframe
-              key={mode}
-              title="HTML preview"
-              srcDoc={value}
-              sandbox={mode === "run" ? "allow-scripts" : ""}
-              className="h-96 w-full border-0 bg-white print:hidden"
-            />
-            <div className="hidden print:block">
-              <SourceView value={value} />
-            </div>
-          </>
-        )}
+        <HtmlBody
+          editing={editing}
+          mode={mode}
+          value={value}
+          onCancel={() => {
+            setEditing(false);
+          }}
+          onSave={(next) => {
+            setBlockValue(props.editor, props.element, next);
+            setEditing(false);
+          }}
+        />
       </RichBlockCard>
       {props.children}
     </PlateElement>
   );
-}
+};

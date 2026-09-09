@@ -1,9 +1,9 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { TimelineConversationRow, TimelineRow } from "@repo/api/local/thread-timeline";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -19,20 +19,19 @@ const TURN_DEADLINE_MS = 30_000;
 const COMPOSER = 'textarea[aria-label="Ask the agent"]';
 const EDITOR = '[data-slate-editor="true"]';
 
-function sha256Hex(content: string): string {
-  return createHash("sha256").update(content, "utf8").digest("hex");
-}
+const sha256Hex = (content: string): string =>
+  createHash("sha256").update(content, "utf-8").digest("hex");
 
 export const viewContextBrowser: Scenario = {
-  name: "view-context-browser",
   description: "send from the composer, and the agent is told the path and the revision",
+  name: "view-context-browser",
   async run(ctx) {
     const app = await ctx.boot({
-      name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
+      name: "solo",
       // sorts before the seeded welcome note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
+        await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },
     });
 
@@ -87,7 +86,7 @@ export const viewContextBrowser: Scenario = {
       // the flush before the send is what makes the revision name the bytes on disk.
       expectEq(
         context.revision,
-        sha256Hex(await readFile(join(app.vaultDir, DOC_PATH), "utf8")),
+        sha256Hex(await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8")),
         "the revision names the file as it is on disk",
       );
 
@@ -107,7 +106,7 @@ export const viewContextBrowser: Scenario = {
         `the prompt did not carry the user's own text — got: ${answered.text}`,
       );
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

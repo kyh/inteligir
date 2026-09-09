@@ -11,35 +11,35 @@ export interface AgentMessageEventArgs {
   scope: ThreadEventScope;
 }
 
-export function agentMessageEvents(args: AgentMessageEventArgs): ThreadEvent[] {
+export const agentMessageEvents = (args: AgentMessageEventArgs): ThreadEvent[] => {
   const { threadId, itemId, text, scope } = args;
   const midpoint = Math.ceil(text.length / 2);
   return [
     {
+      item: { id: itemId, text: "", type: "agentMessage" },
+      scope,
+      threadId,
       type: "item/started",
-      threadId,
-      item: { type: "agentMessage", id: itemId, text: "" },
-      scope,
     },
     {
-      type: "item/agentMessage/delta",
-      threadId,
-      itemId,
       delta: text.slice(0, midpoint),
-      scope,
-    },
-    {
-      type: "item/agentMessage/delta",
-      threadId,
       itemId,
-      delta: text.slice(midpoint),
       scope,
+      threadId,
+      type: "item/agentMessage/delta",
     },
     {
-      type: "item/completed",
-      threadId,
-      item: { type: "agentMessage", id: itemId, text },
+      delta: text.slice(midpoint),
+      itemId,
       scope,
+      threadId,
+      type: "item/agentMessage/delta",
+    },
+    {
+      item: { id: itemId, text, type: "agentMessage" },
+      scope,
+      threadId,
+      type: "item/completed",
     },
   ];
-}
+};

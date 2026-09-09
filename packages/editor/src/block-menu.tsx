@@ -19,7 +19,7 @@ import {
 import { TURN_INTO, moveBlocks, turnIntoBlocks } from "@repo/editor/block-transforms";
 import { extractBlocksToNote } from "@repo/editor/extract-note";
 
-export function BlockMenu() {
+export const BlockMenu = () => {
   const { api, editor } = useEditorPlugin(BlockMenuPlugin);
   const openId = usePluginOption(BlockMenuPlugin, "openId");
   const position = usePluginOption(BlockMenuPlugin, "position");
@@ -41,38 +41,61 @@ export function BlockMenu() {
   const blockApi = editor.getApi(BlockSelectionPlugin).blockSelection;
 
   // the selected ids name blocks that are gone once the extract lands
-  const extract = (): void => {
-    void extractBlocksToNote(editor, selectedPaths()).then((created) => {
-      if (created !== null) blockApi.clear();
-      return undefined;
-    });
+  const extract = async (): Promise<void> => {
+    const created = await extractBlocksToNote(editor, selectedPaths());
+    if (created !== null) {
+      blockApi.clear();
+    }
   };
 
   return (
     <DropdownMenu
       open={openId !== null}
       onOpenChange={(open) => {
-        if (!open) api.blockMenu.hide();
+        if (!open) {
+          api.blockMenu.hide();
+        }
       }}
     >
       <DropdownMenuContent anchor={anchor} side="bottom" align="start" className="max-h-[70vh]">
-        <DropdownMenuItem onClick={() => blockTf.duplicate()}>
+        <DropdownMenuItem
+          onClick={() => {
+            blockTf.duplicate();
+          }}
+        >
           <CopyIcon />
           Duplicate
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => moveBlocks(editor, selectedPaths(), "up")}>
+        <DropdownMenuItem
+          onClick={() => {
+            moveBlocks(editor, selectedPaths(), "up");
+          }}
+        >
           <ArrowUpIcon />
           Move up
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => moveBlocks(editor, selectedPaths(), "down")}>
+        <DropdownMenuItem
+          onClick={() => {
+            moveBlocks(editor, selectedPaths(), "down");
+          }}
+        >
           <ArrowDownIcon />
           Move down
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={extract}>
+        <DropdownMenuItem
+          onClick={() => {
+            void extract();
+          }}
+        >
           <FileOutputIcon />
           Extract to new note…
         </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={() => blockTf.removeNodes()}>
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => {
+            blockTf.removeNodes();
+          }}
+        >
           <Trash2Icon />
           Delete
         </DropdownMenuItem>
@@ -82,7 +105,9 @@ export function BlockMenu() {
           {TURN_INTO.map((opt) => (
             <DropdownMenuItem
               key={opt.id}
-              onClick={() => turnIntoBlocks(editor, selectedPaths(), opt)}
+              onClick={() => {
+                turnIntoBlocks(editor, selectedPaths(), opt);
+              }}
             >
               {opt.label}
             </DropdownMenuItem>
@@ -91,4 +116,4 @@ export function BlockMenu() {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+};

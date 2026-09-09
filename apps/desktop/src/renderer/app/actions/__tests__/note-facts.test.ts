@@ -1,41 +1,37 @@
-import {
-  VAULT_HISTORY_MAX_LIMIT,
-  type VaultHistoryRequest,
-  type VaultRevision,
-} from "@repo/api/local/vault/vault-schema";
+import { VAULT_HISTORY_MAX_LIMIT } from "@repo/api/local/vault/vault-schema";
+import type { VaultHistoryRequest, VaultRevision } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 
 import { firstRevisionAuthoredAt, readingTimeLabel } from "../note-facts";
 
-function revision(index: number): VaultRevision {
-  return {
-    sha: "a".repeat(40),
-    authoredAt: `2026-01-${String(1 + (index % 28)).padStart(2, "0")}T00:00:00+00:00`,
-    authorName: "kyh",
-    authorEmail: "kyh@example.com",
-    subject: `edit ${String(index)}`,
-    path: "notes/a.md",
-  };
-}
+const revision = (index: number): VaultRevision => ({
+  authorEmail: "kyh@example.com",
+  authorName: "kyh",
+  authoredAt: `2026-01-${String(1 + (index % 28)).padStart(2, "0")}T00:00:00+00:00`,
+  path: "notes/a.md",
+  sha: "a".repeat(40),
+  subject: `edit ${String(index)}`,
+});
 
 // newest first, like the log
-function historyOver(count: number) {
+const historyOver = (count: number) => {
   const requests: VaultHistoryRequest[] = [];
   const revisions = Array.from({ length: count }, (_, i) => revision(i));
   return {
-    requests,
     api: {
       vault: {
-        history: (input: VaultHistoryRequest) => {
+        // oxlint-disable-next-line require-await -- the vault is an async port; this fake answers from memory
+        history: async (input: VaultHistoryRequest) => {
           requests.push(input);
           const skip = input.skip ?? 0;
           const limit = input.limit ?? VAULT_HISTORY_MAX_LIMIT;
-          return Promise.resolve({ revisions: revisions.slice(skip, skip + limit) });
+          return { revisions: revisions.slice(skip, skip + limit) };
         },
       },
     },
+    requests,
   };
-}
+};
 
 describe("the created date", () => {
   it("is the oldest revision, which sits on the last page", async () => {

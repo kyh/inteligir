@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { computeRenameEdits } from "../knowledge/rename-links";
 
-function edits(
+const edits = (
   docs: Record<string, string>,
   from: string,
   to: string,
   extraFiles: string[] = [],
-): Map<string, string> {
+): Map<string, string> => {
   const map = new Map(Object.entries(docs));
   return computeRenameEdits(map, [...map.keys(), ...extraFiles], from, to);
-}
+};
 
 describe("computeRenameEdits — wiki links", () => {
   it("rewrites every form byte-surgically, preserving alias, anchor, and padding", () => {
@@ -79,14 +79,14 @@ describe("computeRenameEdits — wiki links", () => {
 
   it("keeps the short name when unique, falls back to the full path on collision", () => {
     const short = edits(
-      { "hub.md": "[[old]]\n", "a/old.md": "" },
+      { "a/old.md": "", "hub.md": "[[old]]\n" },
       "a/old.md",
       "a/deep/new note.md",
     );
     expect(short.get("hub.md")).toBe("[[new note]]\n");
 
     const collided = edits(
-      { "hub.md": "[[old]]\n", "a/old.md": "", "b/new.md": "" },
+      { "a/old.md": "", "b/new.md": "", "hub.md": "[[old]]\n" },
       "a/old.md",
       "a/new.md",
     );
@@ -223,7 +223,7 @@ describe("computeRenameEdits — asset renames", () => {
 describe("computeRenameEdits — shadow protection", () => {
   it("qualifies another doc's short link when the rename would steal its tie-break", () => {
     const result = edits(
-      { "hub.md": "see [[note]]\n", "a/note.md": "# The real note\n", "misc.md": "# Misc\n" },
+      { "a/note.md": "# The real note\n", "hub.md": "see [[note]]\n", "misc.md": "# Misc\n" },
       "misc.md",
       "note.md",
     );
@@ -233,16 +233,17 @@ describe("computeRenameEdits — shadow protection", () => {
 
   it("leaves short links alone when the rename does not affect their resolution", () => {
     const result = edits(
-      { "hub.md": "see [[note]]\n", "a/note.md": "", "misc.md": "" },
+      { "a/note.md": "", "hub.md": "see [[note]]\n", "misc.md": "" },
       "misc.md",
-      "z/note.md", // a/note.md still wins the tie-break
+      // a/note.md still wins the tie-break
+      "z/note.md",
     );
     expect(result.size).toBe(0);
   });
 
   it("re-pins an md url whose case-insensitive fallback the rename steals", () => {
     const result = edits(
-      { "hub.md": "[x](Note.md)\n", "note.md": "", "misc.md": "" },
+      { "hub.md": "[x](Note.md)\n", "misc.md": "", "note.md": "" },
       "misc.md",
       "Note.md",
     );
@@ -272,8 +273,8 @@ describe("computeRenameEdits — alias shadow protection", () => {
     const result = edits(
       {
         "hub.md": "see [[Retro]]\n",
-        "notes/owner.md": "---\naliases: [Retro]\n---\n# Owner\n",
         "misc.md": "# Misc\n",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n# Owner\n",
       },
       "misc.md",
       "Retro.md",
@@ -286,8 +287,8 @@ describe("computeRenameEdits — alias shadow protection", () => {
     const result = edits(
       {
         "hub.md": "see [[Retro|the retro]]\n",
-        "notes/owner.md": "---\naliases: [Retro]\n---\n",
         "misc.md": "",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n",
       },
       "misc.md",
       "Retro.md",
@@ -299,8 +300,8 @@ describe("computeRenameEdits — alias shadow protection", () => {
     const result = edits(
       {
         "hub.md": "see [[Retro#sec]]\n",
-        "notes/owner.md": "---\naliases: [Retro]\n---\n# O\n\n## sec\n",
         "misc.md": "",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n# O\n\n## sec\n",
       },
       "misc.md",
       "Retro.md",
@@ -324,8 +325,8 @@ describe("computeRenameEdits — alias shadow protection", () => {
     const result = edits(
       {
         "hub.md": "see [[retro]]\n",
-        "notes/owner.md": "---\naliases: [Retro]\n---\n",
         "misc.md": "",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n",
       },
       "misc.md",
       "retro.md",

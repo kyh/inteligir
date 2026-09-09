@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FilePlusIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
-import { KEYS, createTSlatePlugin, type PluginConfig } from "platejs";
-import { PlateElement, createPlatePlugin, type PlateElementProps } from "platejs/react";
-import {
-  withTriggerCombobox,
-  filterWords,
-  type TriggerComboboxPluginOptions,
-} from "@platejs/combobox";
+import { KEYS, createTSlatePlugin } from "platejs";
+import type { PluginConfig } from "platejs";
+import { PlateElement, createPlatePlugin } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
+import { withTriggerCombobox, filterWords } from "@platejs/combobox";
+import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { commitComboboxInput } from "@repo/editor/combobox-input";
@@ -20,8 +19,8 @@ import {
   InlineComboboxGroupLabel,
   InlineComboboxItem,
   InlineComboboxInput,
-  type FilterFn,
 } from "@repo/editor/inline-combobox";
+import type { FilterFn } from "@repo/editor/inline-combobox";
 import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 import { composeWikiBody, wikiBodyForPath } from "@repo/editor/wiki-target";
@@ -33,17 +32,21 @@ const CREATE_VALUE = "__create__";
 
 // alias/anchor tails are passthrough, not search terms.
 const wikiFilter: FilterFn = (item, search) => {
-  if (item.value === CREATE_VALUE) return true;
-  const target = parseWikiBody(search).target;
-  if (target === "") return true;
+  if (item.value === CREATE_VALUE) {
+    return true;
+  }
+  const { target } = parseWikiBody(search);
+  if (target === "") {
+    return true;
+  }
   const terms = [item.value, ...(item.keywords ?? []), item.label].filter(
     (k): k is string => k !== undefined && k !== "",
   );
   return terms.some((keyword) => filterWords(keyword, target));
 };
 
-function WikiInputElement(props: PlateElementProps) {
-  const { children, editor, element } = props;
+const WikiInputElement = (props: PlateElementProps) => {
+  const { editor, element } = props;
   const { resolveWikiTarget } = useWikiResolver();
   const { createFileAt } = useVaultActions();
   const [value, setValue] = useState("");
@@ -51,13 +54,17 @@ function WikiInputElement(props: PlateElementProps) {
 
   useEffect(() => {
     let cancelled = false;
-    getEditorHostIo()
-      .listWikiTargets()
-      .then((list) => {
-        if (!cancelled) setTargets(list);
-        return undefined;
-      })
-      .catch(() => {});
+    const load = async (): Promise<void> => {
+      try {
+        const list = await getEditorHostIo().listWikiTargets();
+        if (!cancelled) {
+          setTargets(list);
+        }
+      } catch {
+        // an unanswered listing is an empty picker, not an error to show
+      }
+    };
+    void load();
     return () => {
       cancelled = true;
     };
@@ -66,7 +73,9 @@ function WikiInputElement(props: PlateElementProps) {
   const typed = parseWikiBody(value);
 
   const complete = useCallback(
-    (body: string, embed = false) => insertWikiChipFromPicker(editor, body, embed),
+    (body: string, embed = false) => {
+      insertWikiChipFromPicker(editor, body, embed);
+    },
     [editor],
   );
 
@@ -94,12 +103,12 @@ function WikiInputElement(props: PlateElementProps) {
       value={target.path}
       label={target.title}
       keywords={[target.title, ...(target.aliases ?? [])]}
-      onClick={() =>
+      onClick={() => {
         complete(
           composeWikiBody(wikiBodyForPath(target.path, resolveWikiTarget), typed),
           target.type === "asset",
-        )
-      }
+        );
+      }}
     >
       {target.type === "doc" ? (
         <FileTextIcon className="mr-2 text-muted-foreground" />
@@ -150,10 +159,10 @@ function WikiInputElement(props: PlateElementProps) {
           )}
         </InlineComboboxContent>
       </InlineCombobox>
-      {children}
+      {props.children}
     </PlateElement>
   );
-}
+};
 
 type WikiTriggerConfig = PluginConfig<"wiki_trigger", TriggerComboboxPluginOptions>;
 
@@ -161,11 +170,11 @@ export const WikiAutocompleteKit = [
   createTSlatePlugin<WikiTriggerConfig>({
     key: "wiki_trigger",
     options: {
+      createComboboxInput: () => ({ children: [{ text: "" }], type: WIKI_INPUT_KEY }),
       trigger: "[",
-      triggerPreviousCharPattern: /^\[$/,
+      triggerPreviousCharPattern: /^\[$/u,
       triggerQuery: (editor) =>
         !editor.api.some({ match: { type: editor.getType(KEYS.codeBlock) } }),
-      createComboboxInput: () => ({ children: [{ text: "" }], type: WIKI_INPUT_KEY }),
     },
   }).overrideEditor(withTriggerCombobox),
   createPlatePlugin({

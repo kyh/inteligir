@@ -1,4 +1,5 @@
-import { QueryClient, type QueryKey } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { applyChangedMessage } from "../workspace-context";
@@ -9,32 +10,34 @@ interface Applied {
   threads: number;
 }
 
-function apply(message: Parameters<typeof applyChangedMessage>[3]): Applied {
+const apply = (message: Parameters<typeof applyChangedMessage>[3]): Applied => {
   const queryClient = new QueryClient();
-  const invalidated: unknown[][] = [];
-  vi.spyOn(queryClient, "invalidateQueries").mockImplementation(async (filters) => {
-    invalidated.push([...(filters?.queryKey ?? [])]);
-  });
+  const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
   const docs: (string | null)[] = [];
   let threads = 0;
   applyChangedMessage(
     queryClient,
-    (docId) => docs.push(docId),
+    (docId) => {
+      docs.push(docId);
+    },
     () => {
       threads += 1;
     },
     message,
   );
-  return { invalidated, docs, threads };
-}
+  const invalidated = invalidateQueries.mock.calls.map(([filters]) => [
+    ...(filters?.queryKey ?? []),
+  ]);
+  return { docs, invalidated, threads };
+};
 
 describe("a doc change", () => {
   it("reaches the open note's reader and re-reads none of its bytes", () => {
     const applied = apply({
-      type: "changed",
+      changes: ["content-changed"],
       entity: "doc",
       id: "notes/open.md",
-      changes: ["content-changed"],
+      type: "changed",
     });
 
     expect(applied.docs).toEqual(["notes/open.md"]);
@@ -46,10 +49,10 @@ describe("a doc change", () => {
 describe("a vault change", () => {
   it("sweeps the tree and names each moved path once", () => {
     const applied = apply({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed"],
+      entity: "vault",
       paths: ["a.md", "b.md"],
+      type: "changed",
     });
 
     expect(applied.invalidated).toEqual([
@@ -62,16 +65,16 @@ describe("a vault change", () => {
   });
 
   it("asserts nothing when it names no paths, so every note re-checks", () => {
-    const applied = apply({ type: "changed", entity: "vault", changes: ["files-changed"] });
+    const applied = apply({ changes: ["files-changed"], entity: "vault", type: "changed" });
 
     expect(applied.docs).toEqual([null]);
   });
 
   it("sweeps sync status on its own kind", () => {
     const applied = apply({
-      type: "changed",
-      entity: "vault",
       changes: ["sync-status-changed"],
+      entity: "vault",
+      type: "changed",
     });
 
     expect(applied.invalidated).toEqual([[...orpc.vault.status.key()]]);
@@ -82,9 +85,9 @@ describe("a vault change", () => {
 describe("the other entities", () => {
   it("sweeps the whole thread family once and forwards the message", () => {
     const applied = apply({
-      type: "changed",
-      entity: "thread",
       changes: ["events-appended"],
+      entity: "thread",
+      type: "changed",
     });
 
     expect(applied.invalidated).toEqual([[...orpc.threads.key()]]);
@@ -95,23 +98,23 @@ describe("the other entities", () => {
 describe("the unlinked-mentions scan", () => {
   it("is the one knowledge query a content change leaves alone", () => {
     const queryClient = new QueryClient();
-    const seen: boolean[] = [];
-    vi.spyOn(queryClient, "invalidateQueries").mockImplementation(async (filters) => {
-      // the predicate reads the key alone; the cache builds its Query from the same key
-      const keys: readonly QueryKey[] = [
-        orpc.knowledge.backlinks.key({ input: { path: "a.md" } }),
-        orpc.knowledge.unlinkedMentions.key({ input: { path: "a.md" } }),
-      ];
-      for (const queryKey of keys) {
-        const query = queryClient.getQueryCache().build(queryClient, { queryKey });
-        seen.push(filters?.predicate === undefined || filters.predicate(query));
-      }
-    });
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
     applyChangedMessage(
       queryClient,
       () => {},
       () => {},
-      { type: "changed", entity: "doc", id: "a.md", changes: ["content-changed"] },
+      { changes: ["content-changed"], entity: "doc", id: "a.md", type: "changed" },
+    );
+    // the predicate reads the key alone; the cache builds its Query from the same key
+    const keys: readonly QueryKey[] = [
+      orpc.knowledge.backlinks.key({ input: { path: "a.md" } }),
+      orpc.knowledge.unlinkedMentions.key({ input: { path: "a.md" } }),
+    ];
+    const seen = invalidateQueries.mock.calls.flatMap(([filters]) =>
+      keys.map((queryKey) => {
+        const query = queryClient.getQueryCache().build(queryClient, { queryKey });
+        return filters?.predicate === undefined || filters.predicate(query);
+      }),
     );
     expect(seen).toEqual([true, false]);
   });

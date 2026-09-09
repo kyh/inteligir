@@ -6,57 +6,59 @@ import {
   DEVICE_NAME_MAX_LENGTH,
   deviceLoginRequestSchema,
   normalizeDeviceName,
-  type DeviceCredential,
 } from "../device/device-schema";
-import { loginDevice, type DeviceCredentialStore, type LoginOutcome } from "../device/login-flow";
+import type { DeviceCredential } from "../device/device-schema";
+import { loginDevice } from "../device/login-flow";
+import type { DeviceCredentialStore, LoginOutcome } from "../device/login-flow";
 
 const CLOUD_URL = "https://cloud.test";
-const LOGGED_IN = { deviceId: "dev_x", credential: `igd_${"c".repeat(64)}` };
+const LOGGED_IN = { credential: `igd_${"c".repeat(64)}`, deviceId: "dev_x" };
 
 interface RecordedLogin {
   url: string;
   body: string;
 }
 
-function loginOk() {
+const loginOk = () => {
   const calls: RecordedLogin[] = [];
-  const fetch: CloudFetch = (input, init) => {
-    calls.push({ url: input, body: z.string().parse(init?.body) });
-    return Promise.resolve(Response.json(LOGGED_IN));
+  // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
+  const fetch: CloudFetch = async (input, init) => {
+    calls.push({ body: z.string().parse(init?.body), url: input });
+    return Response.json(LOGGED_IN);
   };
-  return { fetch, calls };
-}
+  return { calls, fetch };
+};
 
-const loginRefused: CloudFetch = () =>
-  Promise.resolve(
-    Response.json(
-      { error: { code: "invalid-credentials", message: "Wrong email or password." } },
-      { status: 401 },
-    ),
+// oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
+const loginRefused: CloudFetch = async () =>
+  Response.json(
+    { error: { code: "invalid-credentials", message: "Wrong email or password." } },
+    { status: 401 },
   );
 
-const loginUnreachable: CloudFetch = () => Promise.reject(new Error("network is down"));
+const loginUnreachable: CloudFetch = () => {
+  throw new Error("network is down");
+};
 
-function memoryStore() {
+const memoryStore = () => {
   const written: DeviceCredential[] = [];
   const store: DeviceCredentialStore = {
-    write: (credential) => {
+    // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
+    write: async (credential) => {
       written.push(credential);
-      return Promise.resolve();
     },
   };
   return { store, written };
-}
+};
 
-function login(fetch: CloudFetch, store: DeviceCredentialStore): Promise<LoginOutcome> {
-  return loginDevice({
+const login = async (fetch: CloudFetch, store: DeviceCredentialStore): Promise<LoginOutcome> =>
+  await loginDevice({
     client: { baseUrl: CLOUD_URL, fetch },
-    store,
+    deviceName: " Test Laptop ",
     email: "owner@example.test",
     password: "correct horse battery",
-    deviceName: " Test Laptop ",
+    store,
   });
-}
 
 describe("normalizeDeviceName", () => {
   it("trims, bounds to the cloud's ceiling, and defaults an empty name", () => {
@@ -71,29 +73,29 @@ describe("loginDevice", () => {
     const cloud = loginOk();
     const { store, written } = memoryStore();
     const outcome = await login(cloud.fetch, store);
-    expect(outcome).toStrictEqual({ kind: "logged-in", credential: LOGGED_IN });
+    expect(outcome).toStrictEqual({ credential: LOGGED_IN, kind: "logged-in" });
     expect(written).toStrictEqual([LOGGED_IN]);
 
     expect(cloud.calls).toHaveLength(1);
     expect(new URL(cloud.calls[0]?.url ?? "").pathname).toBe(DEVICE_API_PATHS.login);
     const body = deviceLoginRequestSchema.parse(JSON.parse(cloud.calls[0]?.body ?? ""));
     expect(body).toStrictEqual({
+      deviceName: "Test Laptop",
       email: "owner@example.test",
       password: "correct horse battery",
-      deviceName: "Test Laptop",
     });
   });
 
   it("surfaces the cloud's refusal as a value, and writes nothing", async () => {
     const { store, written } = memoryStore();
     expect(await login(loginRefused, store)).toStrictEqual({
-      kind: "refused",
       failure: {
-        kind: "refused",
         code: "invalid-credentials",
-        message: "Wrong email or password.",
         deviceSeq: null,
+        kind: "refused",
+        message: "Wrong email or password.",
       },
+      kind: "refused",
     });
     expect(written).toEqual([]);
   });
@@ -101,15 +103,17 @@ describe("loginDevice", () => {
   it("reports a cloud that did not answer the same way", async () => {
     const { store, written } = memoryStore();
     expect(await login(loginUnreachable, store)).toStrictEqual({
-      kind: "refused",
       failure: { kind: "unreachable", message: "network is down" },
+      kind: "refused",
     });
     expect(written).toEqual([]);
   });
 
   it("lets a store that cannot write say so — the credential is not half-adopted", async () => {
     const store: DeviceCredentialStore = {
-      write: () => Promise.reject(new Error("keychain unavailable")),
+      write: () => {
+        throw new Error("keychain unavailable");
+      },
     };
     await expect(login(loginOk().fetch, store)).rejects.toThrow("keychain unavailable");
   });

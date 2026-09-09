@@ -9,33 +9,39 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, isSkippedDir, WORKSPACE_MANIFEST, workspaceGlobs, workspaces } from "./repo";
 
 // except the repo root's, which is a member of no glob.
-function manifestsOnDisk(): string[] {
+const manifestsOnDisk = (): string[] => {
   const found: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        if (isSkippedDir(entry.name)) continue;
+        if (isSkippedDir(entry.name)) {
+          continue;
+        }
         walk(path.join(dir, entry.name));
       } else if (entry.name === "package.json") {
         const relative = path.relative(REPO_ROOT, path.join(dir, entry.name));
-        if (relative !== "package.json") found.push(relative);
+        if (relative !== "package.json") {
+          found.push(relative);
+        }
       }
     }
   };
   walk(REPO_ROOT);
   return found.toSorted();
-}
+};
 
 // counted from the raw text rather than the reader under test; negated globs are pnpm's exclusions.
-function declaredGlobCount(): number {
-  const raw = fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf8");
-  const packages = raw.match(/^packages:\n(?:[ \t]+-.*\n)+/m);
-  if (packages === null) throw new Error(`${WORKSPACE_MANIFEST}: no "packages" list`);
+const declaredGlobCount = (): number => {
+  const raw = fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf-8");
+  const packages = /^packages:\n(?:[ \t]+-.*\n)+/mu.exec(raw);
+  if (packages === null) {
+    throw new Error(`${WORKSPACE_MANIFEST}: no "packages" list`);
+  }
   return packages[0]
     .split("\n")
-    .filter((line) => /^\s+-\s*\S/.test(line))
-    .filter((line) => !line.includes('"!') && !/-\s*!/.test(line)).length;
-}
+    .filter((line) => /^\s+-\s*\S/u.test(line))
+    .filter((line) => !line.includes('"!') && !/-\s*!/u.test(line)).length;
+};
 
 describe("the guards' tree walk", () => {
   const globs = workspaceGlobs();

@@ -9,28 +9,32 @@ import { themeFor } from "@/lib/theme";
 // ensureStarted is idempotent; the guard only spares a fast-refresh remount re-running it.
 let started = false;
 
-function useAppStart(): void {
+const useAppStart = (): void => {
   useEffect(() => {
-    if (started) return;
+    if (started) {
+      return;
+    }
     started = true;
     void ensureStarted();
   }, []);
-}
+};
 
-export default function RootLayout() {
+const RootLayout = () => {
   useAppStart();
   const theme = themeFor(useColorScheme() === "dark");
   return (
     <SafeAreaProvider>
       <Stack
         screenOptions={{
+          contentStyle: { backgroundColor: theme.background },
+          headerShadowVisible: false,
           headerStyle: { backgroundColor: theme.background },
           headerTintColor: theme.foreground,
-          headerShadowVisible: false,
-          contentStyle: { backgroundColor: theme.background },
         }}
       />
       <StatusBar />
     </SafeAreaProvider>
   );
-}
+};
+
+export default RootLayout;

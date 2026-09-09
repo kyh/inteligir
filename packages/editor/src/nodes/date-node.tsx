@@ -2,13 +2,8 @@
 // never set rawDate: its presence flips Plate's serializer to the `<date>text</date>` form.
 
 import { Suspense, lazy, useState } from "react";
-import {
-  PlateElement,
-  useEditorRef,
-  useElement,
-  useReadOnly,
-  type PlateElementProps,
-} from "platejs/react";
+import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { formatIsoDate } from "@repo/notes/iso-date";
 
@@ -18,33 +13,44 @@ import { cn } from "cn";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
-const Calendar = lazy(() =>
-  import("@repo/editor/nodes/calendar").then((mod) => ({ default: mod.Calendar })),
+const Calendar = lazy(
+  async () =>
+    await import("@repo/editor/nodes/calendar").then((mod) => ({ default: mod.Calendar })),
 );
 
-const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_RE = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
 
 // `new Date("YYYY-MM-DD")` is UTC midnight and renders a day early west of Greenwich.
-function fromIso(value: string): Date | null {
-  const match = ISO_RE.exec(value);
-  if (!match) return null;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-}
+const fromIso = (value: string): Date | null => {
+  const groups = ISO_RE.exec(value)?.groups;
+  if (!groups) {
+    return null;
+  }
+  return new Date(Number(groups.year), Number(groups.month) - 1, Number(groups.day));
+};
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
-function label(value: string): string {
+const label = (value: string): string => {
   const date = fromIso(value);
-  if (!date) return value || "Pick a date";
+  if (!date) {
+    return value || "Pick a date";
+  }
   const today = new Date();
   const dayDiff = Math.round((startOfDay(date) - startOfDay(today)) / 86_400_000);
-  if (dayDiff === 0) return "Today";
-  if (dayDiff === -1) return "Yesterday";
-  if (dayDiff === 1) return "Tomorrow";
+  if (dayDiff === 0) {
+    return "Today";
+  }
+  if (dayDiff === -1) {
+    return "Yesterday";
+  }
+  if (dayDiff === 1) {
+    return "Tomorrow";
+  }
   return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
-}
+};
 
-export function DateElement(props: PlateElementProps) {
+export const DateElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const element = useElement();
   const readOnly = useReadOnly();
@@ -54,7 +60,14 @@ export function DateElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props} as="span" className="inline-block">
-      <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          if (!readOnly) {
+            setOpen(next);
+          }
+        }}
+      >
         <PopoverTrigger
           className={cn(
             "w-fit cursor-pointer rounded-sm px-0.5 text-primary/65 transition-colors hover:bg-primary/10",
@@ -74,7 +87,9 @@ export function DateElement(props: PlateElementProps) {
               selected={fromIso(value) ?? undefined}
               onSelect={(date) => {
                 const at = editor.api.findPath(element);
-                if (date && at) editor.tf.setNodes({ date: formatIsoDate(date) }, { at });
+                if (date && at) {
+                  editor.tf.setNodes({ date: formatIsoDate(date) }, { at });
+                }
                 setOpen(false);
               }}
             />
@@ -84,4 +99,4 @@ export function DateElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};

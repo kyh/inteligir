@@ -11,50 +11,51 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route as rootRoute } from "../../routes/__root";
+import { InertSocket } from "./inert-socket";
 
 const dialled: string[] = [];
 let vaultReads = 0;
 
-class CountingSocket {
+class CountingSocket extends InertSocket {
   constructor(url: string) {
+    super();
     dialled.push(url);
   }
-  addEventListener(): void {}
-  send(): void {}
-  close(): void {}
 }
 
-function VaultReader() {
+const VaultReader = () => {
   const { data } = useQuery({
-    queryKey: ["vault", "tree"],
-    queryFn: () => {
+    queryFn: async () => {
       vaultReads += 1;
-      return Promise.resolve("vault");
+      return await Promise.resolve("vault");
     },
+    queryKey: ["vault", "tree"],
   });
   return <p>{data ?? "loading"}</p>;
-}
+};
 
-function mountRouter() {
+const mountRouter = () => {
   const indexRoute = createRoute({
+    component: VaultReader,
     getParentRoute: () => rootRoute,
     path: "/",
-    component: VaultReader,
   });
   const settingsRoute = createRoute({
+    component: () => <p>settings</p>,
     getParentRoute: () => rootRoute,
     path: "/settings",
-    component: () => <p>settings</p>,
   });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute, settingsRoute]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
+    routeTree: rootRoute.addChildren([indexRoute, settingsRoute]),
   });
   render(<RouterProvider router={router} />);
   return router;
-}
+};
 
-const settle = (): Promise<void> => act(async () => {});
+const settle = async (): Promise<void> => {
+  await act(async () => {});
+};
 
 beforeEach(() => {
   dialled.length = 0;

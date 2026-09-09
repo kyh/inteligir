@@ -12,15 +12,15 @@ const ROOT_MANIFEST = "package.json";
 
 const scriptTableSchema = z.looseObject({ scripts: z.record(z.string(), z.string()) });
 
-function rootScripts(): Record<string, string> {
+const rootScripts = (): Record<string, string> => {
   const file = path.join(REPO_ROOT, ROOT_MANIFEST);
-  const value: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+  const value: unknown = JSON.parse(fs.readFileSync(file, "utf-8"));
   const parsed = scriptTableSchema.safeParse(value);
   if (!parsed.success) {
     throw new Error(`${ROOT_MANIFEST}: expected a "scripts" table of strings`);
   }
   return parsed.data.scripts;
-}
+};
 
 describe("root script naming", () => {
   it("a script suffixed with a workspace directory drives that workspace", () => {
@@ -31,10 +31,16 @@ describe("root script naming", () => {
     const violations: string[] = [];
     for (const [script, command] of Object.entries(rootScripts())) {
       const suffix = script.split(":").at(-1);
-      if (suffix === undefined) continue;
+      if (suffix === undefined) {
+        continue;
+      }
       const workspace = byDir.get(suffix);
-      if (workspace === undefined) continue;
-      if (command.includes(workspace.name) || command.includes(workspace.dir)) continue;
+      if (workspace === undefined) {
+        continue;
+      }
+      if (command.includes(workspace.name) || command.includes(workspace.dir)) {
+        continue;
+      }
       violations.push(
         `MISNAMED  ${script}\n` +
           `  runs: ${command}\n` +
@@ -49,9 +55,11 @@ describe("root script naming", () => {
     const names = new Set(workspaces().map((w) => w.name));
     const violations: string[] = [];
     for (const [script, command] of Object.entries(rootScripts())) {
-      for (const filtered of command.matchAll(/--filter[= ]([^\s]+)/gu)) {
-        const target = (filtered[1] ?? "").replace(/\.\.\.$/u, "");
-        if (target === "" || names.has(target)) continue;
+      for (const filtered of command.matchAll(/--filter[= ](?<target>[^\s]+)/gu)) {
+        const target = (filtered.groups?.target ?? "").replace(/\.\.\.$/u, "");
+        if (target === "" || names.has(target)) {
+          continue;
+        }
         violations.push(
           `UNKNOWN WORKSPACE  ${script}\n` +
             `  runs: ${command}\n` +

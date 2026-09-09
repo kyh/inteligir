@@ -5,13 +5,8 @@
 
 import { useRef } from "react";
 import { ElementApi, PathApi } from "platejs";
-import {
-  PlateElement,
-  useEditorRef,
-  useElement,
-  useReadOnly,
-  type PlateElementProps,
-} from "platejs/react";
+import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "cn";
 
@@ -19,33 +14,33 @@ import { stringProp } from "@repo/editor/node-props";
 
 const MIN_PCT = 10;
 
-function formatPct(value: number): string {
-  return `${Number(value.toFixed(2))}%`;
-}
+const formatPct = (value: number): string => `${Number(value.toFixed(2))}%`;
 
-export function ColumnGroupElement(props: PlateElementProps) {
-  return (
-    <PlateElement {...props} className="mb-1">
-      <div className="flex size-full gap-4 rounded">{props.children}</div>
-    </PlateElement>
-  );
-}
+export const ColumnGroupElement = (props: PlateElementProps) => (
+  <PlateElement {...props} className="mb-1">
+    <div className="flex size-full gap-4 rounded">{props.children}</div>
+  </PlateElement>
+);
 
-export function ColumnElement(props: PlateElementProps) {
+export const ColumnElement = (props: PlateElementProps) => {
   const readOnly = useReadOnly();
   const editor = useEditorRef();
   const element = useElement();
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  const width = stringProp(element, "width");
+  const width = stringProp(element, "width") ?? "";
 
   const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
     const path = editor.api.findPath(element);
     const host = hostRef.current;
     const groupRow = host?.parentElement;
-    if (!path || !host || !groupRow) return;
+    if (!path || !host || !groupRow) {
+      return;
+    }
     const next = host.nextElementSibling;
-    if (!(next instanceof HTMLElement)) return;
+    if (!(next instanceof HTMLElement)) {
+      return;
+    }
 
     e.preventDefault();
     // capture is best effort; the listeners live on window, and pointercancel aborts without committing.
@@ -58,7 +53,7 @@ export function ColumnElement(props: PlateElementProps) {
       }
     }
     const startX = e.clientX;
-    const cells = Array.from(groupRow.children).filter(
+    const cells = [...groupRow.children].filter(
       (cell): cell is HTMLElement => cell instanceof HTMLElement,
     );
     const startPx = cells.map((cell) => cell.getBoundingClientRect().width);
@@ -73,18 +68,18 @@ export function ColumnElement(props: PlateElementProps) {
     const clampDelta = (clientX: number): number =>
       Math.min(Math.max(clientX - startX, minPx - startSelf), startNext - minPx);
 
+    const listeners = new AbortController();
+
+    const detach = () => {
+      listeners.abort();
+      host.style.flex = "";
+      next.style.flex = "";
+    };
+
     const onMove = (move: PointerEvent) => {
       const delta = clampDelta(move.clientX);
       host.style.flex = `0 0 ${startSelf + delta}px`;
       next.style.flex = `0 0 ${pairPx - (startSelf + delta)}px`;
-    };
-
-    const detach = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onCancel);
-      host.style.flex = "";
-      next.style.flex = "";
     };
 
     const onCancel = () => {
@@ -94,33 +89,46 @@ export function ColumnElement(props: PlateElementProps) {
     const onUp = (up: PointerEvent) => {
       detach();
       const delta = clampDelta(up.clientX);
-      if (delta === 0) return;
+      if (delta === 0) {
+        return;
+      }
       // the last column absorbs rounding so widths sum to 100.
-      const finalPx = startPx.map((px, i) =>
-        i === selfIndex ? startSelf + delta : i === nextIndex ? startNext - delta : px,
-      );
+      const finalPx = startPx.map((px, i) => {
+        if (i === selfIndex) {
+          return startSelf + delta;
+        }
+        if (i === nextIndex) {
+          return startNext - delta;
+        }
+        return px;
+      });
       const rounded = finalPx.map((px) => Number(((px / totalPx) * 100).toFixed(2)));
       const sumButLast = rounded.slice(0, -1).reduce((sum, pct) => sum + pct, 0);
       rounded[rounded.length - 1] = Number((100 - sumButLast).toFixed(2));
       const groupPath = PathApi.parent(path);
       editor.tf.withoutNormalizing(() => {
-        rounded.forEach((pct, i) => {
-          editor.tf.setNodes({ width: formatPct(pct) }, { at: groupPath.concat([i]) });
-        });
+        for (const [i, pct] of rounded.entries()) {
+          editor.tf.setNodes({ width: formatPct(pct) }, { at: [...groupPath, i] });
+        }
       });
     };
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onCancel);
+    const { signal } = listeners;
+    window.addEventListener("pointermove", onMove, { signal });
+    window.addEventListener("pointerup", onUp, { signal });
+    window.addEventListener("pointercancel", onCancel, { signal });
   };
 
   const path = editor.api.findPath(element);
   const isLast = (() => {
-    if (!path) return true;
+    if (!path) {
+      return true;
+    }
     const parent = editor.api.node(PathApi.parent(path));
-    if (!parent || !ElementApi.isElement(parent[0])) return true;
-    return path[path.length - 1] === parent[0].children.length - 1;
+    if (!parent || !ElementApi.isElement(parent[0])) {
+      return true;
+    }
+    return path.at(-1) === parent[0].children.length - 1;
   })();
 
   return (
@@ -145,4 +153,4 @@ export function ColumnElement(props: PlateElementProps) {
       ) : null}
     </PlateElement>
   );
-}
+};

@@ -18,16 +18,13 @@ import { ReadRefusal } from "./read-refusal";
 
 const SOURCE_LABELS = { agent: "Agent", external: "External", user: "Me" } as const;
 
-function sourceLabel(entry: CommentEntryWire): string {
-  return entry.source === undefined ? "—" : SOURCE_LABELS[entry.source];
-}
+const sourceLabel = (entry: CommentEntryWire): string =>
+  entry.source === undefined ? "—" : SOURCE_LABELS[entry.source];
 
 // the sidecar stamps unix seconds; the shared label takes epoch ms.
-function entryTimeMs(entry: CommentEntryWire): number {
-  return entry.createdAt * 1000;
-}
+const entryTimeMs = (entry: CommentEntryWire): number => entry.createdAt * 1000;
 
-function CommentRow({
+const CommentRow = ({
   id,
   entry,
   asOfMs,
@@ -35,19 +32,17 @@ function CommentRow({
   id: string;
   entry: CommentEntryWire;
   asOfMs: number;
-}) {
-  return (
-    <div key={id} className="px-2 py-1">
-      <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
-        <span className="font-medium text-foreground/80">{sourceLabel(entry)}</span>
-        <span>{relativeTimeLabel(entryTimeMs(entry), asOfMs)}</span>
-      </div>
-      <p className="text-sm whitespace-pre-wrap">{entry.text}</p>
+}) => (
+  <div key={id} className="px-2 py-1">
+    <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+      <span className="font-medium text-foreground/80">{sourceLabel(entry)}</span>
+      <span>{relativeTimeLabel(entryTimeMs(entry), asOfMs)}</span>
     </div>
-  );
-}
+    <p className="text-sm whitespace-pre-wrap">{entry.text}</p>
+  </div>
+);
 
-function ThreadCard({
+const ThreadCard = ({
   docPath,
   thread,
   focused,
@@ -59,7 +54,7 @@ function ThreadCard({
   focused: boolean;
   onDone: () => void;
   asOfMs: number;
-}) {
+}) => {
   const [draft, setDraft] = useState("");
 
   const jump = (): void => {
@@ -95,7 +90,9 @@ function ThreadCard({
 
   const sendReply = (): void => {
     const text = draft.trim();
-    if (text === "" || busy) return;
+    if (text === "" || busy) {
+      return;
+    }
     reply.mutate(
       {
         id: `${thread.rootId}-r${String(Date.now() % 100_000)}`,
@@ -131,9 +128,9 @@ function ThreadCard({
           <CommentRow id={row.id} entry={row.entry} asOfMs={asOfMs} />
         </div>
       ))}
-      {!thread.anchored ? (
+      {thread.anchored ? null : (
         <p className="px-2 pb-1 text-[11px] text-amber-600">No marker in the note body.</p>
-      ) : null}
+      )}
       <div className="flex items-center gap-1 border-t border-line/60 p-1.5">
         <Textarea
           aria-label="Reply to comment"
@@ -190,15 +187,15 @@ function ThreadCard({
       </div>
     </div>
   );
-}
+};
 
-export function CommentsTab({
+export const CommentsTab = ({
   docPath,
   focusIds,
 }: {
   docPath: string | null;
   focusIds: readonly string[];
-}) {
+}) => {
   const queryClient = useQueryClient();
   const query = useNoteComments(docPath);
   const [showResolved, setShowResolved] = useState(false);
@@ -209,7 +206,7 @@ export function CommentsTab({
   if (query.isError) {
     return <ReadRefusal lead="The comments could not be read." error={query.error} />;
   }
-  const data = query.data;
+  const { data } = query;
   if (data === undefined) {
     return <p className="p-3 text-sm text-muted-foreground">Loading…</p>;
   }
@@ -276,4 +273,4 @@ export function CommentsTab({
       ) : null}
     </div>
   );
-}
+};

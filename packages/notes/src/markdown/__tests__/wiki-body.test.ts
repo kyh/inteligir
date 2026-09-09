@@ -5,28 +5,28 @@ import { isUuidWikiAlias, parseWikiBodyRange } from "../remark-wiki-link";
 describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
   it("splits a tight # into the anchor", () => {
     expect(parseWikiBodyRange("Note#Heading")).toEqual({
-      target: "Note",
       anchor: "Heading",
-      targetRange: { start: 0, end: 4 },
+      target: "Note",
+      targetRange: { end: 4, start: 0 },
     });
   });
 
   it("a space-surrounded # is title text", () => {
     expect(parseWikiBodyRange("A # B")).toEqual({
       target: "A # B",
-      targetRange: { start: 0, end: 5 },
+      targetRange: { end: 5, start: 0 },
     });
   });
 
   it("a one-sided # is title text (C# Notes)", () => {
     expect(parseWikiBodyRange("C# Notes")).toEqual({
       target: "C# Notes",
-      targetRange: { start: 0, end: 8 },
+      targetRange: { end: 8, start: 0 },
     });
   });
 
   it("position 0 is an anchor regardless (pure-anchor link)", () => {
-    expect(parseWikiBodyRange("#sec")).toEqual({ target: "", anchor: "sec" });
+    expect(parseWikiBodyRange("#sec")).toEqual({ anchor: "sec", target: "" });
   });
 
   it("an escaped # stays in the title, unescaped for resolution", () => {
@@ -35,7 +35,7 @@ describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
     expect(parsed.anchor).toBeUndefined();
     // The range maps the RAW slice; verification fails closed on escaped
     // titles, so rename surgery never rewrites them.
-    expect(parsed.targetRange).toEqual({ start: 0, end: 11 });
+    expect(parsed.targetRange).toEqual({ end: 11, start: 0 });
   });
 
   it("an escaped backslash unescapes", () => {

@@ -23,22 +23,26 @@ export interface BridgeStore<TBridge, TState> {
   run: (action: (bridge: TBridge) => Promise<TState>) => Promise<void>;
 }
 
-export function createBridgeStore<TBridge, TState>(
+export const createBridgeStore = <TBridge, TState>(
   args: BridgeStoreArgs<TBridge, TState>,
-): BridgeStore<TBridge, TState> {
+): BridgeStore<TBridge, TState> => {
   const listeners = new Set<() => void>();
   let snapshot: BridgeSnapshot<TState> = { kind: "loading" };
   let started = false;
 
   const publish = (next: BridgeSnapshot<TState>): void => {
     snapshot = next;
-    for (const listener of listeners) listener();
+    for (const listener of listeners) {
+      listener();
+    }
   };
   const adopt = (state: TState): void => {
     publish({ kind: "state", state });
   };
   const start = (): void => {
-    if (started) return;
+    if (started) {
+      return;
+    }
     started = true;
     const bridge = args.bridge();
     if (bridge === undefined) {
@@ -57,12 +61,14 @@ export function createBridgeStore<TBridge, TState>(
   const getSnapshot = (): BridgeSnapshot<TState> => snapshot;
 
   return {
-    use: () => useSyncExternalStore(subscribe, getSnapshot),
     adopt,
     run: async (action) => {
       const bridge = args.bridge();
-      if (bridge === undefined) return;
+      if (bridge === undefined) {
+        return;
+      }
       adopt(await action(bridge));
     },
+    use: () => useSyncExternalStore(subscribe, getSnapshot),
   };
-}
+};

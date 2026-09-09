@@ -16,8 +16,8 @@ const CALLOUT_VARIANTS = new Set([
   "warning",
 ]);
 
-const TYPE_PREFIX_RE = /^type\s*:/i;
-const LEVEL_PREFIX_RE = /^level\s*:/i;
+const TYPE_PREFIX_RE = /^type\s*:/iu;
+const LEVEL_PREFIX_RE = /^level\s*:/iu;
 
 export interface CalloutPayload {
   kind: string;
@@ -28,7 +28,7 @@ export interface CalloutPayload {
   levelPrefixed: boolean;
 }
 
-export function parseCalloutPayload(payload: string): CalloutPayload | null {
+export const parseCalloutPayload = (payload: string): CalloutPayload | null => {
   const lines = payload.split("\n");
   const rawKind = lines[0]?.trim() ?? "";
   const typePrefixed = TYPE_PREFIX_RE.test(rawKind);
@@ -42,12 +42,14 @@ export function parseCalloutPayload(payload: string): CalloutPayload | null {
   const hasLevel = kind === "priority" && PRIORITY_LEVELS.has(level);
   const headerLines = hasLevel ? 2 : 1;
   const parsed: CalloutPayload = {
-    kind,
     body: lines.slice(headerLines).join("\n"),
     headerLines,
-    typePrefixed,
+    kind,
     levelPrefixed: hasLevel && levelPrefixed,
+    typePrefixed,
   };
-  if (hasLevel) parsed.level = level;
+  if (hasLevel) {
+    parsed.level = level;
+  }
   return parsed;
-}
+};

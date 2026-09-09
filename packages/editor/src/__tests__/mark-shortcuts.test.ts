@@ -13,10 +13,10 @@ import { MARK_SHORTCUTS, markPluginShortcuts, markShortcut } from "../mark-short
 // the chord as Plate holds it after resolution: ours is a string, a default of Plate's is a key list
 const toggleShortcutSchema = z.object({ keys: z.string() }).nullish();
 
-function resolvedToggle(mark: string) {
+const resolvedToggle = (mark: string) => {
   const editor = createPlateEditor({ plugins: BasicMarksKit });
-  return toggleShortcutSchema.parse(editor.getPlugin({ key: mark }).shortcuts["toggle"]);
-}
+  return toggleShortcutSchema.parse(editor.getPlugin({ key: mark }).shortcuts.toggle);
+};
 
 describe("the mark chords", () => {
   it("are what Plate runs, row for row", () => {
@@ -29,7 +29,7 @@ describe("the mark chords", () => {
     const marks = MARK_SHORTCUTS.map((row) => row.mark);
     expect(new Set(marks).size).toBe(marks.length);
     expect(markShortcut(KEYS.code)).toBeNull();
-    expect(() => markPluginShortcuts(KEYS.code)).toThrow(/no row/);
+    expect(() => markPluginShortcuts(KEYS.code)).toThrow(/no row/u);
     expect(EDITOR_SHORTCUTS.some((row) => row.action === "toggle-code-mark")).toBe(true);
   });
 

@@ -50,16 +50,16 @@ describe("error envelope", () => {
 
 describe("device login", () => {
   const LOGIN = {
+    deviceName: "Laptop",
     email: "owner@example.test",
     password: "correct horse battery",
-    deviceName: "Laptop",
   };
 
   it("folds the email the way the account stores it, and trims what a human pastes", () => {
     const parsed = deviceLoginRequestSchema.parse({
       ...LOGIN,
-      email: "  Owner@Example.TEST ",
       deviceName: "  Kaiyu's MacBook ",
+      email: "  Owner@Example.TEST ",
     });
     expect(parsed.email).toBe("owner@example.test");
     expect(parsed.deviceName).toBe("Kaiyu's MacBook");
@@ -107,7 +107,7 @@ describe("device login", () => {
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(64)}`)).toBe(true);
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(63)}`)).toBe(false);
     expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
-    const answer = { deviceId: "dev_1", credential: `igd_${"a".repeat(64)}` };
+    const answer = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
     expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
     expect(deviceLoginResponseSchema.safeParse({ ...answer, token: "x" }).success).toBe(false);
   });
@@ -126,13 +126,13 @@ describe("push request", () => {
     const result = pushRequestSchema.safeParse({
       events: [
         {
-          threadId: "th_1",
-          deviceSeq: 1,
-          event: { type: "turn/started", nested: [1, "x", null] },
           createdAt: 1,
+          deviceSeq: 1,
+          event: { nested: [1, "x", null], type: "turn/started" },
+          threadId: "th_1",
         },
       ],
-      threads: [{ threadId: "th_1", lane: "desktop", title: "Fix the build", updatedAt: 1 }],
+      threads: [{ lane: "desktop", threadId: "th_1", title: "Fix the build", updatedAt: 1 }],
     });
     expect(result.success).toBe(true);
   });
@@ -140,7 +140,7 @@ describe("push request", () => {
   it("demands the client's own timestamp on a metadata upsert", () => {
     const result = pushRequestSchema.safeParse({
       events: [],
-      threads: [{ threadId: "th_1", lane: "desktop" }],
+      threads: [{ lane: "desktop", threadId: "th_1" }],
     });
     expect(result.success).toBe(false);
   });
@@ -148,7 +148,7 @@ describe("push request", () => {
   it("refuses an event body over the byte ceiling", () => {
     const result = pushRequestSchema.safeParse({
       events: [
-        { threadId: "th_1", deviceSeq: 1, event: "x".repeat(EVENT_MAX_BYTES + 1), createdAt: 1 },
+        { createdAt: 1, deviceSeq: 1, event: "x".repeat(EVENT_MAX_BYTES + 1), threadId: "th_1" },
       ],
     });
     expect(result.success).toBe(false);
@@ -159,14 +159,14 @@ describe("push request", () => {
     const wide = "あ".repeat(EVENT_MAX_BYTES / 3);
     expect(wide.length).toBeLessThan(EVENT_MAX_BYTES);
     const result = pushRequestSchema.safeParse({
-      events: [{ threadId: "th_1", deviceSeq: 1, event: wide, createdAt: 1 }],
+      events: [{ createdAt: 1, deviceSeq: 1, event: wide, threadId: "th_1" }],
     });
     expect(result.success).toBe(false);
   });
 
   it("refuses a non-JSON event body", () => {
     const result = pushRequestSchema.safeParse({
-      events: [{ threadId: "th_1", deviceSeq: 1, event: undefined, createdAt: 1 }],
+      events: [{ createdAt: 1, deviceSeq: 1, event: undefined, threadId: "th_1" }],
     });
     expect(result.success).toBe(false);
   });
@@ -190,7 +190,7 @@ describe("capture handoff", () => {
   it("demands an idempotency key, so a retried share-sheet post is one capture", () => {
     expect(captureRequestSchema.safeParse({ text: "buy oat milk" }).success).toBe(false);
     expect(
-      captureRequestSchema.safeParse({ text: "buy oat milk", idempotencyKey: "k".repeat(8) })
+      captureRequestSchema.safeParse({ idempotencyKey: "k".repeat(8), text: "buy oat milk" })
         .success,
     ).toBe(true);
   });
@@ -210,14 +210,14 @@ describe("capture handoff", () => {
 
 describe("ws ping frames", () => {
   it("parses each server frame", () => {
-    expect(syncPingSchema.parse({ type: "sync", seq: 12 }).type).toBe("sync");
+    expect(syncPingSchema.parse({ seq: 12, type: "sync" }).type).toBe("sync");
     expect(syncPingSchema.parse({ type: "capture" }).type).toBe("capture");
-    expect(syncPingSchema.parse({ type: "dispatch", threadId: "th_1" }).type).toBe("dispatch");
+    expect(syncPingSchema.parse({ threadId: "th_1", type: "dispatch" }).type).toBe("dispatch");
     expect(syncPingSchema.parse({ type: "vault" }).type).toBe("vault");
   });
 
   it("refuses a frame with extra fields — the server owns this boundary", () => {
-    expect(syncPingSchema.safeParse({ type: "sync", seq: 1, extra: true }).success).toBe(false);
+    expect(syncPingSchema.safeParse({ extra: true, seq: 1, type: "sync" }).success).toBe(false);
   });
 });
 
@@ -233,16 +233,16 @@ describe("vault read rows", () => {
     expect(tree.entries[0]?.path).toBe("notes/a.md");
     const file = vaultFileResponseSchema.parse({
       commit: COMMIT,
-      path: "notes/a.md",
-      oid: "b".repeat(40),
       content: "# a\n",
+      oid: "b".repeat(40),
+      path: "notes/a.md",
     });
     expect(file.content).toBe("# a\n");
   });
 
   it("refuses an added field — the never-break rule made these final", () => {
     expect(
-      vaultTreeResponseSchema.safeParse({ commit: COMMIT, entries: [], next: null, extra: 1 })
+      vaultTreeResponseSchema.safeParse({ commit: COMMIT, entries: [], extra: 1, next: null })
         .success,
     ).toBe(false);
   });
@@ -264,7 +264,7 @@ describe("vault read rows", () => {
     expect(vaultAssetQuerySchema.safeParse({ path: "a.png" }).success).toBe(false);
     expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT }).success).toBe(true);
     expect(vaultAssetQuerySchema.safeParse({ path: "../up.png", ref: COMMIT }).success).toBe(false);
-    expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT, extra: 1 }).success).toBe(
+    expect(vaultAssetQuerySchema.safeParse({ extra: 1, path: "a.png", ref: COMMIT }).success).toBe(
       false,
     );
   });

@@ -2,14 +2,12 @@
 
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 import { binaryOnPath } from "./binary-on-path";
 import { execFile } from "node:child_process";
-import {
-  HARNESSES,
-  HARNESS_IDS,
-  type HarnessDefinition,
-} from "@repo/agent-runtime/acp/harness-registry";
+import { promisify } from "node:util";
+import { HARNESSES, HARNESS_IDS } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessDefinition } from "@repo/agent-runtime/acp/harness-registry";
 
 type CredentialPresence = "present" | "absent" | "unknown";
 
@@ -21,43 +19,50 @@ export interface HarnessProbe {
   loginCommand: string;
 }
 
-function keychainHasEntry(service: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    execFile("security", ["find-generic-password", "-s", service], { timeout: 3_000 }, (error) => {
-      resolve(error === null);
-    });
-  });
-}
+// oxlint-disable-next-line typescript/strict-void-return -- execFile returns the ChildProcess promisify's parameter type calls void; the promise keeps it as `.child`.
+const execFileAsync = promisify(execFile);
 
-async function probeCredentials(harness: HarnessDefinition): Promise<CredentialPresence> {
+const keychainHasEntry = async (service: string): Promise<boolean> => {
+  try {
+    await execFileAsync("security", ["find-generic-password", "-s", service], { timeout: 3000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const probeCredentials = async (harness: HarnessDefinition): Promise<CredentialPresence> => {
   let sawUnreadableProbe = false;
   for (const probe of harness.credentialProbes) {
     if (probe.kind === "home-file") {
       try {
-        if (statSync(join(homedir(), probe.relativePath)).isFile()) return "present";
+        if (statSync(path.join(homedir(), probe.relativePath)).isFile()) {
+          return "present";
+        }
       } catch {
         continue;
       }
     } else if (process.platform === "darwin") {
-      if (await keychainHasEntry(probe.service)) return "present";
+      if (await keychainHasEntry(probe.service)) {
+        return "present";
+      }
     } else {
       sawUnreadableProbe = true;
     }
   }
   return sawUnreadableProbe ? "unknown" : "absent";
-}
+};
 
-export async function probeHarnesses(env: NodeJS.ProcessEnv): Promise<HarnessProbe[]> {
-  return Promise.all(
+export const probeHarnesses = async (env: NodeJS.ProcessEnv): Promise<HarnessProbe[]> =>
+  await Promise.all(
     HARNESS_IDS.map(async (id) => {
       const harness = HARNESSES[id];
       return {
-        id,
-        displayName: harness.displayName,
         cliPath: binaryOnPath(harness.vendorBinary, env),
         credentials: await probeCredentials(harness),
+        displayName: harness.displayName,
+        id,
         loginCommand: harness.loginCommand,
       };
     }),
   );
-}

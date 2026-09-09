@@ -14,36 +14,45 @@ export class FakeVault implements VaultIO {
   pendingWrites: PromiseWithResolvers<void>[] = [];
   removeOutcome: DeleteVaultEntryResult = { outcome: "removed" };
 
-  read = (path: string): Promise<string> => {
-    if (this.hangReads) return new Promise<string>(() => {});
+  read = async (path: string): Promise<string> => {
+    if (this.hangReads) {
+      return await Promise.withResolvers<string>().promise;
+    }
     if (this.manualRead) {
       const pending = Promise.withResolvers<string>();
       this.pendingReads.push(pending);
-      return pending.promise;
+      return await pending.promise;
     }
     const content = this.files.get(path);
-    return content === undefined ? Promise.reject(new Error("ENOENT")) : Promise.resolve(content);
+    return content === undefined
+      ? await Promise.reject(new Error("ENOENT"))
+      : await Promise.resolve(content);
   };
 
-  write = (path: string, content: string): Promise<void> => {
-    this.writes++;
+  write = async (path: string, content: string): Promise<void> => {
+    this.writes += 1;
     this.files.set(path, content);
-    if (!this.manualWrite) return Promise.resolve();
-    const pending = Promise.withResolvers<void>();
+    if (!this.manualWrite) {
+      return;
+    }
+    const pending: PromiseWithResolvers<void> = Promise.withResolvers();
     this.pendingWrites.push(pending);
-    return pending.promise;
+    await pending.promise;
   };
 
-  create = (path: string, content: string): Promise<void> => {
-    if (this.files.has(path)) return Promise.reject(new Error("EEXIST"));
+  create = async (path: string, content: string): Promise<void> => {
+    if (this.files.has(path)) {
+      throw new Error("EEXIST");
+    }
     this.files.set(path, content);
-    return Promise.resolve();
+    await Promise.resolve();
   };
 
-  remove = (path: string): Promise<DeleteVaultEntryResult> => {
-    this.removes++;
-    if (this.removeOutcome.outcome === "held") return Promise.resolve(this.removeOutcome);
-    this.files.delete(path);
-    return Promise.resolve(this.removeOutcome);
+  remove = async (path: string): Promise<DeleteVaultEntryResult> => {
+    this.removes += 1;
+    if (this.removeOutcome.outcome !== "held") {
+      this.files.delete(path);
+    }
+    return await Promise.resolve(this.removeOutcome);
   };
 }

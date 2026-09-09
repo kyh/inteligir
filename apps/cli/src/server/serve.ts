@@ -14,21 +14,17 @@ import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { resolveCheckoutRoot } from "./dev-instance";
 import { errnoCode } from "./errno";
-import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
+import { closeServer, listenWithRetry } from "./listen";
+import type { UpgradedSockets } from "./listen";
 import { createLocalClient } from "./local-client";
-import {
-  mintServerToken,
-  readServerFile,
-  removeServerFile,
-  writeServerFile,
-  type ServerFile,
-} from "./server-file";
+import { mintServerToken, readServerFile, removeServerFile, writeServerFile } from "./server-file";
+import type { ServerFile } from "./server-file";
 import {
   createGracefulShutdown,
   installFatalErrorHandlers,
   installShutdownSignals,
-  type ShutdownStep,
 } from "./shutdown";
+import type { ShutdownStep } from "./shutdown";
 import { redactRemoteUrl } from "./vault/git-run";
 
 // passed as env rather than written to process.env: a global write is inherited
@@ -46,29 +42,29 @@ export interface ServeResult {
 }
 
 // its own deadline, not the client's: the catch must tell "refused" from "never answered".
-const OWNER_PROBE_TIMEOUT_MS = 1_500;
+const OWNER_PROBE_TIMEOUT_MS = 1500;
 
 // EPERM is a live process this user may not signal; ESRCH is gone.
-function processAlive(pid: number): boolean {
+const processAlive = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
     return errnoCode(error) === "EPERM";
   }
-}
+};
 
 type OwnerProbe =
   | { kind: "answered"; dataDir: string }
   | { kind: "silent" }
   | { kind: "unreachable" };
 
-async function probeOwner(existing: ServerFile): Promise<OwnerProbe> {
+const probeOwner = async (existing: ServerFile): Promise<OwnerProbe> => {
   const client = createLocalClient({
     origin: `http://127.0.0.1:${String(existing.port)}`,
-    token: existing.token,
     // well past the deadline below, so the client's own abort never fires first.
     timeoutMs: OWNER_PROBE_TIMEOUT_MS * 4,
+    token: existing.token,
   });
   const deadline = new AbortController();
   const timer = setTimeout(() => {
@@ -76,36 +72,44 @@ async function probeOwner(existing: ServerFile): Promise<OwnerProbe> {
   }, OWNER_PROBE_TIMEOUT_MS);
   try {
     const status = await client.system.status(undefined, { signal: deadline.signal });
-    return { kind: "answered", dataDir: status.dataDir };
+    return { dataDir: status.dataDir, kind: "answered" };
   } catch {
     return deadline.signal.aborted ? { kind: "silent" } : { kind: "unreachable" };
   } finally {
     clearTimeout(timer);
   }
-}
+};
 
 // silence counts as live: better-sqlite3 is synchronous, so a large batch blocks
 // the loop of a server still holding the vault. a refused connection is an
 // answer, so an unrelated process that inherited the pid cannot block boot forever.
-export async function assertNoLiveServer(dataDir: string): Promise<void> {
+export const assertNoLiveServer = async (dataDir: string): Promise<void> => {
   const existing = readServerFile(dataDir);
-  if (existing === null) return;
-  if (!processAlive(existing.pid)) return;
+  if (existing === null) {
+    return;
+  }
+  if (!processAlive(existing.pid)) {
+    return;
+  }
   const probe = await probeOwner(existing);
-  if (probe.kind === "unreachable") return;
-  if (probe.kind === "answered" && probe.dataDir !== dataDir) return;
+  if (probe.kind === "unreachable") {
+    return;
+  }
+  if (probe.kind === "answered" && probe.dataDir !== dataDir) {
+    return;
+  }
   const what =
     probe.kind === "silent"
       ? `An inteligir server (pid ${String(existing.pid)}) still holds ${dataDir} on port ${String(existing.port)} and is not answering.`
       : `An inteligir server already serves ${dataDir} on port ${String(existing.port)} (pid ${String(existing.pid)}).`;
   throw new Error(`${what} Stop it first, or select another instance with INTELIGIR_DATA_DIR.`);
-}
+};
 
-async function boot(
+const boot = async (
   version: string,
   env: NodeJS.ProcessEnv,
   teardown: ShutdownStep[],
-): Promise<ServeResult> {
+): Promise<ServeResult> => {
   const checkoutPath = resolveCheckoutRoot();
   const config = resolveAppConfig({ checkoutPath, env });
   await assertNoLiveServer(config.dataDir);
@@ -118,11 +122,9 @@ async function boot(
   const serverToken = mintServerToken();
 
   const runtime = await composeRuntime({
-    config,
-    version,
-    teardown,
     // injected: it cannot be imported from the composed graph (cloud/cloud-socket.ts).
     cloudTransport: { openSocket: openCloudSocket },
+    config,
     driver: ({
       config: driverConfig,
       db,
@@ -138,28 +140,30 @@ async function boot(
       return resolveAgentDriver({
         config: driverConfig,
         db,
+        mcpServers: async () => await composeSessionMcpServers(connectors, connectorsOauth),
         notifier: bus,
-        vault,
-        mcpServers: () => composeSessionMcpServers(connectors, connectorsOauth),
-        sessionFacts: () => ({
-          dataDir: driverConfig.dataDir,
-          cliBinDir,
-          skillsDir,
-          connectedDirs: folders.list(),
-        }),
         preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,
+        sessionFacts: () => ({
+          cliBinDir,
+          connectedDirs: folders.list(),
+          dataDir: driverConfig.dataDir,
+          skillsDir,
+        }),
+        vault,
       });
     },
+    teardown,
+    version,
   });
 
   const clientDir = resolveUiDir();
   const { app, injectWebSocket } = createApp({
-    context: runtime.context,
     bus: runtime.bus,
-    voiceStreamHub: runtime.voiceStreamHub,
-    serverToken,
     clientDir,
     configuredPort: config.port,
+    context: runtime.context,
+    serverToken,
+    voiceStreamHub: runtime.voiceStreamHub,
   });
 
   const { port, server } = await listenWithRetry({
@@ -186,49 +190,51 @@ async function boot(
   });
   // the bound port, never the configured one: a dev port may have been probed upward.
   writeServerFile(config.dataDir, {
+    pid: process.pid,
     port,
     token: serverToken,
     vaultDir: config.vaultDir,
-    pid: process.pid,
   });
   injectWebSocket(server);
   // kicked after listen: an unsettled index only delays the searches that ask for it.
-  void runtime.context.knowledge.settle().catch(() => {
-    // logged inside the pass; a rebuild that fails again fails the query that needs it.
-  });
+  void (async () => {
+    try {
+      await runtime.context.knowledge.settle();
+    } catch {
+      // logged inside the pass; a rebuild that fails again fails the query that needs it.
+    }
+  })();
   const bootRemote = runtime.vaultRemote();
-  const agent = runtime.context.system.agent;
+  const { agent } = runtime.context.system;
   console.log(
     `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "account" ? " (account)" : ""}`}`,
   );
   console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
   const serverUrl = `http://127.0.0.1:${port}`;
   return { serverUrl, uiUrl: clientDir === null ? null : `${serverUrl}/` };
-}
+};
 
 // both installers go on before the boot, over the live steps array: a ^C during
 // a slow first boot tears down what exists, and a fatal mid-boot leaves through
 // the same teardown.
-export async function runServe(
+export const runServe = async (
   version: string,
   overrides: ServeOverrides = {},
-): Promise<ServeResult> {
+): Promise<ServeResult> => {
   const teardown: ShutdownStep[] = [];
   const shutdown = createGracefulShutdown({
-    steps: teardown,
     onStepFailed: (name, error) => {
       console.error(`shutdown: ${name} failed`, error);
     },
     onTimeout: (deadlineMs) => {
       console.error(`shutdown: still running after ${deadlineMs}ms — exiting anyway`);
     },
+    steps: teardown,
   });
 
   const env = { ...process.env, ...overrides };
 
   installShutdownSignals({
-    shutdown,
-    target: process,
     onImpatient: (signal) => {
       console.error(`shutdown: ${signal} again — leaving now`);
       process.exit(1);
@@ -236,24 +242,26 @@ export async function runServe(
     onUncleanExit: (failed) => {
       console.error(`shutdown: incomplete — ${failed.join(", ")} did not finish; exiting non-zero`);
     },
+    shutdown,
+    target: process,
   });
 
   installFatalErrorHandlers({
-    shutdown,
-    target: process,
     onFatal: (event, reason) => {
       console.error(`fatal: ${event} —`, reason);
     },
+    shutdown,
+    target: process,
   });
 
-  const booted = await boot(version, env, teardown).catch(async (cause: unknown) => {
+  try {
+    return await boot(version, env, teardown);
+  } catch (error) {
     console.error(
-      `inteligir failed to start: ${cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)}`,
+      `inteligir failed to start: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
     );
     await shutdown.run();
     // exit, not an exit code: the watcher fork's IPC channel is a live handle, so the loop would never drain.
     process.exit(1);
-  });
-
-  return booted;
-}
+  }
+};

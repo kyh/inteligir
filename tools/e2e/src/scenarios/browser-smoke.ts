@@ -1,30 +1,29 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("smoke");
 const MOUNT_DEADLINE_MS = 60_000;
 // a late async failure must not slip in after the error sweep.
-const QUIESCENCE_MS = 1_000;
+const QUIESCENCE_MS = 1000;
 // longer than the note's save debounce, so a corrupted buffer has reached disk by the read.
-const SAVE_SETTLE_MS = 2_500;
+const SAVE_SETTLE_MS = 2500;
 // prefix-matched: the placeholder ends in an ellipsis that is awkward to quote through a shell.
 const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 // agent-browser drives a browser on this machine, so the page sees this platform's modifier.
 const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
 
-function pageIsMounted(bodyText: string): boolean {
+const pageIsMounted = (bodyText: string): boolean =>
   // the welcome content only arrives through a vault.read round trip; the sync pill proves the
   // status query ran.
-  return bodyText.includes("Welcome to inteligir") && bodyText.includes("Local only");
-}
+  bodyText.includes("Welcome to inteligir") && bodyText.includes("Local only");
 
 // here, not a unit test: `pnpm verify` runs tests before the build, so a unit test over dist/ reads
 // the previous build.
-async function assertDocumentPolicy(baseUrl: string): Promise<void> {
+const assertDocumentPolicy = async (baseUrl: string): Promise<void> => {
   const response = await fetch(`${baseUrl}/`, { headers: { accept: "text/html" } });
   expect(response.ok, `GET / answered ${response.status}`);
   const policy = response.headers.get("content-security-policy") ?? "";
@@ -51,12 +50,12 @@ async function assertDocumentPolicy(baseUrl: string): Promise<void> {
     cookie.includes("HttpOnly") && cookie.includes("SameSite=Strict"),
     `the document did not hand the browser its device token: ${cookie}`,
   );
-}
+};
 
 export const browserSmoke: Scenario = {
-  name: "browser-smoke",
   description:
     "the page renders headless: title, SPA mount, API reached, palette chord safe, clean console",
+  name: "browser-smoke",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
     try {
@@ -86,7 +85,7 @@ export const browserSmoke: Scenario = {
         }
         expect(
           Date.now() < deadline,
-          `the SPA never reached the API; body text:\n${body.slice(0, 2_000)}`,
+          `the SPA never reached the API; body text:\n${body.slice(0, 2000)}`,
         );
         await delay(500);
       }
@@ -94,15 +93,15 @@ export const browserSmoke: Scenario = {
       // disk is the oracle, not rendered text: decorations move with the caret, bytes do not, and
       // the palette's focus steal flushes the editor, so a corrupted buffer would land.
       ctx.log("the palette chord opens the palette without editing the note under it");
-      const welcomeFile = join(app.vaultDir, "Welcome.md");
-      const beforeChord = await readFile(welcomeFile, "utf8");
+      const welcomeFile = path.join(app.vaultDir, "Welcome.md");
+      const beforeChord = await readFile(welcomeFile, "utf-8");
       await agentBrowser(["click", '[data-slate-editor="true"]']);
       await agentBrowser(["press", "End"]);
       await agentBrowser(["press", PALETTE_CHORD]);
       await agentBrowser(["wait", PALETTE_INPUT], 30_000);
       await agentBrowser(["press", "Escape"]);
       await delay(SAVE_SETTLE_MS);
-      const afterChord = await readFile(welcomeFile, "utf8");
+      const afterChord = await readFile(welcomeFile, "utf-8");
       expect(
         afterChord === beforeChord,
         `${PALETTE_CHORD} changed Welcome.md on disk:\n${JSON.stringify(afterChord)}`,
@@ -121,10 +120,10 @@ export const browserSmoke: Scenario = {
       const consoleOutput = await agentBrowser(["console"]);
       const errorLines = consoleOutput
         .split("\n")
-        .filter((line) => /^\s*\[?err(or)?\]?\b/iu.test(line));
+        .filter((line) => /^\s*\[?err(?:or)?\]?\b/iu.test(line));
       expect(errorLines.length === 0, `console errors were logged:\n${errorLines.join("\n")}`);
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

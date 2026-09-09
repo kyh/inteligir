@@ -11,9 +11,9 @@ export { ThreadSyncDO } from "./sync/thread-sync-do";
 export { RepoCell, Registry } from "durable-git";
 
 export default {
-  fetch(request, env, ctx) {
+  async fetch(request, env, ctx) {
     return ownsPath(new URL(request.url).pathname)
-      ? api.fetch(request, env, ctx)
-      : site.fetch(request);
+      ? await api.fetch(request, env, ctx)
+      : await site.fetch(request);
   },
 } satisfies ExportedHandler<Env>;

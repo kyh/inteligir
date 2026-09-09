@@ -6,15 +6,15 @@ import { PreviewCard as HoverCardPrimitive } from "@base-ui/react/preview-card";
 
 import { cn } from "cn";
 
-function HoverCard({ ...props }: HoverCardPrimitive.Root.Props) {
-  return <HoverCardPrimitive.Root data-slot="hover-card" {...props} />;
-}
+const HoverCard = ({ ...props }: HoverCardPrimitive.Root.Props) => (
+  <HoverCardPrimitive.Root data-slot="hover-card" {...props} />
+);
 
-function HoverCardTrigger({ ...props }: HoverCardPrimitive.Trigger.Props) {
-  return <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />;
-}
+const HoverCardTrigger = ({ ...props }: HoverCardPrimitive.Trigger.Props) => (
+  <HoverCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
+);
 
-function HoverCardContent({
+const HoverCardContent = ({
   className,
   align = "start",
   alignOffset = 0,
@@ -22,27 +22,25 @@ function HoverCardContent({
   sideOffset = 6,
   ...props
 }: HoverCardPrimitive.Popup.Props &
-  Pick<HoverCardPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
-  return (
-    <HoverCardPrimitive.Portal>
-      <HoverCardPrimitive.Positioner
-        align={align}
-        alignOffset={alignOffset}
-        side={side}
-        sideOffset={sideOffset}
-        className="isolate z-50"
-      >
-        <HoverCardPrimitive.Popup
-          data-slot="hover-card-content"
-          className={cn(
-            "bloom-popup z-50 w-80 origin-(--transform-origin) rounded-2xl bg-popover p-3 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 outline-hidden dark:ring-foreground/10",
-            className,
-          )}
-          {...props}
-        />
-      </HoverCardPrimitive.Positioner>
-    </HoverCardPrimitive.Portal>
-  );
-}
+  Pick<HoverCardPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) => (
+  <HoverCardPrimitive.Portal>
+    <HoverCardPrimitive.Positioner
+      align={align}
+      alignOffset={alignOffset}
+      side={side}
+      sideOffset={sideOffset}
+      className="isolate z-50"
+    >
+      <HoverCardPrimitive.Popup
+        data-slot="hover-card-content"
+        className={cn(
+          "bloom-popup z-50 w-80 origin-(--transform-origin) rounded-2xl bg-popover p-3 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 outline-hidden dark:ring-foreground/10",
+          className,
+        )}
+        {...props}
+      />
+    </HoverCardPrimitive.Positioner>
+  </HoverCardPrimitive.Portal>
+);
 
 export { HoverCard, HoverCardContent, HoverCardTrigger };

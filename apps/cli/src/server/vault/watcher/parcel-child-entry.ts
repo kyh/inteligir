@@ -8,11 +8,11 @@ import { parentToChildMessageSchema } from "./messages";
 import { createParcelChildHandler } from "./parcel-child-handler";
 
 const handler = createParcelChildHandler({
+  listEntries: async (dir) => await fs.readdir(dir),
   parcel: parcelWatcher,
   send: (message) => {
     process.send?.(message);
   },
-  listEntries: (dir) => fs.readdir(dir),
 });
 
 process.on("message", (message) => {
@@ -22,13 +22,21 @@ process.on("message", (message) => {
   }
 });
 
-const DISPOSE_TIMEOUT_MS = 2_000;
+const DISPOSE_TIMEOUT_MS = 2000;
+
+const disposeThenExit = async (): Promise<void> => {
+  try {
+    await handler.dispose();
+  } finally {
+    process.exit(0);
+  }
+};
 
 process.on("disconnect", () => {
   // bounded: a wedged native unsubscribe must not orphan this child.
   const deadline = setTimeout(() => process.exit(0), DISPOSE_TIMEOUT_MS);
   deadline.unref?.();
-  void handler.dispose().finally(() => process.exit(0));
+  void disposeThenExit();
 });
 
 process.send?.({ kind: "ready" });
