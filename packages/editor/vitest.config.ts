@@ -32,6 +32,7 @@ export default defineConfig({
           include: ["src/**/*.test.tsx"],
           name: "editor-dom",
           server: { deps: { inline: inlineDeps } },
+          setupFiles: ["src/__tests__/dom-cleanup.ts"],
           // real Plate trees mount beside the Workers pool; 5s is a coin-flip under a full run.
           testTimeout: 20_000,
         },
