@@ -3,6 +3,7 @@
 // and none of that helps the failure this shape has — a boot that throws.
 
 import { mkdirSync } from "node:fs";
+import { inspect } from "node:util";
 import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
 import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
@@ -257,8 +258,10 @@ export const runServe = async (
   try {
     return await boot(version, env, teardown);
   } catch (error) {
+    // inspect, not the stack: drizzle names the failed query and carries the driver's own error
+    // (`no such table: meta`) as the cause, which only the inspection prints.
     console.error(
-      `inteligir failed to start: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
+      `inteligir failed to start: ${error instanceof Error ? inspect(error) : String(error)}`,
     );
     await shutdown.run();
     // exit, not an exit code: the watcher fork's IPC channel is a live handle, so the loop would never drain.

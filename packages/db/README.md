@@ -30,10 +30,8 @@ src/
                       # sync_applied_captures — each constraint says why beside itself
   migrate.ts          # runMigrations: drizzle's migrator over drizzle/, foreign keys
                       # OFF around it and foreign_key_check after; returns the
-                      # generation count, which IS the schema version
-  migration-journal.ts, json-source.ts
-                      # the journal parse; fields this package has no reading for
-                      # ride through, so a rewrite drops nothing drizzle wrote
+                      # migration-folder count, which IS the schema version
+  json-source.ts      # the json narrowing schema-agreement.test.ts reads sqlite_master through
   meta.ts             # getSchemaVersion — refuses a file a NEWER build upgraded
   ids.ts              # createPrefixedId + the minters (thr_, evt_, turn_, qmsg_,
                       # pint_, obx_) over a 32-letter alphabet minus the look-alikes
@@ -47,8 +45,10 @@ src/
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
                       # cursor, the applied-capture ledger
   __tests__/          # real files under a temp dir; schema-agreement.test.ts is
-                      # the migration↔schema pin
-drizzle/              # the committed SQL migrations + drizzle-kit's journal/snapshots
+                      # the migration↔schema pin, legacy-migrations-table.test.ts
+                      # the pre-1.0 __drizzle_migrations upgrade
+drizzle/              # the committed SQL migrations, one folder per generation:
+                      # <yyyymmddhhmmss>_<name>/migration.sql + drizzle-kit's snapshot.json
 drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 ```
 
@@ -64,7 +64,7 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   inserts under it, which is what makes the unique index a backstop rather
   than the mechanism.
 - **Migrations are committed SQL, applied on boot, and every generation bumps
-  `meta.schema_version` to its own index.** The journal's entry count IS the
+  `meta.schema_version` to its own index.** The migration-folder count IS the
   version: `getSchemaVersion` refuses a file above it, because an older build
   opening a newer database applies nothing and would otherwise read a schema it
   does not know. Foreign keys are OFF around the migrator — the pragma is a
@@ -74,13 +74,20 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   PARAMETER: the CLI resolves the source tree first and the staged
   `dist/drizzle` only where `@repo/db` cannot be resolved (`apps/cli/src/paths.ts`);
   this package never probes another package's layout. Never hand-edit a
-  migration that shipped; `drizzle/0008_repair_schema_version.sql` is the one
-  no-schema generation and says why it exists.
+  migration that shipped; `drizzle/20260822060000_repair_schema_version/migration.sql`
+  is the one no-schema generation and says why it exists. The migrator keys the
+  applied set on the folder name; a file the pre-1.0 migrator wrote (a
+  `__drizzle_migrations` with no `name` column) is upgraded in place on the
+  first boot, each row matched to its folder by created_at, and
+  `legacy-migrations-table.test.ts` boots exactly such a file.
 - **The migrations and `src/schema.ts` agree, and neither checks the other.**
   `schema-agreement.test.ts` migrates a scratch file, builds a second from
   `drizzle-kit export`'s DDL, and diffs `sqlite_master` with normalized SQL —
   table members sorted, index columns not, because column order inside an
-  index is the index. A drift names the object and the fix.
+  index is the index, and drizzle-kit 1.0's spelling of a primary key, a
+  foreign key and a CHECK folded to the one the shipped migrations carry,
+  which its own `generate` reads as no change. A drift names the object and
+  the fix.
 - **An event's scope is enforced twice.** `threadEventSchema.parse` at the
   write applies the per-type scope policy, and `events_scope_shape_check`
   backstops it in SQL: turn scope ⇒ `turn_id` set, thread scope ⇒ null. Turn

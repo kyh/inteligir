@@ -1,4 +1,4 @@
-import { cpSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { cpSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
@@ -7,21 +7,19 @@ import { createConnection } from "../connection";
 import type { DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
-import { runMigrations } from "../migrate";
-import { parseMigrationJournal } from "../migration-journal";
+import { listMigrationNames, runMigrations } from "../migrate";
 import { noopNotifier } from "@repo/domain/notifier";
 import { makeTempDir } from "./open-temp-db";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
-// derived from the journal: a hand-typed number turns every new migration into a test edit.
+// derived from the folder: a hand-typed number turns every new migration into a test edit.
 const latestGeneration = (): number => {
-  const journalPath = path.join(MIGRATIONS_DIR, "meta/_journal.json");
-  const journal = parseMigrationJournal(readFileSync(journalPath, "utf-8"), journalPath);
-  if (journal.entries.length === 0) {
-    throw new Error(`${journalPath} has no entries`);
+  const count = listMigrationNames(MIGRATIONS_DIR).length;
+  if (count === 0) {
+    throw new Error(`${MIGRATIONS_DIR} has no migration folders`);
   }
-  return journal.entries.length;
+  return count;
 };
 
 const LATEST = latestGeneration();
@@ -30,19 +28,12 @@ const LATEST = latestGeneration();
 const openTempDb = (): DbConnection =>
   createConnection(path.join(makeTempDir("inteligir-db-test-"), "test.db"));
 
+// a folder per generation, ordered by name: dropping the tail is what an older build's copy is.
 const freezeMigrationsAt = (dir: string, generations: number): void => {
   cpSync(MIGRATIONS_DIR, dir, { recursive: true });
-  const journalPath = path.join(dir, "meta", "_journal.json");
-  const journal = parseMigrationJournal(readFileSync(journalPath, "utf-8"), journalPath);
-  const kept = journal.entries.filter((entry) => {
-    if (entry.idx >= generations) {
-      unlinkSync(path.join(dir, `${entry.tag}.sql`));
-      return false;
-    }
-    return true;
-  });
-  journal.document.entries = kept.map((entry) => entry.source);
-  writeFileSync(journalPath, JSON.stringify(journal.document));
+  for (const name of listMigrationNames(dir).slice(generations)) {
+    rmSync(path.join(dir, name), { force: true, recursive: true });
+  }
 };
 
 describe("boot", () => {

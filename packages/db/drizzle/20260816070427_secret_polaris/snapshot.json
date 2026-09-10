@@ -1,0 +1,40 @@
+{
+  "dialect": "sqlite",
+  "id": "886f25ec-af1c-4223-ac7a-4e9113e398bf",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "version": "7",
+  "ddl": [
+    {
+      "name": "meta",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "key",
+      "table": "meta",
+      "entityType": "columns"
+    },
+    {
+      "columns": ["key"],
+      "nameExplicit": false,
+      "name": "meta_pk",
+      "table": "meta",
+      "entityType": "pks"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "value",
+      "table": "meta",
+      "entityType": "columns"
+    }
+  ],
+  "renames": []
+}

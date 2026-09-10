@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
+// the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0; relations-v2
+// reads `db._.relations`, which `createDb` populates.
+import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { bearer } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
 import { deleteVaultGitRepo } from "../vault/git-remote";
