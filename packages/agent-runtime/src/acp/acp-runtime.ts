@@ -189,11 +189,17 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       }
       return { outcome: toPermissionOutcome(params, resolution) };
     },
-    // oxlint-disable-next-line require-await -- the ACP Client contract types this notification handler as returning a promise; delivering an update is synchronous work
-    async sessionUpdate(params: SessionNotification): Promise<void> {
-      const current = sessionByProviderThreadId(params.sessionId);
-      if (current !== null && current.activeMapper !== null) {
-        emit(current.activeMapper.update(params));
+    sessionUpdate(params: SessionNotification): Promise<void> {
+      // mapping and the host's onEvent both run synchronously; the catch keeps a throw a
+      // rejection, which is what the ACP connection expects from this handler.
+      try {
+        const current = sessionByProviderThreadId(params.sessionId);
+        if (current !== null && current.activeMapper !== null) {
+          emit(current.activeMapper.update(params));
+        }
+        return Promise.resolve();
+      } catch (error) {
+        return Promise.reject(error);
       }
     },
   });

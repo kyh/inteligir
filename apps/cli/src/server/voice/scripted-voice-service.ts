@@ -12,11 +12,11 @@ const SCRIPTED_VOICE_MODEL: VoiceModel = {
   sizeBytes: 1,
 };
 
-// oxlint-disable-next-line require-await -- the contract is a promise; the answer is a constant.
-const status = async (): Promise<VoiceStatusResponse> => ({
-  model: SCRIPTED_VOICE_MODEL,
-  state: "ready",
-});
+const status = (): Promise<VoiceStatusResponse> =>
+  Promise.resolve({
+    model: SCRIPTED_VOICE_MODEL,
+    state: "ready",
+  });
 
 export const createScriptedVoiceService = (): VoiceService => ({
   createStreamSession: (handlers) => new ScriptedStreamSession(handlers),

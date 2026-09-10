@@ -223,14 +223,14 @@ export class ParakeetVoiceService implements VoiceService {
     });
   }
 
-  // oxlint-disable-next-line require-await -- the contract is a promise; the abort is synchronous.
-  async dispose(): Promise<void> {
+  dispose(): Promise<void> {
     if (this.#disposed) {
-      return;
+      return Promise.resolve();
     }
     this.#disposed = true;
     // a download left running past shutdown lands a partial file after the process said it stopped.
     this.#download?.controller.abort();
     this.#download = null;
+    return Promise.resolve();
   }
 }

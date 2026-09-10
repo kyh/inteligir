@@ -157,17 +157,37 @@ const DropdownMenuContent = ({
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-  // fallback unmount for throttled/background tabs where onAnimationComplete can stall; tracks
-  // spring.fast's exit duration.
+  // Base UI defers unmount while actionsRef is set; the exit spring's onAnimationComplete releases
+  // it, and this timer is the fallback for throttled/background tabs where that callback stalls.
+  // Only a real open→close has anything to release, and whichever path runs first disarms the
+  // other: a timer still armed once the popup is gone outlives the tree it would call into.
+  const fallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasOpenRef = useRef(false);
+
+  const disarmFallback = useCallback(() => {
+    if (fallbackRef.current !== null) {
+      clearTimeout(fallbackRef.current);
+      fallbackRef.current = null;
+    }
+  }, []);
+
+  const releaseUnmount = useCallback(() => {
+    disarmFallback();
+    actionsRef.current?.unmount();
+  }, [disarmFallback, actionsRef]);
+
   useEffect(() => {
     if (open) {
+      wasOpenRef.current = true;
       return;
     }
-    const id = setTimeout(() => actionsRef.current?.unmount(), exitFallbackMs(spring.fast));
-    return () => {
-      clearTimeout(id);
-    };
-  }, [open, actionsRef]);
+    if (!wasOpenRef.current) {
+      return;
+    }
+    wasOpenRef.current = false;
+    fallbackRef.current = setTimeout(releaseUnmount, exitFallbackMs(spring.fast));
+    return disarmFallback;
+  }, [open, releaseUnmount, disarmFallback]);
 
   useEffect(() => {
     if (!open) {
@@ -209,10 +229,9 @@ const DropdownMenuContent = ({
           style={{
             transformOrigin: side === "top" ? "bottom center" : "top center",
           }}
-          // Base UI defers unmount while actionsRef is set; release it after the exit spring
           onAnimationComplete={() => {
             if (!open) {
-              actionsRef.current?.unmount();
+              releaseUnmount();
             }
           }}
         >
