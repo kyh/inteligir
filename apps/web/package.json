@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "catalog:",
     "@react-three/fiber": "^9.7.0",
     "@repo/api": "workspace:*",
     "@repo/ui": "workspace:*",

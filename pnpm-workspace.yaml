@@ -43,6 +43,7 @@ catalog:
   "@types/react": 19.2.17
   "@types/react-dom": ^19.2.7
   "@vitejs/plugin-react": ^6.1.1
+  "@better-auth/drizzle-adapter": ^1.7.2
   better-auth: ^1.7.2
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
