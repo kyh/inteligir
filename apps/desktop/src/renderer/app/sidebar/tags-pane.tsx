@@ -23,6 +23,8 @@ export interface TagsPaneProps {
   // owned by the workspace: a `#tag` chip anywhere in the note sets it
   selectedTag: string | null;
   onSelectTag: (tag: string | null) => void;
+  // the rail's search: over the tags while browsing them, over the notes inside a tag
+  filter: string;
 }
 
 // One page that grows: the list is re-read whole rather than stitched, since the drawn list is
@@ -35,6 +37,7 @@ const TaggedNotes = ({
   openPath,
   onOpenFile,
   onSetPinned,
+  filter,
   onClear,
   onRename,
 }: {
@@ -44,6 +47,7 @@ const TaggedNotes = ({
   openPath: string | null;
   onOpenFile: (path: string) => void;
   onSetPinned: (path: string, pinned: boolean) => void;
+  filter: string;
   onClear: () => void;
   onRename: () => void;
 }) => {
@@ -75,6 +79,7 @@ const TaggedNotes = ({
         onOpenFile={onOpenFile}
         emptyText={taggedQuery.data === undefined ? "…" : `No notes tagged #${tag} here.`}
         onSetPinned={onSetPinned}
+        filter={filter}
       />
       {cut && limit < KNOWLEDGE_TAG_NOTES_MAX_LIMIT ? (
         <div className="px-2 py-1">
@@ -106,6 +111,7 @@ export const TagsPane = ({
   onSetPinned,
   selectedTag,
   onSelectTag,
+  filter,
 }: TagsPaneProps) => {
   const [renamingTag, setRenamingTag] = useState<string | null>(null);
   const tagsQuery = useTags(selectedTag === null);
@@ -115,6 +121,7 @@ export const TagsPane = ({
         <TagsView
           tags={tagsQuery.data?.tags ?? []}
           loaded={tagsQuery.data !== undefined}
+          filter={filter}
           onSelect={onSelectTag}
           onRename={setRenamingTag}
         />
@@ -127,6 +134,7 @@ export const TagsPane = ({
           openPath={openPath}
           onOpenFile={onOpenFile}
           onSetPinned={onSetPinned}
+          filter={filter}
           onClear={() => {
             onSelectTag(null);
           }}

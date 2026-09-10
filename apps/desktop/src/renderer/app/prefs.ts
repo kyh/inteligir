@@ -1,5 +1,4 @@
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar";
-import { z } from "zod";
 import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { spellcheckChoiceSchema } from "../../spellcheck-state";
@@ -12,7 +11,7 @@ const KEYS = {
   lastOpenNote: "inteligir.last-open-note",
   panelOpen: "inteligir.panel-open",
   panelWidth: "inteligir.panel-width",
-  railSections: "inteligir.rail-sections",
+  railView: "inteligir.rail-view",
   relatedOpen: "inteligir.related-open",
   sidebarFolder: "inteligir.sidebar-folder",
   sidebarWidth: "inteligir.sidebar-width",
@@ -87,26 +86,17 @@ export const writeRelatedOpen = (open: boolean): void => {
   write(KEYS.relatedOpen, open ? "true" : "false");
 };
 
-export type RailSection = "recent" | "files" | "tags";
-const railSectionsSchema = z.object({ files: z.boolean(), recent: z.boolean(), tags: z.boolean() });
-export type RailSections = z.infer<typeof railSectionsSchema>;
-const RAIL_SECTIONS_DEFAULT: RailSections = { files: true, recent: true, tags: false };
+export const RAIL_VIEWS = ["recent", "files", "tags"] as const;
+export type RailView = (typeof RAIL_VIEWS)[number];
 
-// which of the rail's stacked sections are unfolded
-export const readRailSections = (): RailSections => {
-  const raw = read(KEYS.railSections);
-  if (raw === null) {
-    return RAIL_SECTIONS_DEFAULT;
-  }
-  try {
-    return railSectionsSchema.parse(JSON.parse(raw));
-  } catch {
-    return RAIL_SECTIONS_DEFAULT;
-  }
+// which of the rail's views is showing
+export const readRailView = (): RailView => {
+  const raw = read(KEYS.railView);
+  return RAIL_VIEWS.find((view) => view === raw) ?? "files";
 };
 
-export const writeRailSections = (sections: RailSections): void => {
-  write(KEYS.railSections, JSON.stringify(sections));
+export const writeRailView = (view: RailView): void => {
+  write(KEYS.railView, view);
 };
 
 // "" is the vault root. A remembered folder the vault no longer holds is the rail's to fall back from.

@@ -990,38 +990,46 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/desktop/src/renderer/routes/__root.tsx`; a host mounted by one route
   leaves another route's `confirm()` parked on a dialog that never opens.
 
-- **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
-  header is one row, the vault button alone (recent vaults, Open another
-  vault…), because a vault's name is the one label that must never truncate.
-  Under it, RECENT, FILES and TAGS are stacked collapsible sections
-  (`app/fold-section.tsx`, the same fold header the panel's Metadata tab
-  draws), not a tab switch: FILES carries its actions in its header on hover
-  (New note, New folder, the filter toggle, sort, Collapse all), RECENT is
-  capped to a handful of rows because the palette lists every note, and TAGS
-  starts folded. The open set is the workspace's (`railSections` in
-  `app/prefs.ts`), because a `#tag` chip opens TAGS and a create opens FILES.
-  The filter row shows on its toggle or while it has text, and Escape clears
-  and hides it. The rail carries no search box: ⌘P and ⌘⇧F are the search
-  surfaces and the palette carries its own field, so a third input above the
-  tree's filter was one more thing to read. Find in note, comments and the panel
-  toggle live above the note; copy link, export and share sit under its ⋯ menu. The folder scope is set by the top bar's breadcrumb
-  and cleared from the scope row above the list, never picked in the header:
-  the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
-  recents view is one list by recency with a folder hint, and folders exist only
-  in the tree. The tree's fold and selection are the rail's state
-  (`sidebar/tree-state.ts`), not the tree's: Collapse all clears that set and a
-  create lands where an IDE's would, in the tree's selected folder, else at the
-  scope, both derived from it rather than requested through a nonce or a
-  callback; the header's pending create is a plain prop the tree reports done.
-  The selected tag is the workspace's like the open set, because a `#tag`
-  chip sets both. One `useVaultSwitch` and one `RecentVaultLabel`
-  (`app/desktop-vaults.tsx`) serve the rail's vault button and Settings alike.
-  The rail hides what the user did not write
-  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,
-  dot-entries); the server's listing stays complete because the CLI and the
-  agent read it. Under the macOS shell the rail reserves the traffic-light
-  corner (`apps/desktop/src/renderer/app/title-bar.ts`); nothing else is a
-  logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
+- **THE RAIL IS ONE LIST UNDER ONE HEADER; THE TOP BAR IS THE OPEN NOTE.** The
+  rail is Fluid's sidebar anatomy at the app's size step: a header of the
+  vault row (the name semibold, the recent vaults and Open another vault…
+  behind it, and the one button the rail keeps, New note, at its trailing
+  edge), the search field on the rows' rhythm (`SidebarSearchField`, Fluid's
+  block over `SidebarInput`), and a flat Recent | Files | Tags switch drawn by
+  the same underline `Tabs` the panel uses, then one `SidebarContent` column
+  the chosen view fills. Not three stacked sections: a stack made every list
+  short and put a fold header over each. Every other verb is a right-click,
+  as in an IDE: a row's menu carries its own, and the listing's empty area
+  carries New note, New folder, the sort toggle and Collapse all. The search
+  field is the rail's filter, never the palette: in Files it narrows the tree
+  (rows that neither match nor hold a match are withheld, kept folders open),
+  in Recent it lifts the handful-of-rows cap and matches names across the
+  scope, in Tags it narrows the families; Escape clears it. ⌘P and ⌘⇧F stay
+  the ranked and literal search surfaces. Every row in the three views is
+  `useSidebarRow` (`@repo/ui/components/sidebar-core`): the menu row's height
+  and text from the size ladder, the item radius, muted at rest and lit on
+  hover, `data-active` filled, so a 14px row on a 24px token can no longer
+  drift from the controls beside it. The view is the workspace's
+  (`railView` in `app/prefs.ts`) because a `#tag` chip shows Tags and a
+  create shows Files; the selected tag is the workspace's for the same
+  reason. The folder scope is set by the top bar's breadcrumb and cleared
+  from the scope row above the list: the header switches the vault, the
+  breadcrumb narrows within it. Two lists, one rule: the recents view is one
+  list by recency with a folder hint, and folders exist only in the tree.
+  The tree's fold and selection are the rail's state
+  (`sidebar/tree-state.ts`), not the tree's: Collapse all clears that set
+  and a create lands where an IDE's would, in the tree's selected folder,
+  else at the scope, both derived from it; the header's pending create is a
+  plain prop the tree reports done. Find in note, comments and the panel
+  toggle live above the note; copy link, export and share sit under its ⋯
+  menu. One `useVaultSwitch` and one `RecentVaultLabel`
+  (`app/desktop-vaults.tsx`) serve the rail's vault button and Settings
+  alike. The rail hides what the user did not write
+  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment
+  sidecars, dot-entries); the server's listing stays complete because the
+  CLI and the agent read it. Under the macOS shell the rail reserves the
+  traffic-light corner (`apps/desktop/src/renderer/app/title-bar.ts`);
+  nothing else is a logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
 
 - **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
   serializer.** The Metadata tab's "About" block is folded by default because

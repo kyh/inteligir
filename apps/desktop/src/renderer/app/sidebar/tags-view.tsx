@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
+import { useSidebarRow } from "@repo/ui/components/sidebar";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { cn } from "cn";
@@ -62,29 +63,46 @@ export const foldTags = (tags: readonly TagCountWire[]): TagNode[] => {
   return roots.map(settle).toSorted(byTotal);
 };
 
+// a family is kept when the search hits it or anything under it, and a hit's ancestors come
+// unfolded with it
+const filterTags = (nodes: readonly TagNode[], needle: string): TagNode[] =>
+  nodes.flatMap((node) => {
+    const children = filterTags(node.children, needle);
+    return node.tag.toLocaleLowerCase().includes(needle) || children.length > 0
+      ? [{ ...node, children }]
+      : [];
+  });
+
 export const TagsView = ({
   tags,
   loaded,
+  filter = "",
   onSelect,
   onRename,
 }: {
   tags: readonly TagCountWire[];
   loaded: boolean;
+  // a substring of a tag, any case
+  filter?: string;
   onSelect: (tag: string) => void;
   onRename: (tag: string) => void;
 }) => {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
-  const roots = foldTags(tags);
+  const rowClass = useSidebarRow();
+  const needle = filter.trim().toLocaleLowerCase();
+  const roots = needle === "" ? foldTags(tags) : filterTags(foldTags(tags), needle);
   if (loaded && roots.length === 0) {
     return (
-      <p className="px-3 py-2 text-sm text-muted-foreground">No tags yet. Type #tag in a note.</p>
+      <p className="px-1 py-2 text-xs text-muted-foreground">
+        {needle === "" ? "No tags yet. Type #tag in a note." : "No tag matches the search."}
+      </p>
     );
   }
   const rows: { node: TagNode; depth: number }[] = [];
   const collect = (nodes: readonly TagNode[], depth: number): void => {
     for (const node of nodes) {
       rows.push({ depth, node });
-      if (expanded.has(node.tag)) {
+      if (needle !== "" || expanded.has(node.tag)) {
         collect(node.children, depth + 1);
       }
     }
@@ -104,11 +122,11 @@ export const TagsView = ({
   return (
     <ul aria-label="Tags" className="flex flex-col py-1">
       {rows.map(({ node, depth }) => {
-        const isExpanded = expanded.has(node.tag);
+        const isExpanded = needle !== "" || expanded.has(node.tag);
         return (
           <li
             key={node.tag}
-            className="group flex w-full items-center gap-1 h-chrome-row pr-1 text-sm hover:bg-muted/60"
+            className={cn(rowClass, "group pr-1")}
             style={{ paddingLeft: depth * 12 + 4 }}
           >
             {node.children.length > 0 ? (
@@ -180,7 +198,7 @@ export const TagScopeHeader = ({
   onClear: () => void;
   onRename: () => void;
 }) => (
-  <div className="flex items-center gap-1 px-1.5 py-1">
+  <div className="flex items-center gap-1 py-1">
     <Button variant="ghost" size="icon-compact" aria-label="All tags" onClick={onClear}>
       <ArrowLeftIcon />
     </Button>

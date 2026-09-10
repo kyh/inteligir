@@ -4,6 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@repo/ui/components/dropdown-menu";
+import { useSidebarRow } from "@repo/ui/components/sidebar";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "cn";
 import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -57,6 +58,7 @@ export interface FileTreeProps {
   pinnedPaths: ReadonlySet<string>;
   // folders first either way; "modified" orders the files in a folder newest first
   sort: TreeSort;
+  onSortChange: (sort: TreeSort) => void;
   // a substring of a name; rows that neither match nor hold a match are withheld
   filter: string;
   // the vault's absolute root, for the absolute path row; null until the listing answers
@@ -229,7 +231,7 @@ const InlineNameInput = ({
         ref={inputRef}
         defaultValue={initialValue}
         aria-label="Name"
-        className="w-full rounded-md border border-ring bg-background px-1.5 py-0.5 text-sm outline-none"
+        className="w-full rounded-md border border-ring bg-background px-1.5 py-0.5 text-[length:inherit] outline-none"
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
@@ -249,13 +251,13 @@ const InlineNameInput = ({
 
 const EmptyRows = ({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: () => void }) => {
   if (loadState === "loading") {
-    return <p className="px-3 py-2 text-xs text-muted-foreground">Loading…</p>;
+    return <p className="px-1 py-2 text-xs text-muted-foreground">Loading…</p>;
   }
   if (loadState === "loaded") {
-    return <p className="px-3 py-2 text-xs text-muted-foreground">The vault is empty.</p>;
+    return <p className="px-1 py-2 text-xs text-muted-foreground">The vault is empty.</p>;
   }
   return (
-    <div className="px-3 py-2 text-xs">
+    <div className="px-1 py-2 text-xs">
       <p className="text-destructive">The vault could not be read.</p>
       <button
         type="button"
@@ -268,17 +270,21 @@ const EmptyRows = ({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: 
   );
 };
 
-const rowClassName = (isOpen: boolean, isDropTarget: boolean, isDragged: boolean): string =>
+const rowClassName = (base: string, isDropTarget: boolean, isDragged: boolean): string =>
   cn(
-    "group flex w-full cursor-default items-center gap-1 h-chrome-row pr-1 text-sm outline-none select-none",
-    "hover:bg-muted/60 focus-visible:bg-muted",
-    isOpen ? "bg-muted text-foreground" : "text-foreground/80",
+    base,
+    "group cursor-default pr-1",
     isDropTarget && "bg-primary/10 text-foreground",
     isDragged && "opacity-50",
   );
 
+// a right-click on a row, or on the listing's empty area (the root's own verbs)
+type TreeMenu =
+  | { kind: "row"; node: TreeNode; anchor: HTMLElement }
+  | { kind: "root"; point: { x: number; y: number } };
+
 interface RowMenuProps {
-  menu: { node: TreeNode; anchor: HTMLElement } | null;
+  menu: TreeMenu | null;
   onClose: () => void;
   onStartCreate: (parentDir: string, kind: "file" | "dir") => void;
   onStartRename: (path: string) => void;
@@ -286,9 +292,19 @@ interface RowMenuProps {
   ops: TreeOps;
   pinnedPaths: ReadonlySet<string>;
   vaultRoot: string | null;
+  rootDir: string;
+  sort: TreeSort;
+  onSortChange: (sort: TreeSort) => void;
+  onCollapseAll: () => void;
 }
 
-// The row's verbs, over whichever row opened it. Lifted out of the tree so the tree renders rows.
+// the empty area is not a row, so the menu anchors to the pointer
+const pointAnchor = (point: { x: number; y: number }): DOMRect =>
+  new DOMRect(point.x, point.y, 0, 0);
+
+// The verbs the tree offers by right-click: a folder's creates over that folder, the listing's
+// over its root with the sort and the fold beside them. Lifted out of the tree so the tree
+// renders rows.
 const RowMenu = ({
   menu,
   onClose,
@@ -298,37 +314,68 @@ const RowMenu = ({
   ops,
   pinnedPaths,
   vaultRoot,
-}: RowMenuProps) => (
-  <DropdownMenu
-    open={menu !== null}
-    onOpenChange={(open) => {
-      if (!open) {
-        onClose();
-      }
-    }}
-  >
-    {menu === null ? null : (
+  rootDir,
+  sort,
+  onSortChange,
+  onCollapseAll,
+}: RowMenuProps) => {
+  const createItems = (dirPath: string) => (
+    <>
+      <DropdownMenuItem
+        onClick={() => {
+          onClose();
+          onStartCreate(dirPath, "file");
+        }}
+      >
+        New note
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => {
+          onClose();
+          onStartCreate(dirPath, "dir");
+        }}
+      >
+        New folder
+      </DropdownMenuItem>
+    </>
+  );
+  const content = (): React.ReactNode => {
+    if (menu === null) {
+      return null;
+    }
+    if (menu.kind === "root") {
+      return (
+        <DropdownMenuContent
+          anchor={{ getBoundingClientRect: () => pointAnchor(menu.point) }}
+          align="start"
+          side="bottom"
+        >
+          {createItems(rootDir)}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => {
+              onClose();
+              onSortChange(sort === "name" ? "modified" : "name");
+            }}
+          >
+            {sort === "name" ? "Sort by modified" : "Sort by name"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              onClose();
+              onCollapseAll();
+            }}
+          >
+            Collapse all
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      );
+    }
+    return (
       <DropdownMenuContent anchor={menu.anchor} align="start" side="bottom">
         {menu.node.kind === "dir" ? (
           <>
-            <DropdownMenuItem
-              onClick={() => {
-                const dirPath = menu.node.path;
-                onClose();
-                onStartCreate(dirPath, "file");
-              }}
-            >
-              New note
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                const dirPath = menu.node.path;
-                onClose();
-                onStartCreate(dirPath, "dir");
-              }}
-            >
-              New folder
-            </DropdownMenuItem>
+            {createItems(menu.node.path)}
             <DropdownMenuSeparator />
           </>
         ) : null}
@@ -414,9 +461,21 @@ const RowMenu = ({
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
-    )}
-  </DropdownMenu>
-);
+    );
+  };
+  return (
+    <DropdownMenu
+      open={menu !== null}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
+      {content()}
+    </DropdownMenu>
+  );
+};
 
 export const FileTree = ({
   entries,
@@ -432,10 +491,12 @@ export const FileTree = ({
   onMoveRequest,
   pinnedPaths,
   sort,
+  onSortChange,
   filter,
   vaultRoot,
 }: FileTreeProps) => {
-  const { expanded, setExpanded, activePath, setActivePath } = state;
+  const { expanded, setExpanded, activePath, setActivePath, collapseAll } = state;
+  const rowBase = useSidebarRow();
   const roots = useMemo(() => buildTree(entries, sort), [entries, sort]);
   const needle = filter.trim().toLowerCase();
   const kept = useMemo(
@@ -444,7 +505,7 @@ export const FileTree = ({
   );
 
   const [editing, setEditing] = useState<EditingState | null>(null);
-  const [menu, setMenu] = useState<{ node: TreeNode; anchor: HTMLElement } | null>(null);
+  const [menu, setMenu] = useState<TreeMenu | null>(null);
   // the drag's source is component state, not dataTransfer: a drop reads it synchronously
   // and a drag that started elsewhere (a file from the desktop) has no source here
   const [dragging, setDragging] = useState<string | null>(null);
@@ -720,6 +781,13 @@ export const FileTree = ({
       onDrop={(event) => {
         dropIntoDir(event, rootDir);
       }}
+      onContextMenu={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+        event.preventDefault();
+        setMenu({ kind: "root", point: { x: event.clientX, y: event.clientY } });
+      }}
     >
       {rows.map((row) => {
         if (row.kind === "editor") {
@@ -742,7 +810,8 @@ export const FileTree = ({
             data-path={node.path}
             tabIndex={node.path === tabStopPath ? 0 : -1}
             draggable
-            className={rowClassName(isOpen, isDropTarget, dragging === node.path)}
+            {...(isOpen ? { "data-active": "" } : {})}
+            className={rowClassName(rowBase, isDropTarget, dragging === node.path)}
             style={{ paddingLeft: row.depth * 12 + 4 }}
             onClick={() => {
               setActivePath(node.path);
@@ -768,7 +837,7 @@ export const FileTree = ({
             }}
             onContextMenu={(event) => {
               event.preventDefault();
-              setMenu({ anchor: event.currentTarget, node });
+              setMenu({ anchor: event.currentTarget, kind: "row", node });
             }}
           >
             {node.kind === "dir" ? (
@@ -787,10 +856,10 @@ export const FileTree = ({
               tabIndex={-1}
               aria-label={`Actions for ${node.name}`}
               className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-muted-foreground/10 data-open:opacity-100"
-              {...(menu?.node.path === node.path ? { "data-open": "" } : {})}
+              {...(menu?.kind === "row" && menu.node.path === node.path ? { "data-open": "" } : {})}
               onClick={(event) => {
                 event.stopPropagation();
-                setMenu({ anchor: event.currentTarget, node });
+                setMenu({ anchor: event.currentTarget, kind: "row", node });
               }}
             >
               <EllipsisIcon className="size-3.5" />
@@ -802,7 +871,7 @@ export const FileTree = ({
         <EmptyRows loadState={loadState} onRetry={onRetry} />
       ) : null}
       {kept !== null && rows.length === 0 ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">Nothing matches the filter.</p>
+        <p className="px-1 py-2 text-xs text-muted-foreground">No note matches the search.</p>
       ) : null}
       <RowMenu
         menu={menu}
@@ -820,6 +889,10 @@ export const FileTree = ({
         ops={ops}
         pinnedPaths={pinnedPaths}
         vaultRoot={vaultRoot}
+        rootDir={rootDir}
+        sort={sort}
+        onSortChange={onSortChange}
+        onCollapseAll={collapseAll}
       />
     </div>
   );
