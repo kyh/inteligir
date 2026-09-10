@@ -108,7 +108,19 @@ describe("the API over the in-process app", () => {
   it("refuses to boot on an un-migrated database — the boot-time schema read throws", () => {
     const dataDir = makeTempDir("inteligir-app-test-");
     const db = createConnection(nodePath.join(dataDir, "inteligir.db"));
-    expect(() => getSchemaVersion(db, 4)).toThrow(/no such table: meta/u);
+    // drizzle names the query in its own error and carries sqlite's underneath as the cause.
+    const thrown = ((): Error | undefined => {
+      try {
+        getSchemaVersion(db, 4);
+      } catch (error) {
+        return error instanceof Error ? error : undefined;
+      }
+      return undefined;
+    })();
+    expect(thrown?.name).toBe("DrizzleQueryError");
+    expect(thrown?.cause instanceof Error ? thrown.cause.message : undefined).toMatch(
+      /no such table: meta/u,
+    );
   });
 });
 

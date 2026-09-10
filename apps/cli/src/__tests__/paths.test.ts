@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveMigrationsFolder } from "../paths";
@@ -8,7 +8,10 @@ describe("resolveMigrationsFolder", () => {
     const folder = resolveMigrationsFolder() ?? "";
 
     expect(folder).toMatch(/packages[/\\]db[/\\]drizzle$/u);
-    // the journal `runMigrations` reads its generation ceiling from.
-    expect(existsSync(path.join(folder, "meta", "_journal.json"))).toBe(true);
+    // the per-generation folders `runMigrations` reads its generation ceiling from.
+    const generations = readdirSync(folder).filter((name) =>
+      existsSync(path.join(folder, name, "migration.sql")),
+    );
+    expect(generations.length).toBeGreaterThan(0);
   });
 });
