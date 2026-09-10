@@ -38,7 +38,7 @@ export const treeOpsBrowser: Scenario = {
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
       await agentBrowser(["wait", EDITOR], 90_000);
 
-      ctx.log("the rail's Files section is open on a fresh profile");
+      ctx.log("the rail opens on Files on a fresh profile");
       await agentBrowser(["wait", row(NOTE)], 30_000);
 
       ctx.log("Pin from the row menu lands pinned: true in the frontmatter");

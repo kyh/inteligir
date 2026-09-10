@@ -23,6 +23,7 @@ import { useSize } from "@repo/ui/lib/size-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Tooltip } from "@repo/ui/components/tooltip";
+import type { IconComponent } from "@repo/ui/lib/icon";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
@@ -812,4 +813,86 @@ const SidebarHeader = ({
 );
 SidebarHeader.displayName = "SidebarHeader";
 
-export { SidebarProvider, SidebarShell, SidebarInset, SidebarInput, SidebarHeader };
+// The scrolling region between the header and whatever sits under it: a plain column, so a
+// consumer's list keeps its own height and the column scrolls.
+const SidebarContent = ({
+  className,
+  ref,
+  ...props
+}: SidebarSectionProps & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    data-sidebar="content"
+    className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
+    {...props}
+  />
+);
+SidebarContent.displayName = "SidebarContent";
+
+interface SidebarSearchFieldProps extends Omit<SidebarInputProps, "className"> {
+  icon: IconComponent;
+  // the keystroke the trailing chip shows on hover or focus; absent, no chip
+  shortcut?: string;
+}
+
+// The header's search field on the rows' own rhythm: the leading icon sits on the rows' leading
+// axis and the text starts on their text axis, so the field reads as the list's first row.
+const SidebarSearchField = ({
+  icon: Icon,
+  shortcut,
+  placeholder = "Search…",
+  ref,
+  ...props
+}: SidebarSearchFieldProps & RefAttributes<HTMLInputElement>) => {
+  const size = useSize();
+  return (
+    <div className="group/search relative">
+      <Icon
+        size={size.icon}
+        strokeWidth={1.5}
+        className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-muted-foreground"
+      />
+      <SidebarInput
+        ref={ref}
+        placeholder={placeholder}
+        aria-label="Search"
+        className={cn("pl-8", shortcut === undefined ? "pr-2" : "pr-12")}
+        {...props}
+      />
+      {shortcut === undefined ? null : (
+        <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 font-sans text-[11px] text-muted-foreground opacity-0 transition-opacity duration-80 group-focus-within/search:opacity-100 group-hover/search:opacity-100">
+          {shortcut}
+        </kbd>
+      )}
+    </div>
+  );
+};
+SidebarSearchField.displayName = "SidebarSearchField";
+
+// The one row every list in a sidebar draws, on the size ladder: the menu row's height and text,
+// the item radius, muted at rest and lit on hover, the current row filled. A consumer adds its
+// own leading inset (a tree's depth) and its trailing cells.
+const useSidebarRow = (): string => {
+  const radius = useRadius();
+  const size = useSize();
+  return cn(
+    "flex w-full min-w-0 items-center outline-none select-none",
+    "text-muted-foreground transition-colors duration-80",
+    "hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground",
+    "data-active:bg-muted data-active:text-foreground",
+    size.variant === "compact" ? "h-7" : "h-8",
+    size.text,
+    size.gap,
+    radius.item,
+  );
+};
+
+export {
+  SidebarProvider,
+  SidebarShell,
+  SidebarInset,
+  SidebarHeader,
+  SidebarContent,
+  SidebarSearchField,
+  useSidebarRow,
+};

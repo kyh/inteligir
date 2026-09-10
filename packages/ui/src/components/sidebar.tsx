@@ -227,8 +227,10 @@ export {
   SidebarProvider,
   useSidebar,
   SidebarInset,
-  SidebarInput,
   SidebarHeader,
+  SidebarContent,
+  SidebarSearchField,
+  useSidebarRow,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_MAX_WIDTH,
 } from "@repo/ui/components/sidebar-core";

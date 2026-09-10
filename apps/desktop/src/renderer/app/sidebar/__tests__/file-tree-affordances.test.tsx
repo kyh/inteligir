@@ -46,6 +46,7 @@ const renderTree = (overrides: Partial<React.ComponentProps<typeof RailTree>> = 
       onMoveRequest={() => {}}
       pinnedPaths={NO_PINS}
       sort="name"
+      onSortChange={() => {}}
       filter=""
       vaultRoot={null}
       {...overrides}
@@ -106,7 +107,7 @@ describe("the filter", () => {
     cleanup();
     renderTree({ filter: "zzz" });
     expect(visiblePaths()).toEqual([]);
-    expect(screen.getByText("Nothing matches the filter.")).toBeDefined();
+    expect(screen.getByText("No note matches the search.")).toBeDefined();
   });
 
   it("clearing it restores the folded tree", () => {
@@ -124,6 +125,7 @@ describe("the filter", () => {
         onMoveRequest={() => {}}
         pinnedPaths={NO_PINS}
         sort="name"
+        onSortChange={() => {}}
         vaultRoot={null}
         filter="mid"
       />,
@@ -143,6 +145,7 @@ describe("the filter", () => {
         onMoveRequest={() => {}}
         pinnedPaths={NO_PINS}
         sort="name"
+        onSortChange={() => {}}
         vaultRoot={null}
         filter=""
       />,

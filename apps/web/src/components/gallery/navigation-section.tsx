@@ -2,17 +2,34 @@
 
 import {
   Sidebar,
+  SidebarContent,
   SidebarHeader,
-  SidebarInput,
   SidebarInset,
   SidebarProvider,
+  SidebarSearchField,
+  useSidebarRow,
 } from "@repo/ui/components/sidebar";
 import { cn } from "cn";
+import { SearchIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 
 import { Demo, GallerySection } from "./gallery-chrome";
 
 const SIDEBAR_NOTES = ["Release checklist", "Weekly review", "Kitchen Sink"];
+
+const SidebarNoteRows = () => {
+  const rowClass = useSidebarRow();
+  return SIDEBAR_NOTES.map((note, index) => (
+    <button
+      key={note}
+      type="button"
+      {...(index === 0 ? { "data-active": "" } : {})}
+      className={cn(rowClass, "px-2")}
+    >
+      {note}
+    </button>
+  ));
+};
 
 export const NavigationSection = () => (
   <GallerySection id="navigation" title="Navigation">
@@ -53,25 +70,14 @@ export const NavigationSection = () => (
         <SidebarProvider className="h-full min-h-0" width="12rem" style={{ minHeight: "100%" }}>
           <Sidebar variant="floating">
             <SidebarHeader>
-              <SidebarInput placeholder="Search…" readOnly />
+              <SidebarSearchField icon={SearchIcon} shortcut="⌘P" readOnly />
             </SidebarHeader>
-            <div className="flex min-h-0 flex-1 flex-col py-1">
-              <p className="px-3 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
+            <SidebarContent className="px-2 py-1">
+              <p className="px-2 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
                 Notes
               </p>
-              {SIDEBAR_NOTES.map((note, index) => (
-                <button
-                  key={note}
-                  type="button"
-                  className={cn(
-                    "flex h-chrome-row w-full items-center px-3 text-sm hover:bg-muted/60",
-                    index === 0 ? "bg-muted text-foreground" : "text-foreground/80",
-                  )}
-                >
-                  {note}
-                </button>
-              ))}
-            </div>
+              <SidebarNoteRows />
+            </SidebarContent>
           </Sidebar>
           <SidebarInset className="bg-surface">
             <div className="flex items-center gap-2 border-b border-line p-2">

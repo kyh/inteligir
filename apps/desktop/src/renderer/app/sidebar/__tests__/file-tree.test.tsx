@@ -60,6 +60,7 @@ const renderTree = (
       onMoveRequest={() => {}}
       pinnedPaths={NO_PINS}
       sort="name"
+      onSortChange={() => {}}
       filter=""
       vaultRoot={null}
       {...overrides}
