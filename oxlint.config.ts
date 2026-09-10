@@ -8,7 +8,13 @@ const tests = ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"];
 
 export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
-  ignorePatterns: [...core.ignorePatterns, ".claude", ".codex", "*.tsbuildinfo", ".tanstack"],
+  ignorePatterns: [
+    ...(core.ignorePatterns ?? []),
+    ".claude",
+    ".codex",
+    "*.tsbuildinfo",
+    ".tanstack",
+  ],
   overrides: [
     {
       // The Plate editor's tests stub platejs/react and the host-io singleton at
