@@ -49,12 +49,18 @@ export const createExpoNoteCache = (): NoteCache => {
   };
 
   return {
-    // oxlint-disable-next-line eslint/require-await -- expo-file-system deletes synchronously; async is the NoteCache contract
-    async clear() {
-      rows = null;
-      const root = cacheRoot();
-      if (root.exists) {
-        root.delete();
+    // expo-file-system throws synchronously; the catch keeps that a rejection, which is the only
+    // failure the store's best-effort wrapper can swallow.
+    clear() {
+      try {
+        rows = null;
+        const root = cacheRoot();
+        if (root.exists) {
+          root.delete();
+        }
+        return Promise.resolve();
+      } catch (error) {
+        return Promise.reject(error);
       }
     },
 
@@ -93,19 +99,23 @@ export const createExpoNoteCache = (): NoteCache => {
       }
     },
 
-    // oxlint-disable-next-line eslint/require-await -- expo-file-system lists and deletes synchronously; async is the NoteCache contract
-    async sweep(keepCommit) {
-      const root = cacheRoot();
-      if (!root.exists) {
-        return;
-      }
-      for (const entry of root.list()) {
-        if (entry.name !== keepCommit) {
-          entry.delete();
+    sweep(keepCommit) {
+      try {
+        const root = cacheRoot();
+        if (!root.exists) {
+          return Promise.resolve();
         }
-      }
-      if (rows !== null && rows.commit !== keepCommit) {
-        rows = null;
+        for (const entry of root.list()) {
+          if (entry.name !== keepCommit) {
+            entry.delete();
+          }
+        }
+        if (rows !== null && rows.commit !== keepCommit) {
+          rows = null;
+        }
+        return Promise.resolve();
+      } catch (error) {
+        return Promise.reject(error);
       }
     },
   };

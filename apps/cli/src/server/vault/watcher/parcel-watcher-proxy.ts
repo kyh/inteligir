@@ -264,30 +264,40 @@ export const createParcelWatcherProxy = (
     });
   };
 
-  // oxlint-disable-next-line require-await -- the backend contract is a promise; the proxy answers from its own state and defers the real subscribe to the child.
-  const subscribe = async (
+  const subscribe = (
     dir: string,
     callback: SubscribeCallback,
     opts?: ParcelWatcherSubscribeOptions,
   ): Promise<ParcelAsyncSubscription> => {
-    if (disposed) {
-      throw new Error("Parcel watcher proxy is disposed");
+    // the disposed refusal and a failed fork must reach callers as a rejection, the way parcel's
+    // own promise-returning subscribe reports them.
+    try {
+      if (disposed) {
+        throw new Error("Parcel watcher proxy is disposed");
+      }
+      const id = nextId();
+      subscriptions.set(id, { callback, dir, id, opts });
+      if (channel !== null && childReady) {
+        channel.send({ dir, id, kind: "subscribe", opts, rescan: false });
+      } else if (channel === null && respawnTimer === null) {
+        startChild();
+      }
+      // a child that is spawning or backing off gets this subscription from replay-on-ready, once.
+      return Promise.resolve({
+        unsubscribe() {
+          // callers chain .catch() on this; a synchronous throw would sail past it.
+          try {
+            subscriptions.delete(id);
+            channel?.send({ id, kind: "unsubscribe" });
+            return Promise.resolve();
+          } catch (error) {
+            return Promise.reject(error);
+          }
+        },
+      });
+    } catch (error) {
+      return Promise.reject(error);
     }
-    const id = nextId();
-    subscriptions.set(id, { callback, dir, id, opts });
-    if (channel !== null && childReady) {
-      channel.send({ dir, id, kind: "subscribe", opts, rescan: false });
-    } else if (channel === null && respawnTimer === null) {
-      startChild();
-    }
-    // a child that is spawning or backing off gets this subscription from replay-on-ready, once.
-    return {
-      // oxlint-disable-next-line require-await -- parcel's contract is a promise; the send is fire-and-forget.
-      async unsubscribe() {
-        subscriptions.delete(id);
-        channel?.send({ id, kind: "unsubscribe" });
-      },
-    };
   };
 
   const dispose = (): void => {

@@ -1,5 +1,3 @@
-// oxlint-disable eslint/require-await -- the in-memory cache answers the async NoteCache
-// port synchronously; `async` is the contract it implements
 // keyed by (commit, path): content at a commit is immutable, so a row never goes stale, only
 // unreachable. best-effort is held in notes-store, which swallows every refusal, so an
 // implementation may throw.
@@ -20,13 +18,14 @@ export interface NoteCache {
 export const createMemoryNoteCache = (maxEntries: number): NoteCache => {
   const rows = new Map<string, CachedNote>();
   return {
-    async clear() {
+    clear() {
       rows.clear();
+      return Promise.resolve();
     },
-    async get(commit, path) {
-      return rows.get(`${commit}:${path}`) ?? null;
+    get(commit, path) {
+      return Promise.resolve(rows.get(`${commit}:${path}`) ?? null);
     },
-    async set(note) {
+    set(note) {
       rows.set(`${note.commit}:${note.path}`, note);
       while (rows.size > maxEntries) {
         const oldest = rows.keys().next().value;
@@ -35,13 +34,15 @@ export const createMemoryNoteCache = (maxEntries: number): NoteCache => {
         }
         rows.delete(oldest);
       }
+      return Promise.resolve();
     },
-    async sweep(keepCommit) {
+    sweep(keepCommit) {
       for (const [key, row] of rows) {
         if (row.commit !== keepCommit) {
           rows.delete(key);
         }
       }
+      return Promise.resolve();
     },
   };
 };

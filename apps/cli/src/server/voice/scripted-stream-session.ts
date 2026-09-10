@@ -31,8 +31,8 @@ export class ScriptedStreamSession implements StreamSession {
     this.#handlers.onFinal(this.#transcript());
   }
 
-  // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
-  async dispose(): Promise<void> {
+  dispose(): Promise<void> {
     this.#dead = true;
+    return Promise.resolve();
   }
 }

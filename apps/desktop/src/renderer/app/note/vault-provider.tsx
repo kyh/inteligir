@@ -255,15 +255,15 @@ export const VaultProvider = ({
         });
       },
       // Nothing mounted asks for outgoing links; they are on screen in the document.
-      /* oxlint-disable require-await -- the knowledge port is async; these answer from memory */
-      getForwardLinks: async () => [],
-      listWikiTargets: async () =>
-        // exactOptionalPropertyTypes: drop the explicit-undefined members.
-        port.wikiTargets().map(({ aliases, pinned, ...target }) => {
-          const withAliases = aliases === undefined ? target : Object.assign(target, { aliases });
-          return pinned === undefined ? withAliases : Object.assign(withAliases, { pinned });
-        }),
-      /* oxlint-enable require-await */
+      getForwardLinks: () => Promise.resolve([]),
+      listWikiTargets: () =>
+        Promise.resolve(
+          // exactOptionalPropertyTypes: drop the explicit-undefined members.
+          port.wikiTargets().map(({ aliases, pinned, ...target }) => {
+            const withAliases = aliases === undefined ? target : Object.assign(target, { aliases });
+            return pinned === undefined ? withAliases : Object.assign(withAliases, { pinned });
+          }),
+        ),
       onKnowledgeUpdated: (listener) =>
         docEvents.subscribe(() => {
           listener();
