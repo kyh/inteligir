@@ -286,6 +286,17 @@ to the END of its group.
   on both braces. Comment thread bodies live in
   `.inteligir/comments/<note-id>.json`, keyed by the note's frontmatter `id`.
 
+- **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**
+  `Button` trims its text with `text-box`, which only a block container
+  honours, so the label is its own span; an inline svg in that span does not
+  size the block and the line box pushes it out, which drew the icon above the
+  label. `labelChildren` (`packages/ui/src/components/button.tsx`) keeps text
+  runs in the trimmed span and lifts every element child out beside them, and
+  the icon-only branch is a flex row for the same reason (an icon with a count
+  beside it). A caller may pass the icon either way — as `leadingIcon` or as a
+  child — and both lay out as one row. The one spelling of "which children are
+  text" is `@repo/ui/lib/text-children`, which the sidebar's rows read too.
+
 - **EVERY FLOATING SURFACE IS A BASE UI PRIMITIVE THROUGH `@repo/ui`, never a
   hand-positioned div.** A popup is `Popover`, `DropdownMenu`, `Tooltip`,
   `HoverCard` or `Dialog` from `@repo/ui/components`, which own dismissal,
@@ -296,9 +307,13 @@ to the END of its group.
   `block-menu.tsx`). Base UI is reached only through `@repo/ui` (the one
   exception is `inline-combobox.tsx`); a missing primitive is added there
   first, with a gallery demo. In-flow chrome is not a popup and stays
-  positioned: the find bar and the TOC rail (anchored to the note column on
-  purpose), the code-block language badge, the callout marker, the toggle
-  chevron, the table handle. The wiki-link preview is the HoverCard (Base UI's
+  positioned: the TOC rail (anchored to the note column on purpose), the
+  code-block language badge, the callout marker, the toggle chevron, the
+  table handle. The find bar IS a popup, hung under the top bar's Find
+  button: the shell registers the anchor through `setFindBarAnchor`
+  (`packages/editor/src/find-bar.tsx`), since the editor never reaches the
+  shell, and with no button on screen — zen — it falls back to the note
+  column's corner. The wiki-link preview is the HoverCard (Base UI's
   PreviewCard): the pointer can move into it, the text selects, the title
   opens the note; Popover has no hover mode (`packages/editor/src/wiki-chip.tsx`).
 
@@ -351,8 +366,9 @@ to the END of its group.
 - **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
   Pinning travels with the file, so the recents agree on every device and with
   the agent. A pinned note sorts to the top of the recents and ends its row in
-  a filled star; there is no Pinned heading, because a group label for a
-  handful of rows cost more height than it explained. `pinnedFrontmatterYaml` in
+  a filled pin; there is no Pinned heading, because a group label for a
+  handful of rows cost more height than it explained. The pin's slot is drawn
+  on every row, pinned or not, so one column holds every date. `pinnedFrontmatterYaml` in
   `@repo/notes/markdown/frontmatter` cuts or appends the key's own lines like
   `removeFrontmatterId` does, rather than re-serializing through
   `serializeProperties`, which restyles every flow list it re-emits; unpinning
@@ -1045,8 +1061,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
   and every command in one field, and the two searches that are not a lookup
   reach the rest from inside it: "Search across the vault…" opens the literal
-  scan with its replace, and the note's own find bar stays ⌘F because it is
-  scoped to the buffer, not the vault. ⌘O and ⌘⇧F are GONE, and with them the
+  scan with its replace. ⌘F IS NOT ONE OF THEM: it searches within the open
+  note, not the vault, so it keeps its own chord and its own bar. ⌘O and ⌘⇧F are GONE, and with them the
   palette's quick-open page (the root with its commands folded away) and the
   rail's search field: four ways to type a note's name was three too many,
   and each one was a different set of rows for the same question. The rail's

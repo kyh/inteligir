@@ -1,3 +1,4 @@
+import { setFindBarAnchor } from "@repo/editor/find-bar";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { Button } from "@repo/ui/components/button";
@@ -170,6 +171,7 @@ export const NoteTopbar = ({
       </nav>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Button
+          ref={setFindBarAnchor}
           variant="ghost"
           size="icon-compact"
           aria-label="Find in note"

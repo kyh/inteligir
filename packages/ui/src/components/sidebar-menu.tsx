@@ -20,7 +20,7 @@ import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
 import type { IconComponent } from "@repo/ui/lib/icon";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
-import { splitLeadingText } from "@repo/ui/components/sidebar-core";
+import { splitLeadingText } from "@repo/ui/lib/text-children";
 
 interface MenuScopeValue {
   registerRow: (el: HTMLElement) => () => void;

@@ -5,6 +5,7 @@ import type { DecoratedRange, Path, SlateEditor, TRange } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
 
+import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "cn";
 
@@ -35,6 +36,20 @@ interface FindBarState {
 
 let state: FindBarState = { active: null, open: false, query: "", replace: "", replaceOpen: false };
 const listeners = new Set<() => void>();
+
+// The element the bar hangs under, registered by whatever surface draws the Find button; the
+// editor never reaches the shell, so the shell hands it the anchor. Null while no such button is
+// on screen (zen hides it), and the bar falls back to the note column's corner.
+let anchorEl: HTMLElement | null = null;
+
+export const setFindBarAnchor = (element: HTMLElement | null): void => {
+  anchorEl = element;
+  for (const listener of listeners) {
+    listener();
+  }
+};
+
+const getFindBarAnchor = (): HTMLElement | null => anchorEl;
 
 // A module store because decorate runs outside React; decorations read it rather than the
 // document, so a change to what they read must also redecorate. The replace field is not
@@ -209,6 +224,7 @@ const BAR_BUTTON_CLASS =
 const FindBar = () => {
   const editor = useEditorRef();
   const snap = useSyncExternalStore(subscribe, getFindBarState);
+  const anchor = useSyncExternalStore(subscribe, getFindBarAnchor);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -234,9 +250,8 @@ const FindBar = () => {
     return true;
   };
 
-  // absolute, not fixed: inside the note column, never over the panel beside it
-  return (
-    <div className="absolute top-16 right-6 z-40 flex flex-col gap-1 rounded-md border border-border bg-popover px-2 py-1 shadow-md print:hidden">
+  const body = (
+    <>
       <div className="flex items-center gap-1.5">
         <Tooltip content="Toggle replace">
           <button
@@ -348,7 +363,41 @@ const FindBar = () => {
           </Tooltip>
         </div>
       ) : null}
-    </div>
+    </>
+  );
+
+  // The bar hangs under the Find button when a surface has one, and falls back to the note
+  // column's corner when none is on screen (zen). Absolute, not fixed: inside the note column,
+  // never over the panel beside it.
+  if (anchor === null) {
+    return (
+      <div className="absolute top-16 right-6 z-40 flex flex-col gap-1 rounded-md border border-border bg-popover px-2 py-1 shadow-md print:hidden">
+        {body}
+      </div>
+    );
+  }
+  return (
+    <Popover
+      open
+      onOpenChange={(next) => {
+        if (!next) {
+          closeFindBar(editor);
+        }
+      }}
+    >
+      <PopoverContent
+        anchor={anchor}
+        align="end"
+        side="bottom"
+        sideOffset={6}
+        // the bar sizes to its fields, and it is chrome over the note: not the popover's own card
+        className="w-auto gap-1 rounded-md p-0 px-2 py-1 print:hidden"
+        // the editor keeps the caret; the input takes focus from the effect above
+        initialFocus={inputRef}
+      >
+        {body}
+      </PopoverContent>
+    </Popover>
   );
 };
 

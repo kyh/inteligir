@@ -22,25 +22,8 @@ import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize } from "@repo/ui/lib/size-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
+import { splitLeadingText } from "@repo/ui/lib/text-children";
 import { Tooltip } from "@repo/ui/components/tooltip";
-
-type TextChild = string | number;
-
-const isTextChild = (node: ReactNode): node is TextChild =>
-  typeof node === "string" || typeof node === "number";
-
-// a row's leading strings are its label; whatever follows is drawn as given
-export const splitLeadingText = (content: ReactNode) => {
-  const nodes: ReactNode[] = Array.isArray(content) ? content : [content];
-  const leading: TextChild[] = [];
-  for (const node of nodes) {
-    if (!isTextChild(node)) {
-      break;
-    }
-    leading.push(node);
-  }
-  return { rest: nodes.slice(leading.length), text: leading.join("") };
-};
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";

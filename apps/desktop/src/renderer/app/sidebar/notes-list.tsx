@@ -1,5 +1,4 @@
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import {
   DropdownMenu,
@@ -7,7 +6,7 @@ import {
   DropdownMenuItem,
 } from "@repo/ui/components/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@repo/ui/components/sidebar";
-import { StarIcon } from "lucide-react";
+import { PinIcon } from "lucide-react";
 import { useState } from "react";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { usePinnedPaths } from "../vault-hooks";
@@ -49,10 +48,10 @@ export const NotesList = ({
   const unpinned = notes.filter((note) => !pinnedPaths.has(note.path));
   const rest = limit === undefined ? unpinned : unpinned.slice(0, limit);
 
-  // the menu row: the name is the label, the folder and the age ride its trailing edge, a pinned
-  // row ends in its star, and the row's one verb is a right-click
+  // The menu row: the name is the label and the age rides its trailing edge. The pin's slot is
+  // always drawn, so every date sits in one column whether or not the note is pinned. The row's
+  // one verb is a right-click; the folder a note lives in is the Files view's business.
   const row = (note: FileEntry) => {
-    const hint = dirnamePath(note.path);
     const isPinned = pinnedPaths.has(note.path);
     return (
       <SidebarMenuItem key={note.path}>
@@ -71,22 +70,19 @@ export const NotesList = ({
           }}
         >
           {docStem(note.path)}
-          {hint === "" ? null : (
-            <span className="min-w-0 truncate text-[11px] text-muted-foreground">{hint}</span>
-          )}
-          {note.modifiedMs === undefined ? null : (
-            <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-              {relativeTimeLabel(note.modifiedMs, now)}
-            </span>
-          )}
-          {isPinned ? (
-            <StarIcon
-              aria-label="Pinned"
-              size={12}
-              strokeWidth={1.5}
-              className="shrink-0 fill-current text-muted-foreground"
-            />
-          ) : null}
+          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+            {note.modifiedMs === undefined ? "" : relativeTimeLabel(note.modifiedMs, now)}
+          </span>
+          <span className="flex size-3 shrink-0 items-center justify-center">
+            {isPinned ? (
+              <PinIcon
+                aria-label="Pinned"
+                size={12}
+                strokeWidth={1.5}
+                className="fill-current text-muted-foreground"
+              />
+            ) : null}
+          </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     );
