@@ -10,7 +10,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HTMLMotionProps } from "framer-motion";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
@@ -23,7 +23,24 @@ import { useSize } from "@repo/ui/lib/size-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import type { IconComponent } from "@repo/ui/lib/icon";
+
+type TextChild = string | number;
+
+const isTextChild = (node: ReactNode): node is TextChild =>
+  typeof node === "string" || typeof node === "number";
+
+// a row's leading strings are its label; whatever follows is drawn as given
+export const splitLeadingText = (content: ReactNode) => {
+  const nodes: ReactNode[] = Array.isArray(content) ? content : [content];
+  const leading: TextChild[] = [];
+  for (const node of nodes) {
+    if (!isTextChild(node)) {
+      break;
+    }
+    leading.push(node);
+  }
+  return { rest: nodes.slice(leading.length), text: leading.join("") };
+};
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
@@ -767,36 +784,6 @@ const SidebarInset = ({
 };
 SidebarInset.displayName = "SidebarInset";
 
-type SidebarInputProps = React.InputHTMLAttributes<HTMLInputElement>;
-
-const SidebarInput = ({
-  className,
-  ref,
-  ...props
-}: SidebarInputProps & RefAttributes<HTMLInputElement>) => {
-  const radius = useRadius();
-  const size = useSize();
-  return (
-    <input
-      ref={ref}
-      data-sidebar="input"
-      className={cn(
-        "w-full bg-transparent px-3 text-foreground placeholder:text-muted-foreground outline-none",
-        "ring-1 ring-transparent transition-[background-color,box-shadow] duration-80",
-        "hover:bg-muted/50 hover:ring-border",
-        "focus:bg-card focus:ring-border",
-        "focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-        size.variant === "compact" ? "h-7" : "h-8",
-        size.text,
-        radius.input,
-        className,
-      )}
-      {...props}
-    />
-  );
-};
-SidebarInput.displayName = "SidebarInput";
-
 type SidebarSectionProps = HTMLAttributes<HTMLDivElement>;
 
 const SidebarHeader = ({
@@ -813,6 +800,141 @@ const SidebarHeader = ({
 );
 SidebarHeader.displayName = "SidebarHeader";
 
+const SidebarFooter = ({
+  className,
+  ref,
+  ...props
+}: SidebarSectionProps & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    data-sidebar="footer"
+    className={cn("mt-auto flex shrink-0 flex-col gap-2 p-2", className)}
+    {...props}
+  />
+);
+SidebarFooter.displayName = "SidebarFooter";
+
+// A titled run of rows: the label, its actions overlaid at the label's trailing edge, then a
+// menu or any list.
+const SidebarGroup = ({
+  className,
+  ref,
+  ...props
+}: SidebarSectionProps & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    data-sidebar="group"
+    className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
+    {...props}
+  />
+);
+SidebarGroup.displayName = "SidebarGroup";
+
+// HTMLElement, not HTMLDivElement: with an onClick the label is a <button>
+type SidebarGroupLabelProps = HTMLAttributes<HTMLElement>;
+
+// The group's title on the rows' text axis. Given an onClick it is a button, for a group whose
+// title is also its switch.
+const SidebarGroupLabel = ({
+  className,
+  children,
+  onClick,
+  ref,
+  ...props
+}: SidebarGroupLabelProps & RefAttributes<HTMLElement>) => {
+  const size = useSize();
+  const radius = useRadius();
+  const { text, rest } = splitLeadingText(children);
+  const labelContent = text ? (
+    <>
+      <span className="min-w-0 truncate">{text}</span>
+      {rest}
+    </>
+  ) : (
+    children
+  );
+  const textClass = size.variant === "compact" ? "text-[11px]" : "text-[12px]";
+  if (onClick !== undefined) {
+    return (
+      <button
+        ref={composeRefs(ref)}
+        type="button"
+        data-sidebar="group-label"
+        onClick={onClick}
+        className={cn(
+          "flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none select-none",
+          "transition-colors duration-80 hover:text-muted-foreground focus-visible:text-muted-foreground",
+          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+          radius.item,
+          textClass,
+          className,
+        )}
+        {...props}
+      >
+        {labelContent}
+      </button>
+    );
+  }
+  return (
+    <div
+      ref={composeRefs(ref)}
+      data-sidebar="group-label"
+      className={cn(
+        "flex h-8 shrink-0 items-center gap-2 px-2 text-muted-foreground/70 outline-none",
+        textClass,
+        className,
+      )}
+      {...props}
+    >
+      {labelContent}
+    </div>
+  );
+};
+SidebarGroupLabel.displayName = "SidebarGroupLabel";
+
+// the cluster over the label's trailing edge, inset to the rows' action axis
+const SidebarGroupActions = ({
+  className,
+  ref,
+  ...props
+}: SidebarSectionProps & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    data-sidebar="group-actions"
+    className={cn("absolute top-3 right-3 z-10 flex items-center gap-0.5", className)}
+    {...props}
+  />
+);
+SidebarGroupActions.displayName = "SidebarGroupActions";
+
+type SidebarGroupActionProps = ButtonHTMLAttributes<HTMLButtonElement>;
+
+// a 24px icon button: the one rhythm every action in the sidebar keeps
+const SidebarGroupAction = ({
+  className,
+  ref,
+  ...props
+}: SidebarGroupActionProps & RefAttributes<HTMLButtonElement>) => {
+  const radius = useRadius();
+  return (
+    <button
+      ref={ref}
+      type="button"
+      data-sidebar="group-action"
+      className={cn(
+        "flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none",
+        "transition-colors duration-80 hover:bg-muted/60 hover:text-foreground focus-visible:text-foreground",
+        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        radius.item,
+        className,
+      )}
+      {...props}
+    />
+  );
+};
+SidebarGroupAction.displayName = "SidebarGroupAction";
+
 // The scrolling region between the header and whatever sits under it: a plain column, so a
 // consumer's list keeps its own height and the column scrolls.
 const SidebarContent = ({
@@ -828,46 +950,6 @@ const SidebarContent = ({
   />
 );
 SidebarContent.displayName = "SidebarContent";
-
-interface SidebarSearchFieldProps extends Omit<SidebarInputProps, "className"> {
-  icon: IconComponent;
-  // the keystroke the trailing chip shows on hover or focus; absent, no chip
-  shortcut?: string;
-}
-
-// The header's search field on the rows' own rhythm: the leading icon sits on the rows' leading
-// axis and the text starts on their text axis, so the field reads as the list's first row.
-const SidebarSearchField = ({
-  icon: Icon,
-  shortcut,
-  placeholder = "Search…",
-  ref,
-  ...props
-}: SidebarSearchFieldProps & RefAttributes<HTMLInputElement>) => {
-  const size = useSize();
-  return (
-    <div className="group/search relative">
-      <Icon
-        size={size.icon}
-        strokeWidth={1.5}
-        className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-muted-foreground"
-      />
-      <SidebarInput
-        ref={ref}
-        placeholder={placeholder}
-        aria-label="Search"
-        className={cn("pl-8", shortcut === undefined ? "pr-2" : "pr-12")}
-        {...props}
-      />
-      {shortcut === undefined ? null : (
-        <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 font-sans text-[11px] text-muted-foreground opacity-0 transition-opacity duration-80 group-focus-within/search:opacity-100 group-hover/search:opacity-100">
-          {shortcut}
-        </kbd>
-      )}
-    </div>
-  );
-};
-SidebarSearchField.displayName = "SidebarSearchField";
 
 // The one row every list in a sidebar draws, on the size ladder: the menu row's height and text,
 // the item radius, muted at rest and lit on hover, the current row filled. A consumer adds its
@@ -893,6 +975,10 @@ export {
   SidebarInset,
   SidebarHeader,
   SidebarContent,
-  SidebarSearchField,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupActions,
+  SidebarGroupAction,
   useSidebarRow,
 };

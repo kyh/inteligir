@@ -24,8 +24,6 @@ export interface TaggedNotesProps {
   openPath: string | null;
   onOpenFile: (path: string) => void;
   onSetPinned: (path: string, pinned: boolean) => void;
-  // the rail's search, over the notes inside the tag
-  filter: string;
 }
 
 // One page that grows: the list is re-read whole rather than stitched, since the drawn list is
@@ -39,7 +37,6 @@ export const TaggedNotes = ({
   openPath,
   onOpenFile,
   onSetPinned,
-  filter,
 }: TaggedNotesProps) => {
   const [limit, setLimit] = useState(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT);
   const [renaming, setRenaming] = useState(false);
@@ -74,7 +71,6 @@ export const TaggedNotes = ({
         onOpenFile={onOpenFile}
         emptyText={taggedQuery.data === undefined ? "…" : `No notes tagged #${tag} here.`}
         onSetPinned={onSetPinned}
-        filter={filter}
       />
       {cut && limit < KNOWLEDGE_TAG_NOTES_MAX_LIMIT ? (
         <div className="px-2 py-1">

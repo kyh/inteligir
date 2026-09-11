@@ -47,7 +47,6 @@ const renderTree = (overrides: Partial<React.ComponentProps<typeof RailTree>> = 
       pinnedPaths={NO_PINS}
       sort="name"
       onSortChange={() => {}}
-      filter=""
       vaultRoot={null}
       {...overrides}
     />,
@@ -87,70 +86,6 @@ describe("sorting", () => {
       "Zed notes.md",
       "Welcome.md",
     ]);
-  });
-});
-
-describe("the filter", () => {
-  it("shows the matches and the folders holding them, and nothing else", () => {
-    renderTree({ filter: "mid" });
-    expect(visiblePaths()).toEqual(["notes", "notes/middle.md"]);
-  });
-
-  it("matches a folder's own name", () => {
-    renderTree({ filter: "asset" });
-    expect(visiblePaths()).toEqual(["assets"]);
-  });
-
-  it("is a case-insensitive substring, and says when nothing matches", () => {
-    renderTree({ filter: "WELCOME" });
-    expect(visiblePaths()).toEqual(["Welcome.md"]);
-    cleanup();
-    renderTree({ filter: "zzz" });
-    expect(visiblePaths()).toEqual([]);
-    expect(screen.getByText("No note matches the search.")).toBeDefined();
-  });
-
-  it("clearing it restores the folded tree", () => {
-    const { rerender } = render(
-      <RailTree
-        entries={ENTRIES}
-        loadState="loaded"
-        onRetry={() => {}}
-        openPath={null}
-        onOpenFile={vi.fn<FileTreeProps["onOpenFile"]>()}
-        ops={makeOps()}
-        pendingCreate={null}
-        onPendingCreateDone={() => {}}
-        rootDir=""
-        onMoveRequest={() => {}}
-        pinnedPaths={NO_PINS}
-        sort="name"
-        onSortChange={() => {}}
-        vaultRoot={null}
-        filter="mid"
-      />,
-    );
-    expect(visiblePaths()).toEqual(["notes", "notes/middle.md"]);
-    rerender(
-      <RailTree
-        entries={ENTRIES}
-        loadState="loaded"
-        onRetry={() => {}}
-        openPath={null}
-        onOpenFile={vi.fn<FileTreeProps["onOpenFile"]>()}
-        ops={makeOps()}
-        pendingCreate={null}
-        onPendingCreateDone={() => {}}
-        rootDir=""
-        onMoveRequest={() => {}}
-        pinnedPaths={NO_PINS}
-        sort="name"
-        onSortChange={() => {}}
-        vaultRoot={null}
-        filter=""
-      />,
-    );
-    expect(visiblePaths()).toEqual(["assets", "notes", "Welcome.md", "Zed notes.md"]);
   });
 });
 

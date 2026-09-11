@@ -229,8 +229,19 @@ export {
   SidebarInset,
   SidebarHeader,
   SidebarContent,
-  SidebarSearchField,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupActions,
+  SidebarGroupAction,
   useSidebarRow,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_MAX_WIDTH,
 } from "@repo/ui/components/sidebar-core";
+
+export {
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuAction,
+} from "@repo/ui/components/sidebar-menu";

@@ -7,22 +7,42 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import { SidebarContent, SidebarHeader, SidebarSearchField } from "@repo/ui/components/sidebar";
-import { Tabs, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
+import {
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupActions,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@repo/ui/components/sidebar";
+import { Spinner } from "@repo/ui/components/spinner";
+import { Tooltip } from "@repo/ui/components/tooltip";
+import { useTheme } from "@repo/ui/lib/theme";
 import { cn } from "cn";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
+  ArchiveRestoreIcon,
   ArrowLeftIcon,
   ChevronDownIcon,
-  FilePlusIcon,
+  ChevronsUpDownIcon,
   FolderIcon,
   FolderOpenIcon,
+  MoonIcon,
+  PlusIcon,
+  RefreshCwIcon,
   SearchIcon,
+  SettingsIcon,
+  SunIcon,
   VaultIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "@repo/ui/components/sonner";
+import { useThreads } from "../actions/thread-hooks";
 import {
   openRecentVault,
   pickVault,
@@ -30,10 +50,19 @@ import {
   useDesktopVaults,
   useVaultSwitch,
 } from "../desktop-vaults";
-import { RAIL_VIEWS, readTreeSort, writeTreeSort } from "../prefs";
+import { readTreeSort, writeTreeSort } from "../prefs";
 import type { RailView, TreeSort } from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
-import { usePinnedPaths, useVaultTree, vaultFolders } from "../vault-hooks";
+import {
+  canSyncNow,
+  syncBlockedReason,
+  syncStateDotClass,
+  syncStateLabel,
+  usePinnedPaths,
+  useVaultStatus,
+  useVaultTree,
+  vaultFolders,
+} from "../vault-hooks";
 import { FileTree } from "./file-tree";
 import type { PendingCreate, TreeLoadState, TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
@@ -56,76 +85,108 @@ const treeLoadState = (query: ReturnType<typeof useVaultTree>): TreeLoadState =>
   return query.data === undefined ? "loading" : "loaded";
 };
 
-// the workspace row: the name at the rows' text size, semibold, the chevron beside it
-const VAULT_TRIGGER_CLASS =
-  "flex h-7 max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-[13px] font-semibold outline-none";
-
-// the rows the Recent section shows; the palette lists every note
+// the rows the Recent view shows; the palette lists every note
 const RECENT_LIMIT = 8;
+
+// the tooltip's label with its chord beside it, on the tooltip's own height
+const tipWithShortcut = (label: string, shortcut: string | null) =>
+  shortcut === null ? (
+    label
+  ) : (
+    <span className="flex items-center gap-2">
+      <span>{label}</span>
+      <kbd className="-my-1 flex h-4 min-w-4 items-center justify-center rounded border border-background/30 px-1 font-sans text-[10px] text-background/80">
+        {shortcut}
+      </kbd>
+    </span>
+  );
+
+// the vault's mark: its initial on a 20px tile, centred on the rows' leading icon axis
+const VaultTile = ({ name }: { name: string }) => (
+  <span
+    aria-hidden="true"
+    className="pointer-events-none absolute top-1/2 left-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-md bg-foreground text-[10px] font-semibold text-background"
+  >
+    {name.slice(0, 1).toLocaleUpperCase()}
+  </span>
+);
 
 // The vault is the server's: switching it restarts the child and replaces this window, and the
 // folder is picked in main, so this is a menu over what main remembers. A browser tab has no
 // bridge and did not start the server, so it gets the name alone.
-const VaultButton = ({ vaultName }: { vaultName: string }) => {
+const VaultRow = ({ vaultName }: { vaultName: string }) => {
   const vaults = useDesktopVaults();
   const { busy, run } = useVaultSwitch((message) => {
     toast.error(message);
   });
-  // no icon: the row is the name's, and a long vault name is the whole point of the row; the
-  // chevron sits beside the name, not at the rail's edge, so it reads as one control
-  const label = <span className="min-w-0 truncate">{vaultName}</span>;
+  const label = (
+    <span className="min-w-0 truncate text-[13px] font-semibold text-foreground">{vaultName}</span>
+  );
   if (vaults.kind !== "state") {
-    return <span className={VAULT_TRIGGER_CLASS}>{label}</span>;
+    return (
+      <div className="relative flex h-7 items-center pr-2 pl-8">
+        <VaultTile name={vaultName} />
+        {label}
+      </div>
+    );
   }
   const { state } = vaults;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Vault"
-        disabled={busy !== null}
-        className={cn(VAULT_TRIGGER_CLASS, "hover:bg-hover disabled:opacity-50")}
-      >
-        {label}
-        <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {state.recent.map((vault) => (
-          <DropdownMenuItem
-            key={vault.path}
-            className="h-auto py-1.5"
-            onClick={() => {
-              run("opening", async () => {
-                await openRecentVault(vault.path);
-              });
-            }}
-          >
-            <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            <RecentVaultLabel vault={vault} />
-          </DropdownMenuItem>
-        ))}
-        {state.recent.length > 0 ? <DropdownMenuSeparator /> : null}
-        {state.blocked === null ? (
-          <DropdownMenuItem
-            onClick={() => {
-              run("picking", pickVault);
-            }}
-          >
-            <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            Open another vault…
-          </DropdownMenuItem>
-        ) : (
-          <DropdownMenuLabel className="max-w-64 whitespace-normal">
-            {state.blocked}
-          </DropdownMenuLabel>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <SidebarMenu aria-label="Vault" className="@container">
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={busy !== null}
+            render={
+              <SidebarMenuButton aria-label="Switch vault" className="pl-8 disabled:opacity-50">
+                <VaultTile name={vaultName} />
+                {label}
+                <span className="ml-auto inline-flex @max-[7rem]:hidden">
+                  <ChevronDownIcon size={16} strokeWidth={1.5} className="text-muted-foreground" />
+                </span>
+              </SidebarMenuButton>
+            }
+          />
+          <DropdownMenuContent align="start" sideOffset={4}>
+            {state.recent.map((vault) => (
+              <DropdownMenuItem
+                key={vault.path}
+                className="h-auto py-1.5"
+                onClick={() => {
+                  run("opening", async () => {
+                    await openRecentVault(vault.path);
+                  });
+                }}
+              >
+                <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                <RecentVaultLabel vault={vault} />
+              </DropdownMenuItem>
+            ))}
+            {state.recent.length > 0 ? <DropdownMenuSeparator /> : null}
+            {state.blocked === null ? (
+              <DropdownMenuItem
+                onClick={() => {
+                  run("picking", pickVault);
+                }}
+              >
+                <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                Open another vault…
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuLabel className="max-w-64 whitespace-normal">
+                {state.blocked}
+              </DropdownMenuLabel>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 };
 
 // the breadcrumb sets the scope; this is where it is seen and cleared
 const FolderScopeHeader = ({ folder, onClear }: { folder: string; onClear: () => void }) => (
-  <div className="flex items-center gap-1 py-1">
+  <div className="flex items-center gap-1 px-2 pt-2">
     <Button variant="ghost" size="icon-compact" aria-label="Whole vault" onClick={onClear}>
       <ArrowLeftIcon />
     </Button>
@@ -139,6 +200,100 @@ const FolderScopeHeader = ({ folder, onClear }: { folder: string; onClear: () =>
 const RAIL_VIEW_LABELS: Record<RailView, string> = {
   files: "Files",
   recent: "Recent",
+};
+
+const otherView = (view: RailView): RailView => (view === "files" ? "recent" : "files");
+
+// The rail's ambient row: the sync state as the row, its verbs behind it, and the agent's
+// spinner while a thread runs. Settings and the theme sit beside it as the footer's actions.
+const SyncRow = ({
+  onSyncNow,
+  onOpenDeletedNotes,
+  onOpenSettings,
+}: {
+  onSyncNow: () => void;
+  onOpenDeletedNotes: () => void;
+  onOpenSettings: () => void;
+}) => {
+  const statusQuery = useVaultStatus();
+  const threadsQuery = useThreads();
+  const agentWorking = (threadsQuery.data?.threads ?? []).some(
+    (thread) =>
+      thread.status === "active" || thread.status === "starting" || thread.status === "stopping",
+  );
+  const status = statusQuery.data;
+  const canSync = canSyncNow(status);
+  const blocked = status === undefined ? null : (status.lastError ?? syncBlockedReason(status));
+  return (
+    <SidebarMenu aria-label="Sync" className="min-w-0 flex-1">
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton aria-label="Sync and vault menu">
+                <span
+                  className={cn(
+                    "size-2 shrink-0 rounded-full",
+                    status === undefined ? "bg-muted-foreground/40" : syncStateDotClass(status),
+                  )}
+                />
+                {status === undefined ? "…" : syncStateLabel(status)}
+                {agentWorking ? (
+                  <Spinner className="ml-1 size-3 shrink-0 text-muted-foreground" />
+                ) : null}
+                <span className="ml-auto -mr-0.5 flex size-6 shrink-0 items-center justify-center">
+                  <ChevronsUpDownIcon
+                    size={16}
+                    strokeWidth={1.5}
+                    className="text-muted-foreground"
+                  />
+                </span>
+              </SidebarMenuButton>
+            }
+          />
+          <DropdownMenuContent side="top" align="start" sideOffset={6}>
+            {blocked === null ? null : (
+              <DropdownMenuLabel className="max-w-64 whitespace-normal">
+                {blocked}
+              </DropdownMenuLabel>
+            )}
+            <DropdownMenuItem disabled={!canSync} onClick={onSyncNow}>
+              <RefreshCwIcon />
+              Sync now
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenDeletedNotes}>
+              <ArchiveRestoreIcon />
+              Deleted notes…
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenSettings}>
+              <SettingsIcon />
+              Settings…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+};
+
+const ThemeButton = () => {
+  const { resolved, setTheme } = useTheme();
+  const next = resolved === "dark" ? "light" : "dark";
+  return (
+    <Tooltip content={next === "dark" ? "Dark theme" : "Light theme"} side="top">
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        className="size-6 shrink-0"
+        aria-label={next === "dark" ? "Switch to dark theme" : "Switch to light theme"}
+        onClick={() => {
+          setTheme(next);
+        }}
+      >
+        {resolved === "dark" ? <SunIcon /> : <MoonIcon />}
+      </Button>
+    </Tooltip>
+  );
 };
 
 export interface SidebarRailContentProps {
@@ -156,6 +311,12 @@ export interface SidebarRailContentProps {
   // breadcrumb sets it too
   folder: string;
   onFolderChange: (folder: string) => void;
+  // the header's search is the quick switcher; the chord is spelled by the workspace's table
+  onOpenSearch: () => void;
+  searchShortcut: string | null;
+  onSyncNow: () => void;
+  onOpenDeletedNotes: () => void;
+  onOpenSettings: () => void;
 }
 
 export const SidebarRailContent = ({
@@ -169,14 +330,17 @@ export const SidebarRailContent = ({
   onSelectTag,
   folder,
   onFolderChange,
+  onOpenSearch,
+  searchShortcut,
+  onSyncNow,
+  onOpenDeletedNotes,
+  onOpenSettings,
 }: SidebarRailContentProps) => {
   const treeQuery = useVaultTree();
   const pinnedPaths = usePinnedPaths();
   const tree = useTreeState();
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null);
   const [treeSort, setTreeSort] = useState<TreeSort>(readTreeSort);
-  // not persisted: a search is a question about now
-  const [query, setQuery] = useState("");
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [insetTitleBar] = useState(hasInsetTitleBar);
   const handleSetPinned = ops.setPinned;
@@ -202,121 +366,84 @@ export const SidebarRailContent = ({
   };
 
   const list = (): React.ReactNode => {
-    switch (view) {
-      case "recent": {
-        if (selectedTag !== null) {
-          return (
-            <TaggedNotes
-              key={selectedTag}
-              tag={selectedTag}
-              onSelectTag={onSelectTag}
-              entries={scoped}
-              scope={scope}
-              openPath={openPath}
-              onOpenFile={onOpenFile}
-              onSetPinned={handleSetPinned}
-              filter={query}
-            />
-          );
-        }
+    if (view === "recent") {
+      if (selectedTag !== null) {
         return (
-          <NotesList
+          <TaggedNotes
+            key={selectedTag}
+            tag={selectedTag}
+            onSelectTag={onSelectTag}
             entries={scoped}
             scope={scope}
             openPath={openPath}
             onOpenFile={onOpenFile}
             onSetPinned={handleSetPinned}
-            limit={RECENT_LIMIT}
-            filter={query}
           />
         );
       }
-      case "files": {
-        return (
-          <FileTree
-            entries={scoped}
-            loadState={treeLoadState(treeQuery)}
-            onRetry={() => {
-              void treeQuery.refetch();
-            }}
-            openPath={openPath}
-            onOpenFile={onOpenFile}
-            ops={ops}
-            state={tree}
-            pendingCreate={pendingCreate}
-            onPendingCreateDone={() => {
-              setPendingCreate(null);
-            }}
-            rootDir={scope}
-            onMoveRequest={onMoveRequest}
-            pinnedPaths={pinnedPaths}
-            sort={treeSort}
-            onSortChange={changeSort}
-            filter={query}
-            vaultRoot={treeQuery.data?.root ?? null}
-          />
-        );
-      }
-      default: {
-        return null;
-      }
+      return (
+        <NotesList
+          entries={scoped}
+          scope={scope}
+          openPath={openPath}
+          onOpenFile={onOpenFile}
+          onSetPinned={handleSetPinned}
+          limit={RECENT_LIMIT}
+        />
+      );
     }
+    return (
+      <FileTree
+        entries={scoped}
+        loadState={treeLoadState(treeQuery)}
+        onRetry={() => {
+          void treeQuery.refetch();
+        }}
+        openPath={openPath}
+        onOpenFile={onOpenFile}
+        ops={ops}
+        state={tree}
+        pendingCreate={pendingCreate}
+        onPendingCreateDone={() => {
+          setPendingCreate(null);
+        }}
+        rootDir={scope}
+        onMoveRequest={onMoveRequest}
+        pinnedPaths={pinnedPaths}
+        sort={treeSort}
+        onSortChange={changeSort}
+        vaultRoot={treeQuery.data?.root ?? null}
+      />
+    );
   };
 
-  // One column: the vault, the search field and the view switch stack in the header on the
-  // rows' rhythm, and the chosen list takes the rest. Every other verb is a right-click.
+  // Fluid's sidebar anatomy: the vault row and Search share the header line; one group whose
+  // label is the view's name and its switch, with New note as the group's action; the sync row,
+  // Settings and the theme in the footer. Every other verb is a right-click.
   return (
     <>
-      <SidebarHeader className="gap-1">
+      <SidebarHeader>
         {insetTitleBar ? (
           <div aria-hidden="true" className="h-5 shrink-0 [-webkit-app-region:drag]" />
         ) : null}
-        <div className="flex items-center gap-1">
-          <VaultButton vaultName={treeQuery.data?.name ?? "Vault"} />
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="New note"
-            className="ml-auto shrink-0"
-            onClick={startCreate}
-          >
-            <FilePlusIcon />
-          </Button>
+        <div className="flex items-center gap-1 pr-1.5">
+          <div className="min-w-0 flex-1">
+            <VaultRow vaultName={treeQuery.data?.name ?? "Vault"} />
+          </div>
+          <Tooltip content={tipWithShortcut("Search", searchShortcut)} side="bottom">
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              className="size-6 shrink-0"
+              aria-label="Search"
+              onClick={onOpenSearch}
+            >
+              <SearchIcon />
+            </Button>
+          </Tooltip>
         </div>
-        <SidebarSearchField
-          icon={SearchIcon}
-          value={query}
-          placeholder="Search…"
-          onChange={(event) => {
-            setQuery(event.currentTarget.value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              setQuery("");
-              event.currentTarget.blur();
-            }
-          }}
-        />
-        <Tabs
-          value={view}
-          onValueChange={(value) => {
-            const next = RAIL_VIEWS.find((name) => name === value);
-            if (next !== undefined) {
-              onViewChange(next);
-            }
-          }}
-        >
-          <TabsList aria-label="Rail views" className="h-7">
-            {RAIL_VIEWS.map((name) => (
-              <TabsTrigger key={name} value={name} className="text-xs">
-                {RAIL_VIEW_LABELS[name]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
       </SidebarHeader>
-      <SidebarContent className="px-2">
+      <SidebarContent>
         {scope === "" ? null : (
           <FolderScopeHeader
             folder={scope}
@@ -325,8 +452,48 @@ export const SidebarRailContent = ({
             }}
           />
         )}
-        {list()}
+        <SidebarGroup>
+          <Tooltip content={`Show ${RAIL_VIEW_LABELS[otherView(view)]}`} side="top">
+            <SidebarGroupLabel
+              aria-label={`${RAIL_VIEW_LABELS[view]}: show ${RAIL_VIEW_LABELS[otherView(view)]}`}
+              onClick={() => {
+                onViewChange(otherView(view));
+              }}
+            >
+              {RAIL_VIEW_LABELS[view]}
+            </SidebarGroupLabel>
+          </Tooltip>
+          <SidebarGroupActions>
+            <Tooltip content="New note" side="top">
+              <SidebarGroupAction aria-label="New note" onClick={startCreate}>
+                <PlusIcon />
+              </SidebarGroupAction>
+            </Tooltip>
+          </SidebarGroupActions>
+          {list()}
+        </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <div className="flex items-center gap-1 pr-1.5">
+          <SyncRow
+            onSyncNow={onSyncNow}
+            onOpenDeletedNotes={onOpenDeletedNotes}
+            onOpenSettings={onOpenSettings}
+          />
+          <Tooltip content="Settings" side="top">
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              className="size-6 shrink-0"
+              aria-label="Settings"
+              onClick={onOpenSettings}
+            >
+              <SettingsIcon />
+            </Button>
+          </Tooltip>
+          <ThemeButton />
+        </div>
+      </SidebarFooter>
     </>
   );
 };

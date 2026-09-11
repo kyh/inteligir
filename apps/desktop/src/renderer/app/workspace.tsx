@@ -17,10 +17,10 @@ import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
 import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
-import { StatusBar } from "./status-bar";
+import { NoteFooter } from "./note-footer";
 import { useThreads } from "./actions/thread-hooks";
 import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
-import { useGlobalShortcuts } from "./global-shortcuts";
+import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
@@ -610,6 +610,15 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               onSelectTag={setSelectedTag}
               folder={sidebarFolder}
               onFolderChange={chooseFolder}
+              onOpenSearch={() => {
+                openPalette("notes");
+              }}
+              searchShortcut={bindingFor("open-quick-switcher", shortcutModifier)}
+              onSyncNow={syncNow}
+              onOpenDeletedNotes={() => {
+                setDeletedNotesOpen(true);
+              }}
+              onOpenSettings={onOpenSettings}
             />
           </Sidebar>
           <SidebarInset className="relative bg-surface">
@@ -668,6 +677,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                 >
                   <EditorColumn />
                 </div>
+                {zen ? null : <NoteFooter path={openPath} />}
                 <ActionComposer
                   open={composerOpen}
                   onOpenChange={setComposerOpen}
@@ -716,16 +726,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
             onOpenNote={setOpenNote}
           />
         </SidebarProvider>
-        {zen ? null : (
-          <StatusBar
-            path={openPath}
-            onSyncNow={syncNow}
-            onOpenDeletedNotes={() => {
-              setDeletedNotesOpen(true);
-            }}
-            onOpenSettings={onOpenSettings}
-          />
-        )}
       </div>
     </VaultProvider>
   );

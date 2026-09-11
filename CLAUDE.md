@@ -993,41 +993,43 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/desktop/src/renderer/routes/__root.tsx`; a host mounted by one route
   leaves another route's `confirm()` parked on a dialog that never opens.
 
-- **THE RAIL IS ONE LIST UNDER ONE HEADER; THE TOP BAR IS THE OPEN NOTE.** The
-  rail is Fluid's sidebar anatomy at the app's size step: a header of the
-  vault row (the name semibold, the recent vaults and Open another vault…
-  behind it, and the one button the rail keeps, New note, at its trailing
-  edge), the search field on the rows' rhythm (`SidebarSearchField`, Fluid's
-  block over `SidebarInput`), and a flat Recent | Files switch drawn by the
-  same underline `Tabs` the panel uses, then one `SidebarContent` column the
-  chosen view fills. Not three stacked sections: a stack made every list
-  short and put a fold header over each. Every other verb is a right-click,
-  as in an IDE: a row's menu carries its own, and the listing's empty area
-  carries New note, New folder, the sort toggle and Collapse all. The search
-  field is the rail's filter, never the palette: in Files it narrows the tree
-  (rows that neither match nor hold a match are withheld, kept folders open),
-  in Recent it lifts the handful-of-rows cap and matches names across the
-  scope, a tag scope included; Escape clears it. ⌘P and ⌘⇧F stay
-  the ranked and literal search surfaces. Every row in both views is
-  `useSidebarRow` (`@repo/ui/components/sidebar-core`): the menu row's height
-  and text from the size ladder, the item radius, muted at rest and lit on
-  hover, `data-active` filled, so a 14px row on a 24px token can no longer
-  drift from the controls beside it. The view is the workspace's
-  (`railView` in `app/prefs.ts`) because a `#tag` chip shows Recent scoped to
-  the tag and a create shows Files; the selected tag is the workspace's for
-  the same reason. The folder scope is set by the top bar's breadcrumb and cleared
-  from the scope row above the list: the header switches the vault, the
-  breadcrumb narrows within it. Two lists, one rule: the recents view is one
-  list by recency with a folder hint, and folders exist only in the tree.
-  The tree's fold and selection are the rail's state
-  (`sidebar/tree-state.ts`), not the tree's: Collapse all clears that set
-  and a create lands where an IDE's would, in the tree's selected folder,
-  else at the scope, both derived from it; the header's pending create is a
-  plain prop the tree reports done. Find in note, comments and the panel
-  toggle live above the note; copy link, export and share sit under its ⋯
-  menu. One `useVaultSwitch` and one `RecentVaultLabel`
-  (`app/desktop-vaults.tsx`) serve the rail's vault button and Settings
-  alike. The rail hides what the user did not write
+- **THE RAIL IS FLUID'S SIDEBAR ANATOMY; THE TOP BAR IS THE OPEN NOTE.** Header,
+  one group, footer, at the app's size step. The header line is the vault row
+  (its initial on a tile, the name semibold, the recent vaults and Open
+  another vault… behind the chevron) with Search beside it, a 24px button
+  that opens the quick switcher and says its chord. The one group's label is
+  the view's name AND its switch: it reads Recent or Files and a click shows
+  the other, with New note as the group's action at its trailing edge. Not
+  tabs and not stacked sections: a stack made every list short, and a tab row
+  was a third line of chrome for a two-way choice. Every other verb is a
+  right-click, as in an IDE: a row's menu carries its own, and the tree's
+  empty area carries New note, New folder, the sort toggle and Collapse all.
+  There is no search field in the rail: ⌘O, ⌘P and ⌘⇧F are the search
+  surfaces, and the tree's inline filter went with the field that drove it.
+  The footer is the workspace's ambient row: the sync state as a menu row (its
+  dot, its label, the agent's spinner while a thread runs; Sync now, Deleted
+  notes and Settings behind it), then Settings and the theme as the footer's
+  24px actions. The recents are `SidebarMenu` rows (`@repo/ui/components/
+sidebar-menu`, Fluid's row on the repo's proximity hover: the traveling
+  hover pill, semibold while current without the row widening, a
+  `SidebarMenuAction` revealed on hover); the tree keeps its own rows on
+  `useSidebarRow` because a tree row is a draggable, keyboard-walked
+  `treeitem` and a menu row is a button, and the two are drawn to one
+  ladder. The view is the workspace's (`railView` in `app/prefs.ts`) because
+  a `#tag` chip shows Recent scoped to the tag and a create shows Files; the
+  selected tag is the workspace's for the same reason. The folder scope is
+  set by the top bar's breadcrumb and cleared from the scope row above the
+  group: the header switches the vault, the breadcrumb narrows within it.
+  Two lists, one rule: the recents view is one list by recency with a folder
+  hint, and folders exist only in the tree. The tree's fold and selection are
+  the rail's state (`sidebar/tree-state.ts`), not the tree's: Collapse all
+  clears that set and a create lands where an IDE's would, in the tree's
+  selected folder, else at the scope, both derived from it; the group's
+  pending create is a plain prop the tree reports done. Find in note,
+  comments and the panel toggle live above the note; copy link, export and
+  share sit under its ⋯ menu. One `useVaultSwitch` and one
+  `RecentVaultLabel` (`app/desktop-vaults.tsx`) serve the rail's vault row
+  and Settings alike. The rail hides what the user did not write
   (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment
   sidecars, dot-entries); the server's listing stays complete because the
   CLI and the agent read it. Under the macOS shell the rail reserves the
@@ -1054,14 +1056,17 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
   second resize mechanism would be a second answer to one drag.
 
-- **AMBIENT STATE LIVES IN THE STATUS BAR, across the window's bottom.** The
-  strip under the rail and the note together (`app/status-bar.tsx`, its height
-  `--app-status-h` beside `--app-header-h`) carries the sync state on the left,
-  and the open note's word count, a spinner while any thread is running,
-  Deleted notes and Settings on the right; the rail ends at its last section and
-  zen hides the bar with the rest. The count is the serializer's published one,
-  never a recount, and the rail's and the panel's shells take `h-full` from the
-  workspace because Fluid's shell is viewport-height by class.
+- **AMBIENT STATE LIVES IN THE RAIL'S FOOTER; THE NOTE KEEPS ITS COUNT.** A
+  strip across the whole window was a second bar under a rail that already
+  had a bottom, so the sync state, the agent's spinner, Deleted notes and
+  Settings moved into Fluid's `SidebarFooter` and the window-wide status bar
+  went. What stays under the note is `app/note-footer.tsx`: the open note's
+  word count and reading time alone, right-aligned, at `--app-status-h`
+  beside `--app-header-h`, and with no rule above it so it reads as the
+  note's last line rather than chrome. The count is the serializer's
+  published one, never a recount, and zen hides the strip with the rest. The
+  rail's and the panel's shells take `h-full` from the workspace because
+  Fluid's shell is viewport-height by class.
 
 ### Repo guards, vendoring and tooling
 

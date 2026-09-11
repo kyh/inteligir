@@ -59,8 +59,6 @@ export interface FileTreeProps {
   // folders first either way; "modified" orders the files in a folder newest first
   sort: TreeSort;
   onSortChange: (sort: TreeSort) => void;
-  // a substring of a name; rows that neither match nor hold a match are withheld
-  filter: string;
   // the vault's absolute root, for the absolute path row; null until the listing answers
   vaultRoot: string | null;
 }
@@ -120,37 +118,15 @@ const buildTree = (entries: readonly VaultEntry[], sort: TreeSort) => {
 };
 
 // the matches and every folder above them, so a folder holding a match is never hidden
-const filteredPaths = (nodes: readonly TreeNode[], needle: string): ReadonlySet<string> => {
-  const kept = new Set<string>();
-  const visit = (node: TreeNode): boolean => {
-    let keep = node.name.toLowerCase().includes(needle);
-    for (const child of node.children) {
-      if (visit(child)) {
-        keep = true;
-      }
-    }
-    if (keep) {
-      kept.add(node.path);
-    }
-    return keep;
-  };
-  for (const node of nodes) {
-    visit(node);
-  }
-  return kept;
-};
-
 type EditingState =
   | { mode: "rename"; path: string }
   | { mode: "create"; kind: "dir" | "file"; parentDir: string };
 
 type Row = { kind: "node"; node: TreeNode; depth: number } | { kind: "editor"; depth: number };
 
-// while a filter is on, every kept folder is open: a match is worth nothing folded away
 const visibleRows = (
   nodes: readonly TreeNode[],
   expanded: ReadonlySet<string>,
-  kept: ReadonlySet<string> | null,
   editing: EditingState | null,
   rootDir: string,
   depth: number,
@@ -160,15 +136,12 @@ const visibleRows = (
     out.push({ depth: 0, kind: "editor" });
   }
   for (const node of nodes) {
-    if (kept !== null && !kept.has(node.path)) {
-      continue;
-    }
     out.push({ depth, kind: "node", node });
-    if (node.kind === "dir" && (kept !== null || expanded.has(node.path))) {
+    if (node.kind === "dir" && expanded.has(node.path)) {
       if (editing?.mode === "create" && editing.parentDir === node.path) {
         out.push({ depth: depth + 1, kind: "editor" });
       }
-      visibleRows(node.children, expanded, kept, editing, rootDir, depth + 1, out);
+      visibleRows(node.children, expanded, editing, rootDir, depth + 1, out);
     }
   }
 };
@@ -492,17 +465,11 @@ export const FileTree = ({
   pinnedPaths,
   sort,
   onSortChange,
-  filter,
   vaultRoot,
 }: FileTreeProps) => {
   const { expanded, setExpanded, activePath, setActivePath, collapseAll } = state;
   const rowBase = useSidebarRow();
   const roots = useMemo(() => buildTree(entries, sort), [entries, sort]);
-  const needle = filter.trim().toLowerCase();
-  const kept = useMemo(
-    () => (needle === "" ? null : filteredPaths(roots, needle)),
-    [roots, needle],
-  );
 
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [menu, setMenu] = useState<TreeMenu | null>(null);
@@ -596,7 +563,7 @@ export const FileTree = ({
   }
 
   const rows: Row[] = [];
-  visibleRows(roots, expanded, kept, activeEditing, rootDir, 0, rows);
+  visibleRows(roots, expanded, activeEditing, rootDir, 0, rows);
   const nodeRows = rows.filter((row): row is Extract<Row, { kind: "node" }> => row.kind === "node");
 
   const toggleDir = (path: string): void => {
@@ -798,7 +765,7 @@ export const FileTree = ({
           return renameRow(row);
         }
         const isOpen = node.kind === "file" && node.path === openPath;
-        const isExpanded = node.kind === "dir" && (kept !== null || expanded.has(node.path));
+        const isExpanded = node.kind === "dir" && expanded.has(node.path);
         const isDropTarget = node.kind === "dir" && dropDir === node.path && dragging !== null;
         return (
           <div
@@ -869,9 +836,6 @@ export const FileTree = ({
       })}
       {entries.length === 0 && activeEditing === null ? (
         <EmptyRows loadState={loadState} onRetry={onRetry} />
-      ) : null}
-      {kept !== null && rows.length === 0 ? (
-        <p className="px-1 py-2 text-xs text-muted-foreground">No note matches the search.</p>
       ) : null}
       <RowMenu
         menu={menu}
