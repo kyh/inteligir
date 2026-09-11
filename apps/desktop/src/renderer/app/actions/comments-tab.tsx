@@ -34,11 +34,11 @@ const CommentRow = ({
   asOfMs: number;
 }) => (
   <div key={id} className="px-2 py-1">
-    <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+    <div className="flex items-baseline gap-2 text-caption text-muted-foreground">
       <span className="font-medium text-foreground/80">{sourceLabel(entry)}</span>
       <span>{relativeTimeLabel(entryTimeMs(entry), asOfMs)}</span>
     </div>
-    <p className="text-sm whitespace-pre-wrap">{entry.text}</p>
+    <p className="text-subtitle whitespace-pre-wrap">{entry.text}</p>
   </div>
 );
 
@@ -129,7 +129,7 @@ const ThreadCard = ({
         </div>
       ))}
       {thread.anchored ? null : (
-        <p className="px-2 pb-1 text-[11px] text-amber-600">No marker in the note body.</p>
+        <p className="px-2 pb-1 text-caption text-amber-600">No marker in the note body.</p>
       )}
       <div className="flex items-center gap-1 border-t border-line/60 p-1.5">
         <Textarea
@@ -137,7 +137,7 @@ const ThreadCard = ({
           placeholder="Reply…"
           value={draft}
           rows={1}
-          className="max-h-24 min-h-8 flex-1 resize-none text-sm"
+          className="max-h-24 min-h-8 flex-1 resize-none text-subtitle"
           onChange={(event) => {
             setDraft(event.target.value);
           }}
@@ -201,14 +201,14 @@ export const CommentsTab = ({
   const [showResolved, setShowResolved] = useState(false);
 
   if (docPath === null) {
-    return <p className="p-3 text-sm text-muted-foreground">No note open.</p>;
+    return <p className="p-3 text-subtitle text-muted-foreground">No note open.</p>;
   }
   if (query.isError) {
     return <ReadRefusal lead="The comments could not be read." error={query.error} />;
   }
   const { data } = query;
   if (data === undefined) {
-    return <p className="p-3 text-sm text-muted-foreground">Loading…</p>;
+    return <p className="p-3 text-subtitle text-muted-foreground">Loading…</p>;
   }
 
   const refresh = (): void => {
@@ -223,7 +223,7 @@ export const CommentsTab = ({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2">
       {open.length === 0 && resolved.length === 0 ? (
-        <p className="p-1 text-sm text-muted-foreground">
+        <p className="p-1 text-subtitle text-muted-foreground">
           No comments yet. Select text and press ⌘⇧A.
         </p>
       ) : null}
@@ -262,12 +262,12 @@ export const CommentsTab = ({
           ))
         : null}
       {data.orphanMarkers.length > 0 ? (
-        <p className="px-1 pt-2 text-[11px] text-amber-600">
+        <p className="px-1 pt-2 text-caption text-amber-600">
           Markers with no comment: {data.orphanMarkers.join(", ")}
         </p>
       ) : null}
       {data.strayIds.length > 0 ? (
-        <p className="px-1 pt-1 text-[11px] text-amber-600">
+        <p className="px-1 pt-1 text-caption text-amber-600">
           Entries outside any thread: {data.strayIds.join(", ")}
         </p>
       ) : null}

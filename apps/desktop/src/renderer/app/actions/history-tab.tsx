@@ -45,14 +45,14 @@ const RevisionRow = ({
       onSelect(revision);
     }}
   >
-    <p className="truncate text-sm">{revision.subject}</p>
-    <p className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+    <p className="truncate text-subtitle">{revision.subject}</p>
+    <p className="flex items-baseline gap-2 text-caption text-muted-foreground">
       <span className="font-medium text-foreground/80">{revision.authorName}</span>
       <span>{relativeTimeLabel(Date.parse(revision.authoredAt), asOfMs)}</span>
       <span className="font-mono">{shortSha(revision.sha)}</span>
     </p>
     {revision.renamedFrom === undefined ? null : (
-      <p className="truncate text-[11px] text-muted-foreground">
+      <p className="truncate text-caption text-muted-foreground">
         Renamed from {revision.renamedFrom}
       </p>
     )}
@@ -160,7 +160,7 @@ const RevisionDetail = ({
   const identical = rows !== null && rows.length === 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-1 border-b border-line px-2 py-1.5 text-sm">
+      <div className="flex items-center gap-1 border-b border-line px-2 py-1.5 text-subtitle">
         <Button size="icon-compact" variant="ghost" aria-label="Back to history" onClick={onBack}>
           <ArrowLeftIcon />
         </Button>
@@ -178,18 +178,18 @@ const RevisionDetail = ({
           Restore
         </Button>
       </div>
-      <div className="shrink-0 border-b border-line px-3 py-1.5 text-[11px] text-muted-foreground">
+      <div className="shrink-0 border-b border-line px-3 py-1.5 text-caption text-muted-foreground">
         {revision.authorName} · {new Date(revision.authoredAt).toLocaleString()} ·{" "}
         <span className="font-mono">{shortSha(revision.sha)}</span>
         {revision.path === docPath ? null : <> · was {revision.path}</>}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {rows === null || identical ? (
-          <p className="p-3 text-sm text-muted-foreground">
+          <p className="p-3 text-subtitle text-muted-foreground">
             {revisionBody(rows === null, revisionQuery.isError)}
           </p>
         ) : (
-          <div className="p-2 font-mono text-xs leading-5">
+          <div className="p-2 font-mono text-body leading-5">
             {rows.map((row) => (
               <DiffRowView key={row.id} row={row} />
             ))}
@@ -206,7 +206,7 @@ const OlderRevisions = ({ limit, onMore }: { limit: number; onMore: () => void }
       Show older revisions
     </Button>
   ) : (
-    <p className="p-2 text-[11px] text-muted-foreground">
+    <p className="p-2 text-caption text-muted-foreground">
       Older revisions are in the vault&apos;s git log.
     </p>
   );
@@ -228,7 +228,9 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
   });
 
   if (docPath === null) {
-    return <p className="p-3 text-sm text-muted-foreground">Open a note to see its history.</p>;
+    return (
+      <p className="p-3 text-subtitle text-muted-foreground">Open a note to see its history.</p>
+    );
   }
   if (selected !== null && current !== null) {
     return (
@@ -268,7 +270,7 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
         />
       )}
       {revisions.length === 0 && !historyQuery.isPending ? (
-        <p className="p-3 text-sm text-muted-foreground">
+        <p className="p-3 text-subtitle text-muted-foreground">
           No revisions yet. Edits are committed once you pause.
         </p>
       ) : null}

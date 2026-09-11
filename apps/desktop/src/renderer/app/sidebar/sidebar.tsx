@@ -126,7 +126,9 @@ const VaultRow = ({ vaultName }: { vaultName: string }) => {
     toast.error(message);
   });
   const label = (
-    <span className="min-w-0 truncate text-[13px] font-semibold text-foreground">{vaultName}</span>
+    <span className="min-w-0 truncate text-subtitle font-semibold text-foreground">
+      {vaultName}
+    </span>
   );
   if (vaults.kind !== "state") {
     return (

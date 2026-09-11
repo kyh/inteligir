@@ -56,14 +56,14 @@ const AgentSummary = ({ system }: { system: SystemStatus }) => (
     <SectionHeading>Agent</SectionHeading>
     <dl className="space-y-1.5">
       <Row label="Mode">
-        <span className="font-mono text-xs">{system?.agent.mode ?? "…"}</span>
+        <span className="font-mono text-body">{system?.agent.mode ?? "…"}</span>
       </Row>
       <Row label="Runtime">
-        <span className="font-mono text-xs">{system?.agent.runtime ?? "…"}</span>
+        <span className="font-mono text-body">{system?.agent.runtime ?? "…"}</span>
       </Row>
       {system !== undefined && system.agent.detail !== null ? (
         <Row label="Detail">
-          <span className="text-xs text-muted-foreground">{system.agent.detail}</span>
+          <span className="text-body text-muted-foreground">{system.agent.detail}</span>
         </Row>
       ) : null}
     </dl>
@@ -75,21 +75,21 @@ const AboutSection = ({ system }: { system: SystemStatus }) => (
     <SectionHeading>About</SectionHeading>
     <dl className="space-y-1.5">
       <Row label="Version">
-        <span className="font-mono text-xs">{system?.version ?? "…"}</span>
+        <span className="font-mono text-body">{system?.version ?? "…"}</span>
       </Row>
       <UpdatesRow />
       <Row label="Data dir">
-        <span className="block truncate font-mono text-xs" title={system?.dataDir}>
+        <span className="block truncate font-mono text-body" title={system?.dataDir}>
           {system?.dataDir ?? "…"}
         </span>
       </Row>
       <Row label="Schema">
-        <span className="font-mono text-xs">
+        <span className="font-mono text-body">
           {system === undefined ? "…" : `v${system.schemaVersion}`}
         </span>
       </Row>
       <Row label="Uptime">
-        <span className="font-mono text-xs">
+        <span className="font-mono text-body">
           {system === undefined ? "…" : `${Math.round(system.uptimeMs / 1000)}s`}
         </span>
       </Row>
@@ -121,7 +121,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
       );
     }
     return (
-      <span className="block truncate font-mono text-xs" title={status.remote}>
+      <span className="block truncate font-mono text-body" title={status.remote}>
         {status.remote}
       </span>
     );
@@ -135,7 +135,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             <ArrowLeftIcon />
             Notes
           </Button>
-          <ul className="space-y-1 text-sm">
+          <ul className="space-y-1 text-subtitle">
             {NAV.map((item) => (
               <li key={item.id}>
                 <a
@@ -160,14 +160,14 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             >
               <ArrowLeftIcon />
             </Button>
-            <h2 className="text-lg font-semibold">Settings</h2>
+            <h2 className="text-title font-semibold">Settings</h2>
           </header>
 
           <section id="vault" className="scroll-mt-10 space-y-2">
             <SectionHeading>Vault</SectionHeading>
             <dl className="space-y-1.5">
               <Row label="Location">
-                <span className="block truncate font-mono text-xs" title={treeQuery.data?.root}>
+                <span className="block truncate font-mono text-body" title={treeQuery.data?.root}>
                   {treeQuery.data?.root ?? "…"}
                 </span>
               </Row>
@@ -187,7 +187,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
                   ) : null}
                 </span>
                 {status?.lastError !== null && status?.lastError !== undefined ? (
-                  <span className="mt-1 block text-xs text-muted-foreground">
+                  <span className="mt-1 block text-body text-muted-foreground">
                     Last error: {status.lastError}
                   </span>
                 ) : null}

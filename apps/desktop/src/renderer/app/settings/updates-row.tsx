@@ -57,7 +57,7 @@ export const UpdatesRow = () => {
   if (updates.kind === "no-bridge") {
     return (
       <Row label="Updates">
-        <span className="text-sm text-muted-foreground">
+        <span className="text-subtitle text-muted-foreground">
           Automatic updates come with the desktop app.
         </span>
       </Row>
@@ -95,10 +95,10 @@ export const UpdatesRow = () => {
             {actionLabel(action, state)}
           </Button>
         )}
-        <span className="text-sm text-muted-foreground">{statusLabel(state)}</span>
+        <span className="text-subtitle text-muted-foreground">{statusLabel(state)}</span>
       </span>
       {state.status === "error" && state.message !== null ? (
-        <span className="mt-1 block text-xs text-destructive">{state.message}</span>
+        <span className="mt-1 block text-body text-destructive">{state.message}</span>
       ) : null}
     </Row>
   );

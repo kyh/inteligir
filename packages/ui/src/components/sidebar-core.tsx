@@ -836,7 +836,7 @@ const SidebarGroupLabel = ({
   ) : (
     children
   );
-  const textClass = size.variant === "compact" ? "text-[11px]" : "text-[12px]";
+  const textClass = size.variant === "compact" ? "text-caption" : "text-body";
   if (onClick !== undefined) {
     return (
       <button

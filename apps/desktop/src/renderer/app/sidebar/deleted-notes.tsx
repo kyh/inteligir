@@ -47,10 +47,10 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
   const now = deletedQuery.dataUpdatedAt;
 
   if (deletedQuery.isPending) {
-    return <p className="px-2 py-2 text-xs text-muted-foreground">Loading…</p>;
+    return <p className="px-2 py-2 text-body text-muted-foreground">Loading…</p>;
   }
   if (entries.length === 0) {
-    return <p className="px-2 py-2 text-xs text-muted-foreground">Nothing has been deleted.</p>;
+    return <p className="px-2 py-2 text-body text-muted-foreground">Nothing has been deleted.</p>;
   }
 
   return (
@@ -74,10 +74,12 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
               >
                 {docStem(entry.path)}
                 {hint === "" ? null : (
-                  <span className="min-w-0 truncate text-[11px] text-muted-foreground">{hint}</span>
+                  <span className="min-w-0 truncate text-caption text-muted-foreground">
+                    {hint}
+                  </span>
                 )}
                 {Number.isNaN(at) ? null : (
-                  <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                  <span className="ml-auto shrink-0 text-caption text-muted-foreground">
                     {relativeTimeLabel(at, now)}
                   </span>
                 )}

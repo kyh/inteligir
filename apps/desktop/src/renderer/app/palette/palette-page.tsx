@@ -143,7 +143,7 @@ export const TemplateRows = ({
           >
             <LayoutTemplateIcon />
             <span className="truncate">{docStem(path)}</span>
-            <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">{path}</span>
+            <span className="ml-auto truncate pl-3 text-body text-muted-foreground">{path}</span>
           </CommandItem>
         ))}
       </CommandGroup>

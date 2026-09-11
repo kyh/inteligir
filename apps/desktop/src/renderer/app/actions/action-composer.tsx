@@ -191,7 +191,7 @@ export const ActionComposer = ({
             <div
               data-dictation-preview=""
               aria-live="polite"
-              className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted-foreground"
+              className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-body text-muted-foreground"
             >
               {dictationPartial === "" ? "Listening…" : dictationPartial}
             </div>

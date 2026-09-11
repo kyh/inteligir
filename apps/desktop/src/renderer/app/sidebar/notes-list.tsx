@@ -41,7 +41,7 @@ export const NotesList = ({
     .toSorted((a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0));
 
   if (notes.length === 0) {
-    return <p className="px-2 py-2 text-xs text-muted-foreground">{emptyText}</p>;
+    return <p className="px-2 py-2 text-body text-muted-foreground">{emptyText}</p>;
   }
 
   const pinned = notes.filter((note) => pinnedPaths.has(note.path));
@@ -70,7 +70,7 @@ export const NotesList = ({
           }}
         >
           {docStem(note.path)}
-          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+          <span className="ml-auto shrink-0 text-caption text-muted-foreground">
             {note.modifiedMs === undefined ? "" : relativeTimeLabel(note.modifiedMs, now)}
           </span>
           <span className="flex size-3 shrink-0 items-center justify-center">

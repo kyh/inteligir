@@ -21,7 +21,7 @@ export const FoldSection = ({
     <button
       type="button"
       aria-expanded={open}
-      className="flex w-full min-w-0 items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase hover:text-foreground"
+      className="flex w-full min-w-0 items-center gap-1 px-3 py-1.5 text-caption font-medium text-muted-foreground uppercase hover:text-foreground"
       onClick={() => {
         onOpenChange(!open);
       }}

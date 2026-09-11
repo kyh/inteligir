@@ -275,18 +275,18 @@ const ConnectorRow = ({
     <div className="py-1.5">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm">
+          <p className="text-subtitle">
             {server.name}
             {server.transport.kind === "http" && server.transport.hasAuth ? (
-              <span className="ml-2 text-xs text-muted-foreground">authenticated</span>
+              <span className="ml-2 text-body text-muted-foreground">authenticated</span>
             ) : null}
             {oauth === null ? null : (
-              <span className="ml-2 text-xs text-muted-foreground">
+              <span className="ml-2 text-body text-muted-foreground">
                 {OAUTH_STATUS_LABEL[oauth.status]}
               </span>
             )}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="truncate text-body text-muted-foreground">
             {connectorTarget(server.transport)}
           </p>
         </div>
@@ -329,7 +329,7 @@ const ConnectorRow = ({
         </Button>
       </div>
       {authorizeUrl === null ? null : (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-body text-muted-foreground">
           Browser did not open —{" "}
           <a
             href={authorizeUrl}
@@ -404,12 +404,14 @@ export const ConnectorsSection = () => {
 
   const list = () => {
     if (query.isError) {
-      return <p className="text-sm text-destructive">The connector list could not be read.</p>;
+      return (
+        <p className="text-subtitle text-destructive">The connector list could not be read.</p>
+      );
     }
     if (servers.length === 0) {
       return (
         <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">No connectors configured.</p>
+          <p className="text-subtitle text-muted-foreground">No connectors configured.</p>
           <SecondVaultNote scope={scope} />
         </div>
       );
@@ -428,7 +430,7 @@ export const ConnectorsSection = () => {
       return (
         <>
           <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-xs">
+            <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-body">
               URL
             </Label>
             <Input
@@ -441,7 +443,7 @@ export const ConnectorsSection = () => {
             />
           </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-header`} className="w-24 shrink-0 text-xs">
+            <Label htmlFor={`${formId}-header`} className="w-24 shrink-0 text-body">
               Auth header
             </Label>
             <Input
@@ -470,7 +472,7 @@ export const ConnectorsSection = () => {
       return (
         <>
           <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-oauth-url`} className="w-24 shrink-0 text-xs">
+            <Label htmlFor={`${formId}-oauth-url`} className="w-24 shrink-0 text-body">
               Server URL
             </Label>
             <Input
@@ -483,7 +485,7 @@ export const ConnectorsSection = () => {
             />
           </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-authz`} className="w-24 shrink-0 text-xs">
+            <Label htmlFor={`${formId}-authz`} className="w-24 shrink-0 text-body">
               Authorize
             </Label>
             <Input
@@ -496,7 +498,7 @@ export const ConnectorsSection = () => {
             />
           </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-token`} className="w-24 shrink-0 text-xs">
+            <Label htmlFor={`${formId}-token`} className="w-24 shrink-0 text-body">
               Token
             </Label>
             <Input
@@ -509,7 +511,7 @@ export const ConnectorsSection = () => {
             />
           </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-client`} className="w-24 shrink-0 text-xs">
+            <Label htmlFor={`${formId}-client`} className="w-24 shrink-0 text-body">
               Client id
             </Label>
             <Input
@@ -536,7 +538,7 @@ export const ConnectorsSection = () => {
     return (
       <>
         <div className="flex items-center gap-2">
-          <Label htmlFor={`${formId}-command`} className="w-24 shrink-0 text-xs">
+          <Label htmlFor={`${formId}-command`} className="w-24 shrink-0 text-body">
             Command
           </Label>
           <Input
@@ -549,7 +551,7 @@ export const ConnectorsSection = () => {
           />
         </div>
         <div className="flex items-start gap-2">
-          <Label htmlFor={`${formId}-args`} className="w-24 shrink-0 pt-2 text-xs">
+          <Label htmlFor={`${formId}-args`} className="w-24 shrink-0 pt-2 text-body">
             Arguments
           </Label>
           <Textarea
@@ -569,7 +571,7 @@ export const ConnectorsSection = () => {
   return (
     <section>
       <SectionHeading>Connectors</SectionHeading>
-      <p className="mb-2 text-xs text-muted-foreground">
+      <p className="mb-2 text-body text-muted-foreground">
         MCP servers every agent session gets — Claude Code and Codex alike. Enabled rows ride each
         session&apos;s launch; changes apply from the next action.
       </p>
@@ -579,7 +581,7 @@ export const ConnectorsSection = () => {
       <SectionHeading>Add a connector</SectionHeading>
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <Label htmlFor={`${formId}-name`} className="w-24 shrink-0 text-xs">
+          <Label htmlFor={`${formId}-name`} className="w-24 shrink-0 text-body">
             Name
           </Label>
           <Input
@@ -602,7 +604,7 @@ export const ConnectorsSection = () => {
         {transportFields()}
         <div className="flex items-center gap-2">
           {draft.name !== "" && !verdict.ok ? (
-            <p className="flex-1 text-xs text-muted-foreground">{verdict.problem}</p>
+            <p className="flex-1 text-body text-muted-foreground">{verdict.problem}</p>
           ) : (
             <span className="flex-1" />
           )}
@@ -617,18 +619,18 @@ export const ConnectorsSection = () => {
         {CATALOG.map((entry) => (
           <div key={entry.name} className="flex items-center gap-2 py-1.5">
             <div className="min-w-0 flex-1">
-              <p className="text-sm">
+              <p className="text-subtitle">
                 {entry.name}
                 <a
                   href={entry.docsUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="ml-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                  className="ml-2 text-body text-muted-foreground underline-offset-2 hover:underline"
                 >
                   docs
                 </a>
               </p>
-              <p className="truncate text-xs text-muted-foreground">{entry.description}</p>
+              <p className="truncate text-body text-muted-foreground">{entry.description}</p>
             </div>
             <Button
               size="compact"

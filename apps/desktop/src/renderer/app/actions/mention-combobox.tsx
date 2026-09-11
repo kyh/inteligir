@@ -74,7 +74,7 @@ export const MentionCombobox = ({
           role="option"
           aria-selected={index === activeIndex}
           className={cn(
-            "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm",
+            "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-subtitle",
             index === activeIndex ? "bg-surface text-ink" : "text-ink-2",
           )}
           onMouseEnter={() => {
@@ -87,7 +87,7 @@ export const MentionCombobox = ({
         >
           <FileTextIcon className="size-3.5 shrink-0 text-ink-3" />
           <span className="min-w-0 flex-1 truncate">{option.title}</span>
-          <span className="max-w-[45%] shrink-0 truncate text-[11px] text-ink-3">
+          <span className="max-w-[45%] shrink-0 truncate text-caption text-ink-3">
             {option.path}
           </span>
         </button>

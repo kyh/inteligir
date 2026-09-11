@@ -40,6 +40,21 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Fluid's type scale, at the compact step the product pins
+     (`apps/desktop/src/renderer/app/workspace-context.tsx`). The numbers are the compact column
+     of `typeScale` in lib/size-context.tsx, which is the scale's one declaration; a region on
+     the default step reads it through `useTypeScale` rather than these utilities.
+     `type-scale.test.ts` keeps the two in step. */
+  --text-display: 24px;
+  --text-display--line-height: 1.2;
+  --text-title: 15px;
+  --text-title--line-height: 1.3;
+  --text-subtitle: 13px;
+  --text-subtitle--line-height: 1.4;
+  --text-body: 12px;
+  --text-body--line-height: 1.45;
+  --text-caption: 11px;
+  --text-caption--line-height: 1.45;
   --font-heading: var(--font-sans);
   --font-sans: var(--font-body);
   --font-mono: var(--font-code);

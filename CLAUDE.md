@@ -323,6 +323,22 @@ to the END of its group.
   replaced it. There is no raw/rich toggle: the surface derives from
   `packages/editor/src/note/markdown-gate.ts` alone.
 
+- **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
+  body 12, subtitle 13, title 15, display 24 — the compact column of
+  `typeScale` (`packages/ui/src/lib/size-context.tsx`), which is where the
+  scale is declared, beside the control ladder it follows. The product draws
+  them as the `text-caption | body | subtitle | title | display` utilities
+  declared once in `packages/ui/src/styles/globals.css`, and
+  `lib/__tests__/type-scale.test.ts` derives the expected numbers from the
+  map, so the CSS and the map cannot drift. `text-sm`, `text-xs` and a
+  `text-[13px]` literal are gone from the shell and from `@repo/ui`'s
+  components: a role says what a line IS, and four spellings of 12px said
+  nothing. The utilities carry the compact step alone because the product
+  pins compact at its root (`app/workspace-context.tsx`); a region on the
+  default step would read the map instead. THE NOTE IS NOT CHROME: the
+  editor's prose keeps the appearance dials below, and `@repo/ui/src/ai`
+  keeps its own sizes until a surface draws it.
+
 - **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
   The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`.
   No accent axis: nothing in Plate consumes a hue.

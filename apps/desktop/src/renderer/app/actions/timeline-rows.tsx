@@ -25,7 +25,9 @@ const CHANGE_MARKS = {
 const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
 
 const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
-  <div className="max-w-[85%] truncate px-3 text-xs text-muted-foreground">{context.resource}</div>
+  <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
+    {context.resource}
+  </div>
 );
 
 const isThought = (row: TimelineRow): boolean =>
@@ -127,7 +129,7 @@ const countLabel = (count: number, one: string, many: string): string =>
   count === 1 ? `1 ${one}` : `${String(count)} ${many}`;
 
 const ErrorRowView = ({ row }: { row: TimelineErrorRow }) => (
-  <div className="text-xs text-destructive">
+  <div className="text-body text-destructive">
     {row.message}
     {row.detail === null ? null : <span className="opacity-70"> — {row.detail}</span>}
   </div>
@@ -164,7 +166,7 @@ const TurnRowView = ({ row }: { row: TimelineTurnRow }) => {
       ))}
       {working ? <LoadingState label="Working" startedAt={row.createdAt} /> : null}
       {row.status === "interrupted" ? (
-        <div className="text-xs text-muted-foreground">Interrupted</div>
+        <div className="text-body text-muted-foreground">Interrupted</div>
       ) : null}
     </div>
   );
@@ -176,7 +178,7 @@ const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
       if (row.role === "user") {
         return (
           <div className="flex flex-col items-end gap-0.5">
-            <div className="max-w-[85%] rounded-2xl bg-surface-raised px-3 py-1.5 text-sm whitespace-pre-wrap shadow-surface-1">
+            <div className="max-w-[85%] rounded-2xl bg-surface-raised px-3 py-1.5 text-subtitle whitespace-pre-wrap shadow-surface-1">
               {row.text}
             </div>
             {row.viewContext === null ? null : <ViewContextAttribution context={row.viewContext} />}

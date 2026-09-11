@@ -145,7 +145,7 @@ export const ProblemsPage = ({ onOpenNote, onOpenLink, ...shell }: ProblemsPageP
               }}
             >
               <span className="min-w-0 flex-1 truncate">{row.label}</span>
-              <span className="ml-auto shrink-0 pl-3 text-xs text-muted-foreground tabular-nums">
+              <span className="ml-auto shrink-0 pl-3 text-body text-muted-foreground tabular-nums">
                 {row.detail}
               </span>
             </CommandItem>
@@ -153,7 +153,7 @@ export const ProblemsPage = ({ onOpenNote, onOpenLink, ...shell }: ProblemsPageP
         </CommandGroup>
       ))}
       {hidden > 0 ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
+        <p className="px-3 py-2 text-body text-muted-foreground">
           {hidden} more not shown; `inteligir problems --limit` lists them all.
         </p>
       ) : null}

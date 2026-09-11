@@ -410,7 +410,7 @@ export const CommandPalette = ({
                   >
                     {row.title}
                   </span>
-                  <span className="ml-auto pl-3 text-xs text-muted-foreground">H{row.depth}</span>
+                  <span className="ml-auto pl-3 text-body text-muted-foreground">H{row.depth}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -483,7 +483,7 @@ export const CommandPalette = ({
               >
                 <MessagesSquareIcon />
                 <span className="truncate">{threadRowLabel(thread)}</span>
-                <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
+                <span className="ml-auto truncate pl-3 text-body text-muted-foreground">
                   {threadRowDetail(thread)}
                 </span>
               </CommandItem>
@@ -605,7 +605,7 @@ export const CommandPalette = ({
                 {hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
               </span>
               {hit.title !== undefined && hit.title !== "" ? (
-                <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
+                <span className="ml-auto truncate pl-3 text-body text-muted-foreground">
                   {hit.path}
                 </span>
               ) : null}

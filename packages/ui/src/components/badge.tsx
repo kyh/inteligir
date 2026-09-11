@@ -38,8 +38,8 @@ const badgeVariants = cva("inline-flex items-center font-medium whitespace-nowra
   },
   variants: {
     size: {
-      compact: "h-5 px-2 text-[11px] gap-1",
-      default: "h-6 px-2.5 text-[12px] gap-1.5",
+      compact: "h-5 px-2 text-caption gap-1",
+      default: "h-6 px-2.5 text-body gap-1.5",
     },
     variant: {
       dot: "border border-border text-foreground",

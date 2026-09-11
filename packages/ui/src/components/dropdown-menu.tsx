@@ -299,7 +299,7 @@ const DropdownMenuLabel = ({
       ref={ref}
       className={cn(
         "px-2 py-1.5 shrink-0 text-muted-foreground",
-        compact ? "text-[11px]" : "text-[12px]",
+        compact ? "text-caption" : "text-body",
         className,
       )}
       {...props}

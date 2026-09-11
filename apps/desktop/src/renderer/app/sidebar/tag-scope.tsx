@@ -41,9 +41,9 @@ export const TagScopeHeader = ({
     <Button variant="ghost" size="icon-compact" aria-label="Every note" onClick={onClear}>
       <ArrowLeftIcon />
     </Button>
-    <span className="min-w-0 flex-1 truncate text-sm font-medium">#{tag}</span>
+    <span className="min-w-0 flex-1 truncate text-subtitle font-medium">#{tag}</span>
     {count === undefined ? null : (
-      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+      <span className="shrink-0 text-caption text-muted-foreground tabular-nums">
         {tagScopeCountLabel(count)}
       </span>
     )}

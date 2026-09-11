@@ -35,8 +35,8 @@ const buttonStructure = cva(
       iconLeft: { true: "" },
       iconRight: { true: "" },
       size: {
-        compact: "h-7 gap-1 px-3 text-[12px] [&_svg:not([class*='size-'])]:size-3.5",
-        default: "h-9 gap-1.5 px-4 text-[13px]",
+        compact: "h-7 gap-1 px-3 text-body [&_svg:not([class*='size-'])]:size-3.5",
+        default: "h-9 gap-1.5 px-4 text-subtitle",
         icon: "h-9 w-9 p-0",
         "icon-compact": "h-7 w-7 p-0 [&_svg:not([class*='size-'])]:size-3.5",
       },

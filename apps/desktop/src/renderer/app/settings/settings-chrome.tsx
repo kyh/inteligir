@@ -14,7 +14,7 @@ export const SecondVaultNote = ({ scope }: { scope: DataDirScope | undefined }) 
     return null;
   }
   return (
-    <p className="text-xs text-muted-foreground">
+    <p className="text-body text-muted-foreground">
       This is a second vault with a data dir of its own: its sign-in, connectors and default agent
       start empty and stay with it.
     </p>
@@ -22,14 +22,14 @@ export const SecondVaultNote = ({ scope }: { scope: DataDirScope | undefined }) 
 };
 
 export const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="grid grid-cols-[7rem_1fr] items-baseline gap-x-4 gap-y-1 text-sm">
+  <div className="grid grid-cols-[7rem_1fr] items-baseline gap-x-4 gap-y-1 text-subtitle">
     <dt className="text-muted-foreground">{label}</dt>
     <dd className="min-w-0">{children}</dd>
   </div>
 );
 
 export const SectionHeading = ({ children }: { children: React.ReactNode }) => (
-  <h3 className="text-xs font-medium tracking-wide text-muted-foreground">{children}</h3>
+  <h3 className="text-body font-medium tracking-wide text-muted-foreground">{children}</h3>
 );
 
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- a segmented control: the buttons carry the row's
@@ -53,7 +53,7 @@ export const ChoiceRow = <T extends string>({
         role="radio"
         aria-checked={value === option.value}
         className={cn(
-          "rounded-md border px-3 py-1 text-sm",
+          "rounded-md border px-3 py-1 text-subtitle",
           value === option.value
             ? "border-ring bg-muted text-foreground"
             : "border-border text-muted-foreground hover:bg-muted/50",

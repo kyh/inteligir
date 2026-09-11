@@ -52,7 +52,7 @@ const Fact = ({
   title?: string | undefined;
   children: React.ReactNode;
 }) => (
-  <div className="grid grid-cols-[6rem_1fr] items-baseline gap-x-3 text-xs">
+  <div className="grid grid-cols-[6rem_1fr] items-baseline gap-x-3 text-body">
     <dt className="text-muted-foreground">{label}</dt>
     <dd className="min-w-0 truncate tabular-nums" title={title}>
       {children}

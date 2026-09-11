@@ -42,12 +42,12 @@ export const SignInForm = ({ cloudUrl, onSignIn, pending, refusal }: SignInFormP
         }
       }}
     >
-      <p className="text-xs text-muted-foreground">
+      <p className="text-body text-muted-foreground">
         Sign in with your {new URL(cloudUrl).host} account. Your threads and your vault then sync
         through it — unless this machine is configured with its own git remote.
       </p>
       <div className="flex items-center gap-2">
-        <Label htmlFor={`${formId}-email`} className="w-24 shrink-0 text-xs">
+        <Label htmlFor={`${formId}-email`} className="w-24 shrink-0 text-body">
           Email
         </Label>
         <Input
@@ -61,7 +61,7 @@ export const SignInForm = ({ cloudUrl, onSignIn, pending, refusal }: SignInFormP
         />
       </div>
       <div className="flex items-center gap-2">
-        <Label htmlFor={`${formId}-password`} className="w-24 shrink-0 text-xs">
+        <Label htmlFor={`${formId}-password`} className="w-24 shrink-0 text-body">
           Password
         </Label>
         <Input
@@ -74,7 +74,7 @@ export const SignInForm = ({ cloudUrl, onSignIn, pending, refusal }: SignInFormP
           }}
         />
       </div>
-      {refusal === null ? null : <p className="text-xs text-destructive">{refusal}</p>}
+      {refusal === null ? null : <p className="text-body text-destructive">{refusal}</p>}
       <Button type="submit" size="compact" disabled={pending || !ready}>
         Sign in
       </Button>
@@ -90,22 +90,22 @@ export interface SignedInDetailsProps {
 export const SignedInDetails = ({ status, nowMs }: SignedInDetailsProps) => (
   <dl className="space-y-1.5">
     <Row label="Account">
-      <span className="block truncate font-mono text-xs">
+      <span className="block truncate font-mono text-body">
         {status.accountEmail ?? new URL(status.cloudUrl).host}
       </span>
     </Row>
     <Row label="Device">
-      <span className="block truncate font-mono text-xs">{status.deviceId}</span>
+      <span className="block truncate font-mono text-body">{status.deviceId}</span>
     </Row>
     <Row label="State">
-      <span className="text-xs">
+      <span className="text-body">
         {status.connected ? "Following" : "Polling"} · {status.pending} queued · synced{" "}
         {lastSyncedLabel(status.lastSyncedAt, nowMs)}
       </span>
     </Row>
     {status.lastError === null ? null : (
       <Row label="Last error">
-        <span className="text-xs text-muted-foreground">{status.lastError}</span>
+        <span className="text-body text-muted-foreground">{status.lastError}</span>
       </Row>
     )}
   </dl>
@@ -118,7 +118,7 @@ export const SyncSection = () => {
 
   const body = () => {
     if (status === undefined) {
-      return <p className="text-sm text-muted-foreground">…</p>;
+      return <p className="text-subtitle text-muted-foreground">…</p>;
     }
     if (status.state === "signed-out") {
       return (
@@ -136,7 +136,7 @@ export const SyncSection = () => {
     if (status.state === "unauthorized") {
       return (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-body text-muted-foreground">
             {status.detail} Sync is stopped. Sign this device out, then sign it in again.
           </p>
           <Button size="compact" variant="tertiary" onClick={signOut} disabled={pending}>

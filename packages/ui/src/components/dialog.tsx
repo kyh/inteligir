@@ -10,7 +10,7 @@ import { Button } from "@repo/ui/components/button";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { useRadius } from "@repo/ui/lib/radius-context";
-import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
+import { useSize } from "@repo/ui/lib/size-context";
 import { spring } from "@repo/ui/lib/springs";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
@@ -136,37 +136,27 @@ const DialogTitle = ({
   className,
   ref,
   ...props
-}: HTMLAttributes<HTMLHeadingElement> & RefAttributes<HTMLHeadingElement>) => {
-  const compact = useSizeVariant() === "compact";
-  return (
-    <DialogPrimitive.Title
-      ref={ref}
-      className={cn(
-        compact ? "text-[15px]" : "text-[16px]",
-        "text-foreground leading-tight",
-        className,
-      )}
-      style={{ fontVariationSettings: "'wght' 700" }}
-      {...props}
-    />
-  );
-};
+}: HTMLAttributes<HTMLHeadingElement> & RefAttributes<HTMLHeadingElement>) => (
+  <DialogPrimitive.Title
+    ref={ref}
+    className={cn("text-title leading-tight text-foreground", className)}
+    style={{ fontVariationSettings: "'wght' 700" }}
+    {...props}
+  />
+);
 DialogTitle.displayName = "DialogTitle";
 
 const DialogDescription = ({
   className,
   ref,
   ...props
-}: HTMLAttributes<HTMLParagraphElement> & RefAttributes<HTMLParagraphElement>) => {
-  const compact = useSizeVariant() === "compact";
-  return (
-    <DialogPrimitive.Description
-      ref={ref}
-      className={cn(compact ? "text-[12px]" : "text-[13px]", "text-muted-foreground", className)}
-      {...props}
-    />
-  );
-};
+}: HTMLAttributes<HTMLParagraphElement> & RefAttributes<HTMLParagraphElement>) => (
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn("text-body text-muted-foreground", className)}
+    {...props}
+  />
+);
 DialogDescription.displayName = "DialogDescription";
 
 export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription };

@@ -34,6 +34,10 @@ const AWAITING_CONSUMER = new Set([
 // keyed `<repo-relative file>#<export name>`; a row is a decision, not a backlog.
 const ALLOWED_EXPORTS = new Map<string, string>([
   [
+    "packages/ui/src/lib/size-context.tsx#typeScale",
+    "The type scale's one declaration. The product draws it through the text-* utilities in styles/globals.css, which lib/__tests__/type-scale.test.ts derives from this map; a component importing it instead would be a second spelling of the same numbers.",
+  ],
+  [
     "packages/ui/src/ai/thinking.tsx#ThinkingTool",
     "The trace vocabulary's tool row — Step and Reasoning are wired; the third kind is held with the Beautiful UI set for the timeline that renders tool calls.",
   ],

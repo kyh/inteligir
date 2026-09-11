@@ -64,7 +64,7 @@ export const AttachmentsRow = () => {
             onChange={(event) => {
               setFolderDraft(event.target.value);
             }}
-            className="h-7 max-w-64 font-mono text-xs"
+            className="h-7 max-w-64 font-mono text-body"
           />
           <Button
             type="submit"
@@ -76,7 +76,7 @@ export const AttachmentsRow = () => {
           </Button>
         </form>
       ) : null}
-      <span className="mt-1 block text-xs text-muted-foreground">
+      <span className="mt-1 block text-body text-muted-foreground">
         Where a pasted image is written. A folder is created on the first paste.
       </span>
     </Row>

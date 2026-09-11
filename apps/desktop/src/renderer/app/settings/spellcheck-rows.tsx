@@ -56,7 +56,7 @@ export const SpellcheckRows = () => {
               choose(enabled, state.languages);
             }}
           />
-          <span className="text-sm text-muted-foreground">
+          <span className="text-subtitle text-muted-foreground">
             {state.enabled ? "Underlines misspellings as you write." : "Off."}
           </span>
         </span>
@@ -74,7 +74,7 @@ export const SpellcheckRows = () => {
                   aria-checked={on}
                   disabled={pending || !state.enabled}
                   className={cn(
-                    "rounded-md border px-2 py-0.5 text-xs",
+                    "rounded-md border px-2 py-0.5 text-body",
                     on
                       ? "border-ring bg-muted text-foreground"
                       : "border-border text-muted-foreground hover:bg-muted/50",
@@ -93,7 +93,7 @@ export const SpellcheckRows = () => {
             })}
           </span>
         ) : (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-subtitle text-muted-foreground">
             macOS picks the languages itself, from System Settings › Keyboard.
           </span>
         )}

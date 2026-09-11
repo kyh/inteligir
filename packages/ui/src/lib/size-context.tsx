@@ -46,6 +46,25 @@ const sizeMap = {
   },
 } satisfies Record<SizeVariant, SizeClasses>;
 
+// Type follows the ladder: the compact column steps each role down one notch, so a dense screen
+// keeps the same hierarchy at a smaller size rather than a squeezed copy. `body` is what a sized
+// control already renders (`SizeClasses.text`); `display` and `title` are the page-level roles.
+// Listed alphabetically, not by size: the roles, smallest to largest, are caption, body,
+// subtitle, title, display. The product draws them through the `text-*` utilities derived from
+// the compact column; this is where that column is declared.
+const typeScale = {
+  // control labels and body copy
+  body: { compact: 12, default: 13 },
+  // secondary text: descriptions, meta rows, errors, group labels
+  caption: { compact: 11, default: 12 },
+  // page titles
+  display: { compact: 24, default: 28 },
+  // card titles, emphasized rows
+  subtitle: { compact: 13, default: 14 },
+  // section headings, dialog titles
+  title: { compact: 15, default: 16 },
+} satisfies Record<string, Record<SizeVariant, number>>;
+
 const SizeContext = createContext<SizeVariant | null>(null);
 
 const useSizeVariant = (override?: SizeVariant | null): SizeVariant => {
@@ -59,5 +78,5 @@ const SizeProvider = ({ children, size }: { children: ReactNode; size: SizeVaria
   <SizeContext.Provider value={size}>{children}</SizeContext.Provider>
 );
 
-export { SizeProvider, useSize, useSizeVariant };
+export { SizeProvider, typeScale, useSize, useSizeVariant };
 export type { SizeVariant };

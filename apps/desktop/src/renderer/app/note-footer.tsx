@@ -8,7 +8,7 @@ import { readingTimeLabel } from "./actions/note-facts";
 export const NoteFooter = ({ path }: { path: string | null }) => {
   const stats = useNoteStats(path);
   return (
-    <footer className="flex h-[var(--app-status-h)] shrink-0 items-center justify-end px-3 text-xs text-muted-foreground tabular-nums print:hidden">
+    <footer className="flex h-[var(--app-status-h)] shrink-0 items-center justify-end px-3 text-body text-muted-foreground tabular-nums print:hidden">
       {stats === null ? null : (
         <span>
           {plural(stats.words, "word")} · {readingTimeLabel(stats.words)}

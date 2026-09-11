@@ -117,7 +117,7 @@ const Tooltip = ({
                 <motion.div {...rest} style={motionStyle(baseStyle, followStyle)}>
                   <motion.div
                     className={cn(
-                      "bg-foreground text-background text-[12px] px-2 py-1",
+                      "bg-foreground text-background text-body px-2 py-1",
                       "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
                       radius.bg,
                       className,

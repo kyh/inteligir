@@ -54,14 +54,14 @@ interface StepClasses {
 const compactSteps: StepClasses = {
   icon: "!h-[15px] !w-[15px]",
   iconSize: 15,
-  textarea: "text-[13px] leading-[18px] px-1.5 py-1.5",
-  toolbar: "gap-1.5 [&_button]:h-6 [&_button.w-7]:w-6 [&_button]:text-[11px]",
+  textarea: "text-subtitle leading-[18px] px-1.5 py-1.5",
+  toolbar: "gap-1.5 [&_button]:h-6 [&_button.w-7]:w-6 [&_button]:text-caption",
 };
 
 const comfortableSteps: StepClasses = {
   icon: "!h-[19px] !w-[19px]",
   iconSize: 19,
-  textarea: "text-[14px] leading-5 px-2 py-2",
+  textarea: "text-subtitle leading-5 px-2 py-2",
   toolbar: "gap-2",
 };
 

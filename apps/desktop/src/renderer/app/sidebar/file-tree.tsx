@@ -224,13 +224,13 @@ const InlineNameInput = ({
 
 const EmptyRows = ({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: () => void }) => {
   if (loadState === "loading") {
-    return <p className="px-1 py-2 text-xs text-muted-foreground">Loading…</p>;
+    return <p className="px-1 py-2 text-body text-muted-foreground">Loading…</p>;
   }
   if (loadState === "loaded") {
-    return <p className="px-1 py-2 text-xs text-muted-foreground">The vault is empty.</p>;
+    return <p className="px-1 py-2 text-body text-muted-foreground">The vault is empty.</p>;
   }
   return (
-    <div className="px-1 py-2 text-xs">
+    <div className="px-1 py-2 text-body">
       <p className="text-destructive">The vault could not be read.</p>
       <button
         type="button"
