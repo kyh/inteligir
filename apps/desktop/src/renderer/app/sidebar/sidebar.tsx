@@ -37,7 +37,7 @@ import { usePinnedPaths, useVaultTree, vaultFolders } from "../vault-hooks";
 import { FileTree } from "./file-tree";
 import type { PendingCreate, TreeLoadState, TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
-import { TagsPane } from "./tags-pane";
+import { TaggedNotes } from "./tagged-notes";
 import { createDirFor, useTreeState } from "./tree-state";
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
@@ -139,7 +139,6 @@ const FolderScopeHeader = ({ folder, onClear }: { folder: string; onClear: () =>
 const RAIL_VIEW_LABELS: Record<RailView, string> = {
   files: "Files",
   recent: "Recent",
-  tags: "Tags",
 };
 
 export interface SidebarRailContentProps {
@@ -147,8 +146,8 @@ export interface SidebarRailContentProps {
   onOpenFile: (path: string) => void;
   ops: TreeOps;
   onMoveRequest: (path: string) => void;
-  // the view and the tag: the workspace's, since a `#tag` chip in the note shows Tags and
-  // selects, and a create shows Files
+  // the view and the tag: the workspace's, since a `#tag` chip in the note shows Recent scoped
+  // to the tag, and a create shows Files
   view: RailView;
   onViewChange: (view: RailView) => void;
   selectedTag: string | null;
@@ -205,6 +204,21 @@ export const SidebarRailContent = ({
   const list = (): React.ReactNode => {
     switch (view) {
       case "recent": {
+        if (selectedTag !== null) {
+          return (
+            <TaggedNotes
+              key={selectedTag}
+              tag={selectedTag}
+              onSelectTag={onSelectTag}
+              entries={scoped}
+              scope={scope}
+              openPath={openPath}
+              onOpenFile={onOpenFile}
+              onSetPinned={handleSetPinned}
+              filter={query}
+            />
+          );
+        }
         return (
           <NotesList
             entries={scoped}
@@ -240,20 +254,6 @@ export const SidebarRailContent = ({
             onSortChange={changeSort}
             filter={query}
             vaultRoot={treeQuery.data?.root ?? null}
-          />
-        );
-      }
-      case "tags": {
-        return (
-          <TagsPane
-            entries={scoped}
-            scope={scope}
-            openPath={openPath}
-            onOpenFile={onOpenFile}
-            onSetPinned={handleSetPinned}
-            selectedTag={selectedTag}
-            onSelectTag={onSelectTag}
-            filter={query}
           />
         );
       }

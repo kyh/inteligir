@@ -415,7 +415,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       showTag: (tag) => {
         setZen(false);
         setRailOpen(true);
-        chooseRailView("tags");
+        chooseRailView("recent");
         setSelectedTag(tag);
       },
     });

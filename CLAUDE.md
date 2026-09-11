@@ -554,26 +554,29 @@ to the END of its group.
   ranges. Unifying the grammars is rejected: one malformed tag would stop a note
   indexing. A doc the editor refuses yields no ranges, correctly: it opens raw.
 
-- **TAGS ARE A RAIL VIEW, AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** The
-  rail's third view lists `knowledge.tags` folded by `/`, a row's count being
-  its family's; a click scopes the recents list to that tag through the search
-  route's `tag:` term, and a `#tag` chip asks for the same through the editor
-  host registry's `showTag` (`packages/editor/src/agent-request.ts`, the one
-  channel from a node to the shell), never the palette. The selected tag is the
-  workspace's state like the folder, and everything only the Tags view holds
-  (the rename dialog, the tag's paged listing, both tag queries) is
-  `apps/desktop/src/renderer/app/sidebar/tags-pane.tsx`, mounted on its tab
-  alone. `knowledge.renameTag` moves a
-  tag and everything nested under it, matched case-insensitively because the
-  index is: inline spans are the scan's own, verified against the raw bytes and
-  withheld inside verbatim ranges (`documentTagSpans`), frontmatter `tags`
-  re-serialize through the properties panel's CST edit, and every write is
-  `writeIfUnchanged` from a snapshot, so a note that changed mid-rename is
-  reported `changed`, never overwritten. The one name grammar is
-  `isTagName` in `@repo/notes/knowledge/link-extract`, shared by the chip, the
-  scan and the contract. `@repo/notes/knowledge/rename-tags.ts`,
+- **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW, AND A TAG RENAME IS THE
+  LINK RENAME'S SURGERY.** There is no tag browser in the app: `knowledge.tags`
+  answers `inteligir tags` alone. A `#tag` chip asks the shell through the
+  editor host registry's `showTag` (`packages/editor/src/agent-request.ts`,
+  the one channel from a node to the shell), never the palette, and the rail
+  answers with the Recent view scoped to that tag: the scope row (the count,
+  `listed of total` while cut, Rename), the tag's paged listing, and the
+  rail's search over it. The selected tag is the workspace's state like the
+  folder, and everything only the scope holds (the rename dialog, the paged
+  query) is `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`, mounted
+  only while a tag is selected. A Tags tab was built and removed by owner
+  decision: the rail switches between Recent and Files and nothing else.
+  `knowledge.renameTag` moves a tag and everything nested under it, matched
+  case-insensitively because the index is: inline spans are the scan's own,
+  verified against the raw bytes and withheld inside verbatim ranges
+  (`documentTagSpans`), frontmatter `tags` re-serialize through the properties
+  panel's CST edit, and every write is `writeIfUnchanged` from a snapshot, so
+  a note that changed mid-rename is reported `changed`, never overwritten. The
+  one name grammar is `isTagName` in `@repo/notes/knowledge/link-extract`,
+  shared by the chip, the scan and the contract.
+  `@repo/notes/knowledge/rename-tags.ts`,
   `apps/cli/src/server/knowledge/rename-tag.ts`,
-  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`, and `inteligir tag
+  `apps/desktop/src/renderer/app/sidebar/tag-scope.tsx`, and `inteligir tag
 rename`.
 
 - **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
@@ -632,7 +635,7 @@ rename`.
   candidate list runs too. The rail re-reads one growing page rather than
   stitching pages, because the list it draws is filtered by the folder scope
   and sorted by recency after the fact, and says `listed of total` while cut.
-  `apps/desktop/src/renderer/app/sidebar/tags-pane.tsx`.
+  `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`.
 
 ### Agents and threads
 
@@ -995,24 +998,24 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   vault row (the name semibold, the recent vaults and Open another vault…
   behind it, and the one button the rail keeps, New note, at its trailing
   edge), the search field on the rows' rhythm (`SidebarSearchField`, Fluid's
-  block over `SidebarInput`), and a flat Recent | Files | Tags switch drawn by
-  the same underline `Tabs` the panel uses, then one `SidebarContent` column
-  the chosen view fills. Not three stacked sections: a stack made every list
+  block over `SidebarInput`), and a flat Recent | Files switch drawn by the
+  same underline `Tabs` the panel uses, then one `SidebarContent` column the
+  chosen view fills. Not three stacked sections: a stack made every list
   short and put a fold header over each. Every other verb is a right-click,
   as in an IDE: a row's menu carries its own, and the listing's empty area
   carries New note, New folder, the sort toggle and Collapse all. The search
   field is the rail's filter, never the palette: in Files it narrows the tree
   (rows that neither match nor hold a match are withheld, kept folders open),
   in Recent it lifts the handful-of-rows cap and matches names across the
-  scope, in Tags it narrows the families; Escape clears it. ⌘P and ⌘⇧F stay
-  the ranked and literal search surfaces. Every row in the three views is
+  scope, a tag scope included; Escape clears it. ⌘P and ⌘⇧F stay
+  the ranked and literal search surfaces. Every row in both views is
   `useSidebarRow` (`@repo/ui/components/sidebar-core`): the menu row's height
   and text from the size ladder, the item radius, muted at rest and lit on
   hover, `data-active` filled, so a 14px row on a 24px token can no longer
   drift from the controls beside it. The view is the workspace's
-  (`railView` in `app/prefs.ts`) because a `#tag` chip shows Tags and a
-  create shows Files; the selected tag is the workspace's for the same
-  reason. The folder scope is set by the top bar's breadcrumb and cleared
+  (`railView` in `app/prefs.ts`) because a `#tag` chip shows Recent scoped to
+  the tag and a create shows Files; the selected tag is the workspace's for
+  the same reason. The folder scope is set by the top bar's breadcrumb and cleared
   from the scope row above the list: the header switches the vault, the
   breadcrumb narrows within it. Two lists, one rule: the recents view is one
   list by recency with a folder hint, and folders exist only in the tree.

@@ -1,5 +1,6 @@
-// The Tags view and everything only it holds: the selected tag, the rename dialog and the
-// tag's paged listing. Mounted on its tab alone, so its queries are armed only while it shows.
+// The Recent view scoped to a tag, which a `#tag` chip asks for: the tag's paged listing under
+// its scope row, and the rename dialog. Mounted only while a tag is selected, so its query is
+// armed only then.
 
 import { Button } from "@repo/ui/components/button";
 import { renamedTag } from "@repo/notes/knowledge/rename-tags";
@@ -9,49 +10,39 @@ import {
 } from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { useMemo, useState } from "react";
-import { useNotesWithTag, useTags } from "../vault-hooks";
+import { useNotesWithTag } from "../vault-hooks";
 import { NotesList } from "./notes-list";
-import { RenameTagDialog, TagScopeHeader, TagsView } from "./tags-view";
+import { RenameTagDialog, TagScopeHeader } from "./tag-scope";
 
-export interface TagsPaneProps {
+export interface TaggedNotesProps {
+  // owned by the workspace: a `#tag` chip anywhere in the note sets it
+  tag: string;
+  onSelectTag: (tag: string | null) => void;
   // the listing's entries, already scoped to the folder
   entries: readonly VaultEntry[];
   scope: string;
   openPath: string | null;
   onOpenFile: (path: string) => void;
   onSetPinned: (path: string, pinned: boolean) => void;
-  // owned by the workspace: a `#tag` chip anywhere in the note sets it
-  selectedTag: string | null;
-  onSelectTag: (tag: string | null) => void;
-  // the rail's search: over the tags while browsing them, over the notes inside a tag
+  // the rail's search, over the notes inside the tag
   filter: string;
 }
 
 // One page that grows: the list is re-read whole rather than stitched, since the drawn list is
-// scope-filtered and recency-sorted afterwards. Keyed on the tag by the pane, so a new tag
+// scope-filtered and recency-sorted afterwards. Keyed on the tag by the rail, so a new tag
 // starts at the first page without a reset in userland.
-const TaggedNotes = ({
+export const TaggedNotes = ({
   tag,
+  onSelectTag,
   entries,
   scope,
   openPath,
   onOpenFile,
   onSetPinned,
   filter,
-  onClear,
-  onRename,
-}: {
-  tag: string;
-  entries: readonly VaultEntry[];
-  scope: string;
-  openPath: string | null;
-  onOpenFile: (path: string) => void;
-  onSetPinned: (path: string, pinned: boolean) => void;
-  filter: string;
-  onClear: () => void;
-  onRename: () => void;
-}) => {
+}: TaggedNotesProps) => {
   const [limit, setLimit] = useState(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT);
+  const [renaming, setRenaming] = useState(false);
   const taggedQuery = useNotesWithTag(tag, limit);
   const taggedPaths = useMemo(() => new Set(taggedQuery.data?.paths), [taggedQuery.data]);
   const taggedEntries = useMemo(
@@ -69,8 +60,12 @@ const TaggedNotes = ({
             ? undefined
             : { listed: taggedQuery.data.paths.length, total: taggedQuery.data.total }
         }
-        onClear={onClear}
-        onRename={onRename}
+        onClear={() => {
+          onSelectTag(null);
+        }}
+        onRename={() => {
+          setRenaming(true);
+        }}
       />
       <NotesList
         entries={taggedEntries}
@@ -99,61 +94,15 @@ const TaggedNotes = ({
           </Button>
         </div>
       ) : null}
-    </>
-  );
-};
-
-export const TagsPane = ({
-  entries,
-  scope,
-  openPath,
-  onOpenFile,
-  onSetPinned,
-  selectedTag,
-  onSelectTag,
-  filter,
-}: TagsPaneProps) => {
-  const [renamingTag, setRenamingTag] = useState<string | null>(null);
-  const tagsQuery = useTags(selectedTag === null);
-  return (
-    <>
-      {selectedTag === null ? (
-        <TagsView
-          tags={tagsQuery.data?.tags ?? []}
-          loaded={tagsQuery.data !== undefined}
-          filter={filter}
-          onSelect={onSelectTag}
-          onRename={setRenamingTag}
-        />
-      ) : (
-        <TaggedNotes
-          key={selectedTag}
-          tag={selectedTag}
-          entries={entries}
-          scope={scope}
-          openPath={openPath}
-          onOpenFile={onOpenFile}
-          onSetPinned={onSetPinned}
-          filter={filter}
-          onClear={() => {
-            onSelectTag(null);
-          }}
-          onRename={() => {
-            setRenamingTag(selectedTag);
-          }}
-        />
-      )}
       <RenameTagDialog
-        tag={renamingTag}
+        tag={renaming ? tag : null}
         onOpenChange={(open) => {
           if (!open) {
-            setRenamingTag(null);
+            setRenaming(false);
           }
         }}
         onRenamed={(from, to) => {
-          if (selectedTag !== null) {
-            onSelectTag(renamedTag(selectedTag, from, to) ?? selectedTag);
-          }
+          onSelectTag(renamedTag(tag, from, to) ?? tag);
         }}
       />
     </>

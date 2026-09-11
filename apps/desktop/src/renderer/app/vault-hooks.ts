@@ -24,9 +24,6 @@ export const usePinnedPaths = (): ReadonlySet<string> => {
   return new Set(targets.filter((target) => target.pinned === true).map((target) => target.path));
 };
 
-export const useTags = (enabled: boolean) =>
-  useQuery({ ...orpc.knowledge.tags.queryOptions(), enabled });
-
 // a listing by path, not a search: the family's first `limit` notes and the whole count
 export const useNotesWithTag = (tag: string | null, limit: number) =>
   useQuery({
