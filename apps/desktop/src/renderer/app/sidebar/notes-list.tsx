@@ -6,31 +6,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@repo/ui/components/dropdown-menu";
-import {
-  SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@repo/ui/components/sidebar";
-import { EllipsisIcon } from "lucide-react";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@repo/ui/components/sidebar";
+import { StarIcon } from "lucide-react";
 import { useState } from "react";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { usePinnedPaths } from "../vault-hooks";
 
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
 
-// the folder a note sits in, spelled from the listing's scope; empty at the scope itself
-export const folderHint = (path: string, scope: string): string => {
-  const dir = dirnamePath(path);
-  if (scope === "") {
-    return dir;
-  }
-  return dir === scope ? "" : dir.slice(scope.length + 1);
-};
-
 export interface NotesListProps {
   entries: VaultTreeResponse["entries"];
-  scope: string;
   openPath: string | null;
   onOpenFile: (path: string) => void;
   emptyText?: string;
@@ -40,10 +25,9 @@ export interface NotesListProps {
   limit?: number;
 }
 
-// One list by recency: folders are the tree view's business.
+// One list by recency, the pinned rows first: folders are the tree view's business.
 export const NotesList = ({
   entries,
-  scope,
   openPath,
   onOpenFile,
   emptyText = "No notes yet.",
@@ -65,20 +49,16 @@ export const NotesList = ({
   const unpinned = notes.filter((note) => !pinnedPaths.has(note.path));
   const rest = limit === undefined ? unpinned : unpinned.slice(0, limit);
 
-  // the menu row: the name is the label, the folder and the age ride its trailing edge, and the
-  // row's verbs sit behind an action revealed on hover
+  // the menu row: the name is the label, the folder and the age ride its trailing edge, a pinned
+  // row ends in its star, and the row's one verb is a right-click
   const row = (note: FileEntry) => {
-    const hint = folderHint(note.path, scope);
-    const isOpen = note.path === openPath;
-    const openMenu = (anchor: HTMLElement): void => {
-      setMenu({ anchor, path: note.path });
-    };
+    const hint = dirnamePath(note.path);
+    const isPinned = pinnedPaths.has(note.path);
     return (
       <SidebarMenuItem key={note.path}>
         <SidebarMenuButton
           title={note.path}
-          isActive={isOpen}
-          className={onSetPinned === undefined ? undefined : "pr-8"}
+          isActive={note.path === openPath}
           onClick={() => {
             onOpenFile(note.path);
           }}
@@ -87,7 +67,7 @@ export const NotesList = ({
               return;
             }
             event.preventDefault();
-            openMenu(event.currentTarget);
+            setMenu({ anchor: event.currentTarget, path: note.path });
           }}
         >
           {docStem(note.path)}
@@ -99,19 +79,15 @@ export const NotesList = ({
               {relativeTimeLabel(note.modifiedMs, now)}
             </span>
           )}
+          {isPinned ? (
+            <StarIcon
+              aria-label="Pinned"
+              size={12}
+              strokeWidth={1.5}
+              className="shrink-0 fill-current text-muted-foreground"
+            />
+          ) : null}
         </SidebarMenuButton>
-        {onSetPinned === undefined ? null : (
-          <SidebarMenuAction
-            showOnHover
-            aria-label={`Actions for ${docStem(note.path)}`}
-            {...(menu?.path === note.path ? { "data-popup-open": "" } : {})}
-            onClick={(event) => {
-              openMenu(event.currentTarget);
-            }}
-          >
-            <EllipsisIcon />
-          </SidebarMenuAction>
-        )}
       </SidebarMenuItem>
     );
   };
@@ -119,11 +95,6 @@ export const NotesList = ({
   return (
     <>
       <SidebarMenu aria-label="Notes">
-        {pinned.length > 0 ? (
-          <li className="px-2 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
-            Pinned
-          </li>
-        ) : null}
         {pinned.map(row)}
         {rest.map(row)}
       </SidebarMenu>

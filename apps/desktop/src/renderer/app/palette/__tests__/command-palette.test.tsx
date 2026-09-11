@@ -579,25 +579,10 @@ describe("a command's binding", () => {
   it("is the global table's row, not a literal", () => {
     renderPalette();
     expect(screen.getByText("⌘D")).toBeDefined();
-    expect(screen.getByText("⇧⌘F")).toBeDefined();
+    expect(screen.getByText("⌘,")).toBeDefined();
     cleanup();
     renderPalette({ modifier: "ctrl" });
     expect(screen.getByText("Ctrl+D")).toBeDefined();
-    expect(screen.getByText("Ctrl+Shift+F")).toBeDefined();
-  });
-});
-
-describe("the quick switcher (⌘O)", () => {
-  it("is the root with its commands folded away", async () => {
-    const { actions } = renderPalette({ request: { nonce: 1, page: "notes" } });
-    const box = screen.getByPlaceholderText("Open a note…");
-    expect(screen.queryByText("Settings")).toBeNull();
-    expect(screen.queryByText("Keyboard shortcuts")).toBeNull();
-    fireEvent.change(box, { target: { value: "welcome" } });
-    await waitFor(() => {
-      expect(screen.getByText("Welcome.md")).toBeDefined();
-    });
-    fireEvent.click(screen.getByText("Welcome.md"));
-    expect(actions.openNote).toHaveBeenCalledWith("Welcome.md");
+    expect(screen.getByText("Ctrl+,")).toBeDefined();
   });
 });

@@ -345,13 +345,14 @@ to the END of its group.
   rows through `spellHotkey` (`@repo/editor/hotkey-spelling`: ⌃⌥⇧⌘ on a mac
   keyboard, `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale
   label behind. `shortcut-tables.test.ts` refuses a chord two tables share,
-  because a key both claim runs both. ⌘O is Obsidian's quick
-  switcher (the palette with its commands folded away) and ⌘, is Settings; a
-  browser tab may keep either for itself, the shell delivers both.
+  because a key both claim runs both. ⌘P is the one search surface and ⌘, is
+  Settings; a browser tab may keep either for itself, the shell delivers both.
 
 - **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
-  Pinning travels with the file, so the recents' Pinned group agrees on every
-  device and with the agent. `pinnedFrontmatterYaml` in
+  Pinning travels with the file, so the recents agree on every device and with
+  the agent. A pinned note sorts to the top of the recents and ends its row in
+  a filled star; there is no Pinned heading, because a group label for a
+  handful of rows cost more height than it explained. `pinnedFrontmatterYaml` in
   `@repo/notes/markdown/frontmatter` cuts or appends the key's own lines like
   `removeFrontmatterId` does, rather than re-serializing through
   `serializeProperties`, which restyles every flow list it re-emits; unpinning
@@ -997,44 +998,60 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   one group, footer, at the app's size step. The header line is the vault row
   (its initial on a tile, the name semibold, the recent vaults and Open
   another vault… behind the chevron) with Search beside it, a 24px button
-  that opens the quick switcher and says its chord. The one group's label is
-  the view's name AND its switch: it reads Recent or Files and a click shows
-  the other, with New note as the group's action at its trailing edge. Not
-  tabs and not stacked sections: a stack made every list short, and a tab row
-  was a third line of chrome for a two-way choice. Every other verb is a
-  right-click, as in an IDE: a row's menu carries its own, and the tree's
-  empty area carries New note, New folder, the sort toggle and Collapse all.
-  There is no search field in the rail: ⌘O, ⌘P and ⌘⇧F are the search
-  surfaces, and the tree's inline filter went with the field that drove it.
-  The footer is the workspace's ambient row: the sync state as a menu row (its
-  dot, its label, the agent's spinner while a thread runs; Sync now, Deleted
-  notes and Settings behind it), then Settings and the theme as the footer's
-  24px actions. The recents are `SidebarMenu` rows (`@repo/ui/components/
-sidebar-menu`, Fluid's row on the repo's proximity hover: the traveling
-  hover pill, semibold while current without the row widening, a
-  `SidebarMenuAction` revealed on hover); the tree keeps its own rows on
-  `useSidebarRow` because a tree row is a draggable, keyboard-walked
-  `treeitem` and a menu row is a button, and the two are drawn to one
-  ladder. The view is the workspace's (`railView` in `app/prefs.ts`) because
-  a `#tag` chip shows Recent scoped to the tag and a create shows Files; the
-  selected tag is the workspace's for the same reason. The folder scope is
-  set by the top bar's breadcrumb and cleared from the scope row above the
-  group: the header switches the vault, the breadcrumb narrows within it.
-  Two lists, one rule: the recents view is one list by recency with a folder
-  hint, and folders exist only in the tree. The tree's fold and selection are
-  the rail's state (`sidebar/tree-state.ts`), not the tree's: Collapse all
-  clears that set and a create lands where an IDE's would, in the tree's
-  selected folder, else at the scope, both derived from it; the group's
-  pending create is a plain prop the tree reports done. Find in note,
-  comments and the panel toggle live above the note; copy link, export and
-  share sit under its ⋯ menu. One `useVaultSwitch` and one
-  `RecentVaultLabel` (`app/desktop-vaults.tsx`) serve the rail's vault row
-  and Settings alike. The rail hides what the user did not write
+  that opens the palette. The one group's label names the view and opens the
+  view menu — Recent | Files | Deleted, one list each, drawn by the same
+  `SidebarMenu` rows so switching swaps rows and never the chrome around
+  them — with New note as the group's action at its trailing edge. Not tabs
+  and not stacked sections: a stack made every list short, and a tab row was
+  a third line of chrome. Every other verb is a right-click, as in an IDE: a
+  row's menu carries its own (the recents' Pin, the deleted's Restore, the
+  tree's rename, move and delete), and the tree's empty area carries New
+  note, New folder, the sort toggle and Collapse all. The footer is the
+  workspace's ambient row: the sync state as a menu row (its dot, its label,
+  the agent's spinner while a thread runs) over Sync now and the account —
+  Sign in… when this device has none, the account, Sync threads now and Sign
+  out when it does, through the one `useCloudSession`
+  (`app/cloud-session.ts`) Settings › Devices runs too. Settings and the
+  theme are the footer's 24px actions. Every row in the three views is a
+  `SidebarMenu` row (`@repo/ui/components/sidebar-menu`, Fluid's row on the
+  repo's proximity hover: the traveling hover pill, semibold while current
+  without the row widening, a `SidebarMenuAction` revealed on hover); the
+  tree's rows are those rows carrying `treeitem` and the drag handlers, so
+  its keyboard walk and the menu's arrow-key walk are one rhythm — the
+  menu's own walk stands down for a key the row already handled. The view is
+  the workspace's (`railView` in `app/prefs.ts`) because a `#tag` chip shows
+  Recent scoped to the tag, a create shows Files and a delete's Undo shows
+  Deleted; the selected tag is the workspace's for the same reason. THERE IS
+  NO FOLDER SCOPE: the top bar's breadcrumb REVEALS rather than narrows —
+  a segment shows Files, opens the way to that folder and selects it
+  (`revealInTree` in `sidebar/tree-state.ts`, applied where the fold state
+  lives, and the tree's one effect focuses the row that render drew). A
+  second listing root was a second answer to "what is this list?" and made
+  the recents' folder hints relative to it. The tree's fold and selection
+  are the rail's state (`sidebar/tree-state.ts`), not the tree's: Collapse
+  all clears that set and a create lands where an IDE's would, in the tree's
+  selected folder, else at the vault root; the group's pending create is a
+  plain prop the tree reports done. Find in note, comments and the panel
+  toggle live above the note; copy link, export and share sit under its ⋯
+  menu. One `useVaultSwitch` and one `RecentVaultLabel`
+  (`app/desktop-vaults.tsx`) serve the rail's vault row and Settings alike.
+  The rail hides what the user did not write
   (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment
   sidecars, dot-entries); the server's listing stays complete because the
   CLI and the agent read it. Under the macOS shell the rail reserves the
   traffic-light corner (`apps/desktop/src/renderer/app/title-bar.ts`);
   nothing else is a logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
+
+- **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
+  and every command in one field, and the two searches that are not a lookup
+  reach the rest from inside it: "Search across the vault…" opens the literal
+  scan with its replace, and the note's own find bar stays ⌘F because it is
+  scoped to the buffer, not the vault. ⌘O and ⌘⇧F are GONE, and with them the
+  palette's quick-open page (the root with its commands folded away) and the
+  rail's search field: four ways to type a note's name was three too many,
+  and each one was a different set of rows for the same question. The rail's
+  Search button opens the palette, and its tooltip spells ⌘P from the table
+  (`app/global-shortcuts.ts`), never as a literal.
 
 - **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
   serializer.** The Metadata tab's "About" block is folded by default because

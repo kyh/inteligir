@@ -4,26 +4,13 @@
 
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { orpc, refusalMessage } from "../api";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useDataDirScope, useVaultStatus } from "../vault-hooks";
-import { failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
-
-// Nothing on the ws bus announces a sync pass, so the status polls while the
-// page is mounted.
-const STATUS_POLL_MS = 5000;
-
-const useCloudStatus = () =>
-  useQuery({
-    ...orpc.cloud.status.queryOptions(),
-    refetchInterval: STATUS_POLL_MS,
-    staleTime: 0,
-  });
+import { useCloudSession } from "../cloud-session";
+import { useDataDirScope } from "../vault-hooks";
+import { Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 const lastSyncedLabel = (epochMs: number | null, nowMs: number): string =>
   epochMs === null ? "never" : relativeTimeLabel(epochMs, nowMs, { seconds: true });
@@ -125,69 +112,8 @@ export const SignedInDetails = ({ status, nowMs }: SignedInDetailsProps) => (
 );
 
 export const SyncSection = () => {
-  const queryClient = useQueryClient();
-  const { data: vaultStatus } = useVaultStatus();
-  const statusQuery = useCloudStatus();
+  const { status, pending, refusal, signIn, signOut, syncThreads } = useCloudSession();
   const now = useNow(LAST_SYNCED_TICK_MS);
-  const [refusal, setRefusal] = useState<string | null>(null);
-
-  const applyStatus = (next: CloudStatusResponse): void => {
-    queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
-  };
-
-  const signIn = useMutation(
-    orpc.cloud.login.mutationOptions({
-      onError: (error) => {
-        setRefusal(refusalMessage(error, "Could not sign in."));
-      },
-      onSuccess: (next) => {
-        setRefusal(null);
-        applyStatus(next);
-      },
-    }),
-  );
-  const logout = useMutation(
-    orpc.cloud.logout.mutationOptions({
-      onError: (error) => {
-        failed(error, "Could not sign this device out.");
-      },
-      onSuccess: applyStatus,
-    }),
-  );
-  const syncThreads = useMutation(
-    orpc.cloud.syncNow.mutationOptions({
-      onError: (error) => {
-        failed(error, "Could not run a sync.");
-      },
-      onSuccess: applyStatus,
-    }),
-  );
-  const pending = signIn.isPending || logout.isPending || syncThreads.isPending;
-
-  // Confirm before mutate: a section greyed out while the dialog waits claims
-  // work that has not started.
-  const signOut = (): void => {
-    void (async () => {
-      // Only an account-derived vault remote dies with the credential.
-      const vaultViaAccount =
-        vaultStatus !== undefined &&
-        vaultStatus.state !== "no-remote" &&
-        vaultStatus.remoteSource === "account";
-      const confirmed = await confirm({
-        body: `This machine forgets its credential and everything queued for the cloud.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here. The device stays listed on your account until you revoke it there.`,
-        confirmLabel: "Sign out",
-        destructive: true,
-        title: "Stop syncing this device?",
-      });
-      if (!confirmed) {
-        return;
-      }
-      setRefusal(null);
-      logout.mutate();
-    })();
-  };
-
-  const status = statusQuery.data;
   const scope = useDataDirScope();
 
   const body = () => {
@@ -200,9 +126,7 @@ export const SyncSection = () => {
           <SecondVaultNote scope={scope} />
           <SignInForm
             cloudUrl={status.cloudUrl}
-            onSignIn={(login) => {
-              signIn.mutate(login);
-            }}
+            onSignIn={signIn}
             pending={pending}
             refusal={refusal}
           />
@@ -225,14 +149,7 @@ export const SyncSection = () => {
       <div className="space-y-2">
         <SignedInDetails status={status} nowMs={now} />
         <div className="flex gap-2">
-          <Button
-            size="compact"
-            variant="tertiary"
-            disabled={pending}
-            onClick={() => {
-              syncThreads.mutate();
-            }}
-          >
+          <Button size="compact" variant="tertiary" disabled={pending} onClick={syncThreads}>
             Sync threads now
           </Button>
           <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>

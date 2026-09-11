@@ -15,10 +15,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  useSidebarRow,
 } from "@repo/ui/components/sidebar";
 import { Button } from "@repo/ui/components/button";
-import { cn } from "cn";
 import { EllipsisIcon, PlusIcon, SearchIcon, SettingsIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 
@@ -26,20 +24,6 @@ import { useState } from "react";
 import { Demo, GallerySection } from "./gallery-chrome";
 
 const SIDEBAR_NOTES = ["Release checklist", "Weekly review", "Kitchen Sink"];
-
-const SidebarNoteRows = () => {
-  const rowClass = useSidebarRow();
-  return SIDEBAR_NOTES.map((note, index) => (
-    <button
-      key={note}
-      type="button"
-      {...(index === 0 ? { "data-active": "" } : {})}
-      className={cn(rowClass, "px-2")}
-    >
-      {note}
-    </button>
-  ));
-};
 
 // the group's label is its switch here, as it is in the product
 const SidebarDemo = () => {
@@ -82,10 +66,6 @@ const SidebarDemo = () => {
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
-            </SidebarGroup>
-            <SidebarGroup>
-              <SidebarGroupLabel>Tree rows</SidebarGroupLabel>
-              <SidebarNoteRows />
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>

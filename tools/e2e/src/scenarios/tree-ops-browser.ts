@@ -15,6 +15,9 @@ const EDITOR = '[data-slate-editor="true"]';
 const DISK_DEADLINE_MS = 30_000;
 
 const row = (vaultPath: string): string => `[role="tree"] [data-path="${vaultPath}"]`;
+// the row's actions button is a sibling of the row, not a child: a button cannot nest a button
+const rowActions = (vaultPath: string): string =>
+  `[role="tree"] li:has([data-path="${vaultPath}"]) [data-sidebar="menu-action"]`;
 
 const readOrNull = async (filePath: string): Promise<string | null> =>
   await readFile(filePath, "utf-8").catch(() => null);
@@ -42,7 +45,7 @@ export const treeOpsBrowser: Scenario = {
       await agentBrowser(["wait", row(NOTE)], 30_000);
 
       ctx.log("Pin from the row menu lands pinned: true in the frontmatter");
-      await agentBrowser(["click", `${row(NOTE)} button[aria-label="Actions for ${NOTE}"]`]);
+      await agentBrowser(["click", rowActions(NOTE)]);
       await agentBrowser(["find", "role", "menuitem", "click", "--name", "Pin", "--exact"]);
       const pinDeadline = Date.now() + DISK_DEADLINE_MS;
       for (;;) {

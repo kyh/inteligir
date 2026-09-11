@@ -78,8 +78,8 @@ export interface PaletteActions {
   openProblemLink: (sourcePath: string, target: string) => void;
 }
 
-// the pages an entry point opens onto; "notes" is the root with its commands folded away (⌘O)
-export type PaletteEntryPage = "root" | "search" | "notes" | "headings" | "move-to-folder";
+// the pages an entry point opens onto; ⌘P is the one that opens the root
+export type PaletteEntryPage = "root" | "search" | "headings" | "move-to-folder";
 
 // One channel for every way the palette opens: the page, and for a move the entry it moves. The
 // workspace bumps `nonce` per open and keys the palette on it, so each open mounts fresh and no
@@ -210,7 +210,6 @@ const rootCommands = (
         },
       ]),
   {
-    binding: "open-search",
     icon: <SearchIcon />,
     id: "search-vault",
     keepOpen: true,
@@ -352,7 +351,7 @@ export const CommandPalette = ({
     queryKey: ["palette", "note-hits", settledQuery],
     queryFn: async ({ signal }) =>
       await searchSource(settledQuery, signal).catch((): NoteSearchHit[] => []),
-    enabled: open && (page === "root" || page === "notes"),
+    enabled: open && page === "root",
     placeholderData: (previous) => previous,
   });
   const noteHits = noteHitsQuery.data ?? [];
@@ -580,17 +579,14 @@ export const CommandPalette = ({
     return paged;
   }
 
-  const quickOpen = page === "notes";
-  const visibleCommands = quickOpen
-    ? []
-    : commands.filter((command) => matchesQuery(command.label, query));
+  const visibleCommands = commands.filter((command) => matchesQuery(command.label, query));
 
   return (
     <PalettePage
       {...shell}
-      title={quickOpen ? "Open a note" : "Command palette"}
-      description={quickOpen ? "Jump to a note by name" : "Open a note or run a command"}
-      placeholder={quickOpen ? "Open a note…" : "Search notes or commands…"}
+      title="Command palette"
+      description="Open a note or run a command"
+      placeholder="Search notes or commands…"
     >
       <CommandEmpty>Nothing matches.</CommandEmpty>
       {noteHits.length > 0 ? (

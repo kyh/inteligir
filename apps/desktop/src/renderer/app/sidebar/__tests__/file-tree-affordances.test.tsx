@@ -42,7 +42,7 @@ const renderTree = (overrides: Partial<React.ComponentProps<typeof RailTree>> = 
       ops={ops}
       pendingCreate={null}
       onPendingCreateDone={() => {}}
-      rootDir=""
+      reveal={null}
       onMoveRequest={() => {}}
       pinnedPaths={NO_PINS}
       sort="name"

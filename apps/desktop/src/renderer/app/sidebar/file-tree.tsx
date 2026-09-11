@@ -4,7 +4,12 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@repo/ui/components/dropdown-menu";
-import { useSidebarRow } from "@repo/ui/components/sidebar";
+import {
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@repo/ui/components/sidebar";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "cn";
 import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -16,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import type { TreeSort } from "../prefs";
 import { absoluteEntryPath, planMove } from "./tree-ops";
+import { withAncestorsExpanded } from "./tree-state";
 import type { TreeState } from "./tree-state";
 
 export interface TreeOps {
@@ -50,8 +56,8 @@ export interface FileTreeProps {
   // a create the header started: the input row shows until it commits or cancels
   pendingCreate: PendingCreate | null;
   onPendingCreateDone: () => void;
-  // the folder the listing is rooted at ("" is the vault): its children are the top-level rows
-  rootDir: string;
+  // the breadcrumb's ask, already applied to the fold state: bring this entry's row into view
+  reveal: { path: string; nonce: number } | null;
   // the keyboard path to a move: the caller opens its folder picker for this entry
   onMoveRequest: (path: string) => void;
   // which notes the index holds pinned; the row menu's verb follows it
@@ -62,6 +68,9 @@ export interface FileTreeProps {
   // the vault's absolute root, for the absolute path row; null until the listing answers
   vaultRoot: string | null;
 }
+
+// the listing is the whole vault: "" is its root
+const ROOT = "";
 
 // a file row stands for its folder: dropping beside a note puts the entry next to it
 const dropDirFor = (node: TreeNode): string =>
@@ -158,15 +167,6 @@ const copyText = (text: string): void => {
   })();
 };
 
-const withAncestorsExpanded = (current: ReadonlySet<string>, path: string): Set<string> => {
-  const next = new Set(current);
-  const segments = path.split("/");
-  for (let i = 1; i < segments.length; i += 1) {
-    next.add(segments.slice(0, i).join("/"));
-  }
-  return next;
-};
-
 const InlineNameInput = ({
   initialValue,
   depth,
@@ -243,14 +243,6 @@ const EmptyRows = ({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: 
   );
 };
 
-const rowClassName = (base: string, isDropTarget: boolean, isDragged: boolean): string =>
-  cn(
-    base,
-    "group cursor-default pr-1",
-    isDropTarget && "bg-primary/10 text-foreground",
-    isDragged && "opacity-50",
-  );
-
 // a right-click on a row, or on the listing's empty area (the root's own verbs)
 type TreeMenu =
   | { kind: "row"; node: TreeNode; anchor: HTMLElement }
@@ -265,7 +257,6 @@ interface RowMenuProps {
   ops: TreeOps;
   pinnedPaths: ReadonlySet<string>;
   vaultRoot: string | null;
-  rootDir: string;
   sort: TreeSort;
   onSortChange: (sort: TreeSort) => void;
   onCollapseAll: () => void;
@@ -287,7 +278,6 @@ const RowMenu = ({
   ops,
   pinnedPaths,
   vaultRoot,
-  rootDir,
   sort,
   onSortChange,
   onCollapseAll,
@@ -323,7 +313,7 @@ const RowMenu = ({
           align="start"
           side="bottom"
         >
-          {createItems(rootDir)}
+          {createItems(ROOT)}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
@@ -460,7 +450,7 @@ export const FileTree = ({
   state,
   pendingCreate,
   onPendingCreateDone,
-  rootDir,
+  reveal,
   onMoveRequest,
   pinnedPaths,
   sort,
@@ -468,7 +458,6 @@ export const FileTree = ({
   vaultRoot,
 }: FileTreeProps) => {
   const { expanded, setExpanded, activePath, setActivePath, collapseAll } = state;
-  const rowBase = useSidebarRow();
   const roots = useMemo(() => buildTree(entries, sort), [entries, sort]);
 
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -477,7 +466,7 @@ export const FileTree = ({
   // and a drag that started elsewhere (a file from the desktop) has no source here
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropDir, setDropDir] = useState<string | null>(null);
-  const treeRef = useRef<HTMLDivElement>(null);
+  const treeRef = useRef<HTMLUListElement>(null);
 
   const endDrag = (): void => {
     setDragging(null);
@@ -556,6 +545,21 @@ export const FileTree = ({
       setExpanded((current) => withAncestorsExpanded(current, path));
     }
   };
+  // The rail applied the reveal to the fold state it owns; this focuses the row that render
+  // drew, which is what brings it into view.
+  useEffect(() => {
+    if (reveal === null) {
+      return;
+    }
+    for (const candidate of treeRef.current?.querySelectorAll<HTMLElement>("[data-path]") ?? []) {
+      if (candidate.dataset.path === reveal.path) {
+        candidate.focus({ preventScroll: true });
+        candidate.scrollIntoView({ block: "nearest" });
+        return;
+      }
+    }
+  }, [reveal]);
+
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   if (expandedFor !== openPath) {
     setExpandedFor(openPath);
@@ -563,7 +567,7 @@ export const FileTree = ({
   }
 
   const rows: Row[] = [];
-  visibleRows(roots, expanded, activeEditing, rootDir, 0, rows);
+  visibleRows(roots, expanded, activeEditing, ROOT, 0, rows);
   const nodeRows = rows.filter((row): row is Extract<Row, { kind: "node" }> => row.kind === "node");
 
   const toggleDir = (path: string): void => {
@@ -626,7 +630,7 @@ export const FileTree = ({
       return;
     }
     const parent = dirnamePath(node.path);
-    if (parent !== rootDir) {
+    if (parent !== ROOT) {
       focusPath(parent);
     }
   };
@@ -733,20 +737,20 @@ export const FileTree = ({
   const tabStopPath = visible(activePath) ?? visible(openPath) ?? nodeRows[0]?.node.path ?? null;
 
   return (
-    <div
+    <SidebarMenu
       tabIndex={0}
       ref={treeRef}
       role="tree"
       aria-label="Vault files"
       className={cn(
-        "flex min-h-full flex-col py-1",
-        dropDir === rootDir && dragging !== null && "ring-1 ring-primary/40 ring-inset",
+        "min-h-full",
+        dropDir === ROOT && dragging !== null && "ring-1 ring-primary/40 ring-inset",
       )}
       onDragOver={(event) => {
-        dragOverDir(event, rootDir);
+        dragOverDir(event, ROOT);
       }}
       onDrop={(event) => {
-        dropIntoDir(event, rootDir);
+        dropIntoDir(event, ROOT);
       }}
       onContextMenu={(event) => {
         if (event.target !== event.currentTarget) {
@@ -758,84 +762,98 @@ export const FileTree = ({
     >
       {rows.map((row) => {
         if (row.kind === "editor") {
-          return createRow(row);
+          return (
+            <li key="create-editor" role="none">
+              {createRow(row)}
+            </li>
+          );
         }
         const { node } = row;
         if (activeEditing?.mode === "rename" && activeEditing.path === node.path) {
-          return renameRow(row);
+          return (
+            <li key={node.path} role="none">
+              {renameRow(row)}
+            </li>
+          );
         }
         const isOpen = node.kind === "file" && node.path === openPath;
         const isExpanded = node.kind === "dir" && expanded.has(node.path);
         const isDropTarget = node.kind === "dir" && dropDir === node.path && dragging !== null;
+        const menuOpen = menu?.kind === "row" && menu.node.path === node.path;
         return (
-          <div
-            key={node.path}
-            role="treeitem"
-            aria-level={row.depth + 1}
-            {...(node.kind === "dir" ? { "aria-expanded": isExpanded } : {})}
-            aria-selected={isOpen}
-            data-path={node.path}
-            tabIndex={node.path === tabStopPath ? 0 : -1}
-            draggable
-            {...(isOpen ? { "data-active": "" } : {})}
-            className={rowClassName(rowBase, isDropTarget, dragging === node.path)}
-            style={{ paddingLeft: row.depth * 12 + 4 }}
-            onClick={() => {
-              setActivePath(node.path);
-              activate(node);
-            }}
-            onDragStart={(event) => {
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", node.path);
-              setDragging(node.path);
-            }}
-            onDragEnd={endDrag}
-            onDragOver={(event) => {
-              dragOverDir(event, dropDirFor(node));
-            }}
-            onDrop={(event) => {
-              dropIntoDir(event, dropDirFor(node));
-            }}
-            onKeyDown={(event) => {
-              handleRowKeyDown(event, node);
-            }}
-            onFocus={() => {
-              setActivePath(node.path);
-            }}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              setMenu({ anchor: event.currentTarget, kind: "row", node });
-            }}
-          >
-            {node.kind === "dir" ? (
-              <ChevronRightIcon
-                className={cn(
-                  "size-3.5 shrink-0 text-muted-foreground transition-transform",
-                  isExpanded && "rotate-90",
-                )}
-              />
-            ) : (
-              <span className="w-3.5 shrink-0" />
-            )}
-            <span className="min-w-0 flex-1 truncate">{node.name}</span>
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label={`Actions for ${node.name}`}
-              className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-muted-foreground/10 data-open:opacity-100"
-              {...(menu?.kind === "row" && menu.node.path === node.path ? { "data-open": "" } : {})}
-              onClick={(event) => {
-                event.stopPropagation();
+          <SidebarMenuItem key={node.path} role="none">
+            <SidebarMenuButton
+              role="treeitem"
+              aria-level={row.depth + 1}
+              {...(node.kind === "dir" ? { "aria-expanded": isExpanded } : {})}
+              aria-selected={isOpen}
+              data-path={node.path}
+              tabIndex={node.path === tabStopPath ? 0 : -1}
+              draggable
+              isActive={isOpen}
+              className={cn(
+                "pr-8",
+                isDropTarget && "bg-primary/10 text-foreground",
+                dragging === node.path && "opacity-50",
+              )}
+              style={{ paddingLeft: row.depth * 12 + 8 }}
+              onClick={() => {
+                setActivePath(node.path);
+                activate(node);
+              }}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", node.path);
+                setDragging(node.path);
+              }}
+              onDragEnd={endDrag}
+              onDragOver={(event) => {
+                dragOverDir(event, dropDirFor(node));
+              }}
+              onDrop={(event) => {
+                dropIntoDir(event, dropDirFor(node));
+              }}
+              onKeyDown={(event) => {
+                handleRowKeyDown(event, node);
+              }}
+              onFocus={() => {
+                setActivePath(node.path);
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
                 setMenu({ anchor: event.currentTarget, kind: "row", node });
               }}
             >
-              <EllipsisIcon className="size-3.5" />
-            </button>
-          </div>
+              {node.kind === "dir" ? (
+                <ChevronRightIcon
+                  className={cn(
+                    "size-3.5 shrink-0 text-muted-foreground transition-transform",
+                    isExpanded && "rotate-90",
+                  )}
+                />
+              ) : (
+                <span className="w-3.5 shrink-0" />
+              )}
+              <span className="min-w-0 flex-1 truncate">{node.name}</span>
+            </SidebarMenuButton>
+            <SidebarMenuAction
+              showOnHover
+              tabIndex={-1}
+              aria-label={`Actions for ${node.name}`}
+              {...(menuOpen ? { "data-popup-open": "" } : {})}
+              onClick={(event) => {
+                setMenu({ anchor: event.currentTarget, kind: "row", node });
+              }}
+            >
+              <EllipsisIcon />
+            </SidebarMenuAction>
+          </SidebarMenuItem>
         );
       })}
       {entries.length === 0 && activeEditing === null ? (
-        <EmptyRows loadState={loadState} onRetry={onRetry} />
+        <li role="none">
+          <EmptyRows loadState={loadState} onRetry={onRetry} />
+        </li>
       ) : null}
       <RowMenu
         menu={menu}
@@ -853,11 +871,10 @@ export const FileTree = ({
         ops={ops}
         pinnedPaths={pinnedPaths}
         vaultRoot={vaultRoot}
-        rootDir={rootDir}
         sort={sort}
         onSortChange={onSortChange}
         onCollapseAll={collapseAll}
       />
-    </div>
+    </SidebarMenu>
   );
 };

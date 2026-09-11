@@ -1,5 +1,12 @@
 import { Button } from "@repo/ui/components/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@repo/ui/components/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -26,12 +33,11 @@ import { cn } from "cn";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
-  ArchiveRestoreIcon,
-  ArrowLeftIcon,
   ChevronDownIcon,
   ChevronsUpDownIcon,
-  FolderIcon,
   FolderOpenIcon,
+  LogInIcon,
+  LogOutIcon,
   MoonIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -43,6 +49,8 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "@repo/ui/components/sonner";
 import { useThreads } from "../actions/thread-hooks";
+import { useCloudSession } from "../cloud-session";
+import type { CloudSession } from "../cloud-session";
 import {
   openRecentVault,
   pickVault,
@@ -52,6 +60,7 @@ import {
 } from "../desktop-vaults";
 import { readTreeSort, writeTreeSort } from "../prefs";
 import type { RailView, TreeSort } from "../prefs";
+import { SignInForm } from "../settings/sync-section";
 import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
@@ -61,22 +70,19 @@ import {
   usePinnedPaths,
   useVaultStatus,
   useVaultTree,
-  vaultFolders,
 } from "../vault-hooks";
+import { DeletedNotes } from "./deleted-notes";
 import { FileTree } from "./file-tree";
 import type { PendingCreate, TreeLoadState, TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
 import { TaggedNotes } from "./tagged-notes";
-import { createDirFor, useTreeState } from "./tree-state";
+import { createDirFor, revealInTree, useTreeState } from "./tree-state";
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 
-// "" is the vault root. The folder itself is not a row: its children are.
-export const entriesUnder = (entries: readonly VaultEntry[], folder: string): VaultEntry[] =>
-  entries.filter(
-    (entry) =>
-      !isVaultMetadataPath(entry.path) && (folder === "" || entry.path.startsWith(`${folder}/`)),
-  );
+// the rail draws what the user wrote; the server's listing stays complete for the CLI and the agent
+export const visibleEntries = (entries: readonly VaultEntry[]): VaultEntry[] =>
+  entries.filter((entry) => !isVaultMetadataPath(entry.path));
 
 const treeLoadState = (query: ReturnType<typeof useVaultTree>): TreeLoadState => {
   if (query.isError) {
@@ -184,39 +190,55 @@ const VaultRow = ({ vaultName }: { vaultName: string }) => {
   );
 };
 
-// the breadcrumb sets the scope; this is where it is seen and cleared
-const FolderScopeHeader = ({ folder, onClear }: { folder: string; onClear: () => void }) => (
-  <div className="flex items-center gap-1 px-2 pt-2">
-    <Button variant="ghost" size="icon-compact" aria-label="Whole vault" onClick={onClear}>
-      <ArrowLeftIcon />
-    </Button>
-    <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-    <span className="min-w-0 flex-1 truncate text-sm font-medium" title={folder}>
-      {folder}
-    </span>
-  </div>
-);
+const RAIL_VIEWS: readonly RailView[] = ["recent", "files", "deleted"];
 
 const RAIL_VIEW_LABELS: Record<RailView, string> = {
+  deleted: "Deleted",
   files: "Files",
   recent: "Recent",
 };
 
-const otherView = (view: RailView): RailView => (view === "files" ? "recent" : "files");
-
-// The rail's ambient row: the sync state as the row, its verbs behind it, and the agent's
-// spinner while a thread runs. Settings and the theme sit beside it as the footer's actions.
-const SyncRow = ({
-  onSyncNow,
-  onOpenDeletedNotes,
-  onOpenSettings,
+// The sign-in the rail's sync row offers, over the same flow Settings › Devices runs.
+const SignInDialog = ({
+  cloudUrl,
+  session,
+  open,
+  onOpenChange,
 }: {
-  onSyncNow: () => void;
-  onOpenDeletedNotes: () => void;
-  onOpenSettings: () => void;
+  cloudUrl: string;
+  session: CloudSession;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) => {
+  const handleSignIn = session.signIn;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Sign in</DialogTitle>
+          <DialogDescription>
+            Your threads and your vault sync through your account. Signed out, this app makes no
+            cloud requests at all.
+          </DialogDescription>
+        </DialogHeader>
+        <SignInForm
+          cloudUrl={cloudUrl}
+          onSignIn={handleSignIn}
+          pending={session.pending}
+          refusal={session.refusal}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// The rail's ambient row: the vault's sync state as the row, and behind it the verbs that change
+// it — a sync now, and the account this device does or does not have.
+const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
   const statusQuery = useVaultStatus();
   const threadsQuery = useThreads();
+  const session = useCloudSession();
+  const [signInOpen, setSignInOpen] = useState(false);
   const agentWorking = (threadsQuery.data?.threads ?? []).some(
     (thread) =>
       thread.status === "active" || thread.status === "starting" || thread.status === "stopping",
@@ -224,55 +246,85 @@ const SyncRow = ({
   const status = statusQuery.data;
   const canSync = canSyncNow(status);
   const blocked = status === undefined ? null : (status.lastError ?? syncBlockedReason(status));
+  const cloud = session.status;
+  const handleSyncThreads = session.syncThreads;
+  const handleSignOut = session.signOut;
   return (
-    <SidebarMenu aria-label="Sync" className="min-w-0 flex-1">
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <SidebarMenuButton aria-label="Sync and vault menu">
-                <span
-                  className={cn(
-                    "size-2 shrink-0 rounded-full",
-                    status === undefined ? "bg-muted-foreground/40" : syncStateDotClass(status),
-                  )}
-                />
-                {status === undefined ? "…" : syncStateLabel(status)}
-                {agentWorking ? (
-                  <Spinner className="ml-1 size-3 shrink-0 text-muted-foreground" />
-                ) : null}
-                <span className="ml-auto -mr-0.5 flex size-6 shrink-0 items-center justify-center">
-                  <ChevronsUpDownIcon
-                    size={16}
-                    strokeWidth={1.5}
-                    className="text-muted-foreground"
+    <>
+      <SidebarMenu aria-label="Sync" className="min-w-0 flex-1">
+        <SidebarMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <SidebarMenuButton aria-label="Sync and account">
+                  <span
+                    className={cn(
+                      "size-2 shrink-0 rounded-full",
+                      status === undefined ? "bg-muted-foreground/40" : syncStateDotClass(status),
+                    )}
                   />
-                </span>
-              </SidebarMenuButton>
-            }
-          />
-          <DropdownMenuContent side="top" align="start" sideOffset={6}>
-            {blocked === null ? null : (
-              <DropdownMenuLabel className="max-w-64 whitespace-normal">
-                {blocked}
-              </DropdownMenuLabel>
-            )}
-            <DropdownMenuItem disabled={!canSync} onClick={onSyncNow}>
-              <RefreshCwIcon />
-              Sync now
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onOpenDeletedNotes}>
-              <ArchiveRestoreIcon />
-              Deleted notes…
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onOpenSettings}>
-              <SettingsIcon />
-              Settings…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+                  {status === undefined ? "…" : syncStateLabel(status)}
+                  {agentWorking ? (
+                    <Spinner className="ml-1 size-3 shrink-0 text-muted-foreground" />
+                  ) : null}
+                  <span className="ml-auto -mr-0.5 flex size-6 shrink-0 items-center justify-center">
+                    <ChevronsUpDownIcon
+                      size={16}
+                      strokeWidth={1.5}
+                      className="text-muted-foreground"
+                    />
+                  </span>
+                </SidebarMenuButton>
+              }
+            />
+            <DropdownMenuContent side="top" align="start" sideOffset={6}>
+              {blocked === null ? null : (
+                <DropdownMenuLabel className="max-w-64 whitespace-normal">
+                  {blocked}
+                </DropdownMenuLabel>
+              )}
+              <DropdownMenuItem disabled={!canSync} onClick={onSyncNow}>
+                <RefreshCwIcon />
+                Sync now
+              </DropdownMenuItem>
+              {cloud === undefined || cloud.state === "signed-in" ? null : (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSignInOpen(true);
+                  }}
+                >
+                  <LogInIcon />
+                  Sign in…
+                </DropdownMenuItem>
+              )}
+              {cloud?.state === "signed-in" ? (
+                <>
+                  <DropdownMenuLabel className="max-w-64 truncate">
+                    {cloud.accountEmail ?? new URL(cloud.cloudUrl).host}
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem disabled={session.pending} onClick={handleSyncThreads}>
+                    <RefreshCwIcon />
+                    Sync threads now
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={session.pending} onClick={handleSignOut}>
+                    <LogOutIcon />
+                    Sign out
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      {cloud === undefined || cloud.state === "signed-in" ? null : (
+        <SignInDialog
+          cloudUrl={cloud.cloudUrl}
+          session={session}
+          open={signInOpen}
+          onOpenChange={setSignInOpen}
+        />
+      )}
+    </>
   );
 };
 
@@ -307,15 +359,12 @@ export interface SidebarRailContentProps {
   onViewChange: (view: RailView) => void;
   selectedTag: string | null;
   onSelectTag: (tag: string | null) => void;
-  // the listing's folder ("" is the vault): owned by the workspace, since the top bar's
-  // breadcrumb sets it too
-  folder: string;
-  onFolderChange: (folder: string) => void;
-  // the header's search is the quick switcher; the chord is spelled by the workspace's table
+  // the breadcrumb's ask, passed to the tree: open the way to this entry and select it
+  reveal: { path: string; nonce: number } | null;
+  // the header's Search opens the one palette; the chord is spelled by the workspace's table
   onOpenSearch: () => void;
   searchShortcut: string | null;
   onSyncNow: () => void;
-  onOpenDeletedNotes: () => void;
   onOpenSettings: () => void;
 }
 
@@ -328,12 +377,10 @@ export const SidebarRailContent = ({
   onViewChange,
   selectedTag,
   onSelectTag,
-  folder,
-  onFolderChange,
+  reveal,
   onOpenSearch,
   searchShortcut,
   onSyncNow,
-  onOpenDeletedNotes,
   onOpenSettings,
 }: SidebarRailContentProps) => {
   const treeQuery = useVaultTree();
@@ -346,18 +393,30 @@ export const SidebarRailContent = ({
   const handleSetPinned = ops.setPinned;
 
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
-  const folders = useMemo(() => new Set(vaultFolders(entries)), [entries]);
-  // a remembered folder the vault no longer holds shows the root, once the listing has answered
-  const scope = treeQuery.data !== undefined && !folders.has(folder) ? "" : folder;
-  const scoped = useMemo(() => entriesUnder(entries, scope), [entries, scope]);
+  const listed = useMemo(() => visibleEntries(entries), [entries]);
 
-  // The header's one create is a note; a folder is the tree's right-click. It lands where an
-  // IDE's would: in the tree's selected folder, else at the scope.
+  // The breadcrumb's reveal lands on the fold state the rail owns, keyed by the nonce so naming
+  // the same entry twice reveals it twice; the tree is handed the same request and focuses the
+  // row its next render draws.
+  const [appliedReveal, setAppliedReveal] = useState<number | null>(null);
+  if (reveal !== null && reveal.nonce !== appliedReveal) {
+    setAppliedReveal(reveal.nonce);
+    revealInTree(
+      tree,
+      reveal.path,
+      entries.some((entry) => entry.kind === "dir" && entry.path === reveal.path),
+    );
+  }
+
+  // The group's create is a note; a folder is the tree's right-click. It lands where an IDE's
+  // would: in the tree's selected folder, else at the vault root.
   const startCreate = (): void => {
     onViewChange("files");
     setPendingCreate({
       kind: "file",
-      parentDir: createDirFor(scope, tree.activePath, (path) => folders.has(path)),
+      parentDir: createDirFor("", tree.activePath, (path) =>
+        entries.some((entry) => entry.kind === "dir" && entry.path === path),
+      ),
     });
   };
   const changeSort = (next: TreeSort): void => {
@@ -366,6 +425,9 @@ export const SidebarRailContent = ({
   };
 
   const list = (): React.ReactNode => {
+    if (view === "deleted") {
+      return <DeletedNotes onOpenNote={onOpenFile} />;
+    }
     if (view === "recent") {
       if (selectedTag !== null) {
         return (
@@ -373,8 +435,7 @@ export const SidebarRailContent = ({
             key={selectedTag}
             tag={selectedTag}
             onSelectTag={onSelectTag}
-            entries={scoped}
-            scope={scope}
+            entries={listed}
             openPath={openPath}
             onOpenFile={onOpenFile}
             onSetPinned={handleSetPinned}
@@ -383,8 +444,7 @@ export const SidebarRailContent = ({
       }
       return (
         <NotesList
-          entries={scoped}
-          scope={scope}
+          entries={listed}
           openPath={openPath}
           onOpenFile={onOpenFile}
           onSetPinned={handleSetPinned}
@@ -394,7 +454,7 @@ export const SidebarRailContent = ({
     }
     return (
       <FileTree
-        entries={scoped}
+        entries={listed}
         loadState={treeLoadState(treeQuery)}
         onRetry={() => {
           void treeQuery.refetch();
@@ -407,7 +467,7 @@ export const SidebarRailContent = ({
         onPendingCreateDone={() => {
           setPendingCreate(null);
         }}
-        rootDir={scope}
+        reveal={reveal}
         onMoveRequest={onMoveRequest}
         pinnedPaths={pinnedPaths}
         sort={treeSort}
@@ -418,8 +478,8 @@ export const SidebarRailContent = ({
   };
 
   // Fluid's sidebar anatomy: the vault row and Search share the header line; one group whose
-  // label is the view's name and its switch, with New note as the group's action; the sync row,
-  // Settings and the theme in the footer. Every other verb is a right-click.
+  // label names the view and opens the view menu, with New note as the group's action; the sync
+  // row, Settings and the theme in the footer. Every other verb is a right-click.
   return (
     <>
       <SidebarHeader>
@@ -444,25 +504,29 @@ export const SidebarRailContent = ({
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {scope === "" ? null : (
-          <FolderScopeHeader
-            folder={scope}
-            onClear={() => {
-              onFolderChange("");
-            }}
-          />
-        )}
         <SidebarGroup>
-          <Tooltip content={`Show ${RAIL_VIEW_LABELS[otherView(view)]}`} side="top">
-            <SidebarGroupLabel
-              aria-label={`${RAIL_VIEW_LABELS[view]}: show ${RAIL_VIEW_LABELS[otherView(view)]}`}
-              onClick={() => {
-                onViewChange(otherView(view));
-              }}
-            >
-              {RAIL_VIEW_LABELS[view]}
-            </SidebarGroupLabel>
-          </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <SidebarGroupLabel aria-label={`View: ${RAIL_VIEW_LABELS[view]}`}>
+                  {RAIL_VIEW_LABELS[view]}
+                  <ChevronDownIcon size={12} strokeWidth={1.5} className="shrink-0" />
+                </SidebarGroupLabel>
+              }
+            />
+            <DropdownMenuContent align="start" sideOffset={2}>
+              {RAIL_VIEWS.map((name) => (
+                <DropdownMenuItem
+                  key={name}
+                  onClick={() => {
+                    onViewChange(name);
+                  }}
+                >
+                  {RAIL_VIEW_LABELS[name]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <SidebarGroupActions>
             <Tooltip content="New note" side="top">
               <SidebarGroupAction aria-label="New note" onClick={startCreate}>
@@ -475,11 +539,7 @@ export const SidebarRailContent = ({
       </SidebarContent>
       <SidebarFooter>
         <div className="flex items-center gap-1 pr-1.5">
-          <SyncRow
-            onSyncNow={onSyncNow}
-            onOpenDeletedNotes={onOpenDeletedNotes}
-            onOpenSettings={onOpenSettings}
-          />
+          <SyncRow onSyncNow={onSyncNow} />
           <Tooltip content="Settings" side="top">
             <Button
               variant="ghost"

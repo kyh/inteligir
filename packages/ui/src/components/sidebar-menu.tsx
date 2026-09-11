@@ -238,7 +238,8 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (!NAV_KEYS.has(e.key)) {
+      // a row that walked the key itself (a tree's expand on ArrowRight) is left alone
+      if (!NAV_KEYS.has(e.key) || e.defaultPrevented) {
         return;
       }
       const container = containerRef.current;

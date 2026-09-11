@@ -951,24 +951,6 @@ const SidebarContent = ({
 );
 SidebarContent.displayName = "SidebarContent";
 
-// The one row every list in a sidebar draws, on the size ladder: the menu row's height and text,
-// the item radius, muted at rest and lit on hover, the current row filled. A consumer adds its
-// own leading inset (a tree's depth) and its trailing cells.
-const useSidebarRow = (): string => {
-  const radius = useRadius();
-  const size = useSize();
-  return cn(
-    "flex w-full min-w-0 items-center outline-none select-none",
-    "text-muted-foreground transition-colors duration-80",
-    "hover:bg-muted/60 hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground",
-    "data-active:bg-muted data-active:text-foreground",
-    size.variant === "compact" ? "h-7" : "h-8",
-    size.text,
-    size.gap,
-    radius.item,
-  );
-};
-
 export {
   SidebarProvider,
   SidebarShell,
@@ -980,5 +962,4 @@ export {
   SidebarGroupLabel,
   SidebarGroupActions,
   SidebarGroupAction,
-  useSidebarRow,
 };

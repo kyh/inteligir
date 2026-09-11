@@ -18,22 +18,19 @@ export interface TaggedNotesProps {
   // owned by the workspace: a `#tag` chip anywhere in the note sets it
   tag: string;
   onSelectTag: (tag: string | null) => void;
-  // the listing's entries, already scoped to the folder
   entries: readonly VaultEntry[];
-  scope: string;
   openPath: string | null;
   onOpenFile: (path: string) => void;
   onSetPinned: (path: string, pinned: boolean) => void;
 }
 
 // One page that grows: the list is re-read whole rather than stitched, since the drawn list is
-// scope-filtered and recency-sorted afterwards. Keyed on the tag by the rail, so a new tag
+// recency-sorted afterwards. Keyed on the tag by the rail, so a new tag
 // starts at the first page without a reset in userland.
 export const TaggedNotes = ({
   tag,
   onSelectTag,
   entries,
-  scope,
   openPath,
   onOpenFile,
   onSetPinned,
@@ -66,7 +63,6 @@ export const TaggedNotes = ({
       />
       <NotesList
         entries={taggedEntries}
-        scope={scope}
         openPath={openPath}
         onOpenFile={onOpenFile}
         emptyText={taggedQuery.data === undefined ? "…" : `No notes tagged #${tag} here.`}

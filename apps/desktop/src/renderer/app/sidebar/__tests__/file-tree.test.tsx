@@ -56,7 +56,7 @@ const renderTree = (
       ops={ops}
       pendingCreate={null}
       onPendingCreateDone={() => {}}
-      rootDir=""
+      reveal={null}
       onMoveRequest={() => {}}
       pinnedPaths={NO_PINS}
       sort="name"
@@ -284,28 +284,6 @@ describe("the context menu", () => {
   });
 });
 
-describe("a listing rooted at a folder", () => {
-  const scoped = ENTRIES.filter((entry) => entry.path.startsWith("notes/"));
-
-  it("shows the folder's children as top-level rows", () => {
-    renderTree({ entries: scoped, rootDir: "notes" });
-    expect(row("notes/ideas.md").getAttribute("aria-level")).toBe("1");
-    expect(screen.queryByText("notes")).toBeNull();
-  });
-
-  it("lands a root create inside the folder", () => {
-    const { ops } = renderTree({
-      entries: scoped,
-      pendingCreate: { kind: "file", parentDir: "notes" },
-      rootDir: "notes",
-    });
-    const input = screen.getByLabelText("Name");
-    fireEvent.change(input, { target: { value: "todo" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(ops.createNote).toHaveBeenCalledWith("notes/todo.md");
-  });
-});
-
 describe("where a create from outside the tree lands", () => {
   it("is the selected folder, or the selected file's, else the root", () => {
     renderTree();
@@ -352,16 +330,6 @@ describe("moving by drag and drop", () => {
     const { ops } = renderTree({ openPath: "notes/ideas.md" });
     dragTo(row("notes/ideas.md"), screen.getByRole("tree"));
     expect(ops.moveEntry).toHaveBeenCalledWith("notes/ideas.md", "");
-  });
-
-  it("a scoped listing's empty area is the scope, not the vault root", () => {
-    const { ops } = renderTree({
-      entries: ENTRIES.filter((entry) => entry.path.startsWith("notes/")),
-      openPath: "notes/daily/2026-08-16.md",
-      rootDir: "notes",
-    });
-    dragTo(row("notes/daily/2026-08-16.md"), screen.getByRole("tree"));
-    expect(ops.moveEntry).toHaveBeenCalledWith("notes/daily/2026-08-16.md", "notes");
   });
 
   it("offers Move to… in the row menu when a picker is wired", async () => {

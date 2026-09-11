@@ -13,7 +13,6 @@ const KEYS = {
   panelWidth: "inteligir.panel-width",
   railView: "inteligir.rail-view",
   relatedOpen: "inteligir.related-open",
-  sidebarFolder: "inteligir.sidebar-folder",
   sidebarWidth: "inteligir.sidebar-width",
   spellcheck: "inteligir.spellcheck",
   theme: "inteligir.theme",
@@ -86,7 +85,7 @@ export const writeRelatedOpen = (open: boolean): void => {
   write(KEYS.relatedOpen, open ? "true" : "false");
 };
 
-const RAIL_VIEWS = ["recent", "files"] as const;
+const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
 export type RailView = (typeof RAIL_VIEWS)[number];
 
 // which of the rail's views is showing
@@ -97,13 +96,6 @@ export const readRailView = (): RailView => {
 
 export const writeRailView = (view: RailView): void => {
   write(KEYS.railView, view);
-};
-
-// "" is the vault root. A remembered folder the vault no longer holds is the rail's to fall back from.
-export const readSidebarFolder = (): string => read(KEYS.sidebarFolder) ?? "";
-
-export const writeSidebarFolder = (folder: string): void => {
-  write(KEYS.sidebarFolder, folder === "" ? null : folder);
 };
 
 export type TreeSort = "name" | "modified";

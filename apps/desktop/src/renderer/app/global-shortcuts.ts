@@ -8,8 +8,6 @@ export type GlobalShortcutAction =
   | "open-action-composer"
   | "open-palette"
   | "find-in-note"
-  | "open-search"
-  | "open-quick-switcher"
   | "open-headings"
   | "open-settings"
   | "open-daily-note"
@@ -26,10 +24,8 @@ export interface GlobalShortcut {
 export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { action: "open-action-composer", key: "k", label: "Ask the agent" },
   { action: "open-palette", key: "p", label: "Command palette" },
-  { action: "open-quick-switcher", key: "o", label: "Open a note" },
   { action: "open-headings", key: "o", label: "Go to heading", shift: true },
   { action: "find-in-note", key: "f", label: "Find in note" },
-  { action: "open-search", key: "f", label: "Search across the vault", shift: true },
   { action: "open-daily-note", key: "d", label: "Daily note" },
   { action: "toggle-zen", key: "\\", label: "Zen mode" },
   { action: "open-settings", key: ",", label: "Settings" },
