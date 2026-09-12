@@ -6,7 +6,7 @@ import type { HTMLAttributes, PointerEvent, ReactNode, RefAttributes } from "rea
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const InsightCardGrid = ({
   className,

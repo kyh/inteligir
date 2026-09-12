@@ -10,7 +10,7 @@ import { useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { spring } from "@repo/ui/lib/springs";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   checked: boolean;

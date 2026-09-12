@@ -7,7 +7,7 @@ import type { PlateLeafProps } from "platejs/react";
 
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { editorShortcutFor, matchesHotkey } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";

@@ -6,7 +6,7 @@ import { ElementApi, KEYS, NodeApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 import { useEditorRef, useEditorSelector } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 export interface HeadingItem {
   id: string;

@@ -1,5 +1,5 @@
 import { Switch } from "@repo/ui/components/switch";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { useState } from "react";
 import type { SpellcheckState } from "../../../spellcheck-state";
 import { chooseSpellcheck, useDesktopSpellcheck } from "../desktop-spellcheck";

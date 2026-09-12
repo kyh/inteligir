@@ -2,7 +2,7 @@
 import * as React from "react";
 import { Input as InputPrimitive } from "@base-ui/react/input";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const Input = ({ className, type, ...props }: React.ComponentProps<"input">) => (
   <InputPrimitive

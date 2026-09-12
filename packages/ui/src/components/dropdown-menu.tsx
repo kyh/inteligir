@@ -15,7 +15,7 @@ import type { ComponentProps, ReactNode, RefAttributes, RefObject } from "react"
 import { motion } from "framer-motion";
 import { Menu } from "@base-ui/react/menu";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";

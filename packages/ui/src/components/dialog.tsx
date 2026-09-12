@@ -14,7 +14,7 @@ import { useSize } from "@repo/ui/lib/size-context";
 import { spring } from "@repo/ui/lib/springs";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const DIALOG_OFFSET = 4;
 

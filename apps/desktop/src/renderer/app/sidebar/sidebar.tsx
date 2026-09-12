@@ -29,7 +29,7 @@ import {
 import { Spinner } from "@repo/ui/components/spinner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useTheme } from "@repo/ui/lib/theme";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {

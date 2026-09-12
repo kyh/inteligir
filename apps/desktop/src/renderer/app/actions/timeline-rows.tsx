@@ -10,7 +10,7 @@ import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { memo } from "react";
 import type { ReactNode } from "react";
 

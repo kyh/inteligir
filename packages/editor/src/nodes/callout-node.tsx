@@ -1,7 +1,7 @@
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";
 

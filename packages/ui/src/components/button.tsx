@@ -10,7 +10,7 @@ import type { IconComponent } from "@repo/ui/lib/icon";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { isTextChild } from "@repo/ui/lib/text-children";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const buttonStructure = cva(
   [

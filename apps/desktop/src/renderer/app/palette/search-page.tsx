@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/button";
 import { CommandEmpty, CommandGroup, CommandItem } from "@repo/ui/components/command";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { KNOWLEDGE_MATCHES_DEFAULT_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

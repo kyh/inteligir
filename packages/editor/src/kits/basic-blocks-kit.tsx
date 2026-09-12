@@ -20,7 +20,7 @@ import type { DecoratedRange, Path, SlateEditor, TElement } from "platejs";
 import { ParagraphPlugin, PlateElement, PlateLeaf } from "platejs/react";
 import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { BlockquoteElement, alertMarkerPrefix } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";

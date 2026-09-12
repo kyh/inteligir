@@ -1,6 +1,6 @@
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
 import { toast } from "@repo/ui/components/sonner";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { refusalMessage } from "../api";
 
 export const failed = (cause: unknown, fallback: string): void => {

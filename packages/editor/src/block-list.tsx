@@ -7,7 +7,7 @@ import { useReadOnly } from "platejs/react";
 import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 
 import { Checkbox } from "@repo/ui/components/checkbox";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { numberProp, stringProp } from "@repo/editor/node-props";
 

@@ -2,7 +2,7 @@
 
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 // Flat tabs: a row of labels and one underline that slides between them.
 const Tabs = ({ className, ...props }: TabsPrimitive.Root.Props) => (

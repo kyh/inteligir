@@ -1,7 +1,7 @@
 // Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
 import * as React from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const Textarea = ({ className, ...props }: React.ComponentProps<"textarea">) => (
   <textarea

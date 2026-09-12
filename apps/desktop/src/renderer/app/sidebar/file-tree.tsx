@@ -11,7 +11,7 @@ import {
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar";
 import { toast } from "@repo/ui/components/sonner";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";

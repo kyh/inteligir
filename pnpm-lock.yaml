@@ -437,9 +437,6 @@ importers:
 
   apps/desktop:
     dependencies:
-      cn:
-        specifier: 'catalog:'
-        version: 0.2.5
       inteligir:
         specifier: workspace:*
         version: link:../cli
@@ -640,9 +637,6 @@ importers:
       better-auth:
         specifier: 'catalog:'
         version: 1.7.2(@tanstack/react-start@1.168.46(esbuild@0.28.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.1.5)(supports-color@10.2.2)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@libsql/client@0.17.4)(@types/better-sqlite3@9.6.0)(kysely@0.29.5))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.11(@types/node@24.13.3)(jsdom@30.0.1(@noble/hashes@2.4.0))(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13)(yaml@2.9.0)))
-      cn:
-        specifier: 'catalog:'
-        version: 0.2.5
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@libsql/client@0.17.4)(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)(kysely@0.29.5)
@@ -875,9 +869,6 @@ importers:
       '@repo/ui':
         specifier: workspace:*
         version: link:../ui
-      cn:
-        specifier: 'catalog:'
-        version: 0.2.5
       katex:
         specifier: ^0.18.5
         version: 0.18.5

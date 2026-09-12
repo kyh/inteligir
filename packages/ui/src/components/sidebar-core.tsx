@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { HTMLMotionProps } from "framer-motion";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cssVars } from "@repo/ui/lib/css-vars";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";

@@ -6,7 +6,7 @@ import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 interface CodeBlockContextValue {
   code: string;

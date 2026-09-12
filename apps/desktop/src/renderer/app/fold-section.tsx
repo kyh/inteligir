@@ -1,4 +1,4 @@
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { ChevronRightIcon } from "lucide-react";
 
 // One fold header for the panel's Metadata tab: the chevron, the uppercase label and an

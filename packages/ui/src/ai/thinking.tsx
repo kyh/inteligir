@@ -8,7 +8,7 @@ import type { VariantProps } from "class-variance-authority";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 interface ThinkingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   label?: string;

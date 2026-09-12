@@ -3,7 +3,7 @@
 
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const Flowchart = ({
   className,

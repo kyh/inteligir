@@ -6,7 +6,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { motion, useMotionValue } from "framer-motion";
 import type { MotionStyle } from "framer-motion";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";

@@ -9,7 +9,7 @@ import type { PlateElementProps } from "platejs/react";
 import { PlusIcon, XIcon } from "lucide-react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";
 

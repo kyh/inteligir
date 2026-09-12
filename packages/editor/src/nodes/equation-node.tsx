@@ -6,7 +6,7 @@ import type { TElement } from "platejs";
 import { PlateElement, useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 

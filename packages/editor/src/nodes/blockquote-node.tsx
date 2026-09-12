@@ -14,7 +14,7 @@ import type { SlateEditor, TElement } from "platejs";
 import { PlateElement, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { CALLOUT_ALERT, CALLOUT_EDITING } from "@repo/editor/style-hooks";
 

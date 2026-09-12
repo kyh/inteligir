@@ -10,7 +10,7 @@ import { Hotkeys } from "platejs";
 import type { TElement } from "platejs";
 import { useComposedRef, useEditorRef, useSelected } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import {
   absorbRacedComboboxText,

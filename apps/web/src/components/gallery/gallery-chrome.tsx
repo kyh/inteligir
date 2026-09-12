@@ -1,4 +1,4 @@
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import type { ReactNode } from "react";
 
 export interface GallerySectionProps {

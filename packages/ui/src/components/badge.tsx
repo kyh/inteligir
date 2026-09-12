@@ -7,7 +7,7 @@ import type { VariantProps } from "class-variance-authority";
 
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const badgeColors = {
   amber: "#f59e0b",

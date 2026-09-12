@@ -7,7 +7,7 @@ import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
 import { Collapse } from "@repo/ui/lib/collapse";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 interface TableContextValue {
   columns: string;

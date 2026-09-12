@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 export const RichBlockCard = ({
   actions,

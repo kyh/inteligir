@@ -7,7 +7,7 @@ import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { isHttpUrl } from "@repo/editor/lib/wire";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { useDarkClass } from "@repo/editor/lib/use-dark-class";
 import { stringProp } from "@repo/editor/node-props";

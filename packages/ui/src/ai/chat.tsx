@@ -9,7 +9,7 @@ import type {
   RefAttributes,
 } from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const ChatPanel = ({
   className,

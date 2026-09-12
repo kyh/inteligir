@@ -330,7 +330,16 @@ to the END of its group.
   them as the `text-caption | body | subtitle | title | display` utilities
   declared once in `packages/ui/src/styles/globals.css`, and
   `lib/__tests__/type-scale.test.ts` derives the expected numbers from the
-  map, so the CSS and the map cannot drift. `text-sm`, `text-xs` and a
+  map, so the CSS and the map cannot drift. THE MERGE ENGINE HAS TO BE TOLD
+  THEY ARE SIZES: any unknown value after `text-` reads as a colour, so
+  `cn("text-body", "text-muted-foreground")` dropped the size and the line
+  fell back to the inherited 16px — every role class inside a `cn` call was
+  silently doing nothing. `cn` is therefore configured once
+  (`packages/ui/src/lib/cn.ts`) and imported from there by every file in the
+  repo, reversing the drop-the-pass-through cleanup for a reason it did not
+  have: the wrapper now carries configuration, and a second unconfigured `cn`
+  beside it would be the bug again. Named in the font-size group, a role also
+  correctly replaces another role, which CSS ordering cannot do. `text-sm`, `text-xs` and a
   `text-[13px]` literal are gone from the shell and from `@repo/ui`'s
   components: a role says what a line IS, and four spellings of 12px said
   nothing. The utilities carry the compact step alone because the product

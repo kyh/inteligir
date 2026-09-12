@@ -1,6 +1,6 @@
 import { Elevated } from "@repo/ui/lib/elevated";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { Demo, GallerySection } from "./gallery-chrome";
 
