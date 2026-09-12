@@ -1157,6 +1157,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   why neither a file guard nor knip can ask this). Base UI's `render` prop is the
   polymorphism channel; there is no Slot.
 
+- **A ROW DOES NOT ANSWER FOR ITS OWN POSITION; ITS CONTAINER DOES.** A
+  conditional row changes where its siblings sit without re-rendering them, so
+  a row deriving its index from the DOM needs an effect with no dependency
+  array — and a React rule suppression makes the compiler skip optimizing the
+  whole component. The popup keeps the set instead and reads document order
+  itself (`syncRows` in `packages/ui/src/components/dropdown-menu.tsx`, the
+  same shape `sidebar-menu.tsx` uses): a row registers its element and asks
+  only whether it is the active one. There are no React rule suppressions left
+  in the renderer or `@repo/ui`, and the compiler optimizes both.
+
 - **THE REACT COMPILER IS ON FOR ALL THREE APPS**: `compiler: true` on
   `@vitejs/plugin-react` in both vite configs and `reactCompiler: true` in
   `apps/mobile/app.config.js`. The manual-memo sweep is a follow-up.

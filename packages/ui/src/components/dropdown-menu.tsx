@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   useEffect,
-  useLayoutEffect,
   useCallback,
   useMemo,
   createContext,
@@ -18,6 +17,7 @@ import { Menu } from "@base-ui/react/menu";
 import { cn } from "@repo/ui/lib/cn";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
+import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { radiusMap } from "@repo/ui/lib/radius-context";
@@ -50,8 +50,10 @@ const useDropdownMenuContext = () => {
 };
 
 interface DropdownItemsContextValue {
-  registerItem: (index: number, element: HTMLElement | null) => void;
-  activeIndex: number | null;
+  // a row hands the popup its element; the popup keeps the ordering, since only it can read the
+  // document order of rows that mount and unmount independently of each other
+  registerRow: (element: HTMLElement) => () => void;
+  activeRowEl: HTMLElement | null;
 }
 
 const DropdownItemsContext = createContext<DropdownItemsContextValue | null>(null);
@@ -149,6 +151,45 @@ const DropdownMenuContent = ({
 
   const { activeIndex, setActiveIndex, itemRects, session, handlers, registerItem, measureItems } =
     useProximityHover(containerRef);
+  const rowsRef = useRef<Set<HTMLElement>>(new Set());
+  const registeredCountRef = useRef(0);
+  const [orderedRows, setOrderedRows] = useState<HTMLElement[]>([]);
+
+  // the document's own order, read from the popup: a conditional row changes where its siblings
+  // sit without re-rendering them, so no row can answer for its own position
+  const syncRows = useCallback(() => {
+    const container = containerRef.current;
+    const sorted =
+      container === null
+        ? []
+        : [...container.querySelectorAll<HTMLElement>("[data-dropdown-menu-item]")].filter((el) =>
+            rowsRef.current.has(el),
+          );
+    setOrderedRows((previous) =>
+      previous.length === sorted.length && previous.every((el, i) => el === sorted[i])
+        ? previous
+        : sorted,
+    );
+    for (const [i, el] of sorted.entries()) {
+      registerItem(i, el);
+    }
+    for (let i = sorted.length; i < registeredCountRef.current; i += 1) {
+      registerItem(i, null);
+    }
+    registeredCountRef.current = sorted.length;
+  }, [registerItem]);
+
+  const registerRow = useCallback(
+    (element: HTMLElement) => {
+      rowsRef.current.add(element);
+      syncRows();
+      return () => {
+        rowsRef.current.delete(element);
+        syncRows();
+      };
+    },
+    [syncRows],
+  );
   const {
     onMouseEnter: handleMouseEnter,
     onMouseLeave: handleMouseLeave,
@@ -206,7 +247,8 @@ const DropdownMenuContent = ({
     };
   }, [open, measureItems]);
 
-  const itemsCtx = useMemo(() => ({ activeIndex, registerItem }), [registerItem, activeIndex]);
+  const activeRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
+  const itemsCtx = useMemo(() => ({ activeRowEl, registerRow }), [registerRow, activeRowEl]);
 
   return (
     <Menu.Portal>
@@ -251,10 +293,9 @@ const DropdownMenuContent = ({
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               onFocus={(e) => {
-                const indexAttr =
-                  e.target.closest<HTMLElement>("[data-proximity-index]")?.dataset.proximityIndex;
-                if (indexAttr !== undefined) {
-                  const idx = Number(indexAttr);
+                const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
+                const idx = row === null ? -1 : orderedRows.indexOf(row);
+                if (idx !== -1) {
                   setActiveIndex(idx);
                   setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
                 }
@@ -340,39 +381,19 @@ const DropdownMenuItem = ({
   ref,
   ...props
 }: DropdownMenuItemProps) => {
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const { registerItem, activeIndex } = useDropdownItems();
-  const [index, setIndex] = useState<number | null>(null);
+  // state, not a ref: `isActive` compares it while rendering, and a ref read there is not reactive
+  const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
+  const { registerRow, activeRowEl } = useDropdownItems();
   const sizeClasses = useSize();
 
-  // no deps: conditional rows change the DOM order without remounting their siblings, so every
-  // commit re-derives; setIndex bails when unchanged, so this cannot loop.
-  // oxlint-disable-next-line react/rule-suppression -- the next line is that deliberate suppression
-  // oxlint-disable-next-line react-hooks/exhaustive-deps -- see above
-  useLayoutEffect(() => {
-    const node = rowRef.current;
-    const menu = node?.closest('[role="menu"]');
-    if (!node || !menu) {
+  useIsoLayoutEffect(() => {
+    if (rowEl === null) {
       return;
     }
-    const rows = [...menu.querySelectorAll("[data-dropdown-menu-item]")];
-    const idx = rows.indexOf(node);
-    if (idx !== -1) {
-      setIndex(idx);
-    }
-  });
+    return registerRow(rowEl);
+  }, [registerRow, rowEl]);
 
-  useEffect(() => {
-    if (index === null) {
-      return;
-    }
-    registerItem(index, rowRef.current);
-    return () => {
-      registerItem(index, null);
-    };
-  }, [index, registerItem]);
-
-  const isActive = index !== null && activeIndex === index;
+  const isActive = rowEl !== null && activeRowEl === rowEl;
   const activeTone = isActive ? "text-foreground" : "text-muted-foreground";
 
   return (
@@ -381,9 +402,8 @@ const DropdownMenuItem = ({
       closeOnClick={closeOnClick ?? true}
       render={
         <div
-          ref={composeRefs(rowRef, ref)}
+          ref={composeRefs(setRowEl, ref)}
           data-dropdown-menu-item=""
-          data-proximity-index={index ?? undefined}
           className={cn(
             `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
             sizeClasses.text,
