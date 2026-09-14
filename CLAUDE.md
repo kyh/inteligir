@@ -250,7 +250,7 @@ to the END of its group.
 - [Dictation](#dictation) — 6
 - [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
 - [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
-- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 5
+- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 6
 - [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
 
 ### Editor and dialect
@@ -1125,6 +1125,33 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   published one, never a recount, and zen hides the strip with the rest. The
   rail's and the panel's shells take `h-full` from the workspace because
   Fluid's shell is viewport-height by class.
+
+- **THE PALETTE IS FLUID'S COMMAND MENU, AND IT HAS NO PRIMITIVE UNDER IT**
+  (reversing the cmdk line; the dependency is gone). The field keeps DOM focus
+  and names the highlighted row through `aria-activedescendant`, so the list
+  is a `role="listbox"` of plain rows: the arrows and Enter are the field's
+  handlers, and the highlight is the one proximity pill every other popup here
+  draws (`ProximityOverlays` over `useProximityHover`), not a per-row
+  `data-selected` fill. cmdk's filter was already off on every page — each page
+  filters its own rows — so what it still owned was the keyboard, and one
+  keyboard beside the pill was two answers to "which row is live?". ROWS ARE
+  CHILDREN, NOT DATA, diverging from Fluid's `items` array deliberately: the
+  pages draw eight different row shapes (a heading's depth, a match's
+  before/hit/after, a problem's detail) and a data array would be a second
+  answer to what a row is. A row therefore does not answer for its own
+  position — the list reads document order through the same `syncRows` shape
+  `dropdown-menu.tsx` uses. The panel opens where a panel at its cap height
+  sits centered and KEEPS that top edge, so the field never moves as the rows
+  filter down. The footer names Enter after the highlighted row, read off that
+  row's own `data-command-action`, so nothing keeps a second copy of a label
+  the page already drew; a row without one leaves Enter unnamed rather than
+  guessing. A chord draws one box per key, cut from the string
+  `spellHotkey` already spelled (`shortcutCaps`), because @repo/ui cannot
+  reach `@repo/editor` and a second spelling of ⌘ would be a second spelling.
+  What went with cmdk is `input-group.tsx`: the palette's framed field was its
+  last consumer, and Fluid's field is frameless over a divider.
+  `packages/ui/src/components/command.tsx` and
+  `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
 
 ### Repo guards, vendoring and tooling
 

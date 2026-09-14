@@ -218,7 +218,7 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
           {group.rows.map((row) => (
             <CommandItem
               key={row.ordinal}
-              value={`${row.path}#${String(row.ordinal)}`}
+              action={`${group.title === "" ? group.path : group.title} line ${String(row.line)}`}
               onSelect={() => {
                 onOpenMatch(row, shell.query);
               }}

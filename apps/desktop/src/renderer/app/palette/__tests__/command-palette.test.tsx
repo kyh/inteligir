@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { shortcutCaps } from "@repo/ui/components/command";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
@@ -60,6 +61,18 @@ const renderPalette = ({ fakes, ...overrides }: RenderOverrides = {}) => {
   return { actions, onOpenChange };
 };
 
+// The footer names the row Enter would run, so a row's label is on screen twice. Every row
+// assertion scopes itself to the list; the toolbar's own controls stay on `screen`.
+const rows = () => within(screen.getByRole("listbox"));
+
+// A chord draws one box per key, so it is read off the row's own caps rather than as one string.
+const chords = (): string[] =>
+  [...screen.getByRole("listbox").querySelectorAll("[data-slot='command-shortcut']")].map(
+    (kbd) => kbd.textContent ?? "",
+  );
+
+const caps = (chord: string): string => shortcutCaps(chord).join("");
+
 const OUTLINE = [
   { depth: 1, id: "0", path: [0], title: "Plan" },
   { depth: 2, id: "2", path: [2], title: "Week one" },
@@ -72,11 +85,11 @@ describe("the headings page", () => {
     const { onOpenChange } = renderPalette({
       actions: { ...makeActions(), goToHeading, listHeadings: () => OUTLINE },
     });
-    fireEvent.click(screen.getByText("Go to heading…"));
+    fireEvent.click(rows().getByText("Go to heading…"));
     expect(screen.getByPlaceholderText("Go to heading…")).toBeDefined();
-    expect(screen.getByText("Week one")).toBeDefined();
-    expect(screen.getByText("H3")).toBeDefined();
-    fireEvent.click(screen.getByText("Monday"));
+    expect(rows().getByText("Week one")).toBeDefined();
+    expect(rows().getByText("H3")).toBeDefined();
+    fireEvent.click(rows().getByText("Monday"));
     expect(goToHeading).toHaveBeenCalledWith(OUTLINE[2]);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -89,16 +102,16 @@ describe("the headings page", () => {
     fireEvent.change(screen.getByPlaceholderText("Go to heading…"), {
       target: { value: "week" },
     });
-    expect(screen.getByText("Week one")).toBeDefined();
-    expect(screen.queryByText("Monday")).toBeNull();
+    expect(rows().getByText("Week one")).toBeDefined();
+    expect(rows().queryByText("Monday")).toBeNull();
   });
 
   it("says so with no note open, and hides the root command", () => {
     renderPalette({ request: { nonce: 1, page: "headings" } });
-    expect(screen.getByText("Open a note to jump to its headings.")).toBeDefined();
+    expect(rows().getByText("Open a note to jump to its headings.")).toBeDefined();
     cleanup();
     renderPalette();
-    expect(screen.queryByText("Go to heading…")).toBeNull();
+    expect(rows().queryByText("Go to heading…")).toBeNull();
   });
 });
 
@@ -108,20 +121,20 @@ describe("pinning from the palette", () => {
     const { onOpenChange } = renderPalette({
       actions: { ...makeActions(), pin: { pinned: false, toggle } },
     });
-    expect(screen.queryByText("Unpin note")).toBeNull();
-    fireEvent.click(screen.getByText("Pin note"));
+    expect(rows().queryByText("Unpin note")).toBeNull();
+    fireEvent.click(rows().getByText("Pin note"));
     expect(toggle).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     cleanup();
     renderPalette({ actions: { ...makeActions(), pin: { pinned: true, toggle } } });
-    expect(screen.queryByText("Pin note")).toBeNull();
-    expect(screen.getByText("Unpin note")).toBeDefined();
+    expect(rows().queryByText("Pin note")).toBeNull();
+    expect(rows().getByText("Unpin note")).toBeDefined();
   });
 
   it("offers neither with no note open", () => {
     renderPalette();
-    expect(screen.queryByText("Pin note")).toBeNull();
-    expect(screen.queryByText("Unpin note")).toBeNull();
+    expect(rows().queryByText("Pin note")).toBeNull();
+    expect(rows().queryByText("Unpin note")).toBeNull();
   });
 });
 
@@ -166,7 +179,7 @@ afterEach(() => {
 describe("note search", () => {
   it("lists notes from the source and opens the picked one", async () => {
     const { actions, onOpenChange } = renderPalette();
-    fireEvent.click(await screen.findByText("Welcome.md"));
+    fireEvent.click(await rows().findByText("Welcome.md"));
     expect(actions.openNote).toHaveBeenCalledWith("Welcome.md");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -174,16 +187,16 @@ describe("note search", () => {
   it("narrows the note list as the query types", async () => {
     renderPalette();
     fireEvent.change(searchBox(), { target: { value: "ideas" } });
-    expect(await screen.findByText("notes/ideas.md")).toBeDefined();
+    expect(await rows().findByText("notes/ideas.md")).toBeDefined();
     await waitFor(() => {
-      expect(screen.queryByText("Welcome.md")).toBeNull();
+      expect(rows().queryByText("Welcome.md")).toBeNull();
     });
   });
 
   it("renders full-text hits with title and path, and their pick opens the path", async () => {
     const { actions } = renderPalette({ searchSource: titledSource });
     fireEvent.change(searchBox(), { target: { value: "big" } });
-    fireEvent.click(await screen.findByText("Big Ideas"));
+    fireEvent.click(await rows().findByText("Big Ideas"));
     expect(actions.openNote).toHaveBeenCalledWith("notes/ideas.md");
   });
 
@@ -196,7 +209,7 @@ describe("note search", () => {
     renderPalette({ searchSource: source });
     fireEvent.change(searchBox(), { target: { value: "old" } });
     fireEvent.change(searchBox(), { target: { value: "new" } });
-    expect(await screen.findByText("new.md")).toBeDefined();
+    expect(await rows().findByText("new.md")).toBeDefined();
     expect(asked).not.toContain("old");
   });
 
@@ -218,14 +231,14 @@ describe("note search", () => {
     // the abort rather than the debounce.
     await slowReached.promise;
     fireEvent.change(searchBox(), { target: { value: "new" } });
-    expect(await screen.findByText("fresh.md")).toBeDefined();
+    expect(await rows().findByText("fresh.md")).toBeDefined();
     // the cache drops the superseded read once its observer moved to the new key
     await waitFor(() => {
       expect(slowSignal?.aborted).toBe(true);
     });
     slow.resolve([{ path: "stale.md" }]);
     await waitFor(() => {
-      expect(screen.queryByText("stale.md")).toBeNull();
+      expect(rows().queryByText("stale.md")).toBeNull();
     });
   });
 
@@ -233,7 +246,7 @@ describe("note search", () => {
     renderPalette({ searchSource: failingSource });
     fireEvent.change(searchBox(), { target: { value: "anything" } });
     await waitFor(() => {
-      expect(screen.queryByText("Welcome.md")).toBeNull();
+      expect(rows().queryByText("Welcome.md")).toBeNull();
     });
   });
 });
@@ -241,35 +254,35 @@ describe("note search", () => {
 describe("commands", () => {
   it("runs New note at the vault root", () => {
     const { actions } = renderPalette();
-    fireEvent.click(screen.getByText("New note"));
+    fireEvent.click(rows().getByText("New note"));
     expect(actions.newNote).toHaveBeenCalledWith("");
   });
 
   it("filters commands by the query", () => {
     renderPalette();
     fireEvent.change(searchBox(), { target: { value: "daily" } });
-    expect(screen.getByText("Daily note")).toBeDefined();
-    expect(screen.queryByText("Settings")).toBeNull();
+    expect(rows().getByText("Daily note")).toBeDefined();
+    expect(rows().queryByText("Settings")).toBeNull();
   });
 
   it("runs the daily note command", () => {
     const { actions } = renderPalette();
-    fireEvent.click(screen.getByText("Daily note"));
+    fireEvent.click(rows().getByText("Daily note"));
     expect(actions.openDailyNote).toHaveBeenCalled();
   });
 
   it("hides Sync now without a remote and shows it with one", () => {
     renderPalette();
-    expect(screen.queryByText("Sync now")).toBeNull();
+    expect(rows().queryByText("Sync now")).toBeNull();
     cleanup();
     const { actions } = renderPalette({ canSync: true });
-    fireEvent.click(screen.getByText("Sync now"));
+    fireEvent.click(rows().getByText("Sync now"));
     expect(actions.syncNow).toHaveBeenCalled();
   });
 
   it("opens settings", () => {
     const { actions } = renderPalette();
-    fireEvent.click(screen.getByText("Settings"));
+    fireEvent.click(rows().getByText("Settings"));
     expect(actions.openSettings).toHaveBeenCalled();
   });
 });
@@ -279,73 +292,73 @@ const TEMPLATE: VaultEntry = { kind: "file", path: "templates/Meeting.md" };
 describe("the template pages", () => {
   it("lists templates by stem and creates a note from the picked one", () => {
     const { actions, onOpenChange } = renderPalette({ entries: [...ENTRIES, TEMPLATE] });
-    fireEvent.click(screen.getByText("New note from template…"));
+    fireEvent.click(rows().getByText("New note from template…"));
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    fireEvent.click(screen.getByText("Meeting"));
+    fireEvent.click(rows().getByText("Meeting"));
     expect(actions.newNoteFromTemplate).toHaveBeenCalledWith("templates/Meeting.md");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("offers Insert template only over an open note, and inserts the picked one", () => {
     renderPalette({ entries: [...ENTRIES, TEMPLATE] });
-    expect(screen.queryByText("Insert template…")).toBeNull();
+    expect(rows().queryByText("Insert template…")).toBeNull();
     cleanup();
     const insertTemplate = vi.fn<NonNullable<PaletteActions["insertTemplate"]>>();
     const { actions } = renderPalette({
       actions: { ...makeActions(), insertTemplate },
       entries: [...ENTRIES, TEMPLATE],
     });
-    fireEvent.click(screen.getByText("Insert template…"));
-    fireEvent.click(screen.getByText("Meeting"));
+    fireEvent.click(rows().getByText("Insert template…"));
+    fireEvent.click(rows().getByText("Meeting"));
     expect(insertTemplate).toHaveBeenCalledWith("templates/Meeting.md");
     expect(actions.insertTemplate).toBeNull();
   });
 
   it("says where templates come from when the folder is empty", () => {
     renderPalette();
-    fireEvent.click(screen.getByText("New note from template…"));
-    expect(screen.getByText(/No templates yet/u)).toBeDefined();
+    fireEvent.click(rows().getByText("New note from template…"));
+    expect(rows().getByText(/No templates yet/u)).toBeDefined();
   });
 });
 
 describe("the new-note-in-folder page", () => {
   it("stays open, lists folders and creates in the picked one", () => {
     const { actions, onOpenChange } = renderPalette();
-    fireEvent.click(screen.getByText("New note in folder…"));
+    fireEvent.click(rows().getByText("New note in folder…"));
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    expect(screen.getByText("Vault root")).toBeDefined();
-    fireEvent.click(screen.getByText("notes/daily"));
+    expect(rows().getByText("Vault root")).toBeDefined();
+    fireEvent.click(rows().getByText("notes/daily"));
     expect(actions.newNote).toHaveBeenCalledWith("notes/daily");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("filters folders by the query and always keeps the root", () => {
     renderPalette();
-    fireEvent.click(screen.getByText("New note in folder…"));
+    fireEvent.click(rows().getByText("New note in folder…"));
     fireEvent.change(screen.getByPlaceholderText("New note in which folder?"), {
       target: { value: "daily" },
     });
-    expect(screen.getByText("notes/daily")).toBeDefined();
-    expect(screen.queryByText(/^notes$/u)).toBeNull();
-    expect(screen.getByText("Vault root")).toBeDefined();
+    expect(rows().getByText("notes/daily")).toBeDefined();
+    expect(rows().queryByText(/^notes$/u)).toBeNull();
+    expect(rows().getByText("Vault root")).toBeDefined();
   });
 });
 
 describe("the move-to-folder page", () => {
   it("is offered for the open note and moves it into the picked folder", () => {
     const { actions, onOpenChange } = renderPalette({ openNotePath: "Welcome.md" });
-    fireEvent.click(screen.getByText("Move note to folder…"));
+    fireEvent.click(rows().getByText("Move note to folder…"));
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    fireEvent.click(screen.getByText("notes/daily"));
+    fireEvent.click(rows().getByText("notes/daily"));
     expect(actions.moveNote).toHaveBeenCalledWith("Welcome.md", "notes/daily");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("hides the folder the note is already in, and the root when that is it", () => {
     renderPalette({ openNotePath: "Welcome.md" });
-    fireEvent.click(screen.getByText("Move note to folder…"));
-    expect(screen.queryByText("Vault root")).toBeNull();
-    expect(screen.getByText(/^notes$/u)).toBeDefined();
+    fireEvent.click(rows().getByText("Move note to folder…"));
+    expect(rows().queryByText("Vault root")).toBeNull();
+    expect(rows().getByText(/^notes$/u)).toBeDefined();
   });
 
   it("opens straight on the page for a requested entry, and hides its own subtree", () => {
@@ -353,16 +366,16 @@ describe("the move-to-folder page", () => {
       request: { nonce: 1, page: "move-to-folder", subject: "notes" },
     });
     expect(screen.getByPlaceholderText("Move to which folder?")).toBeDefined();
-    expect(screen.queryByText(/^notes$/u)).toBeNull();
-    expect(screen.queryByText("notes/daily")).toBeNull();
-    expect(screen.queryByText("Vault root")).toBeNull();
-    expect(screen.getByText("No folder it can move to.")).toBeDefined();
+    expect(rows().queryByText(/^notes$/u)).toBeNull();
+    expect(rows().queryByText("notes/daily")).toBeNull();
+    expect(rows().queryByText("Vault root")).toBeNull();
+    expect(rows().getByText("No folder it can move to.")).toBeDefined();
     expect(actions.moveNote).not.toHaveBeenCalled();
   });
 
   it("is absent from the root page with no note open", () => {
     renderPalette();
-    expect(screen.queryByText("Move note to folder…")).toBeNull();
+    expect(rows().queryByText("Move note to folder…")).toBeNull();
   });
 });
 
@@ -401,7 +414,7 @@ const vaultSearchBox = (): HTMLElement => screen.getByPlaceholderText("Search ac
 describe("the search page", () => {
   it("is reached from the root's command and from the page a shortcut names", () => {
     renderPalette();
-    fireEvent.click(screen.getByText("Search across the vault…"));
+    fireEvent.click(rows().getByText("Search across the vault…"));
     expect(vaultSearchBox()).toBeDefined();
     cleanup();
     renderPalette({ request: { nonce: 1, page: "search" } });
@@ -414,11 +427,11 @@ describe("the search page", () => {
       request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    expect(await screen.findByText("again")).toBeDefined();
-    expect(screen.getByText("Big Ideas · notes/ideas.md")).toBeDefined();
-    const rows = screen.getAllByText("big");
-    expect(rows).toHaveLength(2);
-    const [, second] = rows;
+    expect(await rows().findByText("again")).toBeDefined();
+    expect(rows().getByText("Big Ideas · notes/ideas.md")).toBeDefined();
+    const hits = rows().getAllByText("big");
+    expect(hits).toHaveLength(2);
+    const [, second] = hits;
     if (second === undefined) {
       throw new Error("the second match row is missing");
     }
@@ -436,7 +449,7 @@ describe("the search page", () => {
       request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await screen.findByText("again");
+    await rows().findByText("again");
     fireEvent.click(screen.getByLabelText("Match case"));
     fireEvent.change(screen.getByLabelText("Replace with"), { target: { value: "huge" } });
     fireEvent.click(screen.getByText("Replace all"));
@@ -463,7 +476,7 @@ describe("the search page", () => {
       request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await screen.findByText("again");
+    await rows().findByText("again");
     fireEvent.click(screen.getByText("Replace all"));
     expect(screen.getByText("Replacing… 0 of 1 notes")).toBeDefined();
     if (port === null) {
@@ -485,8 +498,8 @@ describe("the search page", () => {
       request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await screen.findByText("again");
-    expect(screen.getByText(/2 of 5 matches shown/u)).toBeDefined();
+    await rows().findByText("again");
+    expect(rows().getByText(/2 of 5 matches shown/u)).toBeDefined();
     fireEvent.click(screen.getByText("Replace all"));
     expect(actions.replaceAll).not.toHaveBeenCalled();
   });
@@ -518,71 +531,71 @@ const someProblems = (): KnowledgeProblemsResponse => ({
 describe("the problems page", () => {
   it("lists each family with its count, and a link row lands on that link", async () => {
     const { actions, onOpenChange } = renderPalette({ fakes: { problems: someProblems } });
-    fireEvent.click(screen.getByText("Problems"));
-    expect(await screen.findByText("Unresolved links · 3")).toBeDefined();
-    expect(screen.getByText("Orphans · 1")).toBeDefined();
-    expect(screen.getByText("Duplicate stems · 1")).toBeDefined();
-    expect(screen.queryByText(/Missing embeds/u)).toBeNull();
-    expect(screen.getByText(/2 more not shown/u)).toBeDefined();
-    fireEvent.click(screen.getByText("[[Nowhere]] in Welcome"));
+    fireEvent.click(rows().getByText("Problems"));
+    expect(await rows().findByText("Unresolved links · 3")).toBeDefined();
+    expect(rows().getByText("Orphans · 1")).toBeDefined();
+    expect(rows().getByText("Duplicate stems · 1")).toBeDefined();
+    expect(rows().queryByText(/Missing embeds/u)).toBeNull();
+    expect(rows().getByText(/2 more not shown/u)).toBeDefined();
+    fireEvent.click(rows().getByText("[[Nowhere]] in Welcome"));
     expect(actions.openProblemLink).toHaveBeenCalledWith("Welcome.md", "Nowhere");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("opens an orphan or a duplicate as a note, and filters rows by the query", async () => {
     const { actions } = renderPalette({ fakes: { problems: someProblems } });
-    fireEvent.click(screen.getByText("Problems"));
-    await screen.findByText("Lonely");
+    fireEvent.click(rows().getByText("Problems"));
+    await rows().findByText("Lonely");
     fireEvent.change(screen.getByPlaceholderText("Filter problems…"), {
       target: { value: "a/guide" },
     });
-    expect(screen.queryByText("Lonely")).toBeNull();
-    fireEvent.click(screen.getByText("a/Guide.md"));
+    expect(rows().queryByText("Lonely")).toBeNull();
+    fireEvent.click(rows().getByText("a/Guide.md"));
     expect(actions.openNote).toHaveBeenCalledWith("a/Guide.md");
     expect(actions.openProblemLink).not.toHaveBeenCalled();
   });
 
   it("says when the vault is clean", async () => {
     renderPalette();
-    fireEvent.click(screen.getByText("Problems"));
-    expect(await screen.findByText(/No problems:/u)).toBeDefined();
+    fireEvent.click(rows().getByText("Problems"));
+    expect(await rows().findByText(/No problems:/u)).toBeDefined();
   });
 });
 
 describe("the keyboard shortcuts page", () => {
   it("lists every row of every table, spelled for the keyboard the palette was given", () => {
     renderPalette();
-    fireEvent.click(screen.getByText("Keyboard shortcuts"));
+    fireEvent.click(rows().getByText("Keyboard shortcuts"));
     expect(screen.getByPlaceholderText("Filter shortcuts…")).toBeDefined();
     for (const row of GLOBAL_SHORTCUTS) {
-      expect(screen.getByText(row.label)).toBeDefined();
-      expect(screen.getByText(spellHotkey(globalShortcutHotkey(row), "meta"))).toBeDefined();
+      expect(rows().getByText(row.label)).toBeDefined();
+      expect(chords()).toContain(caps(spellHotkey(globalShortcutHotkey(row), "meta")));
     }
     for (const row of [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS]) {
-      expect(screen.getByText(row.label)).toBeDefined();
-      expect(screen.getByText(spellHotkey(row.hotkey, "meta"))).toBeDefined();
+      expect(rows().getByText(row.label)).toBeDefined();
+      expect(chords()).toContain(caps(spellHotkey(row.hotkey, "meta")));
     }
   });
 
   it("filters by label or chord", () => {
     renderPalette();
-    fireEvent.click(screen.getByText("Keyboard shortcuts"));
+    fireEvent.click(rows().getByText("Keyboard shortcuts"));
     fireEvent.change(screen.getByPlaceholderText("Filter shortcuts…"), {
       target: { value: "⇧⌘G" },
     });
-    expect(screen.getByText("Previous match")).toBeDefined();
-    expect(screen.queryByText("Next match")).toBeNull();
+    expect(rows().getByText("Previous match")).toBeDefined();
+    expect(rows().queryByText("Next match")).toBeNull();
   });
 });
 
 describe("a command's binding", () => {
   it("is the global table's row, not a literal", () => {
     renderPalette();
-    expect(screen.getByText("⌘D")).toBeDefined();
-    expect(screen.getByText("⌘,")).toBeDefined();
+    expect(chords()).toContain(caps("⌘D"));
+    expect(chords()).toContain(caps("⌘,"));
     cleanup();
     renderPalette({ modifier: "ctrl" });
-    expect(screen.getByText("Ctrl+D")).toBeDefined();
-    expect(screen.getByText("Ctrl+,")).toBeDefined();
+    expect(chords()).toContain(caps("Ctrl+D"));
+    expect(chords()).toContain(caps("Ctrl+,"));
   });
 });

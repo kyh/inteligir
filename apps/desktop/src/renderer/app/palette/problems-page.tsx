@@ -135,7 +135,7 @@ export const ProblemsPage = ({ onOpenNote, onOpenLink, ...shell }: ProblemsPageP
           {family.rows.map((row) => (
             <CommandItem
               key={row.id}
-              value={row.id}
+              action={row.label}
               onSelect={() => {
                 if (row.target === undefined) {
                   onOpenNote(row.path);

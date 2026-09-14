@@ -66,9 +66,9 @@ export const ShortcutsPage = ({ modifier, onPick, ...shell }: ShortcutsPageProps
       {groups.map((group) => (
         <CommandGroup key={group.heading} heading={group.heading}>
           {group.rows.map((row) => (
-            <CommandItem key={row.id} value={row.id} onSelect={onPick}>
+            <CommandItem key={row.id} action={row.label} onSelect={onPick}>
               {row.label}
-              <CommandShortcut>{row.chord}</CommandShortcut>
+              <CommandShortcut keys={row.chord} />
             </CommandItem>
           ))}
         </CommandGroup>
