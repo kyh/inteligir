@@ -396,7 +396,7 @@ export const CommandPalette = ({
               {visible.map((row) => (
                 <CommandItem
                   key={row.id}
-                  value={row.id}
+                  action={row.title}
                   onSelect={() => {
                     run(() => {
                       actions.goToHeading(row);
@@ -475,6 +475,7 @@ export const CommandPalette = ({
             {visibleThreads.map((thread) => (
               <CommandItem
                 key={thread.id}
+                action={threadRowLabel(thread)}
                 onSelect={() => {
                   run(() => {
                     actions.openThread(thread.id);
@@ -594,6 +595,7 @@ export const CommandPalette = ({
           {noteHits.map((hit) => (
             <CommandItem
               key={hit.path}
+              action={hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
               onSelect={() => {
                 run(() => {
                   actions.openNote(hit.path);
@@ -618,6 +620,7 @@ export const CommandPalette = ({
           {visibleCommands.map((command) => (
             <CommandItem
               key={command.id}
+              action={command.label}
               onSelect={() => {
                 if (command.keepOpen === true) {
                   command.run();
@@ -629,7 +632,7 @@ export const CommandPalette = ({
               {command.icon}
               {command.label}
               {command.binding === undefined ? null : (
-                <CommandShortcut>{bindingFor(command.binding, modifier)}</CommandShortcut>
+                <CommandShortcut keys={bindingFor(command.binding, modifier) ?? ""} />
               )}
             </CommandItem>
           ))}
