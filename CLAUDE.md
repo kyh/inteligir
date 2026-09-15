@@ -188,10 +188,11 @@ packages/
                  shape. What survives of the origin is the MIT attribution
                  header on each file and its licence text in tools/licenses.
                  A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fifteen
-                 components no surface draws on yet, kept by owner decision
-                 and listed one by one in the PER-EXPORT orphan guard
-                 (`tools/repo-guards/src/ui-orphan-exports.test.ts`), so a
-                 sixteenth still fails. Leaf.
+                 components no surface draws on yet, and `components/` holds
+                 one (Fluid's `input-group.tsx`), each kept by owner decision
+                 and listed by its own path in the PER-EXPORT orphan guard
+                 (`tools/repo-guards/src/ui-orphan-exports.test.ts`), so an
+                 unlisted one still fails. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws
@@ -1148,8 +1149,11 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   guessing. A chord draws one box per key, cut from the string
   `spellHotkey` already spelled (`shortcutCaps`), because @repo/ui cannot
   reach `@repo/editor` and a second spelling of ⌘ would be a second spelling.
-  What went with cmdk is `input-group.tsx`: the palette's framed field was its
-  last consumer, and Fluid's field is frameless over a divider.
+  The field is FRAMELESS over a divider, which cost the shadcn `input-group.tsx`
+  its last consumer; the file that carries that name now is Fluid's own
+  InputGroup, which is a different component (a stack of labelled fields the
+  proximity hover travels between, not a field wearing an addon) and is held for
+  the first multi-field form by a row in the orphan guard.
   `packages/ui/src/components/command.tsx` and
   `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
 

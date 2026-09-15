@@ -29,6 +29,10 @@ const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/search.tsx",
   "packages/ui/src/ai/selection-actions.tsx",
   "packages/ui/src/ai/sidebar-nav.tsx",
+  // Fluid's labelled-field stack, held by owner decision when the palette's framed field (the
+  // shadcn InputGroup this replaced) went frameless: the product's forms are single fields with
+  // their own Label today, and this is the group the first multi-field form takes.
+  "packages/ui/src/components/input-group.tsx",
 ]);
 
 // keyed `<repo-relative file>#<export name>`; a row is a decision, not a backlog.
