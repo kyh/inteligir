@@ -81,7 +81,7 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 - **Scope is enforced twice, on purpose.** `threadEventSchema` refuses a
   turn-only event under thread scope, and a turn scope with no id, at parse;
   the `events_scope_shape_check` CHECK in
-  `packages/db/drizzle/0001_early_tana_nile.sql` refuses the same row at
+  `packages/db/drizzle/20260816084328_early_tana_nile/migration.sql` refuses the same row at
   insert. A turn-scoped row with no turn id is a row no query can place.
 - **The lifecycle is a table, and the db applies it under a CAS.**
   `packages/db/src/threads.ts` evaluates the event here, then updates only

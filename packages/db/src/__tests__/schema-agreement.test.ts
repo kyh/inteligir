@@ -1,9 +1,9 @@
-// `drizzle/*.sql` is what a user's file becomes and `src/schema.ts` is what every query is typed
+// `drizzle/*/migration.sql` is what a user's file becomes and `src/schema.ts` is what every query is typed
 // against; neither checks the other. column order is not compared: `ALTER TABLE … ADD COLUMN`
 // appends where a fresh `CREATE TABLE` places the column as declared, and no query is positional.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,10 +12,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createConnection } from "../connection";
 import { asMapping, isText } from "../json-source";
 import type { JsonValue } from "../json-source";
-import { parseMigrationJournal } from "../migration-journal";
-import type { MigrationJournal } from "../migration-journal";
 import { getSchemaVersion } from "../meta";
-import { runMigrations } from "../migrate";
+import { listMigrationNames, runMigrations } from "../migrate";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const MIGRATIONS_DIR = path.join(PACKAGE_ROOT, "drizzle");
@@ -79,7 +77,23 @@ const topLevelMembers = (body: string): string[] => {
 };
 
 // only a table's members are sorted: column order inside an index is the index.
-const normalize = (type: string, sql: string): string => {
+// drizzle-kit 1.0 spells the same declaration differently from the 0.31 that wrote the shipped
+// migrations, and its own `generate` reads none of these as a change: a primary key without
+// its NOT NULL (sqlite implies it for the rowid alias; the shipped text form is the stricter
+// spelling of the same `.primaryKey()`), a named foreign key with the default ON UPDATE left
+// implicit, and a CHECK naming its columns bare where 0.31 qualified them with the table.
+const foldKitSpelling = (member: string, table: string): string =>
+  member
+    .replace(/^CONSTRAINT `fk_[A-Za-z0-9_]+` FOREIGN KEY/u, "FOREIGN KEY")
+    .replace(" ON UPDATE no action", "")
+    .replace(
+      / ON DELETE (?<action>[a-z ]+)$/iu,
+      (_, action: string) => ` ON DELETE ${action.toUpperCase()}`,
+    )
+    .replace(/ PRIMARY KEY NOT NULL\b/u, " PRIMARY KEY")
+    .replaceAll(`\`${table}\`.`, "");
+
+const normalize = (type: string, name: string, sql: string): string => {
   // sqlite's own RENAME (the tail of a table-rebuild migration) rewrites the stored CREATE with
   // double-quoted names where drizzle writes backticks.
   const flat = sql
@@ -95,7 +109,9 @@ const normalize = (type: string, sql: string): string => {
     return flat;
   }
   const head = flat.slice(0, open).trim();
-  const members = topLevelMembers(flat.slice(open + 1, close)).toSorted();
+  const members = topLevelMembers(flat.slice(open + 1, close))
+    .map((member) => foldKitSpelling(member, name))
+    .toSorted();
   return `${head} (${members.join(", ")})`;
 };
 
@@ -115,7 +131,11 @@ const schemaOf = (databaseFile: string): SchemaObject[] => {
     if (NOT_SCHEMA.test(row.name) || row.sql === null) {
       continue;
     }
-    objects.push({ name: row.name, sql: normalize(row.type, row.sql), type: row.type });
+    objects.push({
+      name: row.name,
+      sql: normalize(row.type, row.name, row.sql),
+      type: row.type,
+    });
   }
   return objects.toSorted((a, b) => `${a.type} ${a.name}`.localeCompare(`${b.type} ${b.name}`));
 };
@@ -148,11 +168,6 @@ const declaredDatabase = (): string => {
   return file;
 };
 
-const journal = (): MigrationJournal => {
-  const journalPath = path.join(MIGRATIONS_DIR, "meta/_journal.json");
-  return parseMigrationJournal(readFileSync(journalPath, "utf-8"), journalPath);
-};
-
 describe("the migrations and the declared schema agree", () => {
   it("produce the same objects", () => {
     const migrated = schemaOf(migratedDatabase());
@@ -183,21 +198,21 @@ describe("the migrations and the declared schema agree", () => {
   }, 30_000);
 
   it("leave meta.schema_version at the latest migration's generation", () => {
-    const { entries } = journal();
+    const folders = listMigrationNames(MIGRATIONS_DIR);
     const db = createConnection(migratedDatabase());
-    const version = getSchemaVersion(db, entries.length);
+    const version = getSchemaVersion(db, folders.length);
     db.$client.close();
 
-    const latest = entries.at(-1);
+    const latest = folders.at(-1);
     if (latest === undefined) {
-      throw new Error("drizzle/meta/_journal.json has no entries");
+      throw new Error("drizzle/ has no migration folders");
     }
     expect(
       version,
-      `meta.schema_version is ${version} after applying ${entries.length} migrations ` +
-        `(latest: ${latest.tag}).\n` +
+      `meta.schema_version is ${version} after applying ${folders.length} migrations ` +
+        `(latest: ${latest}).\n` +
         `  rule: each migration bumps meta.schema_version to its own generation, so /system/status proves WHICH migration the file is on\n` +
-        `  fix: add \`UPDATE \\\`meta\\\` SET \\\`value\\\` = '${entries.length}' WHERE \\\`key\\\` = 'schema_version';\` to drizzle/${latest.tag}.sql`,
-    ).toBe(entries.length);
+        `  fix: add \`UPDATE \\\`meta\\\` SET \\\`value\\\` = '${folders.length}' WHERE \\\`key\\\` = 'schema_version';\` to drizzle/${latest}/migration.sql`,
+    ).toBe(folders.length);
   });
 });

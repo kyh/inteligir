@@ -1,8 +1,13 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import Database from "better-sqlite3";
+import { defineRelations } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
+
+// no relation is declared: the graph exists so `db._.relations` carries every table, which is
+// what drizzle 1.0 keys the schema-aware surfaces on (`schema` alone registers nothing).
+const relations = defineRelations(schema);
 
 export const SQLITE_BUSY_TIMEOUT_MS = 5000;
 
@@ -21,12 +26,18 @@ export const createConnection = (dbPath: string) => {
   sqlite.pragma("synchronous = NORMAL");
   sqlite.pragma(`busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
 
-  return drizzle({ client: sqlite, schema });
+  return drizzle({ client: sqlite, relations });
 };
+
+// a sync driver's transaction refuses an async callback at the type level, and this signature
+// carries the same refusal so the guard survives the wrapper (a promise returned here would
+// commit before its work ran).
+// oxlint-disable-next-line typescript/no-explicit-any -- drizzle spells its guard `Promise<any>`, and a conditional type only relates to one with the identical extends type
+type SyncWork<T> = (tx: DbTransaction) => T extends Promise<any> ? never : T;
 
 // BEGIN IMMEDIATE takes the write lock up front, so a read-then-write cannot hit SQLITE_BUSY
 // upgrading midway.
-export const writeTransaction = <T>(db: DbConnection, work: (tx: DbTransaction) => T): T =>
+export const writeTransaction = <T>(db: DbConnection, work: SyncWork<T>): T =>
   db.transaction(work, { behavior: "immediate" });
 
 // WAL leaves a `-wal` sidecar that only a clean close checkpoints away.

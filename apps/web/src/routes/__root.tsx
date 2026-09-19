@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
@@ -9,7 +10,7 @@ import { THEME_FALLBACK, THEME_STORAGE_KEY } from "@/components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
 
-const ErrorBoundary = ({ error }: { error: Error }) => {
+const ErrorBoundary = ({ error }: ErrorComponentProps) => {
   useEffect(() => {
     console.error(error);
   }, [error]);

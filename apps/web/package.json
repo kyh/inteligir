@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "catalog:",
     "@react-three/fiber": "^9.7.0",
     "@repo/api": "workspace:*",
     "@repo/ui": "workspace:*",
@@ -28,18 +29,18 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "three": "^0.185.1",
+    "three": "^0.186.0",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",
     "@cloudflare/vitest-pool-workers": "catalog:",
-    "@libsql/client": "^0.17.4",
+    "@libsql/client": "^0.18.0",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@types/three": "^0.185.4",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "catalog:",
     "drizzle-kit": "catalog:",
     "oxc-transform-react": "catalog:",
