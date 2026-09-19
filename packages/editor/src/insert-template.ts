@@ -11,7 +11,7 @@ import { liveEditorPath } from "@repo/editor/live-editor";
 
 // the one insert both the slash menu and the palette run, so a refusal has one wording. the
 // template's frontmatter stays behind: properties belong to the note, not to the cursor.
-export async function insertTemplate(editor: SlateEditor, templatePath: string): Promise<void> {
+export const insertTemplate = async (editor: SlateEditor, templatePath: string): Promise<void> => {
   let content: string;
   try {
     content = await getEditorHostIo().readVaultFile({ path: templatePath });
@@ -25,4 +25,4 @@ export async function insertTemplate(editor: SlateEditor, templatePath: string):
   if (!insertMarkdownAtSelection(editor, body)) {
     toast.error("That template could not be parsed.");
   }
-}
+};

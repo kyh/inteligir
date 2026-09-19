@@ -1,9 +1,8 @@
 import {
   VAULT_DELETED_MAX_ENTRIES,
   VAULT_MAX_CONTENT_LENGTH,
-  type VaultDeletedEntry,
-  type VaultRevision,
 } from "@repo/api/local/vault/vault-schema";
+import type { VaultDeletedEntry, VaultRevision } from "@repo/api/local/vault/vault-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { RunGitCommand } from "./git-run";
 import { VaultServiceError } from "./vault-service";
@@ -17,7 +16,7 @@ const LOG_HEADER_FIELDS = LOG_FORMAT.split("%x00").length;
 const OBJECT_NAME = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
 // the optional newline: git separates the format output from the name-status block with one.
-const STATUS_TOKEN = /^\n?([ACDMRTUXB])\d*$/u;
+const STATUS_TOKEN = /^\n?(?<letter>[ACDMRTUXB])\d*$/u;
 
 interface StatusTuple {
   letter: string;
@@ -26,27 +25,27 @@ interface StatusTuple {
 }
 
 // null when the token at `index` is not a status: the block has ended.
-function readStatusTuple(
+const readStatusTuple = (
   tokens: readonly string[],
   index: number,
-): { tuple: StatusTuple; next: number } | null {
+): { tuple: StatusTuple; next: number } | null => {
   const match = STATUS_TOKEN.exec(tokens[index] ?? "");
   if (match === null) {
     return null;
   }
-  const letter = match[1] ?? "";
+  const letter = match.groups?.letter ?? "";
   const isPair = letter === "R" || letter === "C";
   const first = tokens[index + 1] ?? "";
   const second = isPair ? (tokens[index + 2] ?? "") : "";
   return {
-    tuple: isPair ? { letter, path: second, origin: first } : { letter, path: first, origin: null },
     next: index + (isPair ? 3 : 2),
+    tuple: isPair ? { letter, origin: first, path: second } : { letter, origin: null, path: first },
   };
-}
+};
 
 // a commit's name-status block holds one or more tuples: a path that was a file, a directory,
 // then a file again reports `A path` and `D path/child` in one commit.
-export function parseFollowLog(stdout: string, requestedPath: string): VaultRevision[] {
+export const parseFollowLog = (stdout: string, requestedPath: string): VaultRevision[] => {
   const tokens = stdout.split("\0");
   const revisions: VaultRevision[] = [];
   let pathAtNewerRevision = requestedPath;
@@ -91,13 +90,13 @@ export function parseFollowLog(stdout: string, requestedPath: string): VaultRevi
     const path = content?.path ?? pathAtNewerRevision;
     pathAtNewerRevision = path;
 
-    const revision: VaultRevision = { sha, authoredAt, authorName, authorEmail, subject, path };
+    const revision: VaultRevision = { authorEmail, authorName, authoredAt, path, sha, subject };
     // exactOptionalPropertyTypes: an absent rename must drop the member, not carry undefined.
     const origin = content?.origin ?? null;
     revisions.push(origin === null ? revision : { ...revision, renamedFrom: origin });
   }
   return revisions;
-}
+};
 
 export interface NoteHistoryPage {
   skip: number;
@@ -105,11 +104,11 @@ export interface NoteHistoryPage {
 }
 
 // a path git has never seen answers an empty page, not a refusal.
-export async function readNoteHistory(
+export const readNoteHistory = async (
   run: RunGitCommand,
   path: string,
   page: NoteHistoryPage,
-): Promise<VaultRevision[]> {
+): Promise<VaultRevision[]> => {
   // --follow: the vault renames notes routinely, and without it history truncates at the rename.
   // -c diff.renames=true: --follow is rename detection, which a user's global config may turn off.
   // --root: log.showRoot=false would hide the vault's first commit, where the seed lives.
@@ -131,13 +130,13 @@ export async function readNoteHistory(
     path,
   ]);
   return parseFollowLog(stdout, path);
-}
+};
 
-export async function readNoteRevision(
+export const readNoteRevision = async (
   run: RunGitCommand,
   path: string,
   sha: string,
-): Promise<string> {
+): Promise<string> => {
   const object = `${sha}:${path}`;
   const absent = (): VaultServiceError =>
     new VaultServiceError("not_found", `${path} does not exist at ${sha}`);
@@ -146,7 +145,7 @@ export async function readNoteRevision(
   if (sized === null) {
     throw absent();
   }
-  if (Number.parseInt(sized.stdout.trim(), 10) > VAULT_MAX_CONTENT_LENGTH) {
+  if (Math.trunc(Number(sized.stdout.trim())) > VAULT_MAX_CONTENT_LENGTH) {
     throw new VaultServiceError(
       "too_large",
       `${path} at ${sha} is over the ${String(VAULT_MAX_CONTENT_LENGTH)}-byte read cap`,
@@ -158,7 +157,7 @@ export async function readNoteRevision(
     throw absent();
   }
   return blob.stdout;
-}
+};
 
 const DELETION_LOG_FORMAT = "%H%x00%P%x00%aI";
 
@@ -171,7 +170,7 @@ export interface DeletionRecord {
   paths: string[];
 }
 
-export function parseDeletionLog(stdout: string): DeletionRecord[] {
+export const parseDeletionLog = (stdout: string): DeletionRecord[] => {
   const tokens = stdout.split("\0");
   const records: DeletionRecord[] = [];
   let index = 0;
@@ -197,24 +196,24 @@ export function parseDeletionLog(stdout: string): DeletionRecord[] {
       }
     }
     if (parent !== undefined && OBJECT_NAME.test(parent)) {
-      records.push({ parent, deletedAt, paths });
+      records.push({ deletedAt, parent, paths });
     }
   }
   return records;
-}
+};
 
 // docs no longer on disk, newest deletion first, one entry per path. two sources: the log's
 // deletions, and `ls-files --deleted` for the ones the session-shaped auto-commit has not
 // flushed, whose bytes HEAD still holds. a path back on disk is left out whichever source
 // named it — the entry would restore over the user's own re-creation.
-export async function readDeletedNotes(
+export const readDeletedNotes = async (
   run: RunGitCommand,
   exists: (path: string) => boolean,
-): Promise<VaultDeletedEntry[]> {
-  const head = (await run(["rev-parse", "HEAD"])).stdout.trim();
-  const unflushed = (await run(["ls-files", "-z", "--deleted"])).stdout
-    .split("\0")
-    .filter((path) => path.length > 0);
+): Promise<VaultDeletedEntry[]> => {
+  const { stdout: headStdout } = await run(["rev-parse", "HEAD"]);
+  const head = headStdout.trim();
+  const { stdout: deletedStdout } = await run(["ls-files", "-z", "--deleted"]);
+  const unflushed = deletedStdout.split("\0").filter((path) => path.length > 0);
   // -c diff.renames=true: a rename is a note that still exists, and a user's global config may
   // turn detection off and report it as a deletion plus an addition.
   const { stdout } = await run([
@@ -233,9 +232,9 @@ export async function readDeletedNotes(
 
   const readAt = new Date().toISOString();
   const candidates: VaultDeletedEntry[] = [
-    ...unflushed.map((path) => ({ path, deletedAt: readAt, sha: head })),
+    ...unflushed.map((path) => ({ deletedAt: readAt, path, sha: head })),
     ...parseDeletionLog(stdout).flatMap((record) =>
-      record.paths.map((path) => ({ path, deletedAt: record.deletedAt, sha: record.parent })),
+      record.paths.map((path) => ({ deletedAt: record.deletedAt, path, sha: record.parent })),
     ),
   ];
   const seen = new Set<string>();
@@ -253,4 +252,4 @@ export async function readDeletedNotes(
     }
   }
   return entries;
-}
+};

@@ -2,15 +2,18 @@
 
 import type {
   ThreadEvent,
+  ThreadEventFileChange,
   ThreadEventItem,
   ThreadEventItemStatus,
   ThreadEventTokenUsage,
   ThreadEventTurnStatus,
 } from "@repo/domain/provider-event";
+import { assertUnreachable } from "./assert-unreachable";
 import type {
   ThreadTimeline,
   TimelineConversationRow,
   TimelineErrorRow,
+  TimelineFileChange,
   TimelineRow,
   TimelineRowStatus,
   TimelineTurnRow,
@@ -24,29 +27,42 @@ export interface ThreadTimelineEvent {
   event: ThreadEvent;
 }
 
-function itemStatusToRowStatus(status: ThreadEventItemStatus): TimelineRowStatus {
+const itemStatusToRowStatus = (status: ThreadEventItemStatus): TimelineRowStatus => {
   switch (status) {
-    case "pending":
+    case "pending": {
       return "pending";
-    case "completed":
+    }
+    case "completed": {
       return "completed";
-    case "failed":
+    }
+    case "failed": {
       return "error";
-    case "interrupted":
+    }
+    case "interrupted": {
       return "interrupted";
+    }
+    default: {
+      return assertUnreachable(status);
+    }
   }
-}
+};
 
-function turnStatusToRowStatus(status: ThreadEventTurnStatus): TimelineRowStatus {
+const turnStatusToRowStatus = (status: ThreadEventTurnStatus): TimelineRowStatus => {
   switch (status) {
-    case "completed":
+    case "completed": {
       return "completed";
-    case "failed":
+    }
+    case "failed": {
       return "error";
-    case "interrupted":
+    }
+    case "interrupted": {
       return "interrupted";
+    }
+    default: {
+      return assertUnreachable(status);
+    }
   }
-}
+};
 
 interface ItemAccumulator {
   threadId: string;
@@ -72,235 +88,50 @@ interface TurnAccumulator {
   createdAt: number;
 }
 
-// must be deterministic, ids included: the server diffs two projections into a delta
-export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): ThreadTimeline {
-  const ordered = events.toSorted((left, right) => left.sequence - right.sequence);
-
-  const topLevel: { seq: number; row: TimelineRow }[] = [];
-  const turnOrder: string[] = [];
-  const turnsByTurnId = new Map<string, TurnAccumulator>();
-  const turnChildren = new Map<string, { seq: number; row: TimelineRow }[]>();
-  const itemOrder: string[] = [];
-  const itemsByKey = new Map<string, ItemAccumulator>();
-  let tokenUsage: ThreadEventTokenUsage | null = null;
-  let maxSequence = 0;
-
-  function itemAccumulator(
-    entry: ThreadTimelineEvent,
-    turnId: string,
-    itemId: string,
-  ): ItemAccumulator {
-    const key = `${turnId} ${itemId}`;
-    const existing = itemsByKey.get(key);
-    if (existing) {
-      existing.sourceSeqEnd = entry.sequence;
-      return existing;
-    }
-    const created: ItemAccumulator = {
-      threadId: entry.event.threadId,
-      turnId,
-      itemId,
-      started: null,
-      completed: null,
-      textBuffer: "",
-      reasoningBuffer: "",
-      outputBuffer: "",
-      sourceSeqStart: entry.sequence,
-      sourceSeqEnd: entry.sequence,
-      createdAt: entry.createdAt,
-    };
-    itemsByKey.set(key, created);
-    itemOrder.push(key);
-    return created;
-  }
-
-  for (const entry of ordered) {
-    const { event } = entry;
-    maxSequence = Math.max(maxSequence, entry.sequence);
-    const scopeTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
-
-    switch (event.type) {
-      case "client/turn/requested": {
-        const row: TimelineConversationRow = {
-          kind: "conversation",
-          role: "user",
-          id: `user:${entry.sequence}`,
-          threadId: event.threadId,
-          turnId: null,
-          text: event.text,
-          viewContext: event.viewContext ?? null,
-          sourceSeqStart: entry.sequence,
-          sourceSeqEnd: entry.sequence,
-          createdAt: entry.createdAt,
-        };
-        topLevel.push({ seq: entry.sequence, row });
-        break;
-      }
-      case "turn/started": {
-        if (scopeTurnId !== null && !turnsByTurnId.has(scopeTurnId)) {
-          turnsByTurnId.set(scopeTurnId, {
-            threadId: event.threadId,
-            turnId: scopeTurnId,
-            status: "pending",
-            completedAt: null,
-            sourceSeqStart: entry.sequence,
-            ownSeqEnd: entry.sequence,
-            createdAt: entry.createdAt,
-          });
-          turnOrder.push(scopeTurnId);
-        }
-        break;
-      }
-      case "turn/completed": {
-        const turn = scopeTurnId === null ? undefined : turnsByTurnId.get(scopeTurnId);
-        if (turn) {
-          turn.status = turnStatusToRowStatus(event.status);
-          turn.completedAt = entry.createdAt;
-          turn.ownSeqEnd = entry.sequence;
-        }
-        break;
-      }
-      case "item/started":
-      case "item/completed": {
-        if (scopeTurnId === null) {
-          break;
-        }
-        const accumulator = itemAccumulator(entry, scopeTurnId, event.item.id);
-        if (event.type === "item/started") {
-          accumulator.started = event.item;
-        } else {
-          accumulator.completed = event.item;
-        }
-        break;
-      }
-      case "item/agentMessage/delta":
-      case "item/plan/delta": {
-        if (scopeTurnId === null) {
-          break;
-        }
-        const accumulator = itemAccumulator(entry, scopeTurnId, event.itemId);
-        accumulator.textBuffer += event.delta;
-        break;
-      }
-      case "item/reasoning/summaryTextDelta":
-      case "item/reasoning/textDelta": {
-        if (scopeTurnId === null) {
-          break;
-        }
-        const accumulator = itemAccumulator(entry, scopeTurnId, event.itemId);
-        accumulator.reasoningBuffer += event.delta;
-        break;
-      }
-      case "item/commandExecution/outputDelta": {
-        if (scopeTurnId === null) {
-          break;
-        }
-        const accumulator = itemAccumulator(entry, scopeTurnId, event.itemId);
-        accumulator.outputBuffer = event.reset
-          ? event.delta
-          : accumulator.outputBuffer + event.delta;
-        break;
-      }
-      case "provider/error": {
-        const row: TimelineErrorRow = {
-          kind: "error",
-          id: `error:${entry.sequence}`,
-          threadId: event.threadId,
-          turnId: scopeTurnId,
-          message: event.message,
-          detail: event.detail ?? null,
-          sourceSeqStart: entry.sequence,
-          sourceSeqEnd: entry.sequence,
-          createdAt: entry.createdAt,
-        };
-        if (scopeTurnId !== null && turnsByTurnId.has(scopeTurnId)) {
-          const children = turnChildren.get(scopeTurnId) ?? [];
-          children.push({ seq: entry.sequence, row });
-          turnChildren.set(scopeTurnId, children);
-        } else {
-          topLevel.push({ seq: entry.sequence, row });
-        }
-        break;
-      }
-      case "thread/tokenUsage/updated": {
-        tokenUsage = event.tokenUsage;
-        break;
-      }
-    }
-  }
-
-  for (const key of itemOrder) {
-    const accumulator = itemsByKey.get(key);
-    if (!accumulator) {
-      continue;
-    }
-    const placed = projectItem(accumulator);
-    if (placed === null) {
-      continue;
-    }
-    if (placed.placement === "top-level" || !turnsByTurnId.has(accumulator.turnId)) {
-      topLevel.push({ seq: accumulator.sourceSeqStart, row: placed.row });
-      continue;
-    }
-    const children = turnChildren.get(accumulator.turnId) ?? [];
-    children.push({ seq: accumulator.sourceSeqStart, row: placed.row });
-    turnChildren.set(accumulator.turnId, children);
-  }
-
-  for (const turnId of turnOrder) {
-    const turn = turnsByTurnId.get(turnId);
-    if (!turn) {
-      continue;
-    }
-    const children = (turnChildren.get(turnId) ?? []).toSorted(
-      (left, right) => left.seq - right.seq,
-    );
-    // own plus children's, not every turn-scoped event: a streaming assistant message is
-    // turn-scoped but lands top-level, and counting it moved this row per token, resending the subtree
-    let sourceSeqEnd = turn.ownSeqEnd;
-    for (const child of children) {
-      sourceSeqEnd = Math.max(sourceSeqEnd, child.row.sourceSeqEnd);
-    }
-    const row: TimelineTurnRow = {
-      kind: "turn",
-      id: `turn:${turnId}`,
-      threadId: turn.threadId,
-      turnId,
-      status: turn.status,
-      completedAt: turn.completedAt,
-      children: children.map((child) => child.row),
-      sourceSeqStart: turn.sourceSeqStart,
-      sourceSeqEnd,
-      createdAt: turn.createdAt,
-    };
-    topLevel.push({ seq: turn.sourceSeqStart, row });
-  }
-
-  const orderedTopLevel = topLevel.toSorted((left, right) => left.seq - right.seq);
-  return {
-    rows: orderedTopLevel.map((entry) => entry.row),
-    maxSequence,
-    tokenUsage,
-  };
+// the sequence a row sorts by travels beside it: a projected item sorts by where its first event
+// landed, which its own sourceSeqStart only coincidentally matches
+interface SequencedRow {
+  seq: number;
+  row: TimelineRow;
 }
 
 type PlacedRow =
   | { placement: "top-level"; row: TimelineRow }
   | { placement: "turn"; row: TimelineRow };
 
-function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
+const reasoningRowText = (
+  snapshot: { content: readonly string[]; summary: readonly string[] },
+  settled: boolean,
+  buffer: string,
+): string => {
+  // summary is the provider's visible thinking text (codex settles with content empty)
+  const completedText = (snapshot.summary.length > 0 ? snapshot.summary : snapshot.content).join(
+    "\n\n",
+  );
+  return settled && completedText.length > 0 ? completedText : buffer;
+};
+
+const toTimelineFileChanges = (changes: readonly ThreadEventFileChange[]): TimelineFileChange[] =>
+  changes.map((change) => ({
+    diff: change.diff ?? null,
+    kind: change.kind,
+    movePath: change.movePath ?? null,
+    path: change.path,
+  }));
+
+const projectItem = (accumulator: ItemAccumulator): PlacedRow | null => {
   const snapshot = accumulator.completed ?? accumulator.started;
   if (snapshot === null) {
     // deltas for an item that never sent item/started cannot be typed
     return null;
   }
   const base = {
+    createdAt: accumulator.createdAt,
     id: `item:${accumulator.turnId}:${accumulator.itemId}`,
+    sourceSeqEnd: accumulator.sourceSeqEnd,
+    sourceSeqStart: accumulator.sourceSeqStart,
     threadId: accumulator.threadId,
     turnId: accumulator.turnId,
-    sourceSeqStart: accumulator.sourceSeqStart,
-    sourceSeqEnd: accumulator.sourceSeqEnd,
-    createdAt: accumulator.createdAt,
   };
   const settled = accumulator.completed !== null;
   const settledStatus: TimelineRowStatus = settled ? "completed" : "pending";
@@ -328,16 +159,12 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
       return { placement: "top-level", row };
     }
     case "reasoning": {
-      // summary is the provider's visible thinking text (codex settles with content empty)
-      const completedText = (
-        snapshot.summary.length > 0 ? snapshot.summary : snapshot.content
-      ).join("\n\n");
       const row: TimelineWorkRow = {
         ...base,
         kind: "work",
-        workKind: "reasoning",
         status: settledStatus,
-        text: settled && completedText.length > 0 ? completedText : accumulator.reasoningBuffer,
+        text: reasoningRowText(snapshot, settled, accumulator.reasoningBuffer),
+        workKind: "reasoning",
       };
       return { placement: "turn", row };
     }
@@ -345,54 +172,312 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
       const row: TimelineWorkRow = {
         ...base,
         kind: "work",
-        workKind: "plan",
         status: settledStatus,
         text: settled ? snapshot.text : snapshot.text + accumulator.textBuffer,
+        workKind: "plan",
       };
       return { placement: "turn", row };
     }
     case "toolCall": {
       const row: TimelineWorkRow = {
         ...base,
-        kind: "work",
-        workKind: "tool",
-        status: itemStatusToRowStatus(snapshot.status),
-        toolName: snapshot.tool,
-        toolArgs: snapshot.arguments ?? null,
-        result: snapshot.result === undefined ? null : JSON.stringify(snapshot.result),
         error: snapshot.error ?? null,
+        kind: "work",
+        result: snapshot.result === undefined ? null : JSON.stringify(snapshot.result),
+        status: itemStatusToRowStatus(snapshot.status),
+        toolArgs: snapshot.arguments ?? null,
+        toolName: snapshot.tool,
+        workKind: "tool",
       };
       return { placement: "turn", row };
     }
     case "commandExecution": {
       const row: TimelineWorkRow = {
         ...base,
-        kind: "work",
-        workKind: "command",
-        status: itemStatusToRowStatus(snapshot.status),
+        approvalStatus: snapshot.approvalStatus,
         command: snapshot.command,
         cwd: snapshot.cwd,
-        output: snapshot.aggregatedOutput ?? accumulator.outputBuffer,
         exitCode: snapshot.exitCode ?? null,
-        approvalStatus: snapshot.approvalStatus,
+        kind: "work",
+        output: snapshot.aggregatedOutput ?? accumulator.outputBuffer,
+        status: itemStatusToRowStatus(snapshot.status),
+        workKind: "command",
       };
       return { placement: "turn", row };
     }
     case "fileChange": {
       const row: TimelineWorkRow = {
         ...base,
-        kind: "work",
-        workKind: "file-change",
-        status: itemStatusToRowStatus(snapshot.status),
-        changes: snapshot.changes.map((change) => ({
-          path: change.path,
-          kind: change.kind,
-          movePath: change.movePath ?? null,
-          diff: change.diff ?? null,
-        })),
         approvalStatus: snapshot.approvalStatus,
+        changes: toTimelineFileChanges(snapshot.changes),
+        kind: "work",
+        status: itemStatusToRowStatus(snapshot.status),
+        workKind: "file-change",
       };
       return { placement: "turn", row };
     }
+    default: {
+      return assertUnreachable(snapshot);
+    }
   }
-}
+};
+
+// must be deterministic, ids included: the server diffs two projections into a delta
+export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): ThreadTimeline => {
+  const ordered = events.toSorted((left, right) => left.sequence - right.sequence);
+
+  const topLevel: SequencedRow[] = [];
+  const turnOrder: string[] = [];
+  const turnsByTurnId = new Map<string, TurnAccumulator>();
+  const turnChildren = new Map<string, SequencedRow[]>();
+  const itemOrder: string[] = [];
+  const itemsByKey = new Map<string, ItemAccumulator>();
+  let tokenUsage: ThreadEventTokenUsage | null = null;
+  let maxSequence = 0;
+
+  // a row joins a turn only once that turn has started; anything else stays top-level
+  const place = (row: TimelineRow, seq: number, turnId: string | null): void => {
+    if (turnId === null || !turnsByTurnId.has(turnId)) {
+      topLevel.push({ row, seq });
+      return;
+    }
+    const children = turnChildren.get(turnId) ?? [];
+    children.push({ row, seq });
+    turnChildren.set(turnId, children);
+  };
+
+  const itemAccumulator = (
+    entry: ThreadTimelineEvent,
+    turnId: string,
+    itemId: string,
+  ): ItemAccumulator => {
+    const key = `${turnId} ${itemId}`;
+    const existing = itemsByKey.get(key);
+    if (existing) {
+      existing.sourceSeqEnd = entry.sequence;
+      return existing;
+    }
+    const created: ItemAccumulator = {
+      completed: null,
+      createdAt: entry.createdAt,
+      itemId,
+      outputBuffer: "",
+      reasoningBuffer: "",
+      sourceSeqEnd: entry.sequence,
+      sourceSeqStart: entry.sequence,
+      started: null,
+      textBuffer: "",
+      threadId: entry.event.threadId,
+      turnId,
+    };
+    itemsByKey.set(key, created);
+    itemOrder.push(key);
+    return created;
+  };
+
+  const startTurn = (entry: ThreadTimelineEvent, turnId: string | null): void => {
+    if (turnId === null || turnsByTurnId.has(turnId)) {
+      return;
+    }
+    turnsByTurnId.set(turnId, {
+      completedAt: null,
+      createdAt: entry.createdAt,
+      ownSeqEnd: entry.sequence,
+      sourceSeqStart: entry.sequence,
+      status: "pending",
+      threadId: entry.event.threadId,
+      turnId,
+    });
+    turnOrder.push(turnId);
+  };
+
+  const completeTurn = (
+    entry: ThreadTimelineEvent,
+    status: ThreadEventTurnStatus,
+    turnId: string | null,
+  ): void => {
+    const turn = turnId === null ? undefined : turnsByTurnId.get(turnId);
+    if (!turn) {
+      return;
+    }
+    turn.status = turnStatusToRowStatus(status);
+    turn.completedAt = entry.createdAt;
+    turn.ownSeqEnd = entry.sequence;
+  };
+
+  // an item event outside a turn scope has no accumulator to reach, so it is dropped
+  const captureItemSnapshot = (
+    entry: ThreadTimelineEvent,
+    turnId: string | null,
+    item: ThreadEventItem,
+    type: "item/completed" | "item/started",
+  ): void => {
+    if (turnId === null) {
+      return;
+    }
+    const accumulator = itemAccumulator(entry, turnId, item.id);
+    if (type === "item/started") {
+      accumulator.started = item;
+    } else {
+      accumulator.completed = item;
+    }
+  };
+
+  const appendItemDelta = (
+    entry: ThreadTimelineEvent,
+    turnId: string | null,
+    itemId: string,
+    delta: string,
+    buffer: "reasoningBuffer" | "textBuffer",
+  ): void => {
+    if (turnId === null) {
+      return;
+    }
+    const accumulator = itemAccumulator(entry, turnId, itemId);
+    accumulator[buffer] += delta;
+  };
+
+  const appendCommandOutput = (
+    entry: ThreadTimelineEvent,
+    turnId: string | null,
+    itemId: string,
+    delta: string,
+    reset: boolean,
+  ): void => {
+    if (turnId === null) {
+      return;
+    }
+    const accumulator = itemAccumulator(entry, turnId, itemId);
+    accumulator.outputBuffer = reset ? delta : accumulator.outputBuffer + delta;
+  };
+
+  const applyEvent = (entry: ThreadTimelineEvent): void => {
+    const { event } = entry;
+    const scopeTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
+
+    switch (event.type) {
+      case "client/turn/requested": {
+        const row: TimelineConversationRow = {
+          createdAt: entry.createdAt,
+          id: `user:${entry.sequence}`,
+          kind: "conversation",
+          role: "user",
+          sourceSeqEnd: entry.sequence,
+          sourceSeqStart: entry.sequence,
+          text: event.text,
+          threadId: event.threadId,
+          turnId: null,
+          viewContext: event.viewContext ?? null,
+        };
+        place(row, entry.sequence, null);
+        break;
+      }
+      case "turn/started": {
+        startTurn(entry, scopeTurnId);
+        break;
+      }
+      case "turn/completed": {
+        completeTurn(entry, event.status, scopeTurnId);
+        break;
+      }
+      case "item/started":
+      case "item/completed": {
+        captureItemSnapshot(entry, scopeTurnId, event.item, event.type);
+        break;
+      }
+      case "item/agentMessage/delta":
+      case "item/plan/delta": {
+        appendItemDelta(entry, scopeTurnId, event.itemId, event.delta, "textBuffer");
+        break;
+      }
+      case "item/reasoning/summaryTextDelta":
+      case "item/reasoning/textDelta": {
+        appendItemDelta(entry, scopeTurnId, event.itemId, event.delta, "reasoningBuffer");
+        break;
+      }
+      case "item/commandExecution/outputDelta": {
+        appendCommandOutput(entry, scopeTurnId, event.itemId, event.delta, event.reset === true);
+        break;
+      }
+      case "provider/error": {
+        const row: TimelineErrorRow = {
+          createdAt: entry.createdAt,
+          detail: event.detail ?? null,
+          id: `error:${entry.sequence}`,
+          kind: "error",
+          message: event.message,
+          sourceSeqEnd: entry.sequence,
+          sourceSeqStart: entry.sequence,
+          threadId: event.threadId,
+          turnId: scopeTurnId,
+        };
+        place(row, entry.sequence, scopeTurnId);
+        break;
+      }
+      case "thread/tokenUsage/updated": {
+        ({ tokenUsage } = event);
+        break;
+      }
+      default: {
+        return assertUnreachable(event);
+      }
+    }
+  };
+
+  for (const entry of ordered) {
+    maxSequence = Math.max(maxSequence, entry.sequence);
+    applyEvent(entry);
+  }
+
+  for (const key of itemOrder) {
+    const accumulator = itemsByKey.get(key);
+    if (!accumulator) {
+      continue;
+    }
+    const placed = projectItem(accumulator);
+    if (placed === null) {
+      continue;
+    }
+    place(
+      placed.row,
+      accumulator.sourceSeqStart,
+      placed.placement === "top-level" ? null : accumulator.turnId,
+    );
+  }
+
+  for (const turnId of turnOrder) {
+    const turn = turnsByTurnId.get(turnId);
+    if (!turn) {
+      continue;
+    }
+    const children = (turnChildren.get(turnId) ?? []).toSorted(
+      (left, right) => left.seq - right.seq,
+    );
+    // own plus children's, not every turn-scoped event: a streaming assistant message is
+    // turn-scoped but lands top-level, and counting it moved this row per token, resending the subtree
+    let sourceSeqEnd = turn.ownSeqEnd;
+    for (const child of children) {
+      sourceSeqEnd = Math.max(sourceSeqEnd, child.row.sourceSeqEnd);
+    }
+    const row: TimelineTurnRow = {
+      children: children.map((child) => child.row),
+      completedAt: turn.completedAt,
+      createdAt: turn.createdAt,
+      id: `turn:${turnId}`,
+      kind: "turn",
+      sourceSeqEnd,
+      sourceSeqStart: turn.sourceSeqStart,
+      status: turn.status,
+      threadId: turn.threadId,
+      turnId,
+    };
+    topLevel.push({ row, seq: turn.sourceSeqStart });
+  }
+
+  const orderedTopLevel = topLevel.toSorted((left, right) => left.seq - right.seq);
+  return {
+    maxSequence,
+    rows: orderedTopLevel.map((entry) => entry.row),
+    tokenUsage,
+  };
+};

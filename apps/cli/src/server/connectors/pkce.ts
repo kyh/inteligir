@@ -6,11 +6,10 @@ import { base64UrlFromBytes } from "@repo/api/cloud/bytes";
 // 32 bytes → 43 base64url chars, inside rfc 7636's 43–128 range
 const PKCE_VERIFIER_BYTES = 32;
 
-export function generatePkceVerifier(): string {
-  return base64UrlFromBytes(crypto.getRandomValues(new Uint8Array(PKCE_VERIFIER_BYTES)));
-}
+export const generatePkceVerifier = (): string =>
+  base64UrlFromBytes(crypto.getRandomValues(new Uint8Array(PKCE_VERIFIER_BYTES)));
 
-export async function pkceChallengeS256(verifier: string): Promise<string> {
+export const pkceChallengeS256 = async (verifier: string): Promise<string> => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   return base64UrlFromBytes(new Uint8Array(digest));
-}
+};

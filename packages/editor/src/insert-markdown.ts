@@ -6,10 +6,12 @@ import type { SlateEditor } from "platejs";
 
 import { parseMdast } from "@repo/notes/markdown/parse";
 
-export function insertMarkdownAtSelection(editor: SlateEditor, markdown: string): boolean {
+export const insertMarkdownAtSelection = (editor: SlateEditor, markdown: string): boolean => {
   const parsed = parseMdast(markdown);
-  if (!parsed.ok) return false;
+  if (!parsed.ok) {
+    return false;
+  }
   const nodes = mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
   editor.tf.insertFragment(nodes);
   return true;
-}
+};

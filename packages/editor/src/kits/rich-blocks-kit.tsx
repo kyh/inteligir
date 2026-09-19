@@ -1,4 +1,5 @@
-import { createSlatePlugin, type SlateEditor } from "platejs";
+import { createSlatePlugin } from "platejs";
+import type { SlateEditor } from "platejs";
 
 import { CanvasElement } from "@repo/editor/nodes/canvas-node";
 import { ChartElement } from "@repo/editor/nodes/chart-node";
@@ -46,18 +47,18 @@ const SEED_HTML = [
   "</html>",
 ].join("\n");
 
-function insertRichBlock(editor: SlateEditor, type: string, value: string): void {
+const insertRichBlock = (editor: SlateEditor, type: string, value: string): void => {
   editor.tf.insertNodes({ children: [{ text: "" }], type, value });
-}
+};
 
-export function insertChartBlock(editor: SlateEditor): void {
+export const insertChartBlock = (editor: SlateEditor): void => {
   insertRichBlock(editor, "chart_block", SEED_CHART);
-}
+};
 
-export function insertCanvasBlock(editor: SlateEditor): void {
+export const insertCanvasBlock = (editor: SlateEditor): void => {
   insertRichBlock(editor, "canvas_block", SEED_CANVAS);
-}
+};
 
-export function insertHtmlBlock(editor: SlateEditor): void {
+export const insertHtmlBlock = (editor: SlateEditor): void => {
   insertRichBlock(editor, "html_block", SEED_HTML);
-}
+};

@@ -14,16 +14,16 @@ describe("finding literal occurrences", () => {
   it("answers line and column per occurrence, across every terminator", () => {
     const text = "Deploy on Friday\r\nnever deploy Friday evening\rredeploy\n";
     expect(findTextMatches(text, "deploy", LOOSE)).toEqual([
-      { line: 1, column: 0, length: 6 },
-      { line: 2, column: 6, length: 6 },
-      { line: 3, column: 2, length: 6 },
+      { column: 0, length: 6, line: 1 },
+      { column: 6, length: 6, line: 2 },
+      { column: 2, length: 6, line: 3 },
     ]);
   });
 
   it("folds case the unicode way without moving offsets", () => {
     expect(findTextMatches("ACCIÓN acción", "acción", LOOSE)).toEqual([
-      { line: 1, column: 0, length: 6 },
-      { line: 1, column: 7, length: 6 },
+      { column: 0, length: 6, line: 1 },
+      { column: 7, length: 6, line: 1 },
     ]);
   });
 
@@ -33,13 +33,13 @@ describe("finding literal occurrences", () => {
       3,
     );
     expect(findTextMatches(text, "deploy", { caseSensitive: false, wholeWord: true })).toEqual([
-      { line: 1, column: 0, length: 6 },
-      { line: 1, column: 26, length: 6 },
+      { column: 0, length: 6, line: 1 },
+      { column: 26, length: 6, line: 1 },
     ]);
   });
 
   it("treats regex syntax in the needle as text", () => {
-    expect(findTextMatches("a.b axb", "a.b", LOOSE)).toEqual([{ line: 1, column: 0, length: 3 }]);
+    expect(findTextMatches("a.b axb", "a.b", LOOSE)).toEqual([{ column: 0, length: 3, line: 1 }]);
   });
 
   it("finds nothing for an empty needle", () => {
@@ -51,8 +51,8 @@ describe("replacing what the rows showed", () => {
   it("rewrites every occurrence, keeps terminators and counts", () => {
     const text = "Deploy on Friday\r\nnever deploy\n";
     expect(replaceTextMatches(text, "deploy", "ship", LOOSE)).toEqual({
-      text: "ship on Friday\r\nnever ship\n",
       count: 2,
+      text: "ship on Friday\r\nnever ship\n",
     });
   });
 
@@ -64,7 +64,7 @@ describe("replacing what the rows showed", () => {
 describe("the excerpt around a match", () => {
   it("clips both sides and marks the cut", () => {
     const line = `${"a".repeat(60)}NEEDLE${"b".repeat(120)}`;
-    const excerpt = excerptAround(line, { line: 1, column: 60, length: 6 });
+    const excerpt = excerptAround(line, { column: 60, length: 6, line: 1 });
     expect(excerpt.text).toBe("NEEDLE");
     expect(excerpt.before).toBe(`…${"a".repeat(40)}`);
     expect(excerpt.after).toBe(`${"b".repeat(80)}…`);
@@ -81,9 +81,9 @@ describe("the prefilter a store may apply", () => {
 
 describe("matches across a vault", () => {
   const docs = [
-    { path: "b.md", title: "B", body: "x y x\n" },
-    { path: "a.md", title: "A", body: "x\nno\nx\n" },
-    { path: "c.md", title: "C", body: "nothing here\n" },
+    { body: "x y x\n", path: "b.md", title: "B" },
+    { body: "x\nno\nx\n", path: "a.md", title: "A" },
+    { body: "nothing here\n", path: "c.md", title: "C" },
   ];
 
   it("lists in path order with each doc's ordinal, and counts everything past the cap", () => {
@@ -94,6 +94,6 @@ describe("matches across a vault", () => {
       "a.md:3:0#1",
       "b.md:1:0#0",
     ]);
-    expect(matches[2]).toMatchObject({ title: "B", before: "", text: "x", after: " y x" });
+    expect(matches[2]).toMatchObject({ after: " y x", before: "", text: "x", title: "B" });
   });
 });

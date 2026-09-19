@@ -1,18 +1,18 @@
-import { foldThreads, type CommentThread } from "@repo/notes/comments/comment-threads";
+import { foldThreads } from "@repo/notes/comments/comment-threads";
+import type { CommentThread } from "@repo/notes/comments/comment-threads";
 import { markerRootIds } from "@repo/notes/comments/marker-ids";
 import { commentsStorePath, isNoteIdKey, parseSidecar } from "@repo/notes/comments/sidecar-schema";
-import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
+import { buildResolver } from "@repo/notes/knowledge/link-resolve";
+import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
-import {
-  createCloudClient,
-  describeCloudFailure,
-  type CloudFetch,
-  type VaultAssetSource,
-} from "@repo/api/cloud/client";
-import { createExternalStore, type ReadableStore } from "../lib/external-store";
-import { createMemoryNoteCache, type CachedNote, type NoteCache } from "./note-cache";
+import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
+import type { CloudFetch, VaultAssetSource } from "@repo/api/cloud/client";
+import { createExternalStore } from "../lib/external-store";
+import type { ReadableStore } from "../lib/external-store";
+import { createMemoryNoteCache } from "./note-cache";
+import type { CachedNote, NoteCache } from "./note-cache";
 
 const NOTE_CACHE_MAX = 100;
 
@@ -43,16 +43,16 @@ export interface CredentialHandover {
 }
 
 export interface NotesStore {
-  setCredential(next: CredentialHandover | null): void;
-  refresh(): Promise<void>;
+  setCredential: (next: CredentialHandover | null) => void;
+  refresh: () => Promise<void>;
   tree: ReadableStore<NotesTreeState>;
-  readNote(path: string): Promise<NoteRead>;
+  readNote: (path: string) => Promise<NoteRead>;
   // the store beside the note in the same tree, folded against the note's own markers
-  readComments(path: string): Promise<CommentsRead>;
-  resolveWiki(target: string): string | null;
+  readComments: (path: string) => Promise<CommentsRead>;
+  resolveWiki: (target: string) => string | null;
   // null until a tree is ready: the route refuses an unpinned asset url. the bytes then sit in the
   // platform image caches (NSURLCache, Fresco), which core RN Image cannot purge on sign-out.
-  assetSource(path: string): VaultAssetSource | null;
+  assetSource: (path: string) => VaultAssetSource | null;
 }
 
 export interface CreateNotesStoreArgs {
@@ -63,11 +63,17 @@ export interface CreateNotesStoreArgs {
 
 type Client = ReturnType<typeof createCloudClient>;
 
-function bestEffort(work: Promise<void>): void {
-  void work.catch(() => undefined);
-}
+const bestEffort = (work: Promise<void>): void => {
+  void (async () => {
+    try {
+      await work;
+    } catch {
+      // best effort: a cache that throws is the adapter's problem, not the store's guarantee
+    }
+  })();
+};
 
-export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
+export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   let client: Client | null = null;
   let resolver: TargetResolver | null = null;
   // a generation, not a boolean, so a new sign-in's refresh is never blocked by the previous sign-in's
@@ -81,8 +87,10 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   const assetSources = new Map<string, VaultAssetSource>();
 
   // only a read pinned to the tree's commit touches the cache: head moves.
-  async function readFile(path: string): Promise<FileRead> {
-    if (client === null) return { ok: false, notFound: false, message: "Not signed in." };
+  const readFile = async (path: string): Promise<FileRead> => {
+    if (client === null) {
+      return { message: "Not signed in.", notFound: false, ok: false };
+    }
     // captured: a sign-out nulls the closure's client mid-await.
     const activeClient = client;
     const startedAt = generation;
@@ -92,7 +100,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
     if (commit !== undefined) {
       const cached = await noteCache.get(commit, path).catch(() => null);
       if (generation !== startedAt) {
-        return { ok: false, notFound: false, message: "Not signed in." };
+        return { message: "Not signed in.", notFound: false, ok: false };
       }
       if (cached !== null) {
         return { ok: true, ...cached };
@@ -100,25 +108,141 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
     }
 
     const query: Parameters<Client["vaultFile"]>[0] = { path };
-    if (commit !== undefined) query.ref = commit;
+    if (commit !== undefined) {
+      query.ref = commit;
+    }
     const result = await activeClient.vaultFile(query);
     if (generation !== startedAt) {
-      return { ok: false, notFound: false, message: "Not signed in." };
+      return { message: "Not signed in.", notFound: false, ok: false };
     }
     if (!result.ok) {
       return {
-        ok: false,
-        notFound: result.failure.kind === "refused" && result.failure.code === "not-found",
         message: describeCloudFailure(result.failure),
+        notFound: result.failure.kind === "refused" && result.failure.code === "not-found",
+        ok: false,
       };
     }
     if (commit !== undefined) {
-      bestEffort(noteCache.set({ commit, path, content: result.value.content }));
+      bestEffort(noteCache.set({ commit, content: result.value.content, path }));
     }
-    return { ok: true, path, commit: result.value.commit, content: result.value.content };
-  }
+    return { commit: result.value.commit, content: result.value.content, ok: true, path };
+  };
 
   return {
+    assetSource(path) {
+      const current = tree.get();
+      if (client === null || current.state !== "ready") {
+        return null;
+      }
+      const cached = assetSources.get(path);
+      if (cached !== undefined) {
+        return cached;
+      }
+      const source = client.vaultAssetSource({ path, ref: current.commit });
+      assetSources.set(path, source);
+      return source;
+    },
+
+    async readComments(path) {
+      const note = await readFile(path);
+      if (!note.ok) {
+        return { message: note.message, ok: false };
+      }
+      const id = frontmatterId(note.content);
+      if (id === null || !isNoteIdKey(id)) {
+        return { ok: true, threads: [] };
+      }
+      const store = await readFile(commentsStorePath(id));
+      if (!store.ok) {
+        return store.notFound ? { ok: true, threads: [] } : { message: store.message, ok: false };
+      }
+      const parsed = parseSidecar(store.content);
+      if (!parsed.ok) {
+        return { message: `The comments could not be read: ${parsed.error}`, ok: false };
+      }
+      return {
+        ok: true,
+        threads: foldThreads(parsed.sidecar, markerRootIds(note.content)).threads,
+      };
+    },
+
+    async readNote(path) {
+      const read = await readFile(path);
+      return read.ok
+        ? { commit: read.commit, content: read.content, ok: true, path: read.path }
+        : { message: read.message, ok: false };
+    },
+
+    async refresh() {
+      if (client === null || refreshingFor === generation) {
+        return;
+      }
+      const startedAt = generation;
+      refreshingFor = startedAt;
+      if (tree.get().state === "idle") {
+        tree.set({ state: "loading" });
+      }
+      try {
+        const entries: VaultTreeResponse["entries"][number][] = [];
+        let commit: string | undefined;
+        let after: string | undefined;
+        for (let page = 0; page < MAX_TREE_PAGES; page += 1) {
+          const query: Parameters<Client["vaultTree"]>[0] = {};
+          if (commit !== undefined) {
+            query.ref = commit;
+          }
+          if (after !== undefined) {
+            query.after = after;
+          }
+          const result = await client.vaultTree(query);
+          if (generation !== startedAt) {
+            return;
+          }
+          if (!result.ok) {
+            // an account with no hosted vault answers 404 forever; that is a state, not a fault to
+            // hunt.
+            const noVault =
+              result.failure.kind === "refused" && result.failure.code === "not-found";
+            tree.set(
+              noVault
+                ? {
+                    message: "No hosted vault yet — sync a desktop to your account first.",
+                    state: "empty",
+                  }
+                : { message: describeCloudFailure(result.failure), state: "error" },
+            );
+            return;
+          }
+          ({ commit } = result.value);
+          entries.push(...result.value.entries);
+          after = result.value.next ?? undefined;
+          if (after === undefined) {
+            break;
+          }
+        }
+        if (commit === undefined) {
+          return;
+        }
+        if (after !== undefined) {
+          tree.set({ message: "This vault is too large for the notes list.", state: "error" });
+          return;
+        }
+        // alias tiers stay empty: an alias lives in frontmatter the phone does not hold.
+        resolver = buildResolver(entries.map((entry) => entry.path));
+        assetSources.clear();
+        tree.set({ commit, entries, state: "ready" });
+        bestEffort(noteCache.sweep(commit));
+      } finally {
+        if (refreshingFor === startedAt) {
+          refreshingFor = -1;
+        }
+      }
+    },
+
+    resolveWiki(target) {
+      return resolver === null ? null : resolver.resolveWiki(target);
+    },
+
     setCredential(next) {
       generation += 1;
       resolver = null;
@@ -136,99 +260,12 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
         baseUrl: args.cloudUrl,
         credential: next.credential.credential,
       };
-      if (args.fetch !== undefined) clientArgs.fetch = args.fetch;
+      if (args.fetch !== undefined) {
+        clientArgs.fetch = args.fetch;
+      }
       client = createCloudClient(clientArgs);
     },
 
-    async refresh() {
-      if (client === null || refreshingFor === generation) return;
-      const startedAt = generation;
-      refreshingFor = startedAt;
-      if (tree.get().state === "idle") tree.set({ state: "loading" });
-      try {
-        const entries: VaultTreeResponse["entries"][number][] = [];
-        let commit: string | undefined;
-        let after: string | undefined;
-        for (let page = 0; page < MAX_TREE_PAGES; page += 1) {
-          const query: Parameters<Client["vaultTree"]>[0] = {};
-          if (commit !== undefined) query.ref = commit;
-          if (after !== undefined) query.after = after;
-          const result = await client.vaultTree(query);
-          if (generation !== startedAt) return;
-          if (!result.ok) {
-            // an account with no hosted vault answers 404 forever; that is a state, not a fault to
-            // hunt.
-            const noVault =
-              result.failure.kind === "refused" && result.failure.code === "not-found";
-            tree.set(
-              noVault
-                ? {
-                    state: "empty",
-                    message: "No hosted vault yet — sync a desktop to your account first.",
-                  }
-                : { state: "error", message: describeCloudFailure(result.failure) },
-            );
-            return;
-          }
-          commit = result.value.commit;
-          entries.push(...result.value.entries);
-          after = result.value.next ?? undefined;
-          if (after === undefined) break;
-        }
-        if (commit === undefined) return;
-        if (after !== undefined) {
-          tree.set({ state: "error", message: "This vault is too large for the notes list." });
-          return;
-        }
-        // alias tiers stay empty: an alias lives in frontmatter the phone does not hold.
-        resolver = buildResolver(entries.map((entry) => entry.path));
-        assetSources.clear();
-        tree.set({ state: "ready", commit, entries });
-        bestEffort(noteCache.sweep(commit));
-      } finally {
-        if (refreshingFor === startedAt) refreshingFor = -1;
-      }
-    },
-
     tree,
-
-    async readNote(path) {
-      const read = await readFile(path);
-      return read.ok
-        ? { ok: true, path: read.path, commit: read.commit, content: read.content }
-        : { ok: false, message: read.message };
-    },
-
-    async readComments(path) {
-      const note = await readFile(path);
-      if (!note.ok) return { ok: false, message: note.message };
-      const id = frontmatterId(note.content);
-      if (id === null || !isNoteIdKey(id)) return { ok: true, threads: [] };
-      const store = await readFile(commentsStorePath(id));
-      if (!store.ok) {
-        return store.notFound ? { ok: true, threads: [] } : { ok: false, message: store.message };
-      }
-      const parsed = parseSidecar(store.content);
-      if (!parsed.ok)
-        return { ok: false, message: `The comments could not be read: ${parsed.error}` };
-      return {
-        ok: true,
-        threads: foldThreads(parsed.sidecar, markerRootIds(note.content)).threads,
-      };
-    },
-
-    resolveWiki(target) {
-      return resolver === null ? null : resolver.resolveWiki(target);
-    },
-
-    assetSource(path) {
-      const current = tree.get();
-      if (client === null || current.state !== "ready") return null;
-      const cached = assetSources.get(path);
-      if (cached !== undefined) return cached;
-      const source = client.vaultAssetSource({ path, ref: current.commit });
-      assetSources.set(path, source);
-      return source;
-    },
   };
-}
+};

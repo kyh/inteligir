@@ -4,8 +4,8 @@ import { activeMentionAt, filterMentionTargets, MENTION_MAX_ROWS } from "../ment
 
 describe("activeMentionAt", () => {
   it("opens on a word-boundary @ and carries the typed query", () => {
-    expect(activeMentionAt("@", 1)).toEqual({ start: 0, query: "" });
-    expect(activeMentionAt("see @roa", 8)).toEqual({ start: 4, query: "roa" });
+    expect(activeMentionAt("@", 1)).toEqual({ query: "", start: 0 });
+    expect(activeMentionAt("see @roa", 8)).toEqual({ query: "roa", start: 4 });
   });
 
   it("does not open mid-word — an email address stays text", () => {
@@ -14,14 +14,16 @@ describe("activeMentionAt", () => {
 
   it("closes when whitespace ends the query or the caret leaves it", () => {
     expect(activeMentionAt("@roadmap done", 13)).toBeNull();
-    expect(activeMentionAt("@roa hello", 3)).toEqual({ start: 0, query: "ro" });
+    expect(activeMentionAt("@roa hello", 3)).toEqual({ query: "ro", start: 0 });
     expect(activeMentionAt("plain text", 5)).toBeNull();
   });
 });
 
 const target = (path: string, title: string, aliases?: string[]): WikiTargetWire => {
   const row: WikiTargetWire = { path, title, type: "doc" };
-  if (aliases !== undefined) row.aliases = aliases;
+  if (aliases !== undefined) {
+    row.aliases = aliases;
+  }
   return row;
 };
 

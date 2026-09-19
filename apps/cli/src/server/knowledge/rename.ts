@@ -20,9 +20,26 @@ export interface RenameNoteArgs {
   to: string;
 }
 
-export async function renameNoteWithLinkRewrite(
+// a concurrent edit in the window loses the alias, never its content.
+const recordAliasStandalone = async (
+  service: VaultService,
+  to: string,
+  oldStem: string,
+): Promise<void> => {
+  try {
+    const { content: current } = await service.read(to);
+    const withAlias = addFrontmatterAlias(current, oldStem);
+    if (withAlias !== null) {
+      await service.writeIfUnchanged(to, current, withAlias);
+    }
+  } catch {
+    // losing the fallback alias never fails the rename.
+  }
+};
+
+export const renameNoteWithLinkRewrite = async (
   args: RenameNoteArgs,
-): Promise<VaultRenameResponse> {
+): Promise<VaultRenameResponse> => {
   const { service, knowledge } = args;
   const toPath = normalizeVaultPath(args.to);
   const requested = normalizeVaultPath(args.from);
@@ -40,7 +57,8 @@ export async function renameNoteWithLinkRewrite(
   }
   const fromPath = source.path;
 
-  const candidates = (await knowledge.renameCandidates(fromPath, toPath)).filter(isDocPath);
+  const linkedDocs = await knowledge.renameCandidates(fromPath, toPath);
+  const candidates = linkedDocs.filter(isDocPath);
   const { docs, skipped } = await snapshotDocs(service, candidates);
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
@@ -63,13 +81,17 @@ export async function renameNoteWithLinkRewrite(
     // the moved doc's edit is keyed at `to`; its snapshot sits at `from`.
     const isMovedDoc = postPath === renamed.path;
     const snapshot = docs.get(isMovedDoc ? fromPath : postPath);
-    if (snapshot === undefined) continue;
+    if (snapshot === undefined) {
+      continue;
+    }
     const withAlias =
       recordAlias && isMovedDoc ? (addFrontmatterAlias(content, oldStem) ?? content) : content;
     const result = await service.writeIfUnchanged(postPath, snapshot, withAlias);
     if (result.applied) {
       rewritten.push(postPath);
-      if (isMovedDoc) aliasRecorded = true;
+      if (isMovedDoc) {
+        aliasRecorded = true;
+      }
     } else {
       skipped.push({ path: postPath, reason: result.reason });
     }
@@ -79,19 +101,4 @@ export async function renameNoteWithLinkRewrite(
     await recordAliasStandalone(service, renamed.path, oldStem);
   }
   return { path: renamed.path, rewritten, skipped };
-}
-
-// a concurrent edit in the window loses the alias, never its content.
-async function recordAliasStandalone(
-  service: VaultService,
-  to: string,
-  oldStem: string,
-): Promise<void> {
-  try {
-    const current = (await service.read(to)).content;
-    const withAlias = addFrontmatterAlias(current, oldStem);
-    if (withAlias !== null) await service.writeIfUnchanged(to, current, withAlias);
-  } catch {
-    // losing the fallback alias never fails the rename.
-  }
-}
+};

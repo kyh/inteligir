@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 
 const scriptedReady = {
-  state: "ready",
   model: { id: "scripted", label: "Scripted (test runtime)", sizeBytes: 1 },
+  state: "ready",
 };
 
 describe("the voice routes", () => {

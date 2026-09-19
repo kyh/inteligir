@@ -11,27 +11,23 @@ import { createRootRoute, Outlet } from "@tanstack/react-router";
 
 import { WorkspaceProvider } from "../app/workspace-context";
 
+const RootLayout = () => (
+  <WorkspaceProvider>
+    <TooltipProvider>
+      <Outlet />
+      <ConfirmDialogHost />
+      <Toaster position="bottom-right" />
+    </TooltipProvider>
+  </WorkspaceProvider>
+);
+
+const NotFound = () => (
+  <div className="flex min-h-dvh items-center justify-center">
+    <p>404: This page could not be found.</p>
+  </div>
+);
+
 export const Route = createRootRoute({
-  notFoundComponent: NotFound,
   component: RootLayout,
+  notFoundComponent: NotFound,
 });
-
-function RootLayout() {
-  return (
-    <WorkspaceProvider>
-      <TooltipProvider>
-        <Outlet />
-        <ConfirmDialogHost />
-        <Toaster position="bottom-right" />
-      </TooltipProvider>
-    </WorkspaceProvider>
-  );
-}
-
-function NotFound() {
-  return (
-    <div className="flex min-h-dvh items-center justify-center">
-      <p>404: This page could not be found.</p>
-    </div>
-  );
-}

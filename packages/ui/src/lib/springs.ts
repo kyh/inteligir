@@ -3,22 +3,22 @@
 // a duration, reach for a tier
 export const spring = {
   fast: {
-    type: "spring" as const,
-    duration: 0.08,
     bounce: 0,
+    duration: 0.08,
     exit: { duration: 0.06 },
+    type: "spring" as const,
   },
   moderate: {
-    type: "spring" as const,
-    duration: 0.16,
     bounce: 0,
+    duration: 0.16,
     exit: { duration: 0.12 },
+    type: "spring" as const,
   },
   slow: {
-    type: "spring" as const,
-    duration: 0.24,
     bounce: 0.12,
+    duration: 0.24,
     exit: { duration: 0.16 },
+    type: "spring" as const,
   },
 } as const;
 

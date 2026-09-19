@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "inteligir/server/config";
 import { SERVER_FILE_NAME } from "inteligir/server/server-file";
 import { makeTempDir } from "inteligir/server/testing";
@@ -14,79 +14,77 @@ import {
   serverEntryPath,
   serverPackageDir,
   sessionPartition,
-  type ProbeStatus,
 } from "../server-instance";
+import type { LiveServer, ProbeStatus } from "../server-instance";
 
-function scratchHome(): string {
-  return makeTempDir("inteligir-shell-home-");
-}
+const scratchHome = (): string => makeTempDir("inteligir-shell-home-");
 
 interface ManagedConfig {
   vaultDir: string;
 }
 
-function writeManagedConfig(dataDir: string, config: ManagedConfig): void {
+const writeManagedConfig = (dataDir: string, config: ManagedConfig): void => {
   mkdirSync(dataDir, { recursive: true });
-  writeFileSync(join(dataDir, "config.json"), JSON.stringify(config), "utf8");
-}
+  writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(config), "utf-8");
+};
 
 describe("resolveServerTarget", () => {
   it("takes the packaged defaults from the app's own resolution", () => {
     const homeDir = scratchHome();
     const resolved = resolveServerTarget({
-      isPackaged: true,
       env: {},
       homeDir,
+      isPackaged: true,
     });
     expect(resolved).toEqual({
       kind: "resolved",
       target: {
-        dataDir: join(homeDir, PROD_DATA_DIR_NAME),
-        vaultDir: join(homeDir, "Inteligir"),
-        rootDataDir: join(homeDir, PROD_DATA_DIR_NAME),
-        vaultDirSource: "default",
+        dataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
         dataDirSource: "default",
+        rootDataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
+        vaultDir: path.join(homeDir, "Inteligir"),
+        vaultDirSource: "default",
       },
     });
   });
 
   it("carries config.json's vault dir down to the child", () => {
     const homeDir = scratchHome();
-    const vaultDir = join(homeDir, "Notes");
-    writeManagedConfig(join(homeDir, PROD_DATA_DIR_NAME), { vaultDir });
+    const vaultDir = path.join(homeDir, "Notes");
+    writeManagedConfig(path.join(homeDir, PROD_DATA_DIR_NAME), { vaultDir });
     const resolved = resolveServerTarget({
-      isPackaged: true,
       env: {},
       homeDir,
+      isPackaged: true,
     });
     expect(resolved.kind === "resolved" && resolved.target.vaultDir).toBe(vaultDir);
     expect(resolved.kind === "resolved" && resolved.target.vaultDirSource).toBe("managed-config");
     // not the root: a vault other than the default gets a dir of its own beneath it
     expect(resolved.kind === "resolved" && resolved.target.dataDir).not.toBe(
-      join(homeDir, PROD_DATA_DIR_NAME),
+      path.join(homeDir, PROD_DATA_DIR_NAME),
     );
     expect(resolved.kind === "resolved" && resolved.target.rootDataDir).toBe(
-      join(homeDir, PROD_DATA_DIR_NAME),
+      path.join(homeDir, PROD_DATA_DIR_NAME),
     );
   });
 
   it("resolves a switch candidate as a boot would, refusing a vault that nests the data dir", () => {
     const homeDir = scratchHome();
     const candidate = resolveServerTarget({
-      isPackaged: true,
       env: {},
       homeDir,
-      vaultDir: join(homeDir, "Second"),
+      isPackaged: true,
+      vaultDir: path.join(homeDir, "Second"),
     });
     expect(candidate.kind === "resolved" && candidate.target.vaultDir).toBe(
-      join(homeDir, "Second"),
+      path.join(homeDir, "Second"),
     );
     expect(candidate.kind === "resolved" && candidate.target.vaultDirSource).toBe("env");
     const nested = resolveServerTarget({
-      isPackaged: true,
       env: {},
       homeDir,
-      vaultDir: join(homeDir, PROD_DATA_DIR_NAME, "notes"),
+      isPackaged: true,
+      vaultDir: path.join(homeDir, PROD_DATA_DIR_NAME, "notes"),
     });
     expect(nested.kind).toBe("refused");
   });
@@ -94,66 +92,78 @@ describe("resolveServerTarget", () => {
   it("a checkout resolves the per-checkout dev instance, whatever NODE_ENV says", () => {
     const homeDir = scratchHome();
     const resolved = resolveServerTarget({
-      isPackaged: false,
       env: { NODE_ENV: "production" },
       homeDir,
+      isPackaged: false,
     });
     expect(resolved.kind).toBe("resolved");
     if (resolved.kind !== "resolved") {
       return;
     }
-    const devRoot = join(homeDir, DEV_DATA_ROOT_DIR);
+    const devRoot = path.join(homeDir, DEV_DATA_ROOT_DIR);
     expect(resolved.target.dataDir.startsWith(devRoot)).toBe(true);
     expect(resolved.target.vaultDir.startsWith(devRoot)).toBe(true);
   });
 
   it("surfaces the app's own refusal rather than falling back to a default", () => {
     const resolved = resolveServerTarget({
-      isPackaged: true,
       env: { INTELIGIR_PORT: "65536" },
       homeDir: scratchHome(),
+      isPackaged: true,
     });
     expect(resolved).toEqual({
-      kind: "refused",
       error: "INTELIGIR_PORT must be a valid TCP port",
+      kind: "refused",
     });
   });
 });
 const TOKEN = "device-token";
 
-function dataDirWithServer(port: number | null): string {
+const dataDirWithServer = (port: number | null): string => {
   const dir = makeTempDir("inteligir-shell-data-");
   if (port !== null) {
     writeFileSync(
-      join(dir, SERVER_FILE_NAME),
-      JSON.stringify({ port, token: TOKEN, vaultDir: join(dir, "vault"), pid: 4242 }),
-      "utf8",
+      path.join(dir, SERVER_FILE_NAME),
+      JSON.stringify({ pid: 4242, port, token: TOKEN, vaultDir: path.join(dir, "vault") }),
+      "utf-8",
     );
   }
   return dir;
+};
+
+const systemStatus = (dataDir: string): SystemStatusResponse => ({
+  agent: { detail: null, mode: "off", runtime: "off" },
+  dataDir,
+  dataDirScope: "root",
+  schemaVersion: 1,
+  uptimeMs: 1,
+  vaultDir: path.join(dataDir, "vault"),
+  version: "0.1.0",
+});
+
+interface RespondingServerOptions {
+  token?: string;
+  claims?: string;
 }
 
-function systemStatus(dataDir: string): SystemStatusResponse {
-  return {
-    version: "0.1.0",
-    dataDir,
-    dataDirScope: "root",
-    vaultDir: join(dataDir, "vault"),
-    schemaVersion: 1,
-    uptimeMs: 1,
-    agent: { mode: "off", runtime: "off", detail: null },
-  };
-}
-
-function respondingServer(
+const answerFor = (
   dataDir: string,
-  options: { token?: string; claims?: string } = {},
-): ProbeStatus {
-  return (server) =>
-    Promise.resolve(
-      server.token === (options.token ?? TOKEN) ? systemStatus(options.claims ?? dataDir) : null,
-    );
-}
+  options: RespondingServerOptions,
+  server: LiveServer,
+): SystemStatusResponse | null =>
+  server.token === (options.token ?? TOKEN) ? systemStatus(options.claims ?? dataDir) : null;
+
+const respondingServer =
+  (dataDir: string, options: RespondingServerOptions = {}): ProbeStatus =>
+  async (server) => {
+    await Promise.resolve();
+    return answerFor(dataDir, options, server);
+  };
+
+const silentServer: ProbeStatus = async () => {
+  await Promise.resolve();
+  return null;
+};
 
 describe("serverOrigin", () => {
   it("is loopback by address, never by name", () => {
@@ -171,7 +181,7 @@ describe("verifyServer", () => {
   });
 
   it("follows the BOUND port the file names, not the configured one", async () => {
-    const dataDir = dataDirWithServer(24911);
+    const dataDir = dataDirWithServer(24_911);
     const verdict = await verifyServer(dataDir, respondingServer(dataDir));
     expect(verdict.kind === "verified" && verdict.live.origin).toBe("http://127.0.0.1:24911");
   });
@@ -189,9 +199,9 @@ describe("verifyServer", () => {
       respondingServer(dataDir, { claims: "/elsewhere" }),
     );
     expect(verdict).toEqual({
+      claimed: "/elsewhere",
       kind: "wrong-data-dir",
       origin: "http://127.0.0.1:4700",
-      claimed: "/elsewhere",
     });
   });
 
@@ -203,7 +213,7 @@ describe("verifyServer", () => {
 
   it("reports a stale row as unreachable, not as a stranger", async () => {
     const dataDir = dataDirWithServer(4700);
-    await expect(verifyServer(dataDir, () => Promise.resolve(null))).resolves.toEqual({
+    await expect(verifyServer(dataDir, silentServer)).resolves.toEqual({
       kind: "unreachable",
       origin: "http://127.0.0.1:4700",
     });
@@ -221,7 +231,7 @@ describe("describeServerVerdict", () => {
   it("names the other data dir when that is the mismatch", () => {
     expect(
       describeServerVerdict(
-        { kind: "wrong-data-dir", origin: "http://127.0.0.1:4664", claimed: "/elsewhere" },
+        { claimed: "/elsewhere", kind: "wrong-data-dir", origin: "http://127.0.0.1:4664" },
         "/data",
       ),
     ).toContain("/elsewhere");

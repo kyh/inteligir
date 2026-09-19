@@ -17,8 +17,8 @@ const CONNECTORS_FILE = "connectors.json";
 const storedOauthTokensSchema = z
   .object({
     accessToken: z.string().min(1),
-    refreshToken: z.string().min(1).optional(),
     expiresAt: z.number().int().nullable(),
+    refreshToken: z.string().min(1).optional(),
   })
   .strict();
 export type StoredOauthTokens = z.infer<typeof storedOauthTokensSchema>;
@@ -26,29 +26,29 @@ export type StoredOauthTokens = z.infer<typeof storedOauthTokensSchema>;
 const storedTransportSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      kind: z.literal("stdio"),
-      command: z.string().min(1),
       args: z.array(z.string()),
+      command: z.string().min(1),
+      kind: z.literal("stdio"),
     })
     .strict(),
   z
     .object({
+      headers: z.record(z.string().min(1), z.string().min(1)).optional(),
       kind: z.literal("http"),
       url: connectorUrlSchema,
-      headers: z.record(z.string().min(1), z.string().min(1)).optional(),
     })
     .strict(),
   z
     .object({
-      kind: z.literal("oauth"),
-      url: connectorUrlSchema,
       authorizationEndpoint: connectorUrlSchema,
-      tokenEndpoint: connectorUrlSchema,
       clientId: z.string().min(1),
-      scopes: z.array(z.string().min(1)),
-      tokens: storedOauthTokensSchema.optional(),
+      kind: z.literal("oauth"),
       // set when a refresh was refused; cleared by the next authorize.
       needsReauth: z.boolean().optional(),
+      scopes: z.array(z.string().min(1)),
+      tokenEndpoint: connectorUrlSchema,
+      tokens: storedOauthTokensSchema.optional(),
+      url: connectorUrlSchema,
     })
     .strict(),
 ]);
@@ -56,8 +56,8 @@ export type StoredTransport = z.infer<typeof storedTransportSchema>;
 
 const storedConnectorSchema = z
   .object({
-    name: connectorNameSchema,
     enabled: z.boolean(),
+    name: connectorNameSchema,
     transport: storedTransportSchema,
   })
   .strict();
@@ -71,11 +71,11 @@ export class ConnectorsStore {
   constructor(dataDir: string) {
     this.file = new JsonFileStore({
       dataDir,
-      fileName: CONNECTORS_FILE,
-      schema: storeFileSchema,
       empty: { servers: [] },
+      fileName: CONNECTORS_FILE,
       // holds api keys
       mode: 0o600,
+      schema: storeFileSchema,
     });
   }
 

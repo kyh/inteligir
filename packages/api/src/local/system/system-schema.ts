@@ -8,9 +8,9 @@ export type AgentMode = z.infer<typeof agentModeSchema>;
 // mode is the configuration; runtime is what actually serves turns
 export const agentStatusSchema = z
   .object({
+    detail: z.string().nullable(),
     mode: agentModeSchema,
     runtime: z.enum(["acp", "scripted", "unavailable", "off"]),
-    detail: z.string().nullable(),
   })
   .strict();
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
@@ -25,13 +25,13 @@ export type DataDirScope = z.infer<typeof dataDirScopeSchema>;
 
 export const systemStatusResponseSchema = z
   .object({
-    version: z.string().min(1),
+    agent: agentStatusSchema,
     dataDir: z.string().min(1),
     dataDirScope: dataDirScopeSchema,
-    vaultDir: z.string().min(1),
     schemaVersion: z.number().int().min(1),
     uptimeMs: z.number().min(0),
-    agent: agentStatusSchema,
+    vaultDir: z.string().min(1),
+    version: z.string().min(1),
   })
   .strict();
 export type SystemStatusResponse = z.infer<typeof systemStatusResponseSchema>;

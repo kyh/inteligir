@@ -1,31 +1,35 @@
 import { mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { createVaultService, type VaultService } from "../../vault/vault-service";
-import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
+import { createVaultService } from "../../vault/vault-service";
+import type { VaultService } from "../../vault/vault-service";
+import { createKnowledgeRuntime } from "../knowledge-runtime";
+import type { KnowledgeRuntime } from "../knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "../rename";
 import { identityLock } from "../../__tests__/identity-lock";
 
-function boot() {
+const boot = () => {
   const instanceDir = makeTempDir("inteligir-knowledge-rename-");
-  const root = join(instanceDir, "vault");
-  const dataDir = join(instanceDir, "data");
+  const root = path.join(instanceDir, "vault");
+  const dataDir = path.join(instanceDir, "data");
   mkdirSync(root, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
-    root,
     lock: identityLock,
     notifier: noopNotifier,
     onMutated: (paths) => sink?.noteVaultChange({ kind: "paths", paths }),
+    root,
   });
   const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
   sink = knowledge;
-  onTestFinished(() => knowledge.dispose());
-  return { root, service, knowledge };
-}
+  onTestFinished(async () => {
+    await knowledge.dispose();
+  });
+  return { knowledge, root, service };
+};
 
 const noRebind = (): void => {};
 
@@ -41,24 +45,24 @@ describe("rename with link rewrite", () => {
     expect(candidates.toSorted()).toEqual(["a.md", "b.md", "notes/target.md"]);
 
     const result = await renameNoteWithLinkRewrite({
-      service,
+      from: "notes/target.md",
       knowledge,
       rebindThreads: noRebind,
-      from: "notes/target.md",
+      service,
       to: "archive/moved.md",
     });
     expect(result.path).toBe("archive/moved.md");
     expect(result.rewritten.toSorted()).toEqual(["a.md", "b.md"]);
     expect(result.skipped).toEqual([]);
 
-    expect(readFileSync(join(root, "a.md"), "utf8")).toBe("Links to [[moved]] today.\n");
-    expect(readFileSync(join(root, "b.md"), "utf8")).toBe(
+    expect(readFileSync(path.join(root, "a.md"), "utf-8")).toBe("Links to [[moved]] today.\n");
+    expect(readFileSync(path.join(root, "b.md"), "utf-8")).toBe(
       "See [details](archive/moved.md) for more.\n",
     );
-    expect(readFileSync(join(root, "unrelated.md"), "utf8")).toBe(
+    expect(readFileSync(path.join(root, "unrelated.md"), "utf-8")).toBe(
       "No links, though target is a word here.\n",
     );
-    const moved = readFileSync(join(root, "archive", "moved.md"), "utf8");
+    const moved = readFileSync(path.join(root, "archive", "moved.md"), "utf-8");
     expect(moved).toContain("aliases:");
     expect(moved).toContain("target");
     expect(moved.endsWith("# Target\n\nContent here.\n")).toBe(true);
@@ -78,15 +82,15 @@ describe("rename with link rewrite", () => {
     expect(candidates.toSorted()).toEqual(["other.md", "s.md"]);
 
     await renameNoteWithLinkRewrite({
-      service,
+      from: "other.md",
       knowledge,
       rebindThreads: noRebind,
-      from: "other.md",
+      service,
       to: "note.md",
     });
 
     // the new root note.md would shadow a/note.md, so the link is qualified.
-    expect(readFileSync(join(root, "s.md"), "utf8")).toBe("Ref [[a/note]] here.\n");
+    expect(readFileSync(path.join(root, "s.md"), "utf-8")).toBe("Ref [[a/note]] here.\n");
     const backlinks = await knowledge.backlinks("a/note.md");
     expect(backlinks.map((entry) => entry.sourcePath)).toEqual(["s.md"]);
   });
@@ -97,14 +101,14 @@ describe("rename with link rewrite", () => {
     await knowledge.settle();
 
     const result = await renameNoteWithLinkRewrite({
-      service,
+      from: "dir",
       knowledge,
       rebindThreads: noRebind,
-      from: "dir",
+      service,
       to: "moved-dir",
     });
     expect(result).toEqual({ path: "moved-dir", rewritten: [], skipped: [] });
-    expect(readFileSync(join(root, "moved-dir", "inner.md"), "utf8")).toBe("# Inner\n");
+    expect(readFileSync(path.join(root, "moved-dir", "inner.md"), "utf-8")).toBe("# Inner\n");
   });
 
   it("skips a candidate edited between snapshot and rewrite, and still records the alias", async () => {
@@ -124,16 +128,18 @@ describe("rename with link rewrite", () => {
     };
 
     const result = await renameNoteWithLinkRewrite({
-      service: racing,
+      from: "target.md",
       knowledge,
       rebindThreads: noRebind,
-      from: "target.md",
+      service: racing,
       to: "moved.md",
     });
     expect(result.rewritten).toEqual([]);
     expect(result.skipped).toEqual([{ path: "a.md", reason: "changed" }]);
-    expect(readFileSync(join(root, "a.md"), "utf8")).toBe("Edited concurrently [[target]].\n");
-    const moved = readFileSync(join(root, "moved.md"), "utf8");
+    expect(readFileSync(path.join(root, "a.md"), "utf-8")).toBe(
+      "Edited concurrently [[target]].\n",
+    );
+    const moved = readFileSync(path.join(root, "moved.md"), "utf-8");
     expect(moved).toContain("aliases:");
     expect(moved).toContain("target");
   });

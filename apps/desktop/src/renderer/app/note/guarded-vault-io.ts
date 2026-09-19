@@ -2,13 +2,14 @@ import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import type { VaultIO } from "@repo/editor/vault-editor";
 import { diff3 } from "@repo/notes/text/diff3";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import { isDefinedError, refusalMessage, safe, type client } from "../api";
+import { isDefinedError, refusalMessage, safe } from "../api";
+import type { client } from "../api";
 
 export interface GuardedVaultApi {
   vault: Pick<(typeof client)["vault"], "read" | "write" | "remove">;
 }
 
-export function createGuardedVaultIo(api: GuardedVaultApi): VaultIO {
+export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
   const bases = new Map<string, string>();
 
   const read = async (path: string): Promise<string> => {
@@ -20,7 +21,7 @@ export function createGuardedVaultIo(api: GuardedVaultApi): VaultIO {
   const create = async (path: string, content: string): Promise<void> => {
     // ifAbsent and no hash: hashing content not yet on disk names bytes the
     // server cannot match, so it refuses every create.
-    await api.vault.write({ path, content, ifAbsent: true });
+    await api.vault.write({ content, ifAbsent: true, path });
     bases.set(path, content);
   };
 
@@ -32,7 +33,7 @@ export function createGuardedVaultIo(api: GuardedVaultApi): VaultIO {
       throw new Error(`write ${path}: no base was read, so nothing can guard this write`);
     }
     const expectedHash = await contentHashHex(base);
-    const { error } = await safe(api.vault.write({ path, content, expectedHash }));
+    const { error } = await safe(api.vault.write({ content, expectedHash, path }));
     if (error === null) {
       bases.set(path, content);
       return;
@@ -46,7 +47,7 @@ export function createGuardedVaultIo(api: GuardedVaultApi): VaultIO {
       const disk = error.data.current.content;
       const { merged } = diff3(base, content, disk);
       const retryHash = await contentHashHex(disk);
-      const retry = await safe(api.vault.write({ path, content: merged, expectedHash: retryHash }));
+      const retry = await safe(api.vault.write({ content: merged, expectedHash: retryHash, path }));
       if (retry.error === null) {
         bases.set(path, merged);
         return;
@@ -60,10 +61,14 @@ export function createGuardedVaultIo(api: GuardedVaultApi): VaultIO {
 
   const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
     const { error } = await safe(api.vault.remove({ path }));
-    if (error === null) return { outcome: "removed" };
-    if (isDefinedError(error) && error.code === "NOT_FOUND") return { outcome: "absent" };
+    if (error === null) {
+      return { outcome: "removed" };
+    }
+    if (isDefinedError(error) && error.code === "NOT_FOUND") {
+      return { outcome: "absent" };
+    }
     throw error;
   };
 
-  return { read, write, create, remove };
-}
+  return { create, read, remove, write };
+};

@@ -7,14 +7,12 @@ import {
 } from "@repo/api/local/routes";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "./boot-app";
 import { makeTempDir } from "./temp-dir";
 
-function key(method: string, path: string): string {
-  return `${method.toUpperCase()} ${path}`;
-}
+const key = (method: string, path: string): string => `${method.toUpperCase()} ${path}`;
 
 const DECLARED_ROUTES = new Map<string, string>([
   [
@@ -51,25 +49,24 @@ const DECLARED_BUNDLE_ROUTES = new Map<string, string>(
   ]),
 );
 
-function stagedBundle(): string {
+const stagedBundle = (): string => {
   const clientDir = makeTempDir("inteligir-http-surface-");
-  mkdirSync(join(clientDir, "assets"), { recursive: true });
-  writeFileSync(join(clientDir, "index.html"), "<!doctype html><title>inteligir</title>");
+  mkdirSync(nodePath.join(clientDir, "assets"), { recursive: true });
+  writeFileSync(nodePath.join(clientDir, "index.html"), "<!doctype html><title>inteligir</title>");
   return clientDir;
-}
+};
 
 // `app.use` middleware registers as ALL on the path it guards, so ALL is dropped except the RPC mount.
-function mountedRoutes(routes: readonly { method: string; path: string }[]): Set<string> {
-  return new Set(
+const mountedRoutes = (routes: readonly { method: string; path: string }[]): Set<string> =>
+  new Set(
     routes
       .filter((route) => route.method !== "ALL" || route.path === `${RPC_PREFIX}/*`)
       .map((route) => key(route.method, route.path)),
   );
-}
 
 describe.each([
-  { mode: "without a bundle", staged: false, extra: new Map<string, string>() },
-  { mode: "serving the bundle", staged: true, extra: DECLARED_BUNDLE_ROUTES },
+  { extra: new Map<string, string>(), mode: "without a bundle", staged: false },
+  { extra: DECLARED_BUNDLE_ROUTES, mode: "serving the bundle", staged: true },
 ])("the hand-mounted HTTP surface, $mode", ({ staged, extra }) => {
   const declared = new Map([...DECLARED_ROUTES, ...extra]);
 
@@ -80,7 +77,9 @@ describe.each([
 
     const violations: string[] = [];
     for (const route of mounted) {
-      if (declared.has(route)) continue;
+      if (declared.has(route)) {
+        continue;
+      }
       violations.push(
         `UNDECLARED ROUTE  ${route}\n` +
           `  rule: a route mounted beside the RPC handler is a deliberate exception to "everything is a procedure"\n` +
@@ -88,7 +87,9 @@ describe.each([
       );
     }
     for (const [route, why] of declared) {
-      if (mounted.has(route)) continue;
+      if (mounted.has(route)) {
+        continue;
+      }
       violations.push(
         `UNMOUNTED ROUTE  ${route}\n` +
           `  the row claims: ${why}\n` +
@@ -102,8 +103,12 @@ describe.each([
       composed.app.routes.filter((route) => route.method !== "ALL").map((route) => route.path),
     );
     for (const route of composed.app.routes) {
-      if (route.method !== "ALL" || route.path === `${RPC_PREFIX}/*`) continue;
-      if (nonAllPaths.has(route.path)) continue;
+      if (route.method !== "ALL" || route.path === `${RPC_PREFIX}/*`) {
+        continue;
+      }
+      if (nonAllPaths.has(route.path)) {
+        continue;
+      }
       violations.push(
         `REACHABLE ALL ROUTE  ALL ${route.path}\n` +
           `  rule: an ALL registration is dropped as middleware only when a non-ALL route on the same path proves it guards something; this one guards nothing declared\n` +

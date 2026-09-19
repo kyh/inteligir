@@ -9,15 +9,19 @@ export interface CachedNote {
 }
 
 export interface NoteCache {
-  get(commit: string, path: string): Promise<CachedNote | null>;
-  set(note: CachedNote): Promise<void>;
-  sweep(keepCommit: string): Promise<void>;
-  clear(): Promise<void>;
+  get: (commit: string, path: string) => Promise<CachedNote | null>;
+  set: (note: CachedNote) => Promise<void>;
+  sweep: (keepCommit: string) => Promise<void>;
+  clear: () => Promise<void>;
 }
 
-export function createMemoryNoteCache(maxEntries: number): NoteCache {
+export const createMemoryNoteCache = (maxEntries: number): NoteCache => {
   const rows = new Map<string, CachedNote>();
   return {
+    clear() {
+      rows.clear();
+      return Promise.resolve();
+    },
     get(commit, path) {
       return Promise.resolve(rows.get(`${commit}:${path}`) ?? null);
     },
@@ -25,20 +29,20 @@ export function createMemoryNoteCache(maxEntries: number): NoteCache {
       rows.set(`${note.commit}:${note.path}`, note);
       while (rows.size > maxEntries) {
         const oldest = rows.keys().next().value;
-        if (oldest === undefined) break;
+        if (oldest === undefined) {
+          break;
+        }
         rows.delete(oldest);
       }
       return Promise.resolve();
     },
     sweep(keepCommit) {
       for (const [key, row] of rows) {
-        if (row.commit !== keepCommit) rows.delete(key);
+        if (row.commit !== keepCommit) {
+          rows.delete(key);
+        }
       }
       return Promise.resolve();
     },
-    clear() {
-      rows.clear();
-      return Promise.resolve();
-    },
   };
-}
+};

@@ -2,7 +2,8 @@
 // hover preview's markdown strip.
 
 import { describe, expect, it } from "vitest";
-import { ElementApi, type Descendant } from "platejs";
+import { ElementApi } from "platejs";
+import type { Descendant } from "platejs";
 import { createPlateEditor } from "platejs/react";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
@@ -10,20 +11,22 @@ import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { stringProp } from "@repo/editor/node-props";
 
-function chipDates(nodes: Descendant[]): string[] {
+const chipDates = (nodes: Descendant[]): string[] => {
   const out: string[] = [];
   for (const node of nodes) {
-    if (!ElementApi.isElement(node)) continue;
+    if (!ElementApi.isElement(node)) {
+      continue;
+    }
     const date = node.type === "date" ? stringProp(node, "date") : undefined;
-    if (date !== undefined) out.push(date);
+    if (date !== undefined) {
+      out.push(date);
+    }
     out.push(...chipDates(node.children));
   }
   return out;
-}
+};
 
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
+const pad2 = (n: number): string => String(n).padStart(2, "0");
 
 describe("date chip inserts", () => {
   it("/day inserts today's ISO date", () => {

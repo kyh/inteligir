@@ -5,20 +5,19 @@ export type RailTreeProps = Omit<React.ComponentProps<typeof FileTree>, "state">
 
 // The rail's half of the tree, so a test drives it the way the rail does: the state is
 // owned one level up, Collapse all is a button over it and the create dir is derived from it.
-export function RailTree(props: RailTreeProps) {
+export const RailTree = (props: RailTreeProps) => {
   const state = useTreeState();
+  const handleCollapseAll = state.collapseAll;
   const folders = new Set(
     props.entries.filter((entry) => entry.kind === "dir").map((entry) => entry.path),
   );
   return (
     <>
-      <button type="button" onClick={state.collapseAll}>
+      <button type="button" onClick={handleCollapseAll}>
         Collapse all
       </button>
-      <span
-        data-create-dir={createDirFor(props.rootDir, state.activePath, (path) => folders.has(path))}
-      />
+      <span data-create-dir={createDirFor("", state.activePath, (path) => folders.has(path))} />
       <FileTree state={state} {...props} />
     </>
   );
-}
+};

@@ -10,16 +10,28 @@ type MotionStyleValue = Exclude<
   undefined
 >;
 
-export function motionStyle(...styles: (CSSProperties | MotionStyle | undefined)[]): MotionStyle {
+// CSSProperties and MotionStyle are interfaces, so neither satisfies the indexed overload of
+// Object.entries; naming the entry type here is what keeps the merge loop off `any`
+const styleEntries: (
+  style: CSSProperties | MotionStyle,
+) => [string, MotionStyleValue | undefined][] = Object.entries;
+
+export const motionStyle = (
+  ...styles: (CSSProperties | MotionStyle | undefined)[]
+): MotionStyle => {
   const merged: Record<string, MotionStyleValue> = {};
   for (const style of styles) {
-    if (!style) continue;
-    for (const [key, value] of Object.entries(style)) {
-      if (value !== undefined) merged[key] = value;
+    if (!style) {
+      continue;
+    }
+    for (const [key, value] of styleEntries(style)) {
+      if (value !== undefined) {
+        merged[key] = value;
+      }
     }
   }
   return merged;
-}
+};
 
 // the DOM handlers framer redefines with its own signatures
 export type MotionConflictHandler =
@@ -32,7 +44,9 @@ export type MotionConflictHandler =
 
 type DomHandlerProps = Pick<HTMLAttributes<HTMLElement>, MotionConflictHandler>;
 
-export function motionProps<P extends DomHandlerProps>(props: P): Omit<P, MotionConflictHandler> {
+export const motionProps = <P extends DomHandlerProps>(
+  props: P,
+): Omit<P, MotionConflictHandler> => {
   const {
     onDrag: _onDrag,
     onDragStart: _onDragStart,
@@ -43,4 +57,4 @@ export function motionProps<P extends DomHandlerProps>(props: P): Omit<P, Motion
     ...rest
   } = props;
   return rest;
-}
+};

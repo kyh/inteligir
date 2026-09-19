@@ -13,12 +13,12 @@ export const timelineRowStatusSchema = z.enum(timelineRowStatusValues);
 export type TimelineRowStatus = z.infer<typeof timelineRowStatusSchema>;
 
 export const timelineRowBaseSchema = z.object({
+  createdAt: z.number(),
   id: z.string(),
+  sourceSeqEnd: z.number().int(),
+  sourceSeqStart: z.number().int(),
   threadId: z.string(),
   turnId: z.string().nullable(),
-  sourceSeqStart: z.number().int(),
-  sourceSeqEnd: z.number().int(),
-  createdAt: z.number(),
 });
 export type TimelineRowBase = z.infer<typeof timelineRowBaseSchema>;
 
@@ -37,48 +37,48 @@ const timelineWorkRowBaseSchema = timelineRowBaseSchema.extend({
 });
 
 export const timelineCommandWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  workKind: z.literal("command"),
+  approvalStatus: threadEventItemApprovalStatusSchema,
   command: z.string(),
   cwd: z.string().nullable(),
-  output: z.string(),
   exitCode: z.number().nullable(),
-  approvalStatus: threadEventItemApprovalStatusSchema,
+  output: z.string(),
+  workKind: z.literal("command"),
 });
 export type TimelineCommandWorkRow = z.infer<typeof timelineCommandWorkRowSchema>;
 
 export const timelineToolWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  workKind: z.literal("tool"),
-  toolName: z.string(),
-  toolArgs: z.record(z.string(), z.unknown()).nullable(),
-  result: z.string().nullable(),
   error: z.string().nullable(),
+  result: z.string().nullable(),
+  toolArgs: z.record(z.string(), z.unknown()).nullable(),
+  toolName: z.string(),
+  workKind: z.literal("tool"),
 });
 export type TimelineToolWorkRow = z.infer<typeof timelineToolWorkRowSchema>;
 
 export const timelineFileChangeSchema = z.object({
-  path: z.string(),
+  diff: z.string().nullable(),
   kind: threadEventFileChangeKindSchema,
   movePath: z.string().nullable(),
-  diff: z.string().nullable(),
+  path: z.string(),
 });
 export type TimelineFileChange = z.infer<typeof timelineFileChangeSchema>;
 
 export const timelineFileChangeWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  workKind: z.literal("file-change"),
-  changes: z.array(timelineFileChangeSchema),
   approvalStatus: threadEventItemApprovalStatusSchema,
+  changes: z.array(timelineFileChangeSchema),
+  workKind: z.literal("file-change"),
 });
 export type TimelineFileChangeWorkRow = z.infer<typeof timelineFileChangeWorkRowSchema>;
 
 export const timelineReasoningWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  workKind: z.literal("reasoning"),
   text: z.string(),
+  workKind: z.literal("reasoning"),
 });
 export type TimelineReasoningWorkRow = z.infer<typeof timelineReasoningWorkRowSchema>;
 
 export const timelinePlanWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  workKind: z.literal("plan"),
   text: z.string(),
+  workKind: z.literal("plan"),
 });
 export type TimelinePlanWorkRow = z.infer<typeof timelinePlanWorkRowSchema>;
 
@@ -92,9 +92,9 @@ export const timelineWorkRowSchema = z.discriminatedUnion("workKind", [
 export type TimelineWorkRow = z.infer<typeof timelineWorkRowSchema>;
 
 export const timelineErrorRowSchema = timelineRowBaseSchema.extend({
+  detail: z.string().nullable(),
   kind: z.literal("error"),
   message: z.string(),
-  detail: z.string().nullable(),
 });
 export type TimelineErrorRow = z.infer<typeof timelineErrorRowSchema>;
 
@@ -113,25 +113,26 @@ export type TimelineRow =
   | TimelineTurnRow;
 
 export const timelineTurnRowSchema: z.ZodType<TimelineTurnRow> = timelineRowBaseSchema.extend({
-  kind: z.literal("turn"),
-  turnId: z.string().min(1),
-  status: timelineRowStatusSchema,
-  completedAt: z.number().nullable(),
+  // a turn holds rows and a row may be a turn: the cycle only resolves at parse time, which is
+  // what `z.lazy` defers to and why this reference cannot be reordered away
+  // oxlint-disable-next-line no-use-before-define -- mutually recursive schema, deferred by z.lazy
   children: z.array(z.lazy(() => timelineRowSchema)),
+  completedAt: z.number().nullable(),
+  kind: z.literal("turn"),
+  status: timelineRowStatusSchema,
+  turnId: z.string().min(1),
 });
 
-export const timelineRowSchema: z.ZodType<TimelineRow> = z.lazy(() =>
-  z.union([
-    timelineConversationRowSchema,
-    timelineWorkRowSchema,
-    timelineErrorRowSchema,
-    timelineTurnRowSchema,
-  ]),
-);
+export const timelineRowSchema: z.ZodType<TimelineRow> = z.union([
+  timelineConversationRowSchema,
+  timelineWorkRowSchema,
+  timelineErrorRowSchema,
+  timelineTurnRowSchema,
+]);
 
 export const threadTimelineSchema = z.object({
-  rows: z.array(timelineRowSchema),
   maxSequence: z.number().int().nonnegative(),
+  rows: z.array(timelineRowSchema),
   tokenUsage: threadEventTokenUsageSchema.nullable(),
 });
 export type ThreadTimeline = z.infer<typeof threadTimelineSchema>;
@@ -142,13 +143,16 @@ export type ThreadTimeline = z.infer<typeof threadTimelineSchema>;
 export const timelineDeltaSchema = z.object({
   fromSequence: z.number().int().nonnegative(),
   maxSequence: z.number().int().nonnegative(),
+  rowOrder: z.array(z.string()).optional(),
   tokenUsage: threadEventTokenUsageSchema.nullable(),
   upsertRows: z.array(timelineRowSchema),
-  rowOrder: z.array(z.string()).optional(),
 });
 export type TimelineDelta = z.infer<typeof timelineDeltaSchema>;
 
-export function computeTimelineDelta(base: ThreadTimeline, current: ThreadTimeline): TimelineDelta {
+export const computeTimelineDelta = (
+  base: ThreadTimeline,
+  current: ThreadTimeline,
+): TimelineDelta => {
   // when current extends base, a row whose sourceSeqEnd has not passed base.maxSequence is
   // identical to base's, and serializing it to learn that is this function's whole cost on a
   // long thread; for a shorter current the reasoning inverts, so the filter stands down
@@ -178,14 +182,14 @@ export function computeTimelineDelta(base: ThreadTimeline, current: ThreadTimeli
     maxSequence: current.maxSequence,
     tokenUsage: current.tokenUsage,
   };
-  return orderChanged ? { ...envelope, upsertRows, rowOrder } : { ...envelope, upsertRows };
-}
+  return orderChanged ? { ...envelope, rowOrder, upsertRows } : { ...envelope, upsertRows };
+};
 
 // null means refetch in full: the base does not match, or a row is neither held nor sent
-export function applyTimelineDelta(
+export const applyTimelineDelta = (
   held: ThreadTimeline,
   delta: TimelineDelta,
-): ThreadTimeline | null {
+): ThreadTimeline | null => {
   if (delta.fromSequence !== held.maxSequence) {
     return null;
   }
@@ -205,5 +209,5 @@ export function applyTimelineDelta(
     }
     rows.push(row);
   }
-  return { rows, maxSequence: delta.maxSequence, tokenUsage: delta.tokenUsage };
-}
+  return { maxSequence: delta.maxSequence, rows, tokenUsage: delta.tokenUsage };
+};

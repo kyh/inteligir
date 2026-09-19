@@ -4,12 +4,11 @@
 export type ShortcutModifier = "meta" | "ctrl";
 
 // never "either": on mac the editor's Ctrl-K is an emacs line kill, and both modifiers would double-fire.
-export function platformShortcutModifier(): ShortcutModifier {
-  return /mac|iphone|ipad|ipod/iu.test(navigator.userAgent) ? "meta" : "ctrl";
-}
+export const platformShortcutModifier = (): ShortcutModifier =>
+  /mac|iphone|ipad|ipod/iu.test(navigator.userAgent) ? "meta" : "ctrl";
 
 // Apple's menu order (⌃⌥⇧⌘) on a mac keyboard; words joined with + elsewhere
-export function spellHotkey(hotkey: string, modifier: ShortcutModifier): string {
+export const spellHotkey = (hotkey: string, modifier: ShortcutModifier): string => {
   const parts = hotkey.split("+");
   const key = parts.at(-1) ?? "";
   const mods = new Set(parts.slice(0, -1));
@@ -25,4 +24,4 @@ export function spellHotkey(hotkey: string, modifier: ShortcutModifier): string 
   ]
     .filter((part) => part !== null)
     .join("+");
-}
+};

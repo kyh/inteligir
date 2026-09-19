@@ -8,31 +8,45 @@ import { createBridgeStore } from "./bridge-store";
 import { readSpellcheck, writeSpellcheck } from "./prefs";
 
 // launch: the stored choice, else what the session already holds
-function applyStored(spellcheck: DesktopSpellcheckBridge): Promise<SpellcheckState> {
+const applyStored = async (spellcheck: DesktopSpellcheckBridge): Promise<SpellcheckState> => {
   const stored = readSpellcheck();
-  return stored === null ? spellcheck.getState() : spellcheck.apply(stored);
-}
+  return stored === null ? await spellcheck.getState() : await spellcheck.apply(stored);
+};
+
+const adoptStored = async (
+  spellcheck: DesktopSpellcheckBridge,
+  adopt: (state: SpellcheckState) => void,
+): Promise<void> => {
+  let state;
+  try {
+    state = await applyStored(spellcheck);
+  } catch (error) {
+    console.warn("[spellcheck] the session did not answer", error);
+    return;
+  }
+  adopt(state);
+};
 
 const store = createBridgeStore<DesktopSpellcheckBridge, SpellcheckState>({
   bridge: () => window.desktopBridge?.spellcheck,
   start: (spellcheck, adopt) => {
-    applyStored(spellcheck).then(adopt, (cause: unknown) => {
-      console.warn("[spellcheck] the session did not answer", cause);
-    });
+    void adoptStored(spellcheck, adopt);
   },
 });
 
 export const useDesktopSpellcheck = store.use;
 
 // before the first paint, so the session runs the stored choice from the first keystroke
-export function applyStoredSpellcheck(): Promise<void> {
-  return store.run(applyStored).catch((cause: unknown) => {
-    console.warn("[spellcheck] the session did not answer", cause);
-  });
-}
+export const applyStoredSpellcheck = async (): Promise<void> => {
+  try {
+    await store.run(applyStored);
+  } catch (error) {
+    console.warn("[spellcheck] the session did not answer", error);
+  }
+};
 
 // the pref is written first, so a session that refuses still remembers what was asked
-export function chooseSpellcheck(choice: SpellcheckChoice): Promise<void> {
+export const chooseSpellcheck = async (choice: SpellcheckChoice): Promise<void> => {
   writeSpellcheck(choice);
-  return store.run((spellcheck) => spellcheck.apply(choice));
-}
+  await store.run(async (spellcheck) => await spellcheck.apply(choice));
+};

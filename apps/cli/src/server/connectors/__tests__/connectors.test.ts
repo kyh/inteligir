@@ -1,18 +1,24 @@
 import { readFileSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { ORPCError, safe } from "@orpc/client";
 import { connectorsResponseSchema } from "@repo/api/local/connectors/connectors-schema";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { ConnectorConflictError, createConnectorsService } from "../connectors-service";
 import { ConnectorsStore } from "../connectors-store";
 import { JsonFileStoreError } from "../../json-file-store";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-function tempService() {
+const storeFileSchema = z.object({ servers: z.array(z.unknown()) });
+
+const readServersLength = (path: string): number =>
+  storeFileSchema.parse(JSON.parse(readFileSync(path, "utf-8"))).servers.length;
+
+const tempService = () => {
   const dir = makeTempDir("inteligir-connectors-");
   return { dir, service: createConnectorsService(new ConnectorsStore(dir)) };
-}
+};
 
 describe("the connectors registry", () => {
   it("adds, lists redacted, and hands sessions the full rows", () => {
@@ -53,12 +59,12 @@ describe("the connectors registry", () => {
     service.add({ name: "a", transport: { args: [], command: "srv", kind: "stdio" } });
     expect(() =>
       service.add({ name: "a", transport: { args: [], command: "other", kind: "stdio" } }),
-    ).toThrowError(ConnectorConflictError);
-    expect(() => service.remove("missing")).toThrowError(ConnectorConflictError);
+    ).toThrow(ConnectorConflictError);
+    expect(() => service.remove("missing")).toThrow(ConnectorConflictError);
     expect(() =>
       service.update({ name: "missing", transport: { kind: "http", url: "https://x.dev/mcp" } }),
-    ).toThrowError(ConnectorConflictError);
-    expect(() => service.toggle("missing", false)).toThrowError(ConnectorConflictError);
+    ).toThrow(ConnectorConflictError);
+    expect(() => service.toggle("missing", false)).toThrow(ConnectorConflictError);
   });
 
   it("keeps stored headers through an update that omits them", () => {
@@ -88,12 +94,12 @@ describe("the connectors registry", () => {
   it("writes the store at 0600 and refuses malformed bytes as an error, never as empty", () => {
     const { dir, service } = tempService();
     service.add({ name: "a", transport: { args: [], command: "srv", kind: "stdio" } });
-    const path = join(dir, "connectors.json");
-    expect(statSync(path).mode & 0o777).toBe(0o600);
-    expect(JSON.parse(readFileSync(path, "utf8")).servers).toHaveLength(1);
+    const path = nodePath.join(dir, "connectors.json");
+    expect(statSync(path).mode % 0o1000).toBe(0o600);
+    expect(readServersLength(path)).toBe(1);
 
     writeFileSync(path, "{not json");
-    expect(() => service.list()).toThrowError(JsonFileStoreError);
+    expect(() => service.list()).toThrow(JsonFileStoreError);
   });
 });
 

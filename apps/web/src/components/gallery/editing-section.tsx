@@ -45,7 +45,7 @@ const SERIES = [
 
 const TONES = ["Neutral", "Direct", "Warm"];
 
-export function EditingSection() {
+export const EditingSection = () => {
   const [temperature, setTemperature] = useState(40);
   const [tone, setTone] = useState("Neutral");
 
@@ -169,4 +169,4 @@ export function EditingSection() {
       </Demo>
     </GallerySection>
   );
-}
+};

@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DEV_DATA_ROOT_DIR,
@@ -19,8 +19,8 @@ describe("data dir", () => {
       homeDir,
     });
     expect(config.mode).toBe("prod");
-    expect(config.dataDir).toBe(join(homeDir, PROD_DATA_DIR_NAME));
-    expect(config.databasePath).toBe(join(homeDir, PROD_DATA_DIR_NAME, "inteligir.db"));
+    expect(config.dataDir).toBe(path.join(homeDir, PROD_DATA_DIR_NAME));
+    expect(config.databasePath).toBe(path.join(homeDir, PROD_DATA_DIR_NAME, "inteligir.db"));
     expect(config.port).toBe(PROD_SERVER_PORT);
   });
 
@@ -29,9 +29,9 @@ describe("data dir", () => {
     const a = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
     const b = resolveAppConfig({ checkoutPath: "/checkout/b", env: {}, homeDir });
 
-    const instanceDir = join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId("/checkout/a"));
-    expect(a.dataDir).toBe(join(instanceDir, "data"));
-    expect(a.vaultDir).toBe(join(instanceDir, "vault"));
+    const instanceDir = path.join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId("/checkout/a"));
+    expect(a.dataDir).toBe(path.join(instanceDir, "data"));
+    expect(a.vaultDir).toBe(path.join(instanceDir, "vault"));
     expect(a.dataDir).not.toBe(b.dataDir);
     expect(a.port).toBe(resolveDevDefaultPort("/checkout/a"));
     expect(a.port).not.toBe(b.port);
@@ -52,7 +52,7 @@ describe("data dir", () => {
       env: { INTELIGIR_DATA_DIR: "~/custom-data" },
       homeDir,
     });
-    expect(config.dataDir).toBe(join(homeDir, "custom-data"));
+    expect(config.dataDir).toBe(path.join(homeDir, "custom-data"));
   });
 
   it("refuses an empty INTELIGIR_DATA_DIR", () => {
@@ -62,7 +62,7 @@ describe("data dir", () => {
         env: { INTELIGIR_DATA_DIR: "  " },
         homeDir: makeTempDir("inteligir-config-test-"),
       }),
-    ).toThrow(/INTELIGIR_DATA_DIR/);
+    ).toThrow(/INTELIGIR_DATA_DIR/u);
   });
 
   it("refuses a relative INTELIGIR_DATA_DIR with an actionable message", () => {
@@ -72,7 +72,7 @@ describe("data dir", () => {
         env: { INTELIGIR_DATA_DIR: "relative/data" },
         homeDir: makeTempDir("inteligir-config-test-"),
       }),
-    ).toThrow(/INTELIGIR_DATA_DIR must be an absolute path \(got "relative\/data"\)/);
+    ).toThrow(/INTELIGIR_DATA_DIR must be an absolute path \(got "relative\/data"\)/u);
   });
 
   it("records where the data dir and port came from", () => {
@@ -82,7 +82,7 @@ describe("data dir", () => {
     expect(derived.portSource).toBe("default");
 
     const dataDir = makeTempDir("inteligir-config-test-");
-    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
+    writeFileSync(path.join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
     const managed = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { INTELIGIR_DATA_DIR: dataDir },
@@ -104,7 +104,7 @@ describe("port layering: env → managed file → default", () => {
   it("reads the managed config file when no env var is set", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const dataDir = makeTempDir("inteligir-config-test-");
-    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
+    writeFileSync(path.join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { INTELIGIR_DATA_DIR: dataDir },
@@ -116,7 +116,7 @@ describe("port layering: env → managed file → default", () => {
   it("lets INTELIGIR_PORT beat the managed file", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const dataDir = makeTempDir("inteligir-config-test-");
-    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
+    writeFileSync(path.join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_PORT: "4777" },
@@ -128,7 +128,10 @@ describe("port layering: env → managed file → default", () => {
   it("tolerates unknown keys in the managed file, refuses invalid JSON", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const dataDir = makeTempDir("inteligir-config-test-");
-    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555, futureKey: true }));
+    writeFileSync(
+      path.join(dataDir, "config.json"),
+      JSON.stringify({ futureKey: true, port: 4555 }),
+    );
     expect(
       resolveAppConfig({
         checkoutPath: "/checkout/a",
@@ -137,14 +140,14 @@ describe("port layering: env → managed file → default", () => {
       }).port,
     ).toBe(4555);
 
-    writeFileSync(join(dataDir, "config.json"), "{not json");
+    writeFileSync(path.join(dataDir, "config.json"), "{not json");
     expect(() =>
       resolveAppConfig({
         checkoutPath: "/checkout/a",
         env: { INTELIGIR_DATA_DIR: dataDir },
         homeDir,
       }),
-    ).toThrow(/config\.json/);
+    ).toThrow(/config\.json/u);
   });
 
   it("refuses a malformed INTELIGIR_PORT", () => {
@@ -154,7 +157,7 @@ describe("port layering: env → managed file → default", () => {
         env: { INTELIGIR_PORT: "not-a-port" },
         homeDir: makeTempDir("inteligir-config-test-"),
       }),
-    ).toThrow(/INTELIGIR_PORT/);
+    ).toThrow(/INTELIGIR_PORT/u);
   });
 });
 
@@ -166,7 +169,7 @@ describe("the vault dir and remote", () => {
       env: { NODE_ENV: "production" },
       homeDir,
     });
-    expect(prod.vaultDir).toBe(join(homeDir, "Inteligir"));
+    expect(prod.vaultDir).toBe(path.join(homeDir, "Inteligir"));
     expect(prod.vaultRemote).toBeNull();
 
     const overridden = resolveAppConfig({
@@ -174,7 +177,7 @@ describe("the vault dir and remote", () => {
       env: { INTELIGIR_VAULT_DIR: "~/Notes" },
       homeDir,
     });
-    expect(overridden.vaultDir).toBe(join(homeDir, "Notes"));
+    expect(overridden.vaultDir).toBe(path.join(homeDir, "Notes"));
   });
 
   it("refuses a vault nested in the data dir (and the reverse)", () => {
@@ -183,17 +186,20 @@ describe("the vault dir and remote", () => {
     expect(() =>
       resolveAppConfig({
         checkoutPath: "/checkout/a",
-        env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_VAULT_DIR: join(dataDir, "vault") },
+        env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_VAULT_DIR: path.join(dataDir, "vault") },
         homeDir,
       }),
-    ).toThrow(/must be disjoint/);
+    ).toThrow(/must be disjoint/u);
     expect(() =>
       resolveAppConfig({
         checkoutPath: "/checkout/a",
-        env: { INTELIGIR_DATA_DIR: join(homeDir, "Vault", "data"), INTELIGIR_VAULT_DIR: "~/Vault" },
+        env: {
+          INTELIGIR_DATA_DIR: path.join(homeDir, "Vault", "data"),
+          INTELIGIR_VAULT_DIR: "~/Vault",
+        },
         homeDir,
       }),
-    ).toThrow(/must be disjoint/);
+    ).toThrow(/must be disjoint/u);
   });
 
   it("refuses a model dir inside the vault — a model would be committed and pushed", () => {
@@ -205,12 +211,12 @@ describe("the vault dir and remote", () => {
         checkoutPath: "/checkout/a",
         env: {
           INTELIGIR_DATA_DIR: dataDir,
+          INTELIGIR_MODEL_DIR: path.join(vaultDir, "models"),
           INTELIGIR_VAULT_DIR: vaultDir,
-          INTELIGIR_MODEL_DIR: join(vaultDir, "models"),
         },
         homeDir,
       }),
-    ).toThrow(/outside the vault/);
+    ).toThrow(/outside the vault/u);
   });
 
   it("defaults the model dir under the data dir and accepts it beside the vault", () => {
@@ -220,7 +226,7 @@ describe("the vault dir and remote", () => {
       env: { NODE_ENV: "production" },
       homeDir,
     });
-    expect(config.modelDir).toBe(join(homeDir, ".inteligir", "models"));
+    expect(config.modelDir).toBe(path.join(homeDir, ".inteligir", "models"));
   });
 
   it("accepts the git remote shapes git dials and refuses the rest", () => {
@@ -243,9 +249,9 @@ describe("the vault dir and remote", () => {
     );
 
     // a value git would parse as an option must never reach an argv slot.
-    expect(() => resolveWithRemote("--upload-pack=/bin/evil")).toThrow(/INTELIGIR_VAULT_REMOTE/);
-    expect(() => resolveWithRemote("/plain/local/path")).toThrow(/INTELIGIR_VAULT_REMOTE/);
-    expect(() => resolveWithRemote("ext::sh -c evil")).toThrow(/INTELIGIR_VAULT_REMOTE/);
+    expect(() => resolveWithRemote("--upload-pack=/bin/evil")).toThrow(/INTELIGIR_VAULT_REMOTE/u);
+    expect(() => resolveWithRemote("/plain/local/path")).toThrow(/INTELIGIR_VAULT_REMOTE/u);
+    expect(() => resolveWithRemote("ext::sh -c evil")).toThrow(/INTELIGIR_VAULT_REMOTE/u);
   });
 
   it("INTELIGIR_SYNC_INTERVAL_MS: unset = absent, 0 = disabled (null), positive = cadence", () => {
@@ -260,9 +266,9 @@ describe("the vault dir and remote", () => {
     expect(resolveWithInterval().vaultSyncIntervalMs).toBeUndefined();
     expect(resolveWithInterval("0").vaultSyncIntervalMs).toBeNull();
     expect(resolveWithInterval("5000").vaultSyncIntervalMs).toBe(5000);
-    expect(() => resolveWithInterval("-1")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/);
-    expect(() => resolveWithInterval("fast")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/);
-    expect(() => resolveWithInterval("1.5")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/);
+    expect(() => resolveWithInterval("-1")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/u);
+    expect(() => resolveWithInterval("fast")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/u);
+    expect(() => resolveWithInterval("1.5")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/u);
   });
 });
 
@@ -287,13 +293,16 @@ describe("the agent selection", () => {
         env: { INTELIGIR_AGENT: "cortex" },
         homeDir,
       }),
-    ).toThrow(/INTELIGIR_AGENT/);
+    ).toThrow(/INTELIGIR_AGENT/u);
   });
 
   it("reads agent and agentModel from the managed file, env winning", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const dataDir = makeTempDir("inteligir-config-test-");
-    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ agent: "off", agentModel: "m1" }));
+    writeFileSync(
+      path.join(dataDir, "config.json"),
+      JSON.stringify({ agent: "off", agentModel: "m1" }),
+    );
     const managed = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { INTELIGIR_DATA_DIR: dataDir },
@@ -304,7 +313,7 @@ describe("the agent selection", () => {
 
     const layered = resolveAppConfig({
       checkoutPath: "/checkout/a",
-      env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_AGENT: "scripted" },
+      env: { INTELIGIR_AGENT: "scripted", INTELIGIR_DATA_DIR: dataDir },
       homeDir,
     });
     expect(layered.agent).toBe("scripted");

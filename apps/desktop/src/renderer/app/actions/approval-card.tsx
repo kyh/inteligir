@@ -10,12 +10,12 @@ import {
   ApprovalCard as ApprovalCardView,
   ApprovalOption,
   ApprovalQuestion,
-  type ApprovalAnswer,
 } from "@repo/ui/ai/approval-card";
+import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
 
 const DECISION_LABELS = {
-  allow_once: "Allow once",
   allow_for_session: "Allow for session",
+  allow_once: "Allow once",
   deny: "Deny",
 } satisfies Record<PendingInteractionApprovalDecision, string>;
 
@@ -25,9 +25,8 @@ const DECISIONS: readonly PendingInteractionApprovalDecision[] = [
   "deny",
 ];
 
-function isDecision(value: string): value is PendingInteractionApprovalDecision {
-  return DECISIONS.some((decision) => decision === value);
-}
+const isDecision = (value: string): value is PendingInteractionApprovalDecision =>
+  DECISIONS.some((decision) => decision === value);
 
 export interface ApprovalCardProps {
   interaction: PendingInteraction;
@@ -41,44 +40,50 @@ interface ApprovalView {
   decisions: PendingInteractionApprovalDecision[];
 }
 
-function approvalView(payload: ApprovalPendingInteractionPayload | null): ApprovalView {
+const approvalView = (payload: ApprovalPendingInteractionPayload | null): ApprovalView => {
   if (payload === null) {
-    return { summary: "The agent asked for approval.", reason: null, decisions: [] };
+    return { decisions: [], reason: null, summary: "The agent asked for approval." };
   }
   const { subject, reason, availableDecisions: decisions } = payload;
   switch (subject.kind) {
-    case "command":
-      return { summary: `$ ${subject.command}`, reason, decisions };
-    case "file_change":
+    case "command": {
+      return { decisions, reason, summary: `$ ${subject.command}` };
+    }
+    case "file_change": {
       return {
+        decisions,
+        reason,
         summary:
           subject.writeScope === null
             ? "Apply file changes"
             : `Apply file changes in ${subject.writeScope}`,
-        reason,
-        decisions,
       };
+    }
+    default: {
+      const exhaustive: never = subject;
+      return exhaustive;
+    }
   }
-}
+};
 
-export function approvalOffer(interaction: PendingInteraction): ApprovalView {
+export const approvalOffer = (interaction: PendingInteraction): ApprovalView => {
   const view = approvalView(interaction.payload);
   return {
-    summary: view.summary,
-    reason: view.reason,
     decisions: [...view.decisions.filter((decision) => decision !== "deny"), "deny"],
+    reason: view.reason,
+    summary: view.summary,
   };
-}
+};
 
-export function decisionFromAnswers(
+export const decisionFromAnswers = (
   answers: readonly ApprovalAnswer[],
-): PendingInteractionApprovalDecision | null {
+): PendingInteractionApprovalDecision | null => {
   const [answer] = answers;
   const picked = answer?.optionIds[0];
   return picked !== undefined && isDecision(picked) ? picked : null;
-}
+};
 
-export function ApprovalCard({ interaction, onAnswer, disabled = false }: ApprovalCardProps) {
+export const ApprovalCard = ({ interaction, onAnswer, disabled = false }: ApprovalCardProps) => {
   const offer = approvalOffer(interaction);
   return (
     <ApprovalCardView
@@ -107,4 +112,4 @@ export function ApprovalCard({ interaction, onAnswer, disabled = false }: Approv
       </ApprovalQuestion>
     </ApprovalCardView>
   );
-}
+};

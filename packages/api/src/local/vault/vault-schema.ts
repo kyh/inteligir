@@ -25,9 +25,9 @@ export const vaultEntrySchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("file"),
-      path: z.string().min(1),
       // absent when the stat failed; the row still lists.
       modifiedMs: z.number().optional(),
+      path: z.string().min(1),
     })
     .strict(),
 ]);
@@ -35,11 +35,11 @@ export type VaultEntry = z.infer<typeof vaultEntrySchema>;
 
 export const vaultTreeResponseSchema = z
   .object({
-    root: z.string().min(1),
-    // split from `root` by the server: a client splitting on "/" shows a whole windows path.
-    name: z.string().min(1),
     // depth-first, parents before children, folders before files.
     entries: z.array(vaultEntrySchema),
+    // split from `root` by the server: a client splitting on "/" shows a whole windows path.
+    name: z.string().min(1),
+    root: z.string().min(1),
   })
   .strict();
 export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
@@ -47,16 +47,14 @@ export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
 // utf-16 code units on the write schema, bytes on the read side; a bound, not a byte-exact quota.
 export const VAULT_MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
 
-export async function contentHashHex(content: string): Promise<string> {
-  return sha256Hex(content);
-}
+export const contentHashHex = async (content: string): Promise<string> => await sha256Hex(content);
 
-export async function contentHashBytesHex(
+export const contentHashBytesHex = async (
   bytes: ArrayBuffer | Uint8Array<ArrayBuffer>,
-): Promise<string> {
+): Promise<string> => {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return hexFromBytes(new Uint8Array(digest));
-}
+};
 
 // re-exported from the cloud side: local importing cloud is the direction the dep guard allows,
 // and one table keeps both routes accepting the same images.
@@ -67,8 +65,8 @@ export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
 
 export const vaultReadResponseSchema = z
   .object({
-    path: z.string().min(1),
     content: z.string(),
+    path: z.string().min(1),
   })
   .strict();
 export type VaultReadResponse = z.infer<typeof vaultReadResponseSchema>;
@@ -79,16 +77,16 @@ export const vaultRevisionShaSchema = z.string().regex(/^[0-9a-f]{7,64}$/u);
 
 export const vaultRevisionSchema = z
   .object({
-    sha: vaultRevisionShaSchema,
+    authorEmail: z.string(),
+    authorName: z.string(),
     // git's `%aI`.
     authoredAt: z.string().min(1),
-    authorName: z.string(),
-    authorEmail: z.string(),
-    subject: z.string(),
     // the path at this revision: `--follow` crosses renames, and this is the path that reads
     // the bytes back.
     path: z.string().min(1),
     renamedFrom: z.string().min(1).optional(),
+    sha: vaultRevisionShaSchema,
+    subject: z.string(),
   })
   .strict();
 export type VaultRevision = z.infer<typeof vaultRevisionSchema>;
@@ -98,9 +96,9 @@ export const VAULT_HISTORY_MAX_LIMIT = 200;
 
 export const vaultHistoryRequestSchema = z
   .object({
+    limit: z.number().int().min(1).max(VAULT_HISTORY_MAX_LIMIT).optional(),
     path: vaultPathSchema,
     skip: z.number().int().min(0).optional(),
-    limit: z.number().int().min(1).max(VAULT_HISTORY_MAX_LIMIT).optional(),
   })
   .strict();
 export type VaultHistoryRequest = z.infer<typeof vaultHistoryRequestSchema>;
@@ -125,7 +123,6 @@ export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
 
 export const vaultWriteRequestSchema = z
   .object({
-    path: vaultPathSchema,
     content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
     // sha-256 hex of the utf-8 bytes this write was derived from; a mismatch answers 409 with
     // the current content. omitted, the write is last-writer-wins.
@@ -134,6 +131,7 @@ export const vaultWriteRequestSchema = z
       .regex(/^[0-9a-f]{64}$/u)
       .optional(),
     ifAbsent: z.literal(true).optional(),
+    path: vaultPathSchema,
   })
   .strict()
   .refine((value) => value.expectedHash === undefined || value.ifAbsent === undefined, {
@@ -181,9 +179,9 @@ export const vaultDirSchema = z.union([z.literal(""), vaultPathSchema]);
 
 export const vaultAssetWriteRequestSchema = z
   .object({
-    dir: vaultDirSchema,
     baseName: z.string().min(1),
     bytesBase64: z.string().min(1),
+    dir: vaultDirSchema,
   })
   .strict();
 export type VaultAssetWriteRequest = z.infer<typeof vaultAssetWriteRequestSchema>;
@@ -226,9 +224,9 @@ export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 // restore is `revision` read plus an `ifAbsent` write. latest deletion per path, newest first.
 export const vaultDeletedEntrySchema = z
   .object({
-    path: z.string().min(1),
     // git's `%aI` of the deleting commit; the read time for an unflushed deletion.
     deletedAt: z.string().min(1),
+    path: z.string().min(1),
     sha: vaultRevisionShaSchema,
   })
   .strict();
@@ -258,8 +256,8 @@ export const vaultConflictSchema = z
 export type VaultConflict = z.infer<typeof vaultConflictSchema>;
 
 const syncStatusFields = {
-  lastSyncAt: z.number().int().nullable(),
   lastError: z.string().nullable(),
+  lastSyncAt: z.number().int().nullable(),
 };
 
 // "account" is the remote derived from the signed-in account (signing out removes it); "explicit"

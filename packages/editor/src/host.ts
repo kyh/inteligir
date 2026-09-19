@@ -1,13 +1,10 @@
 import { useStore } from "zustand";
 
-import { getEditorHostIo, type VaultActions, type WikiResolver } from "@repo/editor/host-io";
+import { getEditorHostIo } from "@repo/editor/host-io";
+import type { VaultActions, WikiResolver } from "@repo/editor/host-io";
 
 // React's door to the host singleton; anything outside a component reads getEditorHostIo() itself.
 
-export function useVaultActions(): VaultActions {
-  return getEditorHostIo().actions;
-}
+export const useVaultActions = (): VaultActions => getEditorHostIo().actions;
 
-export function useWikiResolver(): WikiResolver {
-  return useStore(getEditorHostIo().wikiResolver);
-}
+export const useWikiResolver = (): WikiResolver => useStore(getEditorHostIo().wikiResolver);

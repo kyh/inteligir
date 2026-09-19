@@ -4,19 +4,18 @@
 // vocabulary (no lexical query reaches it — the case only an embedding buys).
 
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import { projectDoc } from "@repo/notes/knowledge/projection";
-import {
-  createSqlKnowledgeStore,
-  type SqlDriver,
-  type SqlKnowledgeStore,
-} from "@repo/notes/knowledge/sql-knowledge-store";
-import { planSearchQuery, type SearchQueryPlan } from "@repo/notes/knowledge/search-query";
+import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
+import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
+import { planSearchQuery } from "@repo/notes/knowledge/search-query";
+import type { SearchQueryPlan } from "@repo/notes/knowledge/search-query";
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
-import { EVAL_QUERIES, EVAL_VAULT, type EvalQuery } from "./search-eval-vault";
+import { EVAL_QUERIES, EVAL_VAULT } from "./search-eval-vault";
+import type { EvalQuery } from "./search-eval-vault";
 import { z } from "zod";
 
 const K = 10;
@@ -26,19 +25,20 @@ const REACHABLE = 200;
 type Retrieve = (query: string, limit: number) => string[];
 
 // frozen baseline: must not track what the store does now, so the tokenizer is inlined too.
-function legacyMatchExpression(query: string): string | null {
-  const tokens = [...new Set(query.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? [])];
-  if (tokens.length === 0) return null;
+const legacyMatchExpression = (query: string): string | null => {
+  const tokens = [...new Set(query.toLowerCase().match(/[\p{L}\p{N}_]+/gu))];
+  if (tokens.length === 0) {
+    return null;
+  }
   return tokens
     .map((token, i) => (i === tokens.length - 1 ? `"${token}" *` : `"${token}"`))
     .join(" ");
-}
+};
 
-function unstemmedMatchExpression(plan: SearchQueryPlan): string {
-  return plan.terms
+const unstemmedMatchExpression = (plan: SearchQueryPlan): string =>
+  plan.terms
     .map((term) => `{title headings body}: "${term.token}"${term.prefix ? " *" : ""}`)
     .join(plan.match === "all" ? " AND " : " OR ");
-}
 
 // same bm25 field weights as the store, so the columns are comparable.
 const PROBE_SEARCH_SQL = `
@@ -47,7 +47,7 @@ FROM search_fts WHERE search_fts MATCH ?
 ORDER BY rank, path LIMIT ?
 `;
 
-type Metrics = {
+interface Metrics {
   // at least one correct note in the top K.
   answered: number;
   recall: number;
@@ -56,22 +56,22 @@ type Metrics = {
   precisionAtK: number;
   mrr: number;
   meanResults: number;
-};
+}
 
-function scoreOne(retrieved: string[], gold: readonly string[]) {
+const scoreOne = (retrieved: string[], gold: readonly string[]) => {
   const top = retrieved.slice(0, K);
   const goldSet = new Set(gold);
   const found = top.filter((path) => goldSet.has(path));
   const firstHit = top.findIndex((path) => goldSet.has(path));
   return {
     answered: found.length > 0 ? 1 : 0,
-    recall: found.length / gold.length,
+    meanResults: retrieved.length,
+    mrr: firstHit === -1 ? 0 : 1 / (firstHit + 1),
     precisionAt1: top[0] !== undefined && goldSet.has(top[0]) ? 1 : 0,
     precisionAtK: found.length / K,
-    mrr: firstHit < 0 ? 0 : 1 / (firstHit + 1),
-    meanResults: retrieved.length,
+    recall: found.length / gold.length,
   };
-}
+};
 
 // not Object.keys: it answers string, not keyof Metrics.
 const METRIC_KEYS = [
@@ -83,29 +83,31 @@ const METRIC_KEYS = [
   "meanResults",
 ] as const satisfies readonly (keyof Metrics)[];
 
-function measure(retrieve: Retrieve, queries: readonly EvalQuery[]): Metrics {
+const measure = (retrieve: Retrieve, queries: readonly EvalQuery[]): Metrics => {
   const totals: Metrics = {
     answered: 0,
-    recall: 0,
+    meanResults: 0,
+    mrr: 0,
     precisionAt1: 0,
     precisionAtK: 0,
-    mrr: 0,
-    meanResults: 0,
+    recall: 0,
   };
   for (const { query, gold } of queries) {
     const one = scoreOne(retrieve(query, K), gold);
-    for (const key of METRIC_KEYS) totals[key] += one[key];
+    for (const key of METRIC_KEYS) {
+      totals[key] += one[key];
+    }
   }
-  for (const key of METRIC_KEYS) totals[key] /= queries.length;
+  for (const key of METRIC_KEYS) {
+    totals[key] /= queries.length;
+  }
   return totals;
-}
+};
 
-function pct(value: number): string {
-  return `${(value * 100).toFixed(0).padStart(3)}%`;
-}
+const pct = (value: number): string => `${(value * 100).toFixed(0).padStart(3)}%`;
 
-function formatMetrics(label: string, metrics: Metrics): string {
-  return [
+const formatMetrics = (label: string, metrics: Metrics): string =>
+  [
     label.padEnd(10),
     `answered ${pct(metrics.answered)}`,
     `recall@${K} ${pct(metrics.recall)}`,
@@ -114,7 +116,6 @@ function formatMetrics(label: string, metrics: Metrics): string {
     `MRR ${metrics.mrr.toFixed(2)}`,
     `results ${metrics.meanResults.toFixed(1)}`,
   ].join("  ");
-}
 
 let driver: SqlDriver;
 let store: SqlKnowledgeStore;
@@ -122,15 +123,15 @@ let pure: KnowledgeIndex;
 
 beforeAll(() => {
   driver = createSqliteDriver(
-    join(makeTempDir("inteligir-search-eval-", { lifetime: "suite" }), "knowledge.db"),
+    nodePath.join(makeTempDir("inteligir-search-eval-", { lifetime: "suite" }), "knowledge.db"),
   );
   store = createSqlKnowledgeStore(driver, "/vault");
   pure = new KnowledgeIndex();
   for (const [path, content] of Object.entries(EVAL_VAULT)) {
     store.upsertDoc(
       {
+        contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
         path,
-        contentHash: createHash("sha256").update(content, "utf8").digest("hex"),
         projection: projectDoc(path, content),
       },
       content,
@@ -143,12 +144,11 @@ afterAll(() => {
   store.dispose();
 });
 
-function probe(match: string, limit: number): string[] {
-  return driver.all(PROBE_SEARCH_SQL, [match, limit]).map((row) => {
+const probe = (match: string, limit: number): string[] =>
+  driver.all(PROBE_SEARCH_SQL, [match, limit]).map((row) => {
     const path = z.string().safeParse(row.path);
     return path.success ? path.data : "";
   });
-}
 
 const before: Retrieve = (query, limit) => {
   const match = legacyMatchExpression(query);
@@ -158,7 +158,9 @@ const before: Retrieve = (query, limit) => {
 const unstemmed: Retrieve = (query, limit) => {
   for (const plan of planSearchQuery(query)) {
     const rows = probe(unstemmedMatchExpression(plan), limit);
-    if (rows.length > 0) return rows;
+    if (rows.length > 0) {
+      return rows;
+    }
   }
   return [];
 };
@@ -166,52 +168,60 @@ const unstemmed: Retrieve = (query, limit) => {
 const after: Retrieve = (query, limit) => store.search(query, limit).map((hit) => hit.path);
 
 // a store per test: a note added for one relation would change another's ranking.
-function storeOf(docs: Readonly<Record<string, string>>): SqlKnowledgeStore {
+const storeOf = (docs: Readonly<Record<string, string>>): SqlKnowledgeStore => {
   const built = createSqlKnowledgeStore(
-    createSqliteDriver(join(makeTempDir("inteligir-search-tier-"), "knowledge.db")),
+    createSqliteDriver(nodePath.join(makeTempDir("inteligir-search-tier-"), "knowledge.db")),
     "/vault",
   );
-  onTestFinished(() => built.dispose());
+  onTestFinished(() => {
+    built.dispose();
+  });
   for (const [path, content] of Object.entries(docs)) {
     built.upsertDoc(
       {
+        contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
         path,
-        contentHash: createHash("sha256").update(content, "utf8").digest("hex"),
         projection: projectDoc(path, content),
       },
       content,
     );
   }
   return built;
-}
+};
 
-function pureOf(docs: Readonly<Record<string, string>>): KnowledgeIndex {
+const pureOf = (docs: Readonly<Record<string, string>>): KnowledgeIndex => {
   const index = new KnowledgeIndex();
-  for (const [path, content] of Object.entries(docs)) index.setDoc(path, content);
+  for (const [path, content] of Object.entries(docs)) {
+    index.setDoc(path, content);
+  }
   return index;
+};
+
+const reachable = (query: string): Set<string> => new Set(after(query, REACHABLE));
+
+interface Miss {
+  query: string;
+  gold: readonly string[];
+  kind: "ranking" | "vocabulary";
 }
 
-function reachable(query: string): Set<string> {
-  return new Set(after(query, REACHABLE));
-}
-
-type Miss = { query: string; gold: readonly string[]; kind: "ranking" | "vocabulary" };
-
-function misses(retrieve: Retrieve): Miss[] {
+const misses = (retrieve: Retrieve): Miss[] => {
   const out: Miss[] = [];
   for (const { query, gold } of EVAL_QUERIES) {
     const top = new Set(retrieve(query, K));
     const missing = gold.filter((path) => !top.has(path));
-    if (missing.length === 0) continue;
+    if (missing.length === 0) {
+      continue;
+    }
     const within = reachable(query);
     out.push({
-      query,
       gold: missing,
       kind: missing.some((path) => within.has(path)) ? "ranking" : "vocabulary",
+      query,
     });
   }
   return out;
-}
+};
 
 describe("vault search — the retrieval measurement", () => {
   it("reports what each policy bought, and what it left behind", () => {
@@ -287,7 +297,7 @@ describe("vault search — the retrieval measurement", () => {
   });
 
   it("ranks an exact word above a note that only shares its stem — in BOTH engines", () => {
-    const docs = { "stem-only.md": "loop", "exact.md": "loops" };
+    const docs = { "exact.md": "loops", "stem-only.md": "loop" };
     const ranked = ["exact.md", "stem-only.md"];
     expect(
       storeOf(docs)
@@ -303,7 +313,7 @@ describe("vault search — the retrieval measurement", () => {
 
   it("does not let an over-stemmed collision outrank the word itself", () => {
     // porter stems busy and business to one stem.
-    const docs = { "busy.md": "# Busy\n", "business.md": "# Business\n" };
+    const docs = { "business.md": "# Business\n", "busy.md": "# Busy\n" };
     expect(
       storeOf(docs)
         .search("business", 2)
@@ -318,7 +328,7 @@ describe("vault search — the retrieval measurement", () => {
 
   it("still lets a TITLE-level collision beat a BODY-level exact match, in both", () => {
     // the title/body field gap is 10x; only idf could close this, and only bm25 has one.
-    const docs = { "busy.md": "# Busy\n", "body.md": "# Notes\n\nThe business of the week.\n" };
+    const docs = { "body.md": "# Notes\n\nThe business of the week.\n", "busy.md": "# Busy\n" };
     expect(
       storeOf(docs)
         .search("business", 2)
@@ -334,11 +344,11 @@ describe("vault search — the retrieval measurement", () => {
   it("folds diacritics the same way on both sides of the seam", () => {
     // FTS5's unicode61 strips diacritics itself, so the pure tokenizer must too.
     const docs = { "es.md": "# Acción\n\nUna acción pendiente.\n" };
-    const store = storeOf(docs);
+    const sql = storeOf(docs);
     const index = pureOf(docs);
     for (const query of ["acción", "accion", "acciones"]) {
       expect(
-        store.search(query, 5).map((hit) => hit.path),
+        sql.search(query, 5).map((hit) => hit.path),
         query,
       ).toEqual(["es.md"]);
       expect(

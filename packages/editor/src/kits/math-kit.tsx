@@ -19,22 +19,22 @@ const InlineEquationBasePlugin = createSlatePlugin({
 
 export const MathBaseKit = [EquationBasePlugin, InlineEquationBasePlugin];
 
-export function insertEquation(editor: PlateEditor): void {
+export const insertEquation = (editor: PlateEditor): void => {
   insertVoidAndEscape(editor, {
     children: [{ text: "" }],
     texExpression: "",
     type: editor.getType(KEYS.equation),
   });
-}
+};
 
-export function insertInlineEquation(editor: PlateEditor): void {
+export const insertInlineEquation = (editor: PlateEditor): void => {
   const seed = editor.selection ? editor.api.string(editor.selection) : "";
   insertVoidAndEscape(editor, {
     children: [{ text: "" }],
     texExpression: seed,
     type: editor.getType(KEYS.inlineEquation),
   });
-}
+};
 
 export const MathKit = [
   EquationBasePlugin.withComponent(EquationElement),

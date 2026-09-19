@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import { join } from "node:path";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import path from "node:path";
+import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -12,19 +12,19 @@ const TURN_DEADLINE_MS = 30_000;
 const EDITOR = '[data-slate-editor="true"]';
 
 export const externalEditBrowser: Scenario = {
-  name: "external-edit-browser",
   description: "a clean buffer adopts an agent write; a dirty buffer merges instead of clobbering",
+  name: "external-edit-browser",
   async run(ctx) {
     const app = await ctx.boot({
-      name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
+      name: "solo",
     });
 
     ctx.log("create the thread whose scripted turn owns a note path");
     const { thread } = await app.api.threads.create({ title: PROMPT });
     // the scripted driver writes exactly here.
     const notePath = `Agent/${thread.id}.md`;
-    await app.api.vault.write({ path: notePath, content: BASE_NOTE, ifAbsent: true });
+    await app.api.vault.write({ content: BASE_NOTE, ifAbsent: true, path: notePath });
 
     try {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
@@ -40,7 +40,7 @@ export const externalEditBrowser: Scenario = {
       );
 
       ctx.log("clean buffer: the agent rewrites the note, the editor adopts");
-      await app.api.threads.send({ threadId: thread.id, text: PROMPT });
+      await app.api.threads.send({ text: PROMPT, threadId: thread.id });
 
       const adoptDeadline = Date.now() + TURN_DEADLINE_MS;
       for (;;) {
@@ -55,7 +55,7 @@ export const externalEditBrowser: Scenario = {
         expect(Date.now() < adoptDeadline, `the buffer never adopted the write — got: ${buffer}`);
         await delay(250);
       }
-      const rewritten = await readFile(join(app.vaultDir, notePath), "utf8");
+      const rewritten = await readFile(path.join(app.vaultDir, notePath), "utf-8");
       expect(rewritten.includes(PROMPT), `the agent's write never reached disk:\n${rewritten}`);
 
       ctx.log("dirty buffer: a mid-keystroke external write merges on the save");
@@ -64,11 +64,11 @@ export const externalEditBrowser: Scenario = {
       await agentBrowser(["type", EDITOR, " user-typed-tail"]);
       // inside the autosave debounce: append a line the buffer does not hold.
       const external = `${rewritten}\nexternal-appended-line\n`;
-      await writeFile(join(app.vaultDir, notePath), external, "utf8");
+      await writeFile(path.join(app.vaultDir, notePath), external, "utf-8");
 
       const mergeDeadline = Date.now() + TURN_DEADLINE_MS;
       for (;;) {
-        const onDisk = await readFile(join(app.vaultDir, notePath), "utf8");
+        const onDisk = await readFile(path.join(app.vaultDir, notePath), "utf-8");
         if (onDisk.includes("user-typed-tail") && onDisk.includes("external-appended-line")) {
           break;
         }
@@ -76,7 +76,7 @@ export const externalEditBrowser: Scenario = {
         await delay(250);
       }
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

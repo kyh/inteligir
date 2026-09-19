@@ -105,13 +105,12 @@ const PAGE = `<!doctype html>
 </body>
 </html>`;
 
-export function handleResetPage(): Response {
-  return new Response(PAGE, {
-    status: 200,
+export const handleResetPage = (): Response =>
+  new Response(PAGE, {
     headers: {
-      "content-type": "text/html; charset=utf-8",
       // the URL carries a live single-use token
       "cache-control": "no-store",
+      "content-type": "text/html; charset=utf-8",
     },
+    status: 200,
   });
-}

@@ -10,8 +10,8 @@ import type { OpenNoteState } from "@repo/editor/note/open-note-store";
 vi.mock("@repo/ui/components/sonner", () => ({
   toast: Object.assign(vi.fn(), {
     error: vi.fn(),
-    warning: vi.fn(),
     success: vi.fn(),
+    warning: vi.fn(),
   }),
 }));
 
@@ -19,18 +19,26 @@ const { toast } = await import("@repo/ui/components/sonner");
 const { createOpenNoteStore } = await import("@repo/editor/note/open-note-store");
 
 let store = createOpenNoteStore();
-const publishEditor: (typeof store)["publishEditor"] = (editor) => store.publishEditor(editor);
-const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) =>
+const publishEditor: (typeof store)["publishEditor"] = (editor) => {
+  store.publishEditor(editor);
+};
+const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) => {
   store.publishOpenPath(path, change);
+};
 const useOpenNote = {
-  getState: () => store.state(),
   getInitialState: () => store.store.getInitialState(),
-  setState: (partial: Partial<OpenNoteState>, replace?: boolean) =>
-    replace === true
-      ? store.store.setState(store.store.getInitialState(), true)
-      : store.store.setState(partial),
+  getState: () => store.state(),
+  setState: (partial: Partial<OpenNoteState>, replace?: boolean) => {
+    if (replace === true) {
+      store.store.setState(store.store.getInitialState(), true);
+    } else {
+      store.store.setState(partial);
+    }
+  },
   subscribe: (listener: (state: OpenNoteState) => void) =>
-    store.store.subscribe((state) => listener(state)),
+    store.store.subscribe((state) => {
+      listener(state);
+    }),
 };
 
 const ROOT = "/vault";
@@ -52,10 +60,10 @@ const GATED_REASON = {
 
 class FakeController {
   private state: VaultEditorState = {
-    root: ROOT,
-    path: null,
     content: "",
     dirty: false,
+    path: null,
+    root: ROOT,
     saving: false,
   };
   private readonly subs = new Set<() => void>();
@@ -71,49 +79,59 @@ class FakeController {
 
   emit(patch: Partial<VaultEditorState>): void {
     this.state = { ...this.state, ...patch };
-    for (const fn of this.subs) fn();
+    for (const fn of this.subs) {
+      fn();
+    }
   }
 }
 
 // subscribe first, then publish once, so no emission slips between snapshot and subscription
-function mountRuntime(): FakeController {
+const mountRuntime = (): FakeController => {
   const controller = new FakeController();
-  controller.subscribe(() => publishEditor(controller.getState()));
+  controller.subscribe(() => {
+    publishEditor(controller.getState());
+  });
   publishEditor(controller.getState());
   return controller;
-}
+};
 
-function openNote(path: string, content: string): FakeController {
+const openNote = (path: string, content: string): FakeController => {
   const controller = mountRuntime();
   publishOpenPath(path);
-  controller.emit({ path, content, dirty: false });
+  controller.emit({ content, dirty: false, path });
   return controller;
-}
+};
 
-function recordStates() {
+const recordStates = () => {
   const seen: OpenNoteState[] = [];
   const stop = useOpenNote.subscribe((s) => {
     seen.push(s);
   });
   return { seen, stop };
-}
+};
 
 // one macrotask hop, so every queued microtask drains without counting promise ticks
-const drain = (): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const drain = async (): Promise<void> => {
+  // oxlint-disable-next-line promise/avoid-new -- setTimeout has no promise-native form here
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+};
 
-function expectGateInLockstep(seen: readonly OpenNoteState[]): void {
+const expectGateInLockstep = (seen: readonly OpenNoteState[]): void => {
   for (const s of seen) {
-    if (s.editor.path === null) continue;
+    if (s.editor.path === null) {
+      continue;
+    }
     expect(s.analyzed.path).toBe(s.editor.path);
   }
-}
+};
 
-function richSnapshotsFor(seen: readonly OpenNoteState[], path: string): OpenNoteState[] {
-  return seen.filter(
+const richSnapshotsFor = (seen: readonly OpenNoteState[], path: string): OpenNoteState[] =>
+  seen.filter(
     (s) =>
       s.openDoc.kind === "markdown" && s.openDoc.path === path && s.openDoc.surface.mode === "rich",
   );
-}
 
 describe("open-note-store publishEditor", () => {
   beforeEach(() => {
@@ -144,18 +162,18 @@ describe("open-note-store publishEditor", () => {
       const controller = mountRuntime();
       publishOpenPath(OTHER_PATH);
       const beforeLoad = seen.length;
-      controller.emit({ path: OTHER_PATH, content: GATED_MD, dirty: false });
+      controller.emit({ content: GATED_MD, dirty: false, path: OTHER_PATH });
       stop();
 
       expect(seen.length - beforeLoad).toBe(1);
 
-      const landed = seen[seen.length - 1];
+      const landed = seen.at(-1);
       expect(landed).toBeDefined();
       expect(landed?.editor.content).toBe(GATED_MD);
       expect(landed?.analyzed).toEqual({
-        rawReason: GATED_REASON,
         content: GATED_MD,
         path: OTHER_PATH,
+        rawReason: GATED_REASON,
       });
       expect(landed?.openDoc).toEqual({
         kind: "markdown",
@@ -172,7 +190,7 @@ describe("open-note-store publishEditor", () => {
 
       const { seen, stop } = recordStates();
       publishOpenPath(OTHER_PATH);
-      controller.emit({ path: OTHER_PATH, content: GATED_MD, dirty: false });
+      controller.emit({ content: GATED_MD, dirty: false, path: OTHER_PATH });
       stop();
 
       expect(richSnapshotsFor(seen, OTHER_PATH)).toEqual([]);
@@ -209,9 +227,9 @@ describe("open-note-store publishEditor", () => {
 
       await drain();
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: GATED_REASON,
         content: GATED_MD,
         path: RICH_PATH,
+        rawReason: GATED_REASON,
       });
     });
 
@@ -225,9 +243,9 @@ describe("open-note-store publishEditor", () => {
       stop();
 
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: null,
         content: RICH_MD_2,
         path: RICH_PATH,
+        rawReason: null,
       });
       expect(seen.some((s) => s.analyzed.content === GATED_MD)).toBe(false);
       expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
@@ -247,9 +265,9 @@ describe("open-note-store publishEditor", () => {
 
       expect(seen.length).toBe(1);
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: GATED_REASON,
         content: GATED_MD,
         path: RICH_PATH,
+        rawReason: GATED_REASON,
       });
     });
 
@@ -259,13 +277,13 @@ describe("open-note-store publishEditor", () => {
       controller.emit({ content: GATED_MD, dirty: false });
       const next = mountRuntime();
       publishOpenPath(OTHER_PATH);
-      next.emit({ path: OTHER_PATH, content: RICH_MD, dirty: false });
+      next.emit({ content: RICH_MD, dirty: false, path: OTHER_PATH });
       await drain();
 
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: null,
         content: RICH_MD,
         path: OTHER_PATH,
+        rawReason: null,
       });
       expect(useOpenNote.getState().openDoc).toEqual({
         kind: "markdown",
@@ -283,17 +301,17 @@ describe("open-note-store publishEditor", () => {
       await drain();
 
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: null,
         content: RICH_MD,
         path: RICH_PATH,
+        rawReason: null,
       });
 
       controller.emit({ dirty: false });
       await drain();
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: GATED_REASON,
         content: GATED_MD,
         path: RICH_PATH,
+        rawReason: GATED_REASON,
       });
     });
   });

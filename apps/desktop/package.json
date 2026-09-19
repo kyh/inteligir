@@ -16,7 +16,6 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/renderer"
   },
   "dependencies": {
-    "cn": "catalog:",
     "inteligir": "workspace:*"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import {
@@ -14,11 +14,10 @@ import {
   guideResponseSchema,
   systemStatusResponseSchema,
 } from "@repo/api/local/system/system-schema";
-import { serverMessageLenientSchema, type ServerMessage } from "@repo/api/local/notifications";
-import {
-  voiceStreamDownMessageSchema,
-  type VoiceStreamDownMessage,
-} from "@repo/api/local/voice/voice-schema";
+import { serverMessageLenientSchema } from "@repo/api/local/notifications";
+import type { ServerMessage } from "@repo/api/local/notifications";
+import { voiceStreamDownMessageSchema } from "@repo/api/local/voice/voice-schema";
+import type { VoiceStreamDownMessage } from "@repo/api/local/voice/voice-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { closeServer } from "../listen";
@@ -29,18 +28,30 @@ import { makeTempDir } from "./temp-dir";
 // POST: the RPC handler refuses GET for a procedure whose route does not declare one.
 const STATUS_RPC_PATH = `${RPC_PREFIX}/system/status`;
 const statusRpcRequest = (headers: Record<string, string>): RequestInit => ({
-  method: "POST",
-  headers: { "content-type": "application/json", ...headers },
   body: JSON.stringify({ json: {} }),
+  headers: { "content-type": "application/json", ...headers },
+  method: "POST",
 });
 
-function makeUi() {
-  const clientDir = makeTempDir("inteligir-client-test-");
-  writeFileSync(join(clientDir, "index.html"), SHELL_HTML);
-  return { clientDir };
-}
-
 const SHELL_HTML = "<!doctype html><html><head><title>inteligir</title></head><body></body></html>";
+
+const makeUi = () => {
+  const clientDir = makeTempDir("inteligir-client-test-");
+  writeFileSync(nodePath.join(clientDir, "index.html"), SHELL_HTML);
+  return { clientDir };
+};
+
+// the socket answers `error` without a reason, so the caller names the one it opened.
+const awaitOpen = async (socket: WebSocket, what: string): Promise<void> => {
+  const opened: PromiseWithResolvers<void> = Promise.withResolvers();
+  socket.addEventListener("open", () => {
+    opened.resolve();
+  });
+  socket.addEventListener("error", () => {
+    opened.reject(new Error(what));
+  });
+  await opened.promise;
+};
 
 describe("the API over the in-process app", () => {
   it("answers /health per the contract", async () => {
@@ -96,16 +107,16 @@ describe("the API over the in-process app", () => {
 
   it("refuses to boot on an un-migrated database — the boot-time schema read throws", () => {
     const dataDir = makeTempDir("inteligir-app-test-");
-    const db = createConnection(join(dataDir, "inteligir.db"));
-    expect(() => getSchemaVersion(db, 4)).toThrow(/no such table: meta/);
+    const db = createConnection(nodePath.join(dataDir, "inteligir.db"));
+    expect(() => getSchemaVersion(db, 4)).toThrow(/no such table: meta/u);
   });
 });
 
 describe("the workspace UI this server ships", () => {
   it("serves hashed assets immutable and 404s an asset miss, never the shell", async () => {
     const { clientDir } = makeUi();
-    mkdirSync(join(clientDir, "assets"));
-    writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
+    mkdirSync(nodePath.join(clientDir, "assets"));
+    writeFileSync(nodePath.join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
     const { composed } = await bootTestApp({ clientDir });
 
     const hit = await composed.app.request("/assets/app-abc123.js");
@@ -123,7 +134,7 @@ describe("the workspace UI this server ships", () => {
 
   it("serves non-asset files no-store and answers every other path with the shell", async () => {
     const { clientDir } = makeUi();
-    writeFileSync(join(clientDir, "favicon.svg"), "<svg/>");
+    writeFileSync(nodePath.join(clientDir, "favicon.svg"), "<svg/>");
     const { composed } = await bootTestApp({ clientDir });
 
     const file = await composed.app.request("/favicon.svg");
@@ -143,8 +154,8 @@ describe("the workspace UI this server ships", () => {
 
   it("stamps the document's security headers, and only on the document", async () => {
     const { clientDir } = makeUi();
-    mkdirSync(join(clientDir, "assets"));
-    writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
+    mkdirSync(nodePath.join(clientDir, "assets"));
+    writeFileSync(nodePath.join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
     const { composed } = await bootTestApp({ clientDir });
 
     const document = await composed.app.request("/", { headers: { accept: "text/html" } });
@@ -235,8 +246,8 @@ describe("the device token", () => {
       // authenticated, the upgrade cannot complete in-process; anything but 401 is the gate passing.
       const authed = await composed.app.request(path, {
         headers: {
-          upgrade: "websocket",
           authorization: authorizationHeader(TEST_SERVER_TOKEN),
+          upgrade: "websocket",
         },
       });
       expect(authed.status).not.toBe(401);
@@ -246,27 +257,30 @@ describe("the device token", () => {
   it("refuses a real unauthenticated upgrade over the wire", async () => {
     const { port } = await listenTestApp(await bootTestApp());
 
-    const status = await new Promise<number | undefined>((resolve, reject) => {
-      const request = httpRequest({
-        host: "127.0.0.1",
-        port,
-        path: WS_PATH,
-        headers: {
-          connection: "Upgrade",
-          upgrade: "websocket",
-          "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
-          "sec-websocket-version": "13",
-        },
-      });
-      request.on("upgrade", () => reject(new Error("upgrade must be refused")));
-      request.on("response", (response) => {
-        response.resume();
-        resolve(response.statusCode);
-      });
-      request.on("error", reject);
-      request.end();
+    const answered = Promise.withResolvers<number | undefined>();
+    const request = httpRequest({
+      headers: {
+        connection: "Upgrade",
+        "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
+        "sec-websocket-version": "13",
+        upgrade: "websocket",
+      },
+      host: "127.0.0.1",
+      path: WS_PATH,
+      port,
     });
-    expect(status).toBe(401);
+    request.on("upgrade", () => {
+      answered.reject(new Error("upgrade must be refused"));
+    });
+    request.on("response", (response) => {
+      response.resume();
+      answered.resolve(response.statusCode);
+    });
+    request.on("error", (error) => {
+      answered.reject(error);
+    });
+    request.end();
+    expect(await answered.promise).toBe(401);
   });
 });
 
@@ -283,7 +297,9 @@ describe("the real socket upgrade", () => {
     const socket = new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
-    onTestFinished(() => socket.close());
+    onTestFinished(() => {
+      socket.close();
+    });
 
     const frames: ServerMessage[] = [];
     socket.addEventListener("message", (event) => {
@@ -293,41 +309,41 @@ describe("the real socket upgrade", () => {
       }
     });
 
-    async function nextFrame(): Promise<ServerMessage> {
-      return await vi.waitFor(
+    const nextFrame = async (): Promise<ServerMessage> =>
+      await vi.waitFor(
         () => {
           const frame = frames.shift();
-          if (frame === undefined) throw new Error("no ws frame yet");
+          if (frame === undefined) {
+            throw new Error("no ws frame yet");
+          }
           return frame;
         },
-        { timeout: 5_000 },
+        { timeout: 5000 },
       );
-    }
 
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener("open", () => resolve());
-      socket.addEventListener("error", () => reject(new Error("ws error")));
-    });
+    await awaitOpen(socket, "ws error");
 
     const hello = await nextFrame();
     expect(hello).toEqual({ type: "hello" });
 
-    socket.send(JSON.stringify({ type: "subscribe", target: { kind: "vault" } }));
+    socket.send(JSON.stringify({ target: { kind: "vault" }, type: "subscribe" }));
     // a notification sent before the subscribe lands is dropped, so re-notify on every probe.
     const changed = await vi.waitFor(
       () => {
         bus.notifyDoc("d1", ["content-changed"]);
         const frame = frames.shift();
-        if (frame === undefined) throw new Error("no changed frame yet");
+        if (frame === undefined) {
+          throw new Error("no changed frame yet");
+        }
         return frame;
       },
-      { timeout: 5_000, interval: 25 },
+      { interval: 25, timeout: 5000 },
     );
     expect(changed).toEqual({
-      type: "changed",
+      changes: ["content-changed"],
       entity: "doc",
       id: "d1",
-      changes: ["content-changed"],
+      type: "changed",
     });
   });
 });
@@ -347,18 +363,20 @@ describe("the dictation stream socket", () => {
         frames.push(voiceStreamDownMessageSchema.parse(JSON.parse(text.data)));
       }
     });
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener("open", () => resolve());
-      socket.addEventListener("error", () => reject(new Error("voice ws error")));
-    });
+    await awaitOpen(socket, "voice ws error");
 
     // two 16-bit samples up, then finalize; the scripted session names the count.
     socket.send(new Uint8Array([1, 0, 2, 0]).buffer);
     socket.send(JSON.stringify({ type: "finalize" }));
 
-    await vi.waitFor(() => expect(frames.map((frame) => frame.type)).toContain("final"), {
-      timeout: 5_000,
-    });
+    await vi.waitFor(
+      () => {
+        expect(frames.map((frame) => frame.type)).toContain("final");
+      },
+      {
+        timeout: 5000,
+      },
+    );
 
     const partial = frames.find((frame) => frame.type === "partial");
     const final = frames.find((frame) => frame.type === "final");
@@ -373,16 +391,17 @@ describe("the dictation stream socket", () => {
     const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
-    await new Promise<void>((resolve, reject) => {
-      socket.addEventListener("open", () => resolve());
-      socket.addEventListener("error", () => reject(new Error("voice ws error")));
-    });
+    await awaitOpen(socket, "voice ws error");
     // keep it open (mid-hold): a frame up, no finalize.
     socket.send(new Uint8Array([1, 0]).buffer);
 
     await closeServer(server, {
-      closeAllClients: () => booted.composed.voiceStreamHub.closeAllClients(),
-      terminateAllClients: () => booted.composed.voiceStreamHub.terminateAllClients(),
+      closeAllClients: () => {
+        booted.composed.voiceStreamHub.closeAllClients();
+      },
+      terminateAllClients: () => {
+        booted.composed.voiceStreamHub.terminateAllClients();
+      },
     });
     socket.close();
   });

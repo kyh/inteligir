@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createSlateEditor, ElementApi, KEYS, type Descendant, type TElement } from "platejs";
+import { createSlateEditor, ElementApi, KEYS } from "platejs";
+import type { Descendant, TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 import { TogglePlugin } from "@platejs/toggle/react";
 
@@ -11,22 +12,21 @@ import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 
-function makeEditor(md = "") {
+const makeEditor = (md = "") => {
   const parsed = md === "" ? null : parseMarkdown(md);
   const value = parsed && parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
   return createSlateEditor({ plugins: EDITOR_KIT, value });
-}
+};
 
-function out(editor: ReturnType<typeof makeEditor>): string {
-  return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-}
+const out = (editor: ReturnType<typeof makeEditor>): string =>
+  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
-function el(node: Descendant | undefined): TElement {
+const el = (node: Descendant | undefined): TElement => {
   if (node === undefined || !ElementApi.isElement(node)) {
     throw new Error("expected an element node");
   }
   return node;
-}
+};
 
 describe("column normalizer (suppressed width writer)", () => {
   it("keeps bare columns bare through a forced normalize + edit", () => {
@@ -78,7 +78,7 @@ describe("insertColumnGroup", () => {
     insertColumnGroup(editor, 2);
     const output = out(editor);
     expect(output).toContain("<column_group>");
-    expect((output.match(/<column \/>/g) ?? []).length).toBe(2);
+    expect((output.match(/<column \/>/gu) ?? []).length).toBe(2);
     expect(output).not.toContain("width");
     expect(roundTrip(output)).toBe(output);
   });
@@ -98,13 +98,15 @@ describe("insertColumnGroup", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 3);
-    expect((out(editor).match(/<column \/>/g) ?? []).length).toBe(3);
+    expect((out(editor).match(/<column \/>/gu) ?? []).length).toBe(3);
   });
 });
 
-function type(editor: ReturnType<typeof makeEditor>, text: string) {
-  for (const char of text) editor.tf.insertText(char);
-}
+const type = (editor: ReturnType<typeof makeEditor>, text: string) => {
+  for (const char of text) {
+    editor.tf.insertText(char);
+  }
+};
 
 // The trigger fires only on a single typed `[`, so these bulk-insert the body
 // (the paste / cancel-restore path the `]]` rule serves) and type the closers.
@@ -243,7 +245,7 @@ describe("insert transforms serialize canonically", () => {
     editor.tf.select(editor.api.end([0]));
     insertDate(editor);
     const output = out(editor);
-    expect(output).toMatch(/<date value="\d{4}-\d{2}-\d{2}" \/>/);
+    expect(output).toMatch(/<date value="\d{4}-\d{2}-\d{2}" \/>/u);
     expect(roundTrip(output)).toBe(output);
   });
 
@@ -280,7 +282,7 @@ describe("insert transforms serialize canonically", () => {
   });
 
   it("insertEmbedFromUrl routes youtube/tweet/pdf/generic to the right nodes", () => {
-    const cases: Array<[string, string]> = [
+    const cases: [string, string][] = [
       ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "<video src="],
       ["https://twitter.com/user/status/1234567890", "<media_embed src="],
       ["https://example.com/paper.pdf", "<file src="],
@@ -292,7 +294,7 @@ describe("insert transforms serialize canonically", () => {
       insertEmbedFromUrl(editor, url);
       const output = out(editor);
       expect(output, url).toContain(tag);
-      expect(output, `${url} must stay bare src-only`).not.toMatch(/align|width|isUpload/);
+      expect(output, `${url} must stay bare src-only`).not.toMatch(/align|width|isUpload/u);
       expect(roundTrip(output), url).toBe(output);
     }
   });

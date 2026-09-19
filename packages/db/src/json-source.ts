@@ -3,15 +3,17 @@ export interface JsonObject {
   [key: string]: JsonValue | undefined;
 }
 
-export function isText(value: JsonValue | undefined): value is string {
-  return Object.prototype.toString.call(value) === "[object String]";
-}
+export const isText = (value: JsonValue | undefined): value is string =>
+  Object.prototype.toString.call(value) === "[object String]";
 
-export function isNumber(value: JsonValue | undefined): value is number {
-  return Number.isFinite(value);
-}
+export const isNumber = (value: JsonValue | undefined): value is number => Number.isFinite(value);
 
-export function asMapping(value: JsonValue | undefined): JsonObject | null {
-  if (value === null || value === undefined || Array.isArray(value)) return null;
+export const isMapping = (value: unknown): value is JsonObject =>
+  value instanceof Object && !Array.isArray(value);
+
+export const asMapping = (value: JsonValue | undefined): JsonObject | null => {
+  if (value === null || value === undefined || Array.isArray(value)) {
+    return null;
+  }
   return value instanceof Object ? value : null;
-}
+};

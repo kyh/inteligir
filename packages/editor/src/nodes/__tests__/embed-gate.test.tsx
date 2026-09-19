@@ -7,7 +7,7 @@ import { EmbedKit } from "@repo/editor/kits/embed-kit";
 
 afterEach(cleanup);
 
-function renderNode(type: string, url: string) {
+const renderNode = (type: string, url: string) => {
   const editor = createPlateEditor({
     plugins: EmbedKit,
     value: [{ children: [{ text: "" }], type, url }],
@@ -17,7 +17,7 @@ function renderNode(type: string, url: string) {
       <PlateContent />
     </Plate>,
   );
-}
+};
 
 describe("media_embed scheme gate", () => {
   it.each(["https://example.com/widget", "http://example.com/widget"])(
@@ -36,6 +36,7 @@ describe("media_embed scheme gate", () => {
   });
 
   it.each([
+    // oxlint-disable-next-line no-script-url -- the blocked scheme is this test's input, not a live URL.
     "javascript:alert(1)",
     "data:text/html,<script>alert(1)</script>",
     "file:///etc/passwd",
@@ -55,6 +56,7 @@ describe("file (pdf) scheme gate", () => {
   });
 
   it.each([
+    // oxlint-disable-next-line no-script-url -- the blocked scheme is this test's input, not a live URL.
     "javascript:alert(1)//x.pdf",
     "data:application/pdf;base64,AAAA#x.pdf",
     "file:///tmp/secret.pdf",

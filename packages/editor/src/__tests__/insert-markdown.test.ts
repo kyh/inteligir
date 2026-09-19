@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
-import { KEYS, type Value } from "platejs";
+import { KEYS } from "platejs";
+import type { Value } from "platejs";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertMarkdownAtSelection } from "@repo/editor/insert-markdown";

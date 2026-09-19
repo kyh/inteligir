@@ -7,21 +7,20 @@ import { orpc } from "./api";
 
 const DOWNLOAD_POLL_MS = 500;
 
-export function useVoiceStatus() {
+export const useVoiceStatus = () =>
   // No explicit `useQuery<…>` generic: it collides with oRPC v2's inference.
-  return useQuery({
+  useQuery({
     ...orpc.voice.status.queryOptions(),
-    staleTime: 0,
     refetchInterval: (query) => {
       const state = query.state.data?.state;
       return state === "downloading" || state === "preparing" ? DOWNLOAD_POLL_MS : false;
     },
+    staleTime: 0,
   });
-}
 
-export function downloadPercent(receivedBytes: number, sizeBytes: number): number {
+export const downloadPercent = (receivedBytes: number, sizeBytes: number): number => {
   if (sizeBytes <= 0) {
     return 0;
   }
   return Math.min(100, Math.round((receivedBytes / sizeBytes) * 100));
-}
+};

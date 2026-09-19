@@ -1,8 +1,9 @@
-import { join } from "node:path";
+import path from "node:path";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
-import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
+import { closeConnection, createConnection } from "@repo/db/connection";
+import type { DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { listOpenPendingInteractions } from "@repo/db/pending-interactions";
 import { createThread } from "@repo/db/threads";
@@ -12,7 +13,8 @@ import { turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { TurnDriver } from "../../threads/turn-driver";
 import type { GitEngine } from "../../vault/git-engine";
-import { createAcpRuntimeManager, type AcpRuntimeManager } from "../runtime-manager";
+import { createAcpRuntimeManager } from "../runtime-manager";
+import type { AcpRuntimeManager } from "../runtime-manager";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { fakeSessionFacts } from "./agent-test-harness";
 
@@ -23,34 +25,38 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function fakeGitEngine(): GitEngine {
-  return {
-    scheduleCommit: () => undefined,
-    commitNow: () => Promise.resolve(null),
-    commitPaths: () => Promise.resolve(null),
-    holdCommits: () => () => undefined,
-    history: () => Promise.resolve([]),
-    revision: () => Promise.resolve(""),
-    deleted: () => Promise.resolve([]),
-    syncNow: () => Promise.resolve({ state: "no-remote", lastSyncAt: null, lastError: null }),
-    status: () => Promise.resolve({ state: "no-remote", lastSyncAt: null, lastError: null }),
-    isSyncing: () => false,
-    runExclusive: (work) => work(),
-    startAutoSync: () => undefined,
-    dispose: () => Promise.resolve(),
-  };
-}
+const fakeGitEngine = (): GitEngine => ({
+  commitNow: async () => await Promise.resolve(null),
+  commitPaths: async () => await Promise.resolve(null),
+  deleted: async () => await Promise.resolve([]),
+  dispose: async () => {
+    await Promise.resolve();
+  },
+  history: async () => await Promise.resolve([]),
+  holdCommits: () => () => {},
+  isSyncing: () => false,
+  revision: async () => await Promise.resolve(""),
+  runExclusive: async (work) => await work(),
+  scheduleCommit: () => {},
+  startAutoSync: () => {},
+  status: async () =>
+    await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+  syncNow: async () =>
+    await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+});
 
-function fakeAgentRuntime(): AgentRuntime {
-  return {
-    startThread: () => Promise.resolve({ providerThreadId: "pt_1" }),
-    resumeThread: () => Promise.resolve({ providerThreadId: "pt_1" }),
-    runTurn: () => Promise.resolve(),
-    reapIdleProviderSessions: () => Promise.resolve({ reapedSessions: [] }),
-    hasThread: () => true,
-    shutdown: () => Promise.resolve(),
-  };
-}
+const fakeAgentRuntime = (): AgentRuntime => ({
+  hasThread: () => true,
+  reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
+  resumeThread: async () => await Promise.resolve({ providerThreadId: "pt_1" }),
+  runTurn: async () => {
+    await Promise.resolve();
+  },
+  shutdown: async () => {
+    await Promise.resolve();
+  },
+  startThread: async () => await Promise.resolve({ providerThreadId: "pt_1" }),
+});
 
 interface Harness {
   db: DbConnection;
@@ -61,79 +67,78 @@ interface Harness {
   runtimeOptions: () => AcpAgentRuntimeOptions;
 }
 
-function makeHarness(): Harness {
-  const db = createConnection(join(makeTempDir("inteligir-watchdog-"), "test.db"));
+const makeHarness = (): Harness => {
+  const db = createConnection(path.join(makeTempDir("inteligir-watchdog-"), "test.db"));
   runMigrations(db);
   const threadId = createThread(db, noopNotifier, {}).id;
   const ingested: ThreadEvent[] = [];
   let captured: AcpAgentRuntimeOptions | null = null;
   const manager = createAcpRuntimeManager({
-    db,
-    notifier: noopNotifier,
-    vaultDir: makeTempDir("inteligir-watchdog-vault-"),
-    git: fakeGitEngine(),
-    model: null,
-    sessionFacts: () => fakeSessionFacts(),
-    hostEnv: {},
-    defaultProviderId: () => "claude",
-    mcpServers: () => [],
     createRuntime: (options) => {
       captured = options;
       return fakeAgentRuntime();
     },
+    db,
+    defaultProviderId: () => "claude",
+    git: fakeGitEngine(),
+    hostEnv: {},
+    mcpServers: () => [],
+    model: null,
+    notifier: noopNotifier,
     reapIntervalMs: null,
+    sessionFacts: () => fakeSessionFacts(),
     turnIdleTimeoutMs: BUDGET_MS,
+    vaultDir: makeTempDir("inteligir-watchdog-vault-"),
   });
   const driver = manager.createTurnDriver({
     ingestProviderEvents: (_threadId, events) => {
       ingested.push(...events);
     },
   });
-  onTestFinished(() => manager.dispose());
+  onTestFinished(async () => {
+    await manager.dispose();
+  });
   onTestFinished(() => {
     closeConnection(db);
   });
   return {
     db,
-    threadId,
     driver,
-    manager,
     ingested,
+    manager,
     runtimeOptions: () => {
       if (captured === null) {
         throw new Error("no turn was dispatched, so no runtime was built");
       }
       return captured;
     },
-  };
-}
-
-function turnFailed(ingested: readonly ThreadEvent[]): boolean {
-  return ingested.some((event) => event.type === "turn/completed" && event.status === "failed");
-}
-
-function providerFrame(threadId: string, delta: string): ProviderEvent {
-  return {
-    type: "item/agentMessage/delta",
     threadId,
-    providerThreadId: "pt_1",
-    scope: turnScope(PROVIDER_TURN_ID),
-    itemId: "item_1",
-    delta,
   };
-}
+};
 
-async function startSilentTurn(harness: Harness): Promise<void> {
-  harness.driver.startTurn({ threadId: harness.threadId, turnId: "turn_1", text: "go" });
+const turnFailed = (ingested: readonly ThreadEvent[]): boolean =>
+  ingested.some((event) => event.type === "turn/completed" && event.status === "failed");
+
+const providerFrame = (threadId: string, delta: string): ProviderEvent => ({
+  delta,
+  itemId: "item_1",
+  providerThreadId: "pt_1",
+  scope: turnScope(PROVIDER_TURN_ID),
+  threadId,
+  type: "item/agentMessage/delta",
+});
+
+const startSilentTurn = async (harness: Harness): Promise<void> => {
+  harness.driver.startTurn({ text: "go", threadId: harness.threadId, turnId: "turn_1" });
   // let the dispatch settle onto the fake runtime before the clock advances.
   await vi.advanceTimersByTimeAsync(0);
   harness.runtimeOptions().onEvent({
-    type: "turn/started",
-    threadId: harness.threadId,
     providerThreadId: "pt_1",
     scope: turnScope(PROVIDER_TURN_ID),
+    threadId: harness.threadId,
+    type: "turn/started",
   });
-}
+};
 
 describe("the silent-turn watchdog", () => {
   it("fails a turn that outgrows the budget, through the ordinary grammar", async () => {
@@ -177,36 +182,36 @@ describe("the silent-turn watchdog", () => {
       throw new Error("the driver registered no interaction inlet");
     }
     const parked = request({
+      payload: {
+        availableDecisions: ["allow_once", "deny"],
+        kind: "approval",
+        reason: null,
+        subject: { command: "ls", cwd: null, itemId: "cmd_1", kind: "command" },
+      },
+      providerId: "claude",
+      providerRequestId: "req-1",
+      providerThreadId: "pt_1",
       threadId: harness.threadId,
       turnId: PROVIDER_TURN_ID,
-      providerId: "claude",
-      providerThreadId: "pt_1",
-      providerRequestId: "req-1",
-      payload: {
-        kind: "approval",
-        subject: { kind: "command", itemId: "cmd_1", command: "ls", cwd: null },
-        reason: null,
-        availableDecisions: ["allow_once", "deny"],
-      },
     });
 
     await vi.advanceTimersByTimeAsync(BUDGET_MS * 4);
     expect(turnFailed(harness.ingested)).toBe(false);
 
-    const row = listOpenPendingInteractions(harness.db, harness.threadId)[0];
+    const [row] = listOpenPendingInteractions(harness.db, harness.threadId);
     if (row === undefined) {
       throw new Error("expected the parked row");
     }
     harness.driver.onInteractionResolved?.({
+      createdAt: 0,
       id: row.id,
+      payload: null,
+      requestKey: row.requestKey,
+      resolution: "allow_once",
+      resolvedAt: 0,
+      status: "resolved",
       threadId: harness.threadId,
       turnId: null,
-      requestKey: row.requestKey,
-      status: "resolved",
-      payload: null,
-      resolution: "allow_once",
-      createdAt: 0,
-      resolvedAt: 0,
     });
     await expect(parked).resolves.toEqual({ decision: "allow_once" });
 

@@ -7,22 +7,28 @@ import { parseMdast } from "../parse";
 
 const formulaNodeSchema = z.object({ raw: z.string(), type: z.literal("formulaPill") });
 
-function isParent(node: Node): node is Parent {
-  return "children" in node;
-}
+const isParent = (node: Node): node is Parent => "children" in node;
 
-function formulasIn(md: string): Array<{ raw: string }> {
+const formulasIn = (md: string): { raw: string }[] => {
   const parsed = parseMdast(md);
-  if (!parsed.ok) throw new Error(parsed.failure.message);
-  const out: Array<{ raw: string }> = [];
+  if (!parsed.ok) {
+    throw new Error(parsed.failure.message);
+  }
+  const out: { raw: string }[] = [];
   const walk = (node: Node): void => {
     const formula = formulaNodeSchema.safeParse(node);
-    if (formula.success) out.push({ raw: formula.data.raw });
-    if (isParent(node)) for (const child of node.children) walk(child);
+    if (formula.success) {
+      out.push({ raw: formula.data.raw });
+    }
+    if (isParent(node)) {
+      for (const child of node.children) {
+        walk(child);
+      }
+    }
   };
   walk(parsed.root);
   return out;
-}
+};
 
 const RAW_PILL_TABLE = "| a | b |\n| - | - |\n| {{5|5}} | x |\n";
 

@@ -1,6 +1,7 @@
 import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
 import { messageOf } from "../error-message";
-import { VaultServiceError, type VaultService } from "../vault/vault-service";
+import { VaultServiceError } from "../vault/vault-service";
+import type { VaultService } from "../vault/vault-service";
 
 export const CAPTURE_INBOX_PATH = "Inbox.md";
 
@@ -12,14 +13,12 @@ export type CaptureVault = Pick<VaultService, "read" | "writeIfUnchanged" | "wri
 type InboxAppendResult = { applied: true } | { applied: false; reason: string };
 
 // indented continuation lines keep a multi-line capture inside its list item.
-function inboxBullet(capture: CaptureRow): string {
-  return `- ${capture.text.replaceAll("\n", "\n  ")}\n`;
-}
+const inboxBullet = (capture: CaptureRow): string => `- ${capture.text.replaceAll("\n", "\n  ")}\n`;
 
-export async function appendToInbox(
+export const appendToInbox = async (
   vault: CaptureVault,
   captures: readonly CaptureRow[],
-): Promise<InboxAppendResult> {
+): Promise<InboxAppendResult> => {
   const addition = captures.map(inboxBullet).join("");
   try {
     const current = await vault.read(CAPTURE_INBOX_PATH);
@@ -54,4 +53,4 @@ export async function appendToInbox(
     };
   }
   return { applied: true };
-}
+};

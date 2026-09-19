@@ -18,11 +18,11 @@ import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 
 let activeOpener: (() => void) | null = null;
 
-export function openEmbedUrlDialog(): void {
+export const openEmbedUrlDialog = (): void => {
   activeOpener?.();
-}
+};
 
-export function EmbedUrlDialogHost() {
+export const EmbedUrlDialogHost = () => {
   const editor = useEditorRef();
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
@@ -34,14 +34,18 @@ export function EmbedUrlDialogHost() {
     };
     activeOpener = opener;
     return () => {
-      if (activeOpener === opener) activeOpener = null;
+      if (activeOpener === opener) {
+        activeOpener = null;
+      }
     };
   }, []);
 
   const trimmed = url.trim();
 
   const submit = () => {
-    if (!trimmed) return;
+    if (!trimmed) {
+      return;
+    }
     setOpen(false);
     insertEmbedFromUrl(editor, trimmed);
     editor.tf.focus();
@@ -60,10 +64,14 @@ export function EmbedUrlDialogHost() {
           <Input
             autoFocus
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value);
+            }}
             placeholder="https://…"
             onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
+              if (e.key === "Enter") {
+                submit();
+              }
             }}
           />
           <Button variant="primary" size="compact" onClick={submit} disabled={!trimmed}>
@@ -73,4 +81,4 @@ export function EmbedUrlDialogHost() {
       </DialogContent>
     </Dialog>
   );
-}
+};

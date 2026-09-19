@@ -1,49 +1,63 @@
 import { useState } from "react";
 import { Button } from "@repo/ui/components/button";
-import { updateAction, type UpdateAction, type UpdateState } from "../../../update-state";
+import { updateAction } from "../../../update-state";
+import type { UpdateAction, UpdateState } from "../../../update-state";
 import { runUpdateAction, useDesktopUpdates } from "../desktop-updates";
 import { failed, Row } from "./settings-chrome";
 
-function statusLabel(state: UpdateState): string {
+const statusLabel = (state: UpdateState): string => {
   switch (state.status) {
-    case "disabled":
+    case "disabled": {
       return state.message ?? "Automatic updates are off.";
-    case "idle":
+    }
+    case "idle": {
       return "Checked automatically a few minutes after launch, then every few minutes.";
-    case "checking":
+    }
+    case "checking": {
       return "Checking…";
-    case "up-to-date":
+    }
+    case "up-to-date": {
       return `Inteligir ${state.currentVersion} is the newest version.`;
-    case "available":
+    }
+    case "available": {
       return `Inteligir ${state.availableVersion ?? ""} is available.`;
-    case "downloading":
+    }
+    case "downloading": {
       return `Downloading — ${state.downloadPercent ?? 0}%`;
-    case "downloaded":
+    }
+    case "downloaded": {
       return `Inteligir ${state.downloadedVersion ?? ""} is ready. Restart to finish.`;
-    case "error":
+    }
+    case "error": {
       return "The last step failed.";
+    }
+    // no default
   }
-}
+};
 
-function actionLabel(action: UpdateAction, state: UpdateState): string {
+const actionLabel = (action: UpdateAction, state: UpdateState): string => {
   switch (action) {
-    case "check":
+    case "check": {
       return "Check for updates";
-    case "download":
+    }
+    case "download": {
       return `Download ${state.availableVersion ?? "update"}`;
-    case "install":
+    }
+    case "install": {
       return "Restart to update";
+    }
+    // no default
   }
-}
+};
 
-export function UpdatesRow() {
+export const UpdatesRow = () => {
   const updates = useDesktopUpdates();
   const [pending, setPending] = useState(false);
 
   if (updates.kind === "no-bridge") {
     return (
       <Row label="Updates">
-        <span className="text-sm text-muted-foreground">
+        <span className="text-subtitle text-muted-foreground">
           Automatic updates come with the desktop app.
         </span>
       </Row>
@@ -53,18 +67,17 @@ export function UpdatesRow() {
     return <Row label="Updates">…</Row>;
   }
 
-  const state = updates.state;
+  const { state } = updates;
   const action = updateAction(state);
 
   const run = async (next: UpdateAction): Promise<void> => {
     setPending(true);
     try {
       await runUpdateAction(next);
-    } catch (cause) {
-      failed(cause, "The updater did not answer.");
-    } finally {
-      setPending(false);
+    } catch (error) {
+      failed(error, "The updater did not answer.");
     }
+    setPending(false);
   };
 
   return (
@@ -82,11 +95,11 @@ export function UpdatesRow() {
             {actionLabel(action, state)}
           </Button>
         )}
-        <span className="text-sm text-muted-foreground">{statusLabel(state)}</span>
+        <span className="text-subtitle text-muted-foreground">{statusLabel(state)}</span>
       </span>
       {state.status === "error" && state.message !== null ? (
-        <span className="mt-1 block text-xs text-destructive">{state.message}</span>
+        <span className="mt-1 block text-body text-destructive">{state.message}</span>
       ) : null}
     </Row>
   );
-}
+};

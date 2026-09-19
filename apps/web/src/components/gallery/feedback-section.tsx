@@ -7,54 +7,52 @@ import { Spinner } from "@repo/ui/components/spinner";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
-export function FeedbackSection() {
-  return (
-    <GallerySection id="feedback" title="Feedback">
-      <Demo name="Spinner" purpose="Work is happening and the wait is short enough not to name it.">
-        <DemoCase label="default">
-          <Spinner />
-        </DemoCase>
-        <DemoCase label="in a button">
-          <Button variant="secondary" loading>
-            Committing
-          </Button>
-        </DemoCase>
-      </Demo>
+export const FeedbackSection = () => (
+  <GallerySection id="feedback" title="Feedback">
+    <Demo name="Spinner" purpose="Work is happening and the wait is short enough not to name it.">
+      <DemoCase label="default">
+        <Spinner />
+      </DemoCase>
+      <DemoCase label="in a button">
+        <Button variant="secondary" loading>
+          Committing
+        </Button>
+      </DemoCase>
+    </Demo>
 
-      <Demo name="Separator" purpose="A rule between groups that belong to the same surface." stack>
-        <div className="w-72 space-y-3">
-          <p className="text-sm">Vault</p>
-          <Separator />
-          <p className="text-sm">Agent</p>
-        </div>
-        <div className="flex h-8 items-center gap-3">
-          <span className="text-sm">Local</span>
-          <Separator orientation="vertical" />
-          <span className="text-sm">Synced</span>
-        </div>
-      </Demo>
+    <Demo name="Separator" purpose="A rule between groups that belong to the same surface." stack>
+      <div className="w-72 space-y-3">
+        <p className="text-sm">Vault</p>
+        <Separator />
+        <p className="text-sm">Agent</p>
+      </div>
+      <div className="flex h-8 items-center gap-3">
+        <span className="text-sm">Local</span>
+        <Separator orientation="vertical" />
+        <span className="text-sm">Synced</span>
+      </div>
+    </Demo>
 
-      <Demo
-        name="toast()"
-        purpose="A notice about something that already happened. Never the only place an error appears."
+    <Demo
+      name="toast()"
+      purpose="A notice about something that already happened. Never the only place an error appears."
+    >
+      <Button
+        variant="secondary"
+        onClick={() => {
+          toast.success("Copied for an external agent");
+        }}
       >
-        <Button
-          variant="secondary"
-          onClick={() => {
-            toast.success("Copied for an external agent");
-          }}
-        >
-          Success toast
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            toast.error("Could not reach the vault");
-          }}
-        >
-          Error toast
-        </Button>
-      </Demo>
-    </GallerySection>
-  );
-}
+        Success toast
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={() => {
+          toast.error("Could not reach the vault");
+        }}
+      >
+        Error toast
+      </Button>
+    </Demo>
+  </GallerySection>
+);

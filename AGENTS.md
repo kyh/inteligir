@@ -80,7 +80,7 @@ pnpm dev:web                                       # vite dev on :5174
 # The local D1 file is materialized lazily, on the first request that touches
 # the binding — `dev` alone does not create it. So hit one, THEN push:
 curl -s -o /dev/null localhost:5174/api/auth/get-session
-pnpm --filter @repo/web db:push:local
+pnpm --filter @repo/web db:push
 
 # Sign-up is invite-gated and there is no self-serve issuance. Mint one.
 # `code` is the primary key, so re-running this literal command after a code has
@@ -97,10 +97,11 @@ Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
 the limiter.
 
-> **Never run `db:push` or `db:studio`.** Both load `drizzle.config.ts`
-> (`driver: "d1-http"`) with the root `.env.production.local` creds and hit
-> the PRODUCTION D1 — `db:studio` is a read/write UI over that same database,
-> not a local inspector. The only local command is `db:push:local`.
+> **Never run `db:push:remote` or `db:studio:remote`.** Both load
+> `drizzle.config.ts` (`driver: "d1-http"`) with the root `.env.production.local`
+> creds and hit the PRODUCTION D1 — `db:studio:remote` is a read/write UI over
+> that same database, not a local inspector. The bare `db:push` and `db:studio`
+> are the local ones.
 
 ## Verify a change
 

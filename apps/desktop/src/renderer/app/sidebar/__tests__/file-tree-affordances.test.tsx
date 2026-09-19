@@ -2,36 +2,35 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { Mock } from "vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TreeOps } from "../file-tree";
+import type { FileTreeProps, TreeOps } from "../file-tree";
 import { RailTree } from "./rail-tree";
 import { absoluteEntryPath } from "../tree-ops";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
-  { kind: "file", path: "notes/older.md", modifiedMs: 1_000 },
-  { kind: "file", path: "notes/newest.md", modifiedMs: 3_000 },
-  { kind: "file", path: "notes/middle.md", modifiedMs: 2_000 },
+  { kind: "file", modifiedMs: 1000, path: "notes/older.md" },
+  { kind: "file", modifiedMs: 3000, path: "notes/newest.md" },
+  { kind: "file", modifiedMs: 2000, path: "notes/middle.md" },
   { kind: "dir", path: "assets" },
   { kind: "file", path: "assets/logo.png" },
-  { kind: "file", path: "Welcome.md", modifiedMs: 500 },
-  { kind: "file", path: "Zed notes.md", modifiedMs: 4_000 },
+  { kind: "file", modifiedMs: 500, path: "Welcome.md" },
+  { kind: "file", modifiedMs: 4000, path: "Zed notes.md" },
 ];
 
 const NO_PINS: ReadonlySet<string> = new Set();
 
-function makeOps(): TreeOps {
-  return {
-    createNote: vi.fn(),
-    createFolder: vi.fn(),
-    renameEntry: vi.fn(),
-    moveEntry: vi.fn(),
-    removeEntry: vi.fn(),
-    setPinned: vi.fn(),
-  };
-}
+const makeOps = (): TreeOps => ({
+  createFolder: vi.fn<TreeOps["createFolder"]>(),
+  createNote: vi.fn<TreeOps["createNote"]>(),
+  moveEntry: vi.fn<TreeOps["moveEntry"]>(),
+  removeEntry: vi.fn<TreeOps["removeEntry"]>(),
+  renameEntry: vi.fn<TreeOps["renameEntry"]>(),
+  setPinned: vi.fn<TreeOps["setPinned"]>(),
+});
 
-function renderTree(overrides: Partial<React.ComponentProps<typeof RailTree>> = {}) {
+const renderTree = (overrides: Partial<React.ComponentProps<typeof RailTree>> = {}) => {
   const ops = makeOps();
   render(
     <RailTree
@@ -39,45 +38,35 @@ function renderTree(overrides: Partial<React.ComponentProps<typeof RailTree>> = 
       loadState="loaded"
       onRetry={() => {}}
       openPath={null}
-      onOpenFile={vi.fn()}
+      onOpenFile={vi.fn<FileTreeProps["onOpenFile"]>()}
       ops={ops}
       pendingCreate={null}
       onPendingCreateDone={() => {}}
-      rootDir=""
+      reveal={null}
       onMoveRequest={() => {}}
       pinnedPaths={NO_PINS}
       sort="name"
-      filter=""
+      onSortChange={() => {}}
       vaultRoot={null}
       {...overrides}
     />,
   );
   return ops;
-}
+};
 
-function visiblePaths(): string[] {
-  return [...document.querySelectorAll<HTMLElement>("[data-path]")].map(
-    (row) => row.dataset["path"] ?? "",
-  );
-}
+const visiblePaths = (): string[] =>
+  [...document.querySelectorAll<HTMLElement>("[data-path]")].map((row) => row.dataset.path ?? "");
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
 
-function stubClipboard(): string[] {
-  const copied: string[] = [];
-  vi.stubGlobal("navigator", {
-    clipboard: {
-      writeText: (text: string) => {
-        copied.push(text);
-        return Promise.resolve();
-      },
-    },
-  });
-  return copied;
-}
+const stubClipboard = (): Mock<Clipboard["writeText"]> => {
+  const writeText = vi.fn<Clipboard["writeText"]>().mockResolvedValue();
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  return writeText;
+};
 
 describe("sorting", () => {
   it("by name keeps folders first, then files by name, case and digits aside", () => {
@@ -100,83 +89,21 @@ describe("sorting", () => {
   });
 });
 
-describe("the filter", () => {
-  it("shows the matches and the folders holding them, and nothing else", () => {
-    renderTree({ filter: "mid" });
-    expect(visiblePaths()).toEqual(["notes", "notes/middle.md"]);
-  });
-
-  it("matches a folder's own name", () => {
-    renderTree({ filter: "asset" });
-    expect(visiblePaths()).toEqual(["assets"]);
-  });
-
-  it("is a case-insensitive substring, and says when nothing matches", () => {
-    renderTree({ filter: "WELCOME" });
-    expect(visiblePaths()).toEqual(["Welcome.md"]);
-    cleanup();
-    renderTree({ filter: "zzz" });
-    expect(visiblePaths()).toEqual([]);
-    expect(screen.getByText("Nothing matches the filter.")).toBeDefined();
-  });
-
-  it("clearing it restores the folded tree", () => {
-    const { rerender } = render(
-      <RailTree
-        entries={ENTRIES}
-        loadState="loaded"
-        onRetry={() => {}}
-        openPath={null}
-        onOpenFile={vi.fn()}
-        ops={makeOps()}
-        pendingCreate={null}
-        onPendingCreateDone={() => {}}
-        rootDir=""
-        onMoveRequest={() => {}}
-        pinnedPaths={NO_PINS}
-        sort="name"
-        vaultRoot={null}
-        filter="mid"
-      />,
-    );
-    expect(visiblePaths()).toEqual(["notes", "notes/middle.md"]);
-    rerender(
-      <RailTree
-        entries={ENTRIES}
-        loadState="loaded"
-        onRetry={() => {}}
-        openPath={null}
-        onOpenFile={vi.fn()}
-        ops={makeOps()}
-        pendingCreate={null}
-        onPendingCreateDone={() => {}}
-        rootDir=""
-        onMoveRequest={() => {}}
-        pinnedPaths={NO_PINS}
-        sort="name"
-        vaultRoot={null}
-        filter=""
-      />,
-    );
-    expect(visiblePaths()).toEqual(["assets", "notes", "Welcome.md", "Zed notes.md"]);
-  });
-});
-
 describe("the path rows", () => {
   it("copies the vault-relative path", async () => {
-    const copied = stubClipboard();
+    const writeText = stubClipboard();
     renderTree();
     fireEvent.click(screen.getByLabelText("Actions for Welcome.md"));
     fireEvent.click(await screen.findByText("Copy path"));
-    expect(copied).toEqual(["Welcome.md"]);
+    expect(writeText.mock.calls.flat()).toEqual(["Welcome.md"]);
   });
 
   it("copies the absolute path only when the root is known", async () => {
-    const copied = stubClipboard();
+    const writeText = stubClipboard();
     renderTree({ vaultRoot: "/Users/me/vault" });
     fireEvent.click(screen.getByLabelText("Actions for Welcome.md"));
     fireEvent.click(await screen.findByText("Copy absolute path"));
-    expect(copied).toEqual(["/Users/me/vault/Welcome.md"]);
+    expect(writeText.mock.calls.flat()).toEqual(["/Users/me/vault/Welcome.md"]);
     cleanup();
     renderTree();
     fireEvent.click(screen.getByLabelText("Actions for Welcome.md"));
@@ -192,9 +119,9 @@ describe("the path rows", () => {
     expect(screen.queryByText("Open with default app")).toBeNull();
     cleanup();
 
-    const revealEntry = vi.fn();
-    const openEntry = vi.fn();
-    renderTree({ ops: { ...makeOps(), revealEntry, openEntry } });
+    const revealEntry = vi.fn<NonNullable<TreeOps["revealEntry"]>>();
+    const openEntry = vi.fn<NonNullable<TreeOps["openEntry"]>>();
+    renderTree({ ops: { ...makeOps(), openEntry, revealEntry } });
     fireEvent.click(screen.getByLabelText("Actions for Welcome.md"));
     fireEvent.click(await screen.findByText("Reveal in Finder"));
     expect(revealEntry).toHaveBeenCalledWith("Welcome.md");
@@ -204,7 +131,13 @@ describe("the path rows", () => {
   });
 
   it("opens a folder with the default app no more than it reveals it", async () => {
-    renderTree({ ops: { ...makeOps(), revealEntry: vi.fn(), openEntry: vi.fn() } });
+    renderTree({
+      ops: {
+        ...makeOps(),
+        openEntry: vi.fn<NonNullable<TreeOps["openEntry"]>>(),
+        revealEntry: vi.fn<NonNullable<TreeOps["revealEntry"]>>(),
+      },
+    });
     fireEvent.click(screen.getByLabelText("Actions for notes"));
     await screen.findByText("Reveal in Finder");
     expect(screen.queryByText("Open with default app")).toBeNull();

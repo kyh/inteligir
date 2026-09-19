@@ -9,33 +9,30 @@ import { stemmer } from "stemmer";
 // the fold matches fts5's unicode61 (`remove_diacritics 2` in the sql store): the stem
 // is computed here and folded there, so an unfolded token would index `acción` where
 // the store indexes `accion` and a query would reach one engine only
-export function tokenize(text: string): string[] {
-  return foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
-}
+const foldDiacritics = (text: string): string => text.normalize("NFD").replaceAll(/\p{Mn}+/gu, "");
 
-function foldDiacritics(text: string): string {
-  return text.normalize("NFD").replace(/\p{Mn}+/gu, "");
-}
+export const tokenize = (text: string): string[] =>
+  foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
 
 // `stemmer` is imported here and nowhere else, so the engines and the snippet cut cannot diverge
-export function stemToken(token: string): string {
-  return stemmer(token);
-}
+export const stemToken = (token: string): string => stemmer(token);
 
 // a shadow indexed beside the literal text, never a replacement: a prefix run
 // against stems dies where the suffix begins (`hirin` vs `hire`; 86 of 1,555 measured
 // prefixes stop retrieving), which is also why fts5's own `porter` tokenizer is not used.
 // order and repetition are kept so bm25 sees the same tf as the literal field
-export function stemText(text: string): string {
-  return tokenize(text).map(stemToken).join(" ");
+export const stemText = (text: string): string => tokenize(text).map(stemToken).join(" ");
+
+export interface SearchQueryTerm {
+  token: string;
+  stem: string;
+  prefix: boolean;
 }
 
-export type SearchQueryTerm = { token: string; stem: string; prefix: boolean };
-
-export type SearchQueryPlan = {
+export interface SearchQueryPlan {
   terms: readonly SearchQueryTerm[];
   match: "all" | "any";
-};
+}
 
 // at or below, the query is a lookup and every term is required; above, a sentence the ranking decides
 const CONJUNCTION_MAX_TERMS = 2;
@@ -58,27 +55,33 @@ const STOPWORDS = new Set(
    under until up us
    very was we were what when where whether which while who whom why will with would
    you your yours yourself`
-    .split(/\s+/)
+    .split(/\s+/u)
     .filter((word) => word !== ""),
 );
 
-export function planSearchQuery(query: string): readonly SearchQueryPlan[] {
+export const planSearchQuery = (query: string): readonly SearchQueryPlan[] => {
   const raw = tokenize(query);
-  const typing = raw[raw.length - 1];
-  if (typing === undefined) return [];
+  const typing = raw.at(-1);
+  if (typing === undefined) {
+    return [];
+  }
 
   const unique = [...new Set(raw)];
   const content = unique.filter((token) => !STOPWORDS.has(token));
   const terms = (content.length > 0 ? content : unique).map((token) => ({
-    token,
-    stem: stemToken(token),
     prefix: token === typing,
+    stem: stemToken(token),
+    token,
   }));
 
-  if (content.length > CONJUNCTION_MAX_TERMS) return [{ terms, match: "any" }];
-  if (content.length < RELAXABLE_MIN_TERMS) return [{ terms, match: "all" }];
+  if (content.length > CONJUNCTION_MAX_TERMS) {
+    return [{ match: "any", terms }];
+  }
+  if (content.length < RELAXABLE_MIN_TERMS) {
+    return [{ match: "all", terms }];
+  }
   return [
-    { terms, match: "all" },
-    { terms, match: "any" },
+    { match: "all", terms },
+    { match: "any", terms },
   ];
-}
+};

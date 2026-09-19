@@ -16,27 +16,13 @@ interface SignInSearch {
 
 const signInSearchSchema = z.looseObject({ next: z.string().min(1) });
 
-export const Route = createFileRoute("/app/sign-in")({
-  ssr: ssrWhenSignedOut,
-  validateSearch: (search): SignInSearch => {
-    const parsed = signInSearchSchema.safeParse(search);
-    return parsed.success ? { next: parsed.data.next } : {};
-  },
-  beforeLoad: async ({ search }) => {
-    if ((await currentSession()) !== null) {
-      throw redirect({ href: internalNextPath(search.next) ?? "/" });
-    }
-  },
-  component: SignInPage,
-});
-
-function SignInPage() {
+const SignInPage = () => {
   const router = useRouter();
   const { next } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusy(true);
@@ -99,4 +85,18 @@ function SignInPage() {
       </form>
     </AuthShell>
   );
-}
+};
+
+export const Route = createFileRoute("/app/sign-in")({
+  ssr: ssrWhenSignedOut,
+  validateSearch: (search): SignInSearch => {
+    const parsed = signInSearchSchema.safeParse(search);
+    return parsed.success ? { next: parsed.data.next } : {};
+  },
+  beforeLoad: async ({ search }) => {
+    if ((await currentSession()) !== null) {
+      redirect({ href: internalNextPath(search.next) ?? "/", throw: true });
+    }
+  },
+  component: SignInPage,
+});

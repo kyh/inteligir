@@ -9,10 +9,10 @@ const editorChords = [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTC
 );
 const globalChords = GLOBAL_SHORTCUTS.map(globalShortcutHotkey);
 
-function duplicates(chords: readonly string[]): string[] {
+const duplicates = (chords: readonly string[]): string[] => {
   const seen = new Set<string>();
   return chords.filter((chord) => (seen.has(chord) ? true : (seen.add(chord), false)));
-}
+};
 
 describe("the shortcut tables", () => {
   it("share no chord: the window listener and the editor's would both run it", () => {

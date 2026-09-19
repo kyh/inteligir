@@ -4,26 +4,37 @@ import { orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
 import { ChoiceRow, failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
-function credentialSentence(probe: HarnessProbe): string {
+const credentialSentence = (probe: HarnessProbe): string => {
   switch (probe.credentials) {
-    case "present":
+    case "present": {
       return "Signed in.";
-    case "unknown":
+    }
+    case "unknown": {
       return "Sign-in state unknown on this platform.";
-    case "absent":
+    }
+    case "absent": {
       return probe.cliPath === null
         ? "Not signed in."
         : `Not signed in — run: ${probe.loginCommand}`;
+    }
+    // no default
   }
-}
+};
 
-function HarnessRow({ probe }: { probe: HarnessProbe }) {
+const readinessLabel = (probe: HarnessProbe, ready: boolean): string => {
+  if (probe.cliPath === null) {
+    return "not installed";
+  }
+  return ready ? "ready" : "needs sign-in";
+};
+
+const HarnessRow = ({ probe }: { probe: HarnessProbe }) => {
   const ready = probe.cliPath !== null && probe.credentials === "present";
   return (
     <div className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0">
-        <p className="text-sm font-medium">{probe.displayName}</p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-subtitle font-medium">{probe.displayName}</p>
+        <p className="text-body text-muted-foreground">
           {probe.cliPath === null
             ? `The ${probe.displayName} CLI was not found on PATH — install it, then sign in with: ${probe.loginCommand}`
             : credentialSentence(probe)}
@@ -32,17 +43,17 @@ function HarnessRow({ probe }: { probe: HarnessProbe }) {
       <span
         className={
           ready
-            ? "shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-600"
-            : "shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+            ? "shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-body text-emerald-600"
+            : "shrink-0 rounded-full bg-muted px-2 py-0.5 text-body text-muted-foreground"
         }
       >
-        {ready ? "ready" : probe.cliPath === null ? "not installed" : "needs sign-in"}
+        {readinessLabel(probe, ready)}
       </span>
     </div>
   );
-}
+};
 
-export function AgentsSection() {
+export const AgentsSection = () => {
   const queryClient = useQueryClient();
   const statusQuery = useQuery({
     ...orpc.agents.status.queryOptions(),
@@ -51,11 +62,11 @@ export function AgentsSection() {
   });
   const setDefault = useMutation(
     orpc.agents.setDefault.mutationOptions({
-      onSuccess: (status) => {
-        queryClient.setQueryData(orpc.agents.status.queryKey(), status);
-      },
       onError: (cause) => {
         failed(cause, "Could not set the default agent.");
+      },
+      onSuccess: (status) => {
+        queryClient.setQueryData(orpc.agents.status.queryKey(), status);
       },
     }),
   );
@@ -66,7 +77,7 @@ export function AgentsSection() {
   return (
     <section>
       <SectionHeading>Agents</SectionHeading>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-body text-muted-foreground">
         Actions run on your own agent subscriptions. The protocol adapters ship with the app; the
         CLIs and their sign-ins are yours.
       </p>
@@ -80,13 +91,13 @@ export function AgentsSection() {
           <Row label="Default agent">
             <ChoiceRow
               label="Default agent"
-              options={harnesses.map((probe) => ({ value: probe.id, label: probe.displayName }))}
+              options={harnesses.map((probe) => ({ label: probe.displayName, value: probe.id }))}
               value={status.defaultId}
               onChange={(id) => {
                 setDefault.mutate({ id });
               }}
             />
-            <span className="mt-1 block text-xs text-muted-foreground">
+            <span className="mt-1 block text-body text-muted-foreground">
               New actions start on this agent. An action keeps the agent it started on.
             </span>
             <SecondVaultNote scope={scope} />
@@ -95,4 +106,4 @@ export function AgentsSection() {
       )}
     </section>
   );
-}
+};

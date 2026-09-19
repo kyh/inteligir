@@ -3,7 +3,7 @@
 // base settles the remaining encoding tricks without enumerating them.
 const RESOLUTION_BASE = "http://internal.invalid";
 
-export function internalNextPath(value: string | undefined): string | null {
+export const internalNextPath = (value: string | undefined): string | null => {
   if (value === undefined || !value.startsWith("/")) {
     return null;
   }
@@ -20,4 +20,4 @@ export function internalNextPath(value: string | undefined): string | null {
     return null;
   }
   return `${resolved.pathname}${resolved.search}${resolved.hash}`;
-}
+};

@@ -5,35 +5,41 @@
 import { activeLineMask, codeSpanRanges, inAnyRange, isEscapedAt } from "./line-scan";
 import type { Range } from "./line-scan";
 
-const FORMULA_SPAN_RE = /\{\{[^{}\n]*\}\}/g;
+const FORMULA_SPAN_RE = /\{\{[^{}\n]*\}\}/gu;
 
-function escapeLine(line: string): string {
-  if (!line.includes("{{") || !line.includes("|")) return line;
+const escapeLine = (line: string): string => {
+  if (!line.includes("{{") || !line.includes("|")) {
+    return line;
+  }
   const codeRanges = codeSpanRanges(line);
   const pillRanges: Range[] = [];
   for (const match of line.matchAll(FORMULA_SPAN_RE)) {
-    const range = { start: match.index, end: match.index + match[0].length };
+    const range = { end: match.index + match[0].length, start: match.index };
     if (!inAnyRange(codeRanges, range.start) && !inAnyRange(codeRanges, range.end - 1)) {
       pillRanges.push(range);
     }
   }
-  if (pillRanges.length === 0) return line;
+  if (pillRanges.length === 0) {
+    return line;
+  }
   // only a pipe outside every pill marks a cell boundary; a lone pill on a prose line keeps its bytes.
   let hasCellBoundary = false;
-  for (let i = 0; i < line.length; i++) {
+  for (let i = 0; i < line.length; i += 1) {
     if (line[i] === "|" && !isEscapedAt(line, i) && !inAnyRange(pillRanges, i)) {
       hasCellBoundary = true;
       break;
     }
   }
-  if (!hasCellBoundary) return line;
+  if (!hasCellBoundary) {
+    return line;
+  }
   let out = "";
   let cursor = 0;
   for (const pill of pillRanges) {
     out += line.slice(cursor, pill.start);
     const raw = line.slice(pill.start, pill.end);
     let escaped = "";
-    for (let i = 0; i < raw.length; i++) {
+    for (let i = 0; i < raw.length; i += 1) {
       const ch = raw[i];
       escaped += ch === "|" && !isEscapedAt(raw, i) ? "\\|" : ch;
     }
@@ -41,16 +47,20 @@ function escapeLine(line: string): string {
     cursor = pill.end;
   }
   return out + line.slice(cursor);
-}
+};
 
-export function escapePillPipesInTables(md: string): string {
-  if (!md.includes("{{")) return md;
+export const escapePillPipesInTables = (md: string): string => {
+  if (!md.includes("{{")) {
+    return md;
+  }
   const lines = md.split("\n");
   const active = activeLineMask(lines);
   let changed = false;
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    if (line === undefined || active[i] !== true) continue;
+    if (line === undefined || active[i] !== true) {
+      continue;
+    }
     const escaped = escapeLine(line);
     if (escaped !== line) {
       lines[i] = escaped;
@@ -58,4 +68,4 @@ export function escapePillPipesInTables(md: string): string {
     }
   }
   return changed ? lines.join("\n") : md;
-}
+};

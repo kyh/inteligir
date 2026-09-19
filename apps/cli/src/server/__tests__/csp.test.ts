@@ -3,13 +3,13 @@
 import { describe, expect, it } from "vitest";
 import { buildContentSecurityPolicy } from "../csp";
 
-function directive(policy: string, name: string): string {
+const directive = (policy: string, name: string): string => {
   const found = policy.split("; ").find((entry) => entry.startsWith(`${name} `));
   if (found === undefined) {
     throw new Error(`no ${name} directive in ${policy}`);
   }
   return found;
-}
+};
 
 describe("buildContentSecurityPolicy", () => {
   const policy = buildContentSecurityPolicy({ wsOrigin: "ws://127.0.0.1:4664" });

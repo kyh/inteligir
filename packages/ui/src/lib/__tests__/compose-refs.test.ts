@@ -7,13 +7,9 @@ describe("composeRefs", () => {
   it("writes the node into every shape a Ref can take", () => {
     const box = createRef<string>();
     const seen: (string | null)[] = [];
-    const composed = composeRefs<string>(
-      box,
-      (node) => {
-        seen.push(node);
-      },
-      undefined,
-    );
+    const composed = composeRefs<string>(box, (node) => {
+      seen.push(node);
+    });
 
     composed("node");
     expect(box.current).toBe("node");

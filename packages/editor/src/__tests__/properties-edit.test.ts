@@ -6,34 +6,37 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import {
-  type TypedProperty,
   parseProperties,
   serializeProperties,
   typeNewProperty,
 } from "@repo/notes/markdown/frontmatter";
+import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
 
-function seed(md: string) {
+const seed = (md: string) => {
   const parsed = parseMarkdown(md);
-  if (!parsed.ok) throw new Error("fixture must parse");
+  if (!parsed.ok) {
+    throw new Error("fixture must parse");
+  }
   return createSlateEditor({ plugins: EDITOR_KIT, value: parsed.value });
-}
-function serialize(editor: ReturnType<typeof seed>): string {
-  return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-}
+};
+const serialize = (editor: ReturnType<typeof seed>): string =>
+  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
-function editProperty(
+const editProperty = (
   editor: ReturnType<typeof seed>,
   mutate: (props: TypedProperty[]) => TypedProperty[],
-) {
+) => {
   const raw = readFrontmatterRaw(editor) ?? "";
   const parsed = parseProperties(raw);
-  if (parsed.kind !== "valid") throw new Error(`expected valid, got ${parsed.kind}`);
+  if (parsed.kind !== "valid") {
+    throw new Error(`expected valid, got ${parsed.kind}`);
+  }
   writeFrontmatterRaw(editor, serializeProperties(mutate(parsed.properties), raw));
-}
+};
 
 const DOC =
   "---\ntitle: Note\ndone: false\ntags:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2\n---\n\n# Body\n\ntext\n";
@@ -87,16 +90,18 @@ describe("properties panel edit → serialize", () => {
 });
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
-function fixtureProps(name: string) {
-  const text = readFileSync(`${FIXTURES}${name}`, "utf8");
-  const match = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---/.exec(text);
-  return parseProperties(match?.[1] ?? "");
-}
+const fixtureProps = (name: string) => {
+  const text = readFileSync(`${FIXTURES}${name}`, "utf-8");
+  const match = /^---[ \t]*\r?\n(?<body>[\s\S]*?)\r?\n---/u.exec(text);
+  return parseProperties(match?.groups?.body ?? "");
+};
 
 describe("round-trip fixtures ↔ typing", () => {
   it("frontmatter-properties.md types every supported kind", () => {
     const parsed = fixtureProps("frontmatter-properties.md");
-    if (parsed.kind !== "valid") throw new Error("expected valid");
+    if (parsed.kind !== "valid") {
+      throw new Error("expected valid");
+    }
     expect(parsed.properties.map((p) => [p.key, p.type])).toEqual([
       ["title", "text"],
       ["published", "checkbox"],

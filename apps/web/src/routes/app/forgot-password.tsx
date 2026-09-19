@@ -10,14 +10,12 @@ import { authClient, authErrorMessage } from "@/lib/auth-client";
 // must work with no app bundle; this route only requests the link
 const RESET_PAGE_PATH = "/auth/reset";
 
-export const Route = createFileRoute("/app/forgot-password")({ component: ForgotPasswordPage });
-
-function ForgotPasswordPage() {
+const ForgotPasswordPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setBusy(true);
@@ -69,4 +67,6 @@ function ForgotPasswordPage() {
       )}
     </AuthShell>
   );
-}
+};
+
+export const Route = createFileRoute("/app/forgot-password")({ component: ForgotPasswordPage });

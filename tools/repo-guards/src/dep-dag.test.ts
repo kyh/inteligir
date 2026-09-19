@@ -2,7 +2,7 @@
 // edge no manifest declares (pnpm's hoisting resolves it). adding a package or an edge: add the
 // row.
 
-import { dirname, join } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   importsOf,
@@ -11,37 +11,23 @@ import {
   resolveWorkspace,
   workspaceFiles,
   workspaces,
-  type Workspace,
 } from "./repo";
+import type { Workspace } from "./repo";
 
 // what each workspace's shipped source may import; test-only imports are not edges but must still
 // be declared in the manifest.
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
-    // leaves; agent-skills is content (markdown served to agents), imported as files.
+    "@repo/agent-runtime": ["@repo/domain"],
+    // a leaf: content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
-    "@repo/domain": [],
-    "@repo/notes": [],
-    "@repo/ui": [],
-
-    // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
-    "@repo/editor": ["@repo/notes", "@repo/ui"],
     // the @repo/notes edge is the parser-free grammars the contract validates against (vault-path,
     // sidecar-schema); widening it to a remark-carrying module drags remark into every client
     // bundle.
     "@repo/api": ["@repo/domain", "@repo/notes"],
-    "@repo/agent-runtime": ["@repo/domain"],
     // below the wire: an edge to @repo/api would drag hono and the contract's notes edge into a
     // package that only writes rows.
     "@repo/db": ["@repo/domain"],
-
-    // the server reaches no page: no @repo/ui, no @repo/editor, no react.
-    inteligir: ["@repo/agent-runtime", "@repo/api", "@repo/db", "@repo/domain", "@repo/notes"],
-    // a partial cloud client: reads the thread log and produces captures, never pushes or claims.
-    // the @repo/notes edge is the vault read surface (the dialect's own parse and link resolver);
-    // it reaches no server, vault engine or agent.
-    "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/notes"],
-    "@repo/web": ["@repo/api", "@repo/ui"],
     // `inteligir` for the facts both processes must agree on: config resolution, the token's file
     // and header spelling, the shutdown budget the stop grace must exceed, and the CSP the protocol
     // handler serves. forking its bundle as a child is the same dependency, declared once.
@@ -53,11 +39,22 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/ui",
       "inteligir",
     ],
-
+    "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance.
     "@repo/e2e": ["@repo/api", "inteligir"],
+    // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
+    "@repo/editor": ["@repo/notes", "@repo/ui"],
+    // a partial cloud client: reads the thread log and produces captures, never pushes or claims.
+    // the @repo/notes edge is the vault read surface (the dialect's own parse and link resolver);
+    // it reaches no server, vault engine or agent.
+    "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/notes"],
+    "@repo/notes": [],
     "@repo/repo-guards": [],
+    "@repo/ui": [],
+    "@repo/web": ["@repo/api", "@repo/ui"],
+    // the server reaches no page: no @repo/ui, no @repo/editor, no react.
+    inteligir: ["@repo/agent-runtime", "@repo/api", "@repo/db", "@repo/domain", "@repo/notes"],
   }),
 );
 
@@ -73,18 +70,25 @@ const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
   }),
 );
 
-function artifactEdgesFrom(name: string): Record<string, string> {
-  return DECLARED_ARTIFACT_EDGES.get(name) ?? {};
-}
+const artifactEdgesFrom = (name: string): Record<string, string> =>
+  DECLARED_ARTIFACT_EDGES.get(name) ?? {};
 
-function platformSurfacesOf(specifier: string): string[] {
+const platformSurfacesOf = (specifier: string): string[] => {
   const surfaces: string[] = [];
-  if (specifier.startsWith("node:")) surfaces.push("node");
-  if (specifier === "react" || specifier.startsWith("react/")) surfaces.push("react");
-  if (specifier === "react-dom" || specifier.startsWith("react-dom/")) surfaces.push("react");
-  if (specifier === "electron" || specifier.startsWith("electron/")) surfaces.push("electron");
+  if (specifier.startsWith("node:")) {
+    surfaces.push("node");
+  }
+  if (specifier === "react" || specifier.startsWith("react/")) {
+    surfaces.push("react");
+  }
+  if (specifier === "react-dom" || specifier.startsWith("react-dom/")) {
+    surfaces.push("react");
+  }
+  if (specifier === "electron" || specifier.startsWith("electron/")) {
+    surfaces.push("electron");
+  }
   return surfaces;
-}
+};
 
 interface PurityRule {
   forbidden: readonly string[];
@@ -94,25 +98,25 @@ interface PurityRule {
 // absent means no platform constraint.
 const PURITY_RULES = new Map<string, PurityRule>(
   Object.entries({
-    "@repo/notes": {
-      forbidden: ["node", "react", "electron"],
-      why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
-    },
-    "@repo/domain": {
-      forbidden: ["node", "react", "electron"],
-      why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
+    "@repo/agent-runtime": {
+      forbidden: ["react", "electron"],
+      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
     },
     "@repo/api": {
       forbidden: ["node", "react", "electron"],
       why: "the contract both ends compile against: it loads in the Electron renderer, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
     },
-    "@repo/agent-runtime": {
-      forbidden: ["react", "electron"],
-      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
+    "@repo/domain": {
+      forbidden: ["node", "react", "electron"],
+      why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
     },
     "@repo/editor": {
       forbidden: ["node", "electron"],
       why: "browser-only: Plate/Slate in the page, never in the Node process",
+    },
+    "@repo/notes": {
+      forbidden: ["node", "react", "electron"],
+      why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
     },
     "@repo/ui": {
       forbidden: ["node", "electron"],
@@ -124,19 +128,23 @@ const PURITY_RULES = new Map<string, PurityRule>(
 // @repo/api is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
 
-function edgesFrom(workspace: Workspace, files: readonly string[]): Map<string, string[]> {
+const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, string[]> => {
   const edges = new Map<string, string[]>();
   for (const file of files) {
     for (const specifier of importsOf(file)) {
       const target = resolveWorkspace(specifier);
-      if (target === null || target.name === workspace.name) continue;
+      if (target === null || target.name === workspace.name) {
+        continue;
+      }
       const sites = edges.get(target.name) ?? [];
-      if (!sites.includes(file)) sites.push(file);
+      if (!sites.includes(file)) {
+        sites.push(file);
+      }
       edges.set(target.name, sites);
     }
   }
   return edges;
-}
+};
 
 const shippedEdges = new Map<string, Map<string, string[]>>();
 const testEdges = new Map<string, Map<string, string[]>>();
@@ -146,7 +154,7 @@ for (const workspace of workspaces()) {
   testEdges.set(workspace.name, edgesFrom(workspace, files.test));
 }
 
-function declaredFor(name: string): readonly string[] {
+const declaredFor = (name: string): readonly string[] => {
   const row = DECLARED_EDGES.get(name);
   if (row === undefined) {
     throw new Error(
@@ -155,11 +163,13 @@ function declaredFor(name: string): readonly string[] {
     );
   }
   return row;
-}
+};
 
 describe("the package dependency DAG", () => {
   it("every workspace has a row in the declared table", () => {
-    for (const workspace of workspaces()) declaredFor(workspace.name);
+    for (const workspace of workspaces()) {
+      declaredFor(workspace.name);
+    }
   });
 
   it("the shipped import graph matches the declared table", () => {
@@ -168,15 +178,20 @@ describe("the package dependency DAG", () => {
       const declared = new Set(declaredFor(workspace.name));
       const actual = shippedEdges.get(workspace.name) ?? new Map<string, string[]>();
       for (const [target, sites] of actual) {
-        if (declared.has(target)) continue;
+        if (declared.has(target)) {
+          continue;
+        }
         violations.push(
           `UNDECLARED EDGE  ${workspace.name} -> ${target}\n` +
-            `  rule: an edge between workspaces is declared in DECLARED_EDGES before it is imported\n` +
-            sites.map((site) => `  at ${site}`).join("\n"),
+            `  rule: an edge between workspaces is declared in DECLARED_EDGES before it is imported\n${sites
+              .map((site) => `  at ${site}`)
+              .join("\n")}`,
         );
       }
       for (const target of declared) {
-        if (actual.has(target)) continue;
+        if (actual.has(target)) {
+          continue;
+        }
         violations.push(
           `DEAD EDGE  ${workspace.name} -> ${target}\n` +
             `  rule: DECLARED_EDGES states what shipped source ACTUALLY imports; nothing under ${workspace.dir}/src imports it\n` +
@@ -193,11 +208,14 @@ describe("the package dependency DAG", () => {
       const declared = manifestWorkspaceDeps(workspace.manifest);
       for (const bucket of [shippedEdges, testEdges]) {
         for (const [target, sites] of bucket.get(workspace.name) ?? []) {
-          if (declared.has(target)) continue;
+          if (declared.has(target)) {
+            continue;
+          }
           violations.push(
             `UNDECLARED DEPENDENCY  ${workspace.dir}/package.json is missing "${target}"\n` +
-              `  rule: an import that pnpm's hoisting happens to resolve is not a declared dependency\n` +
-              sites.map((site) => `  at ${site}`).join("\n"),
+              `  rule: an import that pnpm's hoisting happens to resolve is not a declared dependency\n${sites
+                .map((site) => `  at ${site}`)
+                .join("\n")}`,
           );
         }
       }
@@ -214,7 +232,9 @@ describe("the package dependency DAG", () => {
       ]);
       const artifact = artifactEdgesFrom(workspace.name);
       for (const target of manifestWorkspaceDeps(workspace.manifest)) {
-        if (used.has(target) || artifact[target] !== undefined) continue;
+        if (used.has(target) || artifact[target] !== undefined) {
+          continue;
+        }
         violations.push(
           `PHANTOM DEPENDENCY  ${workspace.dir}/package.json declares "${target}"\n` +
             `  rule: a declared dependency has an importer; nothing under ${workspace.dir}/src imports this one\n` +
@@ -275,7 +295,9 @@ describe("the package dependency DAG", () => {
     const cycles: string[] = [];
 
     const visit = (name: string, stack: string[]): void => {
-      if (state.get(name) === "done") return;
+      if (state.get(name) === "done") {
+        return;
+      }
       if (state.get(name) === "visiting") {
         const from = stack.indexOf(name);
         cycles.push(
@@ -291,7 +313,9 @@ describe("the package dependency DAG", () => {
       state.set(name, "done");
     };
 
-    for (const workspace of workspaces()) visit(workspace.name, []);
+    for (const workspace of workspaces()) {
+      visit(workspace.name, []);
+    }
     expect(cycles, `\n${cycles.join("\n\n")}\n`).toEqual([]);
   });
 });
@@ -301,11 +325,15 @@ describe("platform purity", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
       const rule = PURITY_RULES.get(workspace.name);
-      if (rule === undefined) continue;
+      if (rule === undefined) {
+        continue;
+      }
       for (const file of workspaceFiles(workspace).shipped) {
         for (const specifier of importsOf(file)) {
           for (const surface of platformSurfacesOf(specifier)) {
-            if (!rule.forbidden.includes(surface)) continue;
+            if (!rule.forbidden.includes(surface)) {
+              continue;
+            }
             violations.push(
               `FORBIDDEN IMPORT  ${file} imports "${specifier}"\n` +
                 `  rule: ${workspace.name} may not reach ${surface} — ${rule.why}`,
@@ -321,7 +349,9 @@ describe("platform purity", () => {
     const violations: string[] = [];
     for (const name of ZOD_ONLY_LEAVES) {
       const workspace = workspaces().find((candidate) => candidate.name === name);
-      if (workspace === undefined) throw new Error(`${name} is not a workspace`);
+      if (workspace === undefined) {
+        throw new Error(`${name} is not a workspace`);
+      }
       const runtime = Object.keys(workspace.manifest.dependencies ?? {});
       const extra = runtime.filter((dep) => dep !== "zod");
       if (extra.length > 0) {
@@ -342,12 +372,16 @@ describe("platform purity", () => {
     );
     const violations: string[] = [];
     for (const workspace of workspaces()) {
-      if (!workspace.dir.startsWith("packages/")) continue;
+      if (!workspace.dir.startsWith("packages/")) {
+        continue;
+      }
       const files = workspaceFiles(workspace);
       for (const file of [...files.shipped, ...files.test]) {
         for (const specifier of importsOf(file)) {
           const target = resolveWorkspace(specifier);
-          if (target === null || !appNames.has(target.name)) continue;
+          if (target === null || !appNames.has(target.name)) {
+            continue;
+          }
           violations.push(
             `PACKAGE IMPORTS AN APP  ${file} imports "${specifier}"\n` +
               `  rule: packages are consumed BY apps — the arrow only points one way, or the library is an app in disguise`,
@@ -360,13 +394,19 @@ describe("platform purity", () => {
 
   it("the Cloudflare Worker reaches @repo/api's cloud entry and nothing else", () => {
     const worker = workspaces().find((candidate) => candidate.name === "@repo/web");
-    if (worker === undefined) throw new Error("@repo/web is not a workspace");
+    if (worker === undefined) {
+      throw new Error("@repo/web is not a workspace");
+    }
     const files = workspaceFiles(worker);
     const violations: string[] = [];
     for (const file of [...files.shipped, ...files.test]) {
       for (const specifier of importsOf(file)) {
-        if (!specifier.startsWith("@repo/api/")) continue;
-        if (specifier.startsWith("@repo/api/cloud/")) continue;
+        if (!specifier.startsWith("@repo/api/")) {
+          continue;
+        }
+        if (specifier.startsWith("@repo/api/cloud/")) {
+          continue;
+        }
         violations.push(
           `LOCAL CONTRACT IN THE WORKER  ${file} imports "${specifier}"\n` +
             `  rule: apps/web serves the cloud wire and only the cloud wire — @repo/api/cloud/* is its half of the package`,
@@ -380,9 +420,11 @@ describe("platform purity", () => {
     // a file under src/cloud reaching src/local by relative path is invisible to the Worker pin
     // above; the sanctioned crossing is the other direction (local reusing a cloud constant).
     const api = workspaces().find((candidate) => candidate.name === "@repo/api");
-    if (api === undefined) throw new Error("@repo/api is not a workspace");
-    const cloudDir = join(api.dir, "src", "cloud");
-    const localDir = join(api.dir, "src", "local");
+    if (api === undefined) {
+      throw new Error("@repo/api is not a workspace");
+    }
+    const cloudDir = path.join(api.dir, "src", "cloud");
+    const localDir = path.join(api.dir, "src", "local");
     const files = workspaceFiles(api);
     const violations: string[] = [];
     for (const file of [...files.shipped, ...files.test]) {
@@ -393,10 +435,12 @@ describe("platform purity", () => {
         );
         continue;
       }
-      if (!file.startsWith(`${cloudDir}/`)) continue;
+      if (!file.startsWith(`${cloudDir}/`)) {
+        continue;
+      }
       for (const specifier of importsOf(file)) {
         const reachesLocal = specifier.startsWith(".")
-          ? join(dirname(file), specifier).startsWith(`${localDir}/`)
+          ? path.join(path.dirname(file), specifier).startsWith(`${localDir}/`)
           : specifier === "@repo/api/local" || specifier.startsWith("@repo/api/local/");
         if (reachesLocal) {
           violations.push(
@@ -415,11 +459,17 @@ describe("platform purity", () => {
     const reachesNode = new Map<string, boolean>();
     const resolve = (name: string, seen: Set<string>): boolean => {
       const cached = reachesNode.get(name);
-      if (cached !== undefined) return cached;
-      if (seen.has(name)) return false;
+      if (cached !== undefined) {
+        return cached;
+      }
+      if (seen.has(name)) {
+        return false;
+      }
       seen.add(name);
       const workspace = workspaces().find((candidate) => candidate.name === name);
-      if (workspace === undefined) return false;
+      if (workspace === undefined) {
+        return false;
+      }
       const direct = workspaceFiles(workspace).shipped.some((file) =>
         importsOf(file).some((specifier) => specifier.startsWith("node:")),
       );
@@ -433,13 +483,18 @@ describe("platform purity", () => {
 
     const violations: string[] = [];
     const worker = workspaces().find((candidate) => candidate.name === "@repo/web");
-    if (worker === undefined) throw new Error("@repo/web is not a workspace");
+    if (worker === undefined) {
+      throw new Error("@repo/web is not a workspace");
+    }
     for (const [target, sites] of shippedEdges.get(worker.name) ?? []) {
-      if (!resolve(target, new Set())) continue;
+      if (!resolve(target, new Set())) {
+        continue;
+      }
       violations.push(
         `NODE PACKAGE IN THE WORKER  @repo/web -> ${target}\n` +
-          `  rule: ${target}'s shipped source reaches node: — workerd has no native addons and no child processes, so this builds and then throws at runtime\n` +
-          sites.map((site) => `  at ${site}`).join("\n"),
+          `  rule: ${target}'s shipped source reaches node: — workerd has no native addons and no child processes, so this builds and then throws at runtime\n${sites
+            .map((site) => `  at ${site}`)
+            .join("\n")}`,
       );
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

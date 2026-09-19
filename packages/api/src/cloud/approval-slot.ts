@@ -5,7 +5,7 @@
 import { constantTimeEqual, hexFromBytes } from "./bytes";
 
 export const APPROVAL_STATE_BYTES = 16;
-export const APPROVAL_STATE_PATTERN = /^[0-9a-f]{32}$/;
+export const APPROVAL_STATE_PATTERN = /^[0-9a-f]{32}$/u;
 
 export type ApprovalClaim<T> =
   | { kind: "claimed"; payload: T }
@@ -19,19 +19,19 @@ export interface ApprovalSlotArgs {
 }
 
 export interface ApprovalSlot<T> {
-  arm(payload: T): string;
-  claim(state: string): ApprovalClaim<T>;
-  clear(): void;
+  arm: (payload: T) => string;
+  claim: (state: string) => ApprovalClaim<T>;
+  clear: () => void;
 }
 
-export function createApprovalSlot<T>(args: ApprovalSlotArgs): ApprovalSlot<T> {
+export const createApprovalSlot = <T>(args: ApprovalSlotArgs): ApprovalSlot<T> => {
   const now = args.now ?? Date.now;
   let pending: { state: string; payload: T; expiresAt: number } | null = null;
 
   return {
     arm(payload) {
       const state = hexFromBytes(crypto.getRandomValues(new Uint8Array(APPROVAL_STATE_BYTES)));
-      pending = { state, payload, expiresAt: now() + args.ttlMs };
+      pending = { expiresAt: now() + args.ttlMs, payload, state };
       return state;
     },
 
@@ -55,4 +55,4 @@ export function createApprovalSlot<T>(args: ApprovalSlotArgs): ApprovalSlot<T> {
       pending = null;
     },
   };
-}
+};

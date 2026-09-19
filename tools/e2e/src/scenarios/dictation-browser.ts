@@ -3,7 +3,7 @@
 // mic's bytes streamed the whole path.
 
 import { setTimeout as delay } from "node:timers/promises";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -22,13 +22,13 @@ const COMPOSER = 'textarea[aria-label="Ask the agent"]';
 const MIC = 'button[aria-label="Dictate"]';
 const MIC_RECORDING = 'button[aria-label="Stop dictating"]';
 const PREVIEW = "[data-dictation-preview]";
-const TRANSCRIPT = /scripted dictation of (\d+) samples/u;
+const TRANSCRIPT = /scripted dictation of (?<samples>\d+) samples/u;
 
 export const dictationBrowser: Scenario = {
-  name: "dictation-browser",
   description: "the composer's mic captures, transcribes and inserts — never sends",
+  name: "dictation-browser",
   async run(ctx) {
-    const app = await ctx.boot({ name: "solo", extraEnv: { INTELIGIR_VOICE: "scripted" } });
+    const app = await ctx.boot({ extraEnv: { INTELIGIR_VOICE: "scripted" }, name: "solo" });
     try {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
@@ -79,7 +79,7 @@ export const dictationBrowser: Scenario = {
         await delay(500);
       }
 
-      const samples = Number(TRANSCRIPT.exec(composed)?.[1] ?? "0");
+      const samples = Number(TRANSCRIPT.exec(composed)?.groups?.samples ?? "0");
       expect(
         samples > 0,
         `the transcript claims ${samples} samples — the microphone's bytes did not reach the server`,
@@ -87,7 +87,7 @@ export const dictationBrowser: Scenario = {
 
       // an auto-sent transcript would leave a thread holding a message the user never read.
       ctx.log("asserting the transcript was inserted and NOT sent");
-      await delay(1_000);
+      await delay(1000);
       const stillThere = await agentBrowser(["get", "value", COMPOSER]);
       expect(
         stillThere === composed,
@@ -104,7 +104,7 @@ export const dictationBrowser: Scenario = {
         `typing did not continue from the caret: ${JSON.stringify(appended)}`,
       );
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

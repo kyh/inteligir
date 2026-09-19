@@ -2,19 +2,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
 
-function stubStorage(): Map<string, string> {
+const stubStorage = (): Map<string, string> => {
   const written = new Map<string, string>();
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => written.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      written.set(key, value);
-    },
     removeItem: (key: string) => {
       written.delete(key);
     },
+    setItem: (key: string, value: string) => {
+      written.set(key, value);
+    },
   });
   return written;
-}
+};
 
 describe("heading collapse", () => {
   afterEach(() => {

@@ -6,10 +6,12 @@ import {
 } from "@repo/ui/components/command";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
-import { spellHotkey, type ShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { spellHotkey } from "@repo/editor/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
-import { matchesQuery, PalettePage, type PageShell } from "./palette-page";
+import { matchesQuery, PalettePage } from "./palette-page";
+import type { PageShell } from "./palette-page";
 
 interface ShortcutRow {
   id: string;
@@ -18,35 +20,33 @@ interface ShortcutRow {
 }
 
 // derived from the tables the listeners read, never a list of its own
-function shortcutGroups(
+const shortcutGroups = (
   modifier: ShortcutModifier,
-): readonly { heading: string; rows: ShortcutRow[] }[] {
-  return [
-    {
-      heading: "Everywhere",
-      rows: GLOBAL_SHORTCUTS.map((row) => ({
-        id: row.action,
-        label: row.label,
-        chord: spellHotkey(globalShortcutHotkey(row), modifier),
-      })),
-    },
-    {
-      heading: "In the note",
-      rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS].map((row) => ({
-        id: row.action,
-        label: row.label,
-        chord: spellHotkey(row.hotkey, modifier),
-      })),
-    },
-  ];
-}
+): readonly { heading: string; rows: ShortcutRow[] }[] => [
+  {
+    heading: "Everywhere",
+    rows: GLOBAL_SHORTCUTS.map((row) => ({
+      chord: spellHotkey(globalShortcutHotkey(row), modifier),
+      id: row.action,
+      label: row.label,
+    })),
+  },
+  {
+    heading: "In the note",
+    rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS].map((row) => ({
+      chord: spellHotkey(row.hotkey, modifier),
+      id: row.action,
+      label: row.label,
+    })),
+  },
+];
 
 export interface ShortcutsPageProps extends PageShell {
   modifier: ShortcutModifier;
   onPick: () => void;
 }
 
-export function ShortcutsPage({ modifier, onPick, ...shell }: ShortcutsPageProps) {
+export const ShortcutsPage = ({ modifier, onPick, ...shell }: ShortcutsPageProps) => {
   const groups = shortcutGroups(modifier)
     .map((group) => ({
       heading: group.heading,
@@ -66,13 +66,13 @@ export function ShortcutsPage({ modifier, onPick, ...shell }: ShortcutsPageProps
       {groups.map((group) => (
         <CommandGroup key={group.heading} heading={group.heading}>
           {group.rows.map((row) => (
-            <CommandItem key={row.id} value={row.id} onSelect={onPick}>
+            <CommandItem key={row.id} action={row.label} onSelect={onPick}>
               {row.label}
-              <CommandShortcut>{row.chord}</CommandShortcut>
+              <CommandShortcut keys={row.chord} />
             </CommandItem>
           ))}
         </CommandGroup>
       ))}
     </PalettePage>
   );
-}
+};

@@ -32,7 +32,9 @@ describe("find bar", () => {
     const view = render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
     const editor = holder.current;
     expect(editor).not.toBeNull();
-    if (editor === null) return;
+    if (editor === null) {
+      return;
+    }
 
     act(() => {
       openFindBar(editor);

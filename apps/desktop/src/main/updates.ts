@@ -15,29 +15,32 @@ import {
   reduceInstallFailure,
   reduceNoUpdate,
   reduceUpdateAvailable,
-  type UpdateState,
 } from "../update-state";
+import type { UpdateState } from "../update-state";
 import { toErrorMessage } from "../types";
 
 export const UPDATE_STARTUP_DELAY_MS = 15_000;
 export const UPDATE_POLL_INTERVAL_MS = 4 * 60_000;
 
+// the version is all the policy reads; the rest of electron-updater's info stays on its side
+export type UpdateVersionInfo = Pick<UpdateInfo, "version">;
+
 export interface UpdaterHandlers {
-  readonly updateAvailable: (info: UpdateInfo) => void;
+  readonly updateAvailable: (info: UpdateVersionInfo) => void;
   readonly updateNotAvailable: () => void;
   readonly downloadProgress: (progress: ProgressInfo) => void;
-  readonly updateDownloaded: (info: UpdateInfo) => void;
+  readonly updateDownloaded: (info: UpdateVersionInfo) => void;
   readonly error: (error: Error) => void;
 }
 
 // the slice of electron-updater this policy drives, adapted in index.ts; a test hands in a fake
 export interface UpdaterPort {
   // autoDownload and autoInstallOnAppQuit off: nothing moves without a click
-  disarmAutomation(): void;
-  checkForUpdates(): Promise<UpdateCheckResult | null>;
-  downloadUpdate(): Promise<string[]>;
-  quitAndInstall(isSilent: boolean, isForceRunAfter: boolean): void;
-  subscribe(handlers: UpdaterHandlers): void;
+  disarmAutomation: () => void;
+  checkForUpdates: () => Promise<UpdateCheckResult | null>;
+  downloadUpdate: () => Promise<string[]>;
+  quitAndInstall: (isSilent: boolean, isForceRunAfter: boolean) => void;
+  subscribe: (handlers: UpdaterHandlers) => void;
 }
 
 export interface UpdatesArgs {
@@ -46,9 +49,9 @@ export interface UpdatesArgs {
   // null when this build carries a feed and may check; otherwise the reason it never will
   disabledReason: string | null;
   // the shell's own child; an adopted server outlives the shell and is nobody's to stop
-  stopServer(): Promise<void>;
-  broadcast(state: UpdateState): void;
-  log(message: string): void;
+  stopServer: () => Promise<void>;
+  broadcast: (state: UpdateState) => void;
+  log: (message: string) => void;
   now?: () => string;
 }
 
@@ -58,17 +61,17 @@ type InstallOutcome =
   | { kind: "failed"; state: UpdateState };
 
 export interface Updates {
-  state(): UpdateState;
-  start(): void;
-  stop(): void;
-  check(reason: string): Promise<UpdateState>;
-  download(): Promise<UpdateState>;
-  install(): Promise<InstallOutcome>;
+  state: () => UpdateState;
+  start: () => void;
+  stop: () => void;
+  check: (reason: string) => Promise<UpdateState>;
+  download: () => Promise<UpdateState>;
+  install: () => Promise<InstallOutcome>;
 }
 
 type Step = "check" | "download" | "install";
 
-export function createUpdates(args: UpdatesArgs): Updates {
+export const createUpdates = (args: UpdatesArgs): Updates => {
   const now = args.now ?? (() => new Date().toISOString());
   let state = initialUpdateState(args.currentVersion, args.disabledReason);
   let step: Step | null = null;
@@ -90,24 +93,17 @@ export function createUpdates(args: UpdatesArgs): Updates {
   };
 
   const release = (done: Step): void => {
-    if (step === done) step = null;
+    if (step === done) {
+      step = null;
+    }
   };
 
   args.updater.subscribe({
-    updateAvailable(info) {
-      setState(reduceUpdateAvailable(state, info.version, now()));
-      args.log(`update available: ${info.version}`);
-    },
-    updateNotAvailable() {
-      setState(reduceNoUpdate(state, now()));
-    },
     downloadProgress(progress) {
       const next = reduceDownloadProgress(state, progress.percent);
-      if (next.downloadPercent !== state.downloadPercent) setState(next);
-    },
-    updateDownloaded(info) {
-      setState(reduceDownloadComplete(state, info.version));
-      args.log(`update downloaded: ${info.version}`);
+      if (next.downloadPercent !== state.downloadPercent) {
+        setState(next);
+      }
     },
     // a step in flight reports its own rejection; this is the background case
     error(error) {
@@ -117,21 +113,36 @@ export function createUpdates(args: UpdatesArgs): Updates {
         setState(reduceCheckFailure(state, message, now()));
       }
     },
+    updateAvailable(info) {
+      setState(reduceUpdateAvailable(state, info.version, now()));
+      args.log(`update available: ${info.version}`);
+    },
+    updateDownloaded(info) {
+      setState(reduceDownloadComplete(state, info.version));
+      args.log(`update downloaded: ${info.version}`);
+    },
+    updateNotAvailable() {
+      setState(reduceNoUpdate(state, now()));
+    },
   });
 
   const check = async (reason: string): Promise<UpdateState> => {
-    if (state.status === "disabled") return state;
+    if (state.status === "disabled") {
+      return state;
+    }
     if (state.status === "downloading" || state.status === "downloaded") {
       args.log(`check (${reason}) skipped: an update is already ${state.status}`);
       return state;
     }
-    if (!reserve("check")) return state;
+    if (!reserve("check")) {
+      return state;
+    }
     setState(reduceCheckStart(state, now()));
     args.log(`checking for updates (${reason})`);
     try {
       await args.updater.checkForUpdates();
-    } catch (cause) {
-      setState(reduceCheckFailure(state, toErrorMessage(cause), now()));
+    } catch (error) {
+      setState(reduceCheckFailure(state, toErrorMessage(error), now()));
     } finally {
       release("check");
     }
@@ -139,14 +150,18 @@ export function createUpdates(args: UpdatesArgs): Updates {
   };
 
   const download = async (): Promise<UpdateState> => {
-    if (state.availableVersion === null || state.downloadedVersion !== null) return state;
-    if (!reserve("download")) return state;
+    if (state.availableVersion === null || state.downloadedVersion !== null) {
+      return state;
+    }
+    if (!reserve("download")) {
+      return state;
+    }
     setState(reduceDownloadStart(state));
     args.log(`downloading ${state.availableVersion}`);
     try {
       await args.updater.downloadUpdate();
-    } catch (cause) {
-      setState(reduceDownloadFailure(state, toErrorMessage(cause)));
+    } catch (error) {
+      setState(reduceDownloadFailure(state, toErrorMessage(error)));
     } finally {
       release("download");
     }
@@ -154,22 +169,28 @@ export function createUpdates(args: UpdatesArgs): Updates {
   };
 
   const install = async (): Promise<InstallOutcome> => {
-    if (state.downloadedVersion === null) return { kind: "refused", state };
-    if (!reserve("install")) return { kind: "refused", state };
+    if (state.downloadedVersion === null) {
+      return { kind: "refused", state };
+    }
+    if (!reserve("install")) {
+      return { kind: "refused", state };
+    }
     args.log(`installing ${state.downloadedVersion}: stopping the server`);
     try {
       await args.stopServer();
       args.updater.quitAndInstall(true, true);
       return { kind: "quitting" };
-    } catch (cause) {
-      setState(reduceInstallFailure(state, toErrorMessage(cause)));
+    } catch (error) {
+      setState(reduceInstallFailure(state, toErrorMessage(error)));
       release("install");
       return { kind: "failed", state };
     }
   };
 
   return {
-    state: () => state,
+    check,
+    download,
+    install,
     start() {
       if (state.status === "disabled") {
         args.log(`updates disabled: ${state.message ?? "no reason given"}`);
@@ -183,14 +204,16 @@ export function createUpdates(args: UpdatesArgs): Updates {
         void check("poll");
       }, UPDATE_POLL_INTERVAL_MS);
     },
+    state: () => state,
     stop() {
-      if (startupTimer !== null) clearTimeout(startupTimer);
-      if (pollTimer !== null) clearInterval(pollTimer);
+      if (startupTimer !== null) {
+        clearTimeout(startupTimer);
+      }
+      if (pollTimer !== null) {
+        clearInterval(pollTimer);
+      }
       startupTimer = null;
       pollTimer = null;
     },
-    check,
-    download,
-    install,
   };
-}
+};

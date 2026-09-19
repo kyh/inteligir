@@ -7,38 +7,38 @@ import type { DocProjection } from "./projection";
 import type { SearchHit } from "./search-index";
 import type { DocText } from "./text-matches";
 
-export type StoredDocRow = {
+export interface StoredDocRow {
   path: string;
   contentHash: string;
   projection: DocProjection;
-};
+}
 
-export type KnowledgeStore = {
-  loadAll(): { docs: StoredDocRow[]; others: { path: string }[] };
+export interface KnowledgeStore {
+  loadAll: () => { docs: StoredDocRow[]; others: { path: string }[] };
 
-  upsertDoc(row: StoredDocRow, body: string): void;
+  upsertDoc: (row: StoredDocRow, body: string) => void;
 
-  upsertOther(path: string): void;
+  upsertOther: (path: string) => void;
 
-  remove(path: string): void;
+  remove: (path: string) => void;
 
-  clear(): void;
+  clear: () => void;
 
-  search(query: string, limit: number): SearchResult[];
+  search: (query: string, limit: number) => SearchResult[];
 
   /** paths and scores only — the related-notes probe shows no row, so no excerpt is cut. */
-  searchRanked(query: string, limit: number): SearchHit[];
+  searchRanked: (query: string, limit: number) => SearchHit[];
 
   /**
    * every doc's text for the literal scan, in path order; `prefilter` (text-matches'
    * bodyPrefilter) lets the store drop docs that cannot hold the needle, case-insensitively
    * over ascii, and null asks for all of them.
    */
-  docTexts(prefilter: string | null): DocText[];
+  docTexts: (prefilter: string | null) => DocText[];
 
-  transaction(fn: () => void): void;
+  transaction: (fn: () => void) => void;
 
-  nuke(): void;
+  nuke: () => void;
 
-  dispose(): void;
-};
+  dispose: () => void;
+}

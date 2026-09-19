@@ -2,10 +2,12 @@
 // the wire contract, the server and the index all refuse by it.
 
 // `..` past the root is kept (`normalizePath("../x") === "../x"`) so a caller can detect the escape
-export function normalizePath(p: string): string {
+export const normalizePath = (p: string): string => {
   const out: string[] = [];
   for (const segment of p.split("/")) {
-    if (segment === "" || segment === ".") continue;
+    if (segment === "" || segment === ".") {
+      continue;
+    }
     if (segment === "..") {
       const last = out.at(-1);
       if (last !== undefined && last !== "..") {
@@ -16,29 +18,28 @@ export function normalizePath(p: string): string {
     out.push(segment);
   }
   return out.join("/");
-}
+};
 
-export function dirnamePath(p: string): string {
+export const dirnamePath = (p: string): string => {
   const idx = p.lastIndexOf("/");
   return idx === -1 ? "" : p.slice(0, idx);
-}
+};
 
-export function basenamePath(p: string): string {
+export const basenamePath = (p: string): string => {
   const idx = p.lastIndexOf("/");
   return idx === -1 ? p : p.slice(idx + 1);
-}
+};
 
-export function extnamePath(p: string): string {
+export const extnamePath = (p: string): string => {
   const base = basenamePath(p);
   const idx = base.lastIndexOf(".");
   return idx <= 0 ? "" : base.slice(idx);
-}
+};
 
-export function joinPath(dir: string, rel: string): string {
-  return normalizePath(dir === "" ? rel : `${dir}/${rel}`);
-}
+export const joinPath = (dir: string, rel: string): string =>
+  normalizePath(dir === "" ? rel : `${dir}/${rel}`);
 
-export function relativePath(fromDir: string, toPath: string): string {
+export const relativePath = (fromDir: string, toPath: string): string => {
   const from = normalizePath(fromDir);
   const to = normalizePath(toPath);
   const fromParts = from === "" ? [] : from.split("/");
@@ -49,64 +50,68 @@ export function relativePath(fromDir: string, toPath: string): string {
     common < toParts.length - 1 &&
     fromParts[common] === toParts[common]
   ) {
-    common++;
+    common += 1;
   }
   const ups = fromParts.length - common;
   const parts = [...Array.from({ length: ups }, () => ".."), ...toParts.slice(common)];
   return parts.join("/");
-}
+};
 
 // atomic writes stage under this; the listing, the watcher and git (.git/info/exclude) all hide it
 export const VAULT_TMP_PREFIX = ".inteligir-tmp-";
 
 const MAX_VAULT_PATH_LENGTH = 1024;
 
-export class VaultPathError extends Error {}
+export class VaultPathError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VaultPathError";
+  }
+}
 
 export type VaultPathParse =
   | { readonly ok: true; readonly path: string }
   | { readonly ok: false; readonly message: string };
 
 // `\` is refused rather than treated as a separator, so a path never names different files on different platforms
-export function parseVaultPath(raw: string): VaultPathParse {
+export const parseVaultPath = (raw: string): VaultPathParse => {
   if (raw.length === 0 || raw.length > MAX_VAULT_PATH_LENGTH) {
-    return { ok: false, message: "path must be a non-empty string of reasonable length" };
+    return { message: "path must be a non-empty string of reasonable length", ok: false };
   }
   if (raw.includes("\0")) {
-    return { ok: false, message: "path must not contain null bytes" };
+    return { message: "path must not contain null bytes", ok: false };
   }
   if (raw.includes("\\")) {
-    return { ok: false, message: "path must use / separators" };
+    return { message: "path must use / separators", ok: false };
   }
   if (raw.startsWith("/")) {
-    return { ok: false, message: "path must be relative to the vault root" };
+    return { message: "path must be relative to the vault root", ok: false };
   }
   const segments = raw.split("/").filter((segment) => segment.length > 0);
   if (segments.length === 0) {
-    return { ok: false, message: "path must name an entry inside the vault" };
+    return { message: "path must name an entry inside the vault", ok: false };
   }
   for (const segment of segments) {
     if (segment === "." || segment === "..") {
-      return { ok: false, message: "path must not contain . or .. segments" };
+      return { message: "path must not contain . or .. segments", ok: false };
     }
     if (segment.toLowerCase() === ".git") {
-      return { ok: false, message: "path must not reach into .git" };
+      return { message: "path must not reach into .git", ok: false };
     }
     if (segment.startsWith(VAULT_TMP_PREFIX)) {
-      return { ok: false, message: "path must not name a staging file" };
+      return { message: "path must not name a staging file", ok: false };
     }
   }
   return { ok: true, path: segments.join("/") };
-}
+};
 
-export function normalizeVaultPath(raw: string): string {
+export const normalizeVaultPath = (raw: string): string => {
   const parsed = parseVaultPath(raw);
   if (!parsed.ok) {
     throw new VaultPathError(parsed.message);
   }
   return parsed.path;
-}
+};
 
-export function isIgnoredEntryName(name: string): boolean {
-  return name.toLowerCase() === ".git" || name.startsWith(VAULT_TMP_PREFIX);
-}
+export const isIgnoredEntryName = (name: string): boolean =>
+  name.toLowerCase() === ".git" || name.startsWith(VAULT_TMP_PREFIX);

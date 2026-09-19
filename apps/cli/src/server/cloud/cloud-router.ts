@@ -13,14 +13,21 @@ const login = base.cloud.login.handler(async ({ context, input, errors }) => {
   }
   const { failure } = outcome;
   if (failure.kind === "refused" && isDeviceLoginRefusal(failure.code)) {
-    const message = failure.message;
+    const { message } = failure;
     switch (failure.code) {
-      case "invalid-credentials":
+      case "invalid-credentials": {
         throw errors.UNAUTHORIZED({ message });
-      case "device-limit":
+      }
+      case "device-limit": {
         throw errors.CONFLICT({ message });
-      case "rate-limited":
+      }
+      case "rate-limited": {
         throw errors.TOO_MANY_REQUESTS({ message });
+      }
+      default: {
+        const unanswered: never = failure.code;
+        return unanswered;
+      }
     }
   }
   throw errors.PROVIDER_UNAVAILABLE({ message: describeCloudFailure(failure) });
@@ -28,11 +35,11 @@ const login = base.cloud.login.handler(async ({ context, input, errors }) => {
 
 const logout = base.cloud.logout.handler(({ context }) => context.cloud.logout());
 
-const syncNow = base.cloud.syncNow.handler(({ context }) => context.cloud.syncNow());
+const syncNow = base.cloud.syncNow.handler(async ({ context }) => await context.cloud.syncNow());
 
 export const cloudRouter = {
-  status,
   login,
   logout,
+  status,
   syncNow,
 };

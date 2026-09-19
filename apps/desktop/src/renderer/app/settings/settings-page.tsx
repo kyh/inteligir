@@ -1,14 +1,15 @@
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
-import { useTheme, type Theme } from "@repo/ui/lib/theme";
+import { useTheme } from "@repo/ui/lib/theme";
+import type { Theme } from "@repo/ui/lib/theme";
 import { ArrowLeftIcon } from "lucide-react";
+import { useAppearance } from "../appearance";
 import {
   EDITOR_FONTS,
   EDITOR_LEADINGS,
   EDITOR_MEASURES,
   EDITOR_SIZES,
-  useAppearance,
-} from "../appearance";
+} from "../appearance-options";
 import {
   canSyncNow,
   syncBlockedReason,
@@ -30,9 +31,9 @@ import { VaultsRow } from "./vaults-rows";
 import { VoiceSection } from "./voice-section";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
-  { value: "system", label: "System" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
+  { label: "System", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
 ];
 
 // Ids must agree with the section anchors below.
@@ -48,7 +49,55 @@ const NAV = [
   { id: "about", label: "About" },
 ] as const;
 
-export function SettingsPage({ onBack }: { onBack: () => void }) {
+type SystemStatus = ReturnType<typeof useSystemStatus>["data"];
+
+const AgentSummary = ({ system }: { system: SystemStatus }) => (
+  <section id="agent" className="scroll-mt-10 space-y-2">
+    <SectionHeading>Agent</SectionHeading>
+    <dl className="space-y-1.5">
+      <Row label="Mode">
+        <span className="font-mono text-body">{system?.agent.mode ?? "…"}</span>
+      </Row>
+      <Row label="Runtime">
+        <span className="font-mono text-body">{system?.agent.runtime ?? "…"}</span>
+      </Row>
+      {system !== undefined && system.agent.detail !== null ? (
+        <Row label="Detail">
+          <span className="text-body text-muted-foreground">{system.agent.detail}</span>
+        </Row>
+      ) : null}
+    </dl>
+  </section>
+);
+
+const AboutSection = ({ system }: { system: SystemStatus }) => (
+  <section id="about" className="scroll-mt-10 space-y-2 pb-16">
+    <SectionHeading>About</SectionHeading>
+    <dl className="space-y-1.5">
+      <Row label="Version">
+        <span className="font-mono text-body">{system?.version ?? "…"}</span>
+      </Row>
+      <UpdatesRow />
+      <Row label="Data dir">
+        <span className="block truncate font-mono text-body" title={system?.dataDir}>
+          {system?.dataDir ?? "…"}
+        </span>
+      </Row>
+      <Row label="Schema">
+        <span className="font-mono text-body">
+          {system === undefined ? "…" : `v${system.schemaVersion}`}
+        </span>
+      </Row>
+      <Row label="Uptime">
+        <span className="font-mono text-body">
+          {system === undefined ? "…" : `${Math.round(system.uptimeMs / 1000)}s`}
+        </span>
+      </Row>
+    </dl>
+  </section>
+);
+
+export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const treeQuery = useVaultTree();
   const statusQuery = useVaultStatus();
   const systemQuery = useSystemStatus();
@@ -59,6 +108,25 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const status = statusQuery.data;
   const system = systemQuery.data;
 
+  const gitRemote = () => {
+    if (status === undefined) {
+      return "…";
+    }
+    if (status.state === "no-remote") {
+      return (
+        <span className="text-muted-foreground">
+          {syncBlockedReason(status)} — sign in below to sync through your account, or set
+          INTELIGIR_VAULT_REMOTE / config.json for your own remote.
+        </span>
+      );
+    }
+    return (
+      <span className="block truncate font-mono text-body" title={status.remote}>
+        {status.remote}
+      </span>
+    );
+  };
+
   return (
     <div className="min-h-dvh overflow-y-auto bg-surface text-ink">
       <div className="mx-auto flex max-w-3xl gap-10 px-6 py-10">
@@ -67,7 +135,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             <ArrowLeftIcon />
             Notes
           </Button>
-          <ul className="space-y-1 text-sm">
+          <ul className="space-y-1 text-subtitle">
             {NAV.map((item) => (
               <li key={item.id}>
                 <a
@@ -92,31 +160,18 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             >
               <ArrowLeftIcon />
             </Button>
-            <h2 className="text-lg font-semibold">Settings</h2>
+            <h2 className="text-title font-semibold">Settings</h2>
           </header>
 
           <section id="vault" className="scroll-mt-10 space-y-2">
             <SectionHeading>Vault</SectionHeading>
             <dl className="space-y-1.5">
               <Row label="Location">
-                <span className="block truncate font-mono text-xs" title={treeQuery.data?.root}>
+                <span className="block truncate font-mono text-body" title={treeQuery.data?.root}>
                   {treeQuery.data?.root ?? "…"}
                 </span>
               </Row>
-              <Row label="Git remote">
-                {status === undefined ? (
-                  "…"
-                ) : status.state === "no-remote" ? (
-                  <span className="text-muted-foreground">
-                    {syncBlockedReason(status)} — sign in below to sync through your account, or set
-                    INTELIGIR_VAULT_REMOTE / config.json for your own remote.
-                  </span>
-                ) : (
-                  <span className="block truncate font-mono text-xs" title={status.remote}>
-                    {status.remote}
-                  </span>
-                )}
-              </Row>
+              <Row label="Git remote">{gitRemote()}</Row>
               <Row label="Sync">
                 <span className="flex items-center gap-2">
                   {status === undefined ? "…" : syncStateLabel(status)}
@@ -132,7 +187,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   ) : null}
                 </span>
                 {status?.lastError !== null && status?.lastError !== undefined ? (
-                  <span className="mt-1 block text-xs text-muted-foreground">
+                  <span className="mt-1 block text-body text-muted-foreground">
                     Last error: {status.lastError}
                   </span>
                 ) : null}
@@ -142,22 +197,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             </dl>
           </section>
           <Separator />
-          <section id="agent" className="scroll-mt-10 space-y-2">
-            <SectionHeading>Agent</SectionHeading>
-            <dl className="space-y-1.5">
-              <Row label="Mode">
-                <span className="font-mono text-xs">{system?.agent.mode ?? "…"}</span>
-              </Row>
-              <Row label="Runtime">
-                <span className="font-mono text-xs">{system?.agent.runtime ?? "…"}</span>
-              </Row>
-              {system !== undefined && system.agent.detail !== null ? (
-                <Row label="Detail">
-                  <span className="text-xs text-muted-foreground">{system.agent.detail}</span>
-                </Row>
-              ) : null}
-            </dl>
-          </section>
+          <AgentSummary system={system} />
           <Separator />
           <div id="agents" className="scroll-mt-10">
             <AgentsSection />
@@ -190,7 +230,9 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   label="Editor font"
                   options={EDITOR_FONTS}
                   value={appearance.font}
-                  onChange={(font) => setAppearance({ ...appearance, font })}
+                  onChange={(font) => {
+                    setAppearance({ ...appearance, font });
+                  }}
                 />
               </Row>
               <Row label="Text size">
@@ -198,7 +240,9 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   label="Text size"
                   options={EDITOR_SIZES}
                   value={appearance.size}
-                  onChange={(size) => setAppearance({ ...appearance, size })}
+                  onChange={(size) => {
+                    setAppearance({ ...appearance, size });
+                  }}
                 />
               </Row>
               <Row label="Line height">
@@ -206,7 +250,9 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   label="Line height"
                   options={EDITOR_LEADINGS}
                   value={appearance.leading}
-                  onChange={(leading) => setAppearance({ ...appearance, leading })}
+                  onChange={(leading) => {
+                    setAppearance({ ...appearance, leading });
+                  }}
                 />
               </Row>
               <Row label="Measure">
@@ -214,39 +260,18 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   label="Measure"
                   options={EDITOR_MEASURES}
                   value={appearance.measure}
-                  onChange={(measure) => setAppearance({ ...appearance, measure })}
+                  onChange={(measure) => {
+                    setAppearance({ ...appearance, measure });
+                  }}
                 />
               </Row>
               <SpellcheckRows />
             </dl>
           </section>
           <Separator />
-          <section id="about" className="scroll-mt-10 space-y-2 pb-16">
-            <SectionHeading>About</SectionHeading>
-            <dl className="space-y-1.5">
-              <Row label="Version">
-                <span className="font-mono text-xs">{system?.version ?? "…"}</span>
-              </Row>
-              <UpdatesRow />
-              <Row label="Data dir">
-                <span className="block truncate font-mono text-xs" title={system?.dataDir}>
-                  {system?.dataDir ?? "…"}
-                </span>
-              </Row>
-              <Row label="Schema">
-                <span className="font-mono text-xs">
-                  {system === undefined ? "…" : `v${system.schemaVersion}`}
-                </span>
-              </Row>
-              <Row label="Uptime">
-                <span className="font-mono text-xs">
-                  {system === undefined ? "…" : `${Math.round(system.uptimeMs / 1000)}s`}
-                </span>
-              </Row>
-            </dl>
-          </section>
+          <AboutSection system={system} />
         </main>
       </div>
     </div>
   );
-}
+};

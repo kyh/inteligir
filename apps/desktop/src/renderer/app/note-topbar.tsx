@@ -1,3 +1,4 @@
+import { setFindBarAnchor } from "@repo/editor/find-bar";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { Button } from "@repo/ui/components/button";
@@ -9,7 +10,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { useSidebar } from "@repo/ui/components/sidebar";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -46,7 +47,17 @@ export interface NoteTopbarProps {
   onExportPdf: () => void;
 }
 
-function PanelToggle() {
+const copyText = async (text: string, done: string): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    toast.error("Could not copy");
+    return;
+  }
+  toast.success(done);
+};
+
+const PanelToggle = () => {
   const { toggleSidebar } = useSidebar();
   return (
     <Button
@@ -60,9 +71,9 @@ function PanelToggle() {
       <PanelRightIcon />
     </Button>
   );
-}
+};
 
-export function NoteTopbar({
+export const NoteTopbar = ({
   path,
   railOpen,
   onToggleRail,
@@ -76,7 +87,7 @@ export function NoteTopbar({
   commentCount,
   onOpenComments,
   onExportPdf,
-}: NoteTopbarProps) {
+}: NoteTopbarProps) => {
   const segments =
     path === null
       ? []
@@ -85,20 +96,18 @@ export function NoteTopbar({
           .filter((segment) => segment !== "");
   // the server's origin, never the page's: an `inteligir://app` link opens nowhere, the shell included.
   const copyLink = () => {
-    if (path === null) return;
+    if (path === null) {
+      return;
+    }
     const url = new URL(socketOrigin());
     url.searchParams.set("note", path);
-    navigator.clipboard.writeText(url.toString()).then(
-      () => toast.success("Link copied"),
-      () => toast.error("Could not copy"),
-    );
+    void copyText(url.toString(), "Link copied");
   };
   const copyForAgent = () => {
-    if (path === null) return;
-    navigator.clipboard.writeText(shareWithAgentText(path)).then(
-      () => toast.success("Copied for an external agent"),
-      () => toast.error("Could not copy"),
-    );
+    if (path === null) {
+      return;
+    }
+    void copyText(shareWithAgentText(path), "Copied for an external agent");
   };
 
   return (
@@ -137,7 +146,7 @@ export function NoteTopbar({
       </Button>
       <nav
         aria-label="Note location"
-        className="ml-2 flex min-w-0 items-center text-sm text-muted-foreground"
+        className="ml-2 flex min-w-0 items-center text-body text-muted-foreground"
       >
         {segments.map((segment, index) => {
           const folder = segments.slice(0, index + 1).join("/");
@@ -162,6 +171,7 @@ export function NoteTopbar({
       </nav>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Button
+          ref={setFindBarAnchor}
           variant="ghost"
           size="icon-compact"
           aria-label="Find in note"
@@ -179,7 +189,7 @@ export function NoteTopbar({
           className={cn(commentCount > 0 && "w-auto gap-1 px-1.5")}
         >
           <MessageSquareTextIcon />
-          {commentCount > 0 ? <span className="text-xs tabular-nums">{commentCount}</span> : null}
+          {commentCount > 0 ? <span className="text-body tabular-nums">{commentCount}</span> : null}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -209,4 +219,4 @@ export function NoteTopbar({
       </div>
     </header>
   );
-}
+};

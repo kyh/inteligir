@@ -2,40 +2,36 @@
 // toward a tag node in the user's bytes. Suppression mirrors @repo/notes/knowledge/link-extract
 // (tags only in mdast text nodes) — a chip the index does not know navigates to an empty list.
 
-import {
-  ElementApi,
-  KEYS,
-  NodeApi,
-  TextApi,
-  createSlatePlugin,
-  type DecoratedRange,
-  type SlateEditor,
-} from "platejs";
+import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
+import type { DecoratedRange, SlateEditor } from "platejs";
 
 import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
 
 import { TagChipLeaf } from "@repo/editor/nodes/tag-chip-node";
 
-function isSuppressedAncestor(editor: SlateEditor, type: string): boolean {
-  return (
-    type === editor.getType(KEYS.codeBlock) ||
-    type === editor.getType(KEYS.codeLine) ||
-    type === editor.getType(KEYS.link) ||
-    type === "frontmatter"
-  );
-}
+const isSuppressedAncestor = (editor: SlateEditor, type: string): boolean =>
+  type === editor.getType(KEYS.codeBlock) ||
+  type === editor.getType(KEYS.codeLine) ||
+  type === editor.getType(KEYS.link) ||
+  type === "frontmatter";
 
 const TagChipPlugin = createSlatePlugin({
-  key: "tagChip",
-  node: { isLeaf: true },
   decorate: ({ editor, entry: [node, path] }) => {
-    if (!TextApi.isText(node) || !node.text.includes("#")) return undefined;
+    if (!TextApi.isText(node) || !node.text.includes("#")) {
+      return;
+    }
     // inline code is text to Slate but inlineCode to the index.
-    if (node[editor.getType(KEYS.code)] === true) return undefined;
+    if (node[editor.getType(KEYS.code)] === true) {
+      return;
+    }
     for (let depth = 1; depth < path.length; depth += 1) {
       const ancestor = NodeApi.get(editor, path.slice(0, depth));
-      if (!ElementApi.isElement(ancestor)) continue;
-      if (isSuppressedAncestor(editor, ancestor.type)) return undefined;
+      if (!ElementApi.isElement(ancestor)) {
+        continue;
+      }
+      if (isSuppressedAncestor(editor, ancestor.type)) {
+        return;
+      }
     }
     const ranges: DecoratedRange[] = [];
     for (const span of inlineTagSpans(node.text)) {
@@ -48,6 +44,8 @@ const TagChipPlugin = createSlatePlugin({
     }
     return ranges.length > 0 ? ranges : undefined;
   },
+  key: "tagChip",
+  node: { isLeaf: true },
 }).withComponent(TagChipLeaf);
 
 export const TagChipKit = [TagChipPlugin];

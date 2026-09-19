@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { defaultHarnessId } from "../agent-driver";
@@ -11,14 +11,16 @@ import { createAgentsService, UnknownHarnessError } from "../agents-service";
 const NOTHING_ON_PATH = { PATH: "/nonexistent-dir" };
 const dirs: string[] = [];
 
-function scratch(): string {
-  const dir = mkdtempSync(join(tmpdir(), "agent-prefs-"));
+const scratch = (): string => {
+  const dir = mkdtempSync(path.join(tmpdir(), "agent-prefs-"));
   dirs.push(dir);
   return dir;
-}
+};
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { force: true, recursive: true });
+  for (const dir of dirs.splice(0)) {
+    rmSync(dir, { force: true, recursive: true });
+  }
 });
 
 describe("the stored default", () => {
@@ -31,13 +33,13 @@ describe("the stored default", () => {
 
   it("refuses malformed bytes rather than reading them as no choice", () => {
     const dir = scratch();
-    writeFileSync(join(dir, "agent-prefs.json"), "{");
+    writeFileSync(path.join(dir, "agent-prefs.json"), "{");
     expect(() => new AgentPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 
   it("refuses a harness it does not know", () => {
     const dir = scratch();
-    writeFileSync(join(dir, "agent-prefs.json"), JSON.stringify({ defaultHarness: "gemini" }));
+    writeFileSync(path.join(dir, "agent-prefs.json"), JSON.stringify({ defaultHarness: "gemini" }));
     expect(() => new AgentPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 });
@@ -55,15 +57,17 @@ describe("the harness a new thread starts on", () => {
 describe("the agents service", () => {
   it("stores a known harness and answers the new default", async () => {
     const store = new AgentPrefsStore(scratch());
-    const agents = createAgentsService({ store, env: NOTHING_ON_PATH });
-    expect((await agents.status()).defaultId).toBe("claude");
-    expect((await agents.setDefault("codex")).defaultId).toBe("codex");
+    const agents = createAgentsService({ env: NOTHING_ON_PATH, store });
+    const before = await agents.status();
+    expect(before.defaultId).toBe("claude");
+    const after = await agents.setDefault("codex");
+    expect(after.defaultId).toBe("codex");
     expect(store.read()).toEqual({ defaultHarness: "codex" });
   });
 
   it("refuses an unknown harness without writing", async () => {
     const store = new AgentPrefsStore(scratch());
-    const agents = createAgentsService({ store, env: NOTHING_ON_PATH });
+    const agents = createAgentsService({ env: NOTHING_ON_PATH, store });
     await expect(agents.setDefault("gemini")).rejects.toThrow(UnknownHarnessError);
     expect(store.read()).toEqual({});
   });

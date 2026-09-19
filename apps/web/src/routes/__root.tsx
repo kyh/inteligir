@@ -9,6 +9,55 @@ import { THEME_FALLBACK, THEME_STORAGE_KEY } from "@/components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
 
+const ErrorBoundary = ({ error }: { error: Error }) => {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
+  return (
+    <div>
+      <p>Oh no, something went wrong... maybe refresh?</p>
+    </div>
+  );
+};
+
+const NotFound = () => (
+  <div className="flex min-h-dvh items-center justify-center">
+    <p>404: This page could not be found.</p>
+  </div>
+);
+
+const RootComponent = () => (
+  <RadiusProvider radius="rounded">
+    <SizeProvider size="compact">
+      <Outlet />
+    </SizeProvider>
+  </RadiusProvider>
+);
+
+const RootDocument = ({ children }: { children: React.ReactNode }) => (
+  // no theme provider here: two nested @repo/ui providers both write .dark on <html> and the outer effect wins, so each page owns its own
+  // suppressHydrationWarning: the inline script sets the theme class before hydration
+  // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
+  <html lang="en" suppressHydrationWarning>
+    <head>
+      <script
+        // oxlint-disable-next-line react/no-danger -- the theme must be on <html> before paint, which only an inline script can do; the payload is a constant this module builds
+        dangerouslySetInnerHTML={{
+          __html: noFlashThemeScript(THEME_STORAGE_KEY, THEME_FALLBACK),
+        }}
+      />
+      <HeadContent />
+      <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+      <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
+    </head>
+    <body className="bg-background text-foreground font-sans antialiased">
+      {children}
+      <Scripts />
+    </body>
+  </html>
+);
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -49,57 +98,3 @@ export const Route = createRootRoute({
   notFoundComponent: NotFound,
   component: RootComponent,
 });
-
-function ErrorBoundary({ error }: { error: Error }) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
-  return (
-    <div>
-      <p>Oh no, something went wrong... maybe refresh?</p>
-    </div>
-  );
-}
-
-function NotFound() {
-  return (
-    <div className="flex min-h-dvh items-center justify-center">
-      <p>404: This page could not be found.</p>
-    </div>
-  );
-}
-
-function RootComponent() {
-  return (
-    <RadiusProvider radius="rounded">
-      <SizeProvider size="compact">
-        <Outlet />
-      </SizeProvider>
-    </RadiusProvider>
-  );
-}
-
-function RootDocument({ children }: { children: React.ReactNode }) {
-  // no theme provider here: two nested @repo/ui providers both write .dark on <html> and the outer effect wins, so each page owns its own
-  // suppressHydrationWarning: the inline script sets the theme class before hydration
-  // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: noFlashThemeScript(THEME_STORAGE_KEY, THEME_FALLBACK),
-          }}
-        />
-        <HeadContent />
-        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
-      </head>
-      <body className="bg-background text-foreground font-sans antialiased">
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}

@@ -20,73 +20,100 @@ export interface ThreadProjection {
 
 const TITLE_MAX = 60;
 
-function firstLine(text: string): string {
+const firstLine = (text: string): string => {
   const line = text.split("\n", 1)[0] ?? "";
   return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1)}…` : line;
-}
+};
 
-function toolLabel(event: Extract<ThreadEvent, { type: "item/completed" }>): string | null {
-  const item = event.item;
+const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): string | null => {
+  const { item } = event;
   switch (item.type) {
-    case "toolCall":
+    case "toolCall": {
       return item.server === undefined ? item.tool : `${item.server}/${item.tool}`;
-    case "commandExecution":
+    }
+    case "commandExecution": {
       return firstLine(item.command);
+    }
     case "fileChange": {
       const paths = item.changes.map((change) => change.path);
       const head = paths[0] ?? "files";
       return paths.length > 1 ? `${head} +${paths.length - 1}` : head;
     }
-    default:
+    case "agentMessage":
+    case "plan":
+    case "reasoning":
+    case "userMessage": {
       return null;
+    }
+    // no default
   }
-}
+};
 
-function itemFailed(event: Extract<ThreadEvent, { type: "item/completed" }>): boolean {
-  const item = event.item;
+const itemFailed = (event: Extract<ThreadEvent, { type: "item/completed" }>): boolean => {
+  const { item } = event;
   return (
     (item.type === "toolCall" || item.type === "commandExecution" || item.type === "fileChange") &&
     item.status === "failed"
   );
-}
+};
 
-function itemFrom(event: ThreadEvent, index: number): ThreadDisplayItem | null {
+const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null => {
   switch (event.type) {
-    case "client/turn/requested":
-      return { kind: "user", id: `${event.threadId}:req:${index}`, text: event.text };
-    case "provider/error":
-      return { kind: "notice", id: `${event.threadId}:err:${index}`, text: event.message };
+    case "client/turn/requested": {
+      return { id: `${event.threadId}:req:${index}`, kind: "user", text: event.text };
+    }
+    case "provider/error": {
+      return { id: `${event.threadId}:err:${index}`, kind: "notice", text: event.message };
+    }
     case "item/completed": {
-      const item = event.item;
-      if (item.type === "userMessage") return { kind: "user", id: item.id, text: item.text };
-      if (item.type === "agentMessage") return { kind: "agent", id: item.id, text: item.text };
+      const { item } = event;
+      if (item.type === "userMessage") {
+        return { id: item.id, kind: "user", text: item.text };
+      }
+      if (item.type === "agentMessage") {
+        return { id: item.id, kind: "agent", text: item.text };
+      }
       if (item.type === "reasoning") {
         const text = [...item.summary, ...item.content].join("\n").trim();
-        return text === "" ? null : { kind: "reasoning", id: item.id, text };
+        return text === "" ? null : { id: item.id, kind: "reasoning", text };
       }
-      if (item.type === "plan") return { kind: "agent", id: item.id, text: item.text };
+      if (item.type === "plan") {
+        return { id: item.id, kind: "agent", text: item.text };
+      }
       const label = toolLabel(event);
       return label === null
         ? null
-        : { kind: "tool", id: item.id, label, failed: itemFailed(event) };
+        : { failed: itemFailed(event), id: item.id, kind: "tool", label };
     }
-    default:
+    case "item/agentMessage/delta":
+    case "item/commandExecution/outputDelta":
+    case "item/plan/delta":
+    case "item/reasoning/summaryTextDelta":
+    case "item/reasoning/textDelta":
+    case "item/started":
+    case "thread/tokenUsage/updated":
+    case "turn/completed":
+    case "turn/started": {
       return null;
+    }
+    // no default
   }
-}
+};
 
-export function projectThread(thread: StoredThread): ThreadProjection {
+export const projectThread = (thread: StoredThread): ThreadProjection => {
   const items: ThreadDisplayItem[] = [];
-  thread.events.forEach((event, index) => {
+  for (const [index, event] of thread.events.entries()) {
     const item = itemFrom(event, index);
-    if (item !== null) items.push(item);
-  });
+    if (item !== null) {
+      items.push(item);
+    }
+  }
   const firstUser = items.find((item) => item.kind === "user");
   const lastText = items.toReversed().find((item) => item.kind !== "tool");
   return {
-    threadId: thread.threadId,
-    title: firstUser === undefined ? "Untitled thread" : firstLine(firstUser.text),
     items,
     preview: lastText === undefined ? "" : firstLine(lastText.text),
+    threadId: thread.threadId,
+    title: firstUser === undefined ? "Untitled thread" : firstLine(firstUser.text),
   };
-}
+};

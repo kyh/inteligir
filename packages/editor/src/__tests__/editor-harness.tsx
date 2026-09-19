@@ -2,8 +2,10 @@
 // they render under, so a case mounting one without a store asserts against a
 // surface the app never draws.
 
-import { useEffect, useImperativeHandle, type Ref } from "react";
-import { Plate, PlateContent, usePlateEditor, type PlateEditor } from "platejs/react";
+import { useEffect, useImperativeHandle } from "react";
+import type { Ref } from "react";
+import { Plate, PlateContent, usePlateEditor } from "platejs/react";
+import type { PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
@@ -11,7 +13,7 @@ import { registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 
-export function EditorHarness({
+export const EditorHarness = ({
   value,
   store,
   ref,
@@ -21,11 +23,13 @@ export function EditorHarness({
   store: OpenNoteStore;
   ref?: Ref<PlateEditor>;
   livePath?: string;
-}) {
+}) => {
   const editor = usePlateEditor({ plugins: EDITOR_KIT, value });
   useImperativeHandle(ref, () => editor, [editor]);
   useEffect(() => {
-    if (livePath === undefined) return;
+    if (livePath === undefined) {
+      return;
+    }
     return registerLiveEditor(livePath, editor);
   }, [livePath, editor]);
   return (
@@ -35,4 +39,4 @@ export function EditorHarness({
       </Plate>
     </OpenNoteStoreProvider>
   );
-}
+};

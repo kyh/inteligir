@@ -4,11 +4,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SettingsPage } from "../app/settings/settings-page";
 
-export const Route = createFileRoute("/settings")({
-  component: Settings,
-});
-
-function Settings() {
+const Settings = () => {
   const navigate = useNavigate();
   return (
     <SettingsPage
@@ -17,4 +13,8 @@ function Settings() {
       }}
     />
   );
-}
+};
+
+export const Route = createFileRoute("/settings")({
+  component: Settings,
+});

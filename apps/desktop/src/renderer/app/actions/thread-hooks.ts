@@ -5,35 +5,35 @@ import type {
   GetThreadResponse,
   ListThreadsResponse,
 } from "@repo/api/local/threads/threads-schema";
-import { applyTimelineDelta, type ThreadTimeline } from "@repo/api/local/thread-timeline";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
+import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
+import { useQuery } from "@tanstack/react-query";
+import type { UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 
-export function useThreads(): UseQueryResult<ListThreadsResponse> {
-  return useQuery(orpc.threads.list.queryOptions());
-}
+export const useThreads = (): UseQueryResult<ListThreadsResponse> =>
+  useQuery(orpc.threads.list.queryOptions());
 
-export function useThreadDetail(threadId: string | null): UseQueryResult<GetThreadResponse> {
-  return useQuery({
+export const useThreadDetail = (threadId: string | null): UseQueryResult<GetThreadResponse> =>
+  useQuery({
     ...orpc.threads.get.queryOptions({ input: { threadId: threadId ?? "none" } }),
     enabled: threadId !== null,
   });
-}
 
 // total over the kinds: one not weighed here is a row the user never sees until they reopen the thread.
 const MOVES_THE_TIMELINE = {
-  "thread-created": false,
-  "events-appended": true,
-  "status-changed": true,
   "archived-changed": false,
-  "queue-changed": false,
+  "events-appended": true,
   "interactions-changed": false,
   "origin-changed": false,
+  "queue-changed": false,
+  "status-changed": true,
+  "thread-created": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 
-export function useThreadTimeline(threadId: string | null): ThreadTimeline | null {
+export const useThreadTimeline = (threadId: string | null): ThreadTimeline | null => {
   const { api, threadEvents } = useWorkspace();
   const [timeline, setTimeline] = useState<ThreadTimeline | null>(null);
 
@@ -46,7 +46,7 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
 
   useEffect(() => {
     if (threadId === null) {
-      return undefined;
+      return;
     }
     let disposed = false;
     let held: ThreadTimeline | null = null;
@@ -72,8 +72,8 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
             next = await fetchFull();
           } else {
             const response = await api.threads.timeline({
-              threadId,
               afterSequence: held.maxSequence,
+              threadId,
             });
             next =
               response.kind === "full"
@@ -81,7 +81,7 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
                 : (applyTimelineDelta(held, response.delta) ?? (await fetchFull()));
           }
           if (disposed) {
-            return;
+            break;
           }
           if (next !== null) {
             held = next;
@@ -90,9 +90,8 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
         } while (rerun);
       } catch {
         // the next frame retries
-      } finally {
-        inFlight = false;
       }
+      inFlight = false;
     };
 
     void refresh();
@@ -111,4 +110,4 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
   }, [api, threadEvents, threadId]);
 
   return timeline;
-}
+};

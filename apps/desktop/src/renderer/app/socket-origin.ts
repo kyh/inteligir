@@ -10,6 +10,5 @@ declare global {
   }
 }
 
-export function socketOrigin(): string {
-  return window.desktopBridge?.socketOrigin ?? window.location.origin;
-}
+export const socketOrigin = (): string =>
+  window.desktopBridge?.socketOrigin ?? window.location.origin;

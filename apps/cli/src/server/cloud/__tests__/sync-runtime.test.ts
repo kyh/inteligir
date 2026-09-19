@@ -1,28 +1,21 @@
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
-import {
-  closeConnection,
-  createConnection,
-  writeTransaction,
-  type DbConnection,
-} from "@repo/db/connection";
+import { closeConnection, createConnection, writeTransaction } from "@repo/db/connection";
+import type { DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { CAPTURE_INBOX_PATH, type CaptureVault } from "../captures";
+import { CAPTURE_INBOX_PATH } from "../captures";
+import type { CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "../credential-store";
 import type { SyncedEventSink } from "../sync-pass";
-import {
-  createCloudRuntime,
-  type CloudRuntime,
-  type CloudTransport,
-  type LoginOutcome,
-} from "../sync-runtime";
+import { createCloudRuntime } from "../sync-runtime";
+import type { CloudRuntime, CloudTransport, LoginOutcome } from "../sync-runtime";
 import { VaultServiceError } from "../../vault/vault-service";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
@@ -37,7 +30,7 @@ interface FakeVault extends CaptureVault {
   files: Map<string, string>;
 }
 
-function makeVault(): FakeVault {
+const makeVault = (): FakeVault => {
   const files = new Map<string, string>();
   return {
     files,
@@ -46,28 +39,28 @@ function makeVault(): FakeVault {
       if (content === undefined) {
         throw new VaultServiceError("not_found", `No such vault entry: ${path}`);
       }
-      return { path, content };
-    },
-    writeIfUnchanged: async (path, expected, content) => {
-      if (files.get(path) !== expected) {
-        return { applied: false, reason: "changed" };
-      }
-      files.set(path, content);
-      return { applied: true, path };
+      return await Promise.resolve({ content, path });
     },
     writeGuarded: async (path, content, guard) => {
       if ("ifAbsent" in guard) {
         if (files.has(path)) {
-          return { applied: false, reason: "exists" };
+          return await Promise.resolve({ applied: false, reason: "exists" });
         }
         files.set(path, content);
-        return { applied: true, path };
+        return await Promise.resolve({ applied: true, path });
       }
       files.set(path, content);
-      return { applied: true, path };
+      return await Promise.resolve({ applied: true, path });
+    },
+    writeIfUnchanged: async (path, expected, content) => {
+      if (files.get(path) !== expected) {
+        return await Promise.resolve({ applied: false, reason: "changed" });
+      }
+      files.set(path, content);
+      return await Promise.resolve({ applied: true, path });
     },
   };
-}
+};
 
 interface Harness {
   db: DbConnection;
@@ -75,20 +68,20 @@ interface Harness {
   cloud: FakeCloud;
   vault: FakeVault;
   runtime: CloudRuntime;
-  applied: Array<{ threadId: string; events: readonly ThreadEvent[]; cursor: number }>;
+  applied: { threadId: string; events: readonly ThreadEvent[]; cursor: number }[];
   socketOpens: OpenCloudSocketArgs[];
   vaultPings: () => number;
 }
 
-function makeHarness(
+const makeHarness = (
   options: {
     fetch?: CloudFetch;
     pollIntervalMs?: number | null;
     cloud?: FakeCloud;
   } = {},
-): Harness {
+): Harness => {
   const dataDir = makeTempDir("inteligir-sync-");
-  const db = createConnection(join(dataDir, "inteligir.db"));
+  const db = createConnection(nodePath.join(dataDir, "inteligir.db"));
   runMigrations(db);
   const cloud = options.cloud ?? new FakeCloud();
   const vault = makeVault();
@@ -98,9 +91,9 @@ function makeHarness(
   const sink: SyncedEventSink = {
     applySyncedEvents: (args) => {
       applied.push({
-        threadId: args.threadId,
-        events: args.rows.map((row) => row.event),
         cursor: args.cursor,
+        events: args.rows.map((row) => row.event),
+        threadId: args.threadId,
       });
       // the real sink writes the cursor in the apply's transaction; a stub that skips it replays every page.
       writeSyncCursor(db, args.cursor);
@@ -110,20 +103,22 @@ function makeHarness(
     fetch: options.fetch ?? cloud.fetch,
     openSocket: (args): CloudSocket => {
       socketOpens.push(args);
-      return { close: () => undefined };
+      return { close: () => {} };
     },
   };
-  if (options.pollIntervalMs !== undefined) transport.pollIntervalMs = options.pollIntervalMs;
+  if (options.pollIntervalMs !== undefined) {
+    transport.pollIntervalMs = options.pollIntervalMs;
+  }
   const runtime = createCloudRuntime({
-    db,
-    dataDir,
     cloudUrl: CLOUD_URL,
-    vault,
-    onDebug: () => undefined,
+    dataDir,
+    db,
+    onDebug: () => {},
     onVaultPing: () => {
       vaultPings += 1;
     },
     transport,
+    vault,
   });
   runtime.attach(sink);
   onTestFinished(() => {
@@ -131,38 +126,40 @@ function makeHarness(
     closeConnection(db);
   });
   return {
-    db,
-    dataDir,
-    cloud,
-    vault,
-    runtime,
     applied,
+    cloud,
+    dataDir,
+    db,
+    runtime,
     socketOpens,
+    vault,
     vaultPings: () => vaultPings,
   };
-}
+};
 
-function message(threadId: string, text: string): ThreadEvent {
-  return { type: "client/turn/requested", threadId, text, scope: threadScope() };
-}
+const message = (threadId: string, text: string): ThreadEvent => ({
+  scope: threadScope(),
+  text,
+  threadId,
+  type: "client/turn/requested",
+});
 
-function append(harness: Harness, events: readonly ThreadEvent[]): void {
+const append = (harness: Harness, events: readonly ThreadEvent[]): void => {
   writeTransaction(harness.db, (tx) => {
     harness.runtime.enqueue(tx, events);
   });
-}
+};
 
-function loginAs(runtime: CloudRuntime, deviceName: string): Promise<LoginOutcome> {
-  return runtime.login({ ...FAKE_ACCOUNT, deviceName });
-}
+const loginAs = async (runtime: CloudRuntime, deviceName: string): Promise<LoginOutcome> =>
+  await runtime.login({ ...FAKE_ACCOUNT, deviceName });
 
-async function signIn(harness: Harness): Promise<string> {
+const signIn = async (harness: Harness): Promise<string> => {
   const outcome = await loginAs(harness.runtime, "Laptop");
   if (outcome.kind !== "logged-in") {
     throw new Error(`login refused: ${JSON.stringify(outcome)}`);
   }
   return outcome.status.state === "signed-in" ? outcome.status.deviceId : "";
-}
+};
 
 describe("sync is off until someone signs in", () => {
   it("opens no socket, arms no timer and makes no request", async () => {
@@ -176,7 +173,7 @@ describe("sync is off until someone signs in", () => {
 
     expect(harness.cloud.requests).toEqual([]);
     expect(harness.socketOpens).toEqual([]);
-    expect(harness.runtime.status()).toEqual({ state: "signed-out", cloudUrl: CLOUD_URL });
+    expect(harness.runtime.status()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
@@ -187,7 +184,7 @@ describe("sync is off until someone signs in", () => {
     await harness.runtime.syncNow();
     const requestsWhileSignedIn = harness.cloud.requests.length;
 
-    expect(harness.runtime.logout()).toEqual({ state: "signed-out", cloudUrl: CLOUD_URL });
+    expect(harness.runtime.logout()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
     append(harness, [message("thr_1", "after")]);
     await harness.runtime.syncNow();
@@ -200,11 +197,9 @@ describe("signing in", () => {
     const harness = makeHarness({ pollIntervalMs: null });
     const deviceId = await signIn(harness);
 
-    expect(readDeviceCredential(harness.dataDir)).toEqual({
-      deviceId,
-      credential: expect.stringMatching(/^igd_[0-9a-f]{64}$/u),
-      userId: "user_fake",
-    });
+    const stored = readDeviceCredential(harness.dataDir);
+    expect(stored?.credential).toMatch(/^igd_[0-9a-f]{64}$/u);
+    expect(stored).toEqual({ credential: stored?.credential, deviceId, userId: "user_fake" });
     const status = harness.runtime.status();
     expect(status.state).toBe("signed-in");
   });
@@ -214,14 +209,14 @@ describe("signing in", () => {
     let refusals = 1;
     const harness = makeHarness({
       cloud,
-      pollIntervalMs: null,
-      fetch: (input, init) => {
+      fetch: async (input, init) => {
         if (new URL(input).pathname === ACCOUNT_API_PATHS.account && refusals > 0) {
           refusals -= 1;
-          return Promise.reject(new Error("network is down"));
+          throw new Error("network is down");
         }
-        return cloud.fetch(input, init);
+        return await cloud.fetch(input, init);
       },
+      pollIntervalMs: null,
     });
 
     await signIn(harness);
@@ -237,21 +232,21 @@ describe("signing in", () => {
   it("reports the cloud's own refusal for a wrong password, and keeps nothing", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     const outcome = await harness.runtime.login({
+      deviceName: "Laptop",
       email: FAKE_ACCOUNT.email,
       password: "not-the-password",
-      deviceName: "Laptop",
     });
     expect(outcome).toStrictEqual({
-      kind: "refused",
       failure: {
-        kind: "refused",
         code: "invalid-credentials",
-        message: "Wrong email or password.",
         deviceSeq: null,
+        kind: "refused",
+        message: "Wrong email or password.",
       },
+      kind: "refused",
     });
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
-    expect(harness.runtime.status()).toEqual({ state: "signed-out", cloudUrl: CLOUD_URL });
+    expect(harness.runtime.status()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
   });
 
   it("defaults the device name to this machine's hostname", async () => {
@@ -312,9 +307,9 @@ describe("a capture delivered twice", () => {
         lapsed = true;
         cloud.lapseClaims();
       }
-      return cloud.fetch(input, init);
+      return await cloud.fetch(input, init);
     };
-    const harness = makeHarness({ pollIntervalMs: null, fetch: fetchWithLapse });
+    const harness = makeHarness({ fetch: fetchWithLapse, pollIntervalMs: null });
     // the login goes through the wrapped fetch, so it lands on the cloud that fetch reaches.
     const outcome = await loginAs(harness.runtime, "Laptop");
     expect(outcome.kind).toBe("logged-in");
@@ -343,7 +338,9 @@ describe("a revoked device", () => {
 
     const status = harness.runtime.status();
     expect(status.state).toBe("unauthorized");
-    if (status.state !== "unauthorized") throw new Error("expected unauthorized");
+    if (status.state !== "unauthorized") {
+      throw new Error("expected unauthorized");
+    }
     expect(status.deviceId).toBe(deviceId);
 
     const requestsAtRefusal = harness.cloud.requests.length;
@@ -357,15 +354,17 @@ describe("the invalidation socket", () => {
   it("ignores a sync ping this device's cursor already covers", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     await signIn(harness);
-    const dial = harness.socketOpens[0];
-    if (dial === undefined) throw new Error("expected a socket dial");
+    const [dial] = harness.socketOpens;
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
     const quiet = harness.cloud.requests.length;
 
-    dial.onPing({ type: "sync", seq: 0 });
+    dial.onPing({ seq: 0, type: "sync" });
     await harness.runtime.syncNow();
     const afterCovered = harness.cloud.requests.length;
 
-    dial.onPing({ type: "sync", seq: 99 });
+    dial.onPing({ seq: 99, type: "sync" });
     await harness.runtime.syncNow();
     expect(afterCovered).toBeGreaterThan(quiet);
     expect(harness.cloud.requests.length).toBeGreaterThan(afterCovered);
@@ -374,8 +373,10 @@ describe("the invalidation socket", () => {
   it("routes a vault ping to the vault hook and starts no thread pass", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     await signIn(harness);
-    const dial = harness.socketOpens[0];
-    if (dial === undefined) throw new Error("expected a socket dial");
+    const [dial] = harness.socketOpens;
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
     // one from the login, one from the account-identity learner.
     expect(harness.vaultPings()).toBe(2);
     const quiet = harness.cloud.requests.length;
@@ -388,8 +389,10 @@ describe("the invalidation socket", () => {
   it("re-dials after a close, and a severed socket turns into a refusal", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     const deviceId = await signIn(harness);
-    const dial = harness.socketOpens[0];
-    if (dial === undefined) throw new Error("expected a socket dial");
+    const [dial] = harness.socketOpens;
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
 
     // 1008: the cloud severing a revoked device.
     harness.cloud.revoke(deviceId);
@@ -412,36 +415,27 @@ interface Gate {
 // completed request, the window cancellation cannot reach.
 type GateWhen = "before" | "after";
 
-function noop(): void {}
-
-function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): Gate {
-  let announce: (value: void) => void = noop;
-  const reached = new Promise<void>((resolve) => {
-    announce = resolve;
-  });
-  let open: (value: void) => void = noop;
-  const held = new Promise<void>((resolve) => {
-    open = resolve;
-  });
+const gatedFetch = (cloud: FakeCloud, path: string, when: GateWhen = "before"): Gate => {
+  const reachedGate: PromiseWithResolvers<void> = Promise.withResolvers();
+  const heldGate: PromiseWithResolvers<void> = Promise.withResolvers();
+  const { promise: reached, resolve: announce } = reachedGate;
+  const { promise: held, resolve: open } = heldGate;
   let armed = false;
   let fired = false;
   const fetch: CloudFetch = async (input, init) => {
     const gating = armed && !fired && new URL(input).pathname === path;
     if (!gating) {
-      return cloud.fetch(input, init);
+      return await cloud.fetch(input, init);
     }
     fired = true;
     if (when === "before") {
       announce();
-      await Promise.race([
-        held,
-        new Promise<void>((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => {
-            reject(new Error("aborted"));
-          });
-        }),
-      ]);
-      return cloud.fetch(input, init);
+      const aborted: PromiseWithResolvers<void> = Promise.withResolvers();
+      init?.signal?.addEventListener("abort", () => {
+        aborted.reject(new Error("aborted"));
+      });
+      await Promise.race([held, aborted.promise]);
+      return await cloud.fetch(input, init);
     }
     // no abort race here: the request already completed, and an abort cannot un-resolve it.
     const response = await cloud.fetch(input, init);
@@ -450,27 +444,27 @@ function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): 
     return response;
   };
   return {
-    fetch,
     arm: () => {
       armed = true;
     },
+    fetch,
     reached,
     release: open,
   };
-}
+};
 
-async function waitForLogin(runtime: CloudRuntime, deviceId: string): Promise<void> {
+const waitForLogin = async (runtime: CloudRuntime, deviceId: string): Promise<void> => {
   await vi.waitFor(() => {
     const status = runtime.status();
     expect(status.state === "signed-in" ? status.deviceId : null).toBe(deviceId);
   });
-}
+};
 
 describe("a session that changes mid-pass", () => {
   it("does not let a finished session's ack delete the next one's queue", async () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.push, "after");
-    const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
+    const harness = makeHarness({ cloud, fetch: gate.fetch, pollIntervalMs: null });
     await loginAs(harness.runtime, "Laptop");
     append(harness, [message("thr_1", "belongs to the first login")]);
 
@@ -506,10 +500,12 @@ describe("a session that changes mid-pass", () => {
     let current = leaving.cloud;
     const gate = gatedFetch(leaving.cloud, SYNC_API_PATHS.pull, "after");
     const reader = makeHarness({
-      pollIntervalMs: null,
       cloud: leaving.cloud,
-      fetch: (input, init) =>
-        current === leaving.cloud ? gate.fetch(input, init) : current.fetch(input, init),
+      fetch: async (input, init) =>
+        current === leaving.cloud
+          ? await gate.fetch(input, init)
+          : await current.fetch(input, init),
+      pollIntervalMs: null,
     });
     await loginAs(reader.runtime, "Reader");
 
@@ -524,7 +520,9 @@ describe("a session that changes mid-pass", () => {
     const signedInAgain = loginAs(reader.runtime, "Reader elsewhere");
     // not waitForLogin: the reader is already dev_2 on leaving.cloud, so it would
     // resolve before the session swap. the login landing on joining.cloud is the signal.
-    await vi.waitFor(() => expect(joining.cloud.deviceCount()).toBe(2));
+    await vi.waitFor(() => {
+      expect(joining.cloud.deviceCount()).toBe(2);
+    });
     // let openSession's microtask drain before releasing the held page.
     await Promise.resolve();
     reader.applied.length = 0;
@@ -542,7 +540,7 @@ describe("dispose", () => {
   it("cancels the pass rather than waiting it out", async () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.pull);
-    const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
+    const harness = makeHarness({ cloud, fetch: gate.fetch, pollIntervalMs: null });
     await loginAs(harness.runtime, "Laptop");
     cloud.capture("something the inbox is holding");
 
@@ -563,17 +561,17 @@ describe("dispose", () => {
 describe("every cloud call carries a deadline", () => {
   it("attaches a signal to every request, login included", async () => {
     const cloud = new FakeCloud();
-    const signalled: Array<{ path: string; hasSignal: boolean }> = [];
+    const signalled: { path: string; hasSignal: boolean }[] = [];
     const harness = makeHarness({
-      pollIntervalMs: null,
       cloud,
-      fetch: (input, init) => {
+      fetch: async (input, init) => {
         signalled.push({
-          path: new URL(input).pathname,
           hasSignal: init?.signal instanceof AbortSignal,
+          path: new URL(input).pathname,
         });
-        return cloud.fetch(input, init);
+        return await cloud.fetch(input, init);
       },
+      pollIntervalMs: null,
     });
     cloud.capture("so the capture calls happen too");
     await signIn(harness);
@@ -588,8 +586,8 @@ describe("every cloud call carries a deadline", () => {
 describe("applying the account's log", () => {
   it("commits each retried row's OWN position, never the group's", async () => {
     const cloud = new FakeCloud();
-    const harness = makeHarness({ pollIntervalMs: null, cloud });
-    const writer = makeHarness({ pollIntervalMs: null, cloud });
+    const harness = makeHarness({ cloud, pollIntervalMs: null });
+    const writer = makeHarness({ cloud, pollIntervalMs: null });
     await signIn(writer);
     append(writer, [message("thr_1", "one"), message("thr_1", "two"), message("thr_1", "three")]);
     await writer.runtime.syncNow();
@@ -601,11 +599,9 @@ describe("applying the account's log", () => {
         if (args.rows.length > 1) {
           throw new Error("the group is refused");
         }
-        const only = args.rows[0];
-        if (only !== undefined && only.event.type === "client/turn/requested") {
-          if (only.event.text === "two") {
-            throw new Error("this row is refused");
-          }
+        const [only] = args.rows;
+        if (only?.event.type === "client/turn/requested" && only.event.text === "two") {
+          throw new Error("this row is refused");
         }
         cursors.push(args.cursor);
         writeSyncCursor(harness.db, args.cursor);
@@ -619,13 +615,13 @@ describe("applying the account's log", () => {
 
   it("skips this device's own rows and settles the cursor on the rest", async () => {
     const writer = makeHarness({ pollIntervalMs: null });
-    const cloud = writer.cloud;
+    const { cloud } = writer;
     await signIn(writer);
     append(writer, [message("thr_shared", "from the writer")]);
     await writer.runtime.syncNow();
     expect(writer.applied).toEqual([]);
 
-    const reader = makeHarness({ pollIntervalMs: null, fetch: cloud.fetch });
+    const reader = makeHarness({ fetch: cloud.fetch, pollIntervalMs: null });
     const signedIn = await loginAs(reader.runtime, "Desktop");
     expect(signedIn.kind).toBe("logged-in");
 

@@ -1,8 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
+import {
+  agentBrowserSession,
+  closeQuietly,
+  parseEval,
+  probeHeadlessOrSkip,
+} from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -41,8 +46,8 @@ const PROBE = `JSON.stringify({
 
 const probeSchema = z
   .object({
-    bold: z.boolean(),
     blockquotes: z.number(),
+    bold: z.boolean(),
     checkboxes: z.number(),
     fence: z.boolean(),
     table: z.boolean(),
@@ -50,14 +55,14 @@ const probeSchema = z
   .strict();
 
 export const editorConstructsBrowser: Scenario = {
-  name: "editor-constructs-browser",
   description: "seeded constructs render as their elements, and rendering writes nothing",
+  name: "editor-constructs-browser",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
       // sorts before the seeded welcome note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
+        await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },
     });
 
@@ -79,8 +84,8 @@ export const editorConstructsBrowser: Scenario = {
       expect(probe.table, "the table did not render as <table>");
 
       ctx.log("rendering wrote nothing: the seeded bytes are untouched");
-      await delay(2_500);
-      const onDisk = await readFile(join(app.vaultDir, DOC_PATH), "utf8");
+      await delay(2500);
+      const onDisk = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
       expectEq(onDisk, DOC, "opening the note changed its bytes");
 
       ctx.log("an edit keeps every construct on disk");
@@ -92,7 +97,7 @@ export const editorConstructsBrowser: Scenario = {
       await agentBrowser(["type", EDITOR, " Edited."]);
       const deadline = Date.now() + 15_000;
       for (;;) {
-        const after = await readFile(join(app.vaultDir, DOC_PATH), "utf8");
+        const after = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
         if (after.includes("Edited.")) {
           for (const marker of [
             "**bold**",
@@ -110,7 +115,7 @@ export const editorConstructsBrowser: Scenario = {
         await delay(250);
       }
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

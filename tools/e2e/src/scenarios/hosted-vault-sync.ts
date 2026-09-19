@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   DEVICE_CREDENTIAL_PREFIX,
@@ -26,20 +26,21 @@ const POLL_INTERVAL_MS = 200;
 
 // auto-sync off: every sync is an explicit call, so each assertion reads the state the previous
 // line produced.
-function cloudEnv(origin: string) {
-  return { INTELIGIR_CLOUD_URL: origin, INTELIGIR_SYNC_INTERVAL_MS: "0" };
-}
+const cloudEnv = (origin: string) => ({
+  INTELIGIR_CLOUD_URL: origin,
+  INTELIGIR_SYNC_INTERVAL_MS: "0",
+});
 
 const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
 // the account every device signs in as; the password is what login needs
 const OWNER = { email: "e2e-owner@inteligir.local", password: "e2e-password-1234" };
 
-async function signUp(origin: string): Promise<{ bearer: string; userId: string }> {
+const signUp = async (origin: string): Promise<{ bearer: string; userId: string }> => {
   const response = await fetch(`${origin}/v1/auth/sign-up`, {
-    method: "POST",
-    headers: { "content-type": "application/json", origin },
     body: JSON.stringify({ name: "E2E Owner", ...OWNER, inviteCode: E2E_INVITE_CODE }),
+    headers: { "content-type": "application/json", origin },
+    method: "POST",
   });
   expect(response.ok, `sign-up answered ${response.status}`);
   const bearer = response.headers.get("set-auth-token");
@@ -51,33 +52,33 @@ async function signUp(origin: string): Promise<{ bearer: string; userId: string 
   const parsed = sessionUserSchema.safeParse(await session.json());
   expect(parsed.success, "get-session names the signed-up user");
   return { bearer, userId: parsed.data.user.id };
-}
+};
 
-async function loginDevice(
+const loginDevice = async (
   origin: string,
   deviceName: string,
-): Promise<{ deviceId: string; credential: string }> {
+): Promise<{ deviceId: string; credential: string }> => {
   const response = await fetch(`${origin}/v1/device/login`, {
-    method: "POST",
-    headers: { origin, "content-type": "application/json" },
     body: JSON.stringify({ ...OWNER, deviceName }),
+    headers: { "content-type": "application/json", origin },
+    method: "POST",
   });
   expect(response.ok, `login answered ${response.status}`);
   return deviceLoginResponseSchema.parse(await response.json());
-}
+};
 
-async function revokeDevice(origin: string, bearer: string, deviceId: string): Promise<void> {
+const revokeDevice = async (origin: string, bearer: string, deviceId: string): Promise<void> => {
   const response = await fetch(`${origin}/v1/device/revoke`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${bearer}`, origin, "content-type": "application/json" },
     body: JSON.stringify({ deviceId }),
+    headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json", origin },
+    method: "POST",
   });
   expect(response.ok, `revoke answered ${response.status}`);
-}
+};
 
 // the account identity lands asynchronously after the login, and the cross-account fence fails closed
 // until it does.
-async function untilIdentityKnown(api: InstanceApi, label: string): Promise<void> {
+const untilIdentityKnown = async (api: InstanceApi, label: string): Promise<void> => {
   const deadline = Date.now() + IDENTITY_DEADLINE_MS;
   for (;;) {
     const status = await api.cloud.status();
@@ -90,16 +91,16 @@ async function untilIdentityKnown(api: InstanceApi, label: string): Promise<void
     );
     await delay(POLL_INTERVAL_MS);
   }
-}
+};
 
 // syncNow is single-flight: a call landing during a background pass joins it and reports the state
 // it left, which can be "dirty" for a write that pass never saw, so retry; any other state fails at
 // once.
-async function syncUntil(
+const syncUntil = async (
   api: InstanceApi,
   label: string,
   wanted: "clean" | "unauthorized",
-): Promise<void> {
+): Promise<void> => {
   const transitional = new Set([
     "syncing",
     "dirty",
@@ -121,16 +122,16 @@ async function syncUntil(
     );
     await delay(POLL_INTERVAL_MS);
   }
-}
+};
 
 // compares the live credential read back from the data dir and the contract's prefix constant: a
 // hand-copied "igd_" would keep passing after a prefix change.
-async function expectNoTokenInGitConfig(
+const expectNoTokenInGitConfig = async (
   vaultDir: string,
   dataDir: string,
   label: string,
-): Promise<void> {
-  const config = await readFile(join(vaultDir, ".git", "config"), "utf8");
+): Promise<void> => {
+  const config = await readFile(path.join(vaultDir, ".git", "config"), "utf-8");
   const stored = readDeviceCredential(dataDir);
   expect(stored !== null, `${label}: a device credential is on disk to compare against`);
   expect(
@@ -141,13 +142,13 @@ async function expectNoTokenInGitConfig(
     !config.includes(DEVICE_CREDENTIAL_PREFIX),
     `${label}: .git/config carries no device credential`,
   );
-  expect(!/https?:\/\/[^\n]*@/.test(config), `${label}: .git/config carries no URL userinfo`);
+  expect(!/https?:\/\/[^\n]*@/u.test(config), `${label}: .git/config carries no URL userinfo`);
   expect(!config.toLowerCase().includes("extraheader"), `${label}: auth rides env, never config`);
-}
+};
 
 export const hostedVaultSync: Scenario = {
-  name: "hosted-vault-sync",
   description: "two instances against a real dev Worker: sign in, converge, clone, revoke",
+  name: "hosted-vault-sync",
   async run(ctx) {
     const worker = await ctx.cloudWorker();
 
@@ -155,31 +156,33 @@ export const hostedVaultSync: Scenario = {
     const { bearer, userId } = await signUp(worker.origin);
 
     ctx.log("A boots accountless, then signs in through the production route");
-    const a = await ctx.boot({ name: "a", extraEnv: cloudEnv(worker.origin) });
+    const a = await ctx.boot({ extraEnv: cloudEnv(worker.origin), name: "a" });
     const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
     expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
     await untilIdentityKnown(a.api, "A");
 
     ctx.log("A writes and pushes through the derived hosted remote");
-    await a.api.vault.write({ path: "notes/shared.md", content: FROM_A });
+    await a.api.vault.write({ content: FROM_A, path: "notes/shared.md" });
     await syncUntil(a.api, "A after write", "clean");
 
     ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
     const deviceB = await loginDevice(worker.origin, "E2E Device B");
     const b = await ctx.boot({
-      name: "b",
       extraEnv: cloudEnv(worker.origin),
+      name: "b",
       // through the harness hook: a path rebuilt here would send B down the init+seed path instead
       // of the clone.
-      seedData: (dataDir) => writeDeviceCredential(dataDir, { ...deviceB, userId }),
+      seedData: (dataDir) => {
+        writeDeviceCredential(dataDir, { ...deviceB, userId });
+      },
     });
 
     expect(
-      existsSync(join(b.vaultDir, "notes", "shared.md")),
+      existsSync(path.join(b.vaultDir, "notes", "shared.md")),
       "B's boot clone brought A's note down",
     );
     expectEq(
-      await readFile(join(b.vaultDir, "notes", "shared.md"), "utf8"),
+      await readFile(path.join(b.vaultDir, "notes", "shared.md"), "utf-8"),
       FROM_A,
       "B's on-disk content",
     );
@@ -197,11 +200,11 @@ export const hostedVaultSync: Scenario = {
     expectEq(marker.stdout.trim(), userId, "B's clone pinned the account marker");
 
     ctx.log("B writes; the change reaches A the other way around");
-    await b.api.vault.write({ path: "notes/from-b.md", content: FROM_B });
+    await b.api.vault.write({ content: FROM_B, path: "notes/from-b.md" });
     await syncUntil(b.api, "B after write", "clean");
     await syncUntil(a.api, "A pulling B's write", "clean");
     expectEq(
-      await readFile(join(a.vaultDir, "notes", "from-b.md"), "utf8"),
+      await readFile(path.join(a.vaultDir, "notes", "from-b.md"), "utf-8"),
       FROM_B,
       "A's on-disk content",
     );
@@ -211,7 +214,7 @@ export const hostedVaultSync: Scenario = {
 
     ctx.log("revoking B: the next sync must read unauthorized, not offline");
     await revokeDevice(worker.origin, bearer, deviceB.deviceId);
-    await b.api.vault.write({ path: "notes/after-revoke.md", content: "# Stranded\n" });
+    await b.api.vault.write({ content: "# Stranded\n", path: "notes/after-revoke.md" });
     await syncUntil(b.api, "B after revoke", "unauthorized");
 
     ctx.log("A is untouched by B's revocation");

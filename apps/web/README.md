@@ -144,12 +144,13 @@ pnpm dev:web                      # vite + miniflare on :5174 (pinned, strictPor
 # The local D1 file is materialized lazily, on the first request that touches
 # the binding — `dev` alone does not create it. So hit one, THEN push:
 curl -s -o /dev/null localhost:5174/api/auth/get-session
-pnpm --filter @repo/web db:push:local
+pnpm --filter @repo/web db:push
 ```
 
-> **Never run `db:push` or `db:studio`.** Both load `drizzle.config.ts`
-> (`driver: "d1-http"`) with the root `.env.production.local` creds and hit the
-> PRODUCTION D1. The only local command is `db:push:local`.
+> **Never run `db:push:remote` or `db:studio:remote`.** Both load
+> `drizzle.config.ts` (`driver: "d1-http"`) with the root `.env.production.local`
+> creds and hit the PRODUCTION D1. The bare `db:push` and `db:studio` are the
+> local ones.
 
 Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers`)
 against the same D1 binding wrangler.jsonc declares; the schema DDL is derived
@@ -167,7 +168,7 @@ wrangler d1 create inteligir-auth
 
 # 3. Push the schema to the remote D1. No migration files — put the three creds
 #    in the root .env.production.local (see .env.example), then:
-pnpm --filter @repo/web db:push
+pnpm --filter @repo/web db:push:remote
 
 # 4. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED
 #    signing key — generate a fresh random 32+ char value, don't reuse another.

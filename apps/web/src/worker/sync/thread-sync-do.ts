@@ -3,25 +3,21 @@ import {
   captureRequestSchema,
   CAPTURE_CLAIM_TTL_MS,
   claimCapturesRequestSchema,
-  type AckCapturesResponse,
-  type CaptureResponse,
-  type CaptureRow,
-  type ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
-import {
-  pullQuerySchema,
-  pushRequestSchema,
-  type PullResponse,
-  type PushResponse,
-  type SyncEventRow,
-} from "@repo/api/cloud/sync/sync-schema";
+import type {
+  AckCapturesResponse,
+  CaptureResponse,
+  CaptureRow,
+  ClaimCapturesResponse,
+} from "@repo/api/cloud/captures/captures-schema";
+import { pullQuerySchema, pushRequestSchema } from "@repo/api/cloud/sync/sync-schema";
+import type { PullResponse, PushResponse, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
 import {
   devicePlatformSchema,
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_KEEPALIVE_PONG,
-  type DevicePlatform,
-  type SyncPing,
 } from "@repo/api/cloud/sync/sync-ws";
+import type { DevicePlatform, SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import { refuse } from "../cloud-http";
@@ -31,12 +27,26 @@ import { refuse } from "../cloud-http";
 // the attachment, the broadcast set is rebuilt from ctx.getWebSockets(), and no instance field
 // holds anything a later message needs. The Worker is the only caller, so x-device-* is trusted.
 
-type SocketTag = {
+interface SocketTag {
   readonly deviceId: string;
   readonly platform: DevicePlatform;
-};
+}
 
 type AckResult = AckCapturesResponse["results"][number];
+
+// a parse failure is storage corruption; surface the raw string rather than 500 every pull forever
+const storedEventSchema = z.json();
+
+const parseStoredEvent = (stored: string): SyncEventRow["event"] => {
+  let source: unknown;
+  try {
+    source = JSON.parse(stored);
+  } catch {
+    return stored;
+  }
+  const event = storedEventSchema.safeParse(source);
+  return event.success ? event.data : stored;
+};
 
 // parsed rather than trusted: a socket hibernated before the tag's shape last changed comes back with the old one
 const socketTagSchema = z.object({
@@ -44,10 +54,10 @@ const socketTagSchema = z.object({
   platform: devicePlatformSchema,
 });
 
-function readSocketTag(ws: WebSocket): SocketTag | null {
+const readSocketTag = (ws: WebSocket): SocketTag | null => {
   const tag = socketTagSchema.safeParse(ws.deserializeAttachment());
   return tag.success ? tag.data : null;
-}
+};
 
 export class ThreadSyncDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -102,26 +112,40 @@ export class ThreadSyncDO extends DurableObject<Env> {
       return refuse("account-deleted", "This account was deleted.");
     }
 
-    if (route === "GET /ws") return this.openSocket(request);
-    if (route === "POST /push") return await this.push(request);
-    if (route === "GET /pull") return this.pull(url);
-    if (route === "POST /capture") return await this.capture(request);
-    if (route === "POST /captures/claim") return await this.claimCaptures(request);
-    if (route === "POST /captures/ack") return await this.ackCaptures(request);
+    if (route === "GET /ws") {
+      return this.openSocket(request);
+    }
+    if (route === "POST /push") {
+      return await this.push(request);
+    }
+    if (route === "GET /pull") {
+      return this.pull(url);
+    }
+    if (route === "POST /capture") {
+      return await this.capture(request);
+    }
+    if (route === "POST /captures/claim") {
+      return await this.claimCaptures(request);
+    }
+    if (route === "POST /captures/ack") {
+      return await this.ackCaptures(request);
+    }
 
     return refuse("not-found", "No such route.");
   }
 
   private purgedAt(): number | null {
-    const row = this.ctx.storage.sql
+    const [row] = this.ctx.storage.sql
       .exec<{ purged_at: number }>("SELECT purged_at FROM account_state WHERE id = 1")
-      .toArray()[0];
+      .toArray();
     return row?.purged_at ?? null;
   }
 
   private openSocket(request: Request): Response {
     const deviceId = request.headers.get("x-device-id");
-    if (deviceId === null) return refuse("unauthorized", "No device.");
+    if (deviceId === null) {
+      return refuse("unauthorized", "No device.");
+    }
     const platform = devicePlatformSchema.safeParse(request.headers.get("x-device-platform"));
 
     const pair = new WebSocketPair();
@@ -136,6 +160,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  // oxlint-disable-next-line eslint/class-methods-use-this -- DurableObject declares this hook as an instance method
   override webSocketMessage(): void {
     // unknown frames are ignored, never closed on: a newer app must not lose its socket over a frame this build predates
   }
@@ -144,7 +169,9 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const body = JSON.stringify(frame);
     for (const ws of this.ctx.getWebSockets()) {
       const tag = readSocketTag(ws);
-      if (tag === null || !filter(tag)) continue;
+      if (tag === null || !filter(tag)) {
+        continue;
+      }
       try {
         ws.send(body);
       } catch {
@@ -162,7 +189,9 @@ export class ThreadSyncDO extends DurableObject<Env> {
   severDevice(deviceId: string): void {
     for (const ws of this.ctx.getWebSockets()) {
       const tag = readSocketTag(ws);
-      if (tag?.deviceId !== deviceId) continue;
+      if (tag?.deviceId !== deviceId) {
+        continue;
+      }
       try {
         ws.close(1008, "device revoked");
       } catch {
@@ -173,11 +202,15 @@ export class ThreadSyncDO extends DurableObject<Env> {
 
   private async push(request: Request): Promise<Response> {
     const deviceId = request.headers.get("x-device-id");
-    if (deviceId === null) return refuse("unauthorized", "No device.");
+    if (deviceId === null) {
+      return refuse("unauthorized", "No device.");
+    }
     const body = pushRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Malformed push batch.");
+    if (!body.success) {
+      return refuse("bad-request", "Malformed push batch.");
+    }
 
-    const events = body.data.events;
+    const { events } = body.data;
     // judged before anything is stored: a batch that disagrees with itself has no prefix worth keeping
     for (const [index, event] of events.entries()) {
       const previous = index === 0 ? undefined : events[index - 1];
@@ -190,7 +223,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
       }
     }
 
-    const sql = this.ctx.storage.sql;
+    const { sql } = this.ctx.storage;
     const metaUpserts = body.data.threads ?? [];
     for (const thread of metaUpserts) {
       // last-writer-wins on the client's timestamp: a delayed retry carries an old updated_at and
@@ -221,13 +254,13 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const touchedThreads = new Set<string>();
     for (const event of events) {
       const serialized = JSON.stringify(event.event);
-      const stored = sql
+      const [stored] = sql
         .exec<{ event: string }>(
           "SELECT event FROM sync_events WHERE device_id = ? AND device_seq = ?",
           deviceId,
           event.deviceSeq,
         )
-        .toArray()[0];
+        .toArray();
 
       if (stored !== undefined) {
         // a different body at a stored position is a buggy outbox; INSERT OR IGNORE would drop the write and call it idempotency
@@ -266,12 +299,12 @@ export class ThreadSyncDO extends DurableObject<Env> {
 
     if (accepted > 0) {
       // the pusher already holds what it pushed
-      this.broadcast({ type: "sync", seq: lastSeq }, (tag) => tag.deviceId !== deviceId);
+      this.broadcast({ seq: lastSeq, type: "sync" }, (tag) => tag.deviceId !== deviceId);
     }
     // not gated on accepted: registering a desktop-lane thread is itself the dispatch, and may precede its first event
     for (const threadId of this.desktopLaneThreads(touchedThreads, metaUpserts)) {
       this.broadcast(
-        { type: "dispatch", threadId },
+        { threadId, type: "dispatch" },
         (tag) => tag.platform === "desktop" && tag.deviceId !== deviceId,
       );
     }
@@ -285,13 +318,17 @@ export class ThreadSyncDO extends DurableObject<Env> {
     metaUpserts: readonly { readonly threadId: string }[],
   ): Set<string> {
     const candidates = new Set<string>(touched);
-    for (const meta of metaUpserts) candidates.add(meta.threadId);
+    for (const meta of metaUpserts) {
+      candidates.add(meta.threadId);
+    }
     const desktop = new Set<string>();
     for (const threadId of candidates) {
-      const row = this.ctx.storage.sql
+      const [row] = this.ctx.storage.sql
         .exec<{ lane: string }>("SELECT lane FROM thread_meta WHERE thread_id = ?", threadId)
-        .toArray()[0];
-      if (row?.lane === "desktop") desktop.add(threadId);
+        .toArray();
+      if (row?.lane === "desktop") {
+        desktop.add(threadId);
+      }
     }
     return desktop;
   }
@@ -304,7 +341,9 @@ export class ThreadSyncDO extends DurableObject<Env> {
 
   private pull(url: URL): Response {
     const query = pullQuerySchema.safeParse(Object.fromEntries(url.searchParams));
-    if (!query.success) return refuse("bad-request", "Malformed pull cursor.");
+    if (!query.success) {
+      return refuse("bad-request", "Malformed pull cursor.");
+    }
     const { afterSeq, limit } = query.data;
 
     const rows = this.ctx.storage.sql
@@ -325,34 +364,36 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
     const events: SyncEventRow[] = page.map((row) => ({
-      seq: row.seq,
-      threadId: row.thread_id,
+      createdAt: row.created_at,
       deviceId: row.device_id,
       deviceSeq: row.device_seq,
       event: parseStoredEvent(row.event),
-      createdAt: row.created_at,
+      seq: row.seq,
+      threadId: row.thread_id,
     }));
-    const response: PullResponse = { events, lastSeq: this.lastSeq(), hasMore };
+    const response: PullResponse = { events, hasMore, lastSeq: this.lastSeq() };
     return Response.json(response);
   }
 
   private async capture(request: Request): Promise<Response> {
     const body = captureRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { text, idempotencyKey }.");
-    const sql = this.ctx.storage.sql;
+    if (!body.success) {
+      return refuse("bad-request", "Send { text, idempotencyKey }.");
+    }
+    const { sql } = this.ctx.storage;
 
-    const existing = sql
+    const [existing] = sql
       .exec<{ id: string; created_at: number }>(
         "SELECT id, created_at FROM captures WHERE idempotency_key = ?",
         body.data.idempotencyKey,
       )
-      .toArray()[0];
+      .toArray();
     if (existing !== undefined) {
       // a share-sheet retry after a lost response; no ping, nothing changed
       const duplicate: CaptureResponse = {
-        id: existing.id,
         createdAt: existing.created_at,
         duplicate: true,
+        id: existing.id,
       };
       return Response.json(duplicate);
     }
@@ -368,14 +409,16 @@ export class ThreadSyncDO extends DurableObject<Env> {
     );
     // every socket, the capturer included: whichever device claims first applies it, and the capturer may be the only one online
     this.broadcast({ type: "capture" }, () => true);
-    const response: CaptureResponse = { id, createdAt, duplicate: false };
+    const response: CaptureResponse = { createdAt, duplicate: false, id };
     return Response.json(response);
   }
 
   // the TTL is judged here on read, so a lapsed claim needs no alarm to reclaim
   private async claimCaptures(request: Request): Promise<Response> {
     const body = claimCapturesRequestSchema.safeParse(await request.json().catch(() => ({})));
-    if (!body.success) return refuse("bad-request", "Send { limit? }.");
+    if (!body.success) {
+      return refuse("bad-request", "Send { limit? }.");
+    }
 
     const now = Date.now();
     const claimToken = crypto.randomUUID();
@@ -396,13 +439,13 @@ export class ThreadSyncDO extends DurableObject<Env> {
       .toArray();
 
     const captures: CaptureRow[] = rows.map((row) => ({
+      createdAt: row.created_at,
       id: row.id,
       text: row.text,
-      createdAt: row.created_at,
     }));
     const response: ClaimCapturesResponse = {
-      claimToken,
       captures,
+      claimToken,
       expiresAt: now + CAPTURE_CLAIM_TTL_MS,
     };
     return Response.json(response);
@@ -411,8 +454,10 @@ export class ThreadSyncDO extends DurableObject<Env> {
   // a row reclaimed since is not deleted: this device raced its own lapsed claim, and the current owner will apply it
   private async ackCaptures(request: Request): Promise<Response> {
     const body = ackCapturesRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { claimToken, ids }.");
-    const sql = this.ctx.storage.sql;
+    if (!body.success) {
+      return refuse("bad-request", "Send { claimToken, ids }.");
+    }
+    const { sql } = this.ctx.storage;
 
     const results = body.data.ids.map((id): AckResult => {
       const deleted = sql
@@ -422,10 +467,12 @@ export class ThreadSyncDO extends DurableObject<Env> {
           body.data.claimToken,
         )
         .toArray();
-      if (deleted.length > 0) return { id, outcome: "deleted" };
-      const survivor = sql
+      if (deleted.length > 0) {
+        return { id, outcome: "deleted" };
+      }
+      const [survivor] = sql
         .exec<{ id: string }>("SELECT id FROM captures WHERE id = ?", id)
-        .toArray()[0];
+        .toArray();
       return { id, outcome: survivor === undefined ? "unknown" : "reclaimed" };
     });
 
@@ -449,14 +496,5 @@ export class ThreadSyncDO extends DurableObject<Env> {
       "INSERT INTO account_state (id, purged_at) VALUES (1, ?) ON CONFLICT (id) DO NOTHING",
       Date.now(),
     );
-  }
-}
-
-// a parse failure is storage corruption; surface the raw string rather than 500 every pull forever
-function parseStoredEvent(stored: string): SyncEventRow["event"] {
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return stored;
   }
 }

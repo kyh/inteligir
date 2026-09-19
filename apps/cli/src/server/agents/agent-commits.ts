@@ -3,26 +3,25 @@
 // inside a rebase's checkout window.
 
 import { realpathSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import nodePath from "node:path";
 import { relativeUnder } from "../path-containment";
 import type { GitEngine } from "../vault/git-engine";
 import type { CommitAuthor } from "../vault/git-run";
 
 const AGENT_COMMIT_AUTHOR: CommitAuthor = {
-  name: "inteligir-agent",
   email: "agent@inteligir.local",
+  name: "inteligir-agent",
 };
 
-function agentCommitSubject(threadId: string): string {
-  return `agent: vault update\n\nThread: ${threadId}`;
-}
+const agentCommitSubject = (threadId: string): string =>
+  `agent: vault update\n\nThread: ${threadId}`;
 
 export type VaultPathResolver = (reported: string) => string | null;
 
 // checked under both the configured spelling and its realpath: macOS tmp lives behind /var → /private/var
 // and harnesses report resolved paths.
-export function createVaultPathResolver(vaultDir: string): VaultPathResolver {
-  const configured = resolve(vaultDir);
+export const createVaultPathResolver = (vaultDir: string): VaultPathResolver => {
+  const configured = nodePath.resolve(vaultDir);
   let real = configured;
   try {
     real = realpathSync(configured);
@@ -30,8 +29,8 @@ export function createVaultPathResolver(vaultDir: string): VaultPathResolver {
     // keep the configured spelling; a missing vault fails later and louder.
   }
   const roots = real === configured ? [configured] : [configured, real];
-  return (reported) => {
-    if (!isAbsolute(reported)) {
+  return function resolveVaultPath(reported) {
+    if (!nodePath.isAbsolute(reported)) {
       // already vault-relative (the scripted driver's shape); still refuse an escape.
       return relativeUnder(".", reported);
     }
@@ -43,12 +42,12 @@ export function createVaultPathResolver(vaultDir: string): VaultPathResolver {
     }
     return null;
   };
-}
+};
 
 export interface AgentTurnWrites {
   ready: Promise<void>;
-  recordPaths(paths: readonly string[]): void;
-  finish(): Promise<void>;
+  recordPaths: (paths: readonly string[]) => void;
+  finish: () => Promise<void>;
 }
 
 export interface AgentTurnWritesArgs {
@@ -57,22 +56,18 @@ export interface AgentTurnWritesArgs {
   turnId: string;
 }
 
-export function beginAgentTurnWrites(args: AgentTurnWritesArgs): AgentTurnWrites {
+export const beginAgentTurnWrites = (args: AgentTurnWritesArgs): AgentTurnWrites => {
   const release = args.git.holdCommits();
   const writeSet = new Set<string>();
   let finished = false;
 
   // a no-op behind the repo lock resolves only after any in-flight sync pass (which holds it for its whole run);
   // the hold above stops the next one from starting.
-  const settled = args.git.runExclusive(async () => undefined);
+  const settled = args.git.runExclusive(async () => {
+    /* empty */
+  });
 
   return {
-    ready: settled,
-    recordPaths(paths) {
-      for (const path of paths) {
-        writeSet.add(path);
-      }
-    },
     async finish() {
       if (finished) {
         return;
@@ -90,5 +85,11 @@ export function beginAgentTurnWrites(args: AgentTurnWritesArgs): AgentTurnWrites
         release();
       }
     },
+    ready: settled,
+    recordPaths(paths) {
+      for (const path of paths) {
+        writeSet.add(path);
+      }
+    },
   };
-}
+};

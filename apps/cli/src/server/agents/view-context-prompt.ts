@@ -6,24 +6,23 @@
 import type { PromptInput } from "@repo/agent-runtime/types";
 import type { ViewContext } from "@repo/domain/view-context";
 
-export function composeViewContextBlock(context: ViewContext): string {
-  return `The user sent this while looking at ${context.resource} in the editor — "this", "here" and "the note" refer to that file. It hashed to sha-256 ${context.revision} when they sent it; if it no longer does, it changed afterwards.`;
-}
+export const composeViewContextBlock = (context: ViewContext): string =>
+  `The user sent this while looking at ${context.resource} in the editor — "this", "here" and "the note" refer to that file. It hashed to sha-256 ${context.revision} when they sent it; if it no longer does, it changed afterwards.`;
 
 type TurnPromptText = Extract<PromptInput, { type: "text" }>;
 
-export function turnPromptInput(
+export const turnPromptInput = (
   text: string,
-  context: ViewContext | undefined,
+  context?: ViewContext,
   instructions?: string,
-): TurnPromptText[] {
+): TurnPromptText[] => {
   const blocks: TurnPromptText[] = [];
   if (instructions !== undefined) {
-    blocks.push({ type: "text", text: instructions });
+    blocks.push({ text: instructions, type: "text" });
   }
   if (context !== undefined) {
-    blocks.push({ type: "text", text: composeViewContextBlock(context) });
+    blocks.push({ text: composeViewContextBlock(context), type: "text" });
   }
-  blocks.push({ type: "text", text });
+  blocks.push({ text, type: "text" });
   return blocks;
-}
+};

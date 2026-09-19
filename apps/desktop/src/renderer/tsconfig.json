@@ -1,7 +1,8 @@
 {
   "extends": "../../../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "dom", "dom.iterable"],
+    // this program compiles packages/editor and apps/cli's client, both of which target ES2024.
+    "lib": ["ES2024", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     "types": ["vite/client"],
     "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.renderer.json"

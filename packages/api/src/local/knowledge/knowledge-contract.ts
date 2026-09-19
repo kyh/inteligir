@@ -24,25 +24,25 @@ import {
 } from "./knowledge-schema";
 
 export const knowledgeContract = {
-  search: oc.input(knowledgeSearchRequestSchema).output(knowledgeSearchResponseSchema),
+  backlinks: oc.input(knowledgeBacklinksRequestSchema).output(knowledgeBacklinksResponseSchema),
 
   matches: oc.input(knowledgeMatchesRequestSchema).output(knowledgeMatchesResponseSchema),
 
-  wikiTargets: oc.output(knowledgeWikiTargetsResponseSchema),
-
-  backlinks: oc.input(knowledgeBacklinksRequestSchema).output(knowledgeBacklinksResponseSchema),
+  problems: oc.input(knowledgeProblemsRequestSchema).output(knowledgeProblemsResponseSchema),
 
   related: oc.input(knowledgeRelatedRequestSchema).output(knowledgeRelatedResponseSchema),
+
+  renameTag: oc.input(knowledgeRenameTagRequestSchema).output(knowledgeRenameTagResponseSchema),
+
+  search: oc.input(knowledgeSearchRequestSchema).output(knowledgeSearchResponseSchema),
+
+  tagNotes: oc.input(knowledgeTagNotesRequestSchema).output(knowledgeTagNotesResponseSchema),
+
+  tags: oc.output(knowledgeTagsResponseSchema),
 
   unlinkedMentions: oc
     .input(knowledgeUnlinkedMentionsRequestSchema)
     .output(knowledgeUnlinkedMentionsResponseSchema),
 
-  problems: oc.input(knowledgeProblemsRequestSchema).output(knowledgeProblemsResponseSchema),
-
-  tags: oc.output(knowledgeTagsResponseSchema),
-
-  tagNotes: oc.input(knowledgeTagNotesRequestSchema).output(knowledgeTagNotesResponseSchema),
-
-  renameTag: oc.input(knowledgeRenameTagRequestSchema).output(knowledgeRenameTagResponseSchema),
+  wikiTargets: oc.output(knowledgeWikiTargetsResponseSchema),
 };

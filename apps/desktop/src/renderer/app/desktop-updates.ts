@@ -4,19 +4,31 @@ import type { DesktopUpdatesBridge } from "../../types";
 import type { UpdateAction, UpdateState } from "../../update-state";
 import { createBridgeStore } from "./bridge-store";
 
+const adoptInitial = async (
+  updates: DesktopUpdatesBridge,
+  adopt: (state: UpdateState) => void,
+): Promise<void> => {
+  let state;
+  try {
+    state = await updates.getState();
+  } catch (error) {
+    console.warn("[updates] the initial state read failed", error);
+    return;
+  }
+  adopt(state);
+};
+
 const store = createBridgeStore<DesktopUpdatesBridge, UpdateState>({
   bridge: () => window.desktopBridge?.updates,
   start: (updates, adopt) => {
     updates.onState(adopt);
-    updates.getState().then(adopt, (cause: unknown) => {
-      console.warn("[updates] the initial state read failed", cause);
-    });
+    void adoptInitial(updates, adopt);
   },
 });
 
 export const useDesktopUpdates = store.use;
 
 // each action answers with the state it left behind, adopted like a pushed frame
-export function runUpdateAction(action: UpdateAction): Promise<void> {
-  return store.run((updates) => updates[action]());
-}
+export const runUpdateAction = async (action: UpdateAction): Promise<void> => {
+  await store.run(async (updates) => await updates[action]());
+};

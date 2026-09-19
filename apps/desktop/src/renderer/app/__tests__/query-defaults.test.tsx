@@ -12,9 +12,11 @@ afterEach(() => {
   focusManager.setFocused(undefined);
 });
 
-const settle = (): Promise<void> => act(async () => {});
+const settle = async (): Promise<void> => {
+  await act(async () => {});
+};
 
-function mountCounted(options: { staleTime?: number } = {}) {
+const mountCounted = (options: { staleTime?: number } = {}) => {
   const client = createWorkspaceQueryClient();
   let fetches = 0;
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -22,15 +24,15 @@ function mountCounted(options: { staleTime?: number } = {}) {
   );
   const useCounted = () =>
     useQuery({
-      queryKey: ["counted"],
       queryFn: () => {
         fetches += 1;
-        return Promise.resolve(fetches);
+        return fetches;
       },
+      queryKey: ["counted"],
       ...options,
     });
-  return { wrapper, useCounted, fetches: () => fetches };
-}
+  return { fetches: () => fetches, useCounted, wrapper };
+};
 
 describe("the workspace query client", () => {
   it("does not re-fetch a bus-driven query on focus, reconnect or remount", async () => {

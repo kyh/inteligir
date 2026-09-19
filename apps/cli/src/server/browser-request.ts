@@ -11,7 +11,7 @@ export interface BrowserRequestHeaders {
   host: string | undefined;
 }
 
-export function isSameOriginBrowserRequest(headers: BrowserRequestHeaders): boolean {
+export const isSameOriginBrowserRequest = (headers: BrowserRequestHeaders): boolean => {
   const site = headers.secFetchSite;
   if (site !== undefined) {
     return site === "same-origin" || site === "none";
@@ -21,4 +21,4 @@ export function isSameOriginBrowserRequest(headers: BrowserRequestHeaders): bool
   }
   // plain-http loopback only, so the origin is http://<host> with the port inside host.
   return headers.origin === `http://${headers.host}`;
-}
+};

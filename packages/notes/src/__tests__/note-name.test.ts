@@ -8,29 +8,29 @@ type Row =
   | { input: string; ok: true; name?: string }
   | { input: string; ok: false; reason: ReturnType<typeof reject> };
 
-function reject(
+const reject = (
   reason: "empty" | "separator" | "illegal-char" | "reserved" | "dot-edge" | "too-long",
-) {
-  return reason;
-}
+) => reason;
 
 const CORPUS: Row[] = [
-  { input: "Meeting Notes.md", ok: true, name: "Meeting Notes.md" },
-  { input: "Meeting Notes", ok: true, name: "Meeting Notes" },
-  { input: "  padded  ", ok: true, name: "padded" },
+  { input: "Meeting Notes.md", name: "Meeting Notes.md", ok: true },
+  { input: "Meeting Notes", name: "Meeting Notes", ok: true },
+  { input: "  padded  ", name: "padded", ok: true },
   { input: "notes & ideas (v2).md", ok: true },
   { input: "a'b,c;d!e@f#g$h%i^j&k", ok: true },
   { input: "note..md", ok: true },
   { input: "2026-07-15.md", ok: true },
 
-  { input: "日本語ノート.md", ok: true, name: "日本語ノート.md" },
+  { input: "日本語ノート.md", name: "日本語ノート.md", ok: true },
   { input: "会议记录", ok: true },
   { input: "한국어 노트.md", ok: true },
   { input: "ملاحظات.md", ok: true },
   { input: "🚀 launch plan.md", ok: true },
 
-  { input: "café.md", ok: true, name: "café.md" }, // composed stays
-  { input: "cafe\u0301.md", ok: true, name: "café.md" }, // decomposed → NFC
+  // composed stays
+  { input: "café.md", name: "café.md", ok: true },
+  // decomposed → NFC
+  { input: "cafe\u0301.md", name: "café.md", ok: true },
 
   { input: "", ok: false, reason: reject("empty") },
   { input: "   ", ok: false, reason: reject("empty") },
@@ -48,15 +48,16 @@ const CORPUS: Row[] = [
   { input: "a>b.md", ok: false, reason: reject("illegal-char") },
   { input: "a|b.md", ok: false, reason: reject("illegal-char") },
   { input: "a\u0000b.md", ok: false, reason: reject("illegal-char") },
-  { input: "a\u001fb.md", ok: false, reason: reject("illegal-char") },
-  { input: "a\u007fb.md", ok: false, reason: reject("illegal-char") },
+  { input: "a\u001Fb.md", ok: false, reason: reject("illegal-char") },
+  { input: "a\u007Fb.md", ok: false, reason: reject("illegal-char") },
 
   { input: ".hidden", ok: false, reason: reject("dot-edge") },
   { input: ".hidden.md", ok: false, reason: reject("dot-edge") },
   { input: "name.", ok: false, reason: reject("dot-edge") },
   { input: "name.md.", ok: false, reason: reject("dot-edge") },
   { input: "trailing space .md", ok: true },
-  { input: "name .", ok: false, reason: reject("dot-edge") }, // trims to "name ." → trailing dot
+  // trims to "name ." → trailing dot
+  { input: "name .", ok: false, reason: reject("dot-edge") },
 
   { input: "con", ok: false, reason: reject("reserved") },
   { input: "CON.md", ok: false, reason: reject("reserved") },
@@ -68,7 +69,8 @@ const CORPUS: Row[] = [
   { input: "COM9", ok: false, reason: reject("reserved") },
   { input: "lpt1.md", ok: false, reason: reject("reserved") },
   { input: "LPT9.md", ok: false, reason: reject("reserved") },
-  { input: "con .md", ok: false, reason: reject("reserved") }, // Windows ignores the trailing space
+  // Windows ignores the trailing space
+  { input: "con .md", ok: false, reason: reject("reserved") },
   // not reserved: 0-index, longer words, reserved-as-suffix
   { input: "com0.md", ok: true },
   { input: "lpt0.md", ok: true },
@@ -77,8 +79,10 @@ const CORPUS: Row[] = [
   { input: "aux input.md", ok: true },
   { input: "falcon.md", ok: true },
 
-  { input: `${"a".repeat(252)}.md`, ok: true }, // exactly 255 bytes
-  { input: `${"a".repeat(253)}.md`, ok: false, reason: reject("too-long") }, // 256
+  // exactly 255 bytes
+  { input: `${"a".repeat(252)}.md`, ok: true },
+  // 256 bytes
+  { input: `${"a".repeat(253)}.md`, ok: false, reason: reject("too-long") },
   // astral chars are 4 bytes: 63×4 + 3 = 255
   { input: `${"😀".repeat(63)}.md`, ok: true },
   { input: `${"😀".repeat(64)}.md`, ok: false, reason: reject("too-long") },
@@ -93,7 +97,9 @@ describe("checkNoteName — golden corpus", () => {
       const verdict = checkNoteName(row.input);
       if (row.ok) {
         expect(verdict.ok).toBe(true);
-        if (verdict.ok && row.name !== undefined) expect(verdict.name).toBe(row.name);
+        if (verdict.ok && row.name !== undefined) {
+          expect(verdict.name).toBe(row.name);
+        }
       } else {
         expect(verdict).toEqual({ ok: false, reason: row.reason });
       }
@@ -109,7 +115,7 @@ describe("checkNoteName — golden corpus", () => {
       "dot-edge",
       "too-long",
     ] as const) {
-      expect(noteNameErrorMessage(reason)).toMatch(/\S/);
+      expect(noteNameErrorMessage(reason)).toMatch(/\S/u);
     }
   });
 });

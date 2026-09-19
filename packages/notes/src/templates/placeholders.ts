@@ -10,23 +10,23 @@ export const DAILY_TEMPLATE_PATH = `${TEMPLATES_FOLDER}/Daily.md`;
 // where the day's note is written: a vault convention like the templates folder, not a setting
 export const DAILY_NOTES_FOLDER = "notes/daily";
 
-export function isTemplatePath(path: string): boolean {
-  return path.startsWith(`${TEMPLATES_FOLDER}/`) && isDocPath(path);
-}
+export const isTemplatePath = (path: string): boolean =>
+  path.startsWith(`${TEMPLATES_FOLDER}/`) && isDocPath(path);
 
 interface TemplateContext {
   now: Date;
   title: string;
 }
 
-const PLACEHOLDER_RE = /\{\{(date|time|title)\}\}/g;
+const PLACEHOLDER_RE = /\{\{(?<name>date|time|title)\}\}/gu;
 
-export function expandTemplate(markdown: string, context: TemplateContext): string {
-  return markdown.replace(PLACEHOLDER_RE, (_match, name: string) =>
-    name === "date"
-      ? formatIsoDate(context.now)
-      : name === "time"
-        ? formatIsoTime(context.now)
-        : context.title,
-  );
-}
+export const expandTemplate = (markdown: string, context: TemplateContext): string =>
+  markdown.replace(PLACEHOLDER_RE, (_match, name: string) => {
+    if (name === "date") {
+      return formatIsoDate(context.now);
+    }
+    if (name === "time") {
+      return formatIsoTime(context.now);
+    }
+    return context.title;
+  });

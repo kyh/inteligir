@@ -5,9 +5,9 @@ import { z } from "zod";
 // acking has its rows return to the pool after CAPTURE_CLAIM_TTL_MS and delivered again.
 
 export const CAPTURE_API_PATHS = {
+  ack: "/v1/sync/captures/ack",
   capture: "/v1/capture",
   claim: "/v1/sync/captures/claim",
-  ack: "/v1/sync/captures/ack",
 } as const;
 
 export const CAPTURE_MAX_CHARS = 4096;
@@ -17,27 +17,27 @@ export const CLAIM_MAX_LIMIT = 500;
 
 export const captureRequestSchema = z
   .object({
-    text: z.string().trim().min(1).max(CAPTURE_MAX_CHARS),
     // required, not optional: a share-sheet retry after a lost response would duplicate the note
     idempotencyKey: z.string().trim().min(8).max(128),
+    text: z.string().trim().min(1).max(CAPTURE_MAX_CHARS),
   })
   .strict();
 export type CaptureRequest = z.infer<typeof captureRequestSchema>;
 
 export const captureResponseSchema = z
   .object({
-    id: z.string().min(1),
     createdAt: z.number().int().nonnegative(),
     duplicate: z.boolean(),
+    id: z.string().min(1),
   })
   .strict();
 export type CaptureResponse = z.infer<typeof captureResponseSchema>;
 
 export const captureRowSchema = z
   .object({
+    createdAt: z.number().int().nonnegative(),
     id: z.string().min(1),
     text: z.string(),
-    createdAt: z.number().int().nonnegative(),
   })
   .strict();
 export type CaptureRow = z.infer<typeof captureRowSchema>;
@@ -51,9 +51,9 @@ export type ClaimCapturesRequest = z.infer<typeof claimCapturesRequestSchema>;
 
 export const claimCapturesResponseSchema = z
   .object({
+    captures: z.array(captureRowSchema),
     // answered even with no rows: a nullable token is a branch every client must write
     claimToken: z.string().min(1),
-    captures: z.array(captureRowSchema),
     expiresAt: z.number().int().positive(),
   })
   .strict();

@@ -7,12 +7,12 @@ import { z } from "zod";
 const stringValue = z.string();
 const numberValue = z.number();
 
-export function stringProp(node: Descendant, key: string): string | undefined {
+export const stringProp = (node: Descendant, key: string): string | undefined => {
   const parsed = stringValue.safeParse(node[key]);
   return parsed.success ? parsed.data : undefined;
-}
+};
 
-export function numberProp(node: Descendant, key: string): number | undefined {
+export const numberProp = (node: Descendant, key: string): number | undefined => {
   const parsed = numberValue.safeParse(node[key]);
   return parsed.success ? parsed.data : undefined;
-}
+};

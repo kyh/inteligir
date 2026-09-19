@@ -2,18 +2,19 @@
 // focusable control: a tabbable element mid-paragraph wrecks caret navigation; the keyboard
 // route is typing `tag:<name>` into the palette.
 
-import { PlateLeaf, type PlateLeafProps } from "platejs/react";
+import { PlateLeaf } from "platejs/react";
+import type { PlateLeafProps } from "platejs/react";
 
 import { useAgentRequestActions } from "@repo/editor/agent-request";
 
 // a drag ending over a chip fires a click; reads the DOM selection because Slate's lags a click by a tick.
-function hasRangeSelection(): boolean {
+const hasRangeSelection = (): boolean => {
   const selection = document.getSelection();
   return selection !== null && !selection.isCollapsed;
-}
+};
 
-export function TagChipLeaf(props: PlateLeafProps) {
-  const text = props.leaf.text;
+export const TagChipLeaf = (props: PlateLeafProps) => {
+  const { text } = props.leaf;
   const tag = text.startsWith("#") ? text.slice(1) : "";
   return (
     <PlateLeaf
@@ -30,4 +31,4 @@ export function TagChipLeaf(props: PlateLeafProps) {
       }}
     />
   );
-}
+};

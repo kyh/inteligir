@@ -16,137 +16,150 @@ const UPDATE_STATUSES = [
 ] as const;
 
 export const updateStateSchema = z.object({
-  status: z.enum(UPDATE_STATUSES),
-  currentVersion: z.string().min(1),
   availableVersion: z.string().nullable(),
-  downloadedVersion: z.string().nullable(),
+  checkedAt: z.string().nullable(),
+  currentVersion: z.string().min(1),
   downloadPercent: z.number().min(0).max(100).nullable(),
+  downloadedVersion: z.string().nullable(),
   // why nothing will be checked, or what the last step said when it failed
   message: z.string().nullable(),
-  checkedAt: z.string().nullable(),
+  status: z.enum(UPDATE_STATUSES),
 });
 
 export type UpdateState = z.infer<typeof updateStateSchema>;
 
 export type UpdateAction = "check" | "download" | "install";
 
-export function initialUpdateState(
+export const initialUpdateState = (
   currentVersion: string,
   disabledReason: string | null,
-): UpdateState {
-  return {
-    status: disabledReason === null ? "idle" : "disabled",
-    currentVersion,
-    availableVersion: null,
-    downloadedVersion: null,
-    downloadPercent: null,
-    message: disabledReason,
-    checkedAt: null,
-  };
-}
+): UpdateState => ({
+  availableVersion: null,
+  checkedAt: null,
+  currentVersion,
+  downloadPercent: null,
+  downloadedVersion: null,
+  message: disabledReason,
+  status: disabledReason === null ? "idle" : "disabled",
+});
 
 // a downloaded update is already the answer, so a check keeps it
-export function reduceCheckStart(state: UpdateState, checkedAt: string): UpdateState {
+export const reduceCheckStart = (state: UpdateState, checkedAt: string): UpdateState => {
   const keepsDownload = state.downloadedVersion !== null;
   return {
     ...state,
-    status: "checking",
     checkedAt,
-    message: null,
     downloadPercent: keepsDownload ? 100 : null,
+    message: null,
+    status: "checking",
   };
-}
+};
 
-export function reduceUpdateAvailable(
+export const reduceUpdateAvailable = (
   state: UpdateState,
   version: string,
   checkedAt: string,
-): UpdateState {
+): UpdateState => {
   if (state.downloadedVersion === version) {
-    return { ...state, status: "downloaded", checkedAt, message: null };
+    return { ...state, checkedAt, message: null, status: "downloaded" };
   }
   return {
     ...state,
-    status: "available",
     availableVersion: version,
-    downloadedVersion: null,
-    downloadPercent: null,
     checkedAt,
+    downloadPercent: null,
+    downloadedVersion: null,
     message: null,
+    status: "available",
   };
-}
+};
 
-export function reduceNoUpdate(state: UpdateState, checkedAt: string): UpdateState {
+export const reduceNoUpdate = (state: UpdateState, checkedAt: string): UpdateState => {
   if (state.downloadedVersion !== null) {
-    return { ...state, status: "downloaded", checkedAt, message: null };
+    return { ...state, checkedAt, message: null, status: "downloaded" };
   }
   return {
     ...state,
-    status: "up-to-date",
     availableVersion: null,
-    downloadPercent: null,
     checkedAt,
+    downloadPercent: null,
     message: null,
+    status: "up-to-date",
   };
-}
+};
 
-export function reduceCheckFailure(
+export const reduceCheckFailure = (
   state: UpdateState,
   message: string,
   checkedAt: string,
-): UpdateState {
-  return { ...state, status: "error", message, checkedAt };
-}
+): UpdateState => ({ ...state, checkedAt, message, status: "error" });
 
-export function reduceDownloadStart(state: UpdateState): UpdateState {
-  return { ...state, status: "downloading", downloadPercent: 0, message: null };
-}
+export const reduceDownloadStart = (state: UpdateState): UpdateState => ({
+  ...state,
+  downloadPercent: 0,
+  message: null,
+  status: "downloading",
+});
 
-export function reduceDownloadProgress(state: UpdateState, percent: number): UpdateState {
-  return {
-    ...state,
-    status: "downloading",
-    downloadPercent: Math.min(100, Math.max(0, Math.floor(percent))),
-  };
-}
+export const reduceDownloadProgress = (state: UpdateState, percent: number): UpdateState => ({
+  ...state,
+  downloadPercent: Math.min(100, Math.max(0, Math.floor(percent))),
+  status: "downloading",
+});
 
-export function reduceDownloadComplete(state: UpdateState, version: string): UpdateState {
-  return {
-    ...state,
-    status: "downloaded",
-    availableVersion: version,
-    downloadedVersion: version,
-    downloadPercent: 100,
-    message: null,
-  };
-}
+export const reduceDownloadComplete = (state: UpdateState, version: string): UpdateState => ({
+  ...state,
+  availableVersion: version,
+  downloadPercent: 100,
+  downloadedVersion: version,
+  message: null,
+  status: "downloaded",
+});
 
 // the version is still known, so the failure is retryable as a download, not a check
-export function reduceDownloadFailure(state: UpdateState, message: string): UpdateState {
-  return { ...state, status: "error", downloadPercent: null, message };
-}
+export const reduceDownloadFailure = (state: UpdateState, message: string): UpdateState => ({
+  ...state,
+  downloadPercent: null,
+  message,
+  status: "error",
+});
 
-export function reduceInstallFailure(state: UpdateState, message: string): UpdateState {
-  return { ...state, status: "error", message };
-}
+export const reduceInstallFailure = (state: UpdateState, message: string): UpdateState => ({
+  ...state,
+  message,
+  status: "error",
+});
 
 // what one button does next; null while a step is running or nothing can be done
-export function updateAction(state: UpdateState): UpdateAction | null {
+export const updateAction = (state: UpdateState): UpdateAction | null => {
   switch (state.status) {
     case "disabled":
     case "checking":
-    case "downloading":
+    case "downloading": {
       return null;
+    }
     case "idle":
-    case "up-to-date":
+    case "up-to-date": {
       return "check";
-    case "available":
+    }
+    case "available": {
       return "download";
-    case "downloaded":
+    }
+    case "downloaded": {
       return "install";
-    case "error":
-      if (state.downloadedVersion !== null) return "install";
-      if (state.availableVersion !== null) return "download";
+    }
+    case "error": {
+      if (state.downloadedVersion !== null) {
+        return "install";
+      }
+      if (state.availableVersion !== null) {
+        return "download";
+      }
       return "check";
+    }
+    default: {
+      const exhaustive: never = state.status;
+      return exhaustive;
+    }
   }
-}
+};

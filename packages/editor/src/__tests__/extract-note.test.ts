@@ -13,19 +13,21 @@ import {
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { installFakeEditorHost } from "./fake-editor-host";
 
-const h2 = (text: string): TElement => ({ type: "h2", children: [{ text }] });
-const p = (text: string): TElement => ({ type: "p", children: [{ text }] });
+const h2 = (text: string): TElement => ({ children: [{ text }], type: "h2" });
+const p = (text: string): TElement => ({ children: [{ text }], type: "p" });
 
-function editorOver(value: Value, livePath?: string) {
+const editorOver = (value: Value, livePath?: string) => {
   const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
-  if (livePath !== undefined) registerLiveEditor(livePath, editor);
+  if (livePath !== undefined) {
+    registerLiveEditor(livePath, editor);
+  }
   return editor;
-}
+};
 
 describe("what leaves", () => {
   it("is the editor's own serialization of the top-level blocks the selection touches", () => {
     const editor = editorOver([h2("Plan"), p("one"), p("two"), p("three")]);
-    editor.tf.select({ anchor: { path: [1, 0], offset: 1 }, focus: { path: [2, 0], offset: 1 } });
+    editor.tf.select({ anchor: { offset: 1, path: [1, 0] }, focus: { offset: 1, path: [2, 0] } });
     const paths = selectedTopLevelPaths(editor);
     expect(paths).toEqual([[1], [2]]);
     expect(extractBlocksMarkdown(editor, paths)).toBe("one\n\ntwo\n");
@@ -50,14 +52,14 @@ describe("the extract", () => {
       wikiTargets: [{ path: "notes/one.md", title: "one", type: "doc" }],
     });
     const editor = editorOver([h2("Plan"), p("one"), p("two")], "notes/Source.md");
-    editor.tf.select({ anchor: { path: [1, 0], offset: 0 }, focus: { path: [2, 0], offset: 3 } });
+    editor.tf.select({ anchor: { offset: 0, path: [1, 0] }, focus: { offset: 3, path: [2, 0] } });
 
     const created = await extractBlocksToNote(editor, selectedTopLevelPaths(editor));
 
     expect(created).toBe("notes/one 2.md");
     expect(calls).toEqual([{ action: "createFileAt", args: ["notes/one 2.md", "one\n\ntwo\n"] }]);
     expect(editor.children).toHaveLength(2);
-    const link = editor.children[1];
+    const [, link] = editor.children;
     expect(link?.type).toBe("p");
     expect(
       editor.api.nodes({ at: [1], match: { type: "wikiLink" } }).next().value?.[0],
@@ -69,7 +71,7 @@ describe("the extract", () => {
   it("undoes the removal and the link together", async () => {
     installFakeEditorHost();
     const editor = editorOver([h2("Plan"), p("one"), p("two")], "Source.md");
-    editor.tf.select({ anchor: { path: [1, 0], offset: 0 }, focus: { path: [2, 0], offset: 0 } });
+    editor.tf.select({ anchor: { offset: 0, path: [1, 0] }, focus: { offset: 0, path: [2, 0] } });
     await extractBlocksToNote(editor, selectedTopLevelPaths(editor));
     expect(editor.children).toHaveLength(2);
     editor.undo();
@@ -83,7 +85,7 @@ describe("the extract", () => {
   it("changes nothing when the host refuses the create, or when nothing is selected", async () => {
     installFakeEditorHost({ refuseCreates: true });
     const editor = editorOver([p("only")], "Source.md");
-    editor.tf.select({ anchor: { path: [0, 0], offset: 0 }, focus: { path: [0, 0], offset: 2 } });
+    editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 2, path: [0, 0] } });
     const before = JSON.stringify(editor.children);
     expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBeNull();
     expect(await extractBlocksToNote(editor, [])).toBeNull();

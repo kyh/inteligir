@@ -6,38 +6,40 @@ import {
   CAPTURE_API_PATHS,
   CAPTURE_CLAIM_TTL_MS,
   claimCapturesRequestSchema,
-  type AckCapturesResponse,
-  type CaptureRow,
-  type ClaimCapturesResponse,
+} from "@repo/api/cloud/captures/captures-schema";
+import type {
+  AckCapturesResponse,
+  CaptureRow,
+  ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
-import { CLOUD_ERROR_STATUS, cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
+import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
+import type { CloudErrorCode } from "@repo/api/cloud/errors";
 import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PREFIX,
   deviceLoginRequestSchema,
-  type DeviceLoginResponse,
 } from "@repo/api/cloud/device/device-schema";
+import type { DeviceLoginResponse } from "@repo/api/cloud/device/device-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
   SYNC_API_PATHS,
-  type PullResponse,
-  type PushResponse,
-  type SyncEventRow,
 } from "@repo/api/cloud/sync/sync-schema";
+import type { PullResponse, PushResponse, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { z } from "zod";
 
 type RequestBody = z.infer<ReturnType<typeof z.json>>;
 
+const parseJson = (text: string): RequestBody => z.json().parse(JSON.parse(text));
+
 type AckCaptureResult = AckCapturesResponse["results"][number];
 
-function refuse(code: CloudErrorCode, message: string, deviceSeq?: number): Response {
-  return Response.json(cloudError(code, message, deviceSeq), {
+const refuse = (code: CloudErrorCode, message: string, deviceSeq?: number): Response =>
+  Response.json(cloudError(code, message, deviceSeq), {
     status: CLOUD_ERROR_STATUS[code],
   });
-}
 
 interface LogRow {
   seq: number;
@@ -88,7 +90,7 @@ export class FakeCloud {
   capture(text: string): string {
     this.nextCapture += 1;
     const id = `cap_${this.nextCapture}`;
-    this.inbox.push({ id, text, createdAt: this.nextCapture, claimToken: null, claimedAt: 0 });
+    this.inbox.push({ claimToken: null, claimedAt: 0, createdAt: this.nextCapture, id, text });
     return id;
   }
 
@@ -106,12 +108,15 @@ export class FakeCloud {
     return this.devices.size;
   }
 
-  readonly fetch: CloudFetch = async (input, init) => {
+  readonly fetch: CloudFetch = async (input, init) =>
+    await Promise.resolve(this.route(input, init));
+
+  private route(input: string, init?: RequestInit): Response {
     const url = new URL(input);
     const method = init?.method ?? "GET";
     this.requests.push(`${method} ${url.pathname}`);
     const text = z.string().safeParse(init?.body);
-    const body: RequestBody = text.success ? JSON.parse(text.data) : null;
+    const body: RequestBody = text.success ? parseJson(text.data) : null;
 
     if (method === "POST" && url.pathname === DEVICE_API_PATHS.login) {
       return this.login(body);
@@ -134,10 +139,10 @@ export class FakeCloud {
       return this.ack(body);
     }
     if (method === "GET" && url.pathname === ACCOUNT_API_PATHS.account) {
-      return Response.json({ id: "user_fake", email: FAKE_ACCOUNT.email });
+      return Response.json({ email: FAKE_ACCOUNT.email, id: "user_fake" });
     }
     return refuse("not-found", "No such route.");
-  };
+  }
 
   private authorize(init: RequestInit | undefined): { deviceId: string } | null {
     const headers = init?.headers;
@@ -179,7 +184,7 @@ export class FakeCloud {
     const deviceId = `dev_${this.nextDevice}`;
     const credential = `${DEVICE_CREDENTIAL_PREFIX}${String(this.nextDevice).padStart(64, "0")}`;
     this.devices.set(credential, { deviceId, revoked: false });
-    const response: DeviceLoginResponse = { deviceId, credential };
+    const response: DeviceLoginResponse = { credential, deviceId };
     return Response.json(response);
   }
 
@@ -188,7 +193,7 @@ export class FakeCloud {
     if (!parsed.success) {
       return refuse("bad-request", "Malformed push batch.");
     }
-    const events = parsed.data.events;
+    const { events } = parsed.data;
     for (const [index, event] of events.entries()) {
       const previous = index === 0 ? undefined : events[index - 1];
       if (previous !== undefined && event.deviceSeq <= previous.deviceSeq) {
@@ -200,7 +205,10 @@ export class FakeCloud {
       }
     }
     const mine = this.log.filter((row) => row.deviceId === deviceId);
-    const highWater = mine.reduce((high, row) => Math.max(high, row.deviceSeq), 0);
+    let highWater = 0;
+    for (const row of mine) {
+      highWater = Math.max(highWater, row.deviceSeq);
+    }
     let accepted = 0;
     let duplicates = 0;
     for (const event of events) {
@@ -226,12 +234,12 @@ export class FakeCloud {
       }
       this.nextSeq += 1;
       this.log.push({
-        seq: this.nextSeq,
-        threadId: event.threadId,
-        deviceId,
-        deviceSeq: event.deviceSeq,
         body: serialized,
         createdAt: event.createdAt,
+        deviceId,
+        deviceSeq: event.deviceSeq,
+        seq: this.nextSeq,
+        threadId: event.threadId,
       });
       accepted += 1;
       if (this.dropNextPushResponse) {
@@ -253,14 +261,14 @@ export class FakeCloud {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
     const events: SyncEventRow[] = page.map((row) => ({
-      seq: row.seq,
-      threadId: row.threadId,
+      createdAt: row.createdAt,
       deviceId: row.deviceId,
       deviceSeq: row.deviceSeq,
-      event: JSON.parse(row.body),
-      createdAt: row.createdAt,
+      event: parseJson(row.body),
+      seq: row.seq,
+      threadId: row.threadId,
     }));
-    const response: PullResponse = { events, lastSeq: this.nextSeq, hasMore };
+    const response: PullResponse = { events, hasMore, lastSeq: this.nextSeq };
     return Response.json(response);
   }
 
@@ -279,13 +287,13 @@ export class FakeCloud {
       row.claimedAt = now;
     }
     const captures: CaptureRow[] = taken.map((row) => ({
+      createdAt: row.createdAt,
       id: row.id,
       text: row.text,
-      createdAt: row.createdAt,
     }));
     const response: ClaimCapturesResponse = {
-      claimToken,
       captures,
+      claimToken,
       expiresAt: now + CAPTURE_CLAIM_TTL_MS,
     };
     return Response.json(response);

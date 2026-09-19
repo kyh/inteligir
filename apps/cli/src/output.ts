@@ -15,11 +15,11 @@ export interface JsonOutputOptions {
 }
 
 export const jsonArg = {
-  json: { type: "boolean", description: "Print machine-readable JSON output" },
+  json: { description: "Print machine-readable JSON output", type: "boolean" },
 } as const;
 
 // read off raw argv: a parse that fails still has to choose a shape.
-export function wantsJsonOutput(rawArgs: readonly string[]): boolean {
+export const wantsJsonOutput = (rawArgs: readonly string[]): boolean => {
   for (const raw of rawArgs) {
     if (raw === "--") {
       return false;
@@ -32,26 +32,26 @@ export function wantsJsonOutput(rawArgs: readonly string[]): boolean {
     }
   }
   return false;
-}
+};
 
-export function writeOut(text: string): void {
+export const writeOut = (text: string): void => {
   process.stdout.write(text);
-}
+};
 
-export function writeLines(lines: readonly string[]): void {
+export const writeLines = (lines: readonly string[]): void => {
   if (lines.length === 0) {
     return;
   }
   process.stdout.write(`${lines.join("\n")}\n`);
-}
+};
 
 // not a Record: a TypeScript interface satisfies no index signature, and every body is a contract interface.
 type Printable = NonNullable<unknown>;
 
-export function outputJson(opts: JsonOutputOptions, data: Printable): boolean {
+export const outputJson = (opts: JsonOutputOptions, data: Printable): boolean => {
   if (opts.json !== true) {
     return false;
   }
   process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
   return true;
-}
+};

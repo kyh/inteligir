@@ -22,16 +22,17 @@ interface Predicate {
 
 // the prefix compare whose separator is so easy to forget that `/vault-backup` reads as inside
 // `/vault`.
-const JOINED_PREFIX = /\.startsWith\(\s*([^;\n]*)/g;
-const RELATIVE_BINDING = /(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+)?[\w.]*[Rr]elative\w*\s*\(/g;
+const JOINED_PREFIX = /\.startsWith\(\s*(?<argument>[^;\n]*)/gu;
+const RELATIVE_BINDING =
+  /(?:const|let|var)\s+(?<name>\w+)\s*=\s*(?:await\s+)?[\w.]*[Rr]elative\w*\s*\(/gu;
 
-function containmentRespellings(source: string): string[] {
+const containmentRespellings = (source: string): string[] => {
   const found: string[] = [];
   JOINED_PREFIX.lastIndex = 0;
   let match = JOINED_PREFIX.exec(source);
   while (match !== null) {
-    const argument = (match[1] ?? "").trim();
-    if (/\bsep\b/.test(argument) || /\b(?:path\.)?(?:join|resolve)\s*\(/.test(argument)) {
+    const argument = (match.groups?.argument ?? "").trim();
+    if (/\bsep\b/u.test(argument) || /\b(?:path\.)?(?:join|resolve)\s*\(/u.test(argument)) {
       found.push(`prefix compare against a joined path — .startsWith(${argument.slice(0, 70)}`);
     }
     match = JOINED_PREFIX.exec(source);
@@ -39,10 +40,11 @@ function containmentRespellings(source: string): string[] {
   RELATIVE_BINDING.lastIndex = 0;
   match = RELATIVE_BINDING.exec(source);
   while (match !== null) {
-    const name = match[1];
+    const name = match.groups?.name;
     if (name !== undefined) {
       const escapes = new RegExp(
         `\\b${name}\\s*(?:\\.startsWith\\(\\s*["'\`]\\.\\.|===\\s*["'\`]\\.\\.["'\`])`,
+        "u",
       );
       if (escapes.test(source)) {
         found.push(
@@ -53,30 +55,30 @@ function containmentRespellings(source: string): string[] {
     match = RELATIVE_BINDING.exec(source);
   }
   return [...new Set(found)];
-}
+};
 
 const PREDICATES: Predicate[] = [
   {
-    question: "is path P under root R?",
-    home: "apps/cli/src/server/path-containment.ts",
-    use: "pathContains() / relativeUnder()",
     detect: containmentRespellings,
     elsewhere: {
       "packages/notes/src/knowledge/rename-links.ts":
         "a LOGICAL `/`-path between two vault folders, from @repo/notes' own pure relativePath, deciding how a link is SPELLED rather than whether a write is allowed — and @repo/notes is the platform-neutral seam, so a node-only module is not importable from it at all",
     },
+    home: "apps/cli/src/server/path-containment.ts",
+    question: "is path P under root R?",
+    use: "pathContains() / relativeUnder()",
   },
   {
-    question: "what does `git status --porcelain` say?",
-    home: "apps/cli/src/server/vault/git-porcelain.ts",
-    use: "parsePorcelain()",
     detect: (source) => (source.includes("--porcelain") ? ["runs `git status --porcelain`"] : []),
     elsewhere: {
-      "tools/e2e/src/scenarios/vault-sync.ts":
-        "asserts the whole output is EMPTY, which decodes nothing — the scenario is checking that the sync loop left a clean tree, and a parser would only put a second reading between it and the bytes",
       "apps/cli/src/server/vault/__tests__/git.test.ts":
         "the same emptiness assertion, made against a real repo the suite built; it decodes no entry either",
+      "tools/e2e/src/scenarios/vault-sync.ts":
+        "asserts the whole output is EMPTY, which decodes nothing — the scenario is checking that the sync loop left a clean tree, and a parser would only put a second reading between it and the bytes",
     },
+    home: "apps/cli/src/server/vault/git-porcelain.ts",
+    question: "what does `git status --porcelain` say?",
+    use: "parsePorcelain()",
   },
 ];
 
@@ -84,19 +86,17 @@ const PREDICATES: Predicate[] = [
 const SELF = path.relative(REPO_ROOT, import.meta.filename);
 
 // tests included: a containment bug in a guard is still a containment bug.
-function allSourceFiles(): string[] {
-  return workspaces()
+const allSourceFiles = (): string[] =>
+  workspaces()
     .flatMap((workspace) => {
       const files = workspaceFiles(workspace);
-      return files.shipped.concat(files.test);
+      return [...files.shipped, ...files.test];
     })
     .filter((file) => file !== SELF)
     .toSorted();
-}
 
-function hitsFor(predicate: Predicate, files: readonly string[]): Hit[] {
-  return files.flatMap((file) => predicate.detect(sourceOf(file)).map((what) => ({ file, what })));
-}
+const hitsFor = (predicate: Predicate, files: readonly string[]): Hit[] =>
+  files.flatMap((file) => predicate.detect(sourceOf(file)).map((what) => ({ file, what })));
 
 describe("one spelling per cross-cutting predicate", () => {
   const files = allSourceFiles();
@@ -127,8 +127,12 @@ describe("one spelling per cross-cutting predicate", () => {
     const violations: string[] = [];
     for (const predicate of PREDICATES) {
       for (const hit of hitsFor(predicate, files)) {
-        if (hit.file === predicate.home) continue;
-        if (predicate.elsewhere[hit.file] !== undefined) continue;
+        if (hit.file === predicate.home) {
+          continue;
+        }
+        if (predicate.elsewhere[hit.file] !== undefined) {
+          continue;
+        }
         violations.push(
           `SECOND SPELLING  ${hit.file}\n` +
             `  found: ${hit.what}\n` +
@@ -146,7 +150,9 @@ describe("one spelling per cross-cutting predicate", () => {
     for (const predicate of PREDICATES) {
       const matched = new Set(hitsFor(predicate, files).map((hit) => hit.file));
       for (const [file, why] of Object.entries(predicate.elsewhere)) {
-        if (matched.has(file)) continue;
+        if (matched.has(file)) {
+          continue;
+        }
         stale.push(
           `STALE EXCEPTION  ${file}\n` +
             `  it no longer spells "${predicate.question}", so the reason it carried is spent\n` +

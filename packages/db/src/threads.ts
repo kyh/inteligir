@@ -6,7 +6,8 @@ import type {
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { and, desc, eq, isNotNull, isNull, like } from "drizzle-orm";
-import { writeTransaction, type DbConnection, type DbTransaction } from "./connection";
+import { writeTransaction } from "./connection";
+import type { DbConnection, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { threads } from "./schema";
@@ -20,55 +21,57 @@ export interface CreateThreadInput {
   originDocPath?: string;
 }
 
-export function createThread(
+export const createThread = (
   db: DbConnection,
   notifier: DbNotifier,
   input: CreateThreadInput,
-): ThreadRow {
+): ThreadRow => {
   const now = Date.now();
   const row = db
     .insert(threads)
     .values({
-      id: createThreadId(),
-      title: input.title ?? null,
-      status: "idle",
       activeTurnId: null,
-      originDocPath: input.originDocPath ?? null,
-      providerId: null,
       archivedAt: null,
       createdAt: now,
+      id: createThreadId(),
+      originDocPath: input.originDocPath ?? null,
+      providerId: null,
+      status: "idle",
+      title: input.title ?? null,
       updatedAt: now,
     })
     .returning()
     .get();
   notifier.notifyThread(row.id, ["thread-created"]);
   return row;
-}
+};
 
-export type EnsureThreadOutcome = { row: ThreadRow; created: boolean };
+export interface EnsureThreadOutcome {
+  row: ThreadRow;
+  created: boolean;
+}
 
 // created with the log's id, not `createThread`'s: a device minting its own turns one synced
 // conversation into two. title and origin stay default because the event log carries neither.
-export function ensureThreadInTransaction(tx: DbTransaction, id: string): EnsureThreadOutcome {
+export const ensureThreadInTransaction = (tx: DbTransaction, id: string): EnsureThreadOutcome => {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
   if (existing !== undefined) {
-    return { row: existing, created: false };
+    return { created: false, row: existing };
   }
   const now = Date.now();
   const row = tx
     .insert(threads)
-    .values({ id, status: "idle", createdAt: now, updatedAt: now })
+    .values({ createdAt: now, id, status: "idle", updatedAt: now })
     .returning()
     .get();
-  return { row, created: true };
-}
+  return { created: true, row };
+};
 
-export function getThread(db: ThreadWriteConnection, id: string): ThreadRow | null {
-  return db.select().from(threads).where(eq(threads.id, id)).get() ?? null;
-}
+export const getThread = (db: ThreadWriteConnection, id: string): ThreadRow | null =>
+  db.select().from(threads).where(eq(threads.id, id)).get() ?? null;
 
 // two scans so each is answered by its own partial index instead of a temp b-tree sort.
-export function listThreads(db: DbConnection): ThreadRow[] {
+export const listThreads = (db: DbConnection): ThreadRow[] => {
   const live = db
     .select()
     .from(threads)
@@ -82,13 +85,13 @@ export function listThreads(db: DbConnection): ThreadRow[] {
     .orderBy(desc(threads.updatedAt))
     .all();
   return [...live, ...archived];
-}
+};
 
-export function rebindThreadOrigins(
+export const rebindThreadOrigins = (
   db: DbConnection,
   notifier: DbNotifier,
   args: { from: string; to: string },
-): number {
+): number => {
   const moved = db
     .update(threads)
     .set({ originDocPath: args.to, updatedAt: Date.now() })
@@ -121,13 +124,13 @@ export function rebindThreadOrigins(
     notifier.notifyThread(row.id, ["origin-changed"]);
   }
   return moved.length;
-}
+};
 
-export function archiveThread(
+export const archiveThread = (
   db: DbConnection,
   notifier: DbNotifier,
   id: string,
-): ThreadRow | null {
+): ThreadRow | null => {
   const now = Date.now();
   const updated = db
     .update(threads)
@@ -135,12 +138,12 @@ export function archiveThread(
     .where(and(eq(threads.id, id), isNull(threads.archivedAt)))
     .returning()
     .get();
-  if (updated) {
+  if (updated !== undefined) {
     notifier.notifyThread(id, ["archived-changed"]);
     return updated;
   }
   return getThread(db, id);
-}
+};
 
 export interface SetThreadProviderSessionArgs {
   threadId: string;
@@ -149,10 +152,10 @@ export interface SetThreadProviderSessionArgs {
 }
 
 // no notification: runtime plumbing, not a fact a client renders.
-export function setThreadProviderSession(
+export const setThreadProviderSession = (
   db: DbConnection,
   args: SetThreadProviderSessionArgs,
-): void {
+): void => {
   db.update(threads)
     .set({
       providerId: args.providerId,
@@ -161,7 +164,7 @@ export function setThreadProviderSession(
     })
     .where(eq(threads.id, args.threadId))
     .run();
-}
+};
 
 export type ApplyThreadLifecycleEventNoopReason =
   | ThreadLifecycleNoopReason
@@ -181,10 +184,10 @@ export interface ApplyThreadLifecycleEventArgs {
   threadId: string;
 }
 
-function applyThreadLifecycleEventRecord(
+const applyThreadLifecycleEventRecord = (
   db: ThreadWriteConnection,
   args: ApplyThreadLifecycleEventArgs,
-): ApplyThreadLifecycleEventOutcome {
+): ApplyThreadLifecycleEventOutcome => {
   const thread = db.select().from(threads).where(eq(threads.id, args.threadId)).get();
   if (!thread) {
     return {
@@ -197,9 +200,9 @@ function applyThreadLifecycleEventRecord(
   const evaluation = evaluateThreadLifecycleEvent({
     event: args.event,
     thread: {
-      status: thread.status,
       activeTurnId: thread.activeTurnId,
       archivedAt: thread.archivedAt,
+      status: thread.status,
     },
   });
   if ("noop" in evaluation) {
@@ -214,7 +217,7 @@ function applyThreadLifecycleEventRecord(
   // turn b bound.
   const updated = db
     .update(threads)
-    .set({ status: evaluation.to, activeTurnId: evaluation.activeTurnId, updatedAt: Date.now() })
+    .set({ activeTurnId: evaluation.activeTurnId, status: evaluation.to, updatedAt: Date.now() })
     .where(
       and(
         eq(threads.id, args.threadId),
@@ -226,7 +229,7 @@ function applyThreadLifecycleEventRecord(
     )
     .returning()
     .get();
-  if (!updated) {
+  if (updated === undefined) {
     return {
       applied: false,
       detail: `status changed from ${thread.status} while applying ${args.event.type}`,
@@ -234,23 +237,21 @@ function applyThreadLifecycleEventRecord(
     };
   }
   return { applied: true, thread: updated };
-}
+};
 
-export function applyThreadLifecycleEvent(
+export const applyThreadLifecycleEvent = (
   db: DbConnection,
   notifier: DbNotifier,
   args: ApplyThreadLifecycleEventArgs,
-): ApplyThreadLifecycleEventOutcome {
+): ApplyThreadLifecycleEventOutcome => {
   const outcome = writeTransaction(db, (tx) => applyThreadLifecycleEventRecord(tx, args));
   if (outcome.applied) {
     notifier.notifyThread(args.threadId, ["status-changed"]);
   }
   return outcome;
-}
+};
 
-export function applyThreadLifecycleEventInTransaction(
+export const applyThreadLifecycleEventInTransaction = (
   tx: DbTransaction,
   args: ApplyThreadLifecycleEventArgs,
-): ApplyThreadLifecycleEventOutcome {
-  return applyThreadLifecycleEventRecord(tx, args);
-}
+): ApplyThreadLifecycleEventOutcome => applyThreadLifecycleEventRecord(tx, args);

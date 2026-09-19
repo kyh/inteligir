@@ -4,7 +4,8 @@
 // note that exists is truer than an edit that never happened.
 
 import { serializeMd } from "@platejs/markdown";
-import { KEYS, NodeApi, PathApi, type Path, type SlateEditor, type TElement } from "platejs";
+import { KEYS, NodeApi, PathApi } from "platejs";
+import type { Path, SlateEditor, TElement } from "platejs";
 
 import { toast } from "@repo/ui/components/sonner";
 import { docStem, freeDocPath } from "@repo/notes/knowledge/doc-file";
@@ -21,70 +22,78 @@ const FALLBACK_STEM = "Untitled";
 
 // the first heading among the blocks, else the first line of the first one; a name the vault
 // would refuse falls back rather than being sanitized, since the filename is the title
-export function extractionStem(blocks: readonly TElement[]): string {
+export const extractionStem = (blocks: readonly TElement[]): string => {
   const source = blocks.find((block) => HEADING_TYPES.has(block.type)) ?? blocks[0];
   const line = source === undefined ? "" : (NodeApi.string(source).split("\n")[0] ?? "");
   const candidate = line.slice(0, NAME_MAX_CHARS).trim().replace(/\.+$/u, "").trim();
   const verdict = checkNoteName(candidate);
   return verdict.ok ? verdict.name : FALLBACK_STEM;
-}
+};
 
 // the top-level blocks the selection touches: a partly selected list leaves as a whole
-export function selectedTopLevelPaths(editor: SlateEditor): Path[] {
+export const selectedTopLevelPaths = (editor: SlateEditor): Path[] => {
   const at = editor.selection;
-  if (!at) return [];
+  if (!at) {
+    return [];
+  }
   return editor.api.blocks({ at, mode: "highest" }).map(([, path]) => path);
-}
+};
 
-function blocksAt(editor: SlateEditor, paths: readonly Path[]): TElement[] {
-  return paths.flatMap((path) => {
+const blocksAt = (editor: SlateEditor, paths: readonly Path[]): TElement[] =>
+  paths.flatMap((path) => {
     const entry = editor.api.node<TElement>(path);
     return entry === undefined ? [] : [entry[0]];
   });
-}
 
-export function extractBlocksMarkdown(editor: SlateEditor, paths: readonly Path[]): string {
+export const extractBlocksMarkdown = (editor: SlateEditor, paths: readonly Path[]): string => {
   const markdown = serializeMd(editor, {
-    value: blocksAt(editor, paths),
     remarkStringifyOptions: MD_STRINGIFY,
+    value: blocksAt(editor, paths),
   });
   return markdown.endsWith("\n") ? markdown : `${markdown}\n`;
-}
+};
 
-function linkParagraph(editor: SlateEditor, stem: string): TElement {
-  return {
-    type: editor.getType(KEYS.p),
-    children: [
-      { text: "" },
-      { type: "wikiLink", body: stem, children: [{ text: "" }] },
-      { text: "" },
-    ],
-  };
-}
+const linkParagraph = (editor: SlateEditor, stem: string): TElement => ({
+  children: [
+    { text: "" },
+    { body: stem, children: [{ text: "" }], type: "wikiLink" },
+    { text: "" },
+  ],
+  type: editor.getType(KEYS.p),
+});
 
-export async function extractBlocksToNote(
+export const extractBlocksToNote = async (
   editor: SlateEditor,
   paths: readonly Path[],
-): Promise<string | null> {
+): Promise<string | null> => {
   const sorted = [...paths].toSorted(PathApi.compare);
-  const first = sorted[0];
-  if (first === undefined) return null;
+  const [first] = sorted;
+  if (first === undefined) {
+    return null;
+  }
   const markdown = extractBlocksMarkdown(editor, sorted);
   const host = getEditorHostIo();
   const notePath = liveEditorPath(editor);
   const dir = notePath === null ? "" : dirnamePath(notePath);
   const stem = extractionStem(blocksAt(editor, sorted));
-  const existing = (await host.listWikiTargets()).map((target) => target.path);
+  const targets = await host.listWikiTargets();
+  const existing = targets.map((target) => target.path);
   const created = await host.actions.createFileAt(freeDocPath(dir, stem, existing), markdown);
   // the session already said why
-  if (created === null) return null;
+  if (created === null) {
+    return null;
+  }
   editor.tf.withoutNormalizing(() => {
-    for (const path of sorted.toReversed()) editor.tf.removeNodes({ at: path });
+    for (const path of sorted.toReversed()) {
+      editor.tf.removeNodes({ at: path });
+    }
     editor.tf.insertNodes(linkParagraph(editor, docStem(created)), { at: first });
   });
   const end = editor.api.end(first);
-  if (end !== undefined) editor.tf.select(end);
+  if (end !== undefined) {
+    editor.tf.select(end);
+  }
   editor.tf.focus();
   toast.success(`Extracted to ${docStem(created)}`);
   return created;
-}
+};

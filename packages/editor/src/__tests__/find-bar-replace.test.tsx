@@ -32,13 +32,15 @@ beforeAll(() => {
   window.HTMLElement.prototype.scrollIntoView = () => {};
 });
 
-function mountEditor(): PlateEditor {
+const mountEditor = (): PlateEditor => {
   const holder = createRef<PlateEditor>();
   render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
   const editor = holder.current;
-  if (editor === null) throw new Error("the harness mounted no editor");
+  if (editor === null) {
+    throw new Error("the harness mounted no editor");
+  }
   return editor;
-}
+};
 
 describe("replace in the find bar", () => {
   it("replaces the active match, then makes the one that took its index active", () => {
@@ -52,7 +54,7 @@ describe("replace in the find bar", () => {
       replaceActiveMatch(editor);
     });
     expect(editor.api.string([0])).toBe("omega beta ALPHA gamma");
-    expect(getFindBarState().active).toEqual({ path: [0, 0], offset: 11 });
+    expect(getFindBarState().active).toEqual({ offset: 11, path: [0, 0] });
   });
 
   it("replaces every match, last to first, and leaves none behind", () => {
@@ -81,9 +83,9 @@ describe("jumping to a match", () => {
       jumpToFindMatch(editor, "alpha", 2);
     });
     expect(getFindBarState()).toMatchObject({
+      active: { offset: 0, path: [1, 0] },
       open: true,
       query: "alpha",
-      active: { path: [1, 0], offset: 0 },
     });
   });
 
@@ -92,6 +94,6 @@ describe("jumping to a match", () => {
     act(() => {
       jumpToFindMatch(editor, "gamma", 7);
     });
-    expect(getFindBarState().active).toEqual({ path: [0, 0], offset: 17 });
+    expect(getFindBarState().active).toEqual({ offset: 17, path: [0, 0] });
   });
 });

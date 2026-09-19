@@ -8,13 +8,17 @@ const DOC = [
   "",
   "## This week",
   "",
-  "- [ ] book the flight", // ordinal 0
-  "- [x] already done", //    ordinal 1 (checked)
-  "- [ ] email the team", //  ordinal 2
+  // ordinal 0
+  "- [ ] book the flight",
+  // ordinal 1 (checked)
+  "- [x] already done",
+  // ordinal 2
+  "- [ ] email the team",
   "",
   "## Backlog",
   "",
-  "- [ ] book the flight", // ordinal 3 — same label, different position
+  // ordinal 3 — same label as ordinal 0, different position
+  "- [ ] book the flight",
 ].join("\n");
 
 const textAt = (source: string, ordinal: number): string | undefined =>
@@ -22,28 +26,30 @@ const textAt = (source: string, ordinal: number): string | undefined =>
 
 const editorTaskItems = (source: string): ReturnType<typeof tasksInTree> => {
   const parsed = parseMdast(source);
-  if (!parsed.ok) throw new Error(`editor parse refused the fixture: ${parsed.failure.message}`);
+  if (!parsed.ok) {
+    throw new Error(`editor parse refused the fixture: ${parsed.failure.message}`);
+  }
   return tasksInTree(parsed.root, source);
 };
 
 describe("the count", () => {
   it("counts every task item, checked or not, in document order", () => {
-    expect(scanTaskItems(DOC).map((task) => ({ text: task.text, checked: task.checked }))).toEqual([
-      { text: "book the flight", checked: false },
-      { text: "already done", checked: true },
-      { text: "email the team", checked: false },
-      { text: "book the flight", checked: false },
+    expect(scanTaskItems(DOC).map((task) => ({ checked: task.checked, text: task.text }))).toEqual([
+      { checked: false, text: "book the flight" },
+      { checked: true, text: "already done" },
+      { checked: false, text: "email the team" },
+      { checked: false, text: "book the flight" },
     ]);
   });
 
   it("distinguishes duplicate labels purely by position", () => {
     const tasks = scanTaskItems(DOC);
     const duplicates = tasks.flatMap((task, ordinal) =>
-      task.text === "book the flight" ? [{ ordinal, line: task.line }] : [],
+      task.text === "book the flight" ? [{ line: task.line, ordinal }] : [],
     );
     expect(duplicates).toEqual([
-      { ordinal: 0, line: 5 },
-      { ordinal: 3, line: 11 },
+      { line: 5, ordinal: 0 },
+      { line: 11, ordinal: 3 },
     ]);
   });
 
@@ -53,8 +59,8 @@ describe("the count", () => {
     expect(textAt("# H\r\n\r\n- [ ] crlf", 0)).toBe("crlf");
     expect(scanTaskItems("- [ ] cr\r- [ ] second")[1]).toEqual({
       checked: false,
-      text: "second",
       line: 2,
+      text: "second",
     });
   });
 
@@ -108,12 +114,12 @@ describe("the count", () => {
       "",
       "  * [ ]   spaced  out  ",
     ].join("\n");
-    expect(scanTaskItems(md).map((task) => ({ text: task.text, checked: task.checked }))).toEqual([
-      { text: "numbered", checked: false },
-      { text: "wide ordered", checked: true },
-      { text: "quoted", checked: false },
-      { text: "nested quote", checked: true },
-      { text: "spaced  out", checked: false },
+    expect(scanTaskItems(md).map((task) => ({ checked: task.checked, text: task.text }))).toEqual([
+      { checked: false, text: "numbered" },
+      { checked: true, text: "wide ordered" },
+      { checked: false, text: "quoted" },
+      { checked: true, text: "nested quote" },
+      { checked: false, text: "spaced  out" },
     ]);
   });
 

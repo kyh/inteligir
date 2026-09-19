@@ -1,36 +1,36 @@
 import { describe, expect, it } from "vitest";
 
-import { scanDoc, type ExtractedLink } from "../knowledge/link-extract";
+import { scanDoc } from "../knowledge/link-extract";
+import type { ExtractedLink } from "../knowledge/link-extract";
 import { scanTaskItems } from "../knowledge/task-ordinal";
 
-function links(source: string): ExtractedLink[] {
-  return scanDoc(source).links;
-}
+const links = (source: string): ExtractedLink[] => scanDoc(source).links;
 
-function only(source: string): ExtractedLink {
+const only = (source: string): ExtractedLink => {
   const all = links(source);
   expect(all).toHaveLength(1);
-  const first = all[0];
-  if (!first) throw new Error("unreachable");
+  const [first] = all;
+  if (!first) {
+    throw new Error("unreachable");
+  }
   return first;
-}
+};
 
-function sliceTarget(source: string, link: ExtractedLink): string | null {
-  return link.targetSpan ? source.slice(link.targetSpan.start, link.targetSpan.end) : null;
-}
+const sliceTarget = (source: string, link: ExtractedLink): string | null =>
+  link.targetSpan ? source.slice(link.targetSpan.start, link.targetSpan.end) : null;
 
 describe("scanDoc — wiki links", () => {
   it("extracts a plain wiki link with a verified target span", () => {
     const src = "before [[target note]] after\n";
     const link = only(src);
-    expect(link).toMatchObject({ kind: "wiki", embed: false, target: "target note", line: 1 });
+    expect(link).toMatchObject({ embed: false, kind: "wiki", line: 1, target: "target note" });
     expect(sliceTarget(src, link)).toBe("target note");
   });
 
   it("splits alias and anchor, keeping the target span exact", () => {
     const src = "x [[note#sec|friendly]] y";
     const link = only(src);
-    expect(link).toMatchObject({ target: "note", anchor: "sec", alias: "friendly" });
+    expect(link).toMatchObject({ alias: "friendly", anchor: "sec", target: "note" });
     expect(sliceTarget(src, link)).toBe("note");
   });
 
@@ -93,14 +93,14 @@ describe("scanDoc — standard md links", () => {
   it("extracts a relative md link with the url as target span", () => {
     const src = "read [the note](notes/other.md) now";
     const link = only(src);
-    expect(link).toMatchObject({ kind: "md", target: "notes/other.md", alias: "the note" });
+    expect(link).toMatchObject({ alias: "the note", kind: "md", target: "notes/other.md" });
     expect(sliceTarget(src, link)).toBe("notes/other.md");
   });
 
   it("excludes the fragment from the target span", () => {
     const src = "[t](note.md#section)";
     const link = only(src);
-    expect(link).toMatchObject({ target: "note.md", anchor: "section" });
+    expect(link).toMatchObject({ anchor: "section", target: "note.md" });
     expect(sliceTarget(src, link)).toBe("note.md");
   });
 
@@ -135,7 +135,7 @@ describe("scanDoc — standard md links", () => {
   it("extracts asset links as md links (rename safety beats note-only graphs)", () => {
     const src = "[pdf](paper.pdf)";
     const link = only(src);
-    expect(link).toMatchObject({ kind: "md", embed: false, target: "paper.pdf", alias: "pdf" });
+    expect(link).toMatchObject({ alias: "pdf", embed: false, kind: "md", target: "paper.pdf" });
     expect(sliceTarget(src, link)).toBe("paper.pdf");
   });
 
@@ -166,11 +166,11 @@ describe("scanDoc — md images", () => {
     const src = "see ![a diagram](img/diagram.png) here";
     const link = only(src);
     expect(link).toMatchObject({
-      kind: "image",
-      embed: true,
-      target: "img/diagram.png",
       alias: "a diagram",
+      embed: true,
+      kind: "image",
       line: 1,
+      target: "img/diagram.png",
     });
     expect(sliceTarget(src, link)).toBe("img/diagram.png");
   });
@@ -261,18 +261,18 @@ describe("scanDoc — task extraction", () => {
       "",
       "* [ ] **bold** star item",
     ].join("\n");
-    const tasks = scanDoc(src).tasks;
+    const { tasks } = scanDoc(src);
     expect(tasks).toEqual([
-      { checked: false, text: "book the flight", line: 3 },
-      { checked: true, text: "already done", line: 4 },
-      { checked: false, text: "nested child", line: 5 },
-      { checked: false, text: "**bold** star item", line: 7 },
+      { checked: false, line: 3, text: "book the flight" },
+      { checked: true, line: 4, text: "already done" },
+      { checked: false, line: 5, text: "nested child" },
+      { checked: false, line: 7, text: "**bold** star item" },
     ]);
   });
 
   it("counts a task on a CRLF file at its own line", () => {
-    const tasks = scanDoc("# H\r\n\r\n- [ ] crlf task\r\n").tasks;
-    expect(tasks).toEqual([{ checked: false, text: "crlf task", line: 3 }]);
+    const { tasks } = scanDoc("# H\r\n\r\n- [ ] crlf task\r\n");
+    expect(tasks).toEqual([{ checked: false, line: 3, text: "crlf task" }]);
   });
 
   it("skips plain bullets, empty checkboxes, and fenced lookalikes — but counts an indented item", () => {
@@ -288,7 +288,7 @@ describe("scanDoc — task extraction", () => {
       "",
       "- [ ] the real one",
     ].join("\n");
-    const tasks = scanDoc(src).tasks;
+    const { tasks } = scanDoc(src);
     expect(tasks.map((t) => [t.text, t.line])).toEqual([
       ["indented live task", 8],
       ["the real one", 10],
@@ -309,7 +309,7 @@ describe("scanDoc — task extraction", () => {
 
   it("never counts checkbox-shaped lines inside YAML frontmatter", () => {
     const src = ["---", "notes:", "  - [ ] yaml lookalike", "---", "", "- [ ] real"].join("\n");
-    const tasks = scanDoc(src).tasks;
+    const { tasks } = scanDoc(src);
     expect(tasks.map((t) => [t.text, t.line])).toEqual([["real", 6]]);
   });
 
@@ -326,7 +326,9 @@ describe("callout fence bodies (editor ⊆ vault)", () => {
     const scan = scanDoc(source);
     const link = scan.links.find((row) => row.target === "Target Note");
     expect(link).toBeDefined();
-    if (link === undefined || link.targetSpan === undefined) throw new Error("no span");
+    if (link === undefined || link.targetSpan === undefined) {
+      throw new Error("no span");
+    }
     expect(source.slice(link.targetSpan.start, link.targetSpan.end)).toBe("Target Note");
   });
 
@@ -335,7 +337,9 @@ describe("callout fence bodies (editor ⊆ vault)", () => {
     const scan = scanDoc(source);
     const link = scan.links.find((row) => row.target === "Deep Link");
     expect(link).toBeDefined();
-    if (link === undefined || link.targetSpan === undefined) throw new Error("no span");
+    if (link === undefined || link.targetSpan === undefined) {
+      throw new Error("no span");
+    }
     expect(source.slice(link.targetSpan.start, link.targetSpan.end)).toBe("Deep Link");
   });
 
@@ -352,7 +356,7 @@ describe("callout fence bodies (editor ⊆ vault)", () => {
 });
 
 describe("verbatim regions (indexed, never rewritten)", () => {
-  const cases: Array<[string, string]> = [
+  const cases: [string, string][] = [
     ["raw html", "<div>[[Alpha]]</div>\n"],
     ["inline math", "cost $$[[Alpha]]$$ here\n"],
     ["display math", "$$\n[[Alpha]]\n$$\n"],

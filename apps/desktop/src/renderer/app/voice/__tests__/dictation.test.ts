@@ -13,14 +13,14 @@ describe("toPcm16", () => {
     const view = new DataView(toPcm16(Float32Array.from([0, 1, -1])));
     expect(view.byteLength).toBe(6);
     expect(view.getInt16(0, true)).toBe(0);
-    expect(view.getInt16(2, true)).toBe(0x7fff);
-    expect(view.getInt16(4, true)).toBe(-0x7fff);
+    expect(view.getInt16(2, true)).toBe(0x7f_ff);
+    expect(view.getInt16(4, true)).toBe(-0x7f_ff);
   });
 
   it("clamps rather than wrapping, so an overshoot is a clip and not a click", () => {
     const view = new DataView(toPcm16(Float32Array.from([1.5, -1.5])));
-    expect(view.getInt16(0, true)).toBe(0x7fff);
-    expect(view.getInt16(2, true)).toBe(-0x7fff);
+    expect(view.getInt16(0, true)).toBe(0x7f_ff);
+    expect(view.getInt16(2, true)).toBe(-0x7f_ff);
   });
 });
 
@@ -46,67 +46,67 @@ describe("levelFrom", () => {
 describe("insertTranscript", () => {
   it("appends to an empty composer with no leading space", () => {
     expect(
-      insertTranscript({ text: "", transcript: "hello", selectionStart: 0, selectionEnd: 0 }),
-    ).toEqual({ text: "hello", caret: 5 });
+      insertTranscript({ selectionEnd: 0, selectionStart: 0, text: "", transcript: "hello" }),
+    ).toEqual({ caret: 5, text: "hello" });
   });
 
   it("spaces itself off the words on either side", () => {
     expect(
-      insertTranscript({ text: "abcd", transcript: "X", selectionStart: 2, selectionEnd: 2 }),
-    ).toEqual({ text: "ab X cd", caret: 5 });
+      insertTranscript({ selectionEnd: 2, selectionStart: 2, text: "abcd", transcript: "X" }),
+    ).toEqual({ caret: 5, text: "ab X cd" });
   });
 
   it("does not double a space that is already there", () => {
     expect(
-      insertTranscript({ text: "ab ", transcript: "X", selectionStart: 3, selectionEnd: 3 }),
-    ).toEqual({ text: "ab X", caret: 4 });
+      insertTranscript({ selectionEnd: 3, selectionStart: 3, text: "ab ", transcript: "X" }),
+    ).toEqual({ caret: 4, text: "ab X" });
   });
 
   it("replaces a selection", () => {
     expect(
-      insertTranscript({ text: "keep drop", transcript: "X", selectionStart: 5, selectionEnd: 9 }),
-    ).toEqual({ text: "keep X", caret: 6 });
+      insertTranscript({ selectionEnd: 9, selectionStart: 5, text: "keep drop", transcript: "X" }),
+    ).toEqual({ caret: 6, text: "keep X" });
   });
 
   it("leaves the composer alone when nothing was said", () => {
     expect(
-      insertTranscript({ text: "kept", transcript: "   ", selectionStart: 1, selectionEnd: 1 }),
-    ).toEqual({ text: "kept", caret: 1 });
+      insertTranscript({ selectionEnd: 1, selectionStart: 1, text: "kept", transcript: "   " }),
+    ).toEqual({ caret: 1, text: "kept" });
   });
 
   it("clamps a caret past the end rather than producing undefined text", () => {
     expect(
-      insertTranscript({ text: "ab", transcript: "X", selectionStart: 99, selectionEnd: 99 }),
-    ).toEqual({ text: "ab X", caret: 4 });
+      insertTranscript({ selectionEnd: 99, selectionStart: 99, text: "ab", transcript: "X" }),
+    ).toEqual({ caret: 4, text: "ab X" });
   });
 });
 
 describe("spliceIntoComposer", () => {
   it("splices against the LIVE composer value, not the stale fallback", () => {
-    const live = { value: "typed while waiting", selectionStart: 19, selectionEnd: 19 };
+    const live = { selectionEnd: 19, selectionStart: 19, value: "typed while waiting" };
     expect(spliceIntoComposer(live, "old", "dictated")).toEqual({
-      text: "typed while waiting dictated",
       caret: 28,
+      text: "typed while waiting dictated",
     });
   });
 
   it("inserts at the live caret, keeping text on both sides", () => {
-    const live = { value: "before after", selectionStart: 6, selectionEnd: 6 };
+    const live = { selectionEnd: 6, selectionStart: 6, value: "before after" };
     expect(spliceIntoComposer(live, "ignored", "MID")).toEqual({
-      text: "before MID after",
       caret: 10,
+      text: "before MID after",
     });
   });
 
   it("falls back to the closure value only when the composer is gone", () => {
     expect(spliceIntoComposer(null, "kept", "added")).toEqual({
-      text: "kept added",
       caret: 10,
+      text: "kept added",
     });
   });
 
   it("treats a null selection as the end of the live value", () => {
-    const live = { value: "abc", selectionStart: null, selectionEnd: null };
-    expect(spliceIntoComposer(live, "x", "Y")).toEqual({ text: "abc Y", caret: 5 });
+    const live = { selectionEnd: null, selectionStart: null, value: "abc" };
+    expect(spliceIntoComposer(live, "x", "Y")).toEqual({ caret: 5, text: "abc Y" });
   });
 });

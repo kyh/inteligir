@@ -25,80 +25,80 @@ export type ThreadEventTurnStatus = z.infer<typeof threadEventTurnStatusSchema>;
 export const threadEventFileChangeKindSchema = z.enum(["add", "delete", "update"]);
 
 export const threadEventFileChangeSchema = z.object({
-  path: z.string(),
+  diff: z.string().optional(),
   kind: threadEventFileChangeKindSchema,
   movePath: z.string().optional(),
-  diff: z.string().optional(),
+  path: z.string(),
 });
 export type ThreadEventFileChange = z.infer<typeof threadEventFileChangeSchema>;
 
 export const threadEventTokenUsageBreakdownSchema = z.object({
-  totalTokens: z.number(),
-  inputTokens: z.number(),
   cachedInputTokens: z.number(),
+  inputTokens: z.number(),
   outputTokens: z.number(),
   reasoningOutputTokens: z.number(),
+  totalTokens: z.number(),
 });
 export type ThreadEventTokenUsageBreakdown = z.infer<typeof threadEventTokenUsageBreakdownSchema>;
 
 export const threadEventTokenUsageSchema = z.object({
-  total: threadEventTokenUsageBreakdownSchema,
   last: threadEventTokenUsageBreakdownSchema,
   modelContextWindow: z.number().nullable(),
+  total: threadEventTokenUsageBreakdownSchema,
 });
 export type ThreadEventTokenUsage = z.infer<typeof threadEventTokenUsageSchema>;
 
 export const threadEventItemSchema = z.discriminatedUnion("type", [
   z.object({
+    id: z.string(),
+    text: z.string(),
     type: z.literal("userMessage"),
-    id: z.string(),
-    text: z.string(),
   }),
   z.object({
+    id: z.string(),
+    text: z.string(),
     type: z.literal("agentMessage"),
-    id: z.string(),
-    text: z.string(),
   }),
   z.object({
-    type: z.literal("reasoning"),
+    content: z.array(z.string()),
     id: z.string(),
     summary: z.array(z.string()),
-    content: z.array(z.string()),
+    type: z.literal("reasoning"),
   }),
   z.object({
-    type: z.literal("toolCall"),
-    id: z.string(),
-    server: z.string().optional(),
-    tool: z.string(),
     arguments: z.record(z.string(), z.unknown()).optional(),
-    status: threadEventItemStatusSchema,
-    result: z.unknown().optional(),
-    error: z.string().optional(),
     durationMs: z.number().optional(),
+    error: z.string().optional(),
+    id: z.string(),
+    result: z.unknown().optional(),
+    server: z.string().optional(),
+    status: threadEventItemStatusSchema,
+    tool: z.string(),
+    type: z.literal("toolCall"),
   }),
   z.object({
-    type: z.literal("commandExecution"),
-    id: z.string(),
-    command: z.string(),
-    cwd: z.string(),
-    status: threadEventItemStatusSchema,
-    approvalStatus: threadEventItemApprovalStatusSchema,
     // omitted, never an empty string, when the process produced no output.
     aggregatedOutput: z.string().optional(),
-    exitCode: z.number().optional(),
-    durationMs: z.number().optional(),
-  }),
-  z.object({
-    type: z.literal("fileChange"),
-    id: z.string(),
-    changes: z.array(threadEventFileChangeSchema),
-    status: threadEventItemStatusSchema,
     approvalStatus: threadEventItemApprovalStatusSchema,
+    command: z.string(),
+    cwd: z.string(),
+    durationMs: z.number().optional(),
+    exitCode: z.number().optional(),
+    id: z.string(),
+    status: threadEventItemStatusSchema,
+    type: z.literal("commandExecution"),
   }),
   z.object({
-    type: z.literal("plan"),
+    approvalStatus: threadEventItemApprovalStatusSchema,
+    changes: z.array(threadEventFileChangeSchema),
+    id: z.string(),
+    status: threadEventItemStatusSchema,
+    type: z.literal("fileChange"),
+  }),
+  z.object({
     id: z.string(),
     text: z.string(),
+    type: z.literal("plan"),
   }),
 ]);
 export type ThreadEventItem = z.infer<typeof threadEventItemSchema>;
@@ -106,75 +106,75 @@ export type ThreadEventItemType = ThreadEventItem["type"];
 
 const unscopedThreadEventSchema = z.discriminatedUnion("type", [
   z.object({
+    threadId: z.string(),
     type: z.literal("turn/started"),
-    threadId: z.string(),
   }),
   z.object({
-    type: z.literal("turn/completed"),
-    threadId: z.string(),
-    status: threadEventTurnStatusSchema,
     error: z.object({ message: z.string() }).optional(),
+    status: threadEventTurnStatusSchema,
+    threadId: z.string(),
+    type: z.literal("turn/completed"),
   }),
   z.object({
+    item: threadEventItemSchema,
+    threadId: z.string(),
     type: z.literal("item/started"),
-    threadId: z.string(),
-    item: threadEventItemSchema,
   }),
   z.object({
+    item: threadEventItemSchema,
+    threadId: z.string(),
     type: z.literal("item/completed"),
-    threadId: z.string(),
-    item: threadEventItemSchema,
   }),
   z.object({
+    delta: z.string(),
+    itemId: z.string(),
+    threadId: z.string(),
     type: z.literal("item/agentMessage/delta"),
-    threadId: z.string(),
-    itemId: z.string(),
-    delta: z.string(),
   }),
   z.object({
-    type: z.literal("item/commandExecution/outputDelta"),
-    threadId: z.string(),
-    itemId: z.string(),
     delta: z.string(),
+    itemId: z.string(),
     // true replaces the accumulated output instead of appending.
     reset: z.boolean().optional(),
+    threadId: z.string(),
+    type: z.literal("item/commandExecution/outputDelta"),
   }),
   // codex streams visible thinking as summary deltas; content deltas carry raw chain-of-thought
   // only for models that expose it. both fold into the one reasoning row.
   z.object({
+    delta: z.string(),
+    itemId: z.string(),
+    threadId: z.string(),
     type: z.literal("item/reasoning/summaryTextDelta"),
-    threadId: z.string(),
-    itemId: z.string(),
-    delta: z.string(),
   }),
   z.object({
+    delta: z.string(),
+    itemId: z.string(),
+    threadId: z.string(),
     type: z.literal("item/reasoning/textDelta"),
-    threadId: z.string(),
-    itemId: z.string(),
-    delta: z.string(),
   }),
   z.object({
+    delta: z.string(),
+    itemId: z.string(),
+    threadId: z.string(),
     type: z.literal("item/plan/delta"),
-    threadId: z.string(),
-    itemId: z.string(),
-    delta: z.string(),
   }),
   z.object({
-    type: z.literal("thread/tokenUsage/updated"),
     threadId: z.string(),
     tokenUsage: threadEventTokenUsageSchema,
+    type: z.literal("thread/tokenUsage/updated"),
   }),
   z.object({
-    type: z.literal("provider/error"),
-    threadId: z.string(),
-    message: z.string(),
     detail: z.string().optional(),
+    message: z.string(),
+    threadId: z.string(),
+    type: z.literal("provider/error"),
     willRetry: z.boolean().optional(),
   }),
   z.object({
-    type: z.literal("client/turn/requested"),
-    threadId: z.string(),
     text: z.string(),
+    threadId: z.string(),
+    type: z.literal("client/turn/requested"),
     // a local addition to bb's shape, beside `text` rather than folded into it; no migration,
     // since events.data is free-form json re-parsed through this schema.
     viewContext: viewContextSchema.optional(),
@@ -188,7 +188,7 @@ const scopedEventDataSchema = z.object({
 export const threadEventSchema = unscopedThreadEventSchema
   .and(scopedEventDataSchema)
   .superRefine((event, ctx) => {
-    const result = validateThreadEventScope({ type: event.type, scope: event.scope });
+    const result = validateThreadEventScope({ scope: event.scope, type: event.type });
     if (!result.valid) {
       ctx.addIssue({
         code: "custom",
@@ -206,18 +206,26 @@ export interface ThreadEventItemRef {
 }
 
 // a delta names only the item id; its kind is on the item/started row.
-export function getThreadEventItemRef(event: ThreadEvent): ThreadEventItemRef {
+export const getThreadEventItemRef = (event: ThreadEvent): ThreadEventItemRef => {
   switch (event.type) {
     case "item/started":
-    case "item/completed":
+    case "item/completed": {
       return { itemId: event.item.id, itemKind: event.item.type };
+    }
     case "item/agentMessage/delta":
     case "item/commandExecution/outputDelta":
     case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta":
-    case "item/plan/delta":
+    case "item/plan/delta": {
       return { itemId: event.itemId, itemKind: null };
-    default:
+    }
+    case "client/turn/requested":
+    case "provider/error":
+    case "thread/tokenUsage/updated":
+    case "turn/completed":
+    case "turn/started": {
       return { itemId: null, itemKind: null };
+    }
+    // no default
   }
-}
+};

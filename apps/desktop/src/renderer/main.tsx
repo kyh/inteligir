@@ -11,11 +11,11 @@ import "./styles/globals.css";
 void applyStoredSpellcheck();
 
 const router = createRouter({
-  routeTree,
-  defaultPreload: "intent",
   // Router-level, not the root route's errorComponent, which would leave every
   // child route unguarded.
   defaultErrorComponent: RenderCrash,
+  defaultPreload: "intent",
+  routeTree,
 });
 
 declare module "@tanstack/react-router" {
@@ -24,7 +24,7 @@ declare module "@tanstack/react-router" {
   }
 }
 
-const container = document.getElementById("root");
+const container = document.querySelector("#root");
 if (container === null) {
   throw new Error("the document has no #root to mount into");
 }

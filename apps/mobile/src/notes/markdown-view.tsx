@@ -1,15 +1,62 @@
 import { useState } from "react";
 import { Image, Linking, StyleSheet, Text, View } from "react-native";
 
-// only http(s) leaves the app: a hosted note is another device's content, and file:/intent:/custom
-// schemes would hand it app-launching power.
-function openExternalLink(url: string): void {
-  if (!/^https?:\/\//i.test(url)) return;
-  void Linking.openURL(url).catch(() => undefined);
-}
-import { MONO_FONT, RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
+import { MONO_FONT, RADIUS, SPACE, useTheme } from "@/lib/theme";
+import type { Theme } from "@/lib/theme";
 import type { InlineSpan, NoteBlock } from "./note-projection";
 import type { VaultAssetSource } from "@repo/api/cloud/client";
+
+// only http(s) leaves the app: a hosted note is another device's content, and file:/intent:/custom
+// schemes would hand it app-launching power.
+const openExternalLink = async (url: string): Promise<void> => {
+  if (!/^https?:\/\//iu.test(url)) {
+    return;
+  }
+  try {
+    await Linking.openURL(url);
+  } catch {
+    // no handler for the URL is the OS's answer, not an app error
+  }
+};
+
+const styles = StyleSheet.create({
+  bold: { fontWeight: "700" },
+  callout: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    gap: SPACE.xs,
+    marginBottom: SPACE.md,
+    paddingHorizontal: SPACE.md,
+    paddingTop: SPACE.md,
+  },
+  calloutLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, marginBottom: SPACE.sm },
+  codeBlock: {
+    borderRadius: RADIUS.md,
+    marginBottom: SPACE.md,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.md,
+  },
+  codeText: { fontSize: 13, lineHeight: 19 },
+  divider: { height: 1, marginVertical: SPACE.lg },
+  embedImage: { borderRadius: RADIUS.md, height: 240, marginBottom: SPACE.md, width: "100%" },
+  heading: { fontWeight: "700", marginBottom: SPACE.sm, marginTop: SPACE.lg },
+  italic: { fontStyle: "italic" },
+  listBody: { flex: 1, fontSize: 16, lineHeight: 24 },
+  listMarker: { fontSize: 16, lineHeight: 24 },
+  listRow: { flexDirection: "row", gap: SPACE.sm, marginBottom: SPACE.xs },
+  mono: { fontFamily: MONO_FONT, fontSize: 14 },
+  paragraph: { fontSize: 16, lineHeight: 24, marginBottom: SPACE.md },
+  quote: { borderLeftWidth: 3, marginBottom: SPACE.md, paddingLeft: SPACE.md },
+  strike: { textDecorationLine: "line-through" },
+  unsupported: {
+    borderRadius: RADIUS.md,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    marginBottom: SPACE.md,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.md,
+  },
+});
 
 const HEADING_SIZES = {
   1: 26,
@@ -20,11 +67,9 @@ const HEADING_SIZES = {
   6: 15,
 } satisfies Record<1 | 2 | 3 | 4 | 5 | 6, number>;
 
-function spanKey(index: number): string {
-  return `s${String(index)}`;
-}
+const spanKey = (index: number): string => `s${String(index)}`;
 
-function Spans({
+const Spans = ({
   spans,
   theme,
   onWikiLink,
@@ -32,78 +77,88 @@ function Spans({
   spans: readonly InlineSpan[];
   theme: Theme;
   onWikiLink: (target: string) => void;
-}) {
-  return (
-    <>
-      {spans.map((span, index) => {
-        switch (span.kind) {
-          case "text":
-            return (
-              <Text
-                key={spanKey(index)}
-                style={[
-                  span.bold === true && styles.bold,
-                  span.italic === true && styles.italic,
-                  span.strike === true && styles.strike,
-                  span.code === true && [styles.mono, { backgroundColor: theme.muted }],
-                ]}
-              >
-                {span.text}
-              </Text>
-            );
-          case "wiki-link":
-          case "image-embed":
-            return (
-              <Text
-                key={spanKey(index)}
-                style={{ color: theme.primary }}
-                onPress={() => onWikiLink(span.target)}
-              >
-                {span.label}
-              </Text>
-            );
-          case "formula":
-            return (
-              <Text
-                key={spanKey(index)}
-                style={[styles.mono, { backgroundColor: theme.muted, color: theme.foreground }]}
-              >
-                {span.label}
-              </Text>
-            );
-          case "link":
-            return (
-              <Text
-                key={spanKey(index)}
-                style={{ color: theme.primary }}
-                onPress={() => openExternalLink(span.url)}
-              >
-                {span.label}
-              </Text>
-            );
+}) => (
+  <>
+    {spans.map((span, index) => {
+      switch (span.kind) {
+        case "text": {
+          return (
+            <Text
+              key={spanKey(index)}
+              style={[
+                span.bold === true && styles.bold,
+                span.italic === true && styles.italic,
+                span.strike === true && styles.strike,
+                span.code === true && [styles.mono, { backgroundColor: theme.muted }],
+              ]}
+            >
+              {span.text}
+            </Text>
+          );
         }
-      })}
-    </>
-  );
-}
+        case "wiki-link":
+        case "image-embed": {
+          return (
+            <Text
+              key={spanKey(index)}
+              style={{ color: theme.primary }}
+              onPress={() => {
+                onWikiLink(span.target);
+              }}
+            >
+              {span.label}
+            </Text>
+          );
+        }
+        case "formula": {
+          return (
+            <Text
+              key={spanKey(index)}
+              style={[styles.mono, { backgroundColor: theme.muted, color: theme.foreground }]}
+            >
+              {span.label}
+            </Text>
+          );
+        }
+        case "link": {
+          return (
+            <Text
+              key={spanKey(index)}
+              style={{ color: theme.primary }}
+              onPress={() => {
+                void openExternalLink(span.url);
+              }}
+            >
+              {span.label}
+            </Text>
+          );
+        }
+        default: {
+          return null;
+        }
+      }
+    })}
+  </>
+);
 
-function blockKey(index: number): string {
-  return `b${String(index)}`;
-}
+const blockKey = (index: number): string => `b${String(index)}`;
 
-function unavailable(label: string): string {
-  return `${label} — image unavailable`;
-}
+const listMarker = (checked: boolean | null, ordinal: number | null): string => {
+  if (checked !== null) {
+    return checked ? "☑" : "☐";
+  }
+  return ordinal === null ? "•" : `${String(ordinal)}.`;
+};
 
-function Notice({ text, theme }: { text: string; theme: Theme }) {
-  return (
-    <View style={[styles.unsupported, { borderColor: theme.border }]}>
-      <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>{text}</Text>
-    </View>
-  );
-}
+const unavailable = (label: string): string => `${label} — image unavailable`;
 
-function EmbedImage({
+const Notice = ({ text, theme }: { text: string; theme: Theme }) => (
+  <View style={[styles.unsupported, { borderColor: theme.border }]}>
+    <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>{text}</Text>
+  </View>
+);
+
+const EmbedImage = ({
   source,
   label,
   theme,
@@ -111,23 +166,25 @@ function EmbedImage({
   source: VaultAssetSource;
   label: string;
   theme: Theme;
-}) {
+}) => {
   const [failed, setFailed] = useState(false);
   if (failed) {
     return <Notice text={unavailable(label)} theme={theme} />;
   }
   return (
     <Image
-      source={{ uri: source.uri, headers: source.headers }}
+      source={{ headers: source.headers, uri: source.uri }}
       style={[styles.embedImage, { backgroundColor: theme.muted }]}
       resizeMode="contain"
       accessibilityLabel={label}
-      onError={() => setFailed(true)}
+      onError={() => {
+        setFailed(true);
+      }}
     />
   );
-}
+};
 
-export function MarkdownBlocks({
+export const MarkdownBlocks = ({
   blocks,
   onWikiLink,
   resolveAsset,
@@ -135,13 +192,13 @@ export function MarkdownBlocks({
   blocks: readonly NoteBlock[];
   onWikiLink: (target: string) => void;
   resolveAsset: (target: string) => VaultAssetSource | null;
-}) {
+}) => {
   const theme = useTheme();
   return (
     <>
       {blocks.map((block, index) => {
         switch (block.kind) {
-          case "heading":
+          case "heading": {
             return (
               <Text
                 key={blockKey(index)}
@@ -153,12 +210,14 @@ export function MarkdownBlocks({
                 <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
               </Text>
             );
-          case "paragraph":
+          }
+          case "paragraph": {
             return (
               <Text key={blockKey(index)} style={[styles.paragraph, { color: theme.foreground }]}>
                 <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
               </Text>
             );
+          }
           case "image": {
             const source = resolveAsset(block.target);
             if (source === null) {
@@ -168,27 +227,22 @@ export function MarkdownBlocks({
               <EmbedImage key={blockKey(index)} source={source} label={block.label} theme={theme} />
             );
           }
-          case "list-item":
+          case "list-item": {
             return (
               <View
                 key={blockKey(index)}
                 style={[styles.listRow, { paddingLeft: SPACE.lg * (block.depth + 1) }]}
               >
                 <Text style={[styles.listMarker, { color: theme.mutedForeground }]}>
-                  {block.checked === null
-                    ? block.ordinal === null
-                      ? "•"
-                      : `${String(block.ordinal)}.`
-                    : block.checked
-                      ? "☑"
-                      : "☐"}
+                  {listMarker(block.checked, block.ordinal)}
                 </Text>
                 <Text style={[styles.listBody, { color: theme.foreground }]}>
                   <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
                 </Text>
               </View>
             );
-          case "code":
+          }
+          case "code": {
             return (
               <View
                 key={blockKey(index)}
@@ -199,11 +253,12 @@ export function MarkdownBlocks({
                 </Text>
               </View>
             );
-          case "callout":
+          }
+          case "callout": {
             return (
               <View
                 key={blockKey(index)}
-                style={[styles.callout, { borderColor: theme.border, backgroundColor: theme.card }]}
+                style={[styles.callout, { backgroundColor: theme.card, borderColor: theme.border }]}
               >
                 <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
                   {block.label.toUpperCase()}
@@ -215,7 +270,8 @@ export function MarkdownBlocks({
                 />
               </View>
             );
-          case "quote":
+          }
+          case "quote": {
             return (
               <View key={blockKey(index)} style={[styles.quote, { borderLeftColor: theme.border }]}>
                 <MarkdownBlocks
@@ -225,14 +281,16 @@ export function MarkdownBlocks({
                 />
               </View>
             );
-          case "divider":
+          }
+          case "divider": {
             return (
               <View
                 key={blockKey(index)}
                 style={[styles.divider, { backgroundColor: theme.border }]}
               />
             );
-          case "unsupported":
+          }
+          case "unsupported": {
             return (
               <Notice
                 key={blockKey(index)}
@@ -240,7 +298,8 @@ export function MarkdownBlocks({
                 theme={theme}
               />
             );
-          case "raw":
+          }
+          case "raw": {
             return (
               <View
                 key={blockKey(index)}
@@ -251,47 +310,12 @@ export function MarkdownBlocks({
                 </Text>
               </View>
             );
+          }
+          default: {
+            return null;
+          }
         }
       })}
     </>
   );
-}
-
-const styles = StyleSheet.create({
-  heading: { fontWeight: "700", marginTop: SPACE.lg, marginBottom: SPACE.sm },
-  paragraph: { fontSize: 16, lineHeight: 24, marginBottom: SPACE.md },
-  listRow: { flexDirection: "row", gap: SPACE.sm, marginBottom: SPACE.xs },
-  listMarker: { fontSize: 16, lineHeight: 24 },
-  listBody: { flex: 1, fontSize: 16, lineHeight: 24 },
-  codeBlock: {
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.md,
-    marginBottom: SPACE.md,
-  },
-  codeText: { fontSize: 13, lineHeight: 19 },
-  callout: {
-    borderWidth: 1,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACE.md,
-    paddingTop: SPACE.md,
-    marginBottom: SPACE.md,
-    gap: SPACE.xs,
-  },
-  calloutLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, marginBottom: SPACE.sm },
-  quote: { borderLeftWidth: 3, paddingLeft: SPACE.md, marginBottom: SPACE.md },
-  divider: { height: 1, marginVertical: SPACE.lg },
-  embedImage: { width: "100%", height: 240, borderRadius: RADIUS.md, marginBottom: SPACE.md },
-  unsupported: {
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.md,
-    marginBottom: SPACE.md,
-  },
-  bold: { fontWeight: "700" },
-  italic: { fontStyle: "italic" },
-  strike: { textDecorationLine: "line-through" },
-  mono: { fontFamily: MONO_FONT, fontSize: 14 },
-});
+};

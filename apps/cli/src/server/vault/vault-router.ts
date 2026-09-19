@@ -3,8 +3,8 @@ import {
   DEFAULT_ATTACHMENT_LOCATION,
   VAULT_ASSET_MAX_BYTES,
   VAULT_HISTORY_DEFAULT_LIMIT,
-  type VaultRenameResponse,
 } from "@repo/api/local/vault/vault-schema";
+import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
 import { removeEntryWithComments } from "../comments/remove-with-comments";
 import { base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
@@ -14,45 +14,50 @@ export type RenameNote = (from: string, to: string) => Promise<VaultRenameRespon
 
 const refusing = refusals(vaultWireError);
 
-const tree = base.vault.tree.handler(({ context }) => context.vault.service.listTree());
+const tree = base.vault.tree.handler(async ({ context }) => await context.vault.service.listTree());
 
-const read = base.vault.read.handler(({ context, input }) =>
-  refusing(() => context.vault.service.read(input.path)),
+const read = base.vault.read.handler(
+  async ({ context, input }) =>
+    await refusing(async () => await context.vault.service.read(input.path)),
 );
 
 const history = base.vault.history.handler(async ({ context, input }) => ({
   revisions: await context.vault.git.history(input.path, {
-    skip: input.skip ?? 0,
     limit: input.limit ?? VAULT_HISTORY_DEFAULT_LIMIT,
+    skip: input.skip ?? 0,
   }),
 }));
 
-const revision = base.vault.revision.handler(({ context, input }) =>
-  refusing(async () => ({
-    content: await context.vault.git.revision(input.path, input.sha),
-  })),
+const revision = base.vault.revision.handler(
+  async ({ context, input }) =>
+    await refusing(async () => ({
+      content: await context.vault.git.revision(input.path, input.sha),
+    })),
 );
 
-const write = base.vault.write.handler(async ({ context, input, errors }) =>
-  refusing(async () => {
-    if (input.expectedHash === undefined && input.ifAbsent === undefined) {
-      return await context.vault.service.write(input.path, input.content);
-    }
-    const guard: GuardedWriteGuard =
-      input.expectedHash === undefined ? { ifAbsent: true } : { expectedHash: input.expectedHash };
-    const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
-    if (result.applied) {
-      return { path: result.path };
-    }
-    if (result.reason === "exists") {
-      throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
-    }
-    // the client merges current with diff3 and retries; current is absent when the file is gone.
-    throw errors.CAS_MISMATCH({
-      message: `${input.path} changed since the base this write was derived from`,
-      data: result.current === null ? {} : { current: result.current },
-    });
-  }),
+const write = base.vault.write.handler(
+  async ({ context, input, errors }) =>
+    await refusing(async () => {
+      if (input.expectedHash === undefined && input.ifAbsent === undefined) {
+        return await context.vault.service.write(input.path, input.content);
+      }
+      const guard: GuardedWriteGuard =
+        input.expectedHash === undefined
+          ? { ifAbsent: true }
+          : { expectedHash: input.expectedHash };
+      const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
+      if (result.applied) {
+        return { path: result.path };
+      }
+      if (result.reason === "exists") {
+        throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
+      }
+      // the client merges current with diff3 and retries; current is absent when the file is gone.
+      throw errors.CAS_MISMATCH({
+        data: result.current === null ? {} : { current: result.current },
+        message: `${input.path} changed since the base this write was derived from`,
+      });
+    }),
 );
 
 const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors }) => {
@@ -68,35 +73,41 @@ const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors
     });
   }
   const bytes = new Uint8Array(Buffer.from(input.bytesBase64, "base64"));
-  return refusing(() => context.vault.service.writeAsset(input.dir, input.baseName, bytes));
+  return await refusing(
+    async () => await context.vault.service.writeAsset(input.dir, input.baseName, bytes),
+  );
 });
 
-const rename = base.vault.rename.handler(({ context, input }) =>
-  refusing(() => context.renameNote(input.from, input.to)),
+const rename = base.vault.rename.handler(
+  async ({ context, input }) =>
+    await refusing(async () => await context.renameNote(input.from, input.to)),
 );
 
-const mkdir = base.vault.mkdir.handler(({ context, input }) =>
-  refusing(() => context.vault.service.createDir(input.path)),
+const mkdir = base.vault.mkdir.handler(
+  async ({ context, input }) =>
+    await refusing(async () => await context.vault.service.createDir(input.path)),
 );
 
 const deleted = base.vault.deleted.handler(async ({ context }) => ({
   entries: await context.vault.git.deleted(),
 }));
 
-const remove = base.vault.remove.handler(({ context, input }) =>
-  refusing(async () => {
-    await removeEntryWithComments(context.vault.service, input.path);
-    return { ok: true } as const;
-  }),
+const remove = base.vault.remove.handler(
+  async ({ context, input }) =>
+    await refusing(async () => {
+      await removeEntryWithComments(context.vault.service, input.path);
+      return { ok: true } as const;
+    }),
 );
 
-const commitNow = base.vault.commitNow.handler(async ({ context }) => ({
-  files: (await context.vault.git.commitNow())?.files ?? 0,
-}));
+const commitNow = base.vault.commitNow.handler(async ({ context }) => {
+  const committed = await context.vault.git.commitNow();
+  return { files: committed?.files ?? 0 };
+});
 
-const status = base.vault.status.handler(({ context }) => context.vault.status());
+const status = base.vault.status.handler(async ({ context }) => await context.vault.status());
 
-const syncNow = base.vault.syncNow.handler(({ context }) => context.vault.syncNow());
+const syncNow = base.vault.syncNow.handler(async ({ context }) => await context.vault.syncNow());
 
 const prefs = base.vault.prefs.handler(({ context }) => ({
   attachments: context.vaultPrefs.read().attachments ?? DEFAULT_ATTACHMENT_LOCATION,
@@ -115,19 +126,19 @@ const setPrefs = base.vault.setPrefs.handler(async ({ context, input, errors }) 
 });
 
 export const vaultRouter = {
-  tree,
-  read,
-  history,
-  revision,
-  write,
   assetWrite,
-  rename,
-  mkdir,
-  deleted,
-  remove,
   commitNow,
+  deleted,
+  history,
+  mkdir,
+  prefs,
+  read,
+  remove,
+  rename,
+  revision,
+  setPrefs,
   status,
   syncNow,
-  prefs,
-  setPrefs,
+  tree,
+  write,
 };

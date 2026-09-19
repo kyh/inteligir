@@ -10,7 +10,7 @@ export type NoteSearchSource = (query: string, signal: AbortSignal) => Promise<N
 
 export const NOTE_SEARCH_LIMIT = 12;
 
-function isSubsequence(query: string, text: string): boolean {
+const isSubsequence = (query: string, text: string): boolean => {
   let at = 0;
   for (const char of text) {
     if (char === query[at]) {
@@ -21,12 +21,12 @@ function isSubsequence(query: string, text: string): boolean {
     }
   }
   return query.length === 0;
-}
+};
 
-export function searchNotesByFilename(
+export const searchNotesByFilename = (
   query: string,
   filePaths: readonly string[],
-): NoteSearchHit[] {
+): NoteSearchHit[] => {
   const needle = query.trim().toLowerCase();
   const sorted = filePaths.toSorted();
   if (needle === "") {
@@ -50,4 +50,4 @@ export function searchNotesByFilename(
     .flat()
     .slice(0, NOTE_SEARCH_LIMIT)
     .map((path) => ({ path }));
-}
+};

@@ -17,8 +17,10 @@ export const VAULT_ASSET_MEDIA_TYPES = new Map([
   [".webp", "image/webp"],
 ]);
 
-export function assetMediaType(path: string): string | null {
+export const assetMediaType = (path: string): string | null => {
   const dot = path.lastIndexOf(".");
-  if (dot < 0) return null;
+  if (dot === -1) {
+    return null;
+  }
   return VAULT_ASSET_MEDIA_TYPES.get(path.slice(dot).toLowerCase()) ?? null;
-}
+};

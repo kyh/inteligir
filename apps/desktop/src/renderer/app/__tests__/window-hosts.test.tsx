@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import path from "node:path";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import {
@@ -10,7 +10,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route as rootRoute } from "../../routes/__root";
@@ -22,48 +22,46 @@ const REFUSAL = "Could not sign this device out.";
 
 let answered: boolean | null = null;
 
-function SettingsStandIn() {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => {
-          void (async () => {
-            answered = await confirm({ title: CONFIRM_TITLE, confirmLabel: "Sign out" });
-          })();
-        }}
-      >
-        Sign out
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          toast.error(REFUSAL);
-        }}
-      >
-        Refuse
-      </button>
-    </div>
-  );
-}
+const SettingsStandIn = () => (
+  <div>
+    <button
+      type="button"
+      onClick={() => {
+        void (async () => {
+          answered = await confirm({ confirmLabel: "Sign out", title: CONFIRM_TITLE });
+        })();
+      }}
+    >
+      Sign out
+    </button>
+    <button
+      type="button"
+      onClick={() => {
+        toast.error(REFUSAL);
+      }}
+    >
+      Refuse
+    </button>
+  </div>
+);
 
-function mountAtSettings() {
+const mountAtSettings = () => {
   const indexRoute = createRoute({
+    component: () => <p>workspace</p>,
     getParentRoute: () => rootRoute,
     path: "/",
-    component: () => <p>workspace</p>,
   });
   const settingsRoute = createRoute({
+    component: SettingsStandIn,
     getParentRoute: () => rootRoute,
     path: "/settings",
-    component: SettingsStandIn,
   });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute, settingsRoute]),
     history: createMemoryHistory({ initialEntries: ["/settings"] }),
+    routeTree: rootRoute.addChildren([indexRoute, settingsRoute]),
   });
   render(<RouterProvider router={router} />);
-}
+};
 
 beforeEach(() => {
   answered = null;
@@ -82,10 +80,10 @@ describe("the window-level hosts", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(CONFIRM_TITLE);
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => {
+      expect(answered).toBe(true);
     });
-    expect(answered).toBe(true);
   });
 
   it("paint a toast on a non-index route", async () => {
@@ -105,10 +103,10 @@ describe("the window-level hosts", () => {
   ] as const;
 
   it.each(ROOT_ALONE)("%s is mounted by the root route alone", (host, second) => {
-    const rendererDir = resolve(import.meta.dirname, "../..");
+    const rendererDir = path.resolve(import.meta.dirname, "../..");
     const mounts = rendererSources(rendererDir)
-      .filter((file) => readFileSync(file, "utf8").includes(host))
-      .map((file) => relative(rendererDir, file));
+      .filter((file) => readFileSync(file, "utf-8").includes(host))
+      .map((file) => path.relative(rendererDir, file));
     expect(mounts, `a second ${host} is ${second}; routes/__root.tsx alone mounts it`).toEqual([
       "routes/__root.tsx",
     ]);

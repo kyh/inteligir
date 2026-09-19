@@ -1,39 +1,34 @@
+// oxlint-disable unicorn/prefer-module -- expo requires this file; the package is not type: module
 // plain JS: expo's config loader needs the compiler JS API that TypeScript 7 dropped
-/** @param {import("expo/config").ConfigContext} ctx
- *  @returns {import("expo/config").ExpoConfig} */
-module.exports = ({ config }) => ({
+/** @param {import("expo/config").ConfigContext} ctx the config expo read from app.json
+ *  @returns {import("expo/config").ExpoConfig} the config expo builds the app from */
+const appConfig = ({ config }) => ({
   ...config,
-  name: "inteligir",
-  slug: "inteligir",
-  scheme: "inteligir",
-  version: "0.1.0",
-  orientation: "portrait",
-  icon: "./assets/icon-light.png",
-  userInterfaceStyle: "automatic",
-  ios: {
-    bundleIdentifier: "app.inteligir.mobile",
-    supportsTablet: true,
-    icon: {
-      light: "./assets/icon-light.png",
-      dark: "./assets/icon-dark.png",
-    },
-  },
   android: {
-    package: "app.inteligir.mobile",
     adaptiveIcon: {
-      foregroundImage: "./assets/icon-light.png",
       backgroundColor: "#171717",
+      foregroundImage: "./assets/icon-light.png",
     },
+    package: "app.inteligir.mobile",
+  },
+  experiments: {
+    reactCompiler: true,
+    typedRoutes: true,
   },
   extra: {
     cloudUrl: process.env.EXPO_PUBLIC_CLOUD_URL,
   },
-  // declared explicitly: knip's expo plugin otherwise assumes expo-updates is a dependency
-  updates: { enabled: false },
-  experiments: {
-    typedRoutes: true,
-    reactCompiler: true,
+  icon: "./assets/icon-light.png",
+  ios: {
+    bundleIdentifier: "app.inteligir.mobile",
+    icon: {
+      dark: "./assets/icon-dark.png",
+      light: "./assets/icon-light.png",
+    },
+    supportsTablet: true,
   },
+  name: "inteligir",
+  orientation: "portrait",
   plugins: [
     "expo-router",
     "expo-secure-store",
@@ -41,12 +36,20 @@ module.exports = ({ config }) => ({
       "expo-splash-screen",
       {
         backgroundColor: "#FAFAFA",
-        image: "./assets/icon-light.png",
         dark: {
           backgroundColor: "#171717",
           image: "./assets/icon-dark.png",
         },
+        image: "./assets/icon-light.png",
       },
     ],
   ],
+  scheme: "inteligir",
+  slug: "inteligir",
+  // declared explicitly: knip's expo plugin otherwise assumes expo-updates is a dependency
+  updates: { enabled: false },
+  userInterfaceStyle: "automatic",
+  version: "0.1.0",
 });
+
+module.exports = appConfig;

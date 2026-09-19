@@ -7,13 +7,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT, workspaceGlobs, workspaces } from "./repo";
 
-const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/;
+const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/u;
 
 // emitted by a generator, which names whatever its input named.
-const GENERATED_FILE = /(?:\.gen\.ts|worker-configuration\.d\.ts|pnpm-lock\.yaml)$/;
+const GENERATED_FILE = /(?:\.gen\.ts|worker-configuration\.d\.ts|pnpm-lock\.yaml)$/u;
 
 // data rather than claims: a fixture's `../outside.md` is the input to a containment test.
-const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//;
+const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//u;
 const DATA_FILES = new Map<string, string>([
   [
     "packages/editor/src/__tests__/sample-notes.ts",
@@ -33,15 +33,17 @@ const DELIBERATE_NON_REFERENCES = new Map<string, string>([
 // an untracked path (dist/, .wrangler/, .dev.vars) is a fact about the machine, not the repo; asked
 // from git rather than pattern-matched so the ignore rules stay in .gitignore and this guard cannot
 // disagree.
-function ignoredByGit(paths: readonly string[]): Set<string> {
-  if (paths.length === 0) return new Set();
+const ignoredByGit = (paths: readonly string[]): Set<string> => {
+  if (paths.length === 0) {
+    return new Set();
+  }
   // both forms: a .gitignore entry written `dist/` matches directories only, and git cannot tell
   // that a path not on disk would have been one.
   const asked = paths.flatMap((each) => [each, `${each}/`]);
   const result = spawnSync("git", ["check-ignore", "--stdin", "-z"], {
     cwd: REPO_ROOT,
+    encoding: "utf-8",
     input: asked.join("\0"),
-    encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
   // exit 1 means none are ignored.
@@ -50,16 +52,18 @@ function ignoredByGit(paths: readonly string[]): Set<string> {
   }
   const ignored = new Set<string>();
   for (const each of result.stdout.split("\0")) {
-    if (each.length > 0) ignored.add(each.replace(/\/$/, ""));
+    if (each.length > 0) {
+      ignored.add(each.replace(/\/$/u, ""));
+    }
   }
   return ignored;
-}
+};
 
 // git's index, not a directory walk, so build output and ignored sidecars are not read as claims.
-function scannedFiles(): string[] {
+const scannedFiles = (): string[] => {
   const tracked = execFileSync("git", ["ls-files", "-z"], {
     cwd: REPO_ROOT,
-    encoding: "utf8",
+    encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024,
   })
     .split("\0")
@@ -75,7 +79,7 @@ function scannedFiles(): string[] {
       // the index still lists a file deleted in the working tree.
       fs.existsSync(path.join(REPO_ROOT, file)),
   );
-}
+};
 
 interface Reference {
   text: string;
@@ -83,41 +87,47 @@ interface Reference {
   line: number;
 }
 
-function referencesIn(file: string, pattern: RegExp): Reference[] {
+const referencesIn = (file: string, pattern: RegExp): Reference[] => {
   const found: Reference[] = [];
-  const lines = fs.readFileSync(path.join(REPO_ROOT, file), "utf8").split("\n");
-  lines.forEach((text, index) => {
+  const lines = fs.readFileSync(path.join(REPO_ROOT, file), "utf-8").split("\n");
+  for (const [index, text] of lines.entries()) {
     pattern.lastIndex = 0;
     let match = pattern.exec(text);
     while (match !== null) {
-      const captured = match[1];
-      if (captured !== undefined) found.push({ text: captured, file, line: index + 1 });
+      const captured = match.groups?.reference;
+      if (captured !== undefined) {
+        found.push({ file, line: index + 1, text: captured });
+      }
       match = pattern.exec(text);
     }
-  });
+  }
   return found;
-}
+};
 
-const WORKSPACE_NAME = /(@repo\/[a-z0-9][a-z0-9-]*)/g;
+const WORKSPACE_NAME = /(?<reference>@repo\/[a-z0-9][a-z0-9-]*)/gu;
 
 // anchored on a workspace group so the population is this repo's layout, not any string with a
 // slash; a glob, a template hole or a trailing slash is a pattern, not a reference.
-function repoPathPattern(): RegExp {
-  const groups = workspaceGlobs().groups.map((group) => group.replaceAll(/[^a-z0-9]/g, ""));
-  return new RegExp(`((?:${groups.join("|")})\\/[A-Za-z0-9._@/-]+[A-Za-z0-9_])`, "g");
-}
+const repoPathPattern = (): RegExp => {
+  const groups = workspaceGlobs().groups.map((group) => group.replaceAll(/[^a-z0-9]/gu, ""));
+  return new RegExp(`(?<reference>(?:${groups.join("|")})\\/[A-Za-z0-9._@/-]+[A-Za-z0-9_])`, "gu");
+};
 
-function danglingIn(pattern: RegExp, resolves: (text: string) => boolean): string[] {
+const danglingIn = (pattern: RegExp, resolves: (text: string) => boolean): string[] => {
   const dangling: string[] = [];
   for (const file of scannedFiles()) {
     for (const reference of referencesIn(file, pattern)) {
-      if (resolves(reference.text)) continue;
-      if (DELIBERATE_NON_REFERENCES.has(reference.text)) continue;
+      if (resolves(reference.text)) {
+        continue;
+      }
+      if (DELIBERATE_NON_REFERENCES.has(reference.text)) {
+        continue;
+      }
       dangling.push(`  ${reference.file}:${reference.line}  ${reference.text}`);
     }
   }
   return dangling;
-}
+};
 
 describe("dangling references", () => {
   it("every @repo/* name written anywhere is a workspace that exists", () => {
@@ -137,7 +147,7 @@ describe("dangling references", () => {
       fs.existsSync(path.join(REPO_ROOT, text)),
     );
     // node_modules/ sits behind a symlink check-ignore refuses to walk, so it is answered here.
-    const named = referenced.map((line) => line.trim().split(/\s+/).slice(1).join(" "));
+    const named = referenced.map((line) => line.trim().split(/\s+/u).slice(1).join(" "));
     const ignored = ignoredByGit(named.filter((text) => !text.includes("node_modules/")));
     const dangling = referenced.filter((line, index) => {
       const text = named[index] ?? "";

@@ -3,7 +3,8 @@
 // a crash duplicates a conversation through.
 
 import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
-import { describeCloudFailure, type CloudClient, type CloudFailure } from "@repo/api/cloud/client";
+import { describeCloudFailure } from "@repo/api/cloud/client";
+import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
 import { SYNC_OUTBOX_CODES } from "@repo/api/cloud/errors";
 import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import { pullPages } from "@repo/api/cloud/sync/sync-session";
@@ -19,7 +20,8 @@ import {
   writeSyncCursor,
 } from "@repo/db/sync-outbox";
 import { messageOf } from "../error-message";
-import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS, type CaptureVault } from "./captures";
+import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
+import type { CaptureVault } from "./captures";
 import { ackPushBatch, takePushBatch } from "./outbox";
 
 // bounds one pass's drain so a backlog cannot starve the pull half or hold a shutdown open.
@@ -27,13 +29,13 @@ const MAX_PUSH_BATCHES_PER_PASS = 25;
 
 // implemented by ThreadService alone — a second append path is a second answer to thread lifecycle.
 export interface SyncedEventSink {
-  applySyncedEvents(args: {
+  applySyncedEvents: (args: {
     threadId: string;
     /** each event with the log row's own identity, so the append is idempotent on it. */
     rows: readonly SyncedEventInput[];
     /** written in the same transaction that appends. */
     cursor: number;
-  }): void;
+  }) => void;
 }
 
 // captured once at the top of a pass so no step reads a newer session.
@@ -46,19 +48,19 @@ export interface PassContext {
 export interface SyncPassDeps {
   db: DbConnection;
   vault: CaptureVault;
-  debug(message: string): void;
+  debug: (message: string) => void;
   /** late-bound: the thread service is built after the runtime. */
-  sink(): SyncedEventSink | null;
+  sink: () => SyncedEventSink | null;
   /** checked after every await, before any write. */
-  fenced(context: PassContext): boolean;
-  recordFailure(failure: CloudFailure): "continue" | "ended";
-  setLastError(message: string | null): void;
+  fenced: (context: PassContext) => boolean;
+  recordFailure: (failure: CloudFailure) => "continue" | "ended";
+  setLastError: (message: string | null) => void;
 }
 
 // an outbox refusal is not retried: the log already holds that position, so the
 // row can never land and would wedge everything behind it. the local log keeps
 // every event; only the cloud's copy is lost.
-async function drain(deps: SyncPassDeps, context: PassContext): Promise<boolean> {
+const drain = async (deps: SyncPassDeps, context: PassContext): Promise<boolean> => {
   for (let round = 0; round < MAX_PUSH_BATCHES_PER_PASS; round += 1) {
     if (!deps.fenced(context)) {
       return false;
@@ -95,9 +97,9 @@ async function drain(deps: SyncPassDeps, context: PassContext): Promise<boolean>
     deps.setLastError(null);
   }
   return true;
-}
+};
 
-function applyStep(deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply" }>): void {
+const applyStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply" }>): void => {
   const target = deps.sink();
   if (target === null) {
     throw new Error("cloud sync has no ingest sink attached");
@@ -107,7 +109,7 @@ function applyStep(deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply
     return;
   }
   try {
-    target.applySyncedEvents({ threadId: step.threadId, rows: step.rows, cursor: groupCursor });
+    target.applySyncedEvents({ cursor: groupCursor, rows: step.rows, threadId: step.threadId });
     return;
   } catch (error) {
     deps.debug(`applying ${step.rows.length} synced event(s) failed: ${messageOf(error)}`);
@@ -118,21 +120,17 @@ function applyStep(deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply
   // moment row 1 committed.
   for (const row of step.rows) {
     try {
-      target.applySyncedEvents({ threadId: step.threadId, rows: [row], cursor: row.seq });
-    } catch (individual) {
-      deps.debug(`skipping a synced ${row.event.type}: ${messageOf(individual)}`);
+      target.applySyncedEvents({ cursor: row.seq, rows: [row], threadId: step.threadId });
+    } catch (error) {
+      deps.debug(`skipping a synced ${row.event.type}: ${messageOf(error)}`);
       // nothing committed this row's position; move past it or the next pass replays the refusal forever.
       writeSyncCursor(deps.db, row.seq);
     }
   }
-}
+};
 
-function pullAndApply(deps: SyncPassDeps, context: PassContext): Promise<boolean> {
-  return pullPages({
-    client: context.client,
-    deviceId: context.deviceId,
-    fenced: () => deps.fenced(context),
-    readCursor: () => readSyncState(deps.db).cursor,
+const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<boolean> =>
+  await pullPages({
     applyPlan: (steps) => {
       for (const step of steps) {
         if (step.kind === "apply") {
@@ -142,19 +140,24 @@ function pullAndApply(deps: SyncPassDeps, context: PassContext): Promise<boolean
         }
       }
     },
-    recordFailure: (failure) => deps.recordFailure(failure),
+    client: context.client,
+    deviceId: context.deviceId,
+    fenced: () => deps.fenced(context),
     onPage: () => {
       deps.setLastError(null);
     },
-    onSkipped: (message) => deps.debug(message),
+    onSkipped: (message) => {
+      deps.debug(message);
+    },
+    readCursor: () => readSyncState(deps.db).cursor,
+    recordFailure: (failure) => deps.recordFailure(failure),
   });
-}
 
 // vault write, then ledger, then ack. the ledger closes the lapsed-claim window;
 // a crash between the write and the ledger (two stores, no shared transaction)
 // duplicates a bullet, and that direction is chosen: recording first would lose
 // the capture outright.
-async function applyCaptures(deps: SyncPassDeps, context: PassContext): Promise<boolean> {
+const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<boolean> => {
   if (!deps.fenced(context)) {
     return false;
   }
@@ -166,7 +169,7 @@ async function applyCaptures(deps: SyncPassDeps, context: PassContext): Promise<
   if (!claimed.ok) {
     return deps.recordFailure(claimed.failure) === "continue";
   }
-  const captures = claimed.value.captures;
+  const { captures } = claimed.value;
   if (captures.length === 0) {
     return true;
   }
@@ -208,9 +211,9 @@ async function applyCaptures(deps: SyncPassDeps, context: PassContext): Promise<
   }
   pruneAppliedCaptures(deps.db, Date.now() - APPLIED_CAPTURE_RETENTION_MS);
   return true;
-}
+};
 
-export async function runSyncPass(deps: SyncPassDeps, context: PassContext): Promise<void> {
+export const runSyncPass = async (deps: SyncPassDeps, context: PassContext): Promise<void> => {
   if (!(await drain(deps, context))) {
     return;
   }
@@ -225,4 +228,4 @@ export async function runSyncPass(deps: SyncPassDeps, context: PassContext): Pro
   }
   // "checked" is not "caught up": a quiet account would otherwise read as stale forever.
   touchSyncedAt(deps.db, Date.now());
-}
+};

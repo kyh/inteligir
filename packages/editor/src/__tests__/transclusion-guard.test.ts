@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { decideTransclusion, nestedScope } from "@repo/editor/transclusion-guard";
 
-const root = (path: string) => ({ depth: 0, chain: [path] });
+const root = (path: string) => ({ chain: [path], depth: 0 });
 
 describe("decideTransclusion", () => {
   it("renders a resolved top-level embed", () => {
@@ -32,6 +32,6 @@ describe("decideTransclusion", () => {
 
   it("nestedScope extends the ancestor chain", () => {
     const inner = nestedScope(root("a.md"), "b.md");
-    expect(inner).toEqual({ depth: 1, chain: ["a.md", "b.md"] });
+    expect(inner).toEqual({ chain: ["a.md", "b.md"], depth: 1 });
   });
 });

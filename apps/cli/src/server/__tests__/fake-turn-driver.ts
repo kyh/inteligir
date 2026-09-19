@@ -31,7 +31,7 @@ export class FakeTurnDriver implements TurnDriver {
     }
     const scope = turnScope(args.turnId);
     this.sink.ingestProviderEvents(args.threadId, [
-      { type: "turn/started", threadId: args.threadId, scope },
+      { scope, threadId: args.threadId, type: "turn/started" },
     ]);
     if (this.options.mode === "manual") {
       return;
@@ -41,16 +41,16 @@ export class FakeTurnDriver implements TurnDriver {
     const text = `Echo: ${args.text}`;
     this.sink.ingestProviderEvents(
       args.threadId,
-      agentMessageEvents({ threadId: args.threadId, itemId, text, scope }),
+      agentMessageEvents({ itemId, scope, text, threadId: args.threadId }),
     );
     this.sink.ingestProviderEvents(args.threadId, [
-      { type: "turn/completed", threadId: args.threadId, status: "completed", scope },
+      { scope, status: "completed", threadId: args.threadId, type: "turn/completed" },
     ]);
   }
 
   completeTurn(threadId: string, turnId: string, status: ThreadEventTurnStatus): void {
     this.sink.ingestProviderEvents(threadId, [
-      { type: "turn/completed", threadId, status, scope: turnScope(turnId) },
+      { scope: turnScope(turnId), status, threadId, type: "turn/completed" },
     ]);
   }
 }

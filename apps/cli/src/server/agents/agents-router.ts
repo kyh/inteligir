@@ -11,13 +11,14 @@ const refusingUnknown = refusals((cause) =>
     : null,
 );
 
-const status = base.agents.status.handler(({ context }) => context.agents.status());
+const status = base.agents.status.handler(async ({ context }) => await context.agents.status());
 
-const setDefault = base.agents.setDefault.handler(({ context, input }) =>
-  refusingUnknown(() => context.agents.setDefault(input.id)),
+const setDefault = base.agents.setDefault.handler(
+  async ({ context, input }) =>
+    await refusingUnknown(async () => await context.agents.setDefault(input.id)),
 );
 
 export const agentsRouter = {
-  status,
   setDefault,
+  status,
 };

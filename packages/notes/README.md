@@ -6,7 +6,7 @@ The pure, platform-neutral domain core: the knowledge engine
 ## Why it exists
 
 This is the sharing seam. ZERO node/react imports — lint- (the root
-`.oxlintrc.json`'s `no-restricted-imports`) and tsconfig-enforced (`lib:
+`oxlint.config.ts`'s `no-restricted-imports`) and tsconfig-enforced (`lib:
 ["ES2023", "WebWorker"]`, `types: []`) — so the same code runs unchanged on a
 server, in a browser and in React Native. Platforms inject capabilities (SQL
 driver, clock). Everything above it depends on it; it depends on nothing in the

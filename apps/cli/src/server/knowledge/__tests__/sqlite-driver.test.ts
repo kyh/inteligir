@@ -1,33 +1,29 @@
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import nodePath from "node:path";
 import type { DocProjection } from "@repo/notes/knowledge/projection";
 import { projectDoc } from "@repo/notes/knowledge/projection";
-import {
-  createSqlKnowledgeStore,
-  type SqlDriver,
-  type SqlKnowledgeStore,
-} from "@repo/notes/knowledge/sql-knowledge-store";
+import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
+import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
 
-function makeDbDir(): string {
+const makeDbDir = (): string => {
   const dir = makeTempDir("inteligir-knowledge-driver-");
   // registered after the dir, so this restore runs before the dir's own removal.
-  onTestFinished(() => chmodSync(dir, 0o755));
+  onTestFinished(() => {
+    chmodSync(dir, 0o755);
+  });
   return dir;
-}
+};
 
-function makeDbPath(): string {
-  return join(makeDbDir(), "knowledge.db");
-}
+const makeDbPath = (): string => nodePath.join(makeDbDir(), "knowledge.db");
 
-function sha256Hex(content: string): string {
-  return createHash("sha256").update(content, "utf8").digest("hex");
-}
+const sha256Hex = (content: string): string =>
+  createHash("sha256").update(content, "utf-8").digest("hex");
 
-function openStore(dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore {
+const openStore = (dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore => {
   const store = createSqlKnowledgeStore(createSqliteDriver(dbPath), vaultRoot);
   onTestFinished(() => {
     try {
@@ -37,27 +33,27 @@ function openStore(dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore {
     }
   });
   return store;
-}
+};
 
-function docRow(path: string, content: string) {
+const docRow = (path: string, content: string) => {
   const projection: DocProjection = projectDoc(path, content);
   const row: Parameters<SqlKnowledgeStore["upsertDoc"]>[0] = {
-    path,
     contentHash: sha256Hex(content),
+    path,
     projection,
   };
-  return { row, body: content };
-}
+  return { body: content, row };
+};
 
-function seed(store: SqlKnowledgeStore): void {
+const seed = (store: SqlKnowledgeStore): void => {
   const alpha = docRow("alpha.md", "# Alpha Note\n\nBody about zebras.\n");
   const beta = docRow("beta.md", "# Beta Note\n\nAlpha appears only in this body.\n");
   store.upsertDoc(alpha.row, alpha.body);
   store.upsertDoc(beta.row, beta.body);
   store.upsertOther("img/pic.png");
-}
+};
 
-function openDriver(dbPath: string): SqlDriver {
+const openDriver = (dbPath: string): SqlDriver => {
   const driver = createSqliteDriver(dbPath);
   onTestFinished(() => {
     try {
@@ -67,7 +63,7 @@ function openDriver(dbPath: string): SqlDriver {
     }
   });
   return driver;
-}
+};
 
 describe("the sqlite driver", () => {
   it("binds null, integer, float and text and reads them back", () => {
@@ -81,8 +77,12 @@ describe("the sqlite driver", () => {
 
   it("propagates errors from bad SQL on every entry point", () => {
     const driver = openDriver(makeDbPath());
-    expect(() => driver.exec("NOT SQL")).toThrow();
-    expect(() => driver.run("INSERT INTO missing VALUES (?)", [1])).toThrow();
+    expect(() => {
+      driver.exec("NOT SQL");
+    }).toThrow();
+    expect(() => {
+      driver.run("INSERT INTO missing VALUES (?)", [1]);
+    }).toThrow();
     expect(() => driver.all("SELECT * FROM missing", [])).toThrow();
   });
 
@@ -109,7 +109,7 @@ describe("the sqlite driver", () => {
 
   it("falls back to memory when the corrupt file can be neither deleted nor renamed", () => {
     const dir = makeDbDir();
-    const dbPath = join(dir, "knowledge.db");
+    const dbPath = nodePath.join(dir, "knowledge.db");
     writeFileSync(dbPath, "garbage that will not open");
     // a read-only parent refuses both unlink and rename.
     chmodSync(dir, 0o555);
@@ -159,7 +159,9 @@ describe("the better-sqlite3 knowledge store", () => {
     const pages: string[][] = [];
     for (;;) {
       const page = cursor.next();
-      if (page.kind === "done") break;
+      if (page.kind === "done") {
+        break;
+      }
       pages.push(
         page.kind === "docs" ? page.docs.map((d) => d.path) : page.others.map((o) => o.path),
       );
@@ -171,13 +173,13 @@ describe("the better-sqlite3 knowledge store", () => {
     const store = openStore(makeDbPath());
     seed(store);
 
-    expect(() =>
+    expect(() => {
       store.transaction(() => {
         const extra = docRow("gamma.md", "# Gamma\n");
         store.upsertDoc(extra.row, extra.body);
         throw new Error("boom");
-      }),
-    ).toThrow("boom");
+      });
+    }).toThrow("boom");
     expect(store.loadAll().docs.map((d) => d.path)).toEqual(["alpha.md", "beta.md"]);
   });
 

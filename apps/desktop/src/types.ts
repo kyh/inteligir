@@ -12,55 +12,55 @@ import type { UpdateState } from "./update-state";
 import type { VaultsState } from "./vaults-state";
 
 export const IPC_CHANNELS = {
+  OPEN_PATH: "desktop:open-path",
+  REVEAL_PATH: "desktop:reveal-path",
   SOCKET_ORIGIN: "desktop:socket-origin",
-  UPDATE_STATE: "desktop:update-state",
-  UPDATE_GET_STATE: "desktop:update-get-state",
+  SPELLCHECK_APPLY: "desktop:spellcheck-apply",
+  SPELLCHECK_GET_STATE: "desktop:spellcheck-get-state",
   UPDATE_CHECK: "desktop:update-check",
   UPDATE_DOWNLOAD: "desktop:update-download",
+  UPDATE_GET_STATE: "desktop:update-get-state",
   UPDATE_INSTALL: "desktop:update-install",
-  SPELLCHECK_GET_STATE: "desktop:spellcheck-get-state",
-  SPELLCHECK_APPLY: "desktop:spellcheck-apply",
-  REVEAL_PATH: "desktop:reveal-path",
-  OPEN_PATH: "desktop:open-path",
-  VAULTS_GET_STATE: "desktop:vaults-get-state",
-  VAULTS_PICK: "desktop:vaults-pick",
-  VAULTS_OPEN: "desktop:vaults-open",
+  UPDATE_STATE: "desktop:update-state",
   VAULTS_FORGET: "desktop:vaults-forget",
+  VAULTS_GET_STATE: "desktop:vaults-get-state",
+  VAULTS_OPEN: "desktop:vaults-open",
+  VAULTS_PICK: "desktop:vaults-pick",
 } as const;
 
-export const socketOriginSchema = z.string().url();
+export const socketOriginSchema = z.url();
 
 // what a page may send across a channel: plain JSON, structured-clone-safe
 export type IpcFrame = string | number | boolean | null | IpcFrame[] | { [key: string]: IpcFrame };
 
 // the preload parses every frame against update-state.ts before it reaches the page
 export interface DesktopUpdatesBridge {
-  getState(): Promise<UpdateState>;
-  check(): Promise<UpdateState>;
-  download(): Promise<UpdateState>;
-  install(): Promise<UpdateState>;
-  onState(listener: (state: UpdateState) => void): () => void;
+  getState: () => Promise<UpdateState>;
+  check: () => Promise<UpdateState>;
+  download: () => Promise<UpdateState>;
+  install: () => Promise<UpdateState>;
+  onState: (listener: (state: UpdateState) => void) => () => void;
 }
 
 // the spell checker is the window session's, so only main can switch it; the page keeps the choice
 export interface DesktopSpellcheckBridge {
-  getState(): Promise<SpellcheckState>;
-  apply(choice: SpellcheckChoice): Promise<SpellcheckState>;
+  getState: () => Promise<SpellcheckState>;
+  apply: (choice: SpellcheckChoice) => Promise<SpellcheckState>;
 }
 
 // the OS reaches a vault entry through main alone, which resolves and checks the path itself
 export interface DesktopPathsBridge {
-  reveal(path: string): Promise<PathActionResult>;
-  open(path: string): Promise<PathActionResult>;
+  reveal: (path: string) => Promise<PathActionResult>;
+  open: (path: string) => Promise<PathActionResult>;
 }
 
 // the vault is the server's, so a switch restarts the child and replaces this window: `pick`
 // and `open` answer the state only when nothing changed (a cancelled picker, a refusal thrown)
 export interface DesktopVaultsBridge {
-  getState(): Promise<VaultsState>;
-  pick(): Promise<VaultsState>;
-  open(path: string): Promise<VaultsState>;
-  forget(path: string): Promise<VaultsState>;
+  getState: () => Promise<VaultsState>;
+  pick: () => Promise<VaultsState>;
+  open: (path: string) => Promise<VaultsState>;
+  forget: (path: string) => Promise<VaultsState>;
 }
 
 export interface DesktopBridge {
@@ -71,6 +71,5 @@ export interface DesktopBridge {
   vaults: DesktopVaultsBridge;
 }
 
-export function toErrorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
-}
+export const toErrorMessage = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);

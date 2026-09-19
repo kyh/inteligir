@@ -14,14 +14,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function hover(element: HTMLElement): void {
+const hover = (element: HTMLElement): void => {
   fireEvent.pointerEnter(element, { pointerType: "mouse" });
   fireEvent.mouseEnter(element);
   fireEvent.mouseMove(element);
   act(() => {
     vi.advanceTimersByTime(400);
   });
-}
+};
 
 describe("an icon-only button", () => {
   it("shows its label as a tooltip on hover", () => {

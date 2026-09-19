@@ -2,12 +2,13 @@ import { parseApprovalResolution } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { CliExitError, invalidUsage } from "../cli-error";
-import { apiFor, type CliDeps } from "../context";
+import { apiFor } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
 // a null payload is not a refusal: the host answers 400 itself, and refusing here would strand a grammar the server accepts.
-function assertResolutionValid(interaction: PendingInteraction, resolution: string): void {
-  const payload = interaction.payload;
+const assertResolutionValid = (interaction: PendingInteraction, resolution: string): void => {
+  const { payload } = interaction;
   if (payload === null) {
     return;
   }
@@ -18,43 +19,25 @@ function assertResolutionValid(interaction: PendingInteraction, resolution: stri
         `or the resolution JSON.`,
     );
   }
-}
+};
 
-export function interactionsCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "interactions", description: "Approvals the agent is waiting on" },
+export const interactionsCommand = (deps: CliDeps) =>
+  defineCommand({
+    meta: { description: "Approvals the agent is waiting on", name: "interactions" },
     subCommands: {
-      list: defineCommand({
-        meta: { name: "list", description: "Pending approval requests" },
-        args: {
-          thread: { type: "string", description: "Only this thread's interactions" },
-          ...jsonArg,
-        },
-        run: async ({ args }) => {
-          const api = apiFor(deps);
-          const body = await api.threads.listInteractions(
-            args.thread === undefined ? {} : { threadId: args.thread },
-          );
-          if (outputJson(args, body)) {
-            return;
-          }
-          writeLines(body.interactions.map((row) => `${row.id}  ${row.threadId}  ${row.status}`));
-        },
-      }),
-
       answer: defineCommand({
-        meta: {
-          name: "answer",
-          description: "Answer one (allow_once, allow_for_session, or deny)",
-        },
         args: {
-          id: { type: "positional", required: true, description: "The interaction id" },
-          resolution: { type: "positional", required: true, description: "The decision" },
+          id: { description: "The interaction id", required: true, type: "positional" },
+          resolution: { description: "The decision", required: true, type: "positional" },
           thread: {
-            type: "string",
             description: "The owning thread; looked up from the listing when omitted",
+            type: "string",
           },
           ...jsonArg,
+        },
+        meta: {
+          description: "Answer one (allow_once, allow_for_session, or deny)",
+          name: "answer",
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
@@ -72,9 +55,9 @@ export function interactionsCommand(deps: CliDeps) {
           }
           assertResolutionValid(interaction, args.resolution);
           const body = await api.threads.answerInteraction({
-            threadId: interaction.threadId,
             interactionId: args.id,
             resolution: args.resolution,
+            threadId: interaction.threadId,
           });
           if (outputJson(args, body)) {
             return;
@@ -82,6 +65,23 @@ export function interactionsCommand(deps: CliDeps) {
           out.success(`Interaction ${body.interaction.id} ${body.interaction.status}`);
         },
       }),
+
+      list: defineCommand({
+        args: {
+          thread: { description: "Only this thread's interactions", type: "string" },
+          ...jsonArg,
+        },
+        meta: { description: "Pending approval requests", name: "list" },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const body = await api.threads.listInteractions(
+            args.thread === undefined ? {} : { threadId: args.thread },
+          );
+          if (outputJson(args, body)) {
+            return;
+          }
+          writeLines(body.interactions.map((row) => `${row.id}  ${row.threadId}  ${row.status}`));
+        },
+      }),
     },
   });
-}

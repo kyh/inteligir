@@ -17,46 +17,46 @@ describe("realtimeSubscriptionTargetKey", () => {
 describe("strict outbound schemas", () => {
   it("rejects an unknown change kind", () => {
     const result = changedMessageSchema.safeParse({
-      type: "changed",
+      changes: ["content-changed", "not-a-kind"],
       entity: "doc",
       id: "d1",
-      changes: ["content-changed", "not-a-kind"],
+      type: "changed",
     });
     expect(result.success).toBe(false);
   });
 
   it("rejects an unknown field", () => {
     const result = changedMessageSchema.safeParse({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed"],
+      entity: "vault",
       extra: true,
+      type: "changed",
     });
     expect(result.success).toBe(false);
   });
 
   it("requires an id on doc messages", () => {
     const result = changedMessageSchema.safeParse({
-      type: "changed",
-      entity: "doc",
       changes: ["content-changed"],
+      entity: "doc",
+      type: "changed",
     });
     expect(result.success).toBe(false);
   });
 
   it("rejects a subscribe message with an extra target field", () => {
     const result = clientMessageSchema.safeParse({
+      target: { extra: 1, kind: "vault" },
       type: "subscribe",
-      target: { kind: "vault", extra: 1 },
     });
     expect(result.success).toBe(false);
   });
 
   it("rejects a subscribe message with an extra top-level field", () => {
     const result = clientMessageSchema.safeParse({
-      type: "subscribe",
-      target: { kind: "vault" },
       extra: 1,
+      target: { kind: "vault" },
+      type: "subscribe",
     });
     expect(result.success).toBe(false);
   });
@@ -65,25 +65,25 @@ describe("strict outbound schemas", () => {
 describe("lenient inbound schemas", () => {
   it("filters unknown change kinds instead of rejecting the message", () => {
     const result = changedMessageLenientSchema.parse({
-      type: "changed",
+      changes: ["events-appended", "some-future-kind"],
       entity: "thread",
       id: "t1",
-      changes: ["events-appended", "some-future-kind"],
+      type: "changed",
     });
     expect(result.changes).toEqual(["events-appended"]);
   });
 
   it("strips unknown fields instead of rejecting the message", () => {
     const result = changedMessageLenientSchema.parse({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed"],
+      entity: "vault",
       futureField: { nested: true },
+      type: "changed",
     });
     expect(result).toEqual({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed"],
+      entity: "vault",
+      type: "changed",
     });
   });
 

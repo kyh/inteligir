@@ -1,6 +1,7 @@
 import type { ViewContext } from "@repo/domain/view-context";
 import type { SendMessageRequest } from "@repo/api/local/threads/threads-schema";
-import { isDefinedError, refusalMessage, safe, type client } from "../api";
+import { isDefinedError, refusalMessage, safe } from "../api";
+import type { client } from "../api";
 
 export type ComposerSendOutcome =
   | { kind: "started"; turnId: string }
@@ -18,8 +19,8 @@ export interface SendToThreadArgs {
 const SEND_REFUSED = "The send was refused.";
 
 // omitted rather than sent empty: the server reads an absent guard as "this client believes the thread is idle".
-function sendRequest(args: SendToThreadArgs, expectedTurnId: string | null): SendMessageRequest {
-  const request: SendMessageRequest = { threadId: args.threadId, text: args.text };
+const sendRequest = (args: SendToThreadArgs, expectedTurnId: string | null): SendMessageRequest => {
+  const request: SendMessageRequest = { text: args.text, threadId: args.threadId };
   if (expectedTurnId !== null) {
     request.expectedTurnId = expectedTurnId;
   }
@@ -27,13 +28,13 @@ function sendRequest(args: SendToThreadArgs, expectedTurnId: string | null): Sen
     request.viewContext = args.viewContext;
   }
   return request;
-}
+};
 
 // one retry on a stale guard, rather than racing a thread that keeps moving.
-export async function sendToThread(
+export const sendToThread = async (
   api: typeof client,
   args: SendToThreadArgs,
-): Promise<ComposerSendOutcome> {
+): Promise<ComposerSendOutcome> => {
   const [error, sent] = await safe(api.threads.send(sendRequest(args, args.activeTurnId)));
   if (sent !== undefined) {
     return sent;
@@ -52,4 +53,4 @@ export async function sendToThread(
     return { kind: "refused", message: refusalMessage(retryError, SEND_REFUSED) };
   }
   return { kind: "refused", message: refusalMessage(error, SEND_REFUSED) };
-}
+};

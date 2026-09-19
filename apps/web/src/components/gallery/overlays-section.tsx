@@ -12,6 +12,7 @@ import { Button } from "@repo/ui/components/button";
 import {
   CommandDialog,
   CommandEmpty,
+  CommandFooter,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -34,16 +35,40 @@ import { useState } from "react";
 
 import { Demo, GallerySection } from "./gallery-chrome";
 
-export function OverlaysSection() {
+const confirmedNote = (confirmed: boolean | null): string | undefined => {
+  if (confirmed === null) {
+    return undefined;
+  }
+  return confirmed ? "You confirmed." : "You cancelled.";
+};
+
+export const OverlaysSection = () => {
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+
+  const ask = async () => {
+    setConfirmed(
+      await confirm({
+        body: "The buffer has edits that are not on disk yet.",
+        confirmLabel: "Discard",
+        destructive: true,
+        title: "Discard unsaved changes?",
+      }),
+    );
+  };
 
   return (
     <GallerySection id="overlays" title="Overlays">
       <Demo name="Dialog" purpose="A focused task the reader opts into and can leave.">
-        <Button variant="secondary" onClick={() => setDialogOpen(true)}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setDialogOpen(true);
+          }}
+        >
           Open dialog
         </Button>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -55,10 +80,21 @@ export function OverlaysSection() {
               </DialogDescription>
             </DialogHeader>
             <div className="mt-6 flex justify-end gap-2">
-              <Button variant="tertiary" onClick={() => setDialogOpen(false)}>
+              <Button
+                variant="tertiary"
+                onClick={() => {
+                  setDialogOpen(false);
+                }}
+              >
                 Cancel
               </Button>
-              <Button onClick={() => setDialogOpen(false)}>Rename</Button>
+              <Button
+                onClick={() => {
+                  setDialogOpen(false);
+                }}
+              >
+                Rename
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -68,7 +104,12 @@ export function OverlaysSection() {
         name="AlertDialog"
         purpose="A dialog the reader cannot dismiss by accident, for a choice that costs something."
       >
-        <Button variant="destructive" onClick={() => setAlertOpen(true)}>
+        <Button
+          variant="destructive"
+          onClick={() => {
+            setAlertOpen(true);
+          }}
+        >
           Delete forever
         </Button>
         <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
@@ -80,10 +121,20 @@ export function OverlaysSection() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <Button variant="secondary" onClick={() => setAlertOpen(false)}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setAlertOpen(false);
+                }}
+              >
                 Keep it
               </Button>
-              <Button variant="destructive" onClick={() => setAlertOpen(false)}>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setAlertOpen(false);
+                }}
+              >
                 Delete
               </Button>
             </AlertDialogFooter>
@@ -94,17 +145,12 @@ export function OverlaysSection() {
       <Demo
         name="confirm()"
         purpose="The imperative form of the same question, for code paths with no JSX to hang a trigger on."
-        note={confirmed === null ? undefined : confirmed ? "You confirmed." : "You cancelled."}
+        note={confirmedNote(confirmed)}
       >
         <Button
           variant="secondary"
           onClick={() => {
-            void confirm({
-              title: "Discard unsaved changes?",
-              body: "The buffer has edits that are not on disk yet.",
-              confirmLabel: "Discard",
-              destructive: true,
-            }).then(setConfirmed);
+            void ask();
           }}
         >
           Ask with confirm()
@@ -163,30 +209,46 @@ export function OverlaysSection() {
         name="CommandDialog"
         purpose="Filterable rows over a query — the palette, exactly as the product opens it."
       >
-        <Button variant="secondary" onClick={() => setPaletteOpen(true)}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setPaletteOpen(true);
+          }}
+        >
           Open palette
         </Button>
-        <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>
-          <CommandInput placeholder="Search notes or commands…" />
+        <CommandDialog
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          title="Command palette"
+          description="Open a note or run a command"
+        >
+          <CommandInput
+            placeholder="Search notes or commands…"
+            aria-label="Search notes or commands"
+            value={paletteQuery}
+            onValueChange={setPaletteQuery}
+          />
           <CommandList>
             <CommandEmpty>Nothing matches.</CommandEmpty>
             <CommandGroup heading="Notes">
-              <CommandItem>Release checklist</CommandItem>
-              <CommandItem>Weekly review</CommandItem>
+              <CommandItem action="Release checklist">Release checklist</CommandItem>
+              <CommandItem action="Weekly review">Weekly review</CommandItem>
             </CommandGroup>
             <CommandGroup heading="Commands">
-              <CommandItem>
+              <CommandItem action="New note">
                 New note
-                <CommandShortcut>⌘N</CommandShortcut>
+                <CommandShortcut keys="⌘N" />
               </CommandItem>
-              <CommandItem>
+              <CommandItem action="Open settings">
                 Open settings
-                <CommandShortcut>⌘,</CommandShortcut>
+                <CommandShortcut keys="⌘," />
               </CommandItem>
             </CommandGroup>
           </CommandList>
+          <CommandFooter />
         </CommandDialog>
       </Demo>
     </GallerySection>
   );
-}
+};

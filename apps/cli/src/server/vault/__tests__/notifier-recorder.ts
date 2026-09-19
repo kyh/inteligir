@@ -3,25 +3,25 @@ import type { DocChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 
 export interface NotifierRecorder extends DbNotifier {
   vaultChanges: VaultChangeKind[][];
-  docChanges: Array<{ docId: string; changes: DocChangeKind[] }>;
-  reset(): void;
+  docChanges: { docId: string; changes: DocChangeKind[] }[];
+  reset: () => void;
 }
 
-export function createNotifierRecorder(): NotifierRecorder {
+export const createNotifierRecorder = (): NotifierRecorder => {
   const recorder: NotifierRecorder = {
-    vaultChanges: [],
     docChanges: [],
+    notifyDoc(docId, changes) {
+      recorder.docChanges.push({ changes, docId });
+    },
+    notifyThread() {},
     notifyVault(changes) {
       recorder.vaultChanges.push(changes);
     },
-    notifyDoc(docId, changes) {
-      recorder.docChanges.push({ docId, changes });
-    },
-    notifyThread() {},
     reset() {
       recorder.vaultChanges = [];
       recorder.docChanges = [];
     },
+    vaultChanges: [],
   };
   return recorder;
-}
+};

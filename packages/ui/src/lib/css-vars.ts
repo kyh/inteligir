@@ -5,6 +5,4 @@ type CSSPropertiesWithVars = React.CSSProperties & {
   [key: `--${string}`]: string | number | undefined;
 };
 
-export function cssVars(style: CSSPropertiesWithVars): React.CSSProperties {
-  return style;
-}
+export const cssVars = (style: CSSPropertiesWithVars): React.CSSProperties => style;

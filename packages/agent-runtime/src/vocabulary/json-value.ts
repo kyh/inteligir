@@ -10,7 +10,9 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue | undefined };
 
-export type JsonObject = { [key: string]: JsonValue | undefined };
+export interface JsonObject {
+  [key: string]: JsonValue | undefined;
+}
 
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([

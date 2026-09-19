@@ -50,7 +50,7 @@ const STARTED_AT = 0;
 const ANSWER_TEXT =
   "The vault holds four notes. Two link to Welcome, and none of them are unresolved.";
 
-export function AgentSection() {
+export const AgentSection = () => {
   const [decision, setDecision] = useState<string | null>(null);
 
   return (
@@ -265,4 +265,4 @@ export function AgentSection() {
       </Demo>
     </GallerySection>
   );
-}
+};

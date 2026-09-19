@@ -5,7 +5,9 @@ import { FakeVault } from "./fake-vault";
 
 // fake timers leave microtasks alone, so a few hops drain the controller's chains.
 const settle = async (): Promise<void> => {
-  for (let i = 0; i < 10; i++) await Promise.resolve();
+  for (let i = 0; i < 10; i += 1) {
+    await Promise.resolve();
+  }
 };
 
 const runDebounce = async (): Promise<void> => {
@@ -76,7 +78,9 @@ describe("createNoteRuntime", () => {
     io.files.set("a.md", "v0");
     const vanished: string[] = [];
     const runtime = createNoteRuntime("a.md", "root", io, {
-      onVanished: (p) => vanished.push(p),
+      onVanished: (p) => {
+        vanished.push(p);
+      },
     });
     await settle();
     expect(runtime.controller.getState().path).toBe("a.md");
@@ -93,7 +97,9 @@ describe("createNoteRuntime", () => {
     io.hangReads = true;
     const vanished: string[] = [];
     const runtime = createNoteRuntime("a.md", "root", io, {
-      onVanished: (p) => vanished.push(p),
+      onVanished: (p) => {
+        vanished.push(p);
+      },
     });
     await settle();
     expect(runtime.controller.getState().path).toBe(null);
@@ -125,7 +131,9 @@ describe("createNoteRuntime", () => {
     const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
     await settle();
 
-    runtime.registerPreFlush(() => runtime.edit("drained"));
+    runtime.registerPreFlush(() => {
+      runtime.edit("drained");
+    });
 
     const clean = await runtime.flush();
     expect(clean).toBe(true);
@@ -140,11 +148,13 @@ describe("createNoteRuntime", () => {
     await settle();
 
     const order: string[] = [];
-    runtime.registerPreFlush(() => order.push("preFlush"));
+    runtime.registerPreFlush(() => {
+      order.push("preFlush");
+    });
     const removeImpl = io.remove;
-    io.remove = (path) => {
+    io.remove = async (path) => {
       order.push("remove");
-      return removeImpl(path);
+      return await removeImpl(path);
     };
 
     await runtime.remove();
@@ -159,8 +169,12 @@ describe("createNoteRuntime", () => {
 
     let firstRuns = 0;
     let secondRuns = 0;
-    runtime.registerPreFlush(() => firstRuns++);
-    runtime.registerPreFlush(() => secondRuns++);
+    runtime.registerPreFlush(() => {
+      firstRuns += 1;
+    });
+    runtime.registerPreFlush(() => {
+      secondRuns += 1;
+    });
     await runtime.flush();
     expect(firstRuns).toBe(0);
     expect(secondRuns).toBe(1);
@@ -192,12 +206,14 @@ describe("createNoteRuntime", () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
     io.removeOutcome = {
+      held: { deletions: 40, limit: 25, liveCount: 100, sample: ["a.md"], windowMs: 600_000 },
       outcome: "held",
-      held: { deletions: 40, liveCount: 100, limit: 25, windowMs: 600_000, sample: ["a.md"] },
     };
     const vanished: string[] = [];
     const runtime = createNoteRuntime("a.md", "root", io, {
-      onVanished: (path) => vanished.push(path),
+      onVanished: (path) => {
+        vanished.push(path);
+      },
     });
     await settle();
 

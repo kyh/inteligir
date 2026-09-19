@@ -3,7 +3,8 @@
 // Only a bound expression that cannot resolve marks stale and keeps its last
 // display; a plain expression that cannot evaluate is left alone.
 
-import { NodeApi, type NodeEntry, type SlateEditor, type TElement } from "platejs";
+import { NodeApi } from "platejs";
+import type { NodeEntry, SlateEditor, TElement } from "platejs";
 
 import {
   collectBoundRefs,
@@ -21,12 +22,12 @@ import { stringProp } from "@repo/editor/node-props";
 
 const RECOMPUTE_DEBOUNCE_MS = 400;
 
-type FormulaEntryInDoc = {
+interface FormulaEntryInDoc {
   entry: NodeEntry<TElement>;
   collected: CollectedFormula;
-};
+}
 
-function formulaEntries(editor: SlateEditor): FormulaEntryInDoc[] {
+const formulaEntries = (editor: SlateEditor): FormulaEntryInDoc[] => {
   const out: FormulaEntryInDoc[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
@@ -46,30 +47,38 @@ function formulaEntries(editor: SlateEditor): FormulaEntryInDoc[] {
     });
   }
   return out;
-}
+};
 
-function editorNoteId(editor: SlateEditor): string | null {
-  const first = editor.children[0];
-  if (first === undefined || first.type !== "frontmatter") return null;
+const editorNoteId = (editor: SlateEditor): string | null => {
+  const [first] = editor.children;
+  if (first === undefined || first.type !== "frontmatter") {
+    return null;
+  }
   const yaml = stringProp(first, "value") ?? "";
-  const match = /^id:\s*("?)([^"\n]+)\1\s*$/mu.exec(yaml);
-  return match?.[2]?.trim() ?? null;
-}
+  const match = /^id:\s*(?<quote>"?)(?<value>[^"\n]+)\k<quote>\s*$/mu.exec(yaml);
+  return match?.groups?.value?.trim() ?? null;
+};
 
-async function recompute(editor: SlateEditor): Promise<void> {
+const recompute = async (editor: SlateEditor): Promise<void> => {
   const before = editor.children;
   const entries = formulaEntries(editor);
   const executables = entries.filter((row) => row.collected.expression !== null);
-  if (executables.length === 0) return;
+  if (executables.length === 0) {
+    return;
+  }
 
   const selfNoteId = editorNoteId(editor);
   const selfFormulas = entries.map((row) => row.collected);
 
   const foreign = new Set<string>();
   for (const row of executables) {
-    if (row.collected.expression === null) continue;
+    if (row.collected.expression === null) {
+      continue;
+    }
     for (const ref of collectBoundRefs(row.collected.expression)) {
-      if (ref.noteId !== selfNoteId) foreign.add(ref.noteId);
+      if (ref.noteId !== selfNoteId) {
+        foreign.add(ref.noteId);
+      }
     }
   }
   const notes = new Map<string, readonly CollectedFormula[]>();
@@ -78,17 +87,23 @@ async function recompute(editor: SlateEditor): Promise<void> {
     await Promise.all(
       [...foreign].map(async (noteId) => {
         const answer = await io.readNoteFormulas({ noteId }).catch(() => null);
-        if (answer !== null) notes.set(noteId, answer.formulas);
+        if (answer !== null) {
+          notes.set(noteId, answer.formulas);
+        }
       }),
     );
   }
   // an edit landed during the reads; the next settle reruns
-  if (editor.children !== before) return;
+  if (editor.children !== before) {
+    return;
+  }
 
-  const updates: Array<{ entry: NodeEntry<TElement>; props: Record<string, string> }> = [];
+  const updates: { entry: NodeEntry<TElement>; props: Record<string, string> }[] = [];
   for (const row of executables) {
     const { expression, meta, display, source } = row.collected;
-    if (expression === null) continue;
+    if (expression === null) {
+      continue;
+    }
     const refs = collectBoundRefs(expression);
     const outcome =
       refs.length === 0
@@ -117,28 +132,38 @@ async function recompute(editor: SlateEditor): Promise<void> {
       });
     }
   }
-  if (updates.length === 0) return;
+  if (updates.length === 0) {
+    return;
+  }
 
   editor.tf.withoutNormalizing(() => {
     for (const update of updates) {
       editor.tf.setNodes(update.props, { at: update.entry[1] });
     }
   });
-}
+};
+
+const recomputeQuietly = async (editor: SlateEditor): Promise<void> => {
+  try {
+    await recompute(editor);
+  } catch {
+    /* empty */
+  }
+};
 
 const schedulers = new WeakMap<SlateEditor, { schedule: () => void; cancel: () => void }>();
 
-export function scheduleFormulaRecompute(editor: SlateEditor): void {
+export const scheduleFormulaRecompute = (editor: SlateEditor): void => {
   let scheduler = schedulers.get(editor);
   if (scheduler === undefined) {
     scheduler = createDebouncer(() => {
-      void recompute(editor).catch(() => {});
+      void recomputeQuietly(editor);
     }, RECOMPUTE_DEBOUNCE_MS);
     schedulers.set(editor, scheduler);
   }
   scheduler.schedule();
-}
+};
 
-export function cancelFormulaRecompute(editor: SlateEditor): void {
+export const cancelFormulaRecompute = (editor: SlateEditor): void => {
   schedulers.get(editor)?.cancel();
-}
+};

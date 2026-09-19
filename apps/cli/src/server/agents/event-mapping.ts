@@ -10,176 +10,227 @@ export type MapProviderEventResult =
   | { kind: "mapped"; event: ThreadEvent }
   | { kind: "dropped"; reason: string };
 
-function dropped(reason: string): MapProviderEventResult {
-  return { kind: "dropped", reason };
-}
+const dropped = (reason: string): MapProviderEventResult => ({ kind: "dropped", reason });
 
 type ProviderItem = Extract<ProviderEvent, { type: "item/started" }>["item"];
 
-function mapItem(item: ProviderItem): ThreadEventItem | null {
+const mapItem = (item: ProviderItem): ThreadEventItem | null => {
   switch (item.type) {
-    case "agentMessage":
-      return { type: "agentMessage", id: item.id, text: item.text };
-    case "reasoning":
-      return { type: "reasoning", id: item.id, summary: item.summary, content: item.content };
+    case "agentMessage": {
+      return { id: item.id, text: item.text, type: "agentMessage" };
+    }
+    case "reasoning": {
+      return { content: item.content, id: item.id, summary: item.summary, type: "reasoning" };
+    }
     case "commandExecution": {
       const mapped: Extract<ThreadEventItem, { type: "commandExecution" }> = {
-        type: "commandExecution",
-        id: item.id,
+        approvalStatus: item.approvalStatus,
         command: item.command,
         cwd: item.cwd,
+        id: item.id,
         status: item.status,
-        approvalStatus: item.approvalStatus,
+        type: "commandExecution",
       };
-      if (item.aggregatedOutput !== undefined) mapped.aggregatedOutput = item.aggregatedOutput;
-      if (item.exitCode !== undefined) mapped.exitCode = item.exitCode;
-      if (item.durationMs !== undefined) mapped.durationMs = item.durationMs;
+      if (item.aggregatedOutput !== undefined) {
+        mapped.aggregatedOutput = item.aggregatedOutput;
+      }
+      if (item.exitCode !== undefined) {
+        mapped.exitCode = item.exitCode;
+      }
+      if (item.durationMs !== undefined) {
+        mapped.durationMs = item.durationMs;
+      }
       return mapped;
     }
-    case "fileChange":
+    case "fileChange": {
       return {
-        type: "fileChange",
-        id: item.id,
-        changes: item.changes,
-        status: item.status,
         approvalStatus: item.approvalStatus,
+        changes: item.changes,
+        id: item.id,
+        status: item.status,
+        type: "fileChange",
       };
+    }
     case "toolCall": {
       const mapped: Extract<ThreadEventItem, { type: "toolCall" }> = {
-        type: "toolCall",
         id: item.id,
-        tool: item.tool,
         status: item.status,
+        tool: item.tool,
+        type: "toolCall",
       };
-      if (item.server !== undefined) mapped.server = item.server;
-      if (item.arguments !== undefined) mapped.arguments = item.arguments;
-      if (item.result !== undefined) mapped.result = item.result;
-      if (item.error !== undefined) mapped.error = item.error;
-      if (item.durationMs !== undefined) mapped.durationMs = item.durationMs;
+      if (item.server !== undefined) {
+        mapped.server = item.server;
+      }
+      if (item.arguments !== undefined) {
+        mapped.arguments = item.arguments;
+      }
+      if (item.result !== undefined) {
+        mapped.result = item.result;
+      }
+      if (item.error !== undefined) {
+        mapped.error = item.error;
+      }
+      if (item.durationMs !== undefined) {
+        mapped.durationMs = item.durationMs;
+      }
       return mapped;
     }
-    case "plan":
-      return { type: "plan", id: item.id, text: item.text };
-    // the send path already recorded the user's message; the provider's echo would double it.
+    case "plan": {
+      return { id: item.id, text: item.text, type: "plan" };
+    }
+    // userMessage: the send path already recorded it; the provider's echo would double it.
+    // the rest have no renderer in the persisted grammar yet.
     case "userMessage":
-    // no renderer in the persisted grammar yet:
     case "webSearch":
     case "webFetch":
     case "imageView":
-    case "contextCompaction":
+    case "contextCompaction": {
       return null;
+    }
+    default: {
+      const exhaustive: never = item;
+      return exhaustive;
+    }
   }
-}
+};
 
-export function mapProviderEvent(
-  event: ProviderEvent,
+const UNMAPPED_EVENT_TYPES = [
+  "thread/started",
+  "thread/identity",
+  "thread/name/updated",
+  "thread/compacted",
+  "item/fileChange/outputDelta",
+  "item/toolCall/progress",
+  "thread/contextWindowUsage/updated",
+  "turn/plan/updated",
+  "turn/diff/updated",
+  "provider/warning",
+  "provider/unhandled",
+] as const satisfies readonly ProviderEvent["type"][];
+
+type UnmappedProviderEvent = Extract<
+  ProviderEvent,
+  { type: (typeof UNMAPPED_EVENT_TYPES)[number] }
+>;
+
+const UNMAPPED: ReadonlySet<ProviderEvent["type"]> = new Set(UNMAPPED_EVENT_TYPES);
+
+const isUnmapped = (event: ProviderEvent): event is UnmappedProviderEvent =>
+  UNMAPPED.has(event.type);
+
+type TurnProviderEvent = Exclude<
+  ProviderEvent,
+  UnmappedProviderEvent | Extract<ProviderEvent, { type: "provider/error" }>
+>;
+
+const mapProviderError = (
+  event: Extract<ProviderEvent, { type: "provider/error" }>,
   turnId: string | null,
-): MapProviderEventResult {
+): MapProviderEventResult => {
+  const failure: Extract<ThreadEvent, { type: "provider/error" }> = {
+    message: event.message,
+    scope: turnId === null ? threadScope() : turnScope(turnId),
+    threadId: event.threadId,
+    type: "provider/error",
+  };
+  if (event.detail !== undefined) {
+    failure.detail = event.detail;
+  }
+  if (event.willRetry !== undefined) {
+    failure.willRetry = event.willRetry;
+  }
+  return { event: failure, kind: "mapped" };
+};
+
+const mapTurnEvent = (event: TurnProviderEvent, turnId: string): MapProviderEventResult => {
   switch (event.type) {
     case "turn/started": {
-      if (turnId === null) {
-        return dropped("turn/started with no host turn bound");
-      }
       return {
+        event: { scope: turnScope(turnId), threadId: event.threadId, type: "turn/started" },
         kind: "mapped",
-        event: { type: "turn/started", threadId: event.threadId, scope: turnScope(turnId) },
       };
     }
     case "turn/completed": {
-      if (turnId === null) {
-        return dropped("turn/completed with no host turn bound");
-      }
       const completed: Extract<ThreadEvent, { type: "turn/completed" }> = {
-        type: "turn/completed",
-        threadId: event.threadId,
         scope: turnScope(turnId),
         status: event.status,
+        threadId: event.threadId,
+        type: "turn/completed",
       };
-      if (event.error !== undefined) completed.error = event.error;
-      return { kind: "mapped", event: completed };
+      if (event.error !== undefined) {
+        completed.error = event.error;
+      }
+      return { event: completed, kind: "mapped" };
     }
     case "item/started":
     case "item/completed": {
-      if (turnId === null) {
-        return dropped(`${event.type} with no host turn bound`);
-      }
       const item = mapItem(event.item);
       if (item === null) {
         return dropped(`item kind ${event.item.type} has no persisted renderer`);
       }
       return {
+        event: { item, scope: turnScope(turnId), threadId: event.threadId, type: event.type },
         kind: "mapped",
-        event: { type: event.type, threadId: event.threadId, scope: turnScope(turnId), item },
       };
     }
     case "item/agentMessage/delta":
     case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta":
     case "item/plan/delta": {
-      if (turnId === null) {
-        return dropped(`${event.type} with no host turn bound`);
-      }
       return {
-        kind: "mapped",
         event: {
-          type: event.type,
-          threadId: event.threadId,
-          scope: turnScope(turnId),
-          itemId: event.itemId,
           delta: event.delta,
+          itemId: event.itemId,
+          scope: turnScope(turnId),
+          threadId: event.threadId,
+          type: event.type,
         },
+        kind: "mapped",
       };
     }
     case "item/commandExecution/outputDelta": {
-      if (turnId === null) {
-        return dropped(`${event.type} with no host turn bound`);
-      }
       const outputDelta: Extract<ThreadEvent, { type: "item/commandExecution/outputDelta" }> = {
-        type: event.type,
-        threadId: event.threadId,
-        scope: turnScope(turnId),
-        itemId: event.itemId,
         delta: event.delta,
+        itemId: event.itemId,
+        scope: turnScope(turnId),
+        threadId: event.threadId,
+        type: event.type,
       };
-      if (event.reset !== undefined) outputDelta.reset = event.reset;
-      return { kind: "mapped", event: outputDelta };
+      if (event.reset !== undefined) {
+        outputDelta.reset = event.reset;
+      }
+      return { event: outputDelta, kind: "mapped" };
     }
     case "thread/tokenUsage/updated": {
-      if (turnId === null) {
-        return dropped("thread/tokenUsage/updated with no host turn bound");
-      }
       return {
-        kind: "mapped",
         event: {
-          type: "thread/tokenUsage/updated",
-          threadId: event.threadId,
           scope: turnScope(turnId),
+          threadId: event.threadId,
           tokenUsage: event.tokenUsage,
+          type: "thread/tokenUsage/updated",
         },
+        kind: "mapped",
       };
     }
-    case "provider/error": {
-      const failure: Extract<ThreadEvent, { type: "provider/error" }> = {
-        type: "provider/error",
-        threadId: event.threadId,
-        scope: turnId === null ? threadScope() : turnScope(turnId),
-        message: event.message,
-      };
-      if (event.detail !== undefined) failure.detail = event.detail;
-      if (event.willRetry !== undefined) failure.willRetry = event.willRetry;
-      return { kind: "mapped", event: failure };
+    default: {
+      const exhaustive: never = event;
+      return exhaustive;
     }
-    case "thread/started":
-    case "thread/identity":
-    case "thread/name/updated":
-    case "thread/compacted":
-    case "item/fileChange/outputDelta":
-    case "item/toolCall/progress":
-    case "thread/contextWindowUsage/updated":
-    case "turn/plan/updated":
-    case "turn/diff/updated":
-    case "provider/warning":
-    case "provider/unhandled":
-      return dropped(`${event.type} has no persisted mapping`);
   }
-}
+};
+
+export const mapProviderEvent = (
+  event: ProviderEvent,
+  turnId: string | null,
+): MapProviderEventResult => {
+  if (isUnmapped(event)) {
+    return dropped(`${event.type} has no persisted mapping`);
+  }
+  if (event.type === "provider/error") {
+    return mapProviderError(event, turnId);
+  }
+  if (turnId === null) {
+    return dropped(`${event.type} with no host turn bound`);
+  }
+  return mapTurnEvent(event, turnId);
+};

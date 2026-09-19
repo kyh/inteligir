@@ -1,3 +1,4 @@
+// oxlint-disable unicorn/prefer-module -- metro requires this file; the package is not type: module
 const { getDefaultConfig } = require("expo/metro-config");
 
 const config = getDefaultConfig(__dirname);

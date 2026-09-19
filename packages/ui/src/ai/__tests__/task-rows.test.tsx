@@ -7,21 +7,19 @@ import { TaskItem, TaskItemDetails, TaskItemLabel, TaskItemRow } from "../task-r
 
 afterEach(cleanup);
 
-function item(withDetails: boolean) {
-  return (
-    <TaskItem>
-      <TaskItemRow status="running" ordinal={1}>
-        <TaskItemLabel>Build</TaskItemLabel>
-      </TaskItemRow>
-      {withDetails ? <TaskItemDetails>lines</TaskItemDetails> : null}
-    </TaskItem>
-  );
-}
+const item = (withDetails: boolean) => (
+  <TaskItem>
+    <TaskItemRow status="running" ordinal={1}>
+      <TaskItemLabel>Build</TaskItemLabel>
+    </TaskItemRow>
+    {withDetails ? <TaskItemDetails>lines</TaskItemDetails> : null}
+  </TaskItem>
+);
 
 describe("TaskItemRow", () => {
   it("stops being a toggle once its details part leaves", () => {
     const { rerender } = render(item(true));
-    const row = screen.getByRole("button", { name: /Build/ });
+    const row = screen.getByRole("button", { name: /Build/u });
     expect(row.getAttribute("aria-expanded")).toBe("false");
     expect(row.hasAttribute("disabled")).toBe(false);
 

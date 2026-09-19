@@ -1,33 +1,32 @@
-import {
-  closeConnection,
-  createConnection,
-  writeTransaction,
-  type DbConnection,
-} from "@repo/db/connection";
+import { closeConnection, createConnection, writeTransaction } from "@repo/db/connection";
+import type { DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { readSyncState } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import { join } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ackPushBatch, enqueueThreadEvents, takePushBatch } from "../outbox";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-function openStore(dataDir: string): DbConnection {
-  const db = createConnection(join(dataDir, "inteligir.db"));
+const openStore = (dataDir: string): DbConnection => {
+  const db = createConnection(path.join(dataDir, "inteligir.db"));
   runMigrations(db);
   return db;
-}
+};
 
-function enqueue(db: DbConnection, events: readonly ThreadEvent[]): void {
+const enqueue = (db: DbConnection, events: readonly ThreadEvent[]): void => {
   writeTransaction(db, (tx) => {
     enqueueThreadEvents(tx, events);
   });
-}
+};
 
-function message(threadId: string, text: string): ThreadEvent {
-  return { type: "client/turn/requested", threadId, text, scope: threadScope() };
-}
+const message = (threadId: string, text: string): ThreadEvent => ({
+  scope: threadScope(),
+  text,
+  threadId,
+  type: "client/turn/requested",
+});
 
 describe("the outbox", () => {
   it("numbers positions strictly increasing across batches, and across a restart", () => {
@@ -38,7 +37,9 @@ describe("the outbox", () => {
     expect(takePushBatch(db)?.request.events.map((event) => event.deviceSeq)).toEqual([1, 2, 3]);
 
     const drained = takePushBatch(db);
-    if (drained === null) throw new Error("expected a batch");
+    if (drained === null) {
+      throw new Error("expected a batch");
+    }
     ackPushBatch(db, drained);
     expect(takePushBatch(db)).toBeNull();
 
@@ -54,7 +55,7 @@ describe("the outbox", () => {
     const dataDir = makeTempDir("inteligir-outbox-");
     let db = openStore(dataDir);
     enqueue(db, [
-      { type: "turn/started", threadId: "thr_1", scope: turnScope("turn_1") },
+      { scope: turnScope("turn_1"), threadId: "thr_1", type: "turn/started" },
       message("thr_1", "hello"),
     ]);
     const before = takePushBatch(db);
@@ -75,7 +76,9 @@ describe("the outbox", () => {
     const db = openStore(dataDir);
     enqueue(db, [message("thr_1", "one")]);
     const batch = takePushBatch(db);
-    if (batch === null) throw new Error("expected a batch");
+    if (batch === null) {
+      throw new Error("expected a batch");
+    }
     enqueue(db, [message("thr_1", "two")]);
     ackPushBatch(db, batch);
 
@@ -94,7 +97,9 @@ describe("the outbox", () => {
     const batch = takePushBatch(db);
     expect(batch?.rejected.map((row) => row.deviceSeq)).toEqual([1]);
     expect(batch?.request.events.map((event) => event.deviceSeq)).toEqual([2]);
-    if (batch === null) throw new Error("expected a batch");
+    if (batch === null) {
+      throw new Error("expected a batch");
+    }
     ackPushBatch(db, batch);
     expect(takePushBatch(db)).toBeNull();
     closeConnection(db);

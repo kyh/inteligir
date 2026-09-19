@@ -1,5 +1,5 @@
 import { accessSync, constants, mkdirSync, statSync, writeFileSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { resolveCliBinDir, toShellEnv } from "../agent-shell-env";
@@ -14,16 +14,18 @@ describe("resolveCliBinDir", () => {
     if (binDir === null) {
       return;
     }
-    const binPath = join(binDir, "inteligir");
+    const binPath = path.join(binDir, "inteligir");
     expect(statSync(binPath).isFile()).toBe(true);
-    expect(() => accessSync(binPath, constants.X_OK)).not.toThrow();
+    expect(() => {
+      accessSync(binPath, constants.X_OK);
+    }).not.toThrow();
   });
 
   it("answers null when the shipped CLI is not executable", () => {
     // npm strips the execute bit from every packed file not named in `bin`.
-    const binDir = join(makeTempDir("unexecutable-cli-"), "bin");
+    const binDir = path.join(makeTempDir("unexecutable-cli-"), "bin");
     mkdirSync(binDir, { recursive: true });
-    writeFileSync(join(binDir, "inteligir"), "#!/bin/sh\n", { mode: 0o644 });
+    writeFileSync(path.join(binDir, "inteligir"), "#!/bin/sh\n", { mode: 0o644 });
 
     expect(resolveCliBinDir(binDir)).toBeNull();
   });
@@ -36,14 +38,14 @@ describe("resolveCliBinDir", () => {
 describe("toShellEnv", () => {
   it("prepends the bin dir to the inherited PATH and names the instance", () => {
     const env = toShellEnv(
-      fakeSessionFacts({ dataDir: "/instances/one/data", cliBinDir: CLI_BIN_DIR }),
+      fakeSessionFacts({ cliBinDir: CLI_BIN_DIR, dataDir: "/instances/one/data" }),
       {
-        PATH: `/usr/bin${delimiter}/bin`,
+        PATH: `/usr/bin${path.delimiter}/bin`,
       },
     );
     expect(env).toEqual({
       INTELIGIR_DATA_DIR: "/instances/one/data",
-      PATH: `${CLI_BIN_DIR}${delimiter}/usr/bin${delimiter}/bin`,
+      PATH: `${CLI_BIN_DIR}${path.delimiter}/usr/bin${path.delimiter}/bin`,
     });
   });
 
@@ -61,10 +63,10 @@ describe("toShellEnv", () => {
     expect(toShellEnv(fakeSessionFacts(), {})).not.toHaveProperty("INTELIGIR_SKILLS_DIR");
     expect(toShellEnv(fakeSessionFacts(), {})).not.toHaveProperty("INTELIGIR_CONNECTED_DIRS");
     const env = toShellEnv(
-      fakeSessionFacts({ skillsDir: "/repo/skills", connectedDirs: ["/a", "/b"] }),
+      fakeSessionFacts({ connectedDirs: ["/a", "/b"], skillsDir: "/repo/skills" }),
       {},
     );
     expect(env.INTELIGIR_SKILLS_DIR).toBe("/repo/skills");
-    expect(env.INTELIGIR_CONNECTED_DIRS).toBe(`/a${delimiter}/b`);
+    expect(env.INTELIGIR_CONNECTED_DIRS).toBe(`/a${path.delimiter}/b`);
   });
 });

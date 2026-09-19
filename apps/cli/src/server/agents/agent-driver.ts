@@ -13,8 +13,10 @@ import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { binaryOnPath } from "./binary-on-path";
-import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "./runtime-manager";
-import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scripted-driver";
+import { createAcpRuntimeManager } from "./runtime-manager";
+import type { AcpRuntimeManagerDeps } from "./runtime-manager";
+import { createScriptedTurnDriverFactory } from "./scripted-driver";
+import type { ScriptedDriverDeps } from "./scripted-driver";
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
@@ -32,41 +34,48 @@ export interface ResolveAgentDriverArgs {
 export interface ResolvedAgentDriver {
   status: AgentStatus;
   createTurnDriver: CreateTurnDriver;
-  dispose(): Promise<void>;
+  dispose: () => Promise<void>;
 }
 
-const noDispose = async (): Promise<void> => {};
+const noDispose = async (): Promise<void> => {
+  /* empty */
+};
 
 // default harness is claude while codex-acp 0.16.0 is broken upstream (its bundled core cannot parse the
 // current models response); flip the fallback back when the adapter heals.
-export function defaultHarnessId(preferred: HarnessId | null, env: NodeJS.ProcessEnv): HarnessId {
-  if (preferred !== null) return preferred;
+export const defaultHarnessId = (
+  preferred: HarnessId | null,
+  env: NodeJS.ProcessEnv,
+): HarnessId => {
+  if (preferred !== null) {
+    return preferred;
+  }
   return binaryOnPath("claude", env) === null && binaryOnPath("codex", env) !== null
     ? "codex"
     : "claude";
-}
+};
 
-export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentDriver {
+export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentDriver => {
   const mode = args.config.agent;
   if (mode === "off") {
     const detail = "The agent is disabled (INTELIGIR_AGENT=off)";
     return {
-      status: { mode, runtime: "off", detail },
       createTurnDriver: () => createUnavailableTurnDriver(detail),
       dispose: noDispose,
+      status: { detail, mode, runtime: "off" },
     };
   }
   const onDebug = createBoundedAgentLog();
   if (mode === "scripted") {
     const scripted: ScriptedDriverDeps = {
-      vault: args.vault.service,
       git: args.vault.git,
       onError: onDebug,
+      vault: args.vault.service,
     };
     return {
-      status: { mode, runtime: "scripted", detail: null },
       createTurnDriver: createScriptedTurnDriverFactory(scripted),
       dispose: noDispose,
+      status: { detail: null, mode, runtime: "scripted" },
     };
   }
 
@@ -77,28 +86,30 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     const detail =
       "No agent CLI was found on PATH — install Claude Code or the Codex CLI, or set INTELIGIR_AGENT=scripted";
     return {
-      status: { mode, runtime: "unavailable", detail },
       createTurnDriver: () => createUnavailableTurnDriver(detail),
       dispose: noDispose,
+      status: { detail, mode, runtime: "unavailable" },
     };
   }
 
   const acp: AcpRuntimeManagerDeps = {
     db: args.db,
-    notifier: args.notifier,
-    vaultDir: args.config.vaultDir,
-    git: args.vault.git,
-    model: args.config.agentModel,
-    mcpServers: args.mcpServers,
-    sessionFacts: args.sessionFacts,
-    hostEnv: env,
     defaultProviderId: () => defaultHarnessId(args.preferredProviderId?.() ?? null, env),
+    git: args.vault.git,
+    hostEnv: env,
+    mcpServers: args.mcpServers,
+    model: args.config.agentModel,
+    notifier: args.notifier,
     onDebug,
+    sessionFacts: args.sessionFacts,
+    vaultDir: args.config.vaultDir,
   };
   const manager = createAcpRuntimeManager(acp);
   return {
-    status: { mode, runtime: "acp", detail: null },
     createTurnDriver: manager.createTurnDriver,
-    dispose: () => manager.dispose(),
+    dispose: async () => {
+      await manager.dispose();
+    },
+    status: { detail: null, mode, runtime: "acp" },
   };
-}
+};

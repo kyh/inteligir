@@ -9,14 +9,13 @@ export const PROJECTION_VERSION = 10;
 
 const SNIPPET_MAX = 200;
 
-export function clipSnippet(text: string): string {
-  return text.length <= SNIPPET_MAX ? text : `${text.slice(0, SNIPPET_MAX - 1)}…`;
-}
+export const clipSnippet = (text: string): string =>
+  text.length <= SNIPPET_MAX ? text : `${text.slice(0, SNIPPET_MAX - 1)}…`;
 
 /** the snippet is captured here so no downstream index has to retain doc bodies */
 export type StoredLink = ExtractedLink & { snippet: string };
 
-export type DocProjection = {
+export interface DocProjection {
   title: string;
   headings: string[];
   links: StoredLink[];
@@ -26,9 +25,9 @@ export type DocProjection = {
   tasks: ExtractedTask[];
   pinned: boolean;
   noteId: string | null;
-};
+}
 
-export function projectDoc(path: string, content: string): DocProjection {
+export const projectDoc = (path: string, content: string): DocProjection => {
   const scan = scanDoc(content);
   const lines = splitLines(content);
   const links = scan.links.map((link): StoredLink => ({
@@ -36,13 +35,13 @@ export function projectDoc(path: string, content: string): DocProjection {
     snippet: clipSnippet((lines[link.line - 1] ?? "").trim()),
   }));
   return {
-    title: scan.title ?? docStem(path),
+    aliases: scan.aliases,
     headings: scan.headings,
     links,
-    tags: scan.tags,
-    aliases: scan.aliases,
-    tasks: scan.tasks,
-    pinned: scan.pinned,
     noteId: scan.noteId,
+    pinned: scan.pinned,
+    tags: scan.tags,
+    tasks: scan.tasks,
+    title: scan.title ?? docStem(path),
   };
-}
+};

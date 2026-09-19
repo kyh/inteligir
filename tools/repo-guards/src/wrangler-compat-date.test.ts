@@ -10,28 +10,28 @@ const LOCKFILE = "pnpm-lock.yaml";
 const WRANGLER_CONFIG = "apps/web/wrangler.jsonc";
 
 // the package and its per-platform binaries; peer ranges carry no `@` and stay unmatched.
-const RESOLVED_WORKERD = /\bworkerd(?:-[a-z0-9-]+)?@1\.(\d{8})\./g;
+const RESOLVED_WORKERD = /\bworkerd(?:-[a-z0-9-]+)?@1\.(?<stamp>\d{8})\./gu;
 
-function resolvedWorkerdDates(): string[] {
-  const source = fs.readFileSync(path.join(REPO_ROOT, LOCKFILE), "utf8");
+const resolvedWorkerdDates = (): string[] => {
+  const source = fs.readFileSync(path.join(REPO_ROOT, LOCKFILE), "utf-8");
   const dates = new Set<string>();
   for (const match of source.matchAll(RESOLVED_WORKERD)) {
-    const stamp = match[1];
+    const stamp = match.groups?.stamp;
     if (stamp !== undefined) {
       dates.add(`${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}`);
     }
   }
   return [...dates].toSorted();
-}
+};
 
-function declaredCompatibilityDate(): string {
-  const source = fs.readFileSync(path.join(REPO_ROOT, WRANGLER_CONFIG), "utf8");
-  const date = /"compatibility_date":\s*"(\d{4}-\d{2}-\d{2})"/.exec(source)?.[1];
+const declaredCompatibilityDate = (): string => {
+  const source = fs.readFileSync(path.join(REPO_ROOT, WRANGLER_CONFIG), "utf-8");
+  const date = /"compatibility_date":\s*"(?<date>\d{4}-\d{2}-\d{2})"/u.exec(source)?.groups?.date;
   if (date === undefined) {
     throw new Error(`${WRANGLER_CONFIG}: no "compatibility_date" to hold against ${LOCKFILE}`);
   }
   return date;
-}
+};
 
 describe("wrangler compatibility_date", () => {
   it("is the date of the oldest workerd the lockfile resolves", () => {

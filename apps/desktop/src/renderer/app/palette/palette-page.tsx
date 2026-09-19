@@ -1,15 +1,16 @@
-// The one shell every palette page draws: the dialog, its input, and the list the page fills.
-// shouldFilter is off: each page filters its own rows, not cmdk's heuristics.
+// The one shell every palette page draws: the dialog, its field, the list the page fills and the
+// hint strip under it. Every page filters its own rows, so nothing here matches a query.
 
 import {
   CommandDialog,
   CommandEmpty,
+  CommandFooter,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
 } from "@repo/ui/components/command";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
 import { FolderIcon, LayoutTemplateIcon } from "lucide-react";
@@ -18,7 +19,7 @@ import { useEffect, useState } from "react";
 export const SEARCH_DEBOUNCE_MS = 120;
 
 // the typed text, settled: a query keyed on it fires once per pause, not per keystroke
-export function useDebounced<T>(value: T, ms: number): T {
+export const useDebounced = <T,>(value: T, ms: number): T => {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -29,11 +30,10 @@ export function useDebounced<T>(value: T, ms: number): T {
     };
   }, [value, ms]);
   return settled;
-}
+};
 
-export function matchesQuery(label: string, query: string): boolean {
-  return label.toLowerCase().includes(query.trim().toLowerCase());
-}
+export const matchesQuery = (label: string, query: string): boolean =>
+  label.toLowerCase().includes(query.trim().toLowerCase());
 
 // what every page shares: the dialog's open state and the box's text
 export interface PageShell {
@@ -53,7 +53,7 @@ export interface PalettePageProps extends PageShell {
   children: React.ReactNode;
 }
 
-export function PalettePage({
+export const PalettePage = ({
   open,
   onOpenChange,
   title,
@@ -64,22 +64,25 @@ export function PalettePage({
   wide = false,
   toolbar,
   children,
-}: PalettePageProps) {
-  return (
-    <CommandDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={title}
-      description={description}
-      shouldFilter={false}
-      className={cn(wide && "sm:max-w-2xl")}
-    >
-      <CommandInput placeholder={placeholder} value={query} onValueChange={onQueryChange} />
-      {toolbar}
-      <CommandList className={cn(wide && "max-h-96")}>{children}</CommandList>
-    </CommandDialog>
-  );
-}
+}: PalettePageProps) => (
+  <CommandDialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title={title}
+    description={description}
+    className={cn(wide && "max-w-[min(100%-2rem,720px)]")}
+  >
+    <CommandInput
+      placeholder={placeholder}
+      value={query}
+      onValueChange={onQueryChange}
+      aria-label={title}
+    />
+    {toolbar}
+    <CommandList>{children}</CommandList>
+    <CommandFooter />
+  </CommandDialog>
+);
 
 export interface FolderPageProps extends PageShell {
   title: string;
@@ -92,7 +95,7 @@ export interface FolderPageProps extends PageShell {
 }
 
 // the one picker behind "New note in folder…" and "Move note to folder…"
-export function FolderPage({
+export const FolderPage = ({
   title,
   description,
   placeholder,
@@ -100,23 +103,27 @@ export function FolderPage({
   folders,
   onPick,
   ...shell
-}: FolderPageProps) {
-  return (
-    <PalettePage {...shell} title={title} description={description} placeholder={placeholder}>
-      <CommandEmpty>{empty}</CommandEmpty>
-      <CommandGroup heading="Folders">
-        {folders.map((dir) => (
-          <CommandItem key={dir === "" ? "(root)" : dir} onSelect={() => onPick(dir)}>
-            <FolderIcon />
-            {dir === "" ? "Vault root" : dir}
-          </CommandItem>
-        ))}
-      </CommandGroup>
-    </PalettePage>
-  );
-}
+}: FolderPageProps) => (
+  <PalettePage {...shell} title={title} description={description} placeholder={placeholder}>
+    <CommandEmpty>{empty}</CommandEmpty>
+    <CommandGroup heading="Folders">
+      {folders.map((dir) => (
+        <CommandItem
+          key={dir === "" ? "(root)" : dir}
+          action={dir === "" ? "Vault root" : dir}
+          onSelect={() => {
+            onPick(dir);
+          }}
+        >
+          <FolderIcon />
+          {dir === "" ? "Vault root" : dir}
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  </PalettePage>
+);
 
-export function TemplateRows({
+export const TemplateRows = ({
   templatePaths,
   query,
   onPick,
@@ -124,7 +131,7 @@ export function TemplateRows({
   templatePaths: readonly string[];
   query: string;
   onPick: (templatePath: string) => void;
-}) {
+}) => {
   const visible = templatePaths.filter((path) => matchesQuery(docStem(path), query));
   return (
     <>
@@ -135,13 +142,19 @@ export function TemplateRows({
       </CommandEmpty>
       <CommandGroup heading="Templates">
         {visible.map((path) => (
-          <CommandItem key={path} onSelect={() => onPick(path)}>
+          <CommandItem
+            key={path}
+            action={docStem(path)}
+            onSelect={() => {
+              onPick(path);
+            }}
+          >
             <LayoutTemplateIcon />
             <span className="truncate">{docStem(path)}</span>
-            <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">{path}</span>
+            <span className="ml-auto truncate pl-3 text-body text-muted-foreground">{path}</span>
           </CommandItem>
         ))}
       </CommandGroup>
     </>
   );
-}
+};

@@ -13,9 +13,9 @@ export interface DebouncedCallbackScheduler {
   schedule: () => void;
 }
 
-export function createDebouncedCallbackScheduler(
+export const createDebouncedCallbackScheduler = (
   args: DebouncedCallbackSchedulerArgs,
-): DebouncedCallbackScheduler {
+): DebouncedCallbackScheduler => {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -43,9 +43,7 @@ export function createDebouncedCallbackScheduler(
         clearTimeout(debounceTimer);
       }
       debounceTimer = setTimeout(flush, args.debounceMs);
-      if (maxWaitTimer === null) {
-        maxWaitTimer = setTimeout(flush, args.maxWaitMs);
-      }
+      maxWaitTimer ??= setTimeout(flush, args.maxWaitMs);
     },
   };
-}
+};

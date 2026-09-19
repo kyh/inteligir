@@ -3,21 +3,12 @@
 
 import { useMemo, useState } from "react";
 import { SigmaIcon } from "lucide-react";
-import {
-  ElementApi,
-  KEYS,
-  createTSlatePlugin,
-  type Descendant,
-  type PluginConfig,
-  type TElement,
-} from "platejs";
-import {
-  PlateElement,
-  createPlatePlugin,
-  useEditorRef,
-  type PlateElementProps,
-} from "platejs/react";
-import { withTriggerCombobox, type TriggerComboboxPluginOptions } from "@platejs/combobox";
+import { ElementApi, KEYS, createTSlatePlugin } from "platejs";
+import type { Descendant, PluginConfig, TElement } from "platejs";
+import { PlateElement, createPlatePlugin, useEditorRef } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
+import { withTriggerCombobox } from "@platejs/combobox";
+import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
 import { commitComboboxInput } from "@repo/editor/combobox-input";
 import {
@@ -39,26 +30,28 @@ import {
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 
-type NamedVariable = {
+interface NamedVariable {
   name: string;
   source: string;
   display: string;
   meta: string;
-};
+}
 
-function collectNamedVariables(editorChildren: readonly TElement[]): NamedVariable[] {
+const collectNamedVariables = (editorChildren: readonly TElement[]): NamedVariable[] => {
   const seen = new Set<string>();
   const out: NamedVariable[] = [];
   const walk = (nodes: readonly Descendant[]): void => {
     for (const node of nodes) {
-      if (!ElementApi.isElement(node)) continue;
+      if (!ElementApi.isElement(node)) {
+        continue;
+      }
       if (node.type === "formulaPill") {
         const meta = stringProp(node, "meta") ?? "";
         const parsed = parseFormulaMeta(meta);
         const source = stringProp(node, "source") ?? "";
         const display = stringProp(node, "display") ?? "";
         // symbolic variables are named by their source
-        const name = parsed.name ?? (parsed.id !== undefined ? source : undefined);
+        const name = parsed.name ?? (parsed.id === undefined ? undefined : source);
         const key = parsed.id ?? name;
         if (name !== undefined && name !== "" && key !== undefined && !seen.has(key)) {
           seen.add(key);
@@ -70,10 +63,10 @@ function collectNamedVariables(editorChildren: readonly TElement[]): NamedVariab
   };
   walk(editorChildren);
   return out;
-}
+};
 
-function FormulaInputElement(props: PlateElementProps) {
-  const { children, element } = props;
+const FormulaInputElement = (props: PlateElementProps) => {
+  const { element } = props;
   const editor = useEditorRef();
   const [value, setValue] = useState("");
 
@@ -145,10 +138,10 @@ function FormulaInputElement(props: PlateElementProps) {
           </InlineComboboxGroup>
         </InlineComboboxContent>
       </InlineCombobox>
-      {children}
+      {props.children}
     </PlateElement>
   );
-}
+};
 
 type FormulaTriggerConfig = PluginConfig<"formula_trigger", TriggerComboboxPluginOptions>;
 
@@ -156,12 +149,12 @@ export const FormulaAutocompleteKit = [
   createTSlatePlugin<FormulaTriggerConfig>({
     key: "formula_trigger",
     options: {
+      createComboboxInput: () => ({ children: [{ text: "" }], type: FORMULA_INPUT_KEY }),
       trigger: "{",
       // only a `{` right before the typed `{` opens the picker; a lone brace stays literal and MDX expressions stay MDX's
       triggerPreviousCharPattern: /^\{$/u,
       triggerQuery: (editor) =>
         !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),
-      createComboboxInput: () => ({ children: [{ text: "" }], type: FORMULA_INPUT_KEY }),
     },
   }).overrideEditor(withTriggerCombobox),
   createPlatePlugin({

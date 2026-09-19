@@ -1,8 +1,10 @@
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
-import { createDurableGit, type Registry } from "durable-git";
+import { createDurableGit } from "durable-git";
+import type { Registry } from "durable-git";
 import { createDb } from "../db/client";
 import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
-import { allowInWindow, deviceRateKey, type RateWindow } from "../rate-limit";
+import { allowInWindow, deviceRateKey } from "../rate-limit";
+import type { RateWindow } from "../rate-limit";
 import { pingVaultAdvanced } from "../sync/routes";
 
 // The URL is identity-free: the repo name is derived from the verified credential and rewritten
@@ -29,37 +31,43 @@ const PROTOCOL_ROUTES = new Set([
 const MAX_UPLOAD_PACK_BYTES = 16 * 1024 * 1024;
 
 // dgit refuses repo names outside this set, and the userId is embedded in the name
-const REPO_NAME_SAFE = /^[A-Za-z0-9._-]+$/;
+const REPO_NAME_SAFE = /^[A-Za-z0-9._-]+$/u;
 
 // also the read routes' address (read-routes.ts): one derivation, so push and read cannot name different repos
-export function vaultRepoName(userId: string): string {
-  return `vault-${userId}`;
-}
+export const vaultRepoName = (userId: string): string => `vault-${userId}`;
 
 // one spelling: reads consult it and deletion removes from it
-export function vaultRegistry(env: Env): DurableObjectStub<Registry> {
-  return env.REGISTRY.getByName("registry");
-}
+export const vaultRegistry = (env: Env): DurableObjectStub<Registry> =>
+  env.REGISTRY.getByName("registry");
+
+// dgit suppresses a registry upsert failure ("next push heals"), but the read routes gate on the
+// registry, so a suppressed failure after the first push leaves the vault invisible; idempotent
+const upsertVaultRegistry = async (env: Env, repo: string, idle: number): Promise<void> => {
+  try {
+    await vaultRegistry(env).upsert(repo, idle);
+  } catch {
+    // dgit's next-push-heals fallback still stands
+  }
+};
 
 const handler = createDurableGit<Env>({
-  ui: false,
   authorize: (ctx) => ctx.request.headers.get(AUTHORIZED_HEADER) === ctx.repo,
+  ui: false,
 });
 
 // plain text plus a Basic challenge: the challenge is what makes a stock git client prompt
-function unauthorized(): Response {
-  return new Response("auth required\n", {
-    status: 401,
+const unauthorized = (): Response =>
+  new Response("auth required\n", {
     headers: { "www-authenticate": 'Basic realm="inteligir vault"' },
+    status: 401,
   });
-}
 
-export async function handleVaultGitRemote(
+export const handleVaultGitRemote = async (
   request: Request,
   env: Env,
   ctx: ExecutionContext,
   url: URL,
-): Promise<Response> {
+): Promise<Response> => {
   const sub = url.pathname.slice(VAULT_GIT_PATH.length);
   if (!PROTOCOL_ROUTES.has(`${request.method} ${sub}`)) {
     return new Response("not found\n", { status: 404 });
@@ -68,7 +76,9 @@ export async function handleVaultGitRemote(
   const db = createDb(env.DB);
   const credential = deviceCredentialFromHeader(request.headers.get("authorization"));
   const verified = credential === null ? null : await verifyDeviceCredentialValue(db, credential);
-  if (verified === null) return unauthorized();
+  if (verified === null) {
+    return unauthorized();
+  }
 
   if (
     !(await allowInWindow(env, db, deviceRateKey("vaultGit", verified.deviceId), VAULT_GIT_WINDOW))
@@ -83,7 +93,8 @@ export async function handleVaultGitRemote(
   }
 
   if (sub === "/git-upload-pack") {
-    const declared = Number.parseInt(request.headers.get("content-length") ?? "", 10);
+    const header = request.headers.get("content-length") ?? "";
+    const declared = /^\d+$/u.test(header) ? Number(header) : Number.NaN;
     if (!Number.isFinite(declared) || declared > MAX_UPLOAD_PACK_BYTES) {
       return new Response("upload-pack body must declare a length within the ceiling\n", {
         status: 413,
@@ -98,35 +109,29 @@ export async function handleVaultGitRemote(
   headers.set(AUTHORIZED_HEADER, repo);
 
   const response = await handler.fetch(
-    new Request(target, { method: request.method, headers, body: request.body }),
+    new Request(target, { body: request.body, headers, method: request.method }),
     env,
     ctx,
   );
 
   if (sub === "/git-receive-pack" && response.ok && response.headers.get("x-changed") === "1") {
     ctx.waitUntil(pingVaultAdvanced(env, verified.userId, verified.deviceId));
-    // dgit suppresses a registry upsert failure ("next push heals"), but the read routes gate on the
-    // registry, so a suppressed failure after the first push leaves the vault invisible; idempotent
     const idle = Number(response.headers.get("x-commit-time")) || Date.now();
-    ctx.waitUntil(
-      Promise.resolve(vaultRegistry(env).upsert(repo, idle)).catch(() => {
-        // dgit's next-push-heals fallback still stands
-      }),
-    );
+    ctx.waitUntil(upsertVaultRegistry(env, repo, idle));
   }
   return response;
-}
+};
 
 // A non-OK answer throws so beforeDelete aborts and the account survives to retry; a never-pushed
 // repo wipes empty tables, so it is idempotent. Residual: a push whose pack is still uploading can
 // recreate the repo after the wipe; dgit has no tombstone, and the orphan is unreachable since
 // every credential that could name it is revoked.
-export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void> {
+export const deleteVaultGitRepo = async (env: Env, userId: string): Promise<void> => {
   const repo = vaultRepoName(userId);
   // not gated on the registry: a purge must not trust an index, or a lost registry row leaves the bytes alive
   const response = await env.REPO.getByName(repo).fetch("https://vault-git/", {
-    method: "DELETE",
     headers: { "x-repo": repo },
+    method: "DELETE",
   });
   if (!response.ok) {
     throw new Error(`vault git repo delete failed: ${response.status}`);
@@ -136,7 +141,7 @@ export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void
     let cursor: string | undefined;
     do {
       const listing = await env.PACK_CACHE.list(
-        cursor === undefined ? { prefix } : { prefix, cursor },
+        cursor === undefined ? { prefix } : { cursor, prefix },
       );
       if (listing.objects.length > 0) {
         await env.PACK_CACHE.delete(listing.objects.map((object) => object.key));
@@ -145,4 +150,4 @@ export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void
     } while (cursor !== undefined);
   }
   await vaultRegistry(env).remove(repo);
-}
+};

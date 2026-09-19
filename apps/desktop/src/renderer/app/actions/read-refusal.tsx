@@ -1,13 +1,13 @@
 import { refusalMessage } from "../api";
 
-export function ReadRefusal({ lead, error }: { lead: string; error: unknown }) {
+export const ReadRefusal = ({ lead, error }: { lead: string; error: unknown }) => {
   const detail = refusalMessage(error, "");
   return (
-    <div className="p-3 text-sm">
+    <div className="p-3 text-subtitle">
       <p className="text-destructive">{lead}</p>
       {detail === "" ? null : (
-        <p className="mt-1 text-xs break-words text-muted-foreground">{detail}</p>
+        <p className="mt-1 text-body break-words text-muted-foreground">{detail}</p>
       )}
     </div>
   );
-}
+};

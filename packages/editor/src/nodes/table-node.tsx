@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { deleteColumn, deleteRow, insertTableColumn, insertTableRow } from "@platejs/table";
-import { PlateElement, useEditorRef, type PlateElementProps } from "platejs/react";
+import { PlateElement, useEditorRef } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { Button } from "@repo/ui/components/button";
 import {
@@ -13,7 +14,7 @@ import {
   DropdownMenuSeparator,
 } from "@repo/ui/components/dropdown-menu";
 
-export function TableElement(props: PlateElementProps) {
+export const TableElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const { element } = props;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -23,17 +24,23 @@ export function TableElement(props: PlateElementProps) {
   // mousedown so opening the menu keeps that selection.
   const removeTable = () => {
     const at = editor.api.findPath(element);
-    if (at) editor.tf.removeNodes({ at });
+    if (at) {
+      editor.tf.removeNodes({ at });
+    }
   };
 
   const addRow = () => {
     const at = editor.api.findPath(element);
-    if (at) insertTableRow(editor, { at });
+    if (at) {
+      insertTableRow(editor, { at });
+    }
   };
   const addColumn = () => {
     const at = editor.api.findPath(element);
-    if (!at) return;
-    const firstRow = element.children[0];
+    if (!at) {
+      return;
+    }
+    const [firstRow] = element.children;
     const cols =
       firstRow && "children" in firstRow && Array.isArray(firstRow.children)
         ? firstRow.children.length
@@ -50,8 +57,12 @@ export function TableElement(props: PlateElementProps) {
         size="icon-compact"
         contentEditable={false}
         ref={menuBtnRef}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setMenuOpen(true)}
+        onMouseDown={(e) => {
+          e.preventDefault();
+        }}
+        onClick={() => {
+          setMenuOpen(true);
+        }}
         title="Table options"
         className="absolute -top-2.5 -left-2.5 z-10 size-5 rounded-md border-border bg-background text-muted-foreground opacity-0 group-hover/table:opacity-100"
       >
@@ -59,8 +70,20 @@ export function TableElement(props: PlateElementProps) {
       </Button>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuContent anchor={menuBtnRef} side="bottom" align="start">
-          <DropdownMenuItem onClick={() => deleteRow(editor)}>Delete row</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => deleteColumn(editor)}>Delete column</DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              deleteRow(editor);
+            }}
+          >
+            Delete row
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              deleteColumn(editor);
+            }}
+          >
+            Delete column
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={removeTable}>
             <Trash2Icon />
@@ -95,4 +118,4 @@ export function TableElement(props: PlateElementProps) {
       </Button>
     </div>
   );
-}
+};

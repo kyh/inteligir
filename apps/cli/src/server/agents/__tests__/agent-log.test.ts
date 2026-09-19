@@ -11,7 +11,9 @@ describe("the bounded agent log", () => {
 
   it("logs the first occurrence in full, then only every 100th with a count", () => {
     const lines: string[] = [];
-    const log = createBoundedAgentLog((line) => lines.push(line));
+    const log = createBoundedAgentLog((line) => {
+      lines.push(line);
+    });
     for (let i = 0; i < 250; i += 1) {
       log(`dropped provider event for thread thr_${String(i).padStart(6, "0")}xx: no renderer`);
     }

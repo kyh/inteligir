@@ -26,17 +26,15 @@ const SURFACE_SHADOW = {
   8: "shadow-surface-8",
 } satisfies Record<SurfaceLevel, string>;
 
-function isSurfaceLevel(level: number): level is SurfaceLevel {
-  return Number.isInteger(level) && level >= 1 && level <= 8;
-}
+const isSurfaceLevel = (level: number): level is SurfaceLevel =>
+  Number.isInteger(level) && level >= 1 && level <= 8;
 
 // round after clamping so a fractional level cannot miss the lookup; the final fallback is
 // unreachable but the guard cannot prove that
-function clampSurfaceLevel(level: number): SurfaceLevel {
+const clampSurfaceLevel = (level: number): SurfaceLevel => {
   const clamped = Math.round(Math.max(1, Math.min(8, level)));
   return isSurfaceLevel(clamped) ? clamped : 1;
-}
+};
 
-export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
-  return `${SURFACE_BG[clampSurfaceLevel(bgLevel)]} ${SURFACE_SHADOW[clampSurfaceLevel(shadowLevel)]}`;
-}
+export const surfaceClasses = (bgLevel: number, shadowLevel: number = bgLevel): string =>
+  `${SURFACE_BG[clampSurfaceLevel(bgLevel)]} ${SURFACE_SHADOW[clampSurfaceLevel(shadowLevel)]}`;

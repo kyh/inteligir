@@ -1,6 +1,5 @@
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
-import { InputGroup, InputGroupAddon } from "@repo/ui/components/input-group";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { Label } from "@repo/ui/components/label";
 import {
@@ -14,14 +13,13 @@ import {
 } from "@repo/ui/ai/prompt-bar";
 import { Switch } from "@repo/ui/components/switch";
 import { Textarea } from "@repo/ui/components/textarea";
-import { SearchIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const noop = (): void => undefined;
 
-export function InputsSection() {
+export const InputsSection = () => {
   const [checked, setChecked] = useState(true);
   const [enabled, setEnabled] = useState(true);
   const [message, setMessage] = useState("");
@@ -51,23 +49,6 @@ export function InputsSection() {
           rows={3}
           defaultValue={"Ship the parity wave.\nThen re-read the decision record."}
         />
-      </Demo>
-
-      <Demo
-        name="InputGroup"
-        purpose="A field wearing an addon — how the palette wraps its own search input."
-        stack
-      >
-        <InputGroup className="w-72">
-          <input
-            data-slot="input-group-control"
-            placeholder="Search notes"
-            className="w-full bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
-          />
-          <InputGroupAddon>
-            <SearchIcon className="size-4 shrink-0 opacity-50" />
-          </InputGroupAddon>
-        </InputGroup>
       </Demo>
 
       <Demo name="Checkbox" purpose="One independent yes/no.">
@@ -124,8 +105,8 @@ export function InputsSection() {
         <div className="w-full max-w-xl">
           <PromptBar>
             <PromptBarSources>
-              <PromptBarSource onRemove={() => undefined}>Getting Started.md</PromptBarSource>
-              <PromptBarSource onRemove={() => undefined}>Use Cases.md</PromptBarSource>
+              <PromptBarSource onRemove={noop}>Getting Started.md</PromptBarSource>
+              <PromptBarSource onRemove={noop}>Use Cases.md</PromptBarSource>
             </PromptBarSources>
             <PromptBarField
               value={prompt}
@@ -151,4 +132,4 @@ export function InputsSection() {
       </Demo>
     </GallerySection>
   );
-}
+};

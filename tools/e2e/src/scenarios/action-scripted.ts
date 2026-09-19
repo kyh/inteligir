@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { isDefinedError, safe } from "@orpc/client";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
@@ -12,27 +12,27 @@ const INTRUDER = "# Plans\n\nsomeone else's save\n";
 const TURN_DEADLINE_MS = 30_000;
 
 export const actionScripted: Scenario = {
-  name: "action-scripted",
   description: "an action attaches to its note; a scripted turn writes the vault; CAS + rename",
+  name: "action-scripted",
   async run(ctx) {
     const app = await ctx.boot({
-      name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
+      name: "solo",
     });
     const { api, vaultDir } = app;
 
     ctx.log("write the note and attach an action to it");
-    await api.vault.write({ path: "notes/plans.md", content: BASE });
+    await api.vault.write({ content: BASE, path: "notes/plans.md" });
     const { thread } = await api.threads.create({
-      title: "Tighten the intro",
       originDocPath: "notes/plans.md",
+      title: "Tighten the intro",
     });
     expectEq(thread.originDocPath, "notes/plans.md", "the action holds its note");
 
     ctx.log("a scripted turn on the action writes the vault through the agent path");
     const outcome = await api.threads.send({
-      threadId: thread.id,
       text: "do the thing",
+      threadId: thread.id,
     });
     expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
     const deadline = Date.now() + TURN_DEADLINE_MS;
@@ -45,17 +45,17 @@ export const actionScripted: Scenario = {
       expect(Date.now() < deadline, `turn still "${current.status}" after ${TURN_DEADLINE_MS}ms`);
       await delay(250);
     }
-    const agentNote = await readFile(join(vaultDir, "Agent", `${thread.id}.md`), "utf8");
+    const agentNote = await readFile(path.join(vaultDir, "Agent", `${thread.id}.md`), "utf-8");
     expect(agentNote.length > 0, "the scripted turn's note is on disk");
 
     ctx.log("a CAS write from the base lands");
     await api.vault.write({
-      path: "notes/plans.md",
       content: EDITED,
       expectedHash: await contentHashHex(BASE),
+      path: "notes/plans.md",
     });
     expectEq(
-      await readFile(join(vaultDir, "notes", "plans.md"), "utf8"),
+      await readFile(path.join(vaultDir, "notes", "plans.md"), "utf-8"),
       EDITED,
       "the guarded save landed on disk",
     );
@@ -63,9 +63,9 @@ export const actionScripted: Scenario = {
     ctx.log("a CAS write from a STALE base answers CAS_MISMATCH with the current bytes");
     const [conflict] = await safe(
       api.vault.write({
-        path: "notes/plans.md",
         content: INTRUDER,
         expectedHash: await contentHashHex(BASE),
+        path: "notes/plans.md",
       }),
     );
     expect(
@@ -80,7 +80,7 @@ export const actionScripted: Scenario = {
       );
     }
     expectEq(
-      await readFile(join(vaultDir, "notes", "plans.md"), "utf8"),
+      await readFile(path.join(vaultDir, "notes", "plans.md"), "utf-8"),
       EDITED,
       "the losing write changed nothing on disk",
     );

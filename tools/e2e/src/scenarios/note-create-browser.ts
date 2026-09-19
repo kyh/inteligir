@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -14,8 +14,8 @@ const EDITOR = '[data-slate-editor="true"]';
 const NAME_INPUT = '[role="tree"] input[aria-label="Name"]';
 
 export const noteCreateBrowser: Scenario = {
-  name: "note-create-browser",
   description: "the sidebar's New note creates the file on disk through the session",
+  name: "note-create-browser",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
     try {
@@ -35,7 +35,7 @@ export const noteCreateBrowser: Scenario = {
       ctx.log(`waiting for ${NOTE_PATH} to land on disk`);
       const deadline = Date.now() + CREATE_DEADLINE_MS;
       for (;;) {
-        const bytes = await readFile(join(app.vaultDir, NOTE_PATH), "utf8").catch(() => null);
+        const bytes = await readFile(path.join(app.vaultDir, NOTE_PATH), "utf-8").catch(() => null);
         if (bytes !== null) {
           expect(bytes === "", `a new note is created empty, but ${NOTE_PATH} holds:\n${bytes}`);
           break;
@@ -44,7 +44,7 @@ export const noteCreateBrowser: Scenario = {
         await delay(250);
       }
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

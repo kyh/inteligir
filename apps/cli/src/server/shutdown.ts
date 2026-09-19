@@ -3,9 +3,10 @@
 // single budget lets one wedged step starve the vault flush behind it, so the
 // sequence deadline is derived from the steps, never declared.
 
-export const DEFAULT_STEP_TIMEOUT_MS = 5_000;
+export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 
 // the one place a budget is written; teardownStep takes a name from here, so no step carries its own number.
+/* oxlint-disable sort-keys -- listed in teardown order, which the per-step comments explain */
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
   voice: DEFAULT_STEP_TIMEOUT_MS,
@@ -14,22 +15,24 @@ export const TEARDOWN_BUDGETS_MS = {
   agent: DEFAULT_STEP_TIMEOUT_MS,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
   // a git commit over a large dirty tree; the step the ordering exists to protect.
-  vault: 8_000,
+  vault: 8000,
   db: DEFAULT_STEP_TIMEOUT_MS,
 } as const satisfies Record<string, number>;
+/* oxlint-enable sort-keys */
 
 export type TeardownStepName = keyof typeof TEARDOWN_BUDGETS_MS;
 
-export function teardownStep(name: TeardownStepName, run: () => Promise<void>): ShutdownStep {
-  return { name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run };
-}
+export const teardownStep = (name: TeardownStepName, run: ShutdownStep["run"]): ShutdownStep => ({
+  name,
+  run,
+  timeoutMs: TEARDOWN_BUDGETS_MS[name],
+});
 
 // so the backstop cannot land on a step's own deadline.
-const DEADLINE_SLACK_MS = 1_000;
+const DEADLINE_SLACK_MS = 1000;
 
-function deadlineFor(budgets: readonly number[]): number {
-  return budgets.reduce((total, budget) => total + budget, 0) + DEADLINE_SLACK_MS;
-}
+const deadlineFor = (budgets: readonly number[]): number =>
+  budgets.reduce((total, budget) => total + budget, 0) + DEADLINE_SLACK_MS;
 
 // the supervisor derives its SIGKILL grace from this; a shorter grace lands the kill mid-flush.
 export const SHUTDOWN_TIMEOUT_MS = deadlineFor(Object.values(TEARDOWN_BUDGETS_MS));
@@ -37,16 +40,14 @@ export const SHUTDOWN_TIMEOUT_MS = deadlineFor(Object.values(TEARDOWN_BUDGETS_MS
 export interface ShutdownStep {
   name: string;
   timeoutMs?: number;
-  run(): Promise<void>;
+  // a step that closes a handle synchronously is a step; runStep awaits either.
+  run: () => void | Promise<void>;
 }
 
-function stepTimeoutMs(step: ShutdownStep): number {
-  return step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
-}
+const stepTimeoutMs = (step: ShutdownStep): number => step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
 
-export function shutdownDeadlineMs(steps: readonly ShutdownStep[]): number {
-  return deadlineFor(steps.map(stepTimeoutMs));
-}
+export const shutdownDeadlineMs = (steps: readonly ShutdownStep[]): number =>
+  deadlineFor(steps.map(stepTimeoutMs));
 
 export interface ShutdownResult {
   ok: boolean;
@@ -56,47 +57,44 @@ export interface ShutdownResult {
 export interface GracefulShutdownArgs {
   // read at run time, so steps registered during boot count.
   steps: readonly ShutdownStep[];
-  onStepFailed(name: string, cause: unknown): void;
-  onTimeout(deadlineMs: number): void;
+  onStepFailed: (name: string, cause: unknown) => void;
+  onTimeout: (deadlineMs: number) => void;
 }
 
 export interface GracefulShutdown {
   // idempotent: a second signal joins the first run rather than tearing down over half-closed resources.
-  run(): Promise<ShutdownResult>;
+  run: () => Promise<ShutdownResult>;
   readonly started: boolean;
 }
 
 class StepTimeoutError extends Error {
   constructor(name: string, timeoutMs: number) {
     super(`${name} did not finish within ${timeoutMs}ms`);
+    this.name = "StepTimeoutError";
   }
 }
 
-function runStep(step: ShutdownStep): Promise<void> {
+const runStep = async (step: ShutdownStep): Promise<void> => {
   const timeoutMs = stepTimeoutMs(step);
-  return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new StepTimeoutError(step.name, timeoutMs));
-    }, timeoutMs);
-    // unref, so a step's timer never keeps the process alive after the teardown moved on.
-    timer.unref?.();
-    void (async () => {
-      try {
-        await step.run();
-        clearTimeout(timer);
-        resolve();
-      } catch (error) {
-        clearTimeout(timer);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      }
-    })();
-  });
-}
+  const expired = Promise.withResolvers<never>();
+  const timer = setTimeout(() => {
+    expired.reject(new StepTimeoutError(step.name, timeoutMs));
+  }, timeoutMs);
+  // unref, so a step's timer never keeps the process alive after the teardown moved on.
+  timer.unref?.();
+  try {
+    await Promise.race([step.run(), expired.promise]);
+  } catch (error) {
+    throw error instanceof Error ? error : new Error(String(error));
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
-export function createGracefulShutdown(args: GracefulShutdownArgs): GracefulShutdown {
+export const createGracefulShutdown = (args: GracefulShutdownArgs): GracefulShutdown => {
   let inflight: Promise<ShutdownResult> | null = null;
 
-  async function runSteps(): Promise<ShutdownResult> {
+  const runSteps = async (): Promise<ShutdownResult> => {
     const failed: string[] = [];
     for (const step of args.steps) {
       try {
@@ -106,54 +104,50 @@ export function createGracefulShutdown(args: GracefulShutdownArgs): GracefulShut
         args.onStepFailed(step.name, error);
       }
     }
-    return { ok: failed.length === 0, failed };
-  }
+    return { failed, ok: failed.length === 0 };
+  };
 
-  async function runOnce(): Promise<ShutdownResult> {
+  const runOnce = async (): Promise<ShutdownResult> => {
     const deadlineMs = shutdownDeadlineMs(args.steps);
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const backstop = new Promise<ShutdownResult>((resolve) => {
-      timer = setTimeout(() => {
-        args.onTimeout(deadlineMs);
-        resolve({ ok: false, failed: ["<deadline>"] });
-      }, deadlineMs);
-      timer.unref?.();
-    });
+    const backstop = Promise.withResolvers<ShutdownResult>();
+    const timer = setTimeout(() => {
+      args.onTimeout(deadlineMs);
+      backstop.resolve({ failed: ["<deadline>"], ok: false });
+    }, deadlineMs);
+    timer.unref?.();
     try {
-      return await Promise.race([runSteps(), backstop]);
+      return await Promise.race([runSteps(), backstop.promise]);
     } finally {
-      if (timer !== null) {
-        clearTimeout(timer);
-      }
+      clearTimeout(timer);
     }
-  }
+  };
 
   return {
-    run() {
+    async run() {
       inflight ??= runOnce();
-      return inflight;
+      return await inflight;
     },
     get started() {
       return inflight !== null;
     },
   };
-}
+};
 
 export const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM"] as const;
 
 interface SignalTarget {
-  on(signal: NodeJS.Signals, handler: () => void): void;
-  exit(code: number): void;
+  on: (signal: NodeJS.Signals, handler: () => void) => void;
+  exit: (code: number) => void;
 }
 
 export interface InstallShutdownSignalsArgs {
   shutdown: GracefulShutdown;
   target: SignalTarget;
-  onImpatient(signal: NodeJS.Signals): void;
-  onUncleanExit(failed: readonly string[]): void;
+  onImpatient: (signal: NodeJS.Signals) => void;
+  onUncleanExit: (failed: readonly string[]) => void;
 }
 
-export function installShutdownSignals(args: InstallShutdownSignalsArgs): void {
+export const installShutdownSignals = (args: InstallShutdownSignalsArgs): void => {
   for (const signal of SHUTDOWN_SIGNALS) {
     args.target.on(signal, () => {
       if (args.shutdown.started) {
@@ -169,26 +163,26 @@ export function installShutdownSignals(args: InstallShutdownSignalsArgs): void {
       })();
     });
   }
-}
+};
 
 export const FATAL_EVENTS = ["uncaughtException", "unhandledRejection"] as const;
 export type FatalEvent = (typeof FATAL_EVENTS)[number];
 
 interface FatalTarget {
-  on(event: FatalEvent, handler: (cause: unknown) => void): void;
-  exit(code: number): void;
+  on: (event: FatalEvent, handler: (cause: unknown) => void) => void;
+  exit: (code: number) => void;
 }
 
 export interface InstallFatalErrorHandlersArgs {
   shutdown: GracefulShutdown;
   target: FatalTarget;
   // reported before the teardown, which can take seconds.
-  onFatal(event: FatalEvent, cause: unknown): void;
+  onFatal: (event: FatalEvent, cause: unknown) => void;
 }
 
 // node's default exits immediately, skipping the sqlite close that checkpoints
 // the WAL and the vault's pending commit; exit 1 so a supervisor can tell a crash from a quit.
-export function installFatalErrorHandlers(args: InstallFatalErrorHandlersArgs): void {
+export const installFatalErrorHandlers = (args: InstallFatalErrorHandlersArgs): void => {
   for (const event of FATAL_EVENTS) {
     args.target.on(event, (cause) => {
       args.onFatal(event, cause);
@@ -199,4 +193,4 @@ export function installFatalErrorHandlers(args: InstallFatalErrorHandlersArgs): 
       })();
     });
   }
-}
+};

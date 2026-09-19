@@ -3,19 +3,16 @@
 // two concurrent drains push one batch twice. the socket is latency, never correctness.
 
 import { hostname } from "node:os";
-import {
-  createCloudClient,
-  describeCloudFailure,
-  type CloudEndpoint,
-  type CloudFailure,
-  type CloudFetch,
-  type CloudSocketOpener,
-  type CreateCloudClientArgs,
+import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
+import type {
+  CloudEndpoint,
+  CloudFailure,
+  CloudFetch,
+  CloudSocketOpener,
+  CreateCloudClientArgs,
 } from "@repo/api/cloud/client";
-import {
-  loginDevice,
-  type LoginOutcome as DeviceLoginOutcome,
-} from "@repo/api/cloud/device/login-flow";
+import { loginDevice } from "@repo/api/cloud/device/login-flow";
+import type { LoginOutcome as DeviceLoginOutcome } from "@repo/api/cloud/device/login-flow";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import { countSyncOutbox, readSyncState, resetSyncState } from "@repo/db/sync-outbox";
@@ -26,17 +23,14 @@ import {
   clearDeviceCredential,
   readDeviceCredential,
   writeDeviceCredential,
-  type DeviceCredential,
 } from "./credential-store";
+import type { DeviceCredential } from "./credential-store";
 import { enqueueThreadEvents } from "./outbox";
 import { createSocketLink } from "./socket-link";
-import { createSyncCadence, type SyncCadenceArgs } from "./sync-cadence";
-import {
-  runSyncPass,
-  type PassContext,
-  type SyncedEventSink,
-  type SyncPassDeps,
-} from "./sync-pass";
+import { createSyncCadence } from "./sync-cadence";
+import type { SyncCadenceArgs } from "./sync-cadence";
+import { runSyncPass } from "./sync-pass";
+import type { PassContext, SyncedEventSink, SyncPassDeps } from "./sync-pass";
 
 export interface CloudTransport {
   fetch?: CloudFetch;
@@ -63,20 +57,24 @@ export type LoginOutcome =
   | Extract<DeviceLoginOutcome, { kind: "refused" }>;
 
 export interface CloudRuntime {
-  status(): CloudStatusResponse;
-  enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;
+  status: () => CloudStatusResponse;
+  enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;
   /** late-bound: the thread service needs enqueue at construction. */
-  attach(sink: SyncedEventSink): void;
-  start(): void;
-  login(request: CloudLoginRequest): Promise<LoginOutcome>;
-  logout(): CloudStatusResponse;
-  syncNow(): Promise<CloudStatusResponse>;
-  dispose(): Promise<void>;
+  attach: (sink: SyncedEventSink) => void;
+  start: () => void;
+  login: (request: CloudLoginRequest) => Promise<LoginOutcome>;
+  logout: () => CloudStatusResponse;
+  syncNow: () => Promise<CloudStatusResponse>;
+  dispose: () => Promise<void>;
 }
 
-export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
+export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   const transport = args.transport ?? {};
-  const debug = args.onDebug ?? ((message: string) => console.error(`cloud: ${message}`));
+  const debug =
+    args.onDebug ??
+    ((message: string) => {
+      console.error(`cloud: ${message}`);
+    });
 
   let sink: SyncedEventSink | null = null;
   let lastError: string | null = null;
@@ -87,80 +85,97 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   // keyed by session: joining the previous login's fetch answers about an account this device left.
   let learningIdentity: { sessionId: number; pass: Promise<void> } | null = null;
 
-  function endpoint(): CloudEndpoint {
+  const endpoint = (): CloudEndpoint => {
     const target: CloudEndpoint = { baseUrl: args.cloudUrl };
-    if (transport.fetch !== undefined) target.fetch = transport.fetch;
+    if (transport.fetch !== undefined) {
+      target.fetch = transport.fetch;
+    }
     return target;
-  }
+  };
 
-  function clientArgs(credential: string, signal: AbortSignal): CreateCloudClientArgs {
-    return { ...endpoint(), credential, signal };
-  }
+  const clientArgs = (credential: string, signal: AbortSignal): CreateCloudClientArgs => ({
+    ...endpoint(),
+    credential,
+    signal,
+  });
 
   const session = createSyncSession<DeviceCredential>({
     makeClient: (credential, signal) =>
       createCloudClient(clientArgs(credential.credential, signal)),
     onEnded: (failure) => {
-      haltTransport();
       debug(`credential refused (${failure.code}): ${failure.message}`);
     },
   });
 
-  function openSession(credential: DeviceCredential): void {
-    accountEmail = null;
-    session.open(credential);
-    void learnAccountIdentity().catch(() => undefined);
-  }
+  const sessionAlive = (sessionId: number): boolean => !disposed && session.fenced(sessionId);
+
+  const live = (): boolean => !disposed && session.current().kind === "live";
+
+  const fenced = (context: PassContext): boolean => sessionAlive(context.sessionId);
 
   // retried at the top of every pass while missing: the credential is written
   // once, so a single dropped answer would leave the vault's fail-closed fence
   // shut for the process's whole life.
-  function learnAccountIdentity(): Promise<void> {
+  const learnAccountIdentity = async (): Promise<void> => {
     const current = session.current();
-    if (current.kind !== "live") return Promise.resolve();
+    if (current.kind !== "live") {
+      return;
+    }
     const { client, credential } = current;
     const sessionId = current.id;
-    if (learningIdentity?.sessionId === sessionId) return learningIdentity.pass;
+    if (learningIdentity?.sessionId === sessionId) {
+      await learningIdentity.pass;
+      return;
+    }
     const pass = (async () => {
-      const result = await client.account();
-      // a re-login mid-flight must not label the new session with the old account.
-      if (!sessionAlive(sessionId)) return;
-      accountEmail = result.ok ? result.value.email : null;
-      if (result.ok && credential.userId !== result.value.id) {
-        const updated = { ...credential, userId: result.value.id };
-        writeDeviceCredential(args.dataDir, updated);
-        session.replaceCredential(sessionId, updated);
-        args.onVaultPing?.();
+      try {
+        const result = await client.account();
+        // a re-login mid-flight must not label the new session with the old account.
+        if (!sessionAlive(sessionId)) {
+          return;
+        }
+        accountEmail = result.ok ? result.value.email : null;
+        if (result.ok && credential.userId !== result.value.id) {
+          const updated = { ...credential, userId: result.value.id };
+          writeDeviceCredential(args.dataDir, updated);
+          session.replaceCredential(sessionId, updated);
+          args.onVaultPing?.();
+        }
+      } finally {
+        if (learningIdentity?.sessionId === sessionId) {
+          learningIdentity = null;
+        }
       }
-    })().finally(() => {
-      if (learningIdentity?.sessionId === sessionId) learningIdentity = null;
-    });
-    learningIdentity = { sessionId, pass };
-    return pass;
-  }
+    })();
+    learningIdentity = { pass, sessionId };
+    await pass;
+  };
 
-  function sessionAlive(sessionId: number): boolean {
-    return !disposed && session.fenced(sessionId);
-  }
+  const learnAccountIdentityBestEffort = async (): Promise<void> => {
+    try {
+      await learnAccountIdentity();
+    } catch {
+      // the next pass retries; the label is the only thing lost.
+    }
+  };
 
-  function live(): boolean {
-    return !disposed && session.current().kind === "live";
-  }
-
-  function fenced(context: PassContext): boolean {
-    return sessionAlive(context.sessionId);
-  }
+  const openSession = (credential: DeviceCredential): void => {
+    accountEmail = null;
+    session.open(credential);
+    void learnAccountIdentityBestEffort();
+  };
 
   const stored = readDeviceCredential(args.dataDir);
   if (stored !== null) {
     openSession(stored);
   }
 
+  // the socket and the timer both request a pass, and a pass tears both down on a
+  // refusal; the request is bound once the pass exists, before either can fire.
+  let requestPass: (() => void) | null = null;
+
   const link = createSocketLink({
     baseUrl: args.cloudUrl,
-    openSocket: transport.openSocket ?? null,
-    // this process owns the vault and drives the agent, so a desktop-lane dispatch is addressed to it.
-    platform: "desktop",
     canConnect: live,
     credential: () => {
       const current = session.current();
@@ -177,57 +192,67 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       if (ping.type === "sync" && ping.seq <= readSyncState(args.db).cursor) {
         return;
       }
-      void syncNow();
+      requestPass?.();
     },
     onSevered: () => {
       // a hint; only an http refusal is authoritative.
-      void syncNow();
+      requestPass?.();
     },
+    openSocket: transport.openSocket ?? null,
+    // this process owns the vault and drives the agent, so a desktop-lane dispatch is addressed to it.
+    platform: "desktop",
   });
 
   const cadenceArgs: SyncCadenceArgs = {
     canRun: live,
     run: () => {
-      void syncNow();
+      requestPass?.();
     },
   };
-  if (transport.pollIntervalMs !== undefined) cadenceArgs.pollIntervalMs = transport.pollIntervalMs;
+  if (transport.pollIntervalMs !== undefined) {
+    cadenceArgs.pollIntervalMs = transport.pollIntervalMs;
+  }
   const cadence = createSyncCadence(cadenceArgs);
 
-  function haltTransport(): void {
+  const haltTransport = (): void => {
     link.close();
     cadence.clear();
-  }
+  };
 
-  function recordFailure(failure: CloudFailure): "continue" | "ended" {
+  // the session ends only through here, so its end and the transport's teardown stay one event.
+  const recordFailure = (failure: CloudFailure): "continue" | "ended" => {
     lastError = describeCloudFailure(failure);
     const outcome = session.recordFailure(failure);
-    if (outcome === "continue") debug(lastError);
+    if (outcome === "ended") {
+      haltTransport();
+    } else {
+      debug(lastError);
+    }
     return outcome;
-  }
+  };
 
   const passDeps: SyncPassDeps = {
     db: args.db,
-    vault: args.vault,
     debug,
-    sink: () => sink,
     fenced,
     recordFailure,
     setLastError: (message) => {
       lastError = message;
     },
+    sink: () => sink,
+    vault: args.vault,
   };
 
-  async function runPass(): Promise<void> {
+  const runPass = async (): Promise<void> => {
     const current = session.current();
     if (current.kind !== "live" || disposed) {
       return;
     }
     // captured once; every step re-checks it rather than re-reading the session.
     const context: PassContext = {
-      sessionId: current.id,
       client: current.client,
       deviceId: current.credential.deviceId,
+      sessionId: current.id,
     };
     if (current.credential.userId === undefined) {
       // a no-op once learned; the poll is the retry cadence for this one fetch.
@@ -237,53 +262,63 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       }
     }
     await runSyncPass(passDeps, context);
-  }
+  };
 
-  function status(): CloudStatusResponse {
+  const status = (): CloudStatusResponse => {
     const current = session.current();
     switch (current.kind) {
-      case "off":
-        return { state: "signed-out", cloudUrl: args.cloudUrl };
-      case "unauthorized":
+      case "off": {
+        return { cloudUrl: args.cloudUrl, state: "signed-out" };
+      }
+      case "unauthorized": {
         return {
-          state: "unauthorized",
           cloudUrl: args.cloudUrl,
-          deviceId: current.credential.deviceId,
           detail: current.detail,
+          deviceId: current.credential.deviceId,
+          state: "unauthorized",
         };
+      }
       case "live": {
         const state = readSyncState(args.db);
         return {
-          state: "signed-in",
-          cloudUrl: args.cloudUrl,
           accountEmail,
-          deviceId: current.credential.deviceId,
+          cloudUrl: args.cloudUrl,
           connected: link.isConnected(),
-          pending: countSyncOutbox(args.db),
           cursor: state.cursor,
-          lastSyncedAt: state.lastSyncedAt,
+          deviceId: current.credential.deviceId,
           lastError,
+          lastSyncedAt: state.lastSyncedAt,
+          pending: countSyncOutbox(args.db),
+          state: "signed-in",
         };
       }
+      default: {
+        const exhaustive: never = current;
+        return exhaustive;
+      }
     }
-  }
+  };
 
-  async function syncNow(): Promise<CloudStatusResponse> {
+  const syncNow = async (): Promise<CloudStatusResponse> => {
     if (!live()) {
       return status();
     }
     await flight.run({
-      pass: runPass,
-      repeat: live,
       onError: (message) => {
         lastError = message;
         debug(`sync pass failed: ${message}`);
       },
+      pass: runPass,
+      repeat: live,
     });
     return status();
-  }
+  };
 
-  async function adoptCredential(credential: DeviceCredential): Promise<void> {
+  requestPass = (): void => {
+    void syncNow();
+  };
+
+  const adoptCredential = async (credential: DeviceCredential): Promise<void> => {
     if (disposed) {
       // teardown ran during the login round trip: write nothing after it.
       throw new Error("This app is shutting down; the credential was not kept.");
@@ -302,10 +337,30 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     await syncNow();
     // the login just derived a hosted remote; sync it now.
     args.onVaultPing?.();
-  }
+  };
 
   return {
-    status,
+    attach(next) {
+      sink = next;
+    },
+
+    async dispose() {
+      disposed = true;
+      haltTransport();
+      // without the abort the teardown budget is a hope: the pass would wait out
+      // every round trip and keep writing.
+      session.abort();
+      // let a pass mid-flight finish so the outbox's ack and its push agree.
+      const inflight = flight.inflight();
+      if (inflight === null) {
+        return;
+      }
+      try {
+        await inflight;
+      } catch {
+        // the pass reported through onError; the teardown has nothing to add.
+      }
+    },
 
     enqueue(tx, events) {
       if (session.current().kind !== "live" || events.length === 0) {
@@ -317,33 +372,20 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       cadence.scheduleDrain();
     },
 
-    attach(next) {
-      sink = next;
-    },
-
-    start() {
-      if (session.current().kind !== "live") {
-        return;
-      }
-      cadence.armPoll();
-      link.connect();
-      void syncNow();
-    },
-
     async login(request) {
       if (disposed) {
         return {
-          kind: "refused",
           failure: { kind: "unreachable", message: "This app is shutting down." },
+          kind: "refused",
         };
       }
       const outcome = await loginDevice({
         client: endpoint(),
-        store: { write: adoptCredential },
-        email: request.email,
-        password: request.password,
         // raw hostname(): the flow bounds and defaults the name.
         deviceName: request.deviceName ?? hostname(),
+        email: request.email,
+        password: request.password,
+        store: { write: adoptCredential },
       });
       return outcome.kind === "logged-in" ? { kind: "logged-in", status: status() } : outcome;
     },
@@ -358,16 +400,17 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       return status();
     },
 
-    syncNow,
-
-    async dispose() {
-      disposed = true;
-      haltTransport();
-      // without the abort the teardown budget is a hope: the pass would wait out
-      // every round trip and keep writing.
-      session.abort();
-      // let a pass mid-flight finish so the outbox's ack and its push agree.
-      await flight.inflight()?.catch(() => undefined);
+    start() {
+      if (session.current().kind !== "live") {
+        return;
+      }
+      cadence.armPoll();
+      link.connect();
+      void syncNow();
     },
+
+    status,
+
+    syncNow,
   };
-}
+};

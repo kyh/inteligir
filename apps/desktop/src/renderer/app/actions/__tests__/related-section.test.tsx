@@ -6,11 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RelatedRows,
   linkedMentionsSummary,
-  type RelatedRow,
   groupBacklinks,
   plainSnippet,
   unlinkedMentionDetail,
 } from "../related-section";
+import type { RelatedRow } from "../related-section";
 
 afterEach(cleanup);
 
@@ -23,13 +23,13 @@ describe("the mentions count", () => {
 });
 
 const rows: RelatedRow[] = [
-  { path: "projects/Roadmap.md", label: "Roadmap", detail: "Links here · blocked on [[Welcome]]" },
-  { path: "Meeting Notes.md", label: "Meeting Notes", detail: "2 shared links · tag #planning" },
+  { detail: "Links here · blocked on [[Welcome]]", label: "Roadmap", path: "projects/Roadmap.md" },
+  { detail: "2 shared links · tag #planning", label: "Meeting Notes", path: "Meeting Notes.md" },
 ];
 
 describe("the unfolded list", () => {
   it("renders both kinds of row with their reasons, and opens on click", () => {
-    const onOpenDoc = vi.fn();
+    const onOpenDoc = vi.fn<(path: string) => void>();
     render(
       <RelatedRows
         rows={rows}
@@ -46,10 +46,22 @@ describe("the unfolded list", () => {
 
   it("tells loading apart from a settled empty answer", () => {
     const { rerender } = render(
-      <RelatedRows rows={[]} settledEmpty={false} suggestionsFailed={false} onOpenDoc={vi.fn()} />,
+      <RelatedRows
+        rows={[]}
+        settledEmpty={false}
+        suggestionsFailed={false}
+        onOpenDoc={vi.fn<(path: string) => void>()}
+      />,
     );
     expect(screen.getByText("…")).toBeTruthy();
-    rerender(<RelatedRows rows={[]} settledEmpty suggestionsFailed={false} onOpenDoc={vi.fn()} />);
+    rerender(
+      <RelatedRows
+        rows={[]}
+        settledEmpty
+        suggestionsFailed={false}
+        onOpenDoc={vi.fn<(path: string) => void>()}
+      />,
+    );
     expect(
       screen.getByText("Nothing links here or shares this note's links, tags or words."),
     ).toBeTruthy();
@@ -58,10 +70,10 @@ describe("the unfolded list", () => {
   it("a refused suggestions read leaves the mentions standing and says so", () => {
     render(
       <RelatedRows
-        rows={[rows[0] ?? { path: "x", label: "x", detail: "x" }]}
+        rows={[rows[0] ?? { detail: "x", label: "x", path: "x" }]}
         settledEmpty={false}
         suggestionsFailed
-        onOpenDoc={vi.fn()}
+        onOpenDoc={vi.fn<(path: string) => void>()}
       />,
     );
     expect(screen.getByText("Roadmap")).toBeTruthy();
@@ -96,16 +108,16 @@ describe("linked-mention previews", () => {
 
 describe("an unlinked mention row", () => {
   it("carries the sentence and a Link button that runs beside opening the note", () => {
-    const onOpenDoc = vi.fn();
-    const run = vi.fn();
+    const onOpenDoc = vi.fn<(path: string) => void>();
+    const run = vi.fn<() => void>();
     render(
       <RelatedRows
         rows={[
           {
-            path: "notes/a.md",
-            label: "a",
-            detail: "Mentions · We revisit the roadmap on Monday.",
             action: { label: "Link", run },
+            detail: "Mentions · We revisit the roadmap on Monday.",
+            label: "a",
+            path: "notes/a.md",
           },
         ]}
         settledEmpty={false}
@@ -122,15 +134,15 @@ describe("an unlinked mention row", () => {
 
   it("spells the sentence as prose, with the count when there are several", () => {
     const mention = {
-      path: "a.md",
-      title: "a",
-      line: 1,
-      column: 0,
-      length: 7,
-      before: "> ",
-      text: "roadmap",
       after: " and [[b|B]]",
+      before: "> ",
+      column: 0,
       count: 3,
+      length: 7,
+      line: 1,
+      path: "a.md",
+      text: "roadmap",
+      title: "a",
     };
     expect(unlinkedMentionDetail(mention)).toBe("Mentions 3× · roadmap and B");
     expect(unlinkedMentionDetail({ ...mention, count: 1 })).toBe("Mentions · roadmap and B");

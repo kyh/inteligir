@@ -2,8 +2,8 @@ export interface ContentSecurityPolicyArgs {
   wsOrigin: string;
 }
 
-export function buildContentSecurityPolicy(args: ContentSecurityPolicyArgs): string {
-  return [
+export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): string =>
+  [
     "default-src 'self'",
     "script-src 'self'",
     // react style attributes and plate/lowlight's runtime <style> injection are not noncible.
@@ -22,14 +22,12 @@ export function buildContentSecurityPolicy(args: ContentSecurityPolicyArgs): str
     // an audioworklet module is fetched as a script, which is why dictation uses a scriptprocessornode.
     "worker-src 'none'",
   ].join("; ");
-}
 
 // one table for both stampers (this server and the desktop protocol handler).
 // the token cookie is not here: the window never needs one, so it belongs to the caller that has a token.
-export function documentSecurityHeaders(args: ContentSecurityPolicyArgs) {
-  return {
+export const documentSecurityHeaders = (args: ContentSecurityPolicyArgs) =>
+  ({
     "content-security-policy": buildContentSecurityPolicy(args),
-    "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
-  } satisfies Record<string, string>;
-}
+    "x-content-type-options": "nosniff",
+  }) satisfies Record<string, string>;

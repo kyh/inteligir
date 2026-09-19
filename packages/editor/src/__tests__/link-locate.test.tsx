@@ -28,15 +28,15 @@ const VALUE: Value = [
 ];
 
 const NO_RECT: DOMRect = {
+  bottom: 0,
+  height: 0,
+  left: 0,
+  right: 0,
+  toJSON: () => ({}),
+  top: 0,
+  width: 0,
   x: 0,
   y: 0,
-  width: 0,
-  height: 0,
-  top: 0,
-  right: 0,
-  bottom: 0,
-  left: 0,
-  toJSON: () => ({}),
 };
 
 beforeAll(() => {
@@ -46,13 +46,15 @@ beforeAll(() => {
   window.Range.prototype.getBoundingClientRect = () => NO_RECT;
 });
 
-function mountEditor(): PlateEditor {
+const mountEditor = (): PlateEditor => {
   const holder = createRef<PlateEditor>();
   render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
   const editor = holder.current;
-  if (editor === null) throw new Error("the harness mounted no editor");
+  if (editor === null) {
+    throw new Error("the harness mounted no editor");
+  }
   return editor;
-}
+};
 
 describe("landing on a link by its written target", () => {
   it("selects the wiki chip whose target matches, any case, anchor ignored", () => {

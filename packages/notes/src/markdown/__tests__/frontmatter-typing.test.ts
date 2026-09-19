@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  type TypedProperty,
-  parseProperties,
-  serializeProperties,
-} from "@repo/notes/markdown/frontmatter";
+import { parseProperties, serializeProperties } from "@repo/notes/markdown/frontmatter";
+import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 
-function props(yaml: string): TypedProperty[] {
+const props = (yaml: string): TypedProperty[] => {
   const parsed = parseProperties(yaml);
-  if (parsed.kind !== "valid") throw new Error(`expected valid, got ${parsed.kind}`);
+  if (parsed.kind !== "valid") {
+    throw new Error(`expected valid, got ${parsed.kind}`);
+  }
   return parsed.properties;
-}
+};
 
 describe("parseProperties — kinds", () => {
   it("empty / whitespace yaml is `none`", () => {
@@ -87,8 +86,10 @@ describe("parseProperties — typing rules", () => {
       ["nums", "unsupported"],
       ["empty", "unsupported"],
     ]);
-    const nested = parsed[0];
-    if (nested?.type !== "unsupported") throw new Error("expected unsupported");
+    const [nested] = parsed;
+    if (nested?.type !== "unsupported") {
+      throw new Error("expected unsupported");
+    }
     expect(nested.rawYaml).toBe("a: 1\n  b: 2");
   });
 
@@ -101,9 +102,8 @@ describe("serializeProperties", () => {
   const prior =
     "title: My Note\ndone: false\ntags:\n  - alpha\n  - beta\nnested:\n  a: 1\n  b: 2\n";
 
-  function edit(mutate: (p: TypedProperty[]) => TypedProperty[]): string {
-    return serializeProperties(mutate(props(prior)), prior.trimEnd());
-  }
+  const edit = (mutate: (p: TypedProperty[]) => TypedProperty[]): string =>
+    serializeProperties(mutate(props(prior)), prior.trimEnd());
 
   it("editing one property is a minimal diff; unsupported keys stay byte-exact", () => {
     const out = edit((p) =>
@@ -131,7 +131,7 @@ describe("serializeProperties", () => {
     );
     // `yes` needs no quotes: it is already a string under the core schema.
     expect(out).toBe('a: "true"\nb: "42"\nc: yes');
-    expect(props(out + "\n")).toEqual([
+    expect(props(`${out}\n`)).toEqual([
       { key: "a", type: "text", value: "true" },
       { key: "b", type: "text", value: "42" },
       { key: "c", type: "text", value: "yes" },
@@ -141,7 +141,7 @@ describe("serializeProperties", () => {
   it("a date string stays plain (re-parses as date)", () => {
     const out = serializeProperties([{ key: "due", type: "date", value: "2026-12-25" }], "");
     expect(out).toBe("due: 2026-12-25");
-    expect(props(out + "\n")).toEqual([{ key: "due", type: "date", value: "2026-12-25" }]);
+    expect(props(`${out}\n`)).toEqual([{ key: "due", type: "date", value: "2026-12-25" }]);
   });
 
   it("adding a key appends it; deleting removes only it", () => {
@@ -162,6 +162,6 @@ describe("serializeProperties", () => {
       [{ key: "tags", type: "tags", value: ["x", "y", "z"] }],
       "tags:\n  - a\n",
     );
-    expect(props(out + "\n")).toEqual([{ key: "tags", type: "tags", value: ["x", "y", "z"] }]);
+    expect(props(`${out}\n`)).toEqual([{ key: "tags", type: "tags", value: ["x", "y", "z"] }]);
   });
 });

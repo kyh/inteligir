@@ -9,111 +9,111 @@ import {
   makeThread,
   serveFixture,
   EMPTY_TIMELINE,
-  type FixtureServer,
-  type FixtureState,
 } from "./fixture-server";
+import type { FixtureServer, FixtureState } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
-function boxedLines(stdout: string): string[] {
-  return stdout
+const boxedLines = (stdout: string): string[] =>
+  stdout
     .split("\n")
     .filter((line) => line.startsWith(" │"))
     .map((line) => line.replace(/^ │\s*/u, "").replace(/\s*│$/u, ""))
     .filter((line) => line.length > 0);
-}
 
-async function boot(state: FixtureState): Promise<FixtureServer> {
+const boot = async (state: FixtureState): Promise<FixtureServer> => {
   const server = await serveFixture(state);
-  onTestFinished(() => server.close());
+  onTestFinished(async () => {
+    await server.close();
+  });
   return server;
-}
+};
 
-function seededState(): FixtureState {
+const seededState = (): FixtureState => {
   const state = makeFixtureState();
   state.vault.set("Welcome.md", "# Welcome\n");
   state.vault.set("notes/hello.md", "# Hello\n\nBody.\n");
   state.revisions.set("notes/hello.md", [
-    { revision: makeRevision({ sha: FIXTURE_REVISION_SHA }), content: "# Hello\n" },
+    { content: "# Hello\n", revision: makeRevision({ sha: FIXTURE_REVISION_SHA }) },
   ]);
-  state.searchResults = [{ path: "notes/hello.md", title: "hello", snippet: "…Body…", score: 1.5 }];
+  state.searchResults = [{ path: "notes/hello.md", score: 1.5, snippet: "…Body…", title: "hello" }];
   state.tags = [
-    { tag: "project", count: 3 },
-    { tag: "idea", count: 1 },
+    { count: 3, tag: "project" },
+    { count: 1, tag: "idea" },
   ];
   state.backlinks = [
     {
-      sourcePath: "Welcome.md",
+      embed: false,
+      kind: "wiki",
       line: 3,
       snippet: "see [[hello]]",
-      kind: "wiki",
-      embed: false,
+      sourcePath: "Welcome.md",
     },
   ];
   state.related = [
     {
       path: "notes/nearby.md",
-      title: "Nearby",
-      score: 3,
       reasons: ["both link to Welcome", "shares #project"],
+      score: 3,
+      title: "Nearby",
     },
   ];
   return state;
-}
+};
 
 const SHOW_TIMELINE: ThreadTimeline = {
+  maxSequence: 3,
   rows: [
     {
+      createdAt: 1_700_000_000_001,
+      id: "user:1",
       kind: "conversation",
       role: "user",
-      id: "user:1",
+      sourceSeqEnd: 1,
+      sourceSeqStart: 1,
+      text: "Write me a note",
       threadId: "thr_1",
       turnId: null,
-      text: "Write me a note",
       viewContext: null,
-      sourceSeqStart: 1,
-      sourceSeqEnd: 1,
-      createdAt: 1_700_000_000_001,
     },
     {
-      kind: "turn",
-      id: "turn:turn_1",
-      threadId: "thr_1",
-      turnId: "turn_1",
-      status: "completed",
-      completedAt: 1_700_000_000_005,
       children: [
         {
-          kind: "work",
-          workKind: "file-change",
+          approvalStatus: null,
+          changes: [{ diff: null, kind: "add", movePath: null, path: "notes/a.md" }],
+          createdAt: 1_700_000_000_002,
           id: "item:turn_1:file",
+          kind: "work",
+          sourceSeqEnd: 2,
+          sourceSeqStart: 2,
+          status: "completed",
           threadId: "thr_1",
           turnId: "turn_1",
-          status: "completed",
-          changes: [{ path: "notes/a.md", kind: "add", movePath: null, diff: null }],
-          approvalStatus: null,
-          sourceSeqStart: 2,
-          sourceSeqEnd: 2,
-          createdAt: 1_700_000_000_002,
+          workKind: "file-change",
         },
       ],
-      sourceSeqStart: 2,
-      sourceSeqEnd: 3,
+      completedAt: 1_700_000_000_005,
       createdAt: 1_700_000_000_002,
-    },
-    {
-      kind: "conversation",
-      role: "assistant",
-      id: "item:turn_1:msg",
+      id: "turn:turn_1",
+      kind: "turn",
+      sourceSeqEnd: 3,
+      sourceSeqStart: 2,
+      status: "completed",
       threadId: "thr_1",
       turnId: "turn_1",
-      text: "Done",
-      viewContext: null,
-      sourceSeqStart: 3,
-      sourceSeqEnd: 3,
+    },
+    {
       createdAt: 1_700_000_000_003,
+      id: "item:turn_1:msg",
+      kind: "conversation",
+      role: "assistant",
+      sourceSeqEnd: 3,
+      sourceSeqStart: 3,
+      text: "Done",
+      threadId: "thr_1",
+      turnId: "turn_1",
+      viewContext: null,
     },
   ],
-  maxSequence: 3,
   tokenUsage: null,
 };
 
@@ -191,9 +191,9 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(JSON.parse(sync.stdout)).toEqual({
-      state: "no-remote",
-      lastSyncAt: null,
       lastError: null,
+      lastSyncAt: null,
+      state: "no-remote",
     });
   });
 
@@ -201,8 +201,8 @@ describe("vault commands", () => {
     const state = seededState();
     state.revisions.set("notes/gone.md", [
       {
-        revision: makeRevision({ sha: FIXTURE_REVISION_SHA, path: "notes/gone.md" }),
         content: "# Gone\n",
+        revision: makeRevision({ path: "notes/gone.md", sha: FIXTURE_REVISION_SHA }),
       },
     ]);
     const server = await boot(state);
@@ -242,7 +242,7 @@ describe("knowledge commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(JSON.parse(json.stdout)).toEqual({
-      results: [{ path: "notes/hello.md", title: "hello", snippet: "…Body…", score: 1.5 }],
+      results: [{ path: "notes/hello.md", score: 1.5, snippet: "…Body…", title: "hello" }],
     });
   });
 
@@ -281,9 +281,9 @@ describe("knowledge commands", () => {
     });
     expect(JSON.parse(json.stdout)).toEqual({
       from: "project",
-      to: "work",
       rewritten: ["notes/hello.md"],
       skipped: [],
+      to: "work",
     });
 
     const human = await runCliForTest({
@@ -323,14 +323,14 @@ describe("connectors", () => {
     state.connectors = {
       servers: [
         {
-          name: "files",
           enabled: true,
-          transport: { kind: "stdio", command: "npx", args: ["-y", "server-files"] },
+          name: "files",
+          transport: { args: ["-y", "server-files"], command: "npx", kind: "stdio" },
         },
         {
-          name: "context7",
           enabled: false,
-          transport: { kind: "http", url: "https://mcp.context7.com/mcp", hasAuth: true },
+          name: "context7",
+          transport: { hasAuth: true, kind: "http", url: "https://mcp.context7.com/mcp" },
         },
       ],
     };
@@ -381,8 +381,8 @@ describe("action commands", () => {
   it("lists threads and shows one with the compact timeline", async () => {
     const state = seededState();
     state.threads.push({
-      thread: makeThread({ id: "thr_1", title: "Note writing", status: "idle" }),
       pendingInteractions: [],
+      thread: makeThread({ id: "thr_1", status: "idle", title: "Note writing" }),
       timeline: SHOW_TIMELINE,
     });
     const server = await boot(state);
@@ -433,8 +433,8 @@ describe("action commands", () => {
   it("sends follow-ups and archives", async () => {
     const state = seededState();
     state.threads.push({
-      thread: makeThread({ id: "thr_1" }),
       pendingInteractions: [],
+      thread: makeThread({ id: "thr_1" }),
       timeline: SHOW_TIMELINE,
     });
     const server = await boot(state);
@@ -456,20 +456,20 @@ describe("interactions commands", () => {
   it("lists across threads and answers by scanning for the owner", async () => {
     const state = seededState();
     state.threads.push({
-      thread: makeThread({ id: "thr_1", status: "active" }),
       pendingInteractions: [
         {
+          createdAt: 1_700_000_000_000,
           id: "int_1",
+          payload: null,
+          requestKey: "req_1",
+          resolution: null,
+          resolvedAt: null,
+          status: "pending",
           threadId: "thr_1",
           turnId: "turn_1",
-          requestKey: "req_1",
-          status: "pending",
-          payload: null,
-          resolution: null,
-          createdAt: 1_700_000_000_000,
-          resolvedAt: null,
         },
       ],
+      thread: makeThread({ id: "thr_1", status: "active" }),
       timeline: SHOW_TIMELINE,
     });
     const server = await boot(state);
@@ -528,11 +528,11 @@ describe("status, guide and help", () => {
   });
 });
 
-function sourcesOn(state: FixtureState) {
-  return (state.comments.get("notes/hello.md") ?? []).flatMap((thread) =>
-    [thread.root.source].concat(thread.replies.map((reply) => reply.entry.source)),
-  );
-}
+const sourcesOn = (state: FixtureState) =>
+  (state.comments.get("notes/hello.md") ?? []).flatMap((thread) => [
+    thread.root.source,
+    ...thread.replies.map((reply) => reply.entry.source),
+  ]);
 
 const addedIdSchema = z.object({ id: z.string() });
 
@@ -687,30 +687,30 @@ describe("interactions answer validates the resolution locally", () => {
   it("refuses a decision the request never offered, naming the ones it did", async () => {
     const state = seededState();
     state.threads.push({
-      thread: makeThread({ id: "thr_a", status: "active" }),
       pendingInteractions: [
         {
+          createdAt: 1_700_000_000_000,
           id: "int_a",
-          threadId: "thr_a",
-          turnId: "turn_a",
-          requestKey: "req_a",
-          status: "pending",
           payload: {
+            availableDecisions: ["allow_once", "deny"],
             kind: "approval",
+            reason: null,
             subject: {
-              kind: "command",
-              itemId: "cmd_1",
               command: "rm -rf /",
               cwd: null,
+              itemId: "cmd_1",
+              kind: "command",
             },
-            reason: null,
-            availableDecisions: ["allow_once", "deny"],
           },
+          requestKey: "req_a",
           resolution: null,
-          createdAt: 1_700_000_000_000,
           resolvedAt: null,
+          status: "pending",
+          threadId: "thr_a",
+          turnId: "turn_a",
         },
       ],
+      thread: makeThread({ id: "thr_a", status: "active" }),
       timeline: EMPTY_TIMELINE,
     });
     const server = await boot(state);
@@ -734,8 +734,8 @@ describe("cloud login", () => {
     });
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      state: "signed-in",
       accountEmail: "owner@example.test",
+      state: "signed-in",
     });
   });
 
@@ -799,6 +799,6 @@ describe("a server that stopped answering", () => {
     await server.close();
     const result = await runCliForTest({ argv: ["status", "--json"], baseUrl });
     expect(result.code).toBe(3);
-    expect(JSON.parse(result.stderr).error).toBe("SERVER_UNREACHABLE");
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "SERVER_UNREACHABLE" });
   });
 });

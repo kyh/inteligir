@@ -25,6 +25,7 @@ describe("the sign-in return path", () => {
       "//evil.example/steal",
       "/\\evil.example/steal",
       "http:/evil.example",
+      // oxlint-disable-next-line eslint/no-script-url -- the hostile href this asserts is rejected
       "javascript:alert(1)",
       "app/devices",
     ]) {

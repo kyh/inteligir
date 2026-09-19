@@ -5,29 +5,27 @@ import type {
   KnowledgeSearchResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
-import { NOTE_SEARCH_LIMIT, searchNotesByFilename, type NoteSearchSource } from "./note-search";
+import { NOTE_SEARCH_LIMIT, searchNotesByFilename } from "./note-search";
+import type { NoteSearchSource } from "./note-search";
 
 export interface NoteSearchApi {
   knowledge: {
-    search(
+    search: (
       request: KnowledgeSearchRequest,
       options: { signal: AbortSignal },
-    ): Promise<KnowledgeSearchResponse>;
+    ) => Promise<KnowledgeSearchResponse>;
   };
 }
 
-export function sortedNotePaths(entries: readonly VaultEntry[]): string[] {
-  return entries
+export const sortedNotePaths = (entries: readonly VaultEntry[]): string[] =>
+  entries
     .filter((entry) => entry.kind === "file" && isDocPath(entry.path))
     .map((entry) => entry.path)
     .toSorted();
-}
 
-export function createSearchSource(
-  api: NoteSearchApi,
-  sortedFilePaths: readonly string[],
-): NoteSearchSource {
-  return async (query, signal) => {
+export const createSearchSource =
+  (api: NoteSearchApi, sortedFilePaths: readonly string[]): NoteSearchSource =>
+  async (query, signal) => {
     // A tag: term suppresses the filename fallback, which would fuzzy-match
     // the literal "tag:foo" against paths.
     const tagFiltered = parseSearchQuery(query).tag !== "";
@@ -37,7 +35,7 @@ export function createSearchSource(
     }
     try {
       const response = await api.knowledge.search(
-        { q: query, limit: NOTE_SEARCH_LIMIT },
+        { limit: NOTE_SEARCH_LIMIT, q: query },
         { signal },
       );
       if (response.results.length === 0) {
@@ -45,11 +43,10 @@ export function createSearchSource(
       }
       return response.results.map((result) => ({
         path: result.path,
-        title: result.title,
         snippet: result.snippet,
+        title: result.title,
       }));
     } catch {
       return byFilename();
     }
   };
-}

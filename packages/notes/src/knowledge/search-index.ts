@@ -1,23 +1,25 @@
 // The in-memory engine beside the SQL store's FTS5: search-query.ts decides what
 // both ask for, and the field weights and tiers here must match sql-knowledge-store's.
 
-import {
-  planSearchQuery,
-  stemToken,
-  tokenize,
-  type SearchQueryPlan,
-  type SearchQueryTerm,
-} from "./search-query";
+import { planSearchQuery, stemToken, tokenize } from "./search-query";
+import type { SearchQueryPlan, SearchQueryTerm } from "./search-query";
 
-export type SearchFields = {
+export interface SearchFields {
   title: string;
   headings: readonly string[];
   body: string;
-};
+}
 
-export type SearchHit = { path: string; score: number };
+export interface SearchHit {
+  path: string;
+  score: number;
+}
 
-type FieldCounts = { title: number; heading: number; body: number };
+interface FieldCounts {
+  title: number;
+  heading: number;
+  body: number;
+}
 
 const TITLE_WEIGHT = 10;
 const HEADING_WEIGHT = 4;
@@ -26,17 +28,14 @@ const BODY_WEIGHT = 1;
 const TF_CAP = 5;
 const PREFIX_FACTOR = 0.7;
 
-function weightOf(counts: FieldCounts): number {
-  return (
-    TITLE_WEIGHT * Math.min(counts.title, TF_CAP) +
-    HEADING_WEIGHT * Math.min(counts.heading, TF_CAP) +
-    BODY_WEIGHT * Math.min(counts.body, TF_CAP)
-  );
-}
+const weightOf = (counts: FieldCounts): number =>
+  TITLE_WEIGHT * Math.min(counts.title, TF_CAP) +
+  HEADING_WEIGHT * Math.min(counts.heading, TF_CAP) +
+  BODY_WEIGHT * Math.min(counts.body, TF_CAP);
 
 type Postings = Map<string, Map<string, FieldCounts>>;
 
-function bump(postings: Postings, key: string, path: string, field: keyof FieldCounts): void {
+const bump = (postings: Postings, key: string, path: string, field: keyof FieldCounts): void => {
   let docs = postings.get(key);
   if (!docs) {
     docs = new Map();
@@ -44,22 +43,29 @@ function bump(postings: Postings, key: string, path: string, field: keyof FieldC
   }
   let counts = docs.get(path);
   if (!counts) {
-    counts = { title: 0, heading: 0, body: 0 };
+    counts = { body: 0, heading: 0, title: 0 };
     docs.set(path, counts);
   }
   counts[field] += 1;
-}
+};
 
-function drop(postings: Postings, keys: ReadonlySet<string>, path: string): void {
+const drop = (postings: Postings, keys: ReadonlySet<string>, path: string): void => {
   for (const key of keys) {
     const docs = postings.get(key);
-    if (!docs) continue;
+    if (!docs) {
+      continue;
+    }
     docs.delete(path);
-    if (docs.size === 0) postings.delete(key);
+    if (docs.size === 0) {
+      postings.delete(key);
+    }
   }
-}
+};
 
-type DocKeys = { tokens: Set<string>; stems: Set<string> };
+interface DocKeys {
+  tokens: Set<string>;
+  stems: Set<string>;
+}
 
 export class SearchIndex {
   private readonly postings: Postings = new Map();
@@ -71,7 +77,7 @@ export class SearchIndex {
   set(path: string, fields: SearchFields): void {
     this.remove(path);
     this.sortedTokens = null;
-    const keys: DocKeys = { tokens: new Set(), stems: new Set() };
+    const keys: DocKeys = { stems: new Set(), tokens: new Set() };
     const add = (field: keyof FieldCounts, text: string): void => {
       for (const token of tokenize(text)) {
         bump(this.postings, token, path, field);
@@ -82,14 +88,18 @@ export class SearchIndex {
       }
     };
     add("title", fields.title);
-    for (const heading of fields.headings) add("heading", heading);
+    for (const heading of fields.headings) {
+      add("heading", heading);
+    }
     add("body", fields.body);
     this.docKeys.set(path, keys);
   }
 
   remove(path: string): void {
     const keys = this.docKeys.get(path);
-    if (!keys) return;
+    if (!keys) {
+      return;
+    }
     drop(this.postings, keys.tokens, path);
     drop(this.stemPostings, keys.stems, path);
     this.docKeys.delete(path);
@@ -107,10 +117,13 @@ export class SearchIndex {
     let lo = 0;
     let hi = sorted.length;
     while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
+      const mid = Math.floor((lo + hi) / 2);
       const v = sorted[mid];
-      if (v !== undefined && v < token) lo = mid + 1;
-      else hi = mid;
+      if (v !== undefined && v < token) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
     }
     return lo;
   }
@@ -118,7 +131,9 @@ export class SearchIndex {
   search(query: string, limit: number): SearchHit[] {
     for (const plan of planSearchQuery(query)) {
       const hits = this.run(plan, limit);
-      if (hits.length > 0) return hits;
+      if (hits.length > 0) {
+        return hits;
+      }
     }
     return [];
   }
@@ -140,12 +155,18 @@ export class SearchIndex {
       const next = new Map<string, number>();
       for (const [path, score] of contributions) {
         const prior = surviving.get(path);
-        if (prior !== undefined) next.set(path, prior + score);
+        if (prior !== undefined) {
+          next.set(path, prior + score);
+        }
       }
       surviving = next;
-      if (surviving.size === 0) return [];
+      if (surviving.size === 0) {
+        return [];
+      }
     }
-    if (surviving === null) return [];
+    if (surviving === null) {
+      return [];
+    }
 
     return [...surviving.entries()]
       .map(([path, score]) => ({ path, score }))
@@ -163,27 +184,43 @@ export class SearchIndex {
     };
     const keep = (path: string, score: number): void => {
       const prior = contributions.get(path);
-      if (prior === undefined || score > prior) contributions.set(path, score);
+      if (prior === undefined || score > prior) {
+        contributions.set(path, score);
+      }
     };
     const stemmed = this.stemPostings.get(term.stem);
     if (stemmed) {
-      for (const [path, counts] of stemmed) add(path, weightOf(counts));
+      for (const [path, counts] of stemmed) {
+        add(path, weightOf(counts));
+      }
     }
     const exact = this.postings.get(term.token);
     if (exact) {
-      for (const [path, counts] of exact) add(path, weightOf(counts));
+      for (const [path, counts] of exact) {
+        add(path, weightOf(counts));
+      }
     }
-    if (!term.prefix) return contributions;
-    if (this.sortedTokens === null) this.sortedTokens = [...this.postings.keys()].toSorted();
+    if (!term.prefix) {
+      return contributions;
+    }
+    this.sortedTokens ??= [...this.postings.keys()].toSorted();
     const sorted = this.sortedTokens;
-    for (let idx = SearchIndex.lowerBound(sorted, term.token); idx < sorted.length; idx++) {
+    for (let idx = SearchIndex.lowerBound(sorted, term.token); idx < sorted.length; idx += 1) {
       const candidate = sorted[idx];
-      if (candidate === undefined || !candidate.startsWith(term.token)) break;
+      if (candidate === undefined || !candidate.startsWith(term.token)) {
+        break;
+      }
       // the token itself was counted at full weight above
-      if (candidate === term.token) continue;
+      if (candidate === term.token) {
+        continue;
+      }
       const docs = this.postings.get(candidate);
-      if (!docs) continue;
-      for (const [path, counts] of docs) keep(path, PREFIX_FACTOR * weightOf(counts));
+      if (!docs) {
+        continue;
+      }
+      for (const [path, counts] of docs) {
+        keep(path, PREFIX_FACTOR * weightOf(counts));
+      }
     }
     return contributions;
   }

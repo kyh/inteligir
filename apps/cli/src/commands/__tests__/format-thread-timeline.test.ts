@@ -4,22 +4,24 @@ import { formatThreadTimeline } from "../format-thread-timeline";
 
 let nextSeq = 1;
 
-function base(): TimelineRowBase {
+const base = (): TimelineRowBase => {
   const seq = nextSeq;
   nextSeq += 1;
   return {
+    createdAt: 1000 + seq,
     id: `row:${seq}`,
+    sourceSeqEnd: seq,
+    sourceSeqStart: seq,
     threadId: "thr_1",
     turnId: null,
-    sourceSeqStart: seq,
-    sourceSeqEnd: seq,
-    createdAt: 1_000 + seq,
   };
-}
+};
 
-function timeline(rows: TimelineRow[]): ThreadTimeline {
-  return { rows, maxSequence: nextSeq, tokenUsage: null };
-}
+const timeline = (rows: TimelineRow[]): ThreadTimeline => ({
+  maxSequence: nextSeq,
+  rows,
+  tokenUsage: null,
+});
 
 describe("formatThreadTimeline", () => {
   it("renders a whole conversation with a grouped turn, deterministically", () => {
@@ -27,32 +29,32 @@ describe("formatThreadTimeline", () => {
       { ...base(), kind: "conversation", role: "user", text: "Write me a note", viewContext: null },
       {
         ...base(),
-        kind: "turn",
-        turnId: "turn_1",
-        status: "completed",
-        completedAt: 2_000,
         children: [
-          { ...base(), kind: "work", workKind: "reasoning", status: "completed", text: "Plan it" },
+          { ...base(), kind: "work", status: "completed", text: "Plan it", workKind: "reasoning" },
           {
             ...base(),
-            kind: "work",
-            workKind: "command",
-            status: "completed",
+            approvalStatus: null,
             command: "ls vault",
             cwd: "/vault",
-            output: "a.md",
             exitCode: 0,
-            approvalStatus: null,
+            kind: "work",
+            output: "a.md",
+            status: "completed",
+            workKind: "command",
           },
           {
             ...base(),
-            kind: "work",
-            workKind: "file-change",
-            status: "completed",
-            changes: [{ path: "notes/a.md", kind: "add", movePath: null, diff: null }],
             approvalStatus: null,
+            changes: [{ diff: null, kind: "add", movePath: null, path: "notes/a.md" }],
+            kind: "work",
+            status: "completed",
+            workKind: "file-change",
           },
         ],
+        completedAt: 2000,
+        kind: "turn",
+        status: "completed",
+        turnId: "turn_1",
       },
       {
         ...base(),
@@ -82,44 +84,44 @@ describe("formatThreadTimeline", () => {
     const rows: TimelineRow[] = [
       {
         ...base(),
-        kind: "turn",
-        turnId: "turn_2",
-        status: "error",
-        completedAt: null,
         children: [
           {
             ...base(),
-            kind: "work",
-            workKind: "tool",
-            status: "error",
-            toolName: "search_vault",
-            toolArgs: null,
-            result: null,
             error: "index unavailable",
+            kind: "work",
+            result: null,
+            status: "error",
+            toolArgs: null,
+            toolName: "search_vault",
+            workKind: "tool",
           },
-          { ...base(), kind: "error", message: "provider failed", detail: "boom" },
+          { ...base(), detail: "boom", kind: "error", message: "provider failed" },
         ],
+        completedAt: null,
+        kind: "turn",
+        status: "error",
+        turnId: "turn_2",
       },
     ];
     const formatted = formatThreadTimeline({
-      rows,
       maxSequence: nextSeq,
+      rows,
       tokenUsage: {
-        total: {
-          totalTokens: 30,
-          inputTokens: 20,
-          cachedInputTokens: 0,
-          outputTokens: 10,
-          reasoningOutputTokens: 0,
-        },
         last: {
-          totalTokens: 30,
-          inputTokens: 20,
           cachedInputTokens: 0,
+          inputTokens: 20,
           outputTokens: 10,
           reasoningOutputTokens: 0,
+          totalTokens: 30,
         },
         modelContextWindow: null,
+        total: {
+          cachedInputTokens: 0,
+          inputTokens: 20,
+          outputTokens: 10,
+          reasoningOutputTokens: 0,
+          totalTokens: 30,
+        },
       },
     });
     expect(formatted).toBe(
@@ -140,20 +142,20 @@ describe("formatThreadTimeline", () => {
     const rows: TimelineRow[] = [
       {
         ...base(),
-        kind: "turn",
-        turnId: "turn_3",
-        status: "pending",
-        completedAt: null,
         children: [
-          { ...base(), kind: "work", workKind: "reasoning", status: "pending", text: "" },
+          { ...base(), kind: "work", status: "pending", text: "", workKind: "reasoning" },
           {
             ...base(),
             kind: "work",
-            workKind: "plan",
             status: "pending",
             text: `${longLine}\nmore`,
+            workKind: "plan",
           },
         ],
+        completedAt: null,
+        kind: "turn",
+        status: "pending",
+        turnId: "turn_3",
       },
     ];
     const formatted = formatThreadTimeline(timeline(rows));

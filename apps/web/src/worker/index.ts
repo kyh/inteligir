@@ -21,22 +21,10 @@ export { RepoCell, Registry } from "durable-git";
 // ./server.ts splits on these, so a route added below must be reachable through one or it never arrives
 const OWNED_PREFIXES = ["/api/", "/v1/", "/auth/"] as const;
 
-export function ownsPath(pathname: string): boolean {
-  return OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
+export const ownsPath = (pathname: string): boolean =>
+  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    try {
-      return await route(request, env, ctx);
-    } catch (error) {
-      logUnhandled("worker", request, error);
-      return new Response("internal error", { status: 500 });
-    }
-  },
-} satisfies ExportedHandler<Env>;
-
-async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
 
   if (url.pathname.startsWith("/api/auth/")) {
@@ -76,4 +64,15 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   return new Response("not found", { status: 404 });
-}
+};
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    try {
+      return await route(request, env, ctx);
+    } catch (error) {
+      logUnhandled("worker", request, error);
+      return new Response("internal error", { status: 500 });
+    }
+  },
+} satisfies ExportedHandler<Env>;

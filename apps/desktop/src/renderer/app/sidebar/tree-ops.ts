@@ -1,4 +1,5 @@
-import { useMemo, type RefObject } from "react";
+import { useMemo } from "react";
+import type { RefObject } from "react";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import type { VaultActions } from "@repo/editor/host-io";
@@ -10,7 +11,7 @@ import type { TreeOps } from "./file-tree";
 
 interface TreeOpsApi {
   vault: {
-    mkdir(input: VaultMkdirRequest): Promise<VaultMkdirResponse>;
+    mkdir: (input: VaultMkdirRequest) => Promise<VaultMkdirResponse>;
   };
 }
 
@@ -19,26 +20,25 @@ type TreeVaultActions = Pick<VaultActions, "renameEntry" | "deleteEntry">;
 
 // A rename of the open file itself answers null: the session already carries
 // that case, and a second remap here could disagree with it.
-export function openNoteAfterRename(
+export const openNoteAfterRename = (
   openNote: string | null,
   fromPath: string,
   toPath: string,
-): string | null {
+): string | null => {
   if (openNote === null || openNote === fromPath || !openNote.startsWith(`${fromPath}/`)) {
     return null;
   }
   return `${toPath}/${openNote.slice(fromPath.length + 1)}`;
-}
+};
 
-export function deleteSwallowsOpenNote(openNote: string | null, path: string): boolean {
-  return openNote !== null && openNote !== path && openNote.startsWith(`${path}/`);
-}
+export const deleteSwallowsOpenNote = (openNote: string | null, path: string): boolean =>
+  openNote !== null && openNote !== path && openNote.startsWith(`${path}/`);
 
 // the server's root is a native path, so the join keeps its separator; the entry is always "/"-joined
-export function absoluteEntryPath(root: string, path: string): string {
+export const absoluteEntryPath = (root: string, path: string): string => {
   const separator = root.includes("\\") ? "\\" : "/";
   return `${root}${separator}${path.split("/").join(separator)}`;
-}
+};
 
 export type MoveVerdict =
   | { ok: true; to: string }
@@ -46,12 +46,18 @@ export type MoveVerdict =
 
 // One predicate for the drop target and the palette's folder page, so the tree refuses a
 // drop and the palette hides a folder for the same three reasons. "" is the vault root.
-export function planMove(from: string, toDir: string): MoveVerdict {
-  if (toDir === from) return { ok: false, reason: "self" };
-  if (toDir.startsWith(`${from}/`)) return { ok: false, reason: "descendant" };
-  if (toDir === dirnamePath(from)) return { ok: false, reason: "same-parent" };
+export const planMove = (from: string, toDir: string): MoveVerdict => {
+  if (toDir === from) {
+    return { ok: false, reason: "self" };
+  }
+  if (toDir.startsWith(`${from}/`)) {
+    return { ok: false, reason: "descendant" };
+  }
+  if (toDir === dirnamePath(from)) {
+    return { ok: false, reason: "same-parent" };
+  }
   return { ok: true, to: joinPath(toDir, basenamePath(from)) };
-}
+};
 
 interface TreeOpsDeps {
   api: TreeOpsApi;
@@ -62,26 +68,26 @@ interface TreeOpsDeps {
   setPinned: (path: string, pinned: boolean) => void;
 }
 
-export function useTreeOps({
+export const useTreeOps = ({
   api,
   actions,
   createNote,
   openNote,
   setOpenNote,
   setPinned,
-}: TreeOpsDeps): TreeOps {
-  return useMemo<TreeOps>(() => {
+}: TreeOpsDeps): TreeOps =>
+  useMemo<TreeOps>(() => {
     const paths = desktopPaths();
     // absent outside the shell, so the tree draws no row for them there
     const shellOps: Pick<TreeOps, "revealEntry" | "openEntry"> =
       paths === undefined
         ? {}
         : {
-            revealEntry: (path) => {
-              runPathAction(() => paths.reveal(path), `Could not reveal ${path}.`);
-            },
             openEntry: (path) => {
-              runPathAction(() => paths.open(path), `Could not open ${path}.`);
+              runPathAction(async () => await paths.open(path), `Could not open ${path}.`);
+            },
+            revealEntry: (path) => {
+              runPathAction(async () => await paths.reveal(path), `Could not reveal ${path}.`);
             },
           };
     const renameEntry: TreeOps["renameEntry"] = (fromPath, toPath) => {
@@ -94,9 +100,6 @@ export function useTreeOps({
       })();
     };
     return {
-      createNote: (path) => {
-        void createNote(path);
-      },
       createFolder: (path) => {
         void (async () => {
           try {
@@ -105,6 +108,9 @@ export function useTreeOps({
             toast.error(refusalMessage(error, `Could not create ${path}.`));
           }
         })();
+      },
+      createNote: (path) => {
+        void createNote(path);
       },
       renameEntry,
       setPinned,
@@ -118,13 +124,13 @@ export function useTreeOps({
       removeEntry: (path, kind) => {
         void (async () => {
           const confirmed = await confirm({
-            title: kind === "dir" ? `Delete the folder ${path}?` : `Delete ${path}?`,
             body:
               kind === "dir"
                 ? "Everything inside it goes with it. Notes stay recoverable from Deleted notes."
                 : "It stays recoverable from Deleted notes.",
             confirmLabel: "Delete",
             destructive: true,
+            title: kind === "dir" ? `Delete the folder ${path}?` : `Delete ${path}?`,
           });
           if (!confirmed) {
             return;
@@ -137,4 +143,3 @@ export function useTreeOps({
       },
     };
   }, [api, actions, createNote, openNote, setOpenNote, setPinned]);
-}

@@ -1,7 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { exec, hermeticProcessEnv } from "./exec";
-import { bootWithPorts, spawnSupervised, type TrackedProcess } from "./tracked-child";
+import { bootWithPorts, spawnSupervised } from "./tracked-child";
+import type { TrackedProcess } from "./tracked-child";
 
 const READY_POLL_INTERVAL_MS = 250;
 // the first boot bundles the whole worker before workerd even starts.
@@ -30,22 +31,22 @@ export interface LaunchCloudWorkerArgs {
   builtConfig?: string;
 }
 
-function workerEnv(): NodeJS.ProcessEnv {
+const workerEnv = (): NodeJS.ProcessEnv => {
   const env = hermeticProcessEnv();
   env.WRANGLER_SEND_METRICS = "false";
   return env;
-}
+};
 
-async function workerAnswered(origin: string): Promise<boolean> {
+const workerAnswered = async (origin: string): Promise<boolean> => {
   try {
-    await fetch(`${origin}/api/auth/get-session`, { signal: AbortSignal.timeout(2_000) });
+    await fetch(`${origin}/api/auth/get-session`, { signal: AbortSignal.timeout(2000) });
     return true;
   } catch {
     return false;
   }
-}
+};
 
-async function applySchema(
+const applySchema = async (
   webDir: string,
   binDir: string,
   args: LaunchCloudWorkerArgs,
@@ -53,23 +54,23 @@ async function applySchema(
     stateDir: string;
     configPath: string;
   },
-): Promise<void> {
+): Promise<void> => {
   args.onLog("deriving the D1 auth schema (apps/web db:export)");
   const ddl = await exec("pnpm", ["run", "--silent", "db:export"], {
     cwd: webDir,
     env: workerEnv(),
     timeoutMs: SCHEMA_APPLY_TIMEOUT_MS,
   });
-  const schemaFile = join(args.scratchDir, "worker-schema.sql");
+  const schemaFile = path.join(args.scratchDir, "worker-schema.sql");
   await writeFile(
     schemaFile,
     `${ddl.stdout}\nINSERT INTO invite_code (code) VALUES ('${E2E_INVITE_CODE}');\n`,
-    "utf8",
+    "utf-8",
   );
 
   args.onLog("applying the schema to the scratch D1");
   await exec(
-    join(binDir, "wrangler"),
+    path.join(binDir, "wrangler"),
     [
       "d1",
       "execute",
@@ -84,32 +85,31 @@ async function applySchema(
     ],
     { cwd: webDir, env: workerEnv(), timeoutMs: SCHEMA_APPLY_TIMEOUT_MS },
   );
-}
+};
 
-export async function launchCloudWorker(args: LaunchCloudWorkerArgs): Promise<CloudWorker> {
-  const webDir = join(args.repoRoot, "apps", "web");
-  const binDir = join(webDir, "node_modules", ".bin");
-  const stateDir = join(args.scratchDir, "worker-state");
+export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<CloudWorker> => {
+  const webDir = path.join(args.repoRoot, "apps", "web");
+  const binDir = path.join(webDir, "node_modules", ".bin");
+  const stateDir = path.join(args.scratchDir, "worker-state");
   await mkdir(stateDir, { recursive: true });
 
   // explicit --config everywhere: after a build, .wrangler/deploy/config.json redirects wrangler to
   // dist/server/wrangler.json, whose `no_bundle: true` would hand workerd the raw TypeScript entry.
-  const configPath = args.builtConfig ?? join(webDir, "wrangler.jsonc");
-  await applySchema(webDir, binDir, args, { stateDir, configPath });
+  const configPath = args.builtConfig ?? path.join(webDir, "wrangler.jsonc");
+  await applySchema(webDir, binDir, args, { configPath, stateDir });
 
   const worker = await bootWithPorts<CloudWorker>({
+    deadlineMs: READY_DEADLINE_MS,
     label: "the cloud worker",
+    onLog: args.onLog,
+    pollIntervalMs: READY_POLL_INTERVAL_MS,
     // the dev server, plus the inspector it always opens.
     portCount: 2,
-    deadlineMs: READY_DEADLINE_MS,
-    pollIntervalMs: READY_POLL_INTERVAL_MS,
-    onLog: args.onLog,
+    ready: async (handle) => await workerAnswered(handle.origin),
     spawn: (ports) => {
       const port = ports[0] ?? 0;
       const inspectorPort = ports[1] ?? 0;
       const child = spawnSupervised({
-        name: "cloud-worker",
-        file: join(binDir, "wrangler"),
         argv: [
           "dev",
           // not server.ts: the deployed entry needs TanStack Start's build-time vite virtuals.
@@ -132,14 +132,15 @@ export async function launchCloudWorker(args: LaunchCloudWorkerArgs): Promise<Cl
         ],
         cwd: webDir,
         env: workerEnv(),
+        file: path.join(binDir, "wrangler"),
+        name: "cloud-worker",
       });
       const handle: CloudWorker = { ...child, origin: `http://127.0.0.1:${String(port)}` };
       args.register(handle);
       args.onLog(`booting the cloud worker on ${handle.origin}`);
-      return { handle, child };
+      return { child, handle };
     },
-    ready: (handle) => workerAnswered(handle.origin),
   });
   args.onLog("the cloud worker is answering");
   return worker;
-}
+};

@@ -14,9 +14,9 @@ export type SpellcheckChoice = z.infer<typeof spellcheckChoiceSchema>;
 
 export const spellcheckStateSchema = z
   .object({
+    available: z.array(z.string()),
     enabled: z.boolean(),
     languages: z.array(z.string()),
-    available: z.array(z.string()),
     // false on macOS: the OS checker picks languages itself and the session's setter is a no-op
     languagesConfigurable: z.boolean(),
   })

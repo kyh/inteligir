@@ -8,6 +8,6 @@ const vaultPrefsSchema = z.object({ attachments: attachmentLocationSchema.option
 // read per paste, so a Settings or CLI change reaches the next paste without a reboot
 export class VaultPrefsStore extends JsonFileStore<typeof vaultPrefsSchema> {
   constructor(dataDir: string) {
-    super({ dataDir, fileName: "vault-prefs.json", schema: vaultPrefsSchema, empty: {} });
+    super({ dataDir, empty: {}, fileName: "vault-prefs.json", schema: vaultPrefsSchema });
   }
 }

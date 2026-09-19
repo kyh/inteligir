@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  clientMessageSchema,
-  type ChangedMessage,
-  type ClientMessage,
-  type RealtimeSubscriptionTarget,
+import { clientMessageSchema } from "@repo/api/local/notifications";
+import type {
+  ChangedMessage,
+  ClientMessage,
+  RealtimeSubscriptionTarget,
 } from "@repo/api/local/notifications";
-import { InvalidationClient, type InvalidationSocket } from "../invalidation-client";
+import { InvalidationClient } from "../invalidation-client";
+import type { InvalidationSocket } from "../invalidation-client";
 
 /** A frame as it arrives off the wire: this client's own vocabulary, plus
  *  whatever a newer server sends that it does not yet understand. */
@@ -48,21 +49,25 @@ class FakeSocket implements InvalidationSocket {
   }
 }
 
-function harness() {
+const harness = () => {
   const sockets: FakeSocket[] = [];
   const changed: ChangedMessage[] = [];
-  const reconnected: Array<readonly RealtimeSubscriptionTarget[]> = [];
+  const reconnected: (readonly RealtimeSubscriptionTarget[])[] = [];
   const client = new InvalidationClient({
     createSocket: () => {
       const socket = new FakeSocket();
       sockets.push(socket);
       return socket;
     },
-    onChanged: (message) => changed.push(message),
-    onReconnected: (targets) => reconnected.push(targets),
+    onChanged: (message) => {
+      changed.push(message);
+    },
+    onReconnected: (targets) => {
+      reconnected.push(targets);
+    },
   });
-  return { client, sockets, changed, reconnected };
-}
+  return { changed, client, reconnected, sockets };
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -76,27 +81,27 @@ describe("subscriptions", () => {
   it("sends the subscribe frame once the socket is open", () => {
     const h = harness();
     h.client.start();
-    const socket = h.sockets[0];
+    const [socket] = h.sockets;
     expect(socket).toBeDefined();
     h.client.subscribe({ kind: "vault" });
     expect(socket?.sent).toEqual([]);
     socket?.open();
-    expect(socket?.sentFrames()).toEqual([{ type: "subscribe", target: { kind: "vault" } }]);
+    expect(socket?.sentFrames()).toEqual([{ target: { kind: "vault" }, type: "subscribe" }]);
   });
 
   it("subscribes immediately when already connected", () => {
     const h = harness();
     h.client.start();
-    const socket = h.sockets[0];
+    const [socket] = h.sockets;
     socket?.open();
     h.client.subscribe({ kind: "thread-list" });
-    expect(socket?.sentFrames()).toEqual([{ type: "subscribe", target: { kind: "thread-list" } }]);
+    expect(socket?.sentFrames()).toEqual([{ target: { kind: "thread-list" }, type: "subscribe" }]);
   });
 
   it("ref-counts a target: one subscribe, unsubscribe only on the last release", () => {
     const h = harness();
     h.client.start();
-    const socket = h.sockets[0];
+    const [socket] = h.sockets;
     socket?.open();
     const releaseA = h.client.subscribe({ kind: "vault" });
     const releaseB = h.client.subscribe({ kind: "vault" });
@@ -105,15 +110,15 @@ describe("subscriptions", () => {
     expect(socket?.sent).toHaveLength(1);
     releaseB();
     expect(socket?.sentFrames().at(-1)).toEqual({
-      type: "unsubscribe",
       target: { kind: "vault" },
+      type: "unsubscribe",
     });
   });
 
   it("a release is idempotent", () => {
     const h = harness();
     h.client.start();
-    const socket = h.sockets[0];
+    const [socket] = h.sockets;
     socket?.open();
     const release = h.client.subscribe({ kind: "vault" });
     h.client.subscribe({ kind: "vault" });
@@ -128,30 +133,30 @@ describe("messages", () => {
   it("delivers changed messages and ignores the hello ack", () => {
     const h = harness();
     h.client.start();
-    const socket = h.sockets[0];
+    const [socket] = h.sockets;
     socket?.open();
     socket?.receive({ type: "hello" });
-    socket?.receive({ type: "changed", entity: "vault", changes: ["files-changed"] });
-    expect(h.changed).toEqual([{ type: "changed", entity: "vault", changes: ["files-changed"] }]);
+    socket?.receive({ changes: ["files-changed"], entity: "vault", type: "changed" });
+    expect(h.changed).toEqual([{ changes: ["files-changed"], entity: "vault", type: "changed" }]);
   });
 
   it("tolerates unknown change kinds from a newer server", () => {
     const h = harness();
     h.client.start();
-    const socket = h.sockets[0];
+    const [socket] = h.sockets;
     socket?.open();
     socket?.receive({
-      type: "changed",
-      entity: "vault",
       changes: ["files-changed", "brand-new-kind"],
+      entity: "vault",
+      type: "changed",
     });
-    expect(h.changed).toEqual([{ type: "changed", entity: "vault", changes: ["files-changed"] }]);
+    expect(h.changed).toEqual([{ changes: ["files-changed"], entity: "vault", type: "changed" }]);
   });
 
   it("drops undecodable frames without dying", () => {
     const h = harness();
     h.client.start();
-    const socket = h.sockets[0];
+    const [socket] = h.sockets;
     socket?.open();
     socket?.onMessage?.({ data: "not json" });
     socket?.receive({ type: "mystery" });
@@ -165,7 +170,7 @@ describe("reconnect", () => {
     h.client.start();
     h.client.subscribe({ kind: "vault" });
     h.client.subscribe({ kind: "thread-list" });
-    const first = h.sockets[0];
+    const [first] = h.sockets;
     first?.open();
     expect(first?.sent).toHaveLength(2);
 
@@ -174,11 +179,11 @@ describe("reconnect", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(h.sockets).toHaveLength(2);
 
-    const second = h.sockets[1];
+    const [, second] = h.sockets;
     second?.open();
     expect(second?.sentFrames()).toEqual([
-      { type: "subscribe", target: { kind: "vault" } },
-      { type: "subscribe", target: { kind: "thread-list" } },
+      { target: { kind: "vault" }, type: "subscribe" },
+      { target: { kind: "thread-list" }, type: "subscribe" },
     ]);
   });
 
@@ -190,7 +195,7 @@ describe("reconnect", () => {
     h.sockets[0]?.drop();
     release();
     await vi.advanceTimersByTimeAsync(500);
-    const second = h.sockets[1];
+    const [, second] = h.sockets;
     second?.open();
     expect(second?.sent).toEqual([]);
   });

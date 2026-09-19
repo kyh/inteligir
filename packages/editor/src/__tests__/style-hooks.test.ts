@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CodeBlockPlugin } from "@platejs/code-block/react";
-import { createLowlight } from "lowlight";
+import type { createLowlight } from "lowlight";
 import { createSlateEditor } from "platejs";
 import { describe, expect, it } from "vitest";
 
@@ -18,7 +18,7 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 const DECLARED_HOOKS: readonly string[] = Object.values(styleHooks).toSorted();
 
 // Slate stamps these itself; they are not hooks a kit emits
-const SLATE_ATTR = /^data-slate-/;
+const SLATE_PREFIX = "data-slate-";
 
 const HLJS_PREFIX = "hljs-";
 
@@ -27,64 +27,121 @@ interface Rule {
   body: string;
 }
 
-const RULE = /([^{}]+)\{([^{}]*)\}/g;
+const RULE = /(?<selector>[^{}]+)\{(?<body>[^{}]*)\}/gu;
 
-function readStylesheet() {
-  const css = fs.readFileSync(STYLES, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const readStylesheet = () => {
+  const css = fs.readFileSync(STYLES, "utf-8").replaceAll(/\/\*[\s\S]*?\*\//gu, "");
   const rules = [...css.matchAll(RULE)].map((match) => ({
-    selector: (match[1] ?? "").trim(),
-    body: match[2] ?? "",
+    body: match.groups?.body ?? "",
+    selector: (match.groups?.selector ?? "").trim(),
   }));
   return { rules, unparsed: css.replace(RULE, "").trim() };
-}
+};
 
-function colourOf(rule: Rule): string | undefined {
-  return /(?:^|;)\s*color\s*:\s*([^;]+)/u.exec(rule.body)?.[1]?.trim();
-}
+const colourOf = (rule: Rule): string | undefined =>
+  /(?:^|;)\s*color\s*:\s*(?<colour>[^;]+)/u.exec(rule.body)?.groups?.colour?.trim();
 
 // a rule declaring only custom properties is theme plumbing, not a hook
-function isTokenBlock(rule: Rule): boolean {
+const isTokenBlock = (rule: Rule): boolean => {
   const declarations = rule.body
     .split(";")
     .map((declaration) => declaration.trim())
     .filter((declaration) => declaration.length > 0);
   return declarations.length > 0 && declarations.every((line) => line.startsWith("--"));
-}
+};
 
-function selectorHooks() {
+const selectorHooks = () => {
   const hooks = new Set<string>();
   const themeScopes = new Set<string>();
   for (const rule of readStylesheet().rules) {
-    if (isTokenBlock(rule)) continue;
-    for (const match of rule.selector.matchAll(/\.([A-Za-z_][A-Za-z0-9_-]*)/g)) {
-      const className = match[1] ?? "";
-      if (className.startsWith(HLJS_PREFIX)) themeScopes.add(className.slice(HLJS_PREFIX.length));
-      else hooks.add(className);
+    if (isTokenBlock(rule)) {
+      continue;
     }
-    for (const match of rule.selector.matchAll(/\[(data-[a-z-]+)/g)) {
-      const attribute = match[1] ?? "";
-      if (!SLATE_ATTR.test(attribute)) hooks.add(attribute);
+    for (const match of rule.selector.matchAll(/\.(?<className>[A-Za-z_][A-Za-z0-9_-]*)/gu)) {
+      const className = match.groups?.className ?? "";
+      if (className.startsWith(HLJS_PREFIX)) {
+        themeScopes.add(className.slice(HLJS_PREFIX.length));
+      } else {
+        hooks.add(className);
+      }
+    }
+    for (const match of rule.selector.matchAll(/\[(?<attribute>data-[a-z-]+)/gu)) {
+      const attribute = match.groups?.attribute ?? "";
+      if (!attribute.startsWith(SLATE_PREFIX)) {
+        hooks.add(attribute);
+      }
     }
   }
   return { hooks: [...hooks].toSorted(), themeScopes: [...themeScopes].toSorted() };
-}
+};
 
-function packageSources(dir: string): string[] {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+const packageSources = (dir: string): string[] =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return entry.name === "__tests__" ? [] : packageSources(full);
-    if (!/\.tsx?$/u.test(entry.name)) return [];
+    if (entry.isDirectory()) {
+      return entry.name === "__tests__" ? [] : packageSources(full);
+    }
+    if (!/\.tsx?$/u.test(entry.name)) {
+      return [];
+    }
     return full === path.join(SRC, "style-hooks.ts") ? [] : [full];
   });
-}
 
 // Tailwind's arbitrary-variant spellings split on the bracket, so the token sweep alone cannot see them
-function variantSpellings(hook: string): string[] {
+const variantSpellings = (hook: string): string[] => {
   const DATA = "data-";
   return hook.startsWith(DATA)
     ? [`${DATA}[${hook.slice(DATA.length)}]`, `[${hook}]`]
     : [`[.${hook}`];
-}
+};
+
+type Highlighter = ReturnType<typeof createLowlight>;
+type HastRoot = ReturnType<Highlighter["highlight"]>;
+type HastNode = HastRoot | HastRoot["children"][number];
+
+const collectScopes = (node: HastNode, into: Set<string>): void => {
+  if (node.type === "element") {
+    const { className } = node.properties;
+    if (Array.isArray(className)) {
+      for (const entry of className) {
+        if (entry.startsWith(HLJS_PREFIX)) {
+          into.add(entry.slice(HLJS_PREFIX.length));
+        }
+      }
+    }
+  }
+  if ("children" in node) {
+    for (const child of node.children) {
+      collectScopes(child, into);
+    }
+  }
+};
+
+// together these emit every scope the theme names; a grammar that starts emitting a new scope fails the suite
+const HIGHLIGHT_CORPUS = {
+  css: "a.b#c[href]:hover::before { color: #fff; margin: 1px !important; }",
+  diff: "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new",
+  go: 'type T struct { x int }\nfunc main() { fmt.Println("hi", 1, nil) }',
+  json: '{"a": [1, true, null]}',
+  markdown: "# Title\n> quote\n- **strong** _em_ `code` [link](http://x)",
+  php: "class A extends B { public $x; }",
+  python: 'def f(x: int = 1) -> None:\n    """doc"""\n    print(f"{x}")',
+  ruby: ':sym\ndef f(a) puts "#{a}" end',
+  sql: "SELECT a FROM t WHERE a > 1 AND b IS NOT NULL",
+  typescript: [
+    "// note",
+    "/** @param x */",
+    "export async function f<T>(x: T, n = 0x1f): Promise<T> {",
+    // oxlint-disable-next-line no-template-curly-in-string -- highlighter corpus: the literal template syntax is what the grammar must tokenize
+    "  const s = `t ${x}`;",
+    '  if (x === null || true) return await new Map<string, T>().get("k");',
+    "  class C extends B { #p = /re+/g; get z() { return this.#p; } }",
+    "  document.body.innerHTML = a?.b;",
+    "  return x;",
+    "}",
+  ].join("\n"),
+  xml: '<!DOCTYPE html><div class="a"><!-- c -->&amp;</div>',
+};
 
 describe("editor style hooks", () => {
   it("styles.css stays flat, so the lockstep can read it", () => {
@@ -108,14 +165,16 @@ describe("editor style hooks", () => {
     const violations: string[] = [];
     for (const file of packageSources(SRC).toSorted()) {
       const stripped = fs
-        .readFileSync(file, "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/^\s*\/\/.*$/gm, "");
+        .readFileSync(file, "utf-8")
+        .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
+        .replaceAll(/^\s*\/\/.*$/gmu, "");
       const tokens = new Set(stripped.split(/[^A-Za-z0-9_-]+/u));
       for (const hook of DECLARED_HOOKS) {
         const spelled =
           tokens.has(hook) || variantSpellings(hook).some((variant) => stripped.includes(variant));
-        if (spelled) violations.push(`  ${path.relative(SRC, file)}  ${hook}`);
+        if (spelled) {
+          violations.push(`  ${path.relative(SRC, file)}  ${hook}`);
+        }
       }
     }
     expect(
@@ -128,7 +187,7 @@ describe("editor style hooks", () => {
 
   it("the highlight theme names exactly the scopes the shipped grammars emit", () => {
     const editor = createSlateEditor({ plugins: EDITOR_KIT });
-    const lowlight = editor.getOptions(CodeBlockPlugin).lowlight;
+    const { lowlight } = editor.getOptions(CodeBlockPlugin);
     if (lowlight === null || lowlight === undefined) {
       throw new Error("the shipped editor kit registers no lowlight highlighter");
     }
@@ -164,7 +223,7 @@ describe("editor style hooks", () => {
   it("the desktop renderer imports the sheet, so the rules actually ship", () => {
     const globals = fs.readFileSync(
       path.join(REPO_ROOT, "apps/desktop/src/renderer/styles/globals.css"),
-      "utf8",
+      "utf-8",
     );
     expect(
       globals.includes(`@import "@repo/editor/styles.css";`),
@@ -173,46 +232,3 @@ describe("editor style hooks", () => {
     ).toBe(true);
   });
 });
-
-type Highlighter = ReturnType<typeof createLowlight>;
-type HastRoot = ReturnType<Highlighter["highlight"]>;
-type HastNode = HastRoot | HastRoot["children"][number];
-
-function collectScopes(node: HastNode, into: Set<string>): void {
-  if (node.type === "element") {
-    const className = node.properties.className;
-    if (Array.isArray(className)) {
-      for (const entry of className) {
-        if (entry.startsWith(HLJS_PREFIX)) into.add(entry.slice(HLJS_PREFIX.length));
-      }
-    }
-  }
-  if ("children" in node) {
-    for (const child of node.children) collectScopes(child, into);
-  }
-}
-
-// together these emit every scope the theme names; a grammar that starts emitting a new scope fails the suite
-const HIGHLIGHT_CORPUS = {
-  css: "a.b#c[href]:hover::before { color: #fff; margin: 1px !important; }",
-  diff: "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new",
-  go: 'type T struct { x int }\nfunc main() { fmt.Println("hi", 1, nil) }',
-  json: '{"a": [1, true, null]}',
-  markdown: "# Title\n> quote\n- **strong** _em_ `code` [link](http://x)",
-  php: "class A extends B { public $x; }",
-  python: 'def f(x: int = 1) -> None:\n    """doc"""\n    print(f"{x}")',
-  ruby: ':sym\ndef f(a) puts "#{a}" end',
-  sql: "SELECT a FROM t WHERE a > 1 AND b IS NOT NULL",
-  typescript: [
-    "// note",
-    "/** @param x */",
-    "export async function f<T>(x: T, n = 0x1f): Promise<T> {",
-    "  const s = `t ${x}`;",
-    '  if (x === null || true) return await new Map<string, T>().get("k");',
-    "  class C extends B { #p = /re+/g; get z() { return this.#p; } }",
-    "  document.body.innerHTML = a?.b;",
-    "  return x;",
-    "}",
-  ].join("\n"),
-  xml: '<!DOCTYPE html><div class="a"><!-- c -->&amp;</div>',
-};

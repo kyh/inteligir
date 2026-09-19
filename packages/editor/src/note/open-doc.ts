@@ -1,11 +1,9 @@
 import type { GateReason } from "@repo/editor/note/markdown-gate";
 
 // .mdx excluded: the Plate markdown pipeline doesn't round-trip MDX.
-const MARKDOWN_RE = /\.(md|markdown)$/i;
+const MARKDOWN_RE = /\.(?:md|markdown)$/iu;
 
-export function isMarkdownPath(path: string): boolean {
-  return MARKDOWN_RE.test(path);
-}
+export const isMarkdownPath = (path: string): boolean => MARKDOWN_RE.test(path);
 
 type MarkdownSurface = { mode: "rich" } | { mode: "raw"; reason: GateReason };
 
@@ -17,15 +15,21 @@ export type OpenDoc =
   | { kind: "non-markdown"; path: string }
   | { kind: "markdown"; path: string; surface: MarkdownSurface };
 
-export function deriveOpenDoc(args: {
+export const deriveOpenDoc = (args: {
   openPath: string | null;
   loadedPath: string | null;
   rawReason: GateReason | null;
-}): OpenDoc {
+}): OpenDoc => {
   const { openPath, loadedPath, rawReason } = args;
-  if (openPath === null) return { kind: "none" };
-  if (loadedPath === null) return { kind: "loading", path: openPath };
-  if (!isMarkdownPath(loadedPath)) return { kind: "non-markdown", path: loadedPath };
+  if (openPath === null) {
+    return { kind: "none" };
+  }
+  if (loadedPath === null) {
+    return { kind: "loading", path: openPath };
+  }
+  if (!isMarkdownPath(loadedPath)) {
+    return { kind: "non-markdown", path: loadedPath };
+  }
   const surface: MarkdownSurface =
     rawReason === null ? { mode: "rich" } : { mode: "raw", reason: rawReason };
   return {
@@ -33,8 +37,6 @@ export function deriveOpenDoc(args: {
     path: loadedPath,
     surface,
   };
-}
+};
 
-export function openDocPath(doc: OpenDoc): string | null {
-  return doc.kind === "none" ? null : doc.path;
-}
+export const openDocPath = (doc: OpenDoc): string | null => (doc.kind === "none" ? null : doc.path);

@@ -1,8 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
+import {
+  agentBrowserSession,
+  closeQuietly,
+  parseEval,
+  probeHeadlessOrSkip,
+} from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -19,12 +24,13 @@ const SEARCH_INPUT = 'input[placeholder^="Search across the vault"]';
 const REPLACE_INPUT = 'input[aria-label="Replace with"]';
 const FIND_BAR_INPUT = 'input[aria-label="Find in note"]';
 // agent-browser drives a browser on this machine, so the page sees this platform's modifier.
-const SEARCH_CHORD = process.platform === "darwin" ? "Meta+Shift+f" : "Control+Shift+f";
+const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
+const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 const ROWS_DEADLINE_MS = 20_000;
 const DISK_DEADLINE_MS = 30_000;
 const OPTION_COUNT = "String(document.querySelectorAll('[role=option]').length)";
 
-async function waitForRows(expected: number, what: string): Promise<void> {
+const waitForRows = async (expected: number, what: string): Promise<void> => {
   const deadline = Date.now() + ROWS_DEADLINE_MS;
   for (;;) {
     const count = parseEval(await agentBrowser(["eval", OPTION_COUNT]), z.string());
@@ -34,27 +40,30 @@ async function waitForRows(expected: number, what: string): Promise<void> {
     expect(Date.now() < deadline, `${what}: expected ${String(expected)} rows, saw ${count}`);
     await delay(250);
   }
-}
+};
 
-async function openSearch(): Promise<void> {
+// the palette is the one search surface: its root row opens the vault-wide scan
+const openSearch = async (): Promise<void> => {
   await agentBrowser(["click", EDITOR]);
-  await agentBrowser(["press", SEARCH_CHORD]);
+  await agentBrowser(["press", PALETTE_CHORD]);
+  await agentBrowser(["wait", PALETTE_INPUT], 30_000);
+  await agentBrowser(["find", "role", "option", "click", "--name", "Search across the vault…"]);
   await agentBrowser(["wait", SEARCH_INPUT], 30_000);
   await agentBrowser(["fill", SEARCH_INPUT, NEEDLE]);
   // one row per occurrence: one in the first note, two in the second
   await waitForRows(3, "the search page");
-}
+};
 
 export const vaultSearchBrowser: Scenario = {
-  name: "vault-search-browser",
   description:
-    "⌘⇧F lists every match; Enter lands the find bar on one; Replace all rewrites the notes on disk",
+    "the palette's vault search lists every match; Enter lands the find bar on one; Replace all rewrites the notes on disk",
+  name: "vault-search-browser",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, NOTE_ONE), DOC_ONE, "utf8");
-        await writeFile(join(vaultDir, NOTE_TWO), DOC_TWO, "utf8");
+        await writeFile(path.join(vaultDir, NOTE_ONE), DOC_ONE, "utf-8");
+        await writeFile(path.join(vaultDir, NOTE_TWO), DOC_TWO, "utf-8");
       },
     });
     try {
@@ -64,7 +73,7 @@ export const vaultSearchBrowser: Scenario = {
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
       await agentBrowser(["wait", EDITOR], 90_000);
 
-      ctx.log("the chord opens the search page and the rows arrive");
+      ctx.log("the palette opens the search page and the rows arrive");
       await openSearch();
 
       ctx.log("the second row is the other note's first match; Enter opens it on the find bar");
@@ -107,8 +116,8 @@ export const vaultSearchBrowser: Scenario = {
 
       const diskDeadline = Date.now() + DISK_DEADLINE_MS;
       for (;;) {
-        const one = await readFile(join(app.vaultDir, NOTE_ONE), "utf8");
-        const two = await readFile(join(app.vaultDir, NOTE_TWO), "utf8");
+        const one = await readFile(path.join(app.vaultDir, NOTE_ONE), "utf-8");
+        const two = await readFile(path.join(app.vaultDir, NOTE_TWO), "utf-8");
         if (!one.includes(NEEDLE) && !two.includes(NEEDLE)) {
           expect(
             one === DOC_ONE.replaceAll(NEEDLE, REPLACEMENT),
@@ -124,7 +133,7 @@ export const vaultSearchBrowser: Scenario = {
         await delay(250);
       }
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

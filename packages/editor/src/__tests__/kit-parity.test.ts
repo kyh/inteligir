@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { type Descendant, ElementApi, type TElement, createSlateEditor } from "platejs";
+import { ElementApi, createSlateEditor } from "platejs";
+import type { Descendant, TElement } from "platejs";
 import { MarkdownPlugin, serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
@@ -38,13 +39,15 @@ const VOCABULARY_PLUGIN_KEYS = [
   "opaqueInline",
 ];
 
-function walkElements(nodes: Descendant[], visit: (el: TElement) => void): void {
+const walkElements = (nodes: Descendant[], visit: (el: TElement) => void): void => {
   for (const node of nodes) {
-    if (!ElementApi.isElement(node)) continue;
+    if (!ElementApi.isElement(node)) {
+      continue;
+    }
     visit(node);
     walkElements(node.children, visit);
   }
-}
+};
 
 describe("kit parity (Base half)", () => {
   it("BASE_KIT editors share the MarkdownPlugin config by reference", () => {
@@ -63,10 +66,12 @@ describe("kit parity (Base half)", () => {
     const a = createSlateEditor({ plugins: BASE_KIT });
     const b = createSlateEditor({ plugins: BASE_KIT });
     for (const name of readdirSync(FIXTURES).toSorted()) {
-      const src = readFileSync(`${FIXTURES}${name}`, "utf8");
+      const src = readFileSync(`${FIXTURES}${name}`, "utf-8");
       const parsed = parseMarkdown(src);
       expect(parsed.ok, `${name} must parse`).toBe(true);
-      if (!parsed.ok) continue;
+      if (!parsed.ok) {
+        continue;
+      }
       const outA = serializeMd(a, { remarkStringifyOptions: MD_STRINGIFY, value: parsed.value });
       const outB = serializeMd(b, { remarkStringifyOptions: MD_STRINGIFY, value: parsed.value });
       expect(outA, `${name} must serialize deterministically`).toBe(outB);
@@ -101,9 +106,11 @@ describe("kit parity (live editor mirror)", () => {
 
   it("both editors agree on inline/void metadata for every corpus element", () => {
     for (const name of readdirSync(FIXTURES).toSorted()) {
-      const parsed = parseMarkdown(readFileSync(`${FIXTURES}${name}`, "utf8"));
+      const parsed = parseMarkdown(readFileSync(`${FIXTURES}${name}`, "utf-8"));
       expect(parsed.ok, `${name} must parse`).toBe(true);
-      if (!parsed.ok) continue;
+      if (!parsed.ok) {
+        continue;
+      }
       walkElements(parsed.value, (el) => {
         const tag = `${name}: <${el.type}>`;
         expect(live.api.isInline(el), `${tag} isInline must mirror BASE_KIT`).toBe(
@@ -129,9 +136,11 @@ describe("kit parity (live editor mirror)", () => {
 
   it("the live editor serializes the canonical corpus to BASE_KIT's bytes", () => {
     for (const name of readdirSync(FIXTURES).toSorted()) {
-      const src = readFileSync(`${FIXTURES}${name}`, "utf8");
+      const src = readFileSync(`${FIXTURES}${name}`, "utf-8");
       const parsed = parseMarkdown(src);
-      if (!parsed.ok) continue;
+      if (!parsed.ok) {
+        continue;
+      }
       const out = serializeMd(live, { remarkStringifyOptions: MD_STRINGIFY, value: parsed.value });
       expect(out.trimEnd(), `${name} must match its canonical bytes via the live editor`).toBe(
         src.trimEnd(),

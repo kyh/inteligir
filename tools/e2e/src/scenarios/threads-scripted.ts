@@ -6,12 +6,12 @@ const TURN_TEXT = "Hello from the e2e harness";
 const TURN_DEADLINE_MS = 30_000;
 
 export const threadsScripted: Scenario = {
-  name: "threads-scripted",
   description: "create thread, send a turn through the scripted driver, read the timeline",
+  name: "threads-scripted",
   async run(ctx) {
     const app = await ctx.boot({
-      name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
+      name: "solo",
     });
 
     ctx.log("create a thread");
@@ -20,8 +20,8 @@ export const threadsScripted: Scenario = {
 
     ctx.log("send a message");
     const outcome = await app.api.threads.send({
-      threadId: thread.id,
       text: TURN_TEXT,
+      threadId: thread.id,
     });
     expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
 
@@ -40,7 +40,7 @@ export const threadsScripted: Scenario = {
     ctx.log("read the timeline");
     const body = await app.api.threads.timeline({ threadId: thread.id });
     expect(body.kind === "full", `timeline without afterSequence answers full, got "${body.kind}"`);
-    const rows = body.timeline.rows;
+    const { rows } = body.timeline;
     expect(
       rows.some(
         (row) => row.kind === "conversation" && row.role === "user" && row.text === TURN_TEXT,

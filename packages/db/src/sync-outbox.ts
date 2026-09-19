@@ -13,23 +13,23 @@ export interface SyncState {
   lastSyncedAt: number | null;
 }
 
-const EMPTY_SYNC_STATE: SyncState = { lastDeviceSeq: 0, cursor: 0, lastSyncedAt: null };
+const EMPTY_SYNC_STATE: SyncState = { cursor: 0, lastDeviceSeq: 0, lastSyncedAt: null };
 
 type SyncWriteConnection = DbConnection | DbTransaction;
 
 // lazy rather than seeded by a migration, so a database restored from a file predating the seed
 // still works.
-function ensureSyncStateRow(db: SyncWriteConnection): void {
+const ensureSyncStateRow = (db: SyncWriteConnection): void => {
   db.insert(syncState).values({ id: SYNC_STATE_ID }).onConflictDoNothing().run();
-}
+};
 
-export function readSyncState(db: DbConnection): SyncState {
+export const readSyncState = (db: DbConnection): SyncState => {
   const row = db.select().from(syncState).where(eq(syncState.id, SYNC_STATE_ID)).get();
   if (row === undefined) {
     return EMPTY_SYNC_STATE;
   }
-  return { lastDeviceSeq: row.lastDeviceSeq, cursor: row.cursor, lastSyncedAt: row.lastSyncedAt };
-}
+  return { cursor: row.cursor, lastDeviceSeq: row.lastDeviceSeq, lastSyncedAt: row.lastSyncedAt };
+};
 
 export interface SyncOutboxEntry {
   threadId: string;
@@ -40,10 +40,10 @@ export interface SyncOutboxEntry {
 
 // takes a transaction so the enqueue commits with the append or not at all; a separate write
 // could lose the row to a crash and leave an event no device hears about.
-export function enqueueSyncOutboxInTransaction(
+export const enqueueSyncOutboxInTransaction = (
   tx: DbTransaction,
   entries: readonly SyncOutboxEntry[],
-): void {
+): void => {
   if (entries.length === 0) {
     return;
   }
@@ -63,52 +63,49 @@ export function enqueueSyncOutboxInTransaction(
   tx.insert(syncOutbox)
     .values(
       entries.map((entry, index) => ({
-        id: createSyncOutboxId(),
-        deviceSeq: firstSeq + index,
-        threadId: entry.threadId,
         body: entry.body,
         createdAt: now,
+        deviceSeq: firstSeq + index,
+        id: createSyncOutboxId(),
+        threadId: entry.threadId,
       })),
     )
     .run();
-}
+};
 
-export function listSyncOutbox(db: DbConnection, limit: number): SyncOutboxRow[] {
-  return db.select().from(syncOutbox).orderBy(asc(syncOutbox.deviceSeq)).limit(limit).all();
-}
+export const listSyncOutbox = (db: DbConnection, limit: number): SyncOutboxRow[] =>
+  db.select().from(syncOutbox).orderBy(asc(syncOutbox.deviceSeq)).limit(limit).all();
 
-export function countSyncOutbox(db: DbConnection): number {
-  return db.select({ value: count() }).from(syncOutbox).get()?.value ?? 0;
-}
+export const countSyncOutbox = (db: DbConnection): number =>
+  db.select({ value: count() }).from(syncOutbox).get()?.value ?? 0;
 
 // bounded by the pushed batch's own high-water, so an enqueue that landed mid-push survives the
 // ack.
-export function deleteSyncOutboxThrough(db: DbConnection, throughDeviceSeq: number): number {
-  return db.delete(syncOutbox).where(lte(syncOutbox.deviceSeq, throughDeviceSeq)).run().changes;
-}
+export const deleteSyncOutboxThrough = (db: DbConnection, throughDeviceSeq: number): number =>
+  db.delete(syncOutbox).where(lte(syncOutbox.deviceSeq, throughDeviceSeq)).run().changes;
 
 // takes a transaction so a pulled event is appended and marked applied in one write; a crash
 // between the two replays the page into duplicates.
-export function writeSyncCursor(db: SyncWriteConnection, cursor: number): void {
+export const writeSyncCursor = (db: SyncWriteConnection, cursor: number): void => {
   ensureSyncStateRow(db);
   db.update(syncState).set({ cursor }).where(eq(syncState.id, SYNC_STATE_ID)).run();
-}
+};
 
 // separate from the cursor: a device with nothing to pull is up to date, not stale.
-export function touchSyncedAt(db: DbConnection, at: number): void {
+export const touchSyncedAt = (db: DbConnection, at: number): void => {
   ensureSyncStateRow(db);
   db.update(syncState).set({ lastSyncedAt: at }).where(eq(syncState.id, SYNC_STATE_ID)).run();
-}
+};
 
 // on logout: a cursor carried into a second account would skip that account's log from its
 // first row.
-export function resetSyncState(db: DbConnection): void {
+export const resetSyncState = (db: DbConnection): void => {
   db.delete(syncOutbox).run();
   db.delete(syncAppliedCaptures).run();
   db.delete(syncState).run();
-}
+};
 
-export function unappliedCaptureIds(db: DbConnection, ids: readonly string[]): Set<string> {
+export const unappliedCaptureIds = (db: DbConnection, ids: readonly string[]): Set<string> => {
   if (ids.length === 0) {
     return new Set();
   }
@@ -121,20 +118,24 @@ export function unappliedCaptureIds(db: DbConnection, ids: readonly string[]): S
       .map((row) => row.id),
   );
   return new Set(ids.filter((id) => !applied.has(id)));
-}
+};
 
 // runs after the vault write commits: the reverse order loses a capture to a crash, this order
 // at worst repeats one.
-export function recordAppliedCaptures(db: DbConnection, ids: readonly string[], now: number): void {
+export const recordAppliedCaptures = (
+  db: DbConnection,
+  ids: readonly string[],
+  now: number,
+): void => {
   if (ids.length === 0) {
     return;
   }
   db.insert(syncAppliedCaptures)
-    .values(ids.map((id) => ({ id, appliedAt: now })))
+    .values(ids.map((id) => ({ appliedAt: now, id })))
     .onConflictDoNothing()
     .run();
-}
+};
 
-export function pruneAppliedCaptures(db: DbConnection, before: number): void {
+export const pruneAppliedCaptures = (db: DbConnection, before: number): void => {
   db.delete(syncAppliedCaptures).where(lt(syncAppliedCaptures.appliedAt, before)).run();
-}
+};

@@ -11,7 +11,8 @@ import { PROJECTION_VERSION } from "./projection";
 import { parseStoredProjection } from "./projection-row";
 import { searchExcerpt } from "./search-excerpt";
 import type { SearchHit } from "./search-index";
-import { planSearchQuery, stemText, type SearchQueryPlan } from "./search-query";
+import { planSearchQuery, stemText } from "./search-query";
+import type { SearchQueryPlan } from "./search-query";
 import { splitLines } from "./source-lines";
 import type { DocText } from "./text-matches";
 
@@ -22,14 +23,14 @@ type SqlValue = null | number | string;
 
 export type SqlRow = Record<string, SqlValue>;
 
-export type SqlDriver = {
-  exec(sql: string): void;
-  run(sql: string, params: readonly SqlValue[]): void;
-  all(sql: string, params: readonly SqlValue[]): SqlRow[];
+export interface SqlDriver {
+  exec: (sql: string) => void;
+  run: (sql: string, params: readonly SqlValue[]) => void;
+  all: (sql: string, params: readonly SqlValue[]) => SqlRow[];
   /** destroy the database entirely and reopen empty */
-  reset(): void;
-  close(): void;
-};
+  reset: () => void;
+  close: () => void;
+}
 
 type HydrationPage =
   | { kind: "docs"; docs: StoredDocRow[] }
@@ -37,12 +38,12 @@ type HydrationPage =
   | { kind: "done" };
 
 // reads through the live db: abandon the cursor after a write, `nuke()` or `dispose()`
-type HydrationCursor = {
-  next(): HydrationPage;
-};
+interface HydrationCursor {
+  next: () => HydrationPage;
+}
 
 export type SqlKnowledgeStore = KnowledgeStore & {
-  hydrate(pageDocs: number): HydrationCursor;
+  hydrate: (pageDocs: number) => HydrationCursor;
 };
 
 // `remove_diacritics 2` is stated, not defaulted: core's tokenize() folds the same
@@ -108,32 +109,33 @@ const STEM_COLUMNS = "{title_stems heading_stems body_stems}";
 // syntax, and the tokenizer cannot emit a `"`, so nothing can close the quote. literal arm OR
 // stem arm is the exact tier (search-index.ts has the porter example), and each term is
 // parenthesized so its inner OR cannot bind against the joining AND
-function renderFtsMatch(plan: SearchQueryPlan): string {
-  return plan.terms
+const renderFtsMatch = (plan: SearchQueryPlan): string =>
+  plan.terms
     .map(
       (term) =>
         `(${LITERAL_COLUMNS}: "${term.token}"${term.prefix ? " *" : ""}` +
         ` OR ${STEM_COLUMNS}: "${term.stem}")`,
     )
     .join(plan.match === "all" ? " AND " : " OR ");
-}
 
-function columnNumber(row: SqlRow, key: string): number {
+const columnNumber = (row: SqlRow, key: string): number => {
   const value = z.number().safeParse(row[key]);
-  if (value.success) return value.data;
+  if (value.success) {
+    return value.data;
+  }
   throw new Error(`knowledge-store: column ${key} is not a number`);
-}
+};
 
-function columnString(row: SqlRow, key: string): string {
+const columnString = (row: SqlRow, key: string): string => {
   const value = z.string().safeParse(row[key]);
-  if (value.success) return value.data;
+  if (value.success) {
+    return value.data;
+  }
   throw new Error(`knowledge-store: column ${key} is not text`);
-}
+};
 
 // bm25 is lower-is-better; flip to match the pure index's direction
-function rankScore(row: SqlRow): number {
-  return -columnNumber(row, "rank");
-}
+const rankScore = (row: SqlRow): number => -columnNumber(row, "rank");
 
 // the literal scan's candidates: LIKE folds ascii case only, which is why text-matches hands
 // over a prefilter for ascii needles alone and asks for every doc otherwise
@@ -141,21 +143,24 @@ const DOC_TEXTS_SQL = "SELECT path, title, body FROM search_fts ORDER BY path";
 const DOC_TEXTS_LIKE_SQL =
   "SELECT path, title, body FROM search_fts WHERE body LIKE ? ESCAPE '\\' ORDER BY path";
 
-function likePattern(prefilter: string): string {
-  return `%${prefilter.replace(/[\\%_]/gu, "\\$&")}%`;
-}
+const likePattern = (prefilter: string): string => `%${prefilter.replaceAll(/[\\%_]/gu, "\\$&")}%`;
 
-export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): SqlKnowledgeStore {
+const messageOf = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
+
+export const createSqlKnowledgeStore = (
+  driver: SqlDriver,
+  vaultRoot: string,
+): SqlKnowledgeStore => {
   let transactionDepth = 0;
 
   const metaGet = (key: string): string | null => {
-    const rows = driver.all("SELECT value FROM meta WHERE key = ?", [key]);
-    const first = rows[0];
+    const [first] = driver.all("SELECT value FROM meta WHERE key = ?", [key]);
     return first === undefined ? null : columnString(first, "value");
   };
 
   const readSchemaVersion = (): number => {
-    const row = driver.all("PRAGMA user_version", [])[0];
+    const [row] = driver.all("PRAGMA user_version", []);
     return row === undefined ? 0 : columnNumber(row, "user_version");
   };
 
@@ -175,7 +180,8 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         driver.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'", [])
           .length > 0;
       if (userVersion === 0 && !hasMeta) {
-        initSchema(); // brand-new file
+        // brand-new file
+        initSchema();
         return;
       }
       if (userVersion !== KNOWLEDGE_SCHEMA_VERSION) {
@@ -187,9 +193,9 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
       if (metaGet("vault_root") !== vaultRoot) {
         throw new Error("vault root mismatch");
       }
-    } catch (err) {
+    } catch (error) {
       // not our current cache: wipe and rebuild
-      console.warn("[knowledge-store] discarding index db (will rebuild):", messageOf(err));
+      console.warn("[knowledge-store] discarding index db (will rebuild):", messageOf(error));
       driver.reset();
       initSchema();
     }
@@ -197,7 +203,8 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
 
   const transaction = (fn: () => void): void => {
     if (transactionDepth > 0) {
-      fn(); // already atomic under the outermost transaction
+      // already atomic under the outermost transaction
+      fn();
       return;
     }
     driver.exec("BEGIN");
@@ -205,13 +212,13 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     try {
       fn();
       driver.exec("COMMIT");
-    } catch (err) {
+    } catch (error) {
       try {
         driver.exec("ROLLBACK");
       } catch {
         // The transaction may already be gone (e.g. the failure closed it).
       }
-      throw err;
+      throw error;
     } finally {
       transactionDepth = 0;
     }
@@ -224,20 +231,22 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
   ): { plan: SearchQueryPlan; rows: SqlRow[] } | null => {
     for (const plan of planSearchQuery(query)) {
       const rows = driver.all(sql, [renderFtsMatch(plan), limit]);
-      if (rows.length > 0) return { plan, rows };
+      if (rows.length > 0) {
+        return { plan, rows };
+      }
     }
     return null;
   };
 
   const rowidOf = (path: string): number | null => {
-    const row = driver.all("SELECT rowid FROM files WHERE path = ?", [path])[0];
+    const [row] = driver.all("SELECT rowid FROM files WHERE path = ?", [path]);
     return row === undefined ? null : columnNumber(row, "rowid");
   };
 
   const readDocPage = (after: string, limit: number): StoredDocRow[] =>
     driver.all(DOC_PAGE_SQL, [after, limit]).map((row) => ({
-      path: columnString(row, "path"),
       contentHash: columnString(row, "content_hash"),
+      path: columnString(row, "path"),
       projection: parseStoredProjection(columnString(row, "projection")),
     }));
 
@@ -252,34 +261,39 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
 
   const hydrate = (pageDocs: number): HydrationCursor => {
     const limit = Math.max(1, Math.floor(pageDocs));
-    let state: HydrationState = { phase: "docs", after: PATH_START };
+    let state: HydrationState = { after: PATH_START, phase: "docs" };
     const next = (): HydrationPage => {
       for (;;) {
         switch (state.phase) {
           case "docs": {
             const docs = readDocPage(state.after, limit);
-            const last = docs[docs.length - 1];
-            if (last === undefined || docs.length < limit) {
-              state = { phase: "others", after: PATH_START };
-            } else {
-              state = { phase: "docs", after: last.path };
+            const last = docs.at(-1);
+            state =
+              last === undefined || docs.length < limit
+                ? { after: PATH_START, phase: "others" }
+                : { after: last.path, phase: "docs" };
+            // no docs left — fall into others
+            if (last === undefined) {
+              continue;
             }
-            if (last === undefined) continue; // no docs left — fall into others
-            return { kind: "docs", docs };
+            return { docs, kind: "docs" };
           }
           case "others": {
             const others = readOtherPage(state.after, limit);
-            const last = others[others.length - 1];
-            if (last === undefined || others.length < limit) {
-              state = { phase: "done" };
-            } else {
-              state = { phase: "others", after: last.path };
+            const last = others.at(-1);
+            state =
+              last === undefined || others.length < limit
+                ? { phase: "done" }
+                : { after: last.path, phase: "others" };
+            if (last === undefined) {
+              return { kind: "done" };
             }
-            if (last === undefined) return { kind: "done" };
             return { kind: "others", others };
           }
-          case "done":
+          case "done": {
             return { kind: "done" };
+          }
+          // no default
         }
       }
     };
@@ -289,6 +303,29 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
   open();
 
   return {
+    clear() {
+      transaction(() => {
+        driver.run("DELETE FROM search_fts", []);
+        driver.run("DELETE FROM files", []);
+      });
+    },
+
+    dispose() {
+      driver.close();
+    },
+
+    docTexts(prefilter): DocText[] {
+      const rows =
+        prefilter === null
+          ? driver.all(DOC_TEXTS_SQL, [])
+          : driver.all(DOC_TEXTS_LIKE_SQL, [likePattern(prefilter)]);
+      return rows.map((row) => ({
+        body: columnString(row, "body"),
+        path: columnString(row, "path"),
+        title: columnString(row, "title"),
+      }));
+    },
+
     hydrate,
 
     loadAll() {
@@ -297,11 +334,68 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
       const others: { path: string }[] = [];
       for (;;) {
         const page = cursor.next();
-        if (page.kind === "done") return { docs, others };
-        if (page.kind === "docs") docs.push(...page.docs);
-        else others.push(...page.others);
+        if (page.kind === "done") {
+          return { docs, others };
+        }
+        if (page.kind === "docs") {
+          docs.push(...page.docs);
+        } else {
+          others.push(...page.others);
+        }
       }
     },
+
+    nuke() {
+      driver.reset();
+      initSchema();
+    },
+
+    remove(path) {
+      transaction(() => {
+        const rowid = rowidOf(path);
+        if (rowid === null) {
+          return;
+        }
+        driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
+        driver.run("DELETE FROM files WHERE path = ?", [path]);
+      });
+    },
+
+    search(query, limit): SearchResult[] {
+      if (limit <= 0) {
+        return [];
+      }
+      const answered = answerPlan(SEARCH_SQL, query, limit);
+      if (answered === null) {
+        return [];
+      }
+      return answered.rows.map((row) => {
+        const title = columnString(row, "title");
+        const snippet = searchExcerpt(splitLines(columnString(row, "body")), answered.plan.terms);
+        return {
+          path: columnString(row, "path"),
+          score: rankScore(row),
+          snippet: snippet === "" ? title : snippet,
+          title,
+        };
+      });
+    },
+
+    searchRanked(query, limit): SearchHit[] {
+      if (limit <= 0) {
+        return [];
+      }
+      const answered = answerPlan(RANK_SQL, query, limit);
+      if (answered === null) {
+        return [];
+      }
+      return answered.rows.map((row) => ({
+        path: columnString(row, "path"),
+        score: rankScore(row),
+      }));
+    },
+
+    transaction,
 
     upsertDoc(row, body) {
       transaction(() => {
@@ -315,7 +409,9 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
           [row.path, row.contentHash, JSON.stringify(projection)],
         );
         const rowid = rowidOf(row.path);
-        if (rowid === null) throw new Error("knowledge-store: upserted file row vanished");
+        if (rowid === null) {
+          throw new Error("knowledge-store: upserted file row vanished");
+        }
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
         const headings = [...projection.headings, ...projection.aliases].join("\n");
         driver.run(
@@ -351,74 +447,5 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         );
       });
     },
-
-    remove(path) {
-      transaction(() => {
-        const rowid = rowidOf(path);
-        if (rowid === null) return;
-        driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
-        driver.run("DELETE FROM files WHERE path = ?", [path]);
-      });
-    },
-
-    clear() {
-      transaction(() => {
-        driver.run("DELETE FROM search_fts", []);
-        driver.run("DELETE FROM files", []);
-      });
-    },
-
-    search(query, limit): SearchResult[] {
-      if (limit <= 0) return [];
-      const answered = answerPlan(SEARCH_SQL, query, limit);
-      if (answered === null) return [];
-      return answered.rows.map((row) => {
-        const title = columnString(row, "title");
-        const snippet = searchExcerpt(splitLines(columnString(row, "body")), answered.plan.terms);
-        return {
-          path: columnString(row, "path"),
-          title,
-          snippet: snippet === "" ? title : snippet,
-          score: rankScore(row),
-        };
-      });
-    },
-
-    searchRanked(query, limit): SearchHit[] {
-      if (limit <= 0) return [];
-      const answered = answerPlan(RANK_SQL, query, limit);
-      if (answered === null) return [];
-      return answered.rows.map((row) => ({
-        path: columnString(row, "path"),
-        score: rankScore(row),
-      }));
-    },
-
-    docTexts(prefilter): DocText[] {
-      const rows =
-        prefilter === null
-          ? driver.all(DOC_TEXTS_SQL, [])
-          : driver.all(DOC_TEXTS_LIKE_SQL, [likePattern(prefilter)]);
-      return rows.map((row) => ({
-        path: columnString(row, "path"),
-        title: columnString(row, "title"),
-        body: columnString(row, "body"),
-      }));
-    },
-
-    transaction,
-
-    nuke() {
-      driver.reset();
-      initSchema();
-    },
-
-    dispose() {
-      driver.close();
-    },
   };
-}
-
-function messageOf(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
-}
+};

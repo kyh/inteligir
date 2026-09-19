@@ -10,15 +10,13 @@ interface ThreadState {
   snapshot: StoredThread;
 }
 
-function originKey(deviceId: string, deviceSeq: number): string {
-  return `${deviceId}:${deviceSeq}`;
-}
+const originKey = (deviceId: string, deviceSeq: number): string => `${deviceId}:${deviceSeq}`;
 
-function rebuildThreadSnapshot(state: ThreadState, threadId: string): void {
-  state.snapshot = { threadId, events: [...state.events], lastSeq: state.lastSeq };
-}
+const rebuildThreadSnapshot = (state: ThreadState, threadId: string): void => {
+  state.snapshot = { events: [...state.events], lastSeq: state.lastSeq, threadId };
+};
 
-export function createMemorySyncStore(): SyncStore {
+export const createMemorySyncStore = (): SyncStore => {
   let cursor = 0;
   const threads = new Map<string, ThreadState>();
   const appliedOrigins = new Set<string>();
@@ -26,32 +24,28 @@ export function createMemorySyncStore(): SyncStore {
   const threadListeners = new Set<() => void>();
   let threadsSnapshot: readonly StoredThread[] | null = null;
 
-  function notifyThreads(): void {
+  const notifyThreads = (): void => {
     threadsSnapshot = null;
-    for (const listener of threadListeners) listener();
-  }
+    for (const listener of threadListeners) {
+      listener();
+    }
+  };
 
   return {
-    readCursor(): number {
-      return cursor;
-    },
-
-    writeCursor(seq: number): void {
-      cursor = seq;
-    },
-
     applyThreadEvents(args: ApplyThreadEventsArgs): void {
       let changed = false;
       let state = threads.get(args.threadId);
       for (const row of args.rows) {
         const key = originKey(row.origin.deviceId, row.origin.deviceSeq);
-        if (appliedOrigins.has(key)) continue;
+        if (appliedOrigins.has(key)) {
+          continue;
+        }
         appliedOrigins.add(key);
         if (state === undefined) {
           state = {
             events: [],
             lastSeq: 0,
-            snapshot: { threadId: args.threadId, events: [], lastSeq: 0 },
+            snapshot: { events: [], lastSeq: 0, threadId: args.threadId },
           };
           threads.set(args.threadId, state);
         }
@@ -60,24 +54,33 @@ export function createMemorySyncStore(): SyncStore {
         changed = true;
       }
       // the cursor moves with the append: one synchronous call is the whole transaction.
-      cursor = args.cursor;
+      ({ cursor } = args);
       if (changed && state !== undefined) {
         rebuildThreadSnapshot(state, args.threadId);
         notifyThreads();
       }
     },
 
-    snapshotThreads(): readonly StoredThread[] {
-      if (threadsSnapshot === null) {
-        threadsSnapshot = [...threads.values()]
-          .map((state) => state.snapshot)
-          .toSorted((a, b) => b.lastSeq - a.lastSeq);
-      }
-      return threadsSnapshot;
+    readCursor(): number {
+      return cursor;
+    },
+
+    reset(): void {
+      cursor = 0;
+      threads.clear();
+      appliedOrigins.clear();
+      notifyThreads();
     },
 
     snapshotThread(threadId: string): StoredThread | null {
       return threads.get(threadId)?.snapshot ?? null;
+    },
+
+    snapshotThreads(): readonly StoredThread[] {
+      threadsSnapshot ??= [...threads.values()]
+        .map((state) => state.snapshot)
+        .toSorted((a, b) => b.lastSeq - a.lastSeq);
+      return threadsSnapshot;
     },
 
     subscribeThreads(onChange: () => void): () => void {
@@ -87,11 +90,8 @@ export function createMemorySyncStore(): SyncStore {
       };
     },
 
-    reset(): void {
-      cursor = 0;
-      threads.clear();
-      appliedOrigins.clear();
-      notifyThreads();
+    writeCursor(seq: number): void {
+      cursor = seq;
     },
   };
-}
+};

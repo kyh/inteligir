@@ -1,27 +1,33 @@
 // Every mutation is an ordinary editor transaction, so one undo removes what one gesture added.
 
-import { ElementApi, RangeApi, type SlateEditor, type TElement } from "platejs";
+import { ElementApi, RangeApi } from "platejs";
+import type { SlateEditor, TElement } from "platejs";
 
 import { stringProp } from "@repo/editor/node-props";
 
-function marker(id: string, edge: "start" | "end"): TElement {
-  return { children: [{ text: "" }], edge, ids: id, type: "commentMarker" };
-}
+const marker = (id: string, edge: "start" | "end"): TElement => ({
+  children: [{ text: "" }],
+  edge,
+  ids: id,
+  type: "commentMarker",
+});
 
 // End first: inserting at the end leaves the start point untouched.
-export function insertCommentMarkers(editor: SlateEditor, id: string): boolean {
-  const selection = editor.selection;
-  if (!selection || RangeApi.isCollapsed(selection)) return false;
+export const insertCommentMarkers = (editor: SlateEditor, id: string): boolean => {
+  const { selection } = editor;
+  if (!selection || RangeApi.isCollapsed(selection)) {
+    return false;
+  }
   const [start, end] = RangeApi.edges(selection);
   editor.tf.withoutNormalizing(() => {
     editor.tf.insertNodes(marker(id, "end"), { at: end });
     editor.tf.insertNodes(marker(id, "start"), { at: start });
   });
   return true;
-}
+};
 
 // A multi-root marker keeps its other ids and is removed only when the last dies.
-export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]): void {
+export const removeCommentMarkers = (editor: SlateEditor, ids: readonly string[]): void => {
   const dead = new Set(ids);
   const entries = [
     ...editor.api.nodes<TElement>({
@@ -41,15 +47,17 @@ export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]
       }
     }
   });
-}
+};
 
-export function findCommentMarker(editor: SlateEditor, id: string) {
+export const findCommentMarker = (editor: SlateEditor, id: string) => {
   for (const entry of editor.api.nodes<TElement>({
     at: [],
     match: (node) => ElementApi.isElement(node) && node.type === "commentMarker",
   })) {
     const raw = stringProp(entry[0], "ids") ?? "";
-    if (raw.split(",").includes(id)) return entry;
+    if (raw.split(",").includes(id)) {
+      return entry;
+    }
   }
   return null;
-}
+};

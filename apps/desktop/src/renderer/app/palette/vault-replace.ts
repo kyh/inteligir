@@ -2,9 +2,11 @@
 // from. A mismatch is reported, never diff3-merged: the user asked for these exact
 // replacements in these exact lines, and a merge would be a guess about a file that moved.
 
-import { replaceTextMatches, type TextMatchOptions } from "@repo/notes/knowledge/text-matches";
+import { replaceTextMatches } from "@repo/notes/knowledge/text-matches";
+import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { plural } from "@repo/ui/lib/plural";
-import { rewriteNote, type RewriteNoteApi } from "../note/rewrite-note";
+import { rewriteNote } from "../note/rewrite-note";
+import type { RewriteNoteApi } from "../note/rewrite-note";
 
 export type ReplaceVaultApi = RewriteNoteApi;
 
@@ -29,11 +31,11 @@ export type VaultReplaceOutcome =
   | { path: string; kind: "changed" }
   | { path: string; kind: "failed"; message: string };
 
-async function replaceInNote(
+const replaceInNote = async (
   api: ReplaceVaultApi,
   path: string,
   request: VaultReplaceRequest,
-): Promise<VaultReplaceOutcome> {
+): Promise<VaultReplaceOutcome> => {
   const outcome = await rewriteNote(api, path, (content) => {
     const { text, count } = replaceTextMatches(
       content,
@@ -44,31 +46,38 @@ async function replaceInNote(
     return { content: text, result: count };
   });
   switch (outcome.kind) {
-    case "written":
-      return { path, kind: "replaced", count: outcome.result };
-    case "unchanged":
-      return { path, kind: "unchanged" };
-    case "changed":
-      return { path, kind: "changed" };
-    case "failed":
-      return { path, kind: "failed", message: outcome.message };
+    case "written": {
+      return { count: outcome.result, kind: "replaced", path };
+    }
+    case "unchanged": {
+      return { kind: "unchanged", path };
+    }
+    case "changed": {
+      return { kind: "changed", path };
+    }
+    case "failed": {
+      return { kind: "failed", message: outcome.message, path };
+    }
+    // no default
   }
-}
+};
 
 // the outcomes stop at the cancel: their count against `request.paths` is what was left alone
-export async function replaceInVault(
+export const replaceInVault = async (
   api: ReplaceVaultApi,
   request: VaultReplaceRequest,
   port: ReplaceProgressPort = {},
-): Promise<VaultReplaceOutcome[]> {
+): Promise<VaultReplaceOutcome[]> => {
   const outcomes: VaultReplaceOutcome[] = [];
   for (const path of request.paths) {
-    if (port.signal?.aborted === true) break;
+    if (port.signal?.aborted === true) {
+      break;
+    }
     outcomes.push(await replaceInNote(api, path, request));
     port.onProgress?.(outcomes.length, request.paths.length);
   }
   return outcomes;
-}
+};
 
 export interface ReplaceSummary {
   tone: "success" | "warning" | "error";
@@ -76,10 +85,10 @@ export interface ReplaceSummary {
 }
 
 // `untouched` is how many notes a cancel left unvisited; zero for a run that finished
-export function summarizeReplace(
+export const summarizeReplace = (
   outcomes: readonly VaultReplaceOutcome[],
   untouched = 0,
-): ReplaceSummary {
+): ReplaceSummary => {
   const replaced = outcomes.filter((outcome) => outcome.kind === "replaced");
   const matches = replaced.reduce((sum, outcome) => sum + outcome.count, 0);
   const changed = outcomes.filter((outcome) => outcome.kind === "changed").map((o) => o.path);
@@ -98,8 +107,11 @@ export function summarizeReplace(
       ? [`refused: ${failed.map((outcome) => `${outcome.path} (${outcome.message})`).join(", ")}`]
       : []),
   ];
-  return {
-    tone: failed.length > 0 ? "error" : changed.length > 0 ? "warning" : "success",
-    message: `${parts.join(". ")}.`,
+  const tone = (): ReplaceSummary["tone"] => {
+    if (failed.length > 0) {
+      return "error";
+    }
+    return changed.length > 0 ? "warning" : "success";
   };
-}
+  return { message: `${parts.join(". ")}.`, tone: tone() };
+};

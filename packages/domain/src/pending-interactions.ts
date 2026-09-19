@@ -12,15 +12,15 @@ export type PendingInteractionApprovalDecision = z.infer<
 >;
 
 export const pendingInteractionCommandApprovalSubjectSchema = z.object({
-  kind: z.literal("command"),
-  itemId: z.string().min(1),
   command: z.string().min(1),
   cwd: z.string().nullable(),
+  itemId: z.string().min(1),
+  kind: z.literal("command"),
 });
 
 export const pendingInteractionFileChangeApprovalSubjectSchema = z.object({
-  kind: z.literal("file_change"),
   itemId: z.string().min(1),
+  kind: z.literal("file_change"),
   writeScope: z.string().min(1).nullable(),
 });
 
@@ -33,10 +33,10 @@ export type PendingInteractionApprovalSubject = z.infer<
 >;
 
 export const approvalPendingInteractionPayloadSchema = z.object({
-  kind: z.literal("approval"),
-  subject: pendingInteractionApprovalSubjectSchema,
-  reason: z.string().nullable(),
   availableDecisions: z.array(pendingInteractionApprovalDecisionSchema).min(1),
+  kind: z.literal("approval"),
+  reason: z.string().nullable(),
+  subject: pendingInteractionApprovalSubjectSchema,
 });
 export type ApprovalPendingInteractionPayload = z.infer<
   typeof approvalPendingInteractionPayloadSchema
@@ -61,10 +61,10 @@ export type ApprovalResolutionParse =
 
 // one parser for the answer route's 400 gate and the runtime. deny is always accepted (every
 // cancel path answers with it); any other decision must be one the request offered.
-export function parseApprovalResolution(
+export const parseApprovalResolution = (
   raw: string,
   payload: ApprovalPendingInteractionPayload,
-): ApprovalResolutionParse {
+): ApprovalResolutionParse => {
   const trimmed = raw.trim();
   let parsed: ApprovalPendingInteractionResolution;
   if (trimmed === "deny" || trimmed === "allow_once" || trimmed === "allow_for_session") {
@@ -94,7 +94,7 @@ export function parseApprovalResolution(
     };
   }
   return { ok: true, resolution: parsed };
-}
+};
 
 export interface PendingInteractionCreate {
   threadId: string;

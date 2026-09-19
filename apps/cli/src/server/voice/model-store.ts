@@ -5,10 +5,11 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, rename, rm, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { x as extractTar } from "tar";
 import unbzip2 from "unbzip2-stream";
+import { z } from "zod";
 import { errnoCode } from "../errno";
 import type { VoiceModelSpec } from "./model-catalog";
 import type { VoiceModelFiles } from "./worker-protocol";
@@ -16,31 +17,36 @@ import type { VoiceModelFiles } from "./worker-protocol";
 const STAGING_SUFFIX = ".partial";
 const ARCHIVE_FILE_NAME = "download.tar.bz2";
 
-export function modelDirFor(modelDir: string, spec: VoiceModelSpec): string {
-  return join(modelDir, spec.id);
-}
+export const modelDirFor = (modelDir: string, spec: VoiceModelSpec): string =>
+  path.join(modelDir, spec.id);
 
-export function resolveModelFiles(modelDir: string, spec: VoiceModelSpec): VoiceModelFiles {
+export const resolveModelFiles = (modelDir: string, spec: VoiceModelSpec): VoiceModelFiles => {
   const dir = modelDirFor(modelDir, spec);
   return {
-    encoder: join(dir, spec.files.encoder),
-    decoder: join(dir, spec.files.decoder),
-    joiner: join(dir, spec.files.joiner),
-    tokens: join(dir, spec.files.tokens),
+    decoder: path.join(dir, spec.files.decoder),
+    encoder: path.join(dir, spec.files.encoder),
+    joiner: path.join(dir, spec.files.joiner),
+    tokens: path.join(dir, spec.files.tokens),
   };
-}
+};
 
-function requiredFileNames(spec: VoiceModelSpec): string[] {
-  return [spec.files.encoder, spec.files.decoder, spec.files.joiner, spec.files.tokens];
-}
+const requiredFileNames = (spec: VoiceModelSpec): string[] => [
+  spec.files.encoder,
+  spec.files.decoder,
+  spec.files.joiner,
+  spec.files.tokens,
+];
 
 // every file, non-empty: a crash mid-extract would otherwise read as installed and fail inside
 // the native loader.
-export async function isModelInstalled(modelDir: string, spec: VoiceModelSpec): Promise<boolean> {
+export const isModelInstalled = async (
+  modelDir: string,
+  spec: VoiceModelSpec,
+): Promise<boolean> => {
   const dir = modelDirFor(modelDir, spec);
   for (const name of requiredFileNames(spec)) {
     try {
-      const info = await stat(join(dir, name));
+      const info = await stat(path.join(dir, name));
       if (!info.isFile() || info.size === 0) {
         return false;
       }
@@ -52,7 +58,7 @@ export async function isModelInstalled(modelDir: string, spec: VoiceModelSpec): 
     }
   }
   return true;
-}
+};
 
 export interface DownloadModelArgs {
   modelDir: string;
@@ -62,17 +68,43 @@ export interface DownloadModelArgs {
   fetchImpl?: typeof fetch;
 }
 
-export class ModelDownloadError extends Error {}
+export class ModelDownloadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ModelDownloadError";
+  }
+}
 
-export async function downloadModel(args: DownloadModelArgs): Promise<void> {
+// the filter matches on basename, which holds whether or not tar has stripped the leading
+// component when it runs; it also drops the release's test_wavs/.
+const extractArchive = async (
+  archivePath: string,
+  outDir: string,
+  required: ReadonlySet<string>,
+): Promise<void> => {
+  await pipeline(
+    createReadStream(archivePath),
+    unbzip2(),
+    extractTar({
+      cwd: outDir,
+      filter: (entryPath) => required.has(path.basename(entryPath)),
+      strip: 1,
+    }),
+  );
+};
+
+// node types the fetch body's chunks loosely; the stream is the boundary.
+const bodyChunkSchema = z.instanceof(Uint8Array);
+
+export const downloadModel = async (args: DownloadModelArgs): Promise<void> => {
   const { modelDir, spec, signal, onProgress } = args;
   const fetchImpl = args.fetchImpl ?? fetch;
   const finalDir = modelDirFor(modelDir, spec);
   const stagingDir = `${finalDir}${STAGING_SUFFIX}`;
-  const archivePath = join(stagingDir, ARCHIVE_FILE_NAME);
+  const archivePath = path.join(stagingDir, ARCHIVE_FILE_NAME);
 
   // a previous attempt's staging is not a valid model.
-  await rm(stagingDir, { recursive: true, force: true });
+  await rm(stagingDir, { force: true, recursive: true });
   await mkdir(stagingDir, { recursive: true });
 
   try {
@@ -90,9 +122,10 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
 
     const digest = createHash("sha256");
     let received = 0;
-    const body = response.body;
-    async function* measured(): AsyncGenerator<Uint8Array> {
-      for await (const chunk of body) {
+    const { body } = response;
+    const measured = async function* measured(): AsyncGenerator<Uint8Array> {
+      for await (const raw of body) {
+        const chunk = bodyChunkSchema.parse(raw);
         received += chunk.byteLength;
         // mid-stream: a body with no content-length would fill the disk before the total was checked.
         if (received > spec.sizeBytes) {
@@ -104,7 +137,7 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
         onProgress(received);
         yield chunk;
       }
-    }
+    };
     await pipeline(measured(), createWriteStream(archivePath), { signal });
 
     if (received !== spec.sizeBytes) {
@@ -121,7 +154,7 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
     const required = new Set(requiredFileNames(spec));
     await extractArchive(archivePath, stagingDir, required);
     for (const name of required) {
-      const info = await stat(join(stagingDir, name)).catch(() => null);
+      const info = await stat(path.join(stagingDir, name)).catch(() => null);
       if (info === null || !info.isFile() || info.size === 0) {
         throw new ModelDownloadError(`${spec.id} archive did not contain ${name}.`);
       }
@@ -129,10 +162,10 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
     await rm(archivePath, { force: true });
 
     // one rename, so a reader never sees a half-populated dir.
-    await rm(finalDir, { recursive: true, force: true });
+    await rm(finalDir, { force: true, recursive: true });
     await rename(stagingDir, finalDir);
   } catch (error) {
-    await rm(stagingDir, { recursive: true, force: true });
+    await rm(stagingDir, { force: true, recursive: true });
     if (error instanceof ModelDownloadError) {
       throw error;
     }
@@ -143,24 +176,10 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
       `The download failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-}
+};
 
-// the filter matches on basename, which holds whether or not tar has stripped the leading
-// component when it runs; it also drops the release's test_wavs/.
-function extractArchive(
-  archivePath: string,
-  outDir: string,
-  required: ReadonlySet<string>,
-): Promise<void> {
-  return pipeline(
-    createReadStream(archivePath),
-    unbzip2(),
-    extractTar({ cwd: outDir, strip: 1, filter: (path) => required.has(basename(path)) }),
-  );
-}
-
-export async function removeModel(modelDir: string, spec: VoiceModelSpec): Promise<void> {
+export const removeModel = async (modelDir: string, spec: VoiceModelSpec): Promise<void> => {
   const finalDir = modelDirFor(modelDir, spec);
-  await rm(finalDir, { recursive: true, force: true });
-  await rm(`${finalDir}${STAGING_SUFFIX}`, { recursive: true, force: true });
-}
+  await rm(finalDir, { force: true, recursive: true });
+  await rm(`${finalDir}${STAGING_SUFFIX}`, { force: true, recursive: true });
+};

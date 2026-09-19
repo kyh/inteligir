@@ -7,8 +7,8 @@ import { SignedInDetails, SignInForm } from "../sync-section";
 
 afterEach(cleanup);
 
-function renderForm(overrides: { pending?: boolean; refusal?: string | null } = {}) {
-  const onSignIn = vi.fn();
+const renderForm = (overrides: { pending?: boolean; refusal?: string | null } = {}) => {
+  const onSignIn = vi.fn<(login: { email: string; password: string }) => void>();
   render(
     <SignInForm
       cloudUrl="https://cloud.test"
@@ -18,12 +18,12 @@ function renderForm(overrides: { pending?: boolean; refusal?: string | null } = 
     />,
   );
   return { onSignIn };
-}
+};
 
-function fill(email: string, password: string): void {
+const fill = (email: string, password: string): void => {
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
-}
+};
 
 describe("the sign-in form", () => {
   it("asks for an email and a password, the password unseen, and names the account's host", () => {
@@ -62,15 +62,15 @@ describe("the sign-in form", () => {
 const NOW_MS = 1_756_600_000_000;
 
 const SIGNED_IN: Extract<CloudStatusResponse, { state: "signed-in" }> = {
-  state: "signed-in",
-  cloudUrl: "https://cloud.test",
   accountEmail: "k@example.test",
-  deviceId: "dev_1",
+  cloudUrl: "https://cloud.test",
   connected: false,
-  pending: 3,
   cursor: 12,
-  lastSyncedAt: null,
+  deviceId: "dev_1",
   lastError: null,
+  lastSyncedAt: null,
+  pending: 3,
+  state: "signed-in",
 };
 
 describe("the signed-in details", () => {

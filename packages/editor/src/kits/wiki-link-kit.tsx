@@ -3,15 +3,17 @@
 // stays text and the serializer escapes it to `\[\[Note]]` on save.
 
 import { Suspense, lazy } from "react";
-import { KEYS, NodeApi, TextApi, createSlatePlugin, type SlateEditor } from "platejs";
-import { PlateElement, type PlateElementProps } from "platejs/react";
+import { KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
+import type { SlateEditor } from "platejs";
+import { PlateElement } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-const WikiChip = lazy(() => import("@repo/editor/wiki-chip"));
-const Transclusion = lazy(() => import("@repo/editor/transclusion"));
+const WikiChip = lazy(async () => await import("@repo/editor/wiki-chip"));
+const Transclusion = lazy(async () => await import("@repo/editor/transclusion"));
 
 const wikiLinkBasePlugin = createSlatePlugin({
   key: "wikiLink",
@@ -26,29 +28,27 @@ const wikiEmbedBasePlugin = createSlatePlugin({
 export const WikiLinkBaseKit = [wikiLinkBasePlugin, wikiEmbedBasePlugin];
 
 // mirrors the remark-wiki-link grammar so the chip and the bytes agree.
-const WIKI_COMPLETION_RE = /(!?)\[\[([^[\]\n]+)\]$/;
+const WIKI_COMPLETION_RE = /(?<bang>!?)\[\[(?<body>[^[\]\n]+)\]$/u;
 
-function chipLabel(body: string): string {
+const chipLabel = (body: string): string => {
   const parsed = parseWikiBody(body);
-  if (parsed.alias) return parsed.alias;
-  return parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target;
-}
+  if (parsed.alias !== undefined) {
+    return parsed.alias;
+  }
+  return parsed.anchor === undefined ? parsed.target : `${parsed.target}#${parsed.anchor}`;
+};
 
-function FallbackChip({ body, embed }: { body: string; embed?: boolean }) {
-  return (
-    <span
-      contentEditable={false}
-      className="cursor-default rounded-sm bg-primary/10 px-1 text-primary/80"
-    >
-      {embed === true && (
-        <span className="mr-0.5 font-semibold text-primary/50 select-none">!</span>
-      )}
-      {chipLabel(body)}
-    </span>
-  );
-}
+const FallbackChip = ({ body, embed }: { body: string; embed?: boolean }) => (
+  <span
+    contentEditable={false}
+    className="cursor-default rounded-sm bg-primary/10 px-1 text-primary/80"
+  >
+    {embed === true && <span className="mr-0.5 font-semibold text-primary/50 select-none">!</span>}
+    {chipLabel(body)}
+  </span>
+);
 
-function WikiLinkElement(props: PlateElementProps) {
+const WikiLinkElement = (props: PlateElementProps) => {
   const body = stringProp(props.element, "body") ?? "";
   return (
     <PlateElement {...props} as="span" className="inline-block">
@@ -60,9 +60,9 @@ function WikiLinkElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};
 
-function WikiEmbedElement(props: PlateElementProps) {
+const WikiEmbedElement = (props: PlateElementProps) => {
   const body = stringProp(props.element, "body") ?? "";
   return (
     <PlateElement {...props} as="span" className="inline-block w-full">
@@ -74,20 +74,30 @@ function WikiEmbedElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};
 
-function completeWikiChip(editor: SlateEditor): boolean {
-  if (!editor.selection || !editor.api.isCollapsed()) return false;
-  if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) return false;
+const completeWikiChip = (editor: SlateEditor): boolean => {
+  if (!editor.selection || !editor.api.isCollapsed()) {
+    return false;
+  }
+  if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) {
+    return false;
+  }
   const { anchor } = editor.selection;
   const leaf = NodeApi.get(editor, anchor.path);
-  if (!leaf || !TextApi.isText(leaf)) return false;
+  if (!leaf || !TextApi.isText(leaf)) {
+    return false;
+  }
   const match = WIKI_COMPLETION_RE.exec(leaf.text.slice(0, anchor.offset));
-  if (!match) return false;
-  const full = match[0];
-  const bang = match[1] ?? "";
-  const body = match[2] ?? "";
-  if (!body) return false;
+  if (!match) {
+    return false;
+  }
+  const [full] = match;
+  const bang = match.groups?.bang ?? "";
+  const body = match.groups?.body ?? "";
+  if (body === "") {
+    return false;
+  }
   editor.tf.withoutNormalizing(() => {
     editor.tf.delete({
       at: {
@@ -103,7 +113,7 @@ function completeWikiChip(editor: SlateEditor): boolean {
     type: bang ? "wikiEmbed" : "wikiLink",
   });
   return true;
-}
+};
 
 export const WikiLinkKit = [
   wikiLinkBasePlugin
@@ -111,7 +121,9 @@ export const WikiLinkKit = [
     .overrideEditor(({ editor, tf: { insertText } }) => ({
       transforms: {
         insertText(text, options) {
-          if (text === "]" && completeWikiChip(editor)) return;
+          if (text === "]" && completeWikiChip(editor)) {
+            return;
+          }
           insertText(text, options);
         },
       },

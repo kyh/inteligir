@@ -1,11 +1,8 @@
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import path from "node:path";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import {
-  resolveAppConfig,
-  type ResolveAppConfigArgs,
-  type VaultDirSource,
-} from "inteligir/server/config";
+import { resolveAppConfig } from "inteligir/server/config";
+import type { ResolveAppConfigArgs, VaultDirSource } from "inteligir/server/config";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { resolveVaultCandidate } from "inteligir/server/vault-switch";
 import { toErrorMessage } from "../types";
@@ -13,9 +10,7 @@ import { createLocalClient } from "inteligir/server/local-client";
 import { readServerFile } from "inteligir/server/server-file";
 
 // never `localhost`: it resolves to ::1 or 127.0.0.1 per machine, and those are different origins to the pin.
-export function serverOrigin(port: number): string {
-  return `http://127.0.0.1:${port}`;
-}
+export const serverOrigin = (port: number): string => `http://127.0.0.1:${port}`;
 
 export interface ServerTarget {
   dataDir: string;
@@ -39,7 +34,7 @@ export interface ResolveServerTargetArgs {
   vaultDir?: string;
 }
 
-export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTargetResult {
+export const resolveServerTarget = (args: ResolveServerTargetArgs): ServerTargetResult => {
   try {
     // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
     // production would drive the developer's real ~/.inteligir and ~/Inteligir.
@@ -59,16 +54,16 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
       kind: "resolved",
       target: {
         dataDir: config.dataDir,
-        vaultDir: config.vaultDir,
-        rootDataDir: config.rootDataDir,
-        vaultDirSource: config.vaultDirSource,
         dataDirSource: config.dataDirSource,
+        rootDataDir: config.rootDataDir,
+        vaultDir: config.vaultDir,
+        vaultDirSource: config.vaultDirSource,
       },
     };
   } catch (error) {
-    return { kind: "refused", error: toErrorMessage(error) };
+    return { error: toErrorMessage(error), kind: "refused" };
   }
-}
+};
 
 // `origin` carries the bound port server.json names, not the configured one: a dev instance may have probed upward.
 export interface LiveServer {
@@ -82,15 +77,15 @@ export type ServerVerdict =
   | { kind: "unreachable"; origin: string }
   | { kind: "wrong-data-dir"; origin: string; claimed: string };
 
-const PROBE_TIMEOUT_MS = 2_000;
+const PROBE_TIMEOUT_MS = 2000;
 
 export type ProbeStatus = (server: LiveServer) => Promise<SystemStatusResponse | null>;
 
 const probeStatusOverRpc: ProbeStatus = async (server) => {
   const client = createLocalClient({
     origin: server.origin,
-    token: server.token,
     timeoutMs: PROBE_TIMEOUT_MS,
+    token: server.token,
   });
   try {
     return await client.system.status();
@@ -102,10 +97,10 @@ const probeStatusOverRpc: ProbeStatus = async (server) => {
 // a loopback port is first-come-first-served, so a responder must answer this data dir's
 // token and name the data dir back; reading the file proves this process can read the
 // data dir, being answered proves the responder wrote it.
-export async function verifyServer(
+export const verifyServer = async (
   dataDir: string,
   probeStatus: ProbeStatus = probeStatusOverRpc,
-): Promise<ServerVerdict> {
+): Promise<ServerVerdict> => {
   const file = readServerFile(dataDir);
   if (file === null) {
     return { kind: "no-server" };
@@ -116,53 +111,56 @@ export async function verifyServer(
     return { kind: "unreachable", origin: live.origin };
   }
   if (status.dataDir !== dataDir) {
-    return { kind: "wrong-data-dir", origin: live.origin, claimed: status.dataDir };
+    return { claimed: status.dataDir, kind: "wrong-data-dir", origin: live.origin };
   }
   return { kind: "verified", live };
-}
+};
 
-export function describeServerVerdict(verdict: ServerVerdict, dataDir: string): string {
+export const describeServerVerdict = (verdict: ServerVerdict, dataDir: string): string => {
   switch (verdict.kind) {
-    case "verified":
+    case "verified": {
       return `${verdict.live.origin} serves ${dataDir}`;
-    case "no-server":
+    }
+    case "no-server": {
       return `no inteligir server has published itself for ${dataDir}`;
-    case "unreachable":
+    }
+    case "unreachable": {
       return `${verdict.origin} did not answer this instance's token — the row in ${dataDir} is stale, or something else holds the port`;
-    case "wrong-data-dir":
+    }
+    case "wrong-data-dir": {
       return `${verdict.origin} serves a different data directory (${verdict.claimed})`;
+    }
+    default: {
+      const exhaustive: never = verdict;
+      return exhaustive;
+    }
   }
-}
+};
 
 export type ServerPlan = "adopt" | "spawn";
 
-export function planServerStart(verified: boolean): ServerPlan {
-  return verified ? "adopt" : "spawn";
-}
+export const planServerStart = (verified: boolean): ServerPlan => (verified ? "adopt" : "spawn");
 
 // no port: pinning one sets the child's `portSource` to `env`, which turns off its upward probe.
 // NODE_ENV is stated because a Finder-launched app inherits none.
-export function serverProcessEnv(target: ServerTarget, isPackaged: boolean) {
-  return {
-    INTELIGIR_DATA_DIR: target.dataDir,
-    INTELIGIR_VAULT_DIR: target.vaultDir,
-    NODE_ENV: isPackaged ? "production" : "development",
-  };
-}
+export const serverProcessEnv = (target: ServerTarget, isPackaged: boolean) => ({
+  INTELIGIR_DATA_DIR: target.dataDir,
+  INTELIGIR_VAULT_DIR: target.vaultDir,
+  NODE_ENV: isPackaged ? "production" : "development",
+});
 
 // a process cannot be forked from inside an asar, so the path is rewritten to the `asarUnpack` twin.
-export function serverPackageDir(appPath: string): string {
+export const serverPackageDir = (appPath: string): string => {
   const unpacked = appPath.replace(/app\.asar(?!\.unpacked)/u, "app.asar.unpacked");
-  return join(unpacked, "node_modules", "inteligir");
-}
+  return path.join(unpacked, "node_modules", "inteligir");
+};
 
 // always the bundle: `utilityProcess` gives its child no loader thread, so `--import tsx` registers nothing there.
-export function serverEntryPath(appPath: string): string {
-  return join(serverPackageDir(appPath), "dist", "index.js");
-}
+export const serverEntryPath = (appPath: string): string =>
+  path.join(serverPackageDir(appPath), "dist", "index.js");
 
 // keyed by data dir: the app scheme is one origin whatever vault is behind it, so two vaults would share localStorage.
-export function sessionPartition(dataDir: string): string {
+export const sessionPartition = (dataDir: string): string => {
   const digest = createHash("sha256").update(dataDir).digest("hex").slice(0, 16);
   return `persist:inteligir-${digest}`;
-}
+};

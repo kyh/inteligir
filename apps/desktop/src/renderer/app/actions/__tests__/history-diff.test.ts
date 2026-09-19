@@ -63,7 +63,10 @@ describe("row identity", () => {
 describe("bounds", () => {
   it("reports a wholesale replacement instead of walking two long unrelated notes", () => {
     const rows = diffRows("a\n".repeat(3000), "b\n".repeat(3000));
-    expect(rows.at(-1)).toEqual({ id: "truncated", kind: "truncated", lines: expect.any(Number) });
+    const last = rows.at(-1);
+    expect(last?.kind).toBe("truncated");
+    expect(last?.id).toBe("truncated");
+    expect(last?.kind === "truncated" && last.lines).toBeGreaterThan(0);
     expect(rows.length).toBeLessThanOrEqual(401);
   });
 

@@ -2,9 +2,10 @@
 // the loopback server needs no CORS and the page never holds the token. websockets are the
 // exception: a protocol handler cannot proxy one, so index.ts attaches the bearer to the upgrade.
 
-import { net, protocol, type Session } from "electron";
+import { net, protocol } from "electron";
+import type { Session } from "electron";
 import { pathToFileURL } from "node:url";
-import { join } from "node:path";
+import path from "node:path";
 import { websocketOrigin } from "@repo/api/local/routes";
 import { bundleFile, isProxiedPath } from "./credential-scope";
 import { authorizationHeader } from "inteligir/server/server-file";
@@ -19,14 +20,14 @@ export const APP_ORIGIN = `${APP_SCHEME}://${APP_HOST}`;
 
 // must run before `app.whenReady`; Electron enforces the ordering.
 // `standard` gives Chromium a real origin for the pin; `supportFetchAPI` lets `fetch` reach it at all.
-export function registerAppScheme(): void {
+export const registerAppScheme = (): void => {
   protocol.registerSchemesAsPrivileged([
     {
+      privileges: { secure: true, standard: true, stream: true, supportFetchAPI: true },
       scheme: APP_SCHEME,
-      privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
     },
   ]);
-}
+};
 
 export interface AppProtocolArgs {
   session: Session;
@@ -35,7 +36,22 @@ export interface AppProtocolArgs {
   renderer: { kind: "files"; dir: string } | { kind: "dev"; origin: string };
 }
 
-export function registerAppProtocol(args: AppProtocolArgs): void {
+// headers are rebuilt, not mutated: a streamed Response may carry immutable ones and `set` silently no-ops.
+const withDocumentPolicy = (
+  response: Response,
+  documentHeaders: Record<string, string>,
+): Response => {
+  if (!(response.headers.get("content-type") ?? "").includes("text/html")) {
+    return response;
+  }
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(documentHeaders)) {
+    headers.set(name, value);
+  }
+  return new Response(response.body, { headers, status: response.status });
+};
+
+export const registerAppProtocol = (args: AppProtocolArgs): void => {
   const documentHeaders = documentSecurityHeaders({
     wsOrigin: websocketOrigin(args.serverOrigin),
   });
@@ -52,15 +68,15 @@ export function registerAppProtocol(args: AppProtocolArgs): void {
       const headers = new Headers(request.headers);
       headers.set("authorization", authorizationHeader(args.token));
       // buffered, not streamed: Electron's `net.fetch` takes no `duplex`.
-      const init: RequestInit = { method: request.method, headers };
+      const init: RequestInit = { headers, method: request.method };
       if (request.method !== "GET" && request.method !== "HEAD") {
         init.body = await request.arrayBuffer();
       }
-      return net.fetch(`${args.serverOrigin}${pathname}${search}`, init);
+      return await net.fetch(`${args.serverOrigin}${pathname}${search}`, init);
     }
 
     if (args.renderer.kind === "dev") {
-      return net.fetch(`${args.renderer.origin}${pathname}${search}`);
+      return await net.fetch(`${args.renderer.origin}${pathname}${search}`);
     }
 
     const file = bundleFile(args.renderer.dir, pathname);
@@ -75,19 +91,9 @@ export function registerAppProtocol(args: AppProtocolArgs): void {
     if (pathname.startsWith("/assets/")) {
       return new Response("Not found", { status: 404 });
     }
-    const shell = await net.fetch(pathToFileURL(join(args.renderer.dir, "index.html")).toString());
+    const shell = await net.fetch(
+      pathToFileURL(path.join(args.renderer.dir, "index.html")).toString(),
+    );
     return withDocumentPolicy(shell, documentHeaders);
   });
-}
-
-// headers are rebuilt, not mutated: a streamed Response may carry immutable ones and `set` silently no-ops.
-function withDocumentPolicy(response: Response, documentHeaders: Record<string, string>): Response {
-  if (!(response.headers.get("content-type") ?? "").includes("text/html")) {
-    return response;
-  }
-  const headers = new Headers(response.headers);
-  for (const [name, value] of Object.entries(documentHeaders)) {
-    headers.set(name, value);
-  }
-  return new Response(response.body, { status: response.status, headers });
-}
+};

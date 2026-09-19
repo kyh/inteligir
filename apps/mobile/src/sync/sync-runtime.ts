@@ -8,14 +8,10 @@ import {
   createSyncSession,
   pullPages,
 } from "@repo/api/cloud/sync/sync-session";
-import {
-  createCloudClient,
-  describeCloudFailure,
-  type CloudClient,
-  type CloudFailure,
-  type CloudResult,
-} from "@repo/api/cloud/client";
-import { createExternalStore, type ReadableStore } from "../lib/external-store";
+import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
+import type { CloudClient, CloudFailure, CloudResult } from "@repo/api/cloud/client";
+import { createExternalStore } from "../lib/external-store";
+import type { ReadableStore } from "../lib/external-store";
 import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
 
@@ -40,21 +36,20 @@ export interface SyncRuntimeArgs {
 }
 
 export interface SyncRuntime extends ReadableStore<SyncStatus> {
-  setCredential(next: DeviceCredential | null): void;
-  createCapture(request: CaptureRequest): Promise<CloudResult<CaptureResponse>>;
-  start(): void;
-  syncNow(): Promise<void>;
+  setCredential: (next: DeviceCredential | null) => void;
+  createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
+  start: () => void;
+  syncNow: () => Promise<void>;
 }
 
-function sameCredential(a: DeviceCredential, b: DeviceCredential): boolean {
-  return a.deviceId === b.deviceId && a.credential === b.credential;
-}
+const sameCredential = (a: DeviceCredential, b: DeviceCredential): boolean =>
+  a.deviceId === b.deviceId && a.credential === b.credential;
 
-function debug(message: string): void {
+const debug = (message: string): void => {
   console.warn(`sync: ${message}`);
-}
+};
 
-export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
+export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
   const pollIntervalMs = args.pollIntervalMs === undefined ? POLL_INTERVAL_MS : args.pollIntervalMs;
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -62,9 +57,18 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   let lastSyncedAt: number | null = null;
   const status = createExternalStore<SyncStatus>({ state: "signed-out" });
 
+  const clearTimer = (): void => {
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  };
+
   const session = createSyncSession<DeviceCredential>({
     makeClient: (credential, signal) => {
-      if (args.createClient !== undefined) return args.createClient(credential);
+      if (args.createClient !== undefined) {
+        return args.createClient(credential);
+      }
       return createCloudClient({
         baseUrl: args.cloudUrl,
         credential: credential.credential,
@@ -78,95 +82,112 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   });
   const flight = createSingleFlight();
 
-  function publish(): void {
+  const publish = (): void => {
     const current = session.current();
     switch (current.kind) {
-      case "off":
+      case "off": {
         status.set({ state: "signed-out" });
         return;
-      case "unauthorized":
+      }
+      case "unauthorized": {
         status.set({
-          state: "unauthorized",
-          deviceId: current.credential.deviceId,
           detail: current.detail,
+          deviceId: current.credential.deviceId,
+          state: "unauthorized",
         });
         return;
-      case "live":
+      }
+      case "live": {
         status.set({
-          state: "signed-in",
-          deviceId: current.credential.deviceId,
           cursor: args.store.readCursor(),
-          lastSyncedAt,
+          deviceId: current.credential.deviceId,
           lastError,
+          lastSyncedAt,
+          state: "signed-in",
         });
+      }
+      // no default
     }
-  }
+  };
 
-  function clearTimer(): void {
-    if (pollTimer !== null) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }
-
-  function armTimer(): void {
-    if (session.current().kind !== "live" || pollIntervalMs === null || pollTimer !== null) return;
-    pollTimer = setInterval(() => {
-      void syncNow();
-    }, pollIntervalMs);
-    pollTimer.unref?.();
-  }
-
-  function recordFailure(failure: CloudFailure): "continue" | "ended" {
+  const recordFailure = (failure: CloudFailure): "continue" | "ended" => {
     lastError = describeCloudFailure(failure);
     const outcome = session.recordFailure(failure);
-    if (outcome === "continue") debug(lastError);
+    if (outcome === "continue") {
+      debug(lastError);
+    }
     publish();
     return outcome;
-  }
+  };
 
-  async function runPass(): Promise<void> {
+  const runPass = async (): Promise<void> => {
     const current = session.current();
-    if (current.kind !== "live") return;
+    if (current.kind !== "live") {
+      return;
+    }
     const sessionId = current.id;
     const done = await pullPages({
-      client: current.client,
-      deviceId: current.credential.deviceId,
-      fenced: () => session.fenced(sessionId),
-      readCursor: () => args.store.readCursor(),
       applyPlan: (steps) => {
         applyPlan(args.store, steps);
       },
-      recordFailure,
+      client: current.client,
+      deviceId: current.credential.deviceId,
+      fenced: () => session.fenced(sessionId),
       onPage: () => {
         lastError = null;
         publish();
       },
       onSkipped: debug,
+      readCursor: () => args.store.readCursor(),
+      recordFailure,
     });
-    if (!done) return;
-    if (!session.fenced(sessionId)) return;
+    if (!done) {
+      return;
+    }
+    if (!session.fenced(sessionId)) {
+      return;
+    }
     lastSyncedAt = Date.now();
     publish();
-  }
+  };
 
-  function syncNow(): Promise<void> {
-    if (session.current().kind !== "live") return Promise.resolve();
-    return flight.run({
-      pass: runPass,
-      repeat: () => session.current().kind === "live",
+  const syncNow = async (): Promise<void> => {
+    if (session.current().kind !== "live") {
+      return;
+    }
+    await flight.run({
       onError: (message) => {
         lastError = message;
         debug(`sync pass failed: ${message}`);
         publish();
       },
+      pass: runPass,
+      repeat: () => session.current().kind === "live",
     });
-  }
+  };
+
+  const armTimer = (): void => {
+    if (session.current().kind !== "live" || pollIntervalMs === null || pollTimer !== null) {
+      return;
+    }
+    pollTimer = setInterval(() => {
+      void syncNow();
+    }, pollIntervalMs);
+    pollTimer.unref?.();
+  };
 
   return {
-    subscribe: status.subscribe,
+    async createCapture(request) {
+      const current = session.current();
+      if (current.kind !== "live") {
+        return {
+          failure: { kind: "unreachable", message: "signed out" },
+          ok: false,
+        };
+      }
+      return await current.client.createCapture(request);
+    },
     get: status.get,
-
     setCredential(next) {
       const current = session.current();
       if (next !== null && current.kind === "live" && sameCredential(next, current.credential)) {
@@ -184,24 +205,14 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       }
       publish();
     },
-
-    createCapture(request) {
-      const current = session.current();
-      if (current.kind !== "live") {
-        return Promise.resolve({
-          ok: false,
-          failure: { kind: "unreachable", message: "signed out" },
-        });
-      }
-      return current.client.createCapture(request);
-    },
-
     start() {
-      if (session.current().kind !== "live") return;
+      if (session.current().kind !== "live") {
+        return;
+      }
       armTimer();
       void syncNow();
     },
-
+    subscribe: status.subscribe,
     syncNow,
   };
-}
+};

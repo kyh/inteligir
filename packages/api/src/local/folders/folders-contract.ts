@@ -7,13 +7,13 @@ import {
 } from "./folders-schema";
 
 export const foldersContract = {
-  list: oc.output(connectedFoldersResponseSchema),
-
   // INVALID_PATH also covers the list's size bound
   add: oc
     .input(connectedFolderAddRequestSchema)
     .output(connectedFoldersResponseSchema)
-    .errors({ INVALID_PATH, ALREADY_EXISTS }),
+    .errors({ ALREADY_EXISTS, INVALID_PATH }),
+
+  list: oc.output(connectedFoldersResponseSchema),
 
   // removal matches the stored spelling, so an unresolvable row is still removable
   remove: oc

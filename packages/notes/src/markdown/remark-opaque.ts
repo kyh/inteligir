@@ -62,72 +62,122 @@ const RESERVED_ATTRS = new Set(["type", "children", "id"]);
 
 // bare booleans (`<callout draft>`) come back from Plate as `draft="null"`, and braced
 // expressions and spreads do not survive parseAttributes/propsToAttributes.
-function isModellableAttribute(
+const isModellableAttribute = (
   tag: string,
   attribute: MdxJsxAttribute | MdxJsxExpressionAttribute,
-): boolean {
-  if (!isLiteralAttribute(attribute)) return false;
-  if (RESERVED_ATTRS.has(attribute.name)) return false;
+): boolean => {
+  if (!isLiteralAttribute(attribute)) {
+    return false;
+  }
+  if (RESERVED_ATTRS.has(attribute.name)) {
+    return false;
+  }
   return tag !== "date" || DATE_ATTRS.has(attribute.name);
-}
+};
 
-function isComponent(node: MdxJsxFlowElement | MdxJsxTextElement): boolean {
+const isComponent = (node: MdxJsxFlowElement | MdxJsxTextElement): boolean => {
   const tag = node.name;
-  if (tag === null) return false; // `<>` fragment
+  // `<>` fragment
+  if (tag === null) {
+    return false;
+  }
   const tags = node.type === "mdxJsxFlowElement" ? COMPONENT_FLOW_TAGS : COMPONENT_TEXT_TAGS;
-  if (!tags.has(tag)) return false;
+  if (!tags.has(tag)) {
+    return false;
+  }
   return node.attributes.every((attribute) => isModellableAttribute(tag, attribute));
-}
+};
 
 // toMarkdown always terminates with one newline; the opaque value is a fragment.
-function render(node: Nodes, options: ToMarkdownOptions): string {
-  return toMarkdown(node, options).replace(/\n$/, "");
-}
+const render = (node: Nodes, options: ToMarkdownOptions): string =>
+  toMarkdown(node, options).replace(/\n$/u, "");
+
+// the `Record` is the exhaustiveness check the removed `switch` used to be: a node type this
+// pipeline gains has no entry, so tsc rejects the table until someone decides its position.
+// `null` means the slate model has a node for it, so it is never held as source.
+const OPAQUE_POSITION: Record<Nodes["type"], "block" | "inline" | null> = {
+  blockquote: null,
+  break: null,
+  code: null,
+  commentMarker: null,
+  definition: null,
+  delete: null,
+  emphasis: null,
+  footnoteDefinition: null,
+  footnoteReference: null,
+  formulaPill: null,
+  heading: null,
+  // htmlFlow is disabled, so every `html` node comes from htmlText and sits in phrasing position.
+  html: "inline",
+  image: null,
+  imageReference: null,
+  inlineCode: null,
+  inlineMath: null,
+  link: null,
+  linkReference: null,
+  list: null,
+  listItem: null,
+  math: null,
+  mdxFlowExpression: "block",
+  mdxJsxFlowElement: "block",
+  mdxJsxTextElement: "inline",
+  mdxTextExpression: "inline",
+  mdxjsEsm: null,
+  opaqueBlock: null,
+  opaqueInline: null,
+  paragraph: null,
+  root: null,
+  strong: null,
+  tabGroup: null,
+  tabPanel: null,
+  table: null,
+  tableCell: null,
+  tableRow: null,
+  text: null,
+  thematicBreak: null,
+  wikiEmbed: null,
+  wikiLink: null,
+  yaml: null,
+};
 
 // exported for the knowledge scan, whose plain-markdown grammar sees ordinary constructs inside
 // these regions; rename byte-surgery must not splice into bytes this pipeline returns unchanged.
-export function isOpaqueSource(node: Nodes): boolean {
-  switch (node.type) {
-    case "html":
-    case "mdxFlowExpression":
-    case "mdxTextExpression":
-      return true;
-    case "mdxJsxFlowElement":
-    case "mdxJsxTextElement":
-      return !isComponent(node);
-    default:
-      return false;
+export const isOpaqueSource = (node: Nodes): boolean => {
+  if (OPAQUE_POSITION[node.type] === null) {
+    return false;
   }
-}
+  if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
+    return !isComponent(node);
+  }
+  return true;
+};
 
-function toOpaque(node: Nodes, options: ToMarkdownOptions): OpaqueBlock | OpaqueInline | null {
-  if (!isOpaqueSource(node)) return null;
-  switch (node.type) {
-    // htmlFlow is disabled, so every `html` node comes from htmlText and sits in phrasing position.
-    case "html":
-      return { type: "opaqueInline", value: node.value };
-    case "mdxFlowExpression":
-    case "mdxJsxFlowElement":
-      return { type: "opaqueBlock", value: render(node, options) };
-    case "mdxTextExpression":
-    case "mdxJsxTextElement":
-      return { type: "opaqueInline", value: render(node, options) };
-    default:
-      return null;
+const toOpaque = (node: Nodes, options: ToMarkdownOptions): OpaqueBlock | OpaqueInline | null => {
+  const position = OPAQUE_POSITION[node.type];
+  if (position === null || !isOpaqueSource(node)) {
+    return null;
   }
-}
+  // `html` is held verbatim; everything else is re-serialized from its subtree.
+  const value = node.type === "html" ? node.value : render(node, options);
+  return position === "block" ? { type: "opaqueBlock", value } : { type: "opaqueInline", value };
+};
 
 // top-down: an opaque node is rendered from its original subtree and not descended into; a
 // component's children are still visited, so a `<Steps>` inside a `<callout>` goes opaque alone.
-function makeOpaque(node: Nodes, options: ToMarkdownOptions): void {
-  if (!("children" in node)) return;
+const makeOpaque = (node: Nodes, options: ToMarkdownOptions): void => {
+  if (!("children" in node)) {
+    return;
+  }
   const children: Nodes[] = node.children;
   for (const [index, child] of children.entries()) {
     const opaque = toOpaque(child, options);
-    if (opaque) children[index] = opaque;
-    else makeOpaque(child, options);
+    if (opaque) {
+      children[index] = opaque;
+    } else {
+      makeOpaque(child, options);
+    }
   }
-}
+};
 
 const opaqueToMarkdown: ToMarkdownOptions = {
   handlers: {
@@ -138,14 +188,17 @@ const opaqueToMarkdown: ToMarkdownOptions = {
 
 // register last: it renders through whatever `toMarkdownExtensions` earlier plugins installed
 // (the array is captured by reference).
-export const remarkOpaque: Plugin<[ToMarkdownOptions]> = function (
+export const remarkOpaque: Plugin<[ToMarkdownOptions]> = function remarkOpaque(
   this: Processor,
   stringify: ToMarkdownOptions,
 ) {
   const data = this.data();
-  const extensions = (data.toMarkdownExtensions ??= []);
+  data.toMarkdownExtensions ??= [];
+  const extensions = data.toMarkdownExtensions;
   extensions.push(opaqueToMarkdown);
   return (tree) => {
-    if (isMdastRoot(tree)) makeOpaque(tree, { ...stringify, extensions });
+    if (isMdastRoot(tree)) {
+      makeOpaque(tree, { ...stringify, extensions });
+    }
   };
 };

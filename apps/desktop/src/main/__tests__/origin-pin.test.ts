@@ -1,3 +1,4 @@
+/* oxlint-disable no-script-url -- the classifiers under test must refuse `javascript:` URLs */
 import { describe, expect, it } from "vitest";
 import {
   ALLOWED_PERMISSIONS,
@@ -123,13 +124,13 @@ describe("decideExternalOpen", () => {
 
   it("opens an http(s) URL while a gesture is still recent", () => {
     expect(
-      decideExternalOpen({ url: "https://example.com/", lastInputAt: NOW - 100, now: NOW }),
+      decideExternalOpen({ lastInputAt: NOW - 100, now: NOW, url: "https://example.com/" }),
     ).toEqual({ allowed: true, reason: "allowed" });
   });
 
   it("refuses a URL the page produced with no user activation at all", () => {
     expect(
-      decideExternalOpen({ url: "https://example.com/", lastInputAt: null, now: NOW }),
+      decideExternalOpen({ lastInputAt: null, now: NOW, url: "https://example.com/" }),
     ).toEqual({
       allowed: false,
       reason: "no-user-activation",
@@ -139,9 +140,9 @@ describe("decideExternalOpen", () => {
   it("refuses once the activation window has passed", () => {
     expect(
       decideExternalOpen({
-        url: "https://example.com/",
         lastInputAt: NOW - USER_ACTIVATION_WINDOW_MS - 1,
         now: NOW,
+        url: "https://example.com/",
       }),
     ).toEqual({ allowed: false, reason: "no-user-activation" });
   });
@@ -149,7 +150,7 @@ describe("decideExternalOpen", () => {
   it.each(["file:///etc/passwd", "javascript:alert(1)", "inteligir://open", "data:text/html,x"])(
     "refuses %s however recent the gesture was",
     (url) => {
-      expect(decideExternalOpen({ url, lastInputAt: NOW, now: NOW })).toEqual({
+      expect(decideExternalOpen({ lastInputAt: NOW, now: NOW, url })).toEqual({
         allowed: false,
         reason: "not-http",
       });
@@ -157,7 +158,7 @@ describe("decideExternalOpen", () => {
   );
 
   it("checks the scheme BEFORE the gesture, so the reason names the real problem", () => {
-    expect(decideExternalOpen({ url: "file:///x", lastInputAt: null, now: NOW }).reason).toBe(
+    expect(decideExternalOpen({ lastInputAt: null, now: NOW, url: "file:///x" }).reason).toBe(
       "not-http",
     );
   });
@@ -210,12 +211,12 @@ describe("appWindowWebPreferences", () => {
   it("isolates the app window, and takes the vault's partition rather than the default session", () => {
     // by value: these are Electron's defaults today, so a default flip would go unnoticed
     expect(appWindowWebPreferences("/x/preload.cjs", "persist:vault-1")).toEqual({
-      preload: "/x/preload.cjs",
       contextIsolation: true,
       nodeIntegration: false,
+      partition: "persist:vault-1",
+      preload: "/x/preload.cjs",
       sandbox: true,
       webSecurity: true,
-      partition: "persist:vault-1",
     });
   });
 });

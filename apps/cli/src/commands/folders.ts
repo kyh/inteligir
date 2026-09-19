@@ -1,17 +1,34 @@
 import { defineCommand } from "citty";
-import { apiFor, type CliDeps } from "../context";
+import { apiFor } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
-export function foldersCommand(deps: CliDeps) {
-  return defineCommand({
+export const foldersCommand = (deps: CliDeps) =>
+  defineCommand({
     meta: {
-      name: "folders",
       description: "Folders the agent is pointed at as reference context",
+      name: "folders",
     },
     subCommands: {
+      add: defineCommand({
+        args: {
+          path: { description: "Absolute directory path", required: true, type: "positional" },
+          ...jsonArg,
+        },
+        meta: { description: "Connect a folder (absolute path)", name: "add" },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const body = await api.folders.add({ path: args.path });
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Connected ${args.path}; sessions see it from their next launch.`);
+        },
+      }),
+
       list: defineCommand({
-        meta: { name: "list", description: "List the connected folders" },
         args: { ...jsonArg },
+        meta: { description: "List the connected folders", name: "list" },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.folders.list();
@@ -26,28 +43,12 @@ export function foldersCommand(deps: CliDeps) {
         },
       }),
 
-      add: defineCommand({
-        meta: { name: "add", description: "Connect a folder (absolute path)" },
-        args: {
-          path: { type: "positional", required: true, description: "Absolute directory path" },
-          ...jsonArg,
-        },
-        run: async ({ args }) => {
-          const api = apiFor(deps);
-          const body = await api.folders.add({ path: args.path });
-          if (outputJson(args, body)) {
-            return;
-          }
-          out.success(`Connected ${args.path}; sessions see it from their next launch.`);
-        },
-      }),
-
       remove: defineCommand({
-        meta: { name: "remove", description: "Disconnect a folder" },
         args: {
-          path: { type: "positional", required: true, description: "The connected path" },
+          path: { description: "The connected path", required: true, type: "positional" },
           ...jsonArg,
         },
+        meta: { description: "Disconnect a folder", name: "remove" },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.folders.remove({ path: args.path });
@@ -59,4 +60,3 @@ export function foldersCommand(deps: CliDeps) {
       }),
     },
   });
-}

@@ -8,8 +8,8 @@ const GATE: GateReason = { kind: "parse-error", line: 3, message: "Unexpected to
 describe("deriveOpenDoc", () => {
   it("none when nothing is open", () => {
     const doc = deriveOpenDoc({
-      openPath: null,
       loadedPath: null,
+      openPath: null,
       rawReason: null,
     });
     expect(doc).toEqual({ kind: "none" });
@@ -18,8 +18,8 @@ describe("deriveOpenDoc", () => {
 
   it("loading carries the INTENT path while the runtime reads", () => {
     const doc = deriveOpenDoc({
-      openPath: "notes/a.md",
       loadedPath: null,
+      openPath: "notes/a.md",
       rawReason: null,
     });
     expect(doc).toEqual({ kind: "loading", path: "notes/a.md" });
@@ -29,8 +29,8 @@ describe("deriveOpenDoc", () => {
   it("non-markdown for a loaded .html/.txt (mdx excluded from markdown)", () => {
     for (const path of ["demo.html", "notes/readme.txt", "component.mdx"]) {
       const doc = deriveOpenDoc({
-        openPath: path,
         loadedPath: path,
+        openPath: path,
         rawReason: null,
       });
       expect(doc).toEqual({ kind: "non-markdown", path });
@@ -39,8 +39,8 @@ describe("deriveOpenDoc", () => {
 
   it("markdown + rich when the gate is clear", () => {
     const doc = deriveOpenDoc({
-      openPath: "a.md",
       loadedPath: "a.md",
+      openPath: "a.md",
       rawReason: null,
     });
     expect(doc).toEqual({
@@ -52,8 +52,8 @@ describe("deriveOpenDoc", () => {
 
   it("markdown + raw with the gate's reason when the gate holds", () => {
     const doc = deriveOpenDoc({
-      openPath: "a.md",
       loadedPath: "a.md",
+      openPath: "a.md",
       rawReason: GATE,
     });
     expect(doc).toEqual({

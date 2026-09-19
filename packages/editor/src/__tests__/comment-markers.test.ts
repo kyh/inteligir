@@ -3,7 +3,8 @@
 // transactions produce — the dialect the sidecar's ids anchor into.
 
 import { describe, expect, it } from "vitest";
-import { createSlateEditor, type TElement } from "platejs";
+import { createSlateEditor } from "platejs";
+import type { TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
@@ -12,15 +13,16 @@ import { insertCommentMarkers, removeCommentMarkers } from "@repo/editor/comment
 import { holdsCommentMarkers, scanBlockComments } from "@repo/editor/comments/comment-ranges";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
-function editorWith(md: string) {
+const editorWith = (md: string) => {
   const parsed = parseMarkdown(md);
-  if (!parsed.ok) throw new Error("fixture must parse");
+  if (!parsed.ok) {
+    throw new Error("fixture must parse");
+  }
   return createSlateEditor({ plugins: BASE_KIT, value: parsed.value });
-}
+};
 
-function bytes(editor: ReturnType<typeof editorWith>): string {
-  return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-}
+const bytes = (editor: ReturnType<typeof editorWith>): string =>
+  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
 describe("comment markers", () => {
   it("wraps the selection with a pair that serializes as the dialect", () => {
@@ -53,14 +55,16 @@ describe("comment markers", () => {
 });
 
 describe("comment range pairing", () => {
-  function scanFirstBlock(md: string) {
+  const scanFirstBlock = (md: string) => {
     const editor = editorWith(md);
-    const block = editor.children[0];
-    if (block === undefined || !("children" in block)) throw new Error("no block");
+    const [block] = editor.children;
+    if (block === undefined || !("children" in block)) {
+      throw new Error("no block");
+    }
     const element: TElement = block;
     expect(holdsCommentMarkers(element)).toBe(true);
     return scanBlockComments(editor, [element, [0]]);
-  }
+  };
 
   it("pairs a range and reads its ids", () => {
     const scan = scanFirstBlock("x %%i:c1:start%%mid%%i:c1:end%% y\n");

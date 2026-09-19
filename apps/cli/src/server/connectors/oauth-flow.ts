@@ -16,8 +16,8 @@ const TOKEN_REQUEST_TIMEOUT_MS = 15 * 1000;
 
 const tokenResponseSchema = z.looseObject({
   access_token: z.string().min(1),
-  refresh_token: z.string().min(1).optional(),
   expires_in: z.number().positive().optional(),
+  refresh_token: z.string().min(1).optional(),
 });
 
 export type OauthCompletion =
@@ -34,11 +34,11 @@ interface PendingAuthorize {
 }
 
 export interface ConnectorOauthFlow {
-  begin(name: string, redirectUri: string): Promise<string>;
-  complete(args: { code: string; state: string }): Promise<OauthCompletion>;
-  freshAccessToken(name: string): Promise<string | null>;
-  disconnect(name: string): void;
-  dispose(): void;
+  begin: (name: string, redirectUri: string) => Promise<string>;
+  complete: (args: { code: string; state: string }) => Promise<OauthCompletion>;
+  freshAccessToken: (name: string) => Promise<string | null>;
+  disconnect: (name: string) => void;
+  dispose: () => void;
 }
 
 type OauthRow = Extract<
@@ -46,10 +46,10 @@ type OauthRow = Extract<
   { kind: "oauth" }
 >;
 
-export function createConnectorOauthFlow(
+export const createConnectorOauthFlow = (
   store: ConnectorsStore,
   fetchImpl: typeof fetch = fetch,
-): ConnectorOauthFlow {
+): ConnectorOauthFlow => {
   const pending = createApprovalSlot<PendingAuthorize>({ ttlMs: PENDING_TTL_MS });
   let disposed = false;
 
@@ -84,33 +84,33 @@ export function createConnectorOauthFlow(
     let response: Response;
     try {
       response = await fetchImpl(transport.tokenEndpoint, {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          accept: "application/json",
-        },
         body: body.toString(),
+        headers: {
+          accept: "application/json",
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        method: "POST",
         signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
       });
     } catch {
-      return { ok: false, detail: "The provider's token endpoint did not answer." };
+      return { detail: "The provider's token endpoint did not answer.", ok: false };
     }
     if (!response.ok) {
       // the error body may carry anything; the status is the one fact safe to repeat.
       return {
-        ok: false,
         detail: `The provider refused the token request (HTTP ${String(response.status)}).`,
+        ok: false,
       };
     }
     let parsed: unknown;
     try {
       parsed = await response.json();
     } catch {
-      return { ok: false, detail: "The provider's token answer was not JSON." };
+      return { detail: "The provider's token answer was not JSON.", ok: false };
     }
     const verdict = tokenResponseSchema.safeParse(parsed);
     if (!verdict.success) {
-      return { ok: false, detail: "The provider's token answer had no access_token." };
+      return { detail: "The provider's token answer had no access_token.", ok: false };
     }
     const { access_token, refresh_token, expires_in } = verdict.data;
     const tokens: StoredOauthTokens = {
@@ -132,7 +132,7 @@ export function createConnectorOauthFlow(
       const transport = requireOauthRow(name);
       const verifier = generatePkceVerifier();
       const challenge = await pkceChallengeS256(verifier);
-      const state = pending.arm({ name, verifier, redirectUri });
+      const state = pending.arm({ name, redirectUri, verifier });
       const url = new URL(transport.authorizationEndpoint);
       url.searchParams.set("response_type", "code");
       url.searchParams.set("client_id", transport.clientId);
@@ -159,15 +159,15 @@ export function createConnectorOauthFlow(
       const exchange = await exchangeAtTokenEndpoint(
         transport,
         new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: claimed.redirectUri,
           client_id: transport.clientId,
+          code,
           code_verifier: claimed.verifier,
+          grant_type: "authorization_code",
+          redirect_uri: claimed.redirectUri,
         }),
       );
       if (!exchange.ok) {
-        return { kind: "refused", detail: exchange.detail };
+        return { detail: exchange.detail, kind: "refused" };
       }
       if (disposed) {
         // shutdown raced the exchange: store nothing after teardown.
@@ -180,9 +180,22 @@ export function createConnectorOauthFlow(
       return { kind: "connected", name: claimed.name };
     },
 
+    disconnect(name): void {
+      requireOauthRow(name);
+      patchRow(name, (row) => {
+        delete row.tokens;
+        delete row.needsReauth;
+      });
+    },
+
+    dispose(): void {
+      disposed = true;
+      pending.clear();
+    },
+
     async freshAccessToken(name): Promise<string | null> {
       const transport = requireOauthRow(name);
-      const tokens = transport.tokens;
+      const { tokens } = transport;
       if (tokens === undefined) {
         return null;
       }
@@ -200,9 +213,9 @@ export function createConnectorOauthFlow(
       const exchange = await exchangeAtTokenEndpoint(
         transport,
         new URLSearchParams({
+          client_id: transport.clientId,
           grant_type: "refresh_token",
           refresh_token: tokens.refreshToken,
-          client_id: transport.clientId,
         }),
       );
       if (!exchange.ok) {
@@ -222,18 +235,5 @@ export function createConnectorOauthFlow(
       });
       return next.accessToken;
     },
-
-    disconnect(name): void {
-      requireOauthRow(name);
-      patchRow(name, (row) => {
-        delete row.tokens;
-        delete row.needsReauth;
-      });
-    },
-
-    dispose(): void {
-      disposed = true;
-      pending.clear();
-    },
   };
-}
+};

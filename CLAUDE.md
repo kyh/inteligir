@@ -228,8 +228,8 @@ more" an honest claim: every step on top of `verify` is a row in
 `DECLARED_CI_EXTRAS` with its reason.
 
 **There is no seeded login, and sign-up is invite-only.** `AGENTS.md` has the
-recipe. Never run `db:push` or `db:studio`: both hit production D1; the local
-command is `db:push:local`.
+recipe. Never run `db:push:remote` or `db:studio:remote`: both hit production
+D1. The bare `db:push` and `db:studio` are the local ones.
 
 `apps/web/README.md` is the product Worker's own guide — routes, auth, the
 local loop and the owner-only deploy. `AGENTS.md` is the runnable quickstart;
@@ -250,7 +250,7 @@ to the END of its group.
 - [Dictation](#dictation) — 6
 - [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
 - [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
-- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 5
+- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 6
 - [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
 
 ### Editor and dialect
@@ -286,6 +286,17 @@ to the END of its group.
   on both braces. Comment thread bodies live in
   `.inteligir/comments/<note-id>.json`, keyed by the note's frontmatter `id`.
 
+- **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**
+  `Button` trims its text with `text-box`, which only a block container
+  honours, so the label is its own span; an inline svg in that span does not
+  size the block and the line box pushes it out, which drew the icon above the
+  label. `labelChildren` (`packages/ui/src/components/button.tsx`) keeps text
+  runs in the trimmed span and lifts every element child out beside them, and
+  the icon-only branch is a flex row for the same reason (an icon with a count
+  beside it). A caller may pass the icon either way — as `leadingIcon` or as a
+  child — and both lay out as one row. The one spelling of "which children are
+  text" is `@repo/ui/lib/text-children`, which the sidebar's rows read too.
+
 - **EVERY FLOATING SURFACE IS A BASE UI PRIMITIVE THROUGH `@repo/ui`, never a
   hand-positioned div.** A popup is `Popover`, `DropdownMenu`, `Tooltip`,
   `HoverCard` or `Dialog` from `@repo/ui/components`, which own dismissal,
@@ -296,9 +307,13 @@ to the END of its group.
   `block-menu.tsx`). Base UI is reached only through `@repo/ui` (the one
   exception is `inline-combobox.tsx`); a missing primitive is added there
   first, with a gallery demo. In-flow chrome is not a popup and stays
-  positioned: the find bar and the TOC rail (anchored to the note column on
-  purpose), the code-block language badge, the callout marker, the toggle
-  chevron, the table handle. The wiki-link preview is the HoverCard (Base UI's
+  positioned: the TOC rail (anchored to the note column on purpose), the
+  code-block language badge, the callout marker, the toggle chevron, the
+  table handle. The find bar IS a popup, hung under the top bar's Find
+  button: the shell registers the anchor through `setFindBarAnchor`
+  (`packages/editor/src/find-bar.tsx`), since the editor never reaches the
+  shell, and with no button on screen — zen — it falls back to the note
+  column's corner. The wiki-link preview is the HoverCard (Base UI's
   PreviewCard): the pointer can move into it, the text selects, the title
   opens the note; Popover has no hover mode (`packages/editor/src/wiki-chip.tsx`).
 
@@ -307,6 +322,31 @@ to the END of its group.
   on a note's path keep that key so a late answer cannot land on the note that
   replaced it. There is no raw/rich toggle: the surface derives from
   `packages/editor/src/note/markdown-gate.ts` alone.
+
+- **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
+  body 12, subtitle 13, title 15, display 24 — the compact column of
+  `typeScale` (`packages/ui/src/lib/size-context.tsx`), which is where the
+  scale is declared, beside the control ladder it follows. The product draws
+  them as the `text-caption | body | subtitle | title | display` utilities
+  declared once in `packages/ui/src/styles/globals.css`, and
+  `lib/__tests__/type-scale.test.ts` derives the expected numbers from the
+  map, so the CSS and the map cannot drift. THE MERGE ENGINE HAS TO BE TOLD
+  THEY ARE SIZES: any unknown value after `text-` reads as a colour, so
+  `cn("text-body", "text-muted-foreground")` dropped the size and the line
+  fell back to the inherited 16px — every role class inside a `cn` call was
+  silently doing nothing. `cn` is therefore configured once
+  (`packages/ui/src/lib/cn.ts`) and imported from there by every file in the
+  repo, reversing the drop-the-pass-through cleanup for a reason it did not
+  have: the wrapper now carries configuration, and a second unconfigured `cn`
+  beside it would be the bug again. Named in the font-size group, a role also
+  correctly replaces another role, which CSS ordering cannot do. `text-sm`, `text-xs` and a
+  `text-[13px]` literal are gone from the shell and from `@repo/ui`'s
+  components: a role says what a line IS, and four spellings of 12px said
+  nothing. The utilities carry the compact step alone because the product
+  pins compact at its root (`app/workspace-context.tsx`); a region on the
+  default step would read the map instead. THE NOTE IS NOT CHROME: the
+  editor's prose keeps the appearance dials below, and `@repo/ui/src/ai`
+  keeps its own sizes until a surface draws it.
 
 - **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
   The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`.
@@ -345,13 +385,15 @@ to the END of its group.
   rows through `spellHotkey` (`@repo/editor/hotkey-spelling`: ⌃⌥⇧⌘ on a mac
   keyboard, `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale
   label behind. `shortcut-tables.test.ts` refuses a chord two tables share,
-  because a key both claim runs both. ⌘O is Obsidian's quick
-  switcher (the palette with its commands folded away) and ⌘, is Settings; a
-  browser tab may keep either for itself, the shell delivers both.
+  because a key both claim runs both. ⌘P is the one search surface and ⌘, is
+  Settings; a browser tab may keep either for itself, the shell delivers both.
 
 - **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
-  Pinning travels with the file, so the recents' Pinned group agrees on every
-  device and with the agent. `pinnedFrontmatterYaml` in
+  Pinning travels with the file, so the recents agree on every device and with
+  the agent. A pinned note sorts to the top of the recents and ends its row in
+  a filled pin; there is no Pinned heading, because a group label for a
+  handful of rows cost more height than it explained. The pin's slot is drawn
+  on every row, pinned or not, so one column holds every date. `pinnedFrontmatterYaml` in
   `@repo/notes/markdown/frontmatter` cuts or appends the key's own lines like
   `removeFrontmatterId` does, rather than re-serializing through
   `serializeProperties`, which restyles every flow list it re-emits; unpinning
@@ -554,26 +596,29 @@ to the END of its group.
   ranges. Unifying the grammars is rejected: one malformed tag would stop a note
   indexing. A doc the editor refuses yields no ranges, correctly: it opens raw.
 
-- **TAGS ARE A RAIL VIEW, AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** The
-  rail's third view lists `knowledge.tags` folded by `/`, a row's count being
-  its family's; a click scopes the recents list to that tag through the search
-  route's `tag:` term, and a `#tag` chip asks for the same through the editor
-  host registry's `showTag` (`packages/editor/src/agent-request.ts`, the one
-  channel from a node to the shell), never the palette. The selected tag is the
-  workspace's state like the folder, and everything only the Tags view holds
-  (the rename dialog, the tag's paged listing, both tag queries) is
-  `apps/desktop/src/renderer/app/sidebar/tags-pane.tsx`, mounted on its tab
-  alone. `knowledge.renameTag` moves a
-  tag and everything nested under it, matched case-insensitively because the
-  index is: inline spans are the scan's own, verified against the raw bytes and
-  withheld inside verbatim ranges (`documentTagSpans`), frontmatter `tags`
-  re-serialize through the properties panel's CST edit, and every write is
-  `writeIfUnchanged` from a snapshot, so a note that changed mid-rename is
-  reported `changed`, never overwritten. The one name grammar is
-  `isTagName` in `@repo/notes/knowledge/link-extract`, shared by the chip, the
-  scan and the contract. `@repo/notes/knowledge/rename-tags.ts`,
+- **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW, AND A TAG RENAME IS THE
+  LINK RENAME'S SURGERY.** There is no tag browser in the app: `knowledge.tags`
+  answers `inteligir tags` alone. A `#tag` chip asks the shell through the
+  editor host registry's `showTag` (`packages/editor/src/agent-request.ts`,
+  the one channel from a node to the shell), never the palette, and the rail
+  answers with the Recent view scoped to that tag: the scope row (the count,
+  `listed of total` while cut, Rename), the tag's paged listing, and the
+  rail's search over it. The selected tag is the workspace's state like the
+  folder, and everything only the scope holds (the rename dialog, the paged
+  query) is `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`, mounted
+  only while a tag is selected. A Tags tab was built and removed by owner
+  decision: the rail switches between Recent and Files and nothing else.
+  `knowledge.renameTag` moves a tag and everything nested under it, matched
+  case-insensitively because the index is: inline spans are the scan's own,
+  verified against the raw bytes and withheld inside verbatim ranges
+  (`documentTagSpans`), frontmatter `tags` re-serialize through the properties
+  panel's CST edit, and every write is `writeIfUnchanged` from a snapshot, so
+  a note that changed mid-rename is reported `changed`, never overwritten. The
+  one name grammar is `isTagName` in `@repo/notes/knowledge/link-extract`,
+  shared by the chip, the scan and the contract.
+  `@repo/notes/knowledge/rename-tags.ts`,
   `apps/cli/src/server/knowledge/rename-tag.ts`,
-  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`, and `inteligir tag
+  `apps/desktop/src/renderer/app/sidebar/tag-scope.tsx`, and `inteligir tag
 rename`.
 
 - **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
@@ -632,7 +677,7 @@ rename`.
   candidate list runs too. The rail re-reads one growing page rather than
   stitching pages, because the list it draws is filtered by the folder scope
   and sorted by recency after the fact, and says `listed of total` while cut.
-  `apps/desktop/src/renderer/app/sidebar/tags-pane.tsx`.
+  `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`.
 
 ### Agents and threads
 
@@ -990,38 +1035,64 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/desktop/src/renderer/routes/__root.tsx`; a host mounted by one route
   leaves another route's `confirm()` parked on a dialog that never opens.
 
-- **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
-  header is one row, the vault button alone (recent vaults, Open another
-  vault…), because a vault's name is the one label that must never truncate.
-  Under it, RECENT, FILES and TAGS are stacked collapsible sections
-  (`app/fold-section.tsx`, the same fold header the panel's Metadata tab
-  draws), not a tab switch: FILES carries its actions in its header on hover
-  (New note, New folder, the filter toggle, sort, Collapse all), RECENT is
-  capped to a handful of rows because the palette lists every note, and TAGS
-  starts folded. The open set is the workspace's (`railSections` in
-  `app/prefs.ts`), because a `#tag` chip opens TAGS and a create opens FILES.
-  The filter row shows on its toggle or while it has text, and Escape clears
-  and hides it. The rail carries no search box: ⌘P and ⌘⇧F are the search
-  surfaces and the palette carries its own field, so a third input above the
-  tree's filter was one more thing to read. Find in note, comments and the panel
-  toggle live above the note; copy link, export and share sit under its ⋯ menu. The folder scope is set by the top bar's breadcrumb
-  and cleared from the scope row above the list, never picked in the header:
-  the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
-  recents view is one list by recency with a folder hint, and folders exist only
-  in the tree. The tree's fold and selection are the rail's state
-  (`sidebar/tree-state.ts`), not the tree's: Collapse all clears that set and a
-  create lands where an IDE's would, in the tree's selected folder, else at the
-  scope, both derived from it rather than requested through a nonce or a
-  callback; the header's pending create is a plain prop the tree reports done.
-  The selected tag is the workspace's like the open set, because a `#tag`
-  chip sets both. One `useVaultSwitch` and one `RecentVaultLabel`
-  (`app/desktop-vaults.tsx`) serve the rail's vault button and Settings alike.
+- **THE RAIL IS FLUID'S SIDEBAR ANATOMY; THE TOP BAR IS THE OPEN NOTE.** Header,
+  one group, footer, at the app's size step. The header line is the vault row
+  (its initial on a tile, the name semibold, the recent vaults and Open
+  another vault… behind the chevron) with Search beside it, a 24px button
+  that opens the palette. The one group's label names the view and opens the
+  view menu — Recent | Files | Deleted, one list each, drawn by the same
+  `SidebarMenu` rows so switching swaps rows and never the chrome around
+  them — with New note as the group's action at its trailing edge. Not tabs
+  and not stacked sections: a stack made every list short, and a tab row was
+  a third line of chrome. Every other verb is a right-click, as in an IDE: a
+  row's menu carries its own (the recents' Pin, the deleted's Restore, the
+  tree's rename, move and delete), and the tree's empty area carries New
+  note, New folder, the sort toggle and Collapse all. The footer is the
+  workspace's ambient row: the sync state as a menu row (its dot, its label,
+  the agent's spinner while a thread runs) over Sync now and the account —
+  Sign in… when this device has none, the account, Sync threads now and Sign
+  out when it does, through the one `useCloudSession`
+  (`app/cloud-session.ts`) Settings › Devices runs too. Settings and the
+  theme are the footer's 24px actions. Every row in the three views is a
+  `SidebarMenu` row (`@repo/ui/components/sidebar-menu`, Fluid's row on the
+  repo's proximity hover: the traveling hover pill, semibold while current
+  without the row widening, a `SidebarMenuAction` revealed on hover); the
+  tree's rows are those rows carrying `treeitem` and the drag handlers, so
+  its keyboard walk and the menu's arrow-key walk are one rhythm — the
+  menu's own walk stands down for a key the row already handled. The view is
+  the workspace's (`railView` in `app/prefs.ts`) because a `#tag` chip shows
+  Recent scoped to the tag, a create shows Files and a delete's Undo shows
+  Deleted; the selected tag is the workspace's for the same reason. THERE IS
+  NO FOLDER SCOPE: the top bar's breadcrumb REVEALS rather than narrows —
+  a segment shows Files, opens the way to that folder and selects it
+  (`revealInTree` in `sidebar/tree-state.ts`, applied where the fold state
+  lives, and the tree's one effect focuses the row that render drew). A
+  second listing root was a second answer to "what is this list?" and made
+  the recents' folder hints relative to it. The tree's fold and selection
+  are the rail's state (`sidebar/tree-state.ts`), not the tree's: Collapse
+  all clears that set and a create lands where an IDE's would, in the tree's
+  selected folder, else at the vault root; the group's pending create is a
+  plain prop the tree reports done. Find in note, comments and the panel
+  toggle live above the note; copy link, export and share sit under its ⋯
+  menu. One `useVaultSwitch` and one `RecentVaultLabel`
+  (`app/desktop-vaults.tsx`) serve the rail's vault row and Settings alike.
   The rail hides what the user did not write
-  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,
-  dot-entries); the server's listing stays complete because the CLI and the
-  agent read it. Under the macOS shell the rail reserves the traffic-light
-  corner (`apps/desktop/src/renderer/app/title-bar.ts`); nothing else is a
-  logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
+  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment
+  sidecars, dot-entries); the server's listing stays complete because the
+  CLI and the agent read it. Under the macOS shell the rail reserves the
+  traffic-light corner (`apps/desktop/src/renderer/app/title-bar.ts`);
+  nothing else is a logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
+
+- **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
+  and every command in one field, and the two searches that are not a lookup
+  reach the rest from inside it: "Search across the vault…" opens the literal
+  scan with its replace. ⌘F IS NOT ONE OF THEM: it searches within the open
+  note, not the vault, so it keeps its own chord and its own bar. ⌘O and ⌘⇧F are GONE, and with them the
+  palette's quick-open page (the root with its commands folded away) and the
+  rail's search field: four ways to type a note's name was three too many,
+  and each one was a different set of rows for the same question. The rail's
+  Search button opens the palette, and its tooltip spells ⌘P from the table
+  (`app/global-shortcuts.ts`), never as a literal.
 
 - **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
   serializer.** The Metadata tab's "About" block is folded by default because
@@ -1043,14 +1114,44 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
   second resize mechanism would be a second answer to one drag.
 
-- **AMBIENT STATE LIVES IN THE STATUS BAR, across the window's bottom.** The
-  strip under the rail and the note together (`app/status-bar.tsx`, its height
-  `--app-status-h` beside `--app-header-h`) carries the sync state on the left,
-  and the open note's word count, a spinner while any thread is running,
-  Deleted notes and Settings on the right; the rail ends at its last section and
-  zen hides the bar with the rest. The count is the serializer's published one,
-  never a recount, and the rail's and the panel's shells take `h-full` from the
-  workspace because Fluid's shell is viewport-height by class.
+- **AMBIENT STATE LIVES IN THE RAIL'S FOOTER; THE NOTE KEEPS ITS COUNT.** A
+  strip across the whole window was a second bar under a rail that already
+  had a bottom, so the sync state, the agent's spinner, Deleted notes and
+  Settings moved into Fluid's `SidebarFooter` and the window-wide status bar
+  went. What stays under the note is `app/note-footer.tsx`: the open note's
+  word count and reading time alone, right-aligned, at `--app-status-h`
+  beside `--app-header-h`, and with no rule above it so it reads as the
+  note's last line rather than chrome. The count is the serializer's
+  published one, never a recount, and zen hides the strip with the rest. The
+  rail's and the panel's shells take `h-full` from the workspace because
+  Fluid's shell is viewport-height by class.
+
+- **THE PALETTE IS FLUID'S COMMAND MENU, AND IT HAS NO PRIMITIVE UNDER IT**
+  (reversing the cmdk line; the dependency is gone). The field keeps DOM focus
+  and names the highlighted row through `aria-activedescendant`, so the list
+  is a `role="listbox"` of plain rows: the arrows and Enter are the field's
+  handlers, and the highlight is the one proximity pill every other popup here
+  draws (`ProximityOverlays` over `useProximityHover`), not a per-row
+  `data-selected` fill. cmdk's filter was already off on every page — each page
+  filters its own rows — so what it still owned was the keyboard, and one
+  keyboard beside the pill was two answers to "which row is live?". ROWS ARE
+  CHILDREN, NOT DATA, diverging from Fluid's `items` array deliberately: the
+  pages draw eight different row shapes (a heading's depth, a match's
+  before/hit/after, a problem's detail) and a data array would be a second
+  answer to what a row is. A row therefore does not answer for its own
+  position — the list reads document order through the same `syncRows` shape
+  `dropdown-menu.tsx` uses. The panel opens where a panel at its cap height
+  sits centered and KEEPS that top edge, so the field never moves as the rows
+  filter down. The footer names Enter after the highlighted row, read off that
+  row's own `data-command-action`, so nothing keeps a second copy of a label
+  the page already drew; a row without one leaves Enter unnamed rather than
+  guessing. A chord draws one box per key, cut from the string
+  `spellHotkey` already spelled (`shortcutCaps`), because @repo/ui cannot
+  reach `@repo/editor` and a second spelling of ⌘ would be a second spelling.
+  What went with cmdk is `input-group.tsx`: the palette's framed field was its
+  last consumer, and Fluid's field is frameless over a divider.
+  `packages/ui/src/components/command.tsx` and
+  `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
 
 ### Repo guards, vendoring and tooling
 
@@ -1082,6 +1183,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   reasoned allowance row (`tools/repo-guards/src/ui-orphan-exports.test.ts` says
   why neither a file guard nor knip can ask this). Base UI's `render` prop is the
   polymorphism channel; there is no Slot.
+
+- **A ROW DOES NOT ANSWER FOR ITS OWN POSITION; ITS CONTAINER DOES.** A
+  conditional row changes where its siblings sit without re-rendering them, so
+  a row deriving its index from the DOM needs an effect with no dependency
+  array — and a React rule suppression makes the compiler skip optimizing the
+  whole component. The popup keeps the set instead and reads document order
+  itself (`syncRows` in `packages/ui/src/components/dropdown-menu.tsx`, the
+  same shape `sidebar-menu.tsx` uses): a row registers its element and asks
+  only whether it is the active one. There are no React rule suppressions left
+  in the renderer or `@repo/ui`, and the compiler optimizes both.
 
 - **THE REACT COMPILER IS ON FOR ALL THREE APPS**: `compiler: true` on
   `@vitejs/plugin-react` in both vite configs and `reactCompiler: true` in

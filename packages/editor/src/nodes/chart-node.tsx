@@ -2,7 +2,8 @@
 // An invalid payload stays code; the bytes are never touched.
 
 import { z } from "zod";
-import { type PlateElementProps, PlateElement } from "platejs/react";
+import { PlateElement } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 import { useState } from "react";
 
 import { stringProp } from "@repo/editor/node-props";
@@ -89,7 +90,7 @@ export type ChartPayload = z.infer<typeof chartSchema>;
 
 export type ChartParse = { ok: true; chart: ChartPayload } | { ok: false; reason: string };
 
-export function parseChartPayload(value: string): ChartParse {
+export const parseChartPayload = (value: string): ChartParse => {
   let json: unknown;
   try {
     json = JSON.parse(value);
@@ -98,44 +99,45 @@ export function parseChartPayload(value: string): ChartParse {
   }
   const parsed = chartSchema.safeParse(json);
   if (!parsed.success) {
-    const first = parsed.error.issues[0];
+    const [first] = parsed.error.issues;
     return { ok: false, reason: `Not a chart: ${first?.message ?? "shape mismatch"}` };
   }
   return { chart: parsed.data, ok: true };
-}
+};
 
 const W = 480;
 const H = 200;
 const PAD = { bottom: 28, left: 34, right: 8, top: 12 };
 
-type Series = {
+interface Series {
   color?: string | undefined;
   data: { color?: string | undefined; label: string; value: number }[];
   name?: string | undefined;
+}
+
+const seriesOf = (chart: ChartPayload): Series[] => {
+  if ("series" in chart) {
+    return chart.series;
+  }
+  return [{ data: chart.data }];
 };
 
-function seriesOf(chart: ChartPayload): Series[] {
-  if ("series" in chart) return chart.series;
-  return [{ data: chart.data }];
-}
+const themeColor = (index: number, explicit?: string): string =>
+  explicit ?? `var(--chart-${String((index % 5) + 1)})`;
 
-function themeColor(index: number, explicit?: string): string {
-  return explicit ?? `var(--chart-${String((index % 5) + 1)})`;
-}
-
-function bounds(series: Series[]): { max: number; min: number } {
+const bounds = (series: Series[]): { max: number; min: number } => {
   const values = series.flatMap((row) => row.data.map((point) => point.value));
   const min = Math.min(0, ...values);
   const max = Math.max(0, ...values);
   return max === min ? { max: min + 1, min } : { max, min };
-}
+};
 
-function yOf(value: number, min: number, max: number): number {
+const yOf = (value: number, min: number, max: number): number => {
   const usable = H - PAD.top - PAD.bottom;
   return PAD.top + usable * (1 - (value - min) / (max - min));
-}
+};
 
-function ChartSvg({ chart }: { chart: ChartPayload }) {
+const ChartSvg = ({ chart }: { chart: ChartPayload }) => {
   const series = seriesOf(chart);
   const labels = series[0]?.data.map((point) => point.label) ?? [];
   const { max, min } = bounds(series);
@@ -158,6 +160,7 @@ function ChartSvg({ chart }: { chart: ChartPayload }) {
   return (
     <svg
       viewBox={`0 0 ${String(W)} ${String(H)}`}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
       role="img"
       aria-label={chart.title ?? "chart"}
       className="w-full"
@@ -273,10 +276,73 @@ function ChartSvg({ chart }: { chart: ChartPayload }) {
       ) : null}
     </svg>
   );
-}
+};
 
-export function ChartElement(props: PlateElementProps) {
-  const [mode, setMode] = useState<"view" | "grid" | "raw">("view");
+type ChartMode = "view" | "grid" | "raw";
+
+const ChartBody = ({
+  mode,
+  onMode,
+  onValue,
+  parsed,
+  value,
+}: {
+  mode: ChartMode;
+  onMode: (mode: ChartMode) => void;
+  onValue: (next: string) => void;
+  parsed: ChartParse;
+  value: string;
+}) => {
+  if (mode === "raw") {
+    return (
+      <PayloadEditor
+        initial={value}
+        validate={(next) => {
+          const verdict = parseChartPayload(next);
+          return verdict.ok ? null : verdict.reason;
+        }}
+        onCancel={() => {
+          onMode("view");
+        }}
+        onSave={(next) => {
+          onValue(next);
+          onMode("view");
+        }}
+      />
+    );
+  }
+  if (!parsed.ok) {
+    return <DegradedPayloadView reason={parsed.reason} value={value} />;
+  }
+  if (mode === "grid") {
+    return (
+      <>
+        <div className="px-2 py-1">
+          <ChartSvg chart={parsed.chart} />
+        </div>
+        <div className="border-t border-border/60">
+          <ChartGridEditor
+            chart={parsed.chart}
+            onCommit={(next) => {
+              onValue(emitChartPayload(next));
+            }}
+            onRawEdit={() => {
+              onMode("raw");
+            }}
+          />
+        </div>
+      </>
+    );
+  }
+  return (
+    <div className="px-2 py-1">
+      <ChartSvg chart={parsed.chart} />
+    </div>
+  );
+};
+
+export const ChartElement = (props: PlateElementProps) => {
+  const [mode, setMode] = useState<ChartMode>("view");
   const value = stringProp(props.element, "value") ?? "";
   const parsed = parseChartPayload(value);
 
@@ -308,47 +374,17 @@ export function ChartElement(props: PlateElementProps) {
           )
         }
       >
-        {mode === "raw" ? (
-          <PayloadEditor
-            initial={value}
-            validate={(next) => {
-              const verdict = parseChartPayload(next);
-              return verdict.ok ? null : verdict.reason;
-            }}
-            onCancel={() => {
-              setMode("view");
-            }}
-            onSave={(next) => {
-              setBlockValue(props.editor, props.element, next);
-              setMode("view");
-            }}
-          />
-        ) : mode === "grid" && parsed.ok ? (
-          <>
-            <div className="px-2 py-1">
-              <ChartSvg chart={parsed.chart} />
-            </div>
-            <div className="border-t border-border/60">
-              <ChartGridEditor
-                chart={parsed.chart}
-                onCommit={(next) => {
-                  setBlockValue(props.editor, props.element, emitChartPayload(next));
-                }}
-                onRawEdit={() => {
-                  setMode("raw");
-                }}
-              />
-            </div>
-          </>
-        ) : parsed.ok ? (
-          <div className="px-2 py-1">
-            <ChartSvg chart={parsed.chart} />
-          </div>
-        ) : (
-          <DegradedPayloadView reason={parsed.reason} value={value} />
-        )}
+        <ChartBody
+          mode={mode}
+          parsed={parsed}
+          value={value}
+          onMode={setMode}
+          onValue={(next) => {
+            setBlockValue(props.editor, props.element, next);
+          }}
+        />
       </RichBlockCard>
       {props.children}
     </PlateElement>
   );
-}
+};

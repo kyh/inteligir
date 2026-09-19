@@ -27,10 +27,10 @@ type ThreadLifecycleEventPredicateTable = {
 };
 
 export const THREAD_LIFECYCLE_EVENT_PREDICATES: ThreadLifecycleEventPredicateTable = {
+  "run.failed": {},
   "run.preparing": { notArchived: true },
   "run.started": { notArchived: true },
   "run.succeeded": {},
-  "run.failed": {},
   "stop.requested": {},
   "stop.settled": {},
 };
@@ -43,30 +43,30 @@ type ThreadLifecycleTable = { [K in ThreadStatus]: ThreadLifecycleTransitions };
 // `stopping` has no run.started / run.preparing cell on purpose: a queued turn must not
 // reactivate a stopping thread.
 export const THREAD_LIFECYCLE: ThreadLifecycleTable = {
+  active: {
+    "run.failed": "error",
+    "run.succeeded": "idle",
+    "stop.requested": "stopping",
+  },
+  error: {
+    "run.preparing": "starting",
+    "run.started": "active",
+  },
   idle: {
     "run.preparing": "starting",
     "run.started": "active",
   },
   starting: {
+    "run.failed": "error",
     "run.started": "active",
     // the provider can report turn/completed while the start command is still settling.
     "run.succeeded": "idle",
-    "run.failed": "error",
-    "stop.requested": "stopping",
-  },
-  active: {
-    "run.succeeded": "idle",
-    "run.failed": "error",
     "stop.requested": "stopping",
   },
   stopping: {
-    "stop.settled": "idle",
-    "run.succeeded": "idle",
     "run.failed": "error",
-  },
-  error: {
-    "run.preparing": "starting",
-    "run.started": "active",
+    "run.succeeded": "idle",
+    "stop.settled": "idle",
   },
 };
 
@@ -92,48 +92,53 @@ interface SettlingTurn {
   turnId: string | null;
 }
 
-function settlingTurnId(event: ThreadLifecycleEvent): SettlingTurn {
+const settlingTurnId = (event: ThreadLifecycleEvent): SettlingTurn => {
   switch (event.type) {
     case "run.succeeded":
     case "run.failed":
-    case "stop.settled":
+    case "stop.settled": {
       return { settles: true, turnId: event.turnId };
+    }
     case "run.preparing":
     case "run.started":
-    case "stop.requested":
+    case "stop.requested": {
       return { settles: false, turnId: null };
+    }
+    // no default
   }
-}
+};
 
 // supersession and turn identity are checked before the table so a stale event reports its true
 // diagnosis even when the status has no cell for it.
-export function evaluateThreadLifecycleEvent(
+export const evaluateThreadLifecycleEvent = (
   args: EvaluateThreadLifecycleEventArgs,
-): ThreadLifecycleEvaluation {
+): ThreadLifecycleEvaluation => {
   const { event, thread } = args;
   const predicates = THREAD_LIFECYCLE_EVENT_PREDICATES[event.type];
   if (predicates.notArchived && thread.archivedAt !== null) {
-    return { noop: "superseded", detail: "archivedAt set" };
+    return { detail: "archivedAt set", noop: "superseded" };
   }
 
   const settling = settlingTurnId(event);
   if (settling.settles && settling.turnId !== thread.activeTurnId) {
     return {
-      noop: "stale-turn",
       detail: `${event.type} names turn ${settling.turnId ?? "<none>"} but the active turn is ${thread.activeTurnId ?? "<none>"}`,
+      noop: "stale-turn",
     };
   }
 
   const to = THREAD_LIFECYCLE[thread.status][event.type];
   if (to === undefined) {
     return {
-      noop: "illegal-transition",
       detail: `no transition for ${event.type} from status ${thread.status}`,
+      noop: "illegal-transition",
     };
   }
-  return {
-    to,
-    activeTurnId:
-      event.type === "run.started" ? event.turnId : settling.settles ? null : thread.activeTurnId,
-  };
-}
+  let { activeTurnId } = thread;
+  if (event.type === "run.started") {
+    activeTurnId = event.turnId;
+  } else if (settling.settles) {
+    activeTurnId = null;
+  }
+  return { activeTurnId, to };
+};

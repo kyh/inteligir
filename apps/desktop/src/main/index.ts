@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { z } from "zod";
-import { dirname, join } from "node:path";
+import path from "node:path";
 import { autoUpdater } from "electron-updater";
 import {
   app,
@@ -13,8 +13,8 @@ import {
   session,
   shell,
   Tray,
-  type MenuItemConstructorOptions,
 } from "electron";
+import type { MenuItemConstructorOptions } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
 import { socketCredentialFilter } from "./credential-scope";
 import {
@@ -25,9 +25,12 @@ import {
   decideExternalOpen,
 } from "./origin-pin";
 import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
-import { createServerProcess, type ServerProcess } from "./server-process";
-import { createSpellcheck, senderIsWindow, type Spellcheck } from "./spellcheck";
-import { createUpdates, type UpdaterPort, type Updates } from "./updates";
+import { createServerProcess } from "./server-process";
+import type { ServerProcess } from "./server-process";
+import { createSpellcheck, senderIsWindow } from "./spellcheck";
+import type { Spellcheck } from "./spellcheck";
+import { createUpdates } from "./updates";
+import type { UpdaterPort, Updates } from "./updates";
 import { resolveVaultEntry } from "./vault-entry";
 import {
   describeServerVerdict,
@@ -37,9 +40,8 @@ import {
   serverProcessEnv,
   sessionPartition,
   verifyServer,
-  type LiveServer,
-  type ServerTarget,
 } from "./server-instance";
+import type { LiveServer, ServerTarget } from "./server-instance";
 import {
   forgetVault,
   planVaultSwitch,
@@ -52,14 +54,12 @@ import {
 } from "./vaults";
 import { writeManagedVaultDir } from "inteligir/server/config";
 import { authorizationHeader } from "inteligir/server/server-file";
-import {
-  pathActionRequestSchema,
-  type PathActionRequest,
-  type PathActionResult,
-} from "../path-action";
+import { pathActionRequestSchema } from "../path-action";
+import type { PathActionRequest, PathActionResult } from "../path-action";
 import { spellcheckChoiceSchema } from "../spellcheck-state";
 import { IPC_CHANNELS, toErrorMessage } from "../types";
-import { vaultPathSchema, type VaultsState } from "../vaults-state";
+import { vaultPathSchema } from "../vaults-state";
+import type { VaultsState } from "../vaults-state";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
 const RECENT_VAULTS_FILE_NAME = "recent-vaults.json";
@@ -95,27 +95,27 @@ process.on("unhandledRejection", (reason) => {
   console.error("[desktop] unhandled rejection:", reason);
 });
 
-function requireTarget(): ServerTarget {
+const requireTarget = (): ServerTarget => {
   if (currentTarget === null) {
     throw new Error("no vault is open yet");
   }
   return currentTarget;
-}
+};
 
 // doubles as the child's readiness signal: a child that lost the port race must not be reported up about a stranger.
-async function verifiedServerAnswered(target: ServerTarget): Promise<boolean> {
+const verifiedServerAnswered = async (target: ServerTarget): Promise<boolean> => {
   const verdict = await verifyServer(target.dataDir);
   if (verdict.kind === "verified") {
-    live = verdict.live;
+    ({ live } = verdict);
     return true;
   }
   if (verdict.kind !== "no-server") {
     console.warn(`[desktop] ${describeServerVerdict(verdict, target.dataDir)}`);
   }
   return false;
-}
+};
 
-async function startServer(target: ServerTarget): Promise<void> {
+const startServer = async (target: ServerTarget): Promise<void> => {
   if (planServerStart(await verifiedServerAnswered(target)) === "adopt") {
     console.log(`[desktop] adopting the server already serving ${target.dataDir}`);
     serverProcess = null;
@@ -128,8 +128,10 @@ async function startServer(target: ServerTarget): Promise<void> {
   const child = createServerProcess({
     entryPath,
     env: serverProcessEnv(target, app.isPackaged),
-    isReady: () => verifiedServerAnswered(target),
-    log: (message) => console.log(`[server] ${message}`),
+    isReady: async () => await verifiedServerAnswered(target),
+    log: (message) => {
+      console.log(`[server] ${message}`);
+    },
     // no in-place restart: a fresh child mints a fresh token the window's bindings do not hold.
     onUnexpectedExit: (code) => {
       dialog.showErrorBox(
@@ -141,22 +143,22 @@ async function startServer(target: ServerTarget): Promise<void> {
   });
   serverProcess = child;
   await child.start();
-}
+};
 
 // the child's ordered shutdown flushes the vault's pending commit; nothing moves until it has
-async function stopOwnedServer(): Promise<void> {
+const stopOwnedServer = async (): Promise<void> => {
   const owned = serverProcess;
   serverProcess = null;
   live = null;
   await owned?.stop();
-}
+};
 
 // both handlers are needed: the request handler answers a prompt, the check handler
 // answers `navigator.permissions.query` and `getUserMedia`'s pre-flight.
-function lockDownSession(partition: string): Electron.Session {
+const lockDownSession = (partition: string): Electron.Session => {
   const windowSession = session.fromPartition(partition);
-  windowSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
-    callback(classifyPermission(permission, details.requestingUrl, APP_ORIGIN));
+  windowSession.setPermissionRequestHandler((_contents, permission, respond, details) => {
+    respond(classifyPermission(permission, details.requestingUrl, APP_ORIGIN));
   });
   windowSession.setPermissionCheckHandler((_contents, permission, requestingOrigin) =>
     classifyPermission(permission, requestingOrigin, APP_ORIGIN),
@@ -164,110 +166,80 @@ function lockDownSession(partition: string): Electron.Session {
   // device pickers are not covered by the permission handlers.
   windowSession.setDevicePermissionHandler(() => false);
   return windowSession;
-}
+};
 
 // a browser `WebSocket` cannot set a header and cannot be proxied by the protocol handler.
 // a session revisited on a later switch gets the new bearer: the listener replaces the last.
-function attachSocketCredential(windowSession: Electron.Session, server: LiveServer): void {
+const attachSocketCredential = (windowSession: Electron.Session, server: LiveServer): void => {
   const urls = socketCredentialFilter(server.origin);
-  windowSession.webRequest.onBeforeSendHeaders({ urls }, (details, callback) => {
-    callback({
+  windowSession.webRequest.onBeforeSendHeaders({ urls }, (details, respond) => {
+    respond({
       requestHeaders: {
         ...details.requestHeaders,
         Authorization: authorizationHeader(server.token),
       },
     });
   });
-}
+};
 
 // page-initiated only; menu and tray items call `shell.openExternal` directly, since a click produces no page input.
-function openExternalFromPage(url: string): void {
-  const decision = decideExternalOpen({ url, lastInputAt, now: Date.now() });
+const openExternalFromPage = (url: string): void => {
+  const decision = decideExternalOpen({ lastInputAt, now: Date.now(), url });
   if (!decision.allowed) {
     console.warn(`[desktop] refused to open ${url} externally (${decision.reason})`);
     return;
   }
   void shell.openExternal(url);
-}
+};
 
 // the page keeps the choice and re-applies it on launch; Chromium keeps the session's own copy between launches
-function spellcheckFor(windowSession: Electron.Session): Spellcheck {
-  return createSpellcheck({
+const spellcheckFor = (windowSession: Electron.Session): Spellcheck =>
+  createSpellcheck({
     platform: process.platform,
     port: {
       availableLanguages: () => windowSession.availableSpellCheckerLanguages,
       isEnabled: () => windowSession.isSpellCheckerEnabled(),
       languages: () => windowSession.getSpellCheckerLanguages(),
-      setEnabled: (enabled) => windowSession.setSpellCheckerEnabled(enabled),
-      setLanguages: (languages) => windowSession.setSpellCheckerLanguages([...languages]),
+      setEnabled: (enabled) => {
+        windowSession.setSpellCheckerEnabled(enabled);
+      },
+      setLanguages: (languages) => {
+        windowSession.setSpellCheckerLanguages([...languages]);
+      },
     },
   });
-}
-
-// the page names an entry vault-relative; main resolves it against the vault of the moment
-// and hands the OS nothing the vault does not physically contain. registered once per
-// launch: a second `handle` on a channel throws, so the handlers read the current vault
-function configurePathActionsIpc(): void {
-  const resolve = (request: PathActionRequest) =>
-    resolveVaultEntry({
-      vaultDir: requireTarget().vaultDir,
-      path: request.path,
-      realpath: realpathSync,
-    });
-  handleFromMainWindow(
-    IPC_CHANNELS.REVEAL_PATH,
-    pathActionRequestSchema,
-    (frame): PathActionResult => {
-      const verdict = resolve(frame);
-      if (!verdict.ok) return verdict;
-      shell.showItemInFolder(verdict.absPath);
-      return { ok: true };
-    },
-  );
-  handleFromMainWindow(
-    IPC_CHANNELS.OPEN_PATH,
-    pathActionRequestSchema,
-    async (frame): Promise<PathActionResult> => {
-      const verdict = resolve(frame);
-      if (!verdict.ok) return verdict;
-      // answers "" when the OS took the file, else its own words for why not
-      const refusal = await shell.openPath(verdict.absPath);
-      return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
-    },
-  );
-}
 
 // once per vault, not per window: the partition is the data dir's, so a switch is a new session
 // and a vault revisited in one launch re-registers on its old one.
-function prepareWindowSession(target: ServerTarget, server: LiveServer): void {
+const prepareWindowSession = (target: ServerTarget, server: LiveServer): void => {
   const windowSession = lockDownSession(sessionPartition(target.dataDir));
   attachSocketCredential(windowSession, server);
   spellcheck = spellcheckFor(windowSession);
   registerAppProtocol({
-    session: windowSession,
-    serverOrigin: server.origin,
-    token: server.token,
     renderer:
       rendererDevUrl === undefined
-        ? { kind: "files", dir: rendererDir() }
+        ? { dir: rendererDir(), kind: "files" }
         : { kind: "dev", origin: rendererDevUrl },
+    serverOrigin: server.origin,
+    session: windowSession,
+    token: server.token,
   });
-}
+};
 
-function createWindow(target: ServerTarget): BrowserWindow {
+const createWindow = (target: ServerTarget): BrowserWindow => {
   const partition = sessionPartition(target.dataDir);
   const window = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
-    show: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#141415" : "#f0f2f2",
     autoHideMenuBar: true,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#141415" : "#f0f2f2",
+    height: 800,
+    minHeight: 600,
+    minWidth: 800,
+    show: false,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 12 },
     webPreferences: appWindowWebPreferences(appPreloadScript(), partition),
+    width: 1200,
   });
 
   window.webContents.on("input-event", () => {
@@ -310,9 +282,9 @@ function createWindow(target: ServerTarget): BrowserWindow {
 
   void window.loadURL(`${APP_ORIGIN}/`);
   return window;
-}
+};
 
-function showMainWindow(): BrowserWindow {
+const showMainWindow = (): BrowserWindow => {
   const existing = mainWindow;
   if (existing === null) {
     mainWindow = createWindow(requireTarget());
@@ -325,65 +297,86 @@ function showMainWindow(): BrowserWindow {
   existing.focus();
   app.focus();
   return existing;
-}
+};
 
-function openDataDir(): void {
+const openDataDir = (): void => {
   void shell.openPath(requireTarget().dataDir);
-}
+};
 
 // electron-builder writes the feed beside the app; without it a check can only fail.
-function updateFeedDisabledReason(): string | null {
+const updateFeedDisabledReason = (): string | null => {
   if (!app.isPackaged) {
     return "Automatic updates are only available in the packaged app.";
   }
-  if (!existsSync(join(process.resourcesPath, "app-update.yml"))) {
+  if (!existsSync(path.join(process.resourcesPath, "app-update.yml"))) {
     return "This build carries no update feed.";
   }
   return null;
-}
+};
 
-function fromMainWindow(event: Electron.IpcMainInvokeEvent): boolean {
-  return senderIsWindow(event.sender, mainWindow);
-}
+const fromMainWindow = (event: Electron.IpcMainInvokeEvent): boolean =>
+  senderIsWindow(event.sender, mainWindow);
 
 // every page-facing channel refuses a stranger's webContents before it reads a frame, and
 // the frame is parsed here, at the boundary, so a handler only ever sees a value it knows
-function handleFromMainWindow<TFrame, TAnswer>(
+const handleFromMainWindow = <TFrame, TAnswer>(
   channel: string,
   frameSchema: z.ZodType<TFrame>,
   handler: (frame: TFrame) => TAnswer | Promise<TAnswer>,
-): void {
-  ipcMain.handle(channel, (event, frame) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
-    return handler(frameSchema.parse(frame));
+): void => {
+  ipcMain.handle(channel, async (event, frame) => {
+    if (!fromMainWindow(event)) {
+      throw new Error("refused");
+    }
+    return await handler(frameSchema.parse(frame));
   });
-}
+};
 
 // a channel carrying no frame
 const noFrame = z.undefined();
 
-async function askToRestart(version: string): Promise<void> {
-  const { response } = await dialog.showMessageBox({
-    type: "info",
-    title: "Update ready",
-    message: `Inteligir ${version} is ready to install.`,
-    detail: "The app restarts to finish. Your notes are saved first.",
-    buttons: ["Restart now", "Later"],
-    defaultId: 0,
-    cancelId: 1,
-  });
-  if (response === 0) {
-    await installUpdate();
-  }
-}
-
-function logUpdater(message: string): void {
-  console.log(`[updater] ${message}`);
-}
+// the page names an entry vault-relative; main resolves it against the vault of the moment
+// and hands the OS nothing the vault does not physically contain. registered once per
+// launch: a second `handle` on a channel throws, so the handlers read the current vault
+const configurePathActionsIpc = (): void => {
+  const resolve = (request: PathActionRequest) =>
+    resolveVaultEntry({
+      path: request.path,
+      realpath: realpathSync,
+      vaultDir: requireTarget().vaultDir,
+    });
+  handleFromMainWindow(
+    IPC_CHANNELS.REVEAL_PATH,
+    pathActionRequestSchema,
+    (frame): PathActionResult => {
+      const verdict = resolve(frame);
+      if (!verdict.ok) {
+        return verdict;
+      }
+      shell.showItemInFolder(verdict.absPath);
+      return { ok: true };
+    },
+  );
+  handleFromMainWindow(
+    IPC_CHANNELS.OPEN_PATH,
+    pathActionRequestSchema,
+    async (frame): Promise<PathActionResult> => {
+      const verdict = resolve(frame);
+      if (!verdict.ok) {
+        return verdict;
+      }
+      // answers "" when the OS took the file, else its own words for why not
+      const refusal = await shell.openPath(verdict.absPath);
+      return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
+    },
+  );
+};
 
 // the server is already down when this fails, so the honest move is to say so and quit
-async function installUpdate(): Promise<void> {
-  if (updates === null) return;
+const installUpdate = async (): Promise<void> => {
+  if (updates === null) {
+    return;
+  }
   const outcome = await updates.install();
   if (outcome.kind === "failed") {
     dialog.showErrorBox(
@@ -392,30 +385,59 @@ async function installUpdate(): Promise<void> {
     );
     app.quit();
   }
-}
+};
 
-async function checkForUpdatesFromMenu(): Promise<void> {
-  if (updates === null) return;
+const askToRestart = async (version: string): Promise<void> => {
+  const { response } = await dialog.showMessageBox({
+    buttons: ["Restart now", "Later"],
+    cancelId: 1,
+    defaultId: 0,
+    detail: "The app restarts to finish. Your notes are saved first.",
+    message: `Inteligir ${version} is ready to install.`,
+    title: "Update ready",
+    type: "info",
+  });
+  if (response === 0) {
+    await installUpdate();
+  }
+};
+
+const logUpdater = (message: string): void => {
+  console.log(`[updater] ${message}`);
+};
+
+const checkForUpdatesFromMenu = async (): Promise<void> => {
+  if (updates === null) {
+    return;
+  }
   const state = await updates.check("menu");
   switch (state.status) {
-    case "up-to-date":
+    case "idle":
+    case "checking":
+    case "downloading": {
+      return;
+    }
+    case "up-to-date": {
       await dialog.showMessageBox({
-        type: "info",
-        title: "You're up to date",
-        message: `Inteligir ${state.currentVersion} is the newest version.`,
         buttons: ["OK"],
+        message: `Inteligir ${state.currentVersion} is the newest version.`,
+        title: "You're up to date",
+        type: "info",
       });
       return;
+    }
     case "available": {
       const { response } = await dialog.showMessageBox({
-        type: "info",
-        title: "Update available",
-        message: `Inteligir ${state.availableVersion ?? ""} is available.`,
         buttons: ["Download", "Later"],
-        defaultId: 0,
         cancelId: 1,
+        defaultId: 0,
+        message: `Inteligir ${state.availableVersion ?? ""} is available.`,
+        title: "Update available",
+        type: "info",
       });
-      if (response !== 0) return;
+      if (response !== 0) {
+        return;
+      }
       const downloaded = await updates.download();
       if (downloaded.status === "downloaded" && downloaded.downloadedVersion !== null) {
         await askToRestart(downloaded.downloadedVersion);
@@ -427,131 +449,137 @@ async function checkForUpdatesFromMenu(): Promise<void> {
       }
       return;
     }
-    case "downloaded":
+    case "downloaded": {
       await askToRestart(state.downloadedVersion ?? "");
       return;
+    }
     case "disabled":
-    case "error":
+    case "error": {
       await dialog.showMessageBox({
-        type: "warning",
-        title: state.status === "disabled" ? "Updates are off" : "Update check failed",
-        message: state.message ?? "Could not check for updates.",
         buttons: ["OK"],
+        message: state.message ?? "Could not check for updates.",
+        title: state.status === "disabled" ? "Updates are off" : "Update check failed",
+        type: "warning",
       });
       return;
-    case "idle":
-    case "checking":
-    case "downloading":
-      return;
+    }
+    default: {
+      const exhaustive: never = state.status;
+      return exhaustive;
+    }
   }
-}
+};
 
-function electronUpdaterPort(): UpdaterPort {
-  return {
-    disarmAutomation() {
-      autoUpdater.autoDownload = false;
-      autoUpdater.autoInstallOnAppQuit = false;
-    },
-    checkForUpdates: () => autoUpdater.checkForUpdates(),
-    downloadUpdate: () => autoUpdater.downloadUpdate(),
-    quitAndInstall(isSilent, isForceRunAfter) {
-      autoUpdater.quitAndInstall(isSilent, isForceRunAfter);
-    },
-    subscribe(handlers) {
-      autoUpdater.on("update-available", handlers.updateAvailable);
-      autoUpdater.on("update-not-available", handlers.updateNotAvailable);
-      autoUpdater.on("download-progress", handlers.downloadProgress);
-      autoUpdater.on("update-downloaded", handlers.updateDownloaded);
-      autoUpdater.on("error", handlers.error);
-    },
-  };
-}
+const electronUpdaterPort = (): UpdaterPort => ({
+  checkForUpdates: async () => await autoUpdater.checkForUpdates(),
+  disarmAutomation() {
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+  },
+  downloadUpdate: async () => await autoUpdater.downloadUpdate(),
+  quitAndInstall(isSilent, isForceRunAfter) {
+    autoUpdater.quitAndInstall(isSilent, isForceRunAfter);
+  },
+  subscribe(handlers) {
+    autoUpdater.on("update-available", handlers.updateAvailable);
+    autoUpdater.on("update-not-available", handlers.updateNotAvailable);
+    autoUpdater.on("download-progress", handlers.downloadProgress);
+    autoUpdater.on("update-downloaded", handlers.updateDownloaded);
+    autoUpdater.on("error", handlers.error);
+  },
+});
 
-function configureUpdates(): Updates {
+const configureUpdates = (): Updates => {
   autoUpdater.logger = {
-    info: (message?: string) => logUpdater(message ?? ""),
-    warn: (message?: string) => logUpdater(`warn: ${message ?? ""}`),
-    error: (message?: string) => logUpdater(`error: ${message ?? ""}`),
+    error: (message?: string) => {
+      logUpdater(`error: ${message ?? ""}`);
+    },
+    info: (message?: string) => {
+      logUpdater(message ?? "");
+    },
+    warn: (message?: string) => {
+      logUpdater(`warn: ${message ?? ""}`);
+    },
   };
   const created = createUpdates({
-    updater: electronUpdaterPort(),
+    broadcast: (state) => {
+      mainWindow?.webContents.send(IPC_CHANNELS.UPDATE_STATE, state);
+    },
     currentVersion: app.getVersion(),
     disabledReason: updateFeedDisabledReason(),
+    log: logUpdater,
     // an adopted server is nobody's to stop and outlives the shell
     stopServer: async () => {
       await serverProcess?.stop();
     },
-    broadcast: (state) => {
-      mainWindow?.webContents.send(IPC_CHANNELS.UPDATE_STATE, state);
-    },
-    log: logUpdater,
+    updater: electronUpdaterPort(),
   });
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_GET_STATE, noFrame, () => {
-    return created.state();
-  });
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_CHECK, noFrame, () => {
-    return created.check("settings");
-  });
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_DOWNLOAD, noFrame, () => {
-    return created.download();
-  });
+  handleFromMainWindow(IPC_CHANNELS.UPDATE_GET_STATE, noFrame, () => created.state());
+  handleFromMainWindow(
+    IPC_CHANNELS.UPDATE_CHECK,
+    noFrame,
+    async () => await created.check("settings"),
+  );
+  handleFromMainWindow(IPC_CHANNELS.UPDATE_DOWNLOAD, noFrame, async () => await created.download());
   handleFromMainWindow(IPC_CHANNELS.UPDATE_INSTALL, noFrame, async () => {
     await installUpdate();
     return created.state();
   });
   return created;
-}
+};
 
-function requireSpellcheck(): Spellcheck {
+const requireSpellcheck = (): Spellcheck => {
   if (spellcheck === null) {
     throw new Error("no window session yet");
   }
   return spellcheck;
-}
+};
 
 // registered once per launch: a second `handle` on a channel throws, so every handler reads
 // the vault of the moment rather than closing over the first one
-function configureSpellcheckIpc(): void {
-  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_GET_STATE, noFrame, () => {
-    return requireSpellcheck().state();
-  });
+const configureSpellcheckIpc = (): void => {
+  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_GET_STATE, noFrame, () =>
+    requireSpellcheck().state(),
+  );
   // the frame is parsed here, at the boundary: the page's choice reaches the session typed or not at all
-  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_APPLY, spellcheckChoiceSchema, (frame) => {
-    return requireSpellcheck().apply(frame);
-  });
-}
+  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_APPLY, spellcheckChoiceSchema, (frame) =>
+    requireSpellcheck().apply(frame),
+  );
+};
 
-function vaultsState(): VaultsState {
+const vaultsState = (): VaultsState => {
   const target = requireTarget();
-  const blocked = switchBlockedBy({ ownsServer: serverProcess !== null, current: target });
+  const blocked = switchBlockedBy({ current: target, ownsServer: serverProcess !== null });
   return {
+    blocked: blocked === null ? null : switchRefusalMessage(blocked),
     current: vaultRef(target.vaultDir),
     // a folder that is gone (an unmounted drive) stays remembered and stays off the list
     recent: recentVaults
-      .filter((path) => path !== target.vaultDir && existsSync(path))
+      .filter((vaultDir) => vaultDir !== target.vaultDir && existsSync(vaultDir))
       .map(vaultRef),
-    blocked: blocked === null ? null : switchRefusalMessage(blocked),
   };
-}
+};
 
-function setRecentVaults(next: string[]): void {
+const setRecentVaults = (next: string[]): void => {
   recentVaults = next;
   if (recentVaultsPath !== null) {
     try {
       writeRecentVaults(recentVaultsPath, next);
-    } catch (cause) {
-      console.warn("[desktop] could not write the recent-vaults list", cause);
+    } catch (error) {
+      console.warn("[desktop] could not write the recent-vaults list", error);
     }
   }
+  // a menu click switches vaults, and a switch rebuilds the menu: the cycle is inherent
+  // oxlint-disable-next-line no-use-before-define -- see above
   configureApplicationMenu();
-}
+};
 
-function rememberCurrentVault(): void {
+const rememberCurrentVault = (): void => {
   setRecentVaults(rememberVault(recentVaults, requireTarget().vaultDir));
-}
+};
 
 // the server first, then the session it answers on, then the window that loads from it
-async function bootVault(target: ServerTarget): Promise<void> {
+const bootVault = async (target: ServerTarget): Promise<void> => {
   currentTarget = target;
   await startServer(target);
   // everything below names the origin the server answered on, which an adopted one chose.
@@ -562,16 +590,16 @@ async function bootVault(target: ServerTarget): Promise<void> {
   prepareWindowSession(target, server);
   rememberCurrentVault();
   mainWindow = createWindow(target);
-}
+};
 
-async function switchVault(vaultDir: string): Promise<void> {
+const switchVault = async (vaultDir: string): Promise<void> => {
   const previous = requireTarget();
-  const plan = planVaultSwitch({ ownsServer: serverProcess !== null, current: previous }, vaultDir);
+  const plan = planVaultSwitch({ current: previous, ownsServer: serverProcess !== null }, vaultDir);
   if (plan.kind === "refused") {
     throw new Error(switchRefusalMessage(plan.reason));
   }
   // resolved and refused exactly as a boot would, before anything moves
-  const candidate = resolveServerTarget({ isPackaged: app.isPackaged, env: process.env, vaultDir });
+  const candidate = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged, vaultDir });
   if (candidate.kind === "refused") {
     throw new Error(candidate.error);
   }
@@ -584,44 +612,44 @@ async function switchVault(vaultDir: string): Promise<void> {
     await stopOwnedServer();
     writeManagedVaultDir(previous.rootDataDir, candidate.target.vaultDir);
     // re-read rather than reused: the child boots on what config.json now says, as the CLI would
-    const next = resolveServerTarget({ isPackaged: app.isPackaged, env: process.env });
+    const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
     if (next.kind === "refused") {
       throw new Error(next.error);
     }
     try {
       await bootVault(next.target);
-    } catch (cause) {
-      console.error("[desktop] the vault did not open; returning to the previous one", cause);
+    } catch (error) {
+      console.error("[desktop] the vault did not open; returning to the previous one", error);
       writeManagedVaultDir(previous.rootDataDir, previous.vaultDir);
       await stopOwnedServer();
       try {
         await bootVault(previous);
-      } catch (again) {
+      } catch (reopenError) {
         dialog.showErrorBox(
           "Inteligir could not reopen the vault",
-          `${toErrorMessage(again)} Reopen Inteligir to continue.`,
+          `${toErrorMessage(reopenError)} Reopen Inteligir to continue.`,
         );
         app.quit();
-        throw again;
+        throw reopenError;
       }
       previousWindow?.close();
-      throw new Error(`Could not open ${candidate.target.vaultDir}: ${toErrorMessage(cause)}`, {
-        cause,
+      throw new Error(`Could not open ${candidate.target.vaultDir}: ${toErrorMessage(error)}`, {
+        cause: error,
       });
     }
   } finally {
     switching = false;
   }
   previousWindow?.close();
-}
+};
 
 // the folder is the user's pick, made in main: the page never names a path it was not handed
-async function pickVaultDir(): Promise<string | null> {
+const pickVaultDir = async (): Promise<string | null> => {
   const options: Electron.OpenDialogOptions = {
-    title: "Open vault",
     buttonLabel: "Open vault",
+    defaultPath: path.dirname(requireTarget().vaultDir),
     properties: ["openDirectory", "createDirectory"],
-    defaultPath: dirname(requireTarget().vaultDir),
+    title: "Open vault",
   };
   const picked =
     mainWindow === null
@@ -631,27 +659,25 @@ async function pickVaultDir(): Promise<string | null> {
     return null;
   }
   return picked.filePaths[0] ?? null;
-}
+};
 
-async function switchVaultFromMenu(vaultDir: string): Promise<void> {
+const switchVaultFromMenu = async (vaultDir: string): Promise<void> => {
   try {
     await switchVault(vaultDir);
-  } catch (cause) {
-    dialog.showErrorBox("Could not open the vault", toErrorMessage(cause));
+  } catch (error) {
+    dialog.showErrorBox("Could not open the vault", toErrorMessage(error));
   }
-}
+};
 
-async function pickAndSwitchFromMenu(): Promise<void> {
+const pickAndSwitchFromMenu = async (): Promise<void> => {
   const picked = await pickVaultDir();
   if (picked !== null) {
     await switchVaultFromMenu(picked);
   }
-}
+};
 
-function configureVaultsIpc(): void {
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_GET_STATE, noFrame, () => {
-    return vaultsState();
-  });
+const configureVaultsIpc = (): void => {
+  handleFromMainWindow(IPC_CHANNELS.VAULTS_GET_STATE, noFrame, () => vaultsState());
   handleFromMainWindow(IPC_CHANNELS.VAULTS_PICK, noFrame, async () => {
     const picked = await pickVaultDir();
     if (picked !== null) {
@@ -660,29 +686,29 @@ function configureVaultsIpc(): void {
     return vaultsState();
   });
   // only a path this process handed out comes back: the list is the page's whole vocabulary
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_OPEN, vaultPathSchema, async (path) => {
-    if (!recentVaults.includes(path)) {
+  handleFromMainWindow(IPC_CHANNELS.VAULTS_OPEN, vaultPathSchema, async (vaultDir) => {
+    if (!recentVaults.includes(vaultDir)) {
       throw new Error("That vault is not one the app remembers.");
     }
-    await switchVault(path);
+    await switchVault(vaultDir);
     return vaultsState();
   });
   handleFromMainWindow(IPC_CHANNELS.VAULTS_FORGET, vaultPathSchema, (frame) => {
     setRecentVaults(forgetVault(recentVaults, frame));
     return vaultsState();
   });
-}
+};
 
-function configureApplicationMenu(): void {
+const configureApplicationMenu = (): void => {
   const current = currentTarget?.vaultDir ?? null;
   const recentItems: MenuItemConstructorOptions[] = recentVaults
-    .filter((path) => path !== current)
-    .map((path) => ({
-      label: vaultRef(path).name,
-      sublabel: path,
+    .filter((vaultDir) => vaultDir !== current)
+    .map((vaultDir) => ({
       click: () => {
-        void switchVaultFromMenu(path);
+        void switchVaultFromMenu(vaultDir);
       },
+      label: vaultRef(vaultDir).name,
+      sublabel: vaultDir,
     }));
   const template: MenuItemConstructorOptions[] = [
     {
@@ -690,13 +716,18 @@ function configureApplicationMenu(): void {
       submenu: [
         { role: "about" },
         {
-          label: "Check for Updates…",
           click: () => {
             void checkForUpdatesFromMenu();
           },
+          label: "Check for Updates…",
         },
         { type: "separator" },
-        { label: "Open Data Folder", click: () => openDataDir() },
+        {
+          click: () => {
+            openDataDir();
+          },
+          label: "Open Data Folder",
+        },
         { type: "separator" },
         { role: "services" },
         { type: "separator" },
@@ -711,14 +742,14 @@ function configureApplicationMenu(): void {
       label: "File",
       submenu: [
         {
-          label: "Open Vault…",
           click: () => {
             void pickAndSwitchFromMenu();
           },
+          label: "Open Vault…",
         },
         {
-          label: "Open Recent Vault",
           enabled: recentItems.length > 0,
+          label: "Open Recent Vault",
           submenu: recentItems,
         },
         { type: "separator" },
@@ -732,23 +763,23 @@ function configureApplicationMenu(): void {
       role: "help",
       submenu: [
         {
-          label: "Open in Browser",
           click: () => {
             if (live !== null) {
               void shell.openExternal(`${live.origin}/`);
             }
           },
+          label: "Open in Browser",
         },
       ],
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-}
+};
 
-function createTray(): Tray | null {
+const createTray = (): Tray | null => {
   const icon = nativeImage
-    .createFromPath(join(app.getAppPath(), "resources", "icon.png"))
-    .resize({ width: 16, height: 16 });
+    .createFromPath(path.join(app.getAppPath(), "resources", "icon.png"))
+    .resize({ height: 16, width: 16 });
   if (icon.isEmpty()) {
     console.error("[desktop] tray icon missing — skipping the tray");
     return null;
@@ -758,28 +789,45 @@ function createTray(): Tray | null {
   created.setToolTip(APP_DISPLAY_NAME);
   created.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `Show ${APP_DISPLAY_NAME}`, click: () => showMainWindow() },
-      { label: "Hide", click: () => mainWindow?.hide() },
+      {
+        click: () => {
+          showMainWindow();
+        },
+        label: `Show ${APP_DISPLAY_NAME}`,
+      },
+      {
+        click: () => {
+          mainWindow?.hide();
+        },
+        label: "Hide",
+      },
       { type: "separator" },
-      { label: "Open Data Folder", click: () => openDataDir() },
+      {
+        click: () => {
+          openDataDir();
+        },
+        label: "Open Data Folder",
+      },
       { type: "separator" },
       { role: "quit" },
     ]),
   );
-  created.on("click", () => showMainWindow());
+  created.on("click", () => {
+    showMainWindow();
+  });
   return created;
-}
+};
 
-async function onAppReady(target: ServerTarget): Promise<void> {
+const onAppReady = async (target: ServerTarget): Promise<void> => {
   app.setName(APP_DISPLAY_NAME);
   app.setAboutPanelOptions({
     applicationName: APP_DISPLAY_NAME,
     applicationVersion: app.getVersion(),
   });
-  recentVaultsPath = join(app.getPath("userData"), RECENT_VAULTS_FILE_NAME);
-  recentVaults = readRecentVaults(recentVaultsPath, (message) =>
-    console.warn(`[desktop] ${message}`),
-  );
+  recentVaultsPath = path.join(app.getPath("userData"), RECENT_VAULTS_FILE_NAME);
+  recentVaults = readRecentVaults(recentVaultsPath, (message) => {
+    console.warn(`[desktop] ${message}`);
+  });
   ipcMain.on(IPC_CHANNELS.SOCKET_ORIGIN, (event) => {
     event.returnValue = live?.origin ?? "";
   });
@@ -791,9 +839,31 @@ async function onAppReady(target: ServerTarget): Promise<void> {
   updates = configureUpdates();
   await bootVault(target);
   updates.start();
-}
+};
 
-const target = resolveServerTarget({ isPackaged: app.isPackaged, env: process.env });
+// the tray goes with the server: once the child is down there is nothing left to show
+const quitAfterTeardown = async (owned: ServerProcess): Promise<void> => {
+  try {
+    await owned.stop();
+  } finally {
+    tray?.destroy();
+    tray = null;
+    app.quit();
+  }
+};
+
+const startApp = async (target: ServerTarget): Promise<void> => {
+  try {
+    await app.whenReady();
+    await onAppReady(target);
+  } catch (error) {
+    console.error("[desktop] fatal startup error", error);
+    dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
+    app.quit();
+  }
+};
+
+const target = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
 if (target.kind === "refused") {
   dialog.showErrorBox("Inteligir failed to start", target.error);
   app.exit(2);
@@ -805,7 +875,9 @@ if (target.kind === "refused") {
   });
 
   // empty on purpose: closing the last window hides to the tray; Electron's default handler would quit.
-  app.on("window-all-closed", () => {});
+  app.on("window-all-closed", () => {
+    /* empty */
+  });
 
   // the child's SIGTERM teardown flushes the vault's pending commit; `before-quit` is where it still has time to run.
   let teardown: Promise<void> | null = null;
@@ -814,29 +886,18 @@ if (target.kind === "refused") {
       return;
     }
     event.preventDefault();
-    teardown = serverProcess.stop().finally(() => {
-      tray?.destroy();
-      tray = null;
-      app.quit();
-    });
+    teardown = quitAfterTeardown(serverProcess);
   });
 
   // two shells would race for the port and the loser would adopt the winner's server.
-  if (!app.requestSingleInstanceLock()) {
-    app.quit();
-  } else {
+  if (app.requestSingleInstanceLock()) {
     app.on("second-instance", () => {
       if (live !== null) {
         showMainWindow();
       }
     });
-    app
-      .whenReady()
-      .then(() => onAppReady(target.target))
-      .catch((cause: unknown) => {
-        console.error("[desktop] fatal startup error", cause);
-        dialog.showErrorBox("Inteligir failed to start", toErrorMessage(cause));
-        app.quit();
-      });
+    void startApp(target.target);
+  } else {
+    app.quit();
   }
 }

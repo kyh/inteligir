@@ -1,23 +1,23 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { errnoCode } from "./errno";
 
 const MARKER_FILE_NAME = "checkout-path";
 
 // the instance id is a truncated hash, so two colliding checkouts would silently share
 // one sqlite file; the marker turns that into a refusal.
-export function ensureDevDataDirOwnership(dataDir: string, checkoutPath: string): void {
+export const ensureDevDataDirOwnership = (dataDir: string, checkoutPath: string): void => {
   mkdirSync(dataDir, { recursive: true });
-  const markerPath = join(dataDir, MARKER_FILE_NAME);
+  const markerPath = path.join(dataDir, MARKER_FILE_NAME);
 
   let existing: string;
   try {
-    existing = readFileSync(markerPath, "utf8");
+    existing = readFileSync(markerPath, "utf-8");
   } catch (error) {
     if (errnoCode(error) !== "ENOENT") {
       throw error;
     }
-    writeFileSync(markerPath, `${checkoutPath}\n`, "utf8");
+    writeFileSync(markerPath, `${checkoutPath}\n`, "utf-8");
     return;
   }
 
@@ -30,4 +30,4 @@ export function ensureDevDataDirOwnership(dataDir: string, checkoutPath: string)
         `INTELIGIR_DATA_DIR to give this checkout its own data dir.`,
     );
   }
-}
+};

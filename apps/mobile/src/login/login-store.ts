@@ -1,6 +1,9 @@
-import { describeCloudFailure, type CloudEndpoint } from "@repo/api/cloud/client";
-import { loginDevice, type DeviceCredentialStore } from "@repo/api/cloud/device/login-flow";
-import { createExternalStore, type ReadableStore } from "../lib/external-store";
+import { describeCloudFailure } from "@repo/api/cloud/client";
+import type { CloudEndpoint } from "@repo/api/cloud/client";
+import { loginDevice } from "@repo/api/cloud/device/login-flow";
+import type { DeviceCredentialStore } from "@repo/api/cloud/device/login-flow";
+import { createExternalStore } from "../lib/external-store";
+import type { ReadableStore } from "../lib/external-store";
 
 export type LoginState =
   | { kind: "idle" }
@@ -19,17 +22,19 @@ export interface LoginStoreArgs {
 }
 
 export interface LoginStore extends ReadableStore<LoginState> {
-  login(request: LoginRequest): Promise<void>;
+  login: (request: LoginRequest) => Promise<void>;
 }
 
 // the one store the screen reads: a refusal on the wire and a store that cannot write both
 // land here, so each is shown rather than dropped
-export function createLoginStore(args: LoginStoreArgs): LoginStore {
+export const createLoginStore = (args: LoginStoreArgs): LoginStore => {
   const state = createExternalStore<LoginState>({ kind: "idle" });
 
-  async function login(request: LoginRequest): Promise<void> {
+  const login = async (request: LoginRequest): Promise<void> => {
     // a second tap while the first is in flight is the same sign-in
-    if (state.get().kind === "signing-in") return;
+    if (state.get().kind === "signing-in") {
+      return;
+    }
     state.set({ kind: "signing-in" });
     try {
       const outcome = await loginDevice({ client: args.client, store: args.store, ...request });
@@ -44,7 +49,7 @@ export function createLoginStore(args: LoginStoreArgs): LoginStore {
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }
+  };
 
-  return { subscribe: state.subscribe, get: state.get, login };
-}
+  return { get: state.get, login, subscribe: state.subscribe };
+};

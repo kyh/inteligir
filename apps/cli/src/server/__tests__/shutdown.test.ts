@@ -11,30 +11,34 @@ import {
   SHUTDOWN_TIMEOUT_MS,
   shutdownDeadlineMs,
   TEARDOWN_BUDGETS_MS,
-  type FatalEvent,
-  type ShutdownStep,
 } from "../shutdown";
+import type { FatalEvent, ShutdownStep } from "../shutdown";
 
-function wedgedStep(name: string, timeoutMs: number): ShutdownStep {
-  return { name, timeoutMs, run: () => new Promise<void>(() => {}) };
-}
+// a step the timeout has to end: nothing ever settles this.
+const wedged = async (): Promise<void> => {
+  await Promise.withResolvers<never>().promise;
+};
 
-function recordingStep(name: string, log: string[], run?: () => Promise<void>): ShutdownStep {
-  return {
-    name,
-    async run() {
-      log.push(name);
-      await run?.();
-    },
-  };
-}
+const wedgedStep = (name: string, timeoutMs: number): ShutdownStep => ({
+  name,
+  run: wedged,
+  timeoutMs,
+});
+
+const recordingStep = (name: string, log: string[], run?: () => Promise<void>): ShutdownStep => ({
+  name,
+  async run() {
+    log.push(name);
+    await run?.();
+  },
+});
 
 const quiet = {
   onStepFailed: () => {},
   onTimeout: () => {},
 };
 
-function fakeTarget() {
+const fakeTarget = () => {
   const handlers = new Map<NodeJS.Signals, () => void>();
   const exits: number[] = [];
   return {
@@ -44,15 +48,15 @@ function fakeTarget() {
     },
     registered: () => [...handlers.keys()],
     target: {
-      on(signal: NodeJS.Signals, handler: () => void) {
-        handlers.set(signal, handler);
-      },
       exit(code: number) {
         exits.push(code);
       },
+      on(signal: NodeJS.Signals, handler: () => void) {
+        handlers.set(signal, handler);
+      },
     },
   };
-}
+};
 
 describe("createGracefulShutdown", () => {
   it("runs the steps in declaration order", async () => {
@@ -68,7 +72,7 @@ describe("createGracefulShutdown", () => {
       ],
     });
 
-    await expect(shutdown.run()).resolves.toEqual({ ok: true, failed: [] });
+    await expect(shutdown.run()).resolves.toEqual({ failed: [], ok: true });
     expect(log).toEqual(["listener", "agent", "knowledge", "vault", "db"]);
   });
 
@@ -76,18 +80,22 @@ describe("createGracefulShutdown", () => {
     const log: string[] = [];
     const failures: string[] = [];
     const shutdown = createGracefulShutdown({
+      onStepFailed: (name) => {
+        failures.push(name);
+      },
       onTimeout: () => {},
-      onStepFailed: (name) => failures.push(name),
       steps: [
         {
           name: "listener",
-          run: () => Promise.reject(new Error("socket refused to close")),
+          run: () => {
+            throw new Error("socket refused to close");
+          },
         },
         recordingStep("vault", log),
       ],
     });
 
-    await expect(shutdown.run()).resolves.toEqual({ ok: false, failed: ["listener"] });
+    await expect(shutdown.run()).resolves.toEqual({ failed: ["listener"], ok: false });
     expect(failures).toEqual(["listener"]);
     expect(log).toEqual(["vault"]);
   });
@@ -99,7 +107,11 @@ describe("createGracefulShutdown", () => {
       const shutdown = createGracefulShutdown({
         ...quiet,
         steps: [
-          { name: "listener", timeoutMs: 1_000, run: () => new Promise<void>(() => {}) },
+          {
+            name: "listener",
+            run: wedged,
+            timeoutMs: 1000,
+          },
           recordingStep("agent", log),
           recordingStep("vault", log),
           recordingStep("db", log),
@@ -107,8 +119,8 @@ describe("createGracefulShutdown", () => {
       });
 
       const settled = shutdown.run();
-      await vi.advanceTimersByTimeAsync(1_000);
-      await expect(settled).resolves.toEqual({ ok: false, failed: ["listener"] });
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(settled).resolves.toEqual({ failed: ["listener"], ok: false });
       expect(log).toEqual(["agent", "vault", "db"]);
     } finally {
       vi.useRealTimers();
@@ -120,12 +132,20 @@ describe("createGracefulShutdown", () => {
     try {
       const errors: string[] = [];
       const shutdown = createGracefulShutdown({
+        onStepFailed: (_name, error) => {
+          errors.push(error instanceof Error ? error.message : "");
+        },
         onTimeout: () => {},
-        onStepFailed: (_name, error) => errors.push(error instanceof Error ? error.message : ""),
-        steps: [{ name: "vault", timeoutMs: 2_500, run: () => new Promise<void>(() => {}) }],
+        steps: [
+          {
+            name: "vault",
+            run: wedged,
+            timeoutMs: 2500,
+          },
+        ],
       });
       const settled = shutdown.run();
-      await vi.advanceTimersByTimeAsync(2_500);
+      await vi.advanceTimersByTimeAsync(2500);
       await settled;
       expect(errors).toEqual(["vault did not finish within 2500ms"]);
     } finally {
@@ -156,11 +176,11 @@ describe("createGracefulShutdown", () => {
     vi.useFakeTimers();
     try {
       const steps = [
-        wedgedStep("listener", 5_000),
-        wedgedStep("agent", 5_000),
-        wedgedStep("knowledge", 5_000),
-        wedgedStep("vault", 8_000),
-        wedgedStep("db", 5_000),
+        wedgedStep("listener", 5000),
+        wedgedStep("agent", 5000),
+        wedgedStep("knowledge", 5000),
+        wedgedStep("vault", 8000),
+        wedgedStep("db", 5000),
       ];
       let timedOut = false;
       const shutdown = createGracefulShutdown({
@@ -174,8 +194,8 @@ describe("createGracefulShutdown", () => {
       const settled = shutdown.run();
       await vi.advanceTimersByTimeAsync(shutdownDeadlineMs(steps));
       await expect(settled).resolves.toEqual({
-        ok: false,
         failed: ["listener", "agent", "knowledge", "vault", "db"],
+        ok: false,
       });
       expect(timedOut).toBe(false);
     } finally {
@@ -188,11 +208,15 @@ describe("createGracefulShutdown", () => {
     try {
       const steps: ShutdownStep[] = [];
       const shutdown = createGracefulShutdown({ ...quiet, steps });
-      steps.push({ name: "vault", timeoutMs: 8_000, run: () => new Promise<void>(() => {}) });
+      steps.push({
+        name: "vault",
+        run: wedged,
+        timeoutMs: 8000,
+      });
 
       const settled = shutdown.run();
-      await vi.advanceTimersByTimeAsync(8_000);
-      await expect(settled).resolves.toEqual({ ok: false, failed: ["vault"] });
+      await vi.advanceTimersByTimeAsync(8000);
+      await expect(settled).resolves.toEqual({ failed: ["vault"], ok: false });
     } finally {
       vi.useRealTimers();
     }
@@ -214,10 +238,10 @@ describe("installShutdownSignals", () => {
     const shutdown = createGracefulShutdown({ ...quiet, steps: [recordingStep("vault", log)] });
 
     installShutdownSignals({
-      shutdown,
-      target: fake.target,
       onImpatient: () => {},
       onUncleanExit: () => {},
+      shutdown,
+      target: fake.target,
     });
     expect(fake.registered()).toEqual([...SHUTDOWN_SIGNALS]);
 
@@ -234,14 +258,23 @@ describe("installShutdownSignals", () => {
     const reported: string[][] = [];
     const shutdown = createGracefulShutdown({
       ...quiet,
-      steps: [{ name: "db", run: () => Promise.reject(new Error("disk I/O error")) }],
+      steps: [
+        {
+          name: "db",
+          run: () => {
+            throw new Error("disk I/O error");
+          },
+        },
+      ],
     });
 
     installShutdownSignals({
+      onImpatient: () => {},
+      onUncleanExit: (failed) => {
+        reported.push([...failed]);
+      },
       shutdown,
       target: fake.target,
-      onImpatient: () => {},
-      onUncleanExit: (failed) => reported.push([...failed]),
     });
 
     fake.raise("SIGTERM");
@@ -259,10 +292,12 @@ describe("installShutdownSignals", () => {
     const shutdown = createGracefulShutdown({ ...quiet, steps: [recordingStep("vault", log)] });
 
     installShutdownSignals({
+      onImpatient: (signal) => {
+        impatient.push(signal);
+      },
+      onUncleanExit: () => {},
       shutdown,
       target: fake.target,
-      onImpatient: (signal) => impatient.push(signal),
-      onUncleanExit: () => {},
     });
 
     fake.raise("SIGINT");
@@ -274,7 +309,7 @@ describe("installShutdownSignals", () => {
   });
 });
 
-function fakeFatalTarget() {
+const fakeFatalTarget = () => {
   const handlers = new Map<FatalEvent, (cause: unknown) => void>();
   const exits: number[] = [];
   return {
@@ -284,20 +319,20 @@ function fakeFatalTarget() {
     },
     registered: () => [...handlers.keys()],
     target: {
-      on(event: FatalEvent, handler: (cause: unknown) => void) {
-        handlers.set(event, handler);
-      },
       exit(code: number) {
         exits.push(code);
       },
+      on(event: FatalEvent, handler: (cause: unknown) => void) {
+        handlers.set(event, handler);
+      },
     },
   };
-}
+};
 
 describe("installFatalErrorHandlers", () => {
   it.each(FATAL_EVENTS)("runs the ordinary teardown for %s, then exits non-zero", async (event) => {
     const log: string[] = [];
-    const seen: Array<{ event: FatalEvent; reason: unknown }> = [];
+    const seen: { event: FatalEvent; reason: unknown }[] = [];
     const fake = fakeFatalTarget();
     const shutdown = createGracefulShutdown({
       ...quiet,
@@ -305,9 +340,11 @@ describe("installFatalErrorHandlers", () => {
     });
 
     installFatalErrorHandlers({
+      onFatal: (fatalEvent, reason) => {
+        seen.push({ event: fatalEvent, reason });
+      },
       shutdown,
       target: fake.target,
-      onFatal: (fatalEvent, reason) => seen.push({ event: fatalEvent, reason }),
     });
     expect(fake.registered()).toEqual([...FATAL_EVENTS]);
 
@@ -329,7 +366,7 @@ describe("installFatalErrorHandlers", () => {
       steps: [recordingStep("vault", log)],
     });
 
-    installFatalErrorHandlers({ shutdown, target: fake.target, onFatal: () => {} });
+    installFatalErrorHandlers({ onFatal: () => {}, shutdown, target: fake.target });
 
     void shutdown.run();
     fake.raise("uncaughtException", new Error("boom"));
@@ -344,7 +381,7 @@ describe("installFatalErrorHandlers", () => {
 describe("the composed teardown", () => {
   it("holds every budgeted step in the budgets table's order once the listener joins", async () => {
     const { composed } = await bootTestApp();
-    registerListener(composed.teardown, () => Promise.resolve());
+    registerListener(composed.teardown, async () => {});
     expect(
       composed.teardown.map((step) => step.name),
       "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets in the table's own order (it is written in teardown order), and registerListener must put the one step only a bound port can add at the FRONT — the listener closes the sockets before the vault flush behind it",
@@ -363,14 +400,14 @@ describe("the composed teardown", () => {
   });
 
   // two tests in order: the harness's afterEach runs between them, and the second observes what it released.
-  describe.sequential("a boot the driver dial refuses", () => {
+  describe("a boot the driver dial refuses", { concurrent: false }, () => {
     let db: DbConnection | null = null;
 
     it("rejects with the refusal, its database open at that moment", async () => {
       await expect(
         bootTestApp({
           makeDriver: (deps) => {
-            db = deps.db;
+            ({ db } = deps);
             throw new Error("driver refused");
           },
         }),

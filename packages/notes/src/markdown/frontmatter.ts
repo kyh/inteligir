@@ -11,35 +11,39 @@ type YamlValue = z.infer<typeof yamlValue>;
 const propertiesSchema = z.record(z.string(), yamlValue);
 type Properties = z.infer<typeof propertiesSchema>;
 
-export type SplitDoc = {
+export interface SplitDoc {
   properties: Properties;
   body: string;
-};
+}
 
 // remark-frontmatter's default `yaml` fence; the content group is optional so an empty block matches.
-const FRONTMATTER_RE = /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
+const FRONTMATTER_RE = /^---[ \t]*\r?\n(?:(?<yaml>[\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/u;
 
-function parseYamlRecord(source: string): Properties {
+const parseYamlRecord = (source: string): Properties => {
   try {
     const parsed = propertiesSchema.safeParse(parseYaml(source));
     return parsed.success ? parsed.data : {};
   } catch {
     return {};
   }
-}
+};
 
-export function frontmatterYaml(text: string): string | null {
+export const frontmatterYaml = (text: string): string | null => {
   const match = FRONTMATTER_RE.exec(text);
-  if (!match) return null;
-  return match[1] ?? "";
-}
+  if (!match) {
+    return null;
+  }
+  return match.groups?.yaml ?? "";
+};
 
-export function splitFrontmatter(text: string): SplitDoc {
+export const splitFrontmatter = (text: string): SplitDoc => {
   const match = FRONTMATTER_RE.exec(text);
-  if (!match) return { properties: {}, body: text };
+  if (!match) {
+    return { body: text, properties: {} };
+  }
   const body = text.slice(match[0].length);
-  return { properties: parseYamlRecord(match[1] ?? ""), body };
-}
+  return { body, properties: parseYamlRecord(match.groups?.yaml ?? "") };
+};
 
 // yaml 1.2 core schema: `true`/`false` are the only booleans (yes/no/on/off stay text) and
 // dates are recognized only from explicit `YYYY-MM-DD` strings.
@@ -60,14 +64,18 @@ export type ParsedProperties =
   | { kind: "none" };
 
 // no month/day range check: an out-of-range date still edits as a date field rather than being reclassified.
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
 
 // branch order is the precedence; z.number() already rejects NaN/±Infinity.
-function classify(key: string, value: YamlValue, rawYaml: string): TypedProperty {
+const classify = (key: string, value: YamlValue, rawYaml: string): TypedProperty => {
   const checkbox = z.boolean().safeParse(value);
-  if (checkbox.success) return { key, type: "checkbox", value: checkbox.data };
+  if (checkbox.success) {
+    return { key, type: "checkbox", value: checkbox.data };
+  }
   const number = z.number().safeParse(value);
-  if (number.success) return { key, type: "number", value: number.data };
+  if (number.success) {
+    return { key, type: "number", value: number.data };
+  }
   const text = z.string().safeParse(value);
   if (text.success) {
     const parsed = text.data;
@@ -76,12 +84,16 @@ function classify(key: string, value: YamlValue, rawYaml: string): TypedProperty
       : { key, type: "text", value: parsed };
   }
   const tags = z.array(z.string()).safeParse(value);
-  if (tags.success) return { key, type: "tags", value: tags.data };
-  return { key, type: "unsupported", rawYaml };
-}
+  if (tags.success) {
+    return { key, type: "tags", value: tags.data };
+  }
+  return { key, rawYaml, type: "unsupported" };
+};
 
-export function parseProperties(yamlText: string): ParsedProperties {
-  if (yamlText.trim() === "") return { kind: "none" };
+export const parseProperties = (yamlText: string): ParsedProperties => {
+  if (yamlText.trim() === "") {
+    return { kind: "none" };
+  }
   let doc;
   try {
     doc = parseDocument(yamlText);
@@ -89,9 +101,13 @@ export function parseProperties(yamlText: string): ParsedProperties {
     return { kind: "invalid" };
   }
   // duplicate keys surface as document errors too.
-  if (doc.errors.length > 0) return { kind: "invalid" };
-  const contents = doc.contents;
-  if (!isMap(contents)) return { kind: "invalid" };
+  if (doc.errors.length > 0) {
+    return { kind: "invalid" };
+  }
+  const { contents } = doc;
+  if (!isMap(contents)) {
+    return { kind: "invalid" };
+  }
   const properties: TypedProperty[] = [];
   for (const item of contents.items) {
     const keyNode = item.key;
@@ -100,19 +116,21 @@ export function parseProperties(yamlText: string): ParsedProperties {
     // range[0..1] is the value span, excluding the key and trailing node gap.
     const range = valueNode?.range;
     const rawYaml = range ? yamlText.slice(range[0], range[1]).trimEnd() : "";
-    const value = yamlValue.safeParse(valueNode == null ? null : valueNode.toJSON());
+    const value = yamlValue.safeParse(
+      valueNode === null || valueNode === undefined ? null : valueNode.toJSON(),
+    );
     properties.push(
-      value.success ? classify(key, value.data, rawYaml) : { key, type: "unsupported", rawYaml },
+      value.success ? classify(key, value.data, rawYaml) : { key, rawYaml, type: "unsupported" },
     );
   }
   return { kind: "valid", properties };
-}
+};
 
 // A line cut, not a re-serialization: serializeProperties restyles what it re-emits (a flow
 // list's spacing), and a key edit must leave the other keys byte-exact. The key's own lines are
 // its `key:` line and the indented or `- ` lines that continue a block value under it.
-function withoutTopLevelKey(lines: readonly string[], key: string): string[] {
-  const keyLine = new RegExp(`^${key}[ \\t]*:`);
+const withoutTopLevelKey = (lines: readonly string[], key: string): string[] => {
+  const keyLine = new RegExp(`^${key}[ \\t]*:`, "u");
   const kept: string[] = [];
   let inValue = false;
   for (const line of lines) {
@@ -120,75 +138,136 @@ function withoutTopLevelKey(lines: readonly string[], key: string): string[] {
       inValue = true;
       continue;
     }
-    if (inValue && /^[ \t-]/.test(line)) continue;
+    if (inValue && /^[ \t-]/u.test(line)) {
+      continue;
+    }
     inValue = false;
     kept.push(line);
   }
   return kept;
-}
+};
 
 // the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the comment
 // store is keyed by. Text only: a number or a list is not a name.
-export function noteIdOf(parsed: ParsedProperties | null): string | null {
-  if (parsed === null || parsed.kind !== "valid") return null;
+export const noteIdOf = (parsed: ParsedProperties | null): string | null => {
+  if (parsed === null || parsed.kind !== "valid") {
+    return null;
+  }
   const prop = parsed.properties.find((p) => p.key === "id");
-  if (prop === undefined || prop.type !== "text") return null;
+  if (prop === undefined || prop.type !== "text") {
+    return null;
+  }
   const id = prop.value.trim();
   return id === "" ? null : id;
-}
+};
 
-export function frontmatterId(content: string): string | null {
-  return noteIdOf(parseProperties(frontmatterYaml(content) ?? ""));
-}
+export const frontmatterId = (content: string): string | null =>
+  noteIdOf(parseProperties(frontmatterYaml(content) ?? ""));
 
 // uuid-shaped, the form the resolver's id tier already answers
-export function mintNoteId(): string {
-  return globalThis.crypto.randomUUID();
-}
+export const mintNoteId = (): string => globalThis.crypto.randomUUID();
 
 // A line cut like the pin's: `id:` goes first, an empty `id:` is replaced, a note that has one
 // keeps it. null: the frontmatter is not valid YAML, and nothing here may rewrite bytes it
 // cannot read.
-export function withFrontmatterId(content: string, id: string): string | null {
+export const withFrontmatterId = (content: string, id: string): string | null => {
   const yaml = frontmatterYaml(content);
   const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") return null;
-  if (noteIdOf(parsed) !== null) return content;
+  if (parsed.kind === "invalid") {
+    return null;
+  }
+  if (noteIdOf(parsed) !== null) {
+    return content;
+  }
   const lines = yaml === null || yaml === "" ? [] : yaml.split("\n");
   const next = [`id: ${id}`, ...withoutTopLevelKey(lines, "id")];
   return `---\n${next.join("\n")}\n---\n${splitFrontmatter(content).body}`;
-}
+};
 
 // a note minted from a template must not inherit the template's identity: two notes with one
 // `id:` make the `[[Title|uuid]]` tier ambiguous.
-export function removeFrontmatterId(content: string): string {
+export const removeFrontmatterId = (content: string): string => {
   const match = FRONTMATTER_RE.exec(content);
-  if (!match) return content;
-  const lines = (match[1] ?? "").split("\n");
+  if (!match) {
+    return content;
+  }
+  const lines = (match.groups?.yaml ?? "").split("\n");
   const kept = withoutTopLevelKey(lines, "id");
-  if (kept.length === lines.length) return content;
+  if (kept.length === lines.length) {
+    return content;
+  }
   const body = content.slice(match[0].length);
-  if (kept.every((line) => line.trim() === "")) return body;
+  if (kept.every((line) => line.trim() === "")) {
+    return body;
+  }
   return `---\n${kept.join("\n")}\n---\n${body}`;
-}
+};
+
+const typedValue = (prop: TypedProperty) => (prop.type === "unsupported" ? undefined : prop.value);
+
+const valueEqual = (a: YamlValue | undefined, b: ReturnType<typeof typedValue>): boolean => {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => item === b[i]);
+  }
+  return a === b;
+};
+
+// edits the Document parsed from `priorRaw` rather than re-stringifying, so untouched keys
+// (every `unsupported` one) keep their source bytes, comments included.
+export const serializeProperties = (properties: TypedProperty[], priorRaw: string): string => {
+  if (properties.length === 0) {
+    return "";
+  }
+  const doc = parseDocument(priorRaw);
+  const priorValues = parseYamlRecord(priorRaw);
+  if (isMap(doc.contents)) {
+    const desired = new Set(properties.map((prop) => prop.key));
+    const removable = doc.contents.items
+      .map((item) => (isScalar(item.key) ? String(item.key.value) : String(item.key)))
+      .filter((key) => !desired.has(key));
+    for (const key of removable) {
+      doc.delete(key);
+    }
+  }
+  for (const prop of properties) {
+    if (prop.type === "unsupported") {
+      continue;
+    }
+    const next = typedValue(prop);
+    const had = Object.hasOwn(priorValues, prop.key);
+    if (!had || !valueEqual(priorValues[prop.key], next)) {
+      doc.set(prop.key, next);
+    }
+  }
+  // a mapping stringifies with one trailing newline; the frontmatter node value carries none.
+  return doc.toString().replace(/\n$/u, "");
+};
 
 // `alias:` is honored only when it is the doc's only alias list: extraction prefers `aliases`,
 // so minting one beside `alias` would shadow the old entries.
-export function addFrontmatterAlias(content: string, alias: string): string | null {
+export const addFrontmatterAlias = (content: string, alias: string): string | null => {
   const trimmed = alias.trim();
-  if (trimmed === "") return null;
+  if (trimmed === "") {
+    return null;
+  }
   const yaml = frontmatterYaml(content);
   const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") return null;
+  if (parsed.kind === "invalid") {
+    return null;
+  }
   const props = parsed.kind === "valid" ? parsed.properties : [];
   const key =
     props.some((p) => p.key === "aliases") || !props.some((p) => p.key === "alias")
       ? "aliases"
       : "alias";
   const existing = props.find((p) => p.key === key);
-  if (existing !== undefined && existing.type !== "tags") return null;
+  if (existing !== undefined && existing.type !== "tags") {
+    return null;
+  }
   const current = existing === undefined ? [] : existing.value;
-  if (current.some((a) => a.trim().toLowerCase() === trimmed.toLowerCase())) return null;
+  if (current.some((a) => a.trim().toLowerCase() === trimmed.toLowerCase())) {
+    return null;
+  }
   const nextProps: TypedProperty[] =
     existing === undefined
       ? [...props, { key, type: "tags", value: [trimmed] }]
@@ -198,9 +277,9 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
             : p,
         );
   const nextYaml = serializeProperties(nextProps, yaml ?? "");
-  const body = splitFrontmatter(content).body;
+  const { body } = splitFrontmatter(content);
   return `---\n${nextYaml}\n---\n${body}`;
-}
+};
 
 export const PINNED_KEY = "pinned";
 
@@ -211,70 +290,46 @@ export type PinnedYamlVerdict =
 
 // A pin is a frontmatter key, so it travels with the file. Unpinning removes the key rather than
 // writing `false`, and a block that empties goes with it ("" is the caller's cue to drop it).
-export function pinnedFrontmatterYaml(yaml: string | null, pinned: boolean): PinnedYamlVerdict {
+export const pinnedFrontmatterYaml = (yaml: string | null, pinned: boolean): PinnedYamlVerdict => {
   const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") return { kind: "invalid" };
+  if (parsed.kind === "invalid") {
+    return { kind: "invalid" };
+  }
   const props = parsed.kind === "valid" ? parsed.properties : [];
   const current = props.find((p) => p.key === PINNED_KEY);
   const isPinned = current !== undefined && current.type === "checkbox" && current.value;
-  if (isPinned === pinned) return { kind: "unchanged" };
+  if (isPinned === pinned) {
+    return { kind: "unchanged" };
+  }
   const lines = yaml === null || yaml === "" ? [] : yaml.split("\n");
   const kept = withoutTopLevelKey(lines, PINNED_KEY);
   const next = pinned ? [...kept, `${PINNED_KEY}: true`] : kept;
   return { kind: "changed", yaml: next.every((line) => line.trim() === "") ? "" : next.join("\n") };
-}
+};
 
 // null: the frontmatter is not valid YAML, and nothing here may rewrite bytes it cannot read.
-export function setFrontmatterPinned(content: string, pinned: boolean): string | null {
+export const setFrontmatterPinned = (content: string, pinned: boolean): string | null => {
   const verdict = pinnedFrontmatterYaml(frontmatterYaml(content), pinned);
-  if (verdict.kind === "invalid") return null;
-  if (verdict.kind === "unchanged") return content;
-  const body = splitFrontmatter(content).body;
+  if (verdict.kind === "invalid") {
+    return null;
+  }
+  if (verdict.kind === "unchanged") {
+    return content;
+  }
+  const { body } = splitFrontmatter(content);
   return verdict.yaml === "" ? body : `---\n${verdict.yaml}\n---\n${body}`;
-}
+};
 
-export function typeNewProperty(key: string, rawValue: string): TypedProperty {
-  if (rawValue.trim() === "") return { key, type: "text", value: "" };
+export const typeNewProperty = (key: string, rawValue: string): TypedProperty => {
+  if (rawValue.trim() === "") {
+    return { key, type: "text", value: "" };
+  }
   try {
     const parsed = yamlValue.safeParse(parseYaml(rawValue));
     return parsed.success
       ? classify(key, parsed.data, rawValue)
-      : { key, type: "unsupported", rawYaml: rawValue };
+      : { key, rawYaml: rawValue, type: "unsupported" };
   } catch {
     return classify(key, rawValue, rawValue);
   }
-}
-
-function typedValue(prop: TypedProperty) {
-  return prop.type === "unsupported" ? undefined : prop.value;
-}
-
-function valueEqual(a: YamlValue | undefined, b: ReturnType<typeof typedValue>): boolean {
-  if (Array.isArray(a) && Array.isArray(b)) {
-    return a.length === b.length && a.every((item, i) => item === b[i]);
-  }
-  return a === b;
-}
-
-// edits the Document parsed from `priorRaw` rather than re-stringifying, so untouched keys
-// (every `unsupported` one) keep their source bytes, comments included.
-export function serializeProperties(properties: TypedProperty[], priorRaw: string): string {
-  if (properties.length === 0) return "";
-  const doc = parseDocument(priorRaw);
-  const priorValues = parseYamlRecord(priorRaw);
-  if (isMap(doc.contents)) {
-    const desired = new Set(properties.map((prop) => prop.key));
-    const removable = doc.contents.items
-      .map((item) => (isScalar(item.key) ? String(item.key.value) : String(item.key)))
-      .filter((key) => !desired.has(key));
-    for (const key of removable) doc.delete(key);
-  }
-  for (const prop of properties) {
-    if (prop.type === "unsupported") continue;
-    const next = typedValue(prop);
-    const had = Object.prototype.hasOwnProperty.call(priorValues, prop.key);
-    if (!had || !valueEqual(priorValues[prop.key], next)) doc.set(prop.key, next);
-  }
-  // a mapping stringifies with one trailing newline; the frontmatter node value carries none.
-  return doc.toString().replace(/\n$/, "");
-}
+};

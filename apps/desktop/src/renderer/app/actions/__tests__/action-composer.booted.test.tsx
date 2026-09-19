@@ -12,6 +12,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const noViewContext = async () => null;
+
 describe("the composer under a refused first send", () => {
   it("keeps the prompt and retries into the already-created thread", async () => {
     const harness = await bootThreadHarness({ mode: "manual" });
@@ -19,8 +21,8 @@ describe("the composer under a refused first send", () => {
     routeRendererFetch(harness);
     harness.driver.failNextStart = new Error("the provider fell over");
 
-    const onOpenChange = vi.fn();
-    const onLaunched = vi.fn();
+    const onOpenChange = vi.fn<(open: boolean) => void>();
+    const onLaunched = vi.fn<(threadId: string) => void>();
     render(
       <WorkspaceProvider>
         <ActionComposer
@@ -28,7 +30,7 @@ describe("the composer under a refused first send", () => {
           onOpenChange={onOpenChange}
           seed={null}
           docPath={null}
-          readViewContext={() => Promise.resolve(null)}
+          readViewContext={noViewContext}
           onLaunched={onLaunched}
         />
       </WorkspaceProvider>,
@@ -39,7 +41,8 @@ describe("the composer under a refused first send", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(async () => {
-      expect((await harness.client.threads.list()).threads).toHaveLength(1);
+      const listed = await harness.client.threads.list();
+      expect(listed.threads).toHaveLength(1);
     });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Send" })).toHaveProperty("disabled", false);
@@ -66,7 +69,7 @@ describe("the composer under a refused first send", () => {
     routeRendererFetch(harness);
     harness.driver.failNextStart = new Error("the provider fell over");
 
-    const onLaunched = vi.fn();
+    const onLaunched = vi.fn<(threadId: string) => void>();
     const composerOver = (docPath: string, open = true) => (
       <WorkspaceProvider>
         <ActionComposer
@@ -74,7 +77,7 @@ describe("the composer under a refused first send", () => {
           onOpenChange={() => {}}
           seed={null}
           docPath={docPath}
-          readViewContext={() => Promise.resolve(null)}
+          readViewContext={noViewContext}
           onLaunched={onLaunched}
         />
       </WorkspaceProvider>
@@ -85,7 +88,8 @@ describe("the composer under a refused first send", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(async () => {
-      expect((await harness.client.threads.list()).threads).toHaveLength(1);
+      const listed = await harness.client.threads.list();
+      expect(listed.threads).toHaveLength(1);
     });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Send" })).toHaveProperty("disabled", false);

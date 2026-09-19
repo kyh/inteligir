@@ -1,4 +1,4 @@
-// extends Cloudflare.Env (what cloudflare:test types `env` as), not the deprecated
+// extends Cloudflare.Env (what `env` is typed as), not the deprecated
 // ProvidedEnv; no top-level import, so the namespace merges globally
 
 declare namespace Cloudflare {

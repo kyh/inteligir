@@ -1,7 +1,8 @@
 // static on purpose: it promises only what is true from outside the app, never the in-app agent's environment.
 
-export function shareWithAgentText(docPath: string): string {
-  return `Note: ${docPath} (vault-relative path)
+export const shareWithAgentText = (
+  docPath: string,
+): string => `Note: ${docPath} (vault-relative path)
 
 How to edit this vault:
 - The vault is a git repo of plain markdown files; edit this note's file directly — the file is the source of truth.
@@ -12,4 +13,3 @@ How to edit this vault:
 - Unsure about a dialect construct? Write plain CommonMark instead of guessing.
 - The dialect's full spec ships with the inteligir app as agent skills (inteligir-notes first); read them before authoring dialect constructs if you can reach an install.
 - Commit through git as usual; the app watches the working tree and re-indexes on change.`;
-}

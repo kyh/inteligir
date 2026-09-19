@@ -1,21 +1,19 @@
-import { execFile } from "node:child_process";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { join } from "node:path";
-import { promisify } from "node:util";
+import path from "node:path";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
-import {
-  parseApprovalResolution,
-  type PendingInteractionPayload,
-} from "@repo/domain/pending-interactions";
+import { parseApprovalResolution } from "@repo/domain/pending-interactions";
+import type { PendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { getThread } from "@repo/db/threads";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
-import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "../runtime-manager";
-import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
+import { createAcpRuntimeManager } from "../runtime-manager";
+import type { AcpRuntimeManagerDeps } from "../runtime-manager";
+import { bootTestApp } from "../../__tests__/boot-app";
+import type { BootedTestApp } from "../../__tests__/boot-app";
 import {
   awaitPendingInteraction,
   awaitThreadStatus,
@@ -28,7 +26,6 @@ import {
   sendMessage,
 } from "./agent-test-harness";
 
-const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-agent");
 
@@ -44,46 +41,45 @@ interface ManagerOptions {
   spawnedEnvs?: Record<string, string>[];
 }
 
-function fakeSpawn(
-  mode: FakeAcpMode,
-  options: ManagerOptions,
-): AcpAgentRuntimeOptions["spawnAdapter"] {
-  return (_harness, env) => {
+const fakeSpawn =
+  (mode: FakeAcpMode, options: ManagerOptions): AcpAgentRuntimeOptions["spawnAdapter"] =>
+  (_harness, env) => {
     options.spawnedEnvs?.push(env);
     const childEnv: AgentRuntimeShellEnvironment = { ...env, FAKE_ACP_MODE: mode };
-    if (options.filePath !== undefined) childEnv.FAKE_ACP_FILE = options.filePath;
+    if (options.filePath !== undefined) {
+      childEnv.FAKE_ACP_FILE = options.filePath;
+    }
     const child = spawn(process.execPath, [FAKE_AGENT], {
       env: childEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
     return { child };
   };
-}
 
-async function bootWithManager(
+const bootWithManager = async (
   mode: FakeAcpMode,
   options: ManagerOptions = {},
-): Promise<BootedTestApp> {
-  return bootTestApp({
-    agent: { mode: "auto", runtime: "acp", detail: null },
+): Promise<BootedTestApp> =>
+  await bootTestApp({
+    agent: { detail: null, mode: "auto", runtime: "acp" },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const deps: AcpRuntimeManagerDeps = {
         db,
-        notifier: bus,
-        vaultDir,
+        defaultProviderId: () => "codex",
         git: vault.git,
-        model: null,
+        hostEnv: {},
         mcpServers: () => [],
+        model: null,
+        notifier: bus,
+        reapIntervalMs: null,
         sessionFacts: () =>
           fakeSessionFacts({
             cliBinDir: options.cliBinDir ?? null,
-            skillsDir: options.skillsDir ?? null,
             connectedDirs: [...(options.connectedDirs ?? [])],
+            skillsDir: options.skillsDir ?? null,
           }),
-        hostEnv: {},
-        defaultProviderId: () => "codex",
         spawnAdapter: fakeSpawn(mode, options),
-        reapIntervalMs: null,
+        vaultDir,
       };
       if (options.turnIdleTimeoutMs !== undefined) {
         deps.turnIdleTimeoutMs = options.turnIdleTimeoutMs;
@@ -91,35 +87,34 @@ async function bootWithManager(
       const manager = createAcpRuntimeManager(deps);
       return {
         createTurnDriver: manager.createTurnDriver,
-        dispose: () => manager.dispose(),
+        dispose: async () => {
+          await manager.dispose();
+        },
       };
     },
   });
-}
 
-async function headCommit(
-  vaultDir: string,
-): Promise<{ author: string; email: string; files: string[] }> {
-  const { stdout } = await execFileAsync(
-    "git",
-    ["show", "--name-only", "--format=%an%n%ae", "HEAD"],
-    { cwd: vaultDir, env: { ...process.env, ...hermeticGitEnv() } },
-  );
+const headCommit = (vaultDir: string) => {
+  const stdout = execFileSync("git", ["show", "--name-only", "--format=%an%n%ae", "HEAD"], {
+    cwd: vaultDir,
+    encoding: "utf-8",
+    env: { ...process.env, ...hermeticGitEnv() },
+  });
   const [author = "", email = "", ...rest] = stdout.split("\n");
   return { author, email, files: rest.filter((line) => line.length > 0) };
-}
+};
 
 describe("parseApprovalResolution", () => {
   const commandPayload: PendingInteractionPayload = {
+    availableDecisions: ["allow_once", "deny"],
     kind: "approval",
+    reason: null,
     subject: {
-      kind: "command",
-      itemId: "cmd_1",
       command: "ls",
       cwd: null,
+      itemId: "cmd_1",
+      kind: "command",
     },
-    reason: null,
-    availableDecisions: ["allow_once", "deny"],
   };
 
   it("accepts bare verbs and refuses out-of-set decisions", () => {
@@ -148,12 +143,9 @@ describe("the ACP runtime manager over real HTTP", () => {
     const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
     expect(assistant).toMatchObject({ text: "hello from the fake agent", turnId });
 
-    expect(getThread(harness.db, threadId)).toMatchObject({
-      providerId: "codex",
-      providerThreadId: expect.stringMatching(/^fakeacp_\d+_1$/),
-      status: "idle",
-      activeTurnId: null,
-    });
+    const thread = getThread(harness.db, threadId);
+    expect(thread).toMatchObject({ activeTurnId: null, providerId: "codex", status: "idle" });
+    expect(thread?.providerThreadId).toMatch(/^fakeacp_\d+_1$/u);
   });
 
   it("opens the session by putting its standing instructions first in the prompt", async () => {
@@ -207,13 +199,13 @@ describe("the ACP runtime manager over real HTTP", () => {
     // set after boot: the vault dir exists only then, and the spawn seam reads the options at session open.
     const managerOptions: ManagerOptions = {};
     const harness = await bootWithManager("fileChange", managerOptions);
-    managerOptions.filePath = join(harness.vaultDir, "agent-note.md");
+    managerOptions.filePath = path.join(harness.vaultDir, "agent-note.md");
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "edit the note");
     await awaitThreadStatus(harness.client, threadId, "idle");
 
-    const head = await vi.waitFor(async () => {
-      const commit = await headCommit(harness.vaultDir);
+    const head = await vi.waitFor(() => {
+      const commit = headCommit(harness.vaultDir);
       expect(commit.author).toBe("inteligir-agent");
       return commit;
     }, PROVIDER_WAIT);
@@ -228,29 +220,29 @@ describe("the ACP runtime manager over real HTTP", () => {
 
     const interaction = await awaitPendingInteraction(harness.client, threadId);
     expect(interaction).toMatchObject({
-      threadId,
-      turnId,
-      status: "pending",
       payload: {
         kind: "approval",
-        subject: { kind: "command", command: "rm -rf scratch" },
+        subject: { command: "rm -rf scratch", kind: "command" },
       },
+      status: "pending",
+      threadId,
+      turnId,
     });
 
     // the fake offers allow_once and reject_once only.
     const [outOfSet] = await safe(
       harness.client.threads.answerInteraction({
-        threadId,
         interactionId: interaction.id,
         resolution: "allow_for_session",
+        threadId,
       }),
     );
     expect(isDefinedError(outOfSet) && outOfSet.code).toBe("INVALID_RESOLUTION");
 
     await harness.client.threads.answerInteraction({
-      threadId,
       interactionId: interaction.id,
       resolution: "allow_once",
+      threadId,
     });
 
     await awaitThreadStatus(harness.client, threadId, "idle");
@@ -260,7 +252,8 @@ describe("the ACP runtime manager over real HTTP", () => {
         row.kind === "conversation" && row.role === "assistant" && row.text === "approved and done",
     );
     expect(approvedChunk).toMatchObject({ turnId });
-    expect((await getThreadDetail(harness.client, threadId)).pendingInteractions).toEqual([]);
+    const detail = await getThreadDetail(harness.client, threadId);
+    expect(detail.pendingInteractions).toEqual([]);
   });
 
   it("settles a turn fully BEFORE the queue drain dispatches the next one", async () => {
@@ -271,15 +264,15 @@ describe("the ACP runtime manager over real HTTP", () => {
     const interaction = await awaitPendingInteraction(harness.client, threadId);
 
     const queued = await harness.client.threads.send({
-      threadId,
       text: "second",
+      threadId,
     });
     expect(queued.kind).toBe("queued");
 
     await harness.client.threads.answerInteraction({
-      threadId,
       interactionId: interaction.id,
       resolution: "allow_once",
+      threadId,
     });
 
     await vi.waitFor(async () => {
@@ -300,11 +293,11 @@ describe("the ACP runtime manager over real HTTP", () => {
     await awaitThreadStatus(harness.client, threadId, "error");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
-    expect(rows.find((row) => row.kind === "turn")).toMatchObject({ turnId, status: "error" });
+    expect(rows.find((row) => row.kind === "turn")).toMatchObject({ status: "error", turnId });
 
     const next = await harness.client.threads.send({
-      threadId,
       text: "again",
+      threadId,
     });
     expect(next.kind).toBe("started");
   });

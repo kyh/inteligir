@@ -11,19 +11,18 @@ import type {
 const CHILD_INDENT = "  ";
 const SNIPPET_LIMIT = 100;
 
-function snippet(text: string): string {
+const snippet = (text: string): string => {
   const firstLine = text.split("\n", 1)[0] ?? "";
   if (firstLine.length <= SNIPPET_LIMIT) {
     return firstLine;
   }
   return `${firstLine.slice(0, SNIPPET_LIMIT)}…`;
-}
+};
 
-function statusSuffix(status: TimelineRowStatus): string {
-  return status === "completed" ? "" : ` [${status}]`;
-}
+const statusSuffix = (status: TimelineRowStatus): string =>
+  status === "completed" ? "" : ` [${status}]`;
 
-function formatWorkRow(row: TimelineWorkRow): string[] {
+const formatWorkRow = (row: TimelineWorkRow): string[] => {
   switch (row.workKind) {
     case "command": {
       const exit = row.exitCode === null ? "" : ` (exit ${row.exitCode})`;
@@ -33,26 +32,33 @@ function formatWorkRow(row: TimelineWorkRow): string[] {
       const failure = row.error === null ? "" : ` — ${snippet(row.error)}`;
       return [`tool ${row.toolName}${statusSuffix(row.status)}${failure}`];
     }
-    case "file-change":
+    case "file-change": {
       return row.changes.map((change) => {
         const move = change.movePath === null ? "" : ` -> ${change.movePath}`;
         return `~ ${change.kind} ${change.path}${move}${statusSuffix(row.status)}`;
       });
-    case "reasoning":
+    }
+    case "reasoning": {
       return row.text.length === 0 ? [] : [`thinking: ${snippet(row.text)}`];
-    case "plan":
+    }
+    case "plan": {
       return row.text.length === 0 ? [] : [`plan: ${snippet(row.text)}`];
+    }
+    // no default
   }
-}
+};
 
-function formatRow(row: TimelineRow): string[] {
+const formatRow = (row: TimelineRow): string[] => {
   switch (row.kind) {
-    case "conversation":
+    case "conversation": {
       return [`── ${row.role === "user" ? "user" : "agent"} ──`, row.text];
-    case "error":
+    }
+    case "error": {
       return [`── error ──`, row.detail === null ? row.message : `${row.message}\n${row.detail}`];
-    case "work":
+    }
+    case "work": {
       return formatWorkRow(row);
+    }
     case "turn": {
       const children = row.children
         .flatMap((child) => formatRow(child))
@@ -60,10 +66,11 @@ function formatRow(row: TimelineRow): string[] {
         .map((line) => (line.length === 0 ? line : `${CHILD_INDENT}${line}`));
       return [`── turn (${row.status}) ──`, ...children];
     }
+    // no default
   }
-}
+};
 
-export function formatThreadTimeline(timeline: ThreadTimeline): string {
+export const formatThreadTimeline = (timeline: ThreadTimeline): string => {
   const blocks = timeline.rows.map((row) => formatRow(row).join("\n"));
   if (timeline.tokenUsage !== null) {
     const { total } = timeline.tokenUsage;
@@ -72,4 +79,4 @@ export function formatThreadTimeline(timeline: ThreadTimeline): string {
     );
   }
   return blocks.filter((block) => block.length > 0).join("\n\n");
-}
+};

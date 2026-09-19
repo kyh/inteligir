@@ -8,18 +8,20 @@ import { REPO_ROOT, styleFiles, workspaces } from "./repo";
 
 // `inline(...)` embeds candidates (no path); `not "..."` still names a base that must exist, or the
 // exclusion is the same silent no-op.
-const SOURCE_ROW = /@source\s+(?:not\s+)?"([^"]+)"/g;
-const SOURCE_INLINE = /@source\s+inline\(/;
+const SOURCE_ROW = /@source\s+(?:not\s+)?"(?<glob>[^"]+)"/gu;
+const SOURCE_INLINE = /@source\s+inline\(/u;
 
-function staticBase(glob: string): string {
+const staticBase = (glob: string): string => {
   const segments = glob.split("/");
   const fixed: string[] = [];
   for (const segment of segments) {
-    if (/[*?{[]/.test(segment)) break;
+    if (/[*?{[]/u.test(segment)) {
+      break;
+    }
     fixed.push(segment);
   }
   return fixed.join("/");
-}
+};
 
 describe("tailwind @source bases", () => {
   it("every @source glob resolves to a directory that exists", () => {
@@ -30,12 +32,16 @@ describe("tailwind @source bases", () => {
     const violations: string[] = [];
     for (const file of files) {
       const absolute = path.join(REPO_ROOT, file);
-      const text = fs.readFileSync(absolute, "utf8");
+      const text = fs.readFileSync(absolute, "utf-8");
       for (const line of text.split("\n")) {
-        if (SOURCE_INLINE.test(line)) continue;
+        if (SOURCE_INLINE.test(line)) {
+          continue;
+        }
         for (const match of line.matchAll(SOURCE_ROW)) {
-          const glob = match[1];
-          if (glob === undefined) continue;
+          const glob = match.groups?.glob;
+          if (glob === undefined) {
+            continue;
+          }
           const base = staticBase(glob);
           const resolved = path.resolve(path.dirname(absolute), base);
           if (!fs.existsSync(resolved)) {
@@ -51,9 +57,11 @@ describe("tailwind @source bases", () => {
       violations,
       violations.length === 0
         ? ""
-        : `MISSING @source BASE DIRECTORIES\n` +
-            violations.map((line) => `  ${line}`).join("\n") +
-            `\n  rule: Tailwind treats a missing @source base as an empty scan — no error, no utilities — so the base directory must exist relative to the stylesheet`,
+        : `MISSING @source BASE DIRECTORIES\n${violations
+            .map((line) => `  ${line}`)
+            .join(
+              "\n",
+            )}\n  rule: Tailwind treats a missing @source base as an empty scan — no error, no utilities — so the base directory must exist relative to the stylesheet`,
     ).toEqual([]);
   });
 });

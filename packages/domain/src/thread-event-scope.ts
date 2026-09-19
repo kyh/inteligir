@@ -31,26 +31,26 @@ type ThreadEventScopePolicyDefinition =
 
 // `satisfies` keeps the table total: an event type without a row stops compiling.
 export const threadEventScopeDefinitionByType = {
-  "turn/started": { policy: "turn" },
-  "turn/completed": { policy: "turn" },
-  "item/started": { policy: "turn" },
-  "item/completed": { policy: "turn" },
-  "item/agentMessage/delta": { policy: "turn" },
-  "item/commandExecution/outputDelta": { policy: "turn" },
-  "item/reasoning/summaryTextDelta": { policy: "turn" },
-  "item/reasoning/textDelta": { policy: "turn" },
-  "item/plan/delta": { policy: "turn" },
-  "thread/tokenUsage/updated": { policy: "turn" },
-  "provider/error": {
-    policy: "thread-or-turn",
-    rationale:
-      "Provider diagnostics use thread scope for provider setup/session failures; in-turn failures use turn scope.",
-  },
   "client/turn/requested": {
     policy: "thread",
     rationale:
       "Outbound client lifecycle event; it records the request before provider turn acceptance, so no turn id exists yet.",
   },
+  "item/agentMessage/delta": { policy: "turn" },
+  "item/commandExecution/outputDelta": { policy: "turn" },
+  "item/completed": { policy: "turn" },
+  "item/plan/delta": { policy: "turn" },
+  "item/reasoning/summaryTextDelta": { policy: "turn" },
+  "item/reasoning/textDelta": { policy: "turn" },
+  "item/started": { policy: "turn" },
+  "provider/error": {
+    policy: "thread-or-turn",
+    rationale:
+      "Provider diagnostics use thread scope for provider setup/session failures; in-turn failures use turn scope.",
+  },
+  "thread/tokenUsage/updated": { policy: "turn" },
+  "turn/completed": { policy: "turn" },
+  "turn/started": { policy: "turn" },
 } as const satisfies Record<ThreadEventType, ThreadEventScopePolicyDefinition>;
 
 export interface ValidateThreadEventScopeArgs {
@@ -63,17 +63,12 @@ export interface ValidateThreadEventScopeResult {
   valid: boolean;
 }
 
-export function threadScope(): ThreadEventScope {
-  return { kind: "thread" };
-}
+export const threadScope = (): ThreadEventScope => ({ kind: "thread" });
 
-export function turnScope(turnId: string): ThreadEventScope {
-  return { kind: "turn", turnId };
-}
+export const turnScope = (turnId: string): ThreadEventScope => ({ kind: "turn", turnId });
 
-export function getThreadEventScopeTurnId(scope: ThreadEventScope): string | undefined {
-  return scope.kind === "turn" ? scope.turnId : undefined;
-}
+export const getThreadEventScopeTurnId = (scope: ThreadEventScope): string | undefined =>
+  scope.kind === "turn" ? scope.turnId : undefined;
 
 export interface RequireThreadEventScopeTurnIdArgs {
   scope: ThreadEventScope;
@@ -81,17 +76,17 @@ export interface RequireThreadEventScopeTurnIdArgs {
   type: string;
 }
 
-export function requireThreadEventScopeTurnId(args: RequireThreadEventScopeTurnIdArgs): string {
+export const requireThreadEventScopeTurnId = (args: RequireThreadEventScopeTurnIdArgs): string => {
   if (args.scope.kind !== "turn") {
     throw new Error(`${args.type} requires turn scope but received ${args.scope.kind} scope`);
   }
   return args.scope.turnId;
-}
+};
 
-export function validateThreadEventScope(
+export const validateThreadEventScope = (
   args: ValidateThreadEventScopeArgs,
-): ValidateThreadEventScopeResult {
-  const policy = threadEventScopeDefinitionByType[args.type].policy;
+): ValidateThreadEventScopeResult => {
+  const { policy } = threadEventScopeDefinitionByType[args.type];
 
   if (policy === "thread-or-turn") {
     return { valid: true };
@@ -99,10 +94,10 @@ export function validateThreadEventScope(
 
   if (policy !== args.scope.kind) {
     return {
-      valid: false,
       message: `${args.type} requires ${policy} scope but received ${args.scope.kind} scope`,
+      valid: false,
     };
   }
 
   return { valid: true };
-}
+};

@@ -1,15 +1,16 @@
 import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import path from "node:path";
 import { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
 import { relativeUnder } from "../path-containment";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 import { createForkChannel } from "./watcher/fork-channel";
 import type { ParcelAsyncSubscription, ParcelWatcherBackend } from "./watcher/parcel-backend";
 import { toWatchErrorMessage } from "./watcher/parcel-backend";
-import { createParcelWatcherProxy, type ParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
+import { createParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
+import type { ParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
 
 const DEBOUNCE_MS = 200;
-const MAX_WAIT_MS = 1_000;
+const MAX_WAIT_MS = 1000;
 const RESUBSCRIBE_BASE_DELAY_MS = 500;
 const RESUBSCRIBE_MAX_DELAY_MS = 30_000;
 
@@ -21,14 +22,14 @@ export interface VaultWatcherArgs {
 }
 
 export interface VaultWatcher {
-  start(): void;
-  dispose(): Promise<void>;
+  start: () => void;
+  dispose: () => Promise<void>;
 }
 
-export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
+export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
   // realpath, not resolve: fsevents reports paths with symlinks expanded (macos /var →
   // /private/var), so a root keeping the symlink spelling computes every event as outside.
-  const root = realpathSync(resolve(args.root));
+  const root = realpathSync(path.resolve(args.root));
 
   let ownedProxy: ParcelWatcherProxy | null = null;
   const backend =
@@ -57,15 +58,15 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
     },
   });
 
-  function toVaultRelativePath(absPath: string): string | null {
+  const toVaultRelativePath = (absPath: string): string | null => {
     const rel = relativeUnder(root, absPath);
     if (rel === null) {
       return null;
     }
     return rel.split("/").some((segment) => isIgnoredEntryName(segment)) ? null : rel;
-  }
+  };
 
-  function scheduleResubscribe(): void {
+  const scheduleResubscribe = (retry: () => void): void => {
     if (disposed || retryTimer !== null) {
       return;
     }
@@ -73,12 +74,12 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
     retryAttempt += 1;
     retryTimer = setTimeout(() => {
       retryTimer = null;
-      start();
+      retry();
     }, delay);
     retryTimer.unref?.();
-  }
+  };
 
-  function start(): void {
+  const start = (): void => {
     if (disposed || subscription !== null) {
       return;
     }
@@ -95,7 +96,7 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
               // the proxy self-heals backend deaths, so an error here is an establish failure.
               args.onError?.(toWatchErrorMessage(error));
               subscription = null;
-              scheduleResubscribe();
+              scheduleResubscribe(start);
               return;
             }
             for (const event of events) {
@@ -115,20 +116,23 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
           return;
         }
         args.onError?.(toWatchErrorMessage(error));
-        scheduleResubscribe();
+        scheduleResubscribe(start);
         return;
       }
       if (disposed) {
-        void established.unsubscribe().catch(() => {});
+        try {
+          await established.unsubscribe();
+        } catch {
+          // already torn down; nothing to report.
+        }
         return;
       }
       retryAttempt = 0;
       subscription = established;
     })();
-  }
+  };
 
   return {
-    start,
     async dispose() {
       disposed = true;
       scheduler.dispose();
@@ -140,9 +144,12 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
       const established = subscription;
       subscription = null;
       if (established !== null) {
-        await established.unsubscribe().catch(() => {});
+        await established.unsubscribe().catch(() => {
+          /* empty */
+        });
       }
       ownedProxy?.dispose();
     },
+    start,
   };
-}
+};

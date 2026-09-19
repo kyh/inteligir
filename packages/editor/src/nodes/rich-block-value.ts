@@ -3,8 +3,10 @@
 
 import type { SlateEditor, TElement } from "platejs";
 
-export function setBlockValue(editor: SlateEditor, element: TElement, value: string): void {
+export const setBlockValue = (editor: SlateEditor, element: TElement, value: string): void => {
   const path = editor.api.findPath(element);
-  if (path === undefined) return;
+  if (path === undefined) {
+    return;
+  }
   editor.tf.setNodes({ value }, { at: path });
-}
+};

@@ -15,12 +15,10 @@ import {
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/", import.meta.url));
 
-function read(dir: "canonical" | "raw" | "churn", name: string): string {
-  return readFileSync(`${FIXTURES}${dir}/${name}`, "utf8");
-}
-function list(dir: "canonical" | "raw" | "churn"): string[] {
-  return readdirSync(`${FIXTURES}${dir}`).toSorted();
-}
+const read = (dir: "canonical" | "raw" | "churn", name: string): string =>
+  readFileSync(`${FIXTURES}${dir}/${name}`, "utf-8");
+const list = (dir: "canonical" | "raw" | "churn"): string[] =>
+  readdirSync(`${FIXTURES}${dir}`).toSorted();
 
 describe("canonical fixtures (byte-stable)", () => {
   for (const name of list("canonical")) {

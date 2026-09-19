@@ -34,23 +34,25 @@ describe("relativeUnder", () => {
 
 describe("assertVaultAndDataDirDisjoint", () => {
   it("refuses either nesting and allows siblings", () => {
-    expect(() => assertVaultAndDataDirDisjoint("/home/vault", "/home/vault/.data")).toThrow(
-      /must be disjoint/u,
-    );
-    expect(() => assertVaultAndDataDirDisjoint("/home/data/vault", "/home/data")).toThrow(
-      /must be disjoint/u,
-    );
-    expect(() => assertVaultAndDataDirDisjoint("/home/vault", "/home/vault-data")).not.toThrow();
+    expect(() => {
+      assertVaultAndDataDirDisjoint("/home/vault", "/home/vault/.data");
+    }).toThrow(/must be disjoint/u);
+    expect(() => {
+      assertVaultAndDataDirDisjoint("/home/data/vault", "/home/data");
+    }).toThrow(/must be disjoint/u);
+    expect(() => {
+      assertVaultAndDataDirDisjoint("/home/vault", "/home/vault-data");
+    }).not.toThrow();
   });
 });
 
 describe("assertModelDirOutsideVault", () => {
   it("refuses a model dir inside the vault — it would be committed and pushed", () => {
-    expect(() => assertModelDirOutsideVault("/home/vault/models", "/home/vault")).toThrow(
-      /outside the vault/u,
-    );
-    expect(() => assertModelDirOutsideVault("/home/models", "/home/models/vault")).toThrow(
-      /outside the vault/u,
-    );
+    expect(() => {
+      assertModelDirOutsideVault("/home/vault/models", "/home/vault");
+    }).toThrow(/outside the vault/u);
+    expect(() => {
+      assertModelDirOutsideVault("/home/models", "/home/models/vault");
+    }).toThrow(/outside the vault/u);
   });
 });

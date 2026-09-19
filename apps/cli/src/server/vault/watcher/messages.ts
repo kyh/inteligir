@@ -51,6 +51,7 @@ const subscribeOptionsSchema = z
     ignore: z
       .array(z.unknown())
       .optional()
+      // oxlint-disable-next-line unicorn/no-useless-undefined, promise/prefer-await-to-then -- zod's catch, not a promise's; it takes the fallback positionally and undefined IS the fallback
       .catch(undefined)
       .transform((entries) =>
         entries?.flatMap((entry) => {
@@ -66,23 +67,24 @@ const subscribeOptionsSchema = z
 export const parentToChildMessageSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      kind: z.literal("subscribe"),
-      id: z.string(),
       dir: z.string(),
-      rescan: z.boolean(),
+      id: z.string(),
+      kind: z.literal("subscribe"),
+      // oxlint-disable-next-line unicorn/no-useless-undefined, promise/prefer-await-to-then -- zod's catch, not a promise's; it takes the fallback and a bare catch() is a type error
       opts: subscribeOptionsSchema.optional().catch(undefined),
+      rescan: z.boolean(),
     })
-    .transform(({ kind, id, dir, rescan, opts }) => ({ kind, id, dir, opts, rescan })),
-  z.object({ kind: z.literal("unsubscribe"), id: z.string() }),
+    .transform(({ kind, id, dir, rescan, opts }) => ({ dir, id, kind, opts, rescan })),
+  z.object({ id: z.string(), kind: z.literal("unsubscribe") }),
   z.object({ kind: z.literal("ping") }),
 ]);
 
 export const childToParentMessageSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ready") }),
   z.object({ kind: z.literal("pong") }),
-  z.object({ kind: z.literal("subscribed"), id: z.string() }),
-  z.object({ kind: z.literal("unsubscribed"), id: z.string() }),
-  z.object({ kind: z.literal("subscribe-failed"), id: z.string(), message: z.string() }),
-  z.object({ kind: z.literal("watch-error"), id: z.string(), message: z.string() }),
-  z.object({ kind: z.literal("events"), id: z.string(), events: parcelEventBatchSchema }),
+  z.object({ id: z.string(), kind: z.literal("subscribed") }),
+  z.object({ id: z.string(), kind: z.literal("unsubscribed") }),
+  z.object({ id: z.string(), kind: z.literal("subscribe-failed"), message: z.string() }),
+  z.object({ id: z.string(), kind: z.literal("watch-error"), message: z.string() }),
+  z.object({ events: parcelEventBatchSchema, id: z.string(), kind: z.literal("events") }),
 ]);

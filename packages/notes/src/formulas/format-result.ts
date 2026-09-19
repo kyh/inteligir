@@ -4,7 +4,6 @@ const FORMATTER = new Intl.NumberFormat("en-US", {
   useGrouping: true,
 });
 
-export function formatResult(value: number): string {
+export const formatResult = (value: number): string =>
   // -0 would print as "-0"
-  return FORMATTER.format(value === 0 ? 0 : value);
-}
+  FORMATTER.format(value === 0 ? 0 : value);

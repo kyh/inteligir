@@ -1,24 +1,27 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { contentHashHex, type VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
-import { bootTestApp, type BootedTestApp } from "inteligir/server/testing";
+import path from "node:path";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import type { VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
+import { bootTestApp } from "inteligir/server/testing";
+import type { BootedTestApp } from "inteligir/server/testing";
 import { describe, expect, it } from "vitest";
-import { createGuardedVaultIo, type GuardedVaultApi } from "../guarded-vault-io";
+import { createGuardedVaultIo } from "../guarded-vault-io";
+import type { GuardedVaultApi } from "../guarded-vault-io";
 
-function recordingWrites(client: BootedTestApp["client"]) {
+const recordingWrites = (client: BootedTestApp["client"]) => {
   const sent: VaultWriteRequest[] = [];
   const api: GuardedVaultApi = {
     vault: {
       read: client.vault.read,
       remove: client.vault.remove,
-      write: (input, ...rest) => {
+      write: async (input, ...rest) => {
         sent.push(input);
-        return client.vault.write(input, ...rest);
+        return await client.vault.write(input, ...rest);
       },
     },
   };
   return { api, sent };
-}
+};
 
 const NOTE = "notes/plans.md";
 
@@ -29,19 +32,19 @@ describe("the guarded vault io", () => {
     const io = createGuardedVaultIo(api);
 
     await io.create(NOTE, "# Plans\n");
-    expect(sent).toStrictEqual([{ path: NOTE, content: "# Plans\n", ifAbsent: true }]);
-    expect(await readFile(join(vaultDir, NOTE), "utf8")).toBe("# Plans\n");
+    expect(sent).toStrictEqual([{ content: "# Plans\n", ifAbsent: true, path: NOTE }]);
+    expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("# Plans\n");
 
     await expect(io.create(NOTE, "clobber")).rejects.toMatchObject({
-      name: "ORPCError",
       code: "ALREADY_EXISTS",
+      name: "ORPCError",
     });
-    expect(await readFile(join(vaultDir, NOTE), "utf8")).toBe("# Plans\n");
+    expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("# Plans\n");
   });
 
   it("writes with the hash of the base it read, then of what it wrote", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await client.vault.write({ path: NOTE, content: "v1" });
+    await client.vault.write({ content: "v1", path: NOTE });
     const { api, sent } = recordingWrites(client);
     const io = createGuardedVaultIo(api);
 
@@ -49,22 +52,22 @@ describe("the guarded vault io", () => {
     await io.write(NOTE, "v2");
     await io.write(NOTE, "v3");
     expect(sent).toStrictEqual([
-      { path: NOTE, content: "v2", expectedHash: await contentHashHex("v1") },
-      { path: NOTE, content: "v3", expectedHash: await contentHashHex("v2") },
+      { content: "v2", expectedHash: await contentHashHex("v1"), path: NOTE },
+      { content: "v3", expectedHash: await contentHashHex("v2"), path: NOTE },
     ]);
-    expect(await readFile(join(vaultDir, NOTE), "utf8")).toBe("v3");
+    expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("v3");
   });
 
   it("merges a CAS refusal's current bytes with diff3 and retries against them", async () => {
     const { client, vaultDir } = await bootTestApp();
     const base = "# Plans\n\nintro\n\nfooter\n";
-    await client.vault.write({ path: NOTE, content: base });
+    await client.vault.write({ content: base, path: NOTE });
     const { api, sent } = recordingWrites(client);
     const io = createGuardedVaultIo(api);
     await io.read(NOTE);
 
     const external = `${base}external-appended-line\n`;
-    await client.vault.write({ path: NOTE, content: external });
+    await client.vault.write({ content: external, path: NOTE });
 
     await io.write(NOTE, "# Plans\n\nintro rewritten\n\nfooter\n");
 
@@ -72,7 +75,7 @@ describe("the guarded vault io", () => {
       await contentHashHex(base),
       await contentHashHex(external),
     ]);
-    const onDisk = await readFile(join(vaultDir, NOTE), "utf8");
+    const onDisk = await readFile(path.join(vaultDir, NOTE), "utf-8");
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
     expect(onDisk).not.toContain("\nintro\n");

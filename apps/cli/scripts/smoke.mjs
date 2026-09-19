@@ -4,29 +4,30 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import nodePath from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { proveWatcherAlive } from "./smoke-lib.mjs";
 
 const CLI_BIN_NAME = "inteligir";
 
-const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = resolve(packageRoot, "..", "..");
+const packageRoot = nodePath.resolve(import.meta.dirname, "..");
+const repoRoot = nodePath.resolve(packageRoot, "..", "..");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
 
 /**
- * @param {string} message
- * @returns {never}
+ * @param {string} message what the smoke run could not prove
+ * @returns {never} nothing — it always throws, after marking the run failed
  */
-function fail(message) {
+const fail = (message) => {
   process.stderr.write(`smoke: ${message}\n`);
   process.exitCode = 1;
   throw new Error(message);
-}
+};
 
-function run(file, argv, options = {}) {
-  return new Promise((resolvePromise, rejectPromise) => {
+const run = async (file, argv, options = {}) =>
+  // oxlint-disable-next-line promise/avoid-new -- bridges a child process's "close"/"error" events
+  await new Promise((resolve, reject) => {
     const child = spawn(file, argv, { stdio: ["ignore", "pipe", "pipe"], ...options });
     let stdout = "";
     let stderr = "";
@@ -36,51 +37,48 @@ function run(file, argv, options = {}) {
     child.stderr?.on("data", (chunk) => {
       stderr += chunk;
     });
-    child.on("error", rejectPromise);
+    child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) {
-        resolvePromise({ stdout, stderr });
+        resolve({ stderr, stdout });
         return;
       }
-      rejectPromise(new Error(`${file} ${argv.join(" ")} exited ${code}\n${stdout}\n${stderr}`));
+      reject(new Error(`${file} ${argv.join(" ")} exited ${code}\n${stdout}\n${stderr}`));
     });
   });
-}
 
-function delay(ms) {
-  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
-}
-
-async function waitForUrl(url, deadlineMs) {
+const waitForUrl = async (url, deadlineMs) => {
   const deadline = Date.now() + deadlineMs;
   for (;;) {
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
       if (response.ok) {
         return response;
       }
-    } catch {}
+    } catch {
+      // a refused connection or a timeout is just "not up yet"
+    }
     if (Date.now() > deadline) {
       return null;
     }
     await delay(250);
   }
-}
+};
 
-function processAlive(pid) {
+const processAlive = (pid) => {
   try {
     process.kill(pid, 0);
     return true;
   } catch {
     return false;
   }
-}
+};
 
-const scratch = await mkdtemp(join(tmpdir(), "inteligir-smoke-"));
-const installDir = join(scratch, "install");
-const dataDir = join(scratch, "data");
-const vaultDir = join(scratch, "vault");
-const port = 4_500 + Math.floor(Math.random() * 400);
+const scratch = await mkdtemp(nodePath.join(tmpdir(), "inteligir-smoke-"));
+const installDir = nodePath.join(scratch, "install");
+const dataDir = nodePath.join(scratch, "data");
+const vaultDir = nodePath.join(scratch, "vault");
+const port = 4500 + Math.floor(Math.random() * 400);
 const baseUrl = `http://127.0.0.1:${port}`;
 let server = null;
 
@@ -96,16 +94,16 @@ try {
   }
   process.stdout.write(`smoke: installing ${tarball}\n`);
   await run("npm", ["install", "--prefix", installDir, "--no-audit", "--no-fund", tarball], {
-    env: { ...process.env, npm_config_cache: join(scratch, "npm-cache") },
+    env: { ...process.env, npm_config_cache: nodePath.join(scratch, "npm-cache") },
   });
 
-  const bin = join(installDir, "node_modules", ".bin", CLI_BIN_NAME);
+  const bin = nodePath.join(installDir, "node_modules", ".bin", CLI_BIN_NAME);
   if (!existsSync(bin)) {
     fail(`the installed package exposes no bin at ${bin}`);
   }
   // npm strips the execute bit from every packed file not named in `bin`
-  const installRoot = join(installDir, "node_modules", CLI_BIN_NAME);
-  const cliBin = join(installRoot, "bin", CLI_BIN_NAME);
+  const installRoot = nodePath.join(installDir, "node_modules", CLI_BIN_NAME);
+  const cliBin = nodePath.join(installRoot, "bin", CLI_BIN_NAME);
   try {
     accessSync(cliBin, constants.X_OK);
   } catch {
@@ -113,9 +111,12 @@ try {
   }
   // each of these silently disables a capability when missing
   for (const [what, path] of [
-    ["the dialect skills", join(installRoot, "dist", "skills", "inteligir-notes", "SKILL.md")],
-    ["the workspace UI", join(installRoot, "dist", "ui", "index.html")],
-    ["the starter vault", join(installRoot, "seed", "Welcome.md")],
+    [
+      "the dialect skills",
+      nodePath.join(installRoot, "dist", "skills", "inteligir-notes", "SKILL.md"),
+    ],
+    ["the workspace UI", nodePath.join(installRoot, "dist", "ui", "index.html")],
+    ["the starter vault", nodePath.join(installRoot, "seed", "Welcome.md")],
   ]) {
     if (!existsSync(path)) {
       fail(`the packaged install carries no ${what} (${path})`);
@@ -123,8 +124,8 @@ try {
   }
 
   // nothing reads the licence texts, so only this can notice them missing
-  for (const name of await readdir(join(repoRoot, "tools", "licenses"))) {
-    const staged = join(installRoot, "dist", "licenses", name);
+  for (const name of await readdir(nodePath.join(repoRoot, "tools", "licenses"))) {
+    const staged = nodePath.join(installRoot, "dist", "licenses", name);
     if (!existsSync(staged)) {
       fail(`the packaged install carries no ${name} (${staged})`);
     }
@@ -134,20 +135,21 @@ try {
   process.stdout.write(`smoke: packaged CLI --version -> ${cliVersion.trim()}\n`);
 
   const authHeaders = () => ({
-    authorization: `Bearer ${JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8")).token}`,
+    authorization: `Bearer ${JSON.parse(readFileSync(nodePath.join(dataDir, "server.json"), "utf-8")).token}`,
   });
 
   // hand-rolled: no bundler and no workspace link against a packed tarball
   const rpc = async (procedure, input) => {
     const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
-      method: "POST",
-      headers: { ...authHeaders(), "content-type": "application/json" },
       body: input === undefined ? "{}" : JSON.stringify({ json: input }),
+      headers: { ...authHeaders(), "content-type": "application/json" },
+      method: "POST",
     });
     if (!response.ok) {
       fail(`${procedure} answered ${response.status}`);
     }
-    return (await response.json()).json;
+    const body = await response.json();
+    return body.json;
   };
 
   process.stdout.write(`smoke: booting on ${baseUrl}\n`);
@@ -156,8 +158,8 @@ try {
     ["serve", "--port", String(port), "--data-dir", dataDir, "--vault", vaultDir],
     {
       detached: true,
-      stdio: ["ignore", "inherit", "inherit"],
       env: { ...process.env, INTELIGIR_AGENT: "off", INTELIGIR_SYNC_INTERVAL_MS: "0" },
+      stdio: ["ignore", "inherit", "inherit"],
     },
   );
 
@@ -177,10 +179,10 @@ try {
   const vaultList = await rpc("vault/tree");
   process.stdout.write(`smoke: vault tree -> ${vaultList.entries.length} entries\n`);
   await proveWatcherAlive({
-    rpc,
-    vaultDir,
     fail,
     log: (line) => process.stdout.write(`smoke: ${line}\n`),
+    rpc,
+    vaultDir,
   });
 
   // exercises the bundled client half the hand-rolled fetch above bypasses
@@ -204,7 +206,7 @@ try {
   }
   process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
 
-  const pid = server.pid;
+  const { pid } = server;
   if (pid === undefined) {
     fail("the server process has no pid — it never spawned");
   }
@@ -213,9 +215,12 @@ try {
   process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
   process.kill(pid, "SIGTERM");
   const exit = await Promise.race([
-    new Promise((resolvePromise) =>
-      server.on("close", (code, signal) => resolvePromise({ code, signal })),
-    ),
+    // oxlint-disable-next-line promise/avoid-new -- bridges the server child's "close" event
+    new Promise((resolve) => {
+      server.on("close", (code, signal) => {
+        resolve({ code, signal });
+      });
+    }),
     delay(EXIT_TIMEOUT_MS).then(() => null),
   ]);
   if (exit === null) {
@@ -241,7 +246,9 @@ try {
   if (server?.pid !== undefined) {
     try {
       process.kill(-server.pid, "SIGKILL");
-    } catch {}
+    } catch {
+      // the group is already gone — nothing left to kill
+    }
   }
-  await rm(scratch, { recursive: true, force: true });
+  await rm(scratch, { force: true, recursive: true });
 }

@@ -8,27 +8,25 @@ import { toApprovalPayload, toPermissionOutcome } from "../acp-permission-mappin
 
 const CTX = { providerThreadId: "sess_1", threadId: "thr_1", turnId: "turn_1" };
 
-function mapper(): AcpTurnMapper {
-  return new AcpTurnMapper({ ...CTX });
-}
+const mapper = (): AcpTurnMapper => new AcpTurnMapper({ ...CTX });
 
 describe("AcpTurnMapper", () => {
   it("opens one message item on the first chunk and closes it whole at completion", () => {
     const m = mapper();
     const first = m.update({
       sessionId: "sess_1",
-      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hel" } },
+      update: { content: { text: "hel", type: "text" }, sessionUpdate: "agent_message_chunk" },
     });
     expect(first.map((event) => event.type)).toEqual(["item/started", "item/agentMessage/delta"]);
     const second = m.update({
       sessionId: "sess_1",
-      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "lo" } },
+      update: { content: { text: "lo", type: "text" }, sessionUpdate: "agent_message_chunk" },
     });
     expect(second.map((event) => event.type)).toEqual(["item/agentMessage/delta"]);
     const done = m.completed("end_turn");
-    expect(done.at(-1)).toMatchObject({ type: "turn/completed", status: "completed" });
+    expect(done.at(-1)).toMatchObject({ status: "completed", type: "turn/completed" });
     const closed = done.find((event) => event.type === "item/completed");
-    expect(closed).toMatchObject({ item: { type: "agentMessage", text: "hello" } });
+    expect(closed).toMatchObject({ item: { text: "hello", type: "agentMessage" } });
   });
 
   it("lands an edit-kind tool call as a fileChange item with its locations", () => {
@@ -36,27 +34,27 @@ describe("AcpTurnMapper", () => {
     m.update({
       sessionId: "sess_1",
       update: {
-        sessionUpdate: "tool_call",
-        toolCallId: "call_1",
-        title: "Edit note.md",
         kind: "edit",
-        status: "in_progress",
         locations: [{ path: "/vault/note.md" }],
+        sessionUpdate: "tool_call",
+        status: "in_progress",
+        title: "Edit note.md",
+        toolCallId: "call_1",
       },
     });
     const settled = m.update({
       sessionId: "sess_1",
-      update: { sessionUpdate: "tool_call_update", toolCallId: "call_1", status: "completed" },
+      update: { sessionUpdate: "tool_call_update", status: "completed", toolCallId: "call_1" },
     });
     expect(settled).toHaveLength(1);
     expect(settled[0]).toMatchObject({
-      type: "item/completed",
       item: {
-        type: "fileChange",
+        changes: [{ kind: "update", path: "/vault/note.md" }],
         id: "call_1",
         status: "completed",
-        changes: [{ kind: "update", path: "/vault/note.md" }],
+        type: "fileChange",
       },
+      type: "item/completed",
     });
   });
 
@@ -65,49 +63,49 @@ describe("AcpTurnMapper", () => {
     m.update({
       sessionId: "sess_1",
       update: {
-        sessionUpdate: "tool_call",
-        toolCallId: "call_1",
-        title: "sleep 100",
         kind: "execute",
+        sessionUpdate: "tool_call",
         status: "in_progress",
+        title: "sleep 100",
+        toolCallId: "call_1",
       },
     });
     const events = m.completed("cancelled");
     expect(events[0]).toMatchObject({
+      item: { status: "interrupted", type: "commandExecution" },
       type: "item/completed",
-      item: { type: "commandExecution", status: "interrupted" },
     });
-    expect(events.at(-1)).toMatchObject({ type: "turn/completed", status: "interrupted" });
+    expect(events.at(-1)).toMatchObject({ status: "interrupted", type: "turn/completed" });
   });
 
   it("fails the turn through the grammar on a prompt rejection", () => {
     const m = mapper();
     const events = m.failed("adapter died");
     expect(events.map((event) => event.type)).toEqual(["provider/error", "turn/completed"]);
-    expect(events[1]).toMatchObject({ status: "failed", error: { message: "adapter died" } });
+    expect(events[1]).toMatchObject({ error: { message: "adapter died" }, status: "failed" });
   });
 });
 
 describe("permission mapping", () => {
   const request: RequestPermissionRequest = {
-    sessionId: "sess_1",
     options: [
-      { optionId: "y", kind: "allow_once", name: "Allow" },
-      { optionId: "n", kind: "reject_once", name: "Deny" },
+      { kind: "allow_once", name: "Allow", optionId: "y" },
+      { kind: "reject_once", name: "Deny", optionId: "n" },
     ],
-    toolCall: { toolCallId: "call_9", title: "rm -rf scratch", kind: "execute", status: "pending" },
+    sessionId: "sess_1",
+    toolCall: { kind: "execute", status: "pending", title: "rm -rf scratch", toolCallId: "call_9" },
   };
 
   it("derives a command subject and the offered decisions", () => {
     expect(toApprovalPayload(request)).toEqual({
+      availableDecisions: ["allow_once", "deny"],
       kind: "approval",
       reason: null,
-      availableDecisions: ["allow_once", "deny"],
       subject: {
-        kind: "command",
-        itemId: "call_9",
         command: "rm -rf scratch",
         cwd: null,
+        itemId: "call_9",
+        kind: "command",
       },
     });
   });
@@ -116,11 +114,11 @@ describe("permission mapping", () => {
     const editRequest: RequestPermissionRequest = {
       ...request,
       toolCall: {
-        toolCallId: "call_2",
-        title: "Edit a.md",
         kind: "edit",
-        status: "pending",
         locations: [{ path: "/vault/a.md" }],
+        status: "pending",
+        title: "Edit a.md",
+        toolCallId: "call_2",
       },
     };
     expect(toApprovalPayload(editRequest).subject).toMatchObject({
