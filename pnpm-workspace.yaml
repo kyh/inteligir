@@ -16,26 +16,26 @@ catalog:
   "@zed-industries/codex-acp": 0.16.0
   # exact: prebuilt N-API addon with no build script, which `npx inteligir` depends on.
   # tar + unbzip2-stream because Node has no bzip2 and Windows tar.exe cannot -j
-  cn: ^0.2.5
+  cn: ^0.3.0
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3
   # optional peer @vitejs/plugin-react loads for `compiler: true`
-  oxc-transform-react: ^0.147.0
-  "@cloudflare/vite-plugin": ^1.54.4
+  oxc-transform-react: ^0.150.0
+  "@cloudflare/vite-plugin": ^1.56.0
   "@cloudflare/vitest-pool-workers": ^0.22.0
-  "@expo/metro-runtime": ~57.0.15
+  "@expo/metro-runtime": ~57.0.16
   # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
   "@hono/node-server": ~1.19.17
   "@hono/node-ws": ^1.3.1
   "@parcel/watcher": ^2.6.0
   "@tailwindcss/vite": ^4.3.3
-  "@testing-library/dom": ^10.4.1
+  "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
   # exact: the committed route tree is an artifact of the plugin version
-  "@tanstack/react-router": 1.170.29
-  "@tanstack/react-start": 1.168.46
-  "@tanstack/router-plugin": 1.168.35
+  "@tanstack/react-router": 1.170.38
+  "@tanstack/react-start": 1.168.56
+  "@tanstack/router-plugin": 1.168.40
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
@@ -43,29 +43,32 @@ catalog:
   "@types/react": 19.2.17
   "@types/react-dom": ^19.2.7
   "@vitejs/plugin-react": ^6.1.1
-  "@better-auth/drizzle-adapter": ^1.7.2
-  better-auth: ^1.7.2
+  # exact: 1.7.3+ drops account.issuer, which the D1 schema holds NOT NULL and unique-indexes;
+  # lifting it needs a production D1 schema change first
+  "@better-auth/drizzle-adapter": 1.7.2
+  better-auth: 1.7.2
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
   consola: ^3.4.2
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4
   esbuild: ^0.28.2
-  expo: ~57.0.20
-  expo-constants: ~57.0.17
-  expo-crypto: ~57.0.2
-  expo-file-system: ~57.0.6
-  expo-router: ~57.0.19
-  expo-secure-store: ~57.0.3
-  expo-splash-screen: ~57.0.8
+  expo: ~57.0.24
+  expo-constants: ~57.0.19
+  expo-crypto: ~57.0.3
+  expo-file-system: ~57.0.7
+  expo-router: ~57.0.22
+  expo-secure-store: ~57.0.4
+  expo-splash-screen: ~57.0.9
   expo-status-bar: ~57.0.1
-  expo-system-ui: ~57.0.3
-  hono: ^4.13.7
-  jsdom: ^30.0.1
-  lucide-react: ^1.41.0
+  expo-system-ui: ~57.0.4
+  hono: ^4.13.8
+  jsdom: ^30.1.0
+  lucide-react: ^1.47.0
   nanoid: ^6.0.1
-  react: ^19.2.8
-  react-dom: ^19.2.8
+  # held under 19.3: @react-three/fiber 9 peers react <19.3
+  react: ~19.2.8
+  react-dom: ~19.2.8
   react-native: ~0.86.3
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
@@ -79,10 +82,11 @@ catalog:
   # exact: 8.2.x's rolldown tree-shakes better-auth's HOST_COOKIE_PREFIX and the Worker
   # dies at module scope with a bare 500
   vite: 8.1.5
+  # held on 4.x: @cloudflare/vitest-pool-workers peers vitest ^4.1
   vitest: ^4.1.11
-  wrangler: ^4.129.0
-  yaml: ^2.9.0
-  zod: ^4.5.4
+  wrangler: ^4.135.0
+  yaml: ^2.9.1
+  zod: ^4.6.5
   zustand: ^5.0.15
 
 catalogs:
@@ -105,6 +109,8 @@ allowBuilds:
   workerd: true
 
 overrides:
+  # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
+  "@better-auth/core": 1.7.2
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"

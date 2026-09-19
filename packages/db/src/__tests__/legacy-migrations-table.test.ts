@@ -17,11 +17,10 @@ import { makeTempDir } from "./open-temp-db";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
-// the `tag` and `when` of each entry in the old `drizzle/meta/_journal.json`, in order, as it
-// stood before `drizzle-kit up` converted the folder (git: packages/db/drizzle/meta/_journal.json
-// at 71b8b15). The old migrator stored exactly `when` as the row's created_at, and the folder
-// `drizzle-kit up` minted is `when` floored to the second plus the tag's own name — the match
-// the backfill relies on. Frozen on purpose: the journal is gone and these installs are shipped.
+// the `tag` and `when` of each entry in the pre-1.0 `drizzle/meta/_journal.json`, in order, as it
+// stood before `drizzle-kit up` converted the folder. The old migrator stored exactly `when` as
+// the row's created_at, and the folder `drizzle-kit up` minted is `when` floored to the second
+// plus the tag's own name — the match the backfill relies on. Frozen on purpose: the journal is gone and these installs are shipped.
 const LEGACY_JOURNAL = [
   { tag: "0000_secret_polaris", when: 1_786_863_867_225 },
   { tag: "0001_early_tana_nile", when: 1_786_869_808_165 },
