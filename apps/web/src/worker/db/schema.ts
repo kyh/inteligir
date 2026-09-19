@@ -9,34 +9,42 @@ import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
 /* oxlint-disable sort-keys -- a table's column order is the CREATE TABLE order drizzle-kit
    emits, and it mirrors what `@better-auth/cli generate` prints; sorting it makes the next
    generated migration recreate every table. */
-export const user = sqliteTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: integer("email_verified", { mode: "boolean" })
-    .$defaultFn(() => false)
-    .notNull(),
-  image: text("image"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .$defaultFn(() => new Date())
-    .notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .$defaultFn(() => new Date())
-    .notNull(),
-});
+export const user = sqliteTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    emailVerified: integer("email_verified", { mode: "boolean" })
+      .$defaultFn(() => false)
+      .notNull(),
+    image: text("image"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" })
+      .$defaultFn(() => new Date())
+      .notNull(),
+  },
+  (table) => [uniqueIndex("user_email_unique").on(table.email)],
+);
 
-export const session = sqliteTable("session", {
-  id: text("id").primaryKey(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  token: text("token").notNull().unique(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-});
+export const session = sqliteTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    token: text("token").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [uniqueIndex("session_token_unique").on(table.token)],
+);
 
 export const account = sqliteTable(
   "account",
@@ -76,12 +84,16 @@ export const verification = sqliteTable("verification", {
 });
 
 // better-auth's own rate-limit store shape (lastRequest is epoch ms); regenerate rather than hand-edit
-export const rateLimit = sqliteTable("rate_limit", {
-  id: text("id").primaryKey(),
-  key: text("key").notNull().unique(),
-  count: integer("count").notNull(),
-  lastRequest: integer("last_request").notNull(),
-});
+export const rateLimit = sqliteTable(
+  "rate_limit",
+  {
+    id: text("id").primaryKey(),
+    key: text("key").notNull(),
+    count: integer("count").notNull(),
+    lastRequest: integer("last_request").notNull(),
+  },
+  (table) => [uniqueIndex("rate_limit_key_unique").on(table.key)],
+);
 
 // stored in the clear: a low-entropy string a human types, bounded by the route's rate window,
 // and the owner reads back which codes are open; redeemedAt non-null is the redeemed marker
@@ -93,14 +105,18 @@ export const inviteCode = sqliteTable("invite_code", {
 
 // credentialHash is SHA-256 of the minted credential, whose plaintext is never stored;
 // rows survive revocation as the dashboard's audit surface and die with the account
-export const device = sqliteTable("device", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  credentialHash: text("credential_hash").notNull().unique(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-  lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
-  revokedAt: integer("revoked_at", { mode: "timestamp" }),
-});
+export const device = sqliteTable(
+  "device",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    credentialHash: text("credential_hash").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp" }),
+  },
+  (table) => [uniqueIndex("device_credential_hash_unique").on(table.credentialHash)],
+);

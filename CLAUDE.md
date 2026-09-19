@@ -935,6 +935,18 @@ agents default`; unset falls back
   redeploy without `UPDATE <table> SET <col> = <col> * 1000` reads every date as
   1970 and expires every session.
 
+- **Declare D1 uniques as named unique indexes, never `.unique()`**
+  (`apps/web/src/worker/db/schema.ts`). Production D1 was pushed by drizzle-kit
+  0.31, which spelled every `.unique()` as `CREATE UNIQUE INDEX
+  <table>_<column>_unique`. drizzle-kit 1.0 spells it as an inline `UNIQUE`
+  constraint and treats the difference as a table recreate: `PRAGMA
+  foreign_keys=OFF; CREATE __new; INSERT; DROP; RENAME`. D1 ignores that PRAGMA,
+  so the `DROP` cascades through every `ON DELETE CASCADE` child (`session`,
+  `account`, `device`), and `push` applies a recreate without asking. With
+  `uniqueIndex("<table>_<column>_unique")` in the table's extra config,
+  `drizzle-kit push --explain` against a 0.31-shaped database reports no
+  changes; refuse any plan that recreates a table.
+
 ### Server process and the desktop shell
 
 - **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /
