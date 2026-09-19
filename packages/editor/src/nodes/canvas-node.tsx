@@ -4,7 +4,7 @@ import type { PlateElementProps } from "platejs/react";
 import { useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";
 

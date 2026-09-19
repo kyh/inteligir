@@ -78,8 +78,8 @@ export interface PaletteActions {
   openProblemLink: (sourcePath: string, target: string) => void;
 }
 
-// the pages an entry point opens onto; "notes" is the root with its commands folded away (⌘O)
-export type PaletteEntryPage = "root" | "search" | "notes" | "headings" | "move-to-folder";
+// the pages an entry point opens onto; ⌘P is the one that opens the root
+export type PaletteEntryPage = "root" | "search" | "headings" | "move-to-folder";
 
 // One channel for every way the palette opens: the page, and for a move the entry it moves. The
 // workspace bumps `nonce` per open and keys the palette on it, so each open mounts fresh and no
@@ -210,7 +210,6 @@ const rootCommands = (
         },
       ]),
   {
-    binding: "open-search",
     icon: <SearchIcon />,
     id: "search-vault",
     keepOpen: true,
@@ -352,7 +351,7 @@ export const CommandPalette = ({
     queryKey: ["palette", "note-hits", settledQuery],
     queryFn: async ({ signal }) =>
       await searchSource(settledQuery, signal).catch((): NoteSearchHit[] => []),
-    enabled: open && (page === "root" || page === "notes"),
+    enabled: open && page === "root",
     placeholderData: (previous) => previous,
   });
   const noteHits = noteHitsQuery.data ?? [];
@@ -397,7 +396,7 @@ export const CommandPalette = ({
               {visible.map((row) => (
                 <CommandItem
                   key={row.id}
-                  value={row.id}
+                  action={row.title}
                   onSelect={() => {
                     run(() => {
                       actions.goToHeading(row);
@@ -411,7 +410,7 @@ export const CommandPalette = ({
                   >
                     {row.title}
                   </span>
-                  <span className="ml-auto pl-3 text-xs text-muted-foreground">H{row.depth}</span>
+                  <span className="ml-auto pl-3 text-body text-muted-foreground">H{row.depth}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -476,6 +475,7 @@ export const CommandPalette = ({
             {visibleThreads.map((thread) => (
               <CommandItem
                 key={thread.id}
+                action={threadRowLabel(thread)}
                 onSelect={() => {
                   run(() => {
                     actions.openThread(thread.id);
@@ -484,7 +484,7 @@ export const CommandPalette = ({
               >
                 <MessagesSquareIcon />
                 <span className="truncate">{threadRowLabel(thread)}</span>
-                <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
+                <span className="ml-auto truncate pl-3 text-body text-muted-foreground">
                   {threadRowDetail(thread)}
                 </span>
               </CommandItem>
@@ -580,17 +580,14 @@ export const CommandPalette = ({
     return paged;
   }
 
-  const quickOpen = page === "notes";
-  const visibleCommands = quickOpen
-    ? []
-    : commands.filter((command) => matchesQuery(command.label, query));
+  const visibleCommands = commands.filter((command) => matchesQuery(command.label, query));
 
   return (
     <PalettePage
       {...shell}
-      title={quickOpen ? "Open a note" : "Command palette"}
-      description={quickOpen ? "Jump to a note by name" : "Open a note or run a command"}
-      placeholder={quickOpen ? "Open a note…" : "Search notes or commands…"}
+      title="Command palette"
+      description="Open a note or run a command"
+      placeholder="Search notes or commands…"
     >
       <CommandEmpty>Nothing matches.</CommandEmpty>
       {noteHits.length > 0 ? (
@@ -598,6 +595,7 @@ export const CommandPalette = ({
           {noteHits.map((hit) => (
             <CommandItem
               key={hit.path}
+              action={hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
               onSelect={() => {
                 run(() => {
                   actions.openNote(hit.path);
@@ -609,7 +607,7 @@ export const CommandPalette = ({
                 {hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
               </span>
               {hit.title !== undefined && hit.title !== "" ? (
-                <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
+                <span className="ml-auto truncate pl-3 text-body text-muted-foreground">
                   {hit.path}
                 </span>
               ) : null}
@@ -622,6 +620,7 @@ export const CommandPalette = ({
           {visibleCommands.map((command) => (
             <CommandItem
               key={command.id}
+              action={command.label}
               onSelect={() => {
                 if (command.keepOpen === true) {
                   command.run();
@@ -633,7 +632,7 @@ export const CommandPalette = ({
               {command.icon}
               {command.label}
               {command.binding === undefined ? null : (
-                <CommandShortcut>{bindingFor(command.binding, modifier)}</CommandShortcut>
+                <CommandShortcut keys={bindingFor(command.binding, modifier) ?? ""} />
               )}
             </CommandItem>
           ))}

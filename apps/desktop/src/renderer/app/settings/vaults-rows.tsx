@@ -37,7 +37,7 @@ export const VaultsRow = () => {
             {busy === "picking" || busy === "opening" ? "Opening…" : "Open another vault…"}
           </Button>
         ) : (
-          <span className="block text-sm text-muted-foreground">{state.blocked}</span>
+          <span className="block text-subtitle text-muted-foreground">{state.blocked}</span>
         )}
         {state.recent.length > 0 ? (
           <ul className="space-y-0.5">

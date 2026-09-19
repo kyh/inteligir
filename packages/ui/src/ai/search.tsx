@@ -3,7 +3,7 @@
 
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode, RefAttributes } from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
 const SEARCH_ICON = (

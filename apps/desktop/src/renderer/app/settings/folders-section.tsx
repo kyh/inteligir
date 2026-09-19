@@ -73,17 +73,17 @@ export const FoldersSection = () => {
   return (
     <section className="space-y-2">
       <SectionHeading>Connected folders</SectionHeading>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-body text-muted-foreground">
         Folders the agent is pointed at as read-only reference context. Applies from the
         agent&apos;s next session.
       </p>
       {folders.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No folders connected.</p>
+        <p className="text-body text-muted-foreground">No folders connected.</p>
       ) : (
         <ul className="space-y-1">
           {folders.map((folder) => (
             <li key={folder} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate font-mono text-xs" title={folder}>
+              <span className="min-w-0 flex-1 truncate font-mono text-body" title={folder}>
                 {folder}
               </span>
               <Button
@@ -114,7 +114,7 @@ export const FoldersSection = () => {
           }}
           placeholder="/absolute/path/to/folder"
           aria-label="Folder path"
-          className="h-7 flex-1 font-mono text-xs"
+          className="h-7 flex-1 font-mono text-body"
         />
         <Button
           type="submit"
@@ -125,7 +125,7 @@ export const FoldersSection = () => {
           Connect
         </Button>
       </form>
-      {error === null ? null : <p className="text-xs text-destructive">{error}</p>}
+      {error === null ? null : <p className="text-body text-destructive">{error}</p>}
     </section>
   );
 };

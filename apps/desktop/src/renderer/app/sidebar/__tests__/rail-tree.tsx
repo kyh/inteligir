@@ -16,9 +16,7 @@ export const RailTree = (props: RailTreeProps) => {
       <button type="button" onClick={handleCollapseAll}>
         Collapse all
       </button>
-      <span
-        data-create-dir={createDirFor(props.rootDir, state.activePath, (path) => folders.has(path))}
-      />
+      <span data-create-dir={createDirFor("", state.activePath, (path) => folders.has(path))} />
       <FileTree state={state} {...props} />
     </>
   );

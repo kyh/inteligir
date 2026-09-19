@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/button";
 import { CommandEmpty, CommandGroup, CommandItem } from "@repo/ui/components/command";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { KNOWLEDGE_MATCHES_DEFAULT_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -51,7 +51,7 @@ const SearchToggle = ({
       aria-label={label}
       onClick={onToggle}
       className={cn(
-        "h-7 shrink-0 rounded-md px-1.5 text-xs font-medium text-muted-foreground hover:bg-hover hover:text-foreground",
+        "h-7 shrink-0 rounded-md px-1.5 text-body font-medium text-muted-foreground hover:bg-hover hover:text-foreground",
         pressed && "bg-muted text-foreground",
       )}
     >
@@ -168,7 +168,7 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
               onChange={(event) => {
                 setReplacement(event.target.value);
               }}
-              className="ml-1 h-7 min-w-0 flex-1 rounded-md bg-input/50 px-2 text-sm outline-none placeholder:text-muted-foreground"
+              className="ml-1 h-7 min-w-0 flex-1 rounded-md bg-input/50 px-2 text-subtitle outline-none placeholder:text-muted-foreground"
             />
             <Button
               variant="secondary"
@@ -187,7 +187,7 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
             </Button>
           </div>
           {replaceRun === null ? null : (
-            <div className="flex items-center gap-2 px-3 pt-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 px-3 pt-1.5 text-body text-muted-foreground">
               <span aria-live="polite" className="tabular-nums">
                 Replacing… {replaceRun.done} of {replaceRun.total} notes
               </span>
@@ -218,7 +218,7 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
           {group.rows.map((row) => (
             <CommandItem
               key={row.ordinal}
-              value={`${row.path}#${String(row.ordinal)}`}
+              action={`${group.title === "" ? group.path : group.title} line ${String(row.line)}`}
               onSelect={() => {
                 onOpenMatch(row, shell.query);
               }}
@@ -230,7 +230,7 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
                 </mark>
                 <span className="text-muted-foreground">{row.after}</span>
               </span>
-              <span className="ml-auto shrink-0 pl-3 text-xs text-muted-foreground tabular-nums">
+              <span className="ml-auto shrink-0 pl-3 text-body text-muted-foreground tabular-nums">
                 {row.line}
               </span>
             </CommandItem>
@@ -238,7 +238,7 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
         </CommandGroup>
       ))}
       {truncated ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">
+        <p className="px-3 py-2 text-body text-muted-foreground">
           {matches.length} of {total} matches shown. Narrow the search to replace.
         </p>
       ) : null}

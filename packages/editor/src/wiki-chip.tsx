@@ -7,7 +7,7 @@ import { FilePlusIcon } from "lucide-react";
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { useVaultActions, useWikiResolver } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";

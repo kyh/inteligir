@@ -7,7 +7,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { motion } from "framer-motion";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
@@ -229,8 +229,18 @@ export {
   SidebarInset,
   SidebarHeader,
   SidebarContent,
-  SidebarSearchField,
-  useSidebarRow,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupActions,
+  SidebarGroupAction,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_MAX_WIDTH,
 } from "@repo/ui/components/sidebar-core";
+
+export {
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuAction,
+} from "@repo/ui/components/sidebar-menu";

@@ -12,6 +12,7 @@ import { Button } from "@repo/ui/components/button";
 import {
   CommandDialog,
   CommandEmpty,
+  CommandFooter,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -46,6 +47,7 @@ export const OverlaysSection = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
 
   const ask = async () => {
     setConfirmed(
@@ -215,25 +217,36 @@ export const OverlaysSection = () => {
         >
           Open palette
         </Button>
-        <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>
-          <CommandInput placeholder="Search notes or commands…" />
+        <CommandDialog
+          open={paletteOpen}
+          onOpenChange={setPaletteOpen}
+          title="Command palette"
+          description="Open a note or run a command"
+        >
+          <CommandInput
+            placeholder="Search notes or commands…"
+            aria-label="Search notes or commands"
+            value={paletteQuery}
+            onValueChange={setPaletteQuery}
+          />
           <CommandList>
             <CommandEmpty>Nothing matches.</CommandEmpty>
             <CommandGroup heading="Notes">
-              <CommandItem>Release checklist</CommandItem>
-              <CommandItem>Weekly review</CommandItem>
+              <CommandItem action="Release checklist">Release checklist</CommandItem>
+              <CommandItem action="Weekly review">Weekly review</CommandItem>
             </CommandGroup>
             <CommandGroup heading="Commands">
-              <CommandItem>
+              <CommandItem action="New note">
                 New note
-                <CommandShortcut>⌘N</CommandShortcut>
+                <CommandShortcut keys="⌘N" />
               </CommandItem>
-              <CommandItem>
+              <CommandItem action="Open settings">
                 Open settings
-                <CommandShortcut>⌘,</CommandShortcut>
+                <CommandShortcut keys="⌘," />
               </CommandItem>
             </CommandGroup>
           </CommandList>
+          <CommandFooter />
         </CommandDialog>
       </Demo>
     </GallerySection>

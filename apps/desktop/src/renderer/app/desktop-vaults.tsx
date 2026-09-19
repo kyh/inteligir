@@ -83,7 +83,7 @@ export const useVaultSwitch = (onRefused: (message: string) => void): VaultSwitc
 // a remembered vault's name over its path, the same in the rail's menu and in Settings
 export const RecentVaultLabel = ({ vault }: { vault: VaultRef }) => (
   <span className="flex min-w-0 flex-col">
-    <span className="truncate text-sm">{vault.name}</span>
-    <span className="truncate font-mono text-[11px] text-muted-foreground">{vault.path}</span>
+    <span className="truncate text-subtitle">{vault.name}</span>
+    <span className="truncate font-mono text-caption text-muted-foreground">{vault.path}</span>
   </span>
 );

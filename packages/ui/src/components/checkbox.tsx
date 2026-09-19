@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const CheckMark = ({ compact }: { compact: boolean }) => (
   <motion.svg

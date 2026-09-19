@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type { KeyboardEvent } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";

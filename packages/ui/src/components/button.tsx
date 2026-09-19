@@ -9,7 +9,8 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import type { IconComponent } from "@repo/ui/lib/icon";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
-import { cn } from "cn";
+import { isTextChild } from "@repo/ui/lib/text-children";
+import { cn } from "@repo/ui/lib/cn";
 
 const buttonStructure = cva(
   [
@@ -34,8 +35,8 @@ const buttonStructure = cva(
       iconLeft: { true: "" },
       iconRight: { true: "" },
       size: {
-        compact: "h-7 gap-1 px-3 text-[12px] [&_svg:not([class*='size-'])]:size-3.5",
-        default: "h-9 gap-1.5 px-4 text-[13px]",
+        compact: "h-7 gap-1 px-3 text-body [&_svg:not([class*='size-'])]:size-3.5",
+        default: "h-9 gap-1.5 px-4 text-subtitle",
         icon: "h-9 w-9 p-0",
         "icon-compact": "h-7 w-7 p-0 [&_svg:not([class*='size-'])]:size-3.5",
       },
@@ -115,6 +116,35 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
 // text-box only applies to block containers, so the trim lives on the label span, not the flex root.
 const labelTrimClass = "[text-box:trim-both_cap_alphabetic]";
 
+// Text runs are trimmed; an element child (an icon, a count) is a sibling flex item beside them.
+// Inside the trimmed block an inline svg does not size the block and is pushed out of its line
+// box, which drew the icon above the label.
+const labelChildren = (children: ReactNode): ReactNode[] => {
+  const nodes: ReactNode[] = Array.isArray(children) ? children : [children];
+  const out: ReactNode[] = [];
+  let run: ReactNode[] = [];
+  const flush = (key: number): void => {
+    if (run.length > 0) {
+      out.push(
+        <span key={`text-${String(key)}`} className={labelTrimClass}>
+          {run}
+        </span>,
+      );
+      run = [];
+    }
+  };
+  for (const [index, node] of nodes.entries()) {
+    if (isTextChild(node)) {
+      run.push(node);
+    } else {
+      flush(index);
+      out.push(node);
+    }
+  }
+  flush(nodes.length);
+  return out;
+};
+
 interface ButtonLabelProps {
   children: ReactNode;
   iconSize: number;
@@ -163,8 +193,8 @@ const ButtonLabel = ({
 
   if (isIconOnly) {
     return (
-      <span className="[&_svg]:transition-[stroke-width] [&_svg]:duration-80 [&_svg]:stroke-[1.5] group-hover:[&_svg]:stroke-[2]">
-        {children}
+      <span className="inline-flex items-center gap-[inherit] [&_svg]:transition-[stroke-width] [&_svg]:duration-80 [&_svg]:stroke-[1.5] group-hover:[&_svg]:stroke-[2]">
+        {labelChildren(children)}
       </span>
     );
   }
@@ -178,7 +208,7 @@ const ButtonLabel = ({
           className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
         />
       )}
-      <span className={labelTrimClass}>{children}</span>
+      {labelChildren(children)}
       {TrailingIcon && (
         <TrailingIcon
           size={iconSize}

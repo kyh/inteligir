@@ -1,3 +1,4 @@
+import { setFindBarAnchor } from "@repo/editor/find-bar";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { Button } from "@repo/ui/components/button";
@@ -9,7 +10,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { useSidebar } from "@repo/ui/components/sidebar";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -145,7 +146,7 @@ export const NoteTopbar = ({
       </Button>
       <nav
         aria-label="Note location"
-        className="ml-2 flex min-w-0 items-center text-sm text-muted-foreground"
+        className="ml-2 flex min-w-0 items-center text-body text-muted-foreground"
       >
         {segments.map((segment, index) => {
           const folder = segments.slice(0, index + 1).join("/");
@@ -170,6 +171,7 @@ export const NoteTopbar = ({
       </nav>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Button
+          ref={setFindBarAnchor}
           variant="ghost"
           size="icon-compact"
           aria-label="Find in note"
@@ -187,7 +189,7 @@ export const NoteTopbar = ({
           className={cn(commentCount > 0 && "w-auto gap-1 px-1.5")}
         >
           <MessageSquareTextIcon />
-          {commentCount > 0 ? <span className="text-xs tabular-nums">{commentCount}</span> : null}
+          {commentCount > 0 ? <span className="text-body tabular-nums">{commentCount}</span> : null}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger

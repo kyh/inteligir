@@ -8,7 +8,7 @@ import { PlateElement, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { ImageOff } from "lucide-react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { stringProp } from "@repo/editor/node-props";

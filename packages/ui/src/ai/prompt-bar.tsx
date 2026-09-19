@@ -12,7 +12,7 @@ import type {
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
 const promptBarVariants = cva(

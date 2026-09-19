@@ -76,10 +76,10 @@ export const VoiceSection = () => {
 
   const body = () => {
     if (status === undefined) {
-      return <p className="text-sm text-muted-foreground">…</p>;
+      return <p className="text-subtitle text-muted-foreground">…</p>;
     }
     if (status.state === "unavailable") {
-      return <p className="text-xs text-muted-foreground">{status.detail}</p>;
+      return <p className="text-body text-muted-foreground">{status.detail}</p>;
     }
     return (
       <dl className="space-y-1.5">
@@ -91,14 +91,14 @@ export const VoiceSection = () => {
               disabled={pending || status.state === "downloading" || status.state === "preparing"}
               onCheckedChange={setEnabled}
             />
-            <span className="text-sm text-muted-foreground">{stateLabel(status)}</span>
+            <span className="text-subtitle text-muted-foreground">{stateLabel(status)}</span>
           </span>
-          <span className="mt-1 block text-xs text-muted-foreground">
+          <span className="mt-1 block text-body text-muted-foreground">
             Speech is transcribed on this machine by {status.model.label} (
             {megabytes(status.model.sizeBytes)}, downloaded once). Nothing is sent anywhere.
           </span>
           {status.state === "no-model" && status.lastError !== null ? (
-            <span className="mt-1 block text-xs text-destructive">{status.lastError}</span>
+            <span className="mt-1 block text-body text-destructive">{status.lastError}</span>
           ) : null}
         </Row>
       </dl>

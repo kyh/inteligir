@@ -4,7 +4,7 @@
 import * as React from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const Popover = ({ ...props }: PopoverPrimitive.Root.Props) => (
   <PopoverPrimitive.Root data-slot="popover" {...props} />
@@ -39,7 +39,7 @@ const PopoverContent = ({
       <PopoverPrimitive.Popup
         data-slot="popover-content"
         className={cn(
-          "bloom-popup z-50 flex w-72 origin-(--transform-origin) flex-col gap-4 rounded-3xl bg-popover p-4 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/5 outline-hidden dark:ring-foreground/10",
+          "bloom-popup z-50 flex w-72 origin-(--transform-origin) flex-col gap-4 rounded-3xl bg-popover p-4 text-subtitle text-popover-foreground shadow-lg ring-1 ring-foreground/5 outline-hidden dark:ring-foreground/10",
           className,
         )}
         {...props}

@@ -8,7 +8,7 @@ import type { TElement, TText, Value } from "platejs";
 import { PlateStatic, SlateElement } from "platejs/static";
 import type { SlateElementProps } from "platejs/static";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { getEditorHostIo, vaultChangeTouches } from "@repo/editor/host-io";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";

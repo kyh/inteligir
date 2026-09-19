@@ -6,7 +6,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { motion, useMotionValue } from "framer-motion";
 import type { MotionStyle } from "framer-motion";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
@@ -117,7 +117,7 @@ const Tooltip = ({
                 <motion.div {...rest} style={motionStyle(baseStyle, followStyle)}>
                   <motion.div
                     className={cn(
-                      "bg-foreground text-background text-[12px] px-2 py-1",
+                      "bg-foreground text-background text-body px-2 py-1",
                       "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
                       radius.bg,
                       className,

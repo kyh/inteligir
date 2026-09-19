@@ -1,15 +1,16 @@
-// The one shell every palette page draws: the dialog, its input, and the list the page fills.
-// shouldFilter is off: each page filters its own rows, not cmdk's heuristics.
+// The one shell every palette page draws: the dialog, its field, the list the page fills and the
+// hint strip under it. Every page filters its own rows, so nothing here matches a query.
 
 import {
   CommandDialog,
   CommandEmpty,
+  CommandFooter,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
 } from "@repo/ui/components/command";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
 import { FolderIcon, LayoutTemplateIcon } from "lucide-react";
@@ -69,12 +70,17 @@ export const PalettePage = ({
     onOpenChange={onOpenChange}
     title={title}
     description={description}
-    shouldFilter={false}
-    className={cn(wide && "sm:max-w-2xl")}
+    className={cn(wide && "max-w-[min(100%-2rem,720px)]")}
   >
-    <CommandInput placeholder={placeholder} value={query} onValueChange={onQueryChange} />
+    <CommandInput
+      placeholder={placeholder}
+      value={query}
+      onValueChange={onQueryChange}
+      aria-label={title}
+    />
     {toolbar}
-    <CommandList className={cn(wide && "max-h-96")}>{children}</CommandList>
+    <CommandList>{children}</CommandList>
+    <CommandFooter />
   </CommandDialog>
 );
 
@@ -104,6 +110,7 @@ export const FolderPage = ({
       {folders.map((dir) => (
         <CommandItem
           key={dir === "" ? "(root)" : dir}
+          action={dir === "" ? "Vault root" : dir}
           onSelect={() => {
             onPick(dir);
           }}
@@ -137,13 +144,14 @@ export const TemplateRows = ({
         {visible.map((path) => (
           <CommandItem
             key={path}
+            action={docStem(path)}
             onSelect={() => {
               onPick(path);
             }}
           >
             <LayoutTemplateIcon />
             <span className="truncate">{docStem(path)}</span>
-            <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">{path}</span>
+            <span className="ml-auto truncate pl-3 text-body text-muted-foreground">{path}</span>
           </CommandItem>
         ))}
       </CommandGroup>

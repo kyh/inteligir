@@ -105,7 +105,7 @@ export const RelatedRows = ({
 }) => (
   <div className="max-h-64 overflow-y-auto px-1.5 pb-2">
     {rows.length === 0 ? (
-      <p className="px-1.5 pb-1 text-xs text-muted-foreground">
+      <p className="px-1.5 pb-1 text-body text-muted-foreground">
         {settledEmpty ? "Nothing links here or shares this note's links, tags or words." : "…"}
       </p>
     ) : (
@@ -121,10 +121,10 @@ export const RelatedRows = ({
                   onOpenDoc(row.path);
                 }}
               >
-                <span className="block truncate text-sm" title={row.path}>
+                <span className="block truncate text-subtitle" title={row.path}>
                   {row.label}
                 </span>
-                <span className="block truncate text-xs text-muted-foreground">{row.detail}</span>
+                <span className="block truncate text-body text-muted-foreground">{row.detail}</span>
               </button>
               {action === undefined ? null : (
                 <Button
@@ -143,7 +143,7 @@ export const RelatedRows = ({
       </ul>
     )}
     {suggestionsFailed ? (
-      <p className="px-1.5 pt-1 text-xs text-muted-foreground">
+      <p className="px-1.5 pt-1 text-body text-muted-foreground">
         Could not read suggestions just now.
       </p>
     ) : null}

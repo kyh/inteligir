@@ -21,7 +21,7 @@ import type { Descendant } from "platejs";
 import { createPlatePlugin, useEditorRef } from "platejs/react";
 import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";
 

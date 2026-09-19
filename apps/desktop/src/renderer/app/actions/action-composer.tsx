@@ -2,7 +2,7 @@ import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema"
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { toast } from "@repo/ui/components/sonner";
 import { FileTextIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -191,7 +191,7 @@ export const ActionComposer = ({
             <div
               data-dictation-preview=""
               aria-live="polite"
-              className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted-foreground"
+              className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-body text-muted-foreground"
             >
               {dictationPartial === "" ? "Listening…" : dictationPartial}
             </div>

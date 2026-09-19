@@ -4,7 +4,7 @@ import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
 import { useCommentMeta, useCommentSurface } from "./comment-store";

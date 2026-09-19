@@ -24,7 +24,8 @@ const SEARCH_INPUT = 'input[placeholder^="Search across the vault"]';
 const REPLACE_INPUT = 'input[aria-label="Replace with"]';
 const FIND_BAR_INPUT = 'input[aria-label="Find in note"]';
 // agent-browser drives a browser on this machine, so the page sees this platform's modifier.
-const SEARCH_CHORD = process.platform === "darwin" ? "Meta+Shift+f" : "Control+Shift+f";
+const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
+const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 const ROWS_DEADLINE_MS = 20_000;
 const DISK_DEADLINE_MS = 30_000;
 const OPTION_COUNT = "String(document.querySelectorAll('[role=option]').length)";
@@ -41,9 +42,12 @@ const waitForRows = async (expected: number, what: string): Promise<void> => {
   }
 };
 
+// the palette is the one search surface: its root row opens the vault-wide scan
 const openSearch = async (): Promise<void> => {
   await agentBrowser(["click", EDITOR]);
-  await agentBrowser(["press", SEARCH_CHORD]);
+  await agentBrowser(["press", PALETTE_CHORD]);
+  await agentBrowser(["wait", PALETTE_INPUT], 30_000);
+  await agentBrowser(["find", "role", "option", "click", "--name", "Search across the vault…"]);
   await agentBrowser(["wait", SEARCH_INPUT], 30_000);
   await agentBrowser(["fill", SEARCH_INPUT, NEEDLE]);
   // one row per occurrence: one in the first note, two in the second
@@ -52,7 +56,7 @@ const openSearch = async (): Promise<void> => {
 
 export const vaultSearchBrowser: Scenario = {
   description:
-    "⌘⇧F lists every match; Enter lands the find bar on one; Replace all rewrites the notes on disk",
+    "the palette's vault search lists every match; Enter lands the find bar on one; Replace all rewrites the notes on disk",
   name: "vault-search-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -69,7 +73,7 @@ export const vaultSearchBrowser: Scenario = {
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
       await agentBrowser(["wait", EDITOR], 90_000);
 
-      ctx.log("the chord opens the search page and the rows arrive");
+      ctx.log("the palette opens the search page and the rows arrive");
       await openSearch();
 
       ctx.log("the second row is the other note's first match; Enter opens it on the find bar");

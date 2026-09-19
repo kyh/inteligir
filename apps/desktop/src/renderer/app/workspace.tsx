@@ -17,10 +17,10 @@ import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
 import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
-import { StatusBar } from "./status-bar";
+import { NoteFooter } from "./note-footer";
 import { useThreads } from "./actions/thread-hooks";
 import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
-import { useGlobalShortcuts } from "./global-shortcuts";
+import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
@@ -46,7 +46,6 @@ import type { PaletteEntryPage, PaletteRequest } from "./palette/command-palette
 import { createSearchSource, sortedNotePaths } from "./palette/search-source";
 import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
-import { DeletedNotesDialog } from "./sidebar/deleted-notes-dialog";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
 import { useTreeOps } from "./sidebar/tree-ops";
@@ -62,12 +61,10 @@ import {
 } from "./vault-hooks";
 import {
   readPanelOpen,
-  readSidebarFolder,
   readRailView,
   readPanelWidth,
   readSidebarWidth,
   writePanelOpen,
-  writeSidebarFolder,
   writeRailView,
   writePanelWidth,
   writeSidebarWidth,
@@ -143,7 +140,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   const closePalette = useCallback((): void => {
     setPalette((current) => (current === null ? null : { ...current, open: false }));
   }, []);
-  const [deletedNotesOpen, setDeletedNotesOpen] = useState(false);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [shortcutModifier] = useState(platformShortcutModifier);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -256,12 +252,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialPanelWidth] = useState(() => `${String(readPanelWidth())}px`);
-  // owned here, not in the rail: the top bar's breadcrumb sets it too, and both are one prop away
-  const [sidebarFolder, setSidebarFolder] = useState<string>(readSidebarFolder);
-  const chooseFolder = useCallback((folder: string): void => {
-    writeSidebarFolder(folder);
-    setSidebarFolder(folder);
-  }, []);
   // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
   // sets both, and it reaches the shell through the editor's action registry
   const [railView, setRailView] = useState<RailView>(readRailView);
@@ -269,6 +259,16 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     writeRailView(view);
     setRailView(view);
   }, []);
+  // The breadcrumb's ask, keyed by a nonce so naming the same folder twice reveals it twice; the
+  // tree consumes it, so the rail shows Files first.
+  const [reveal, setReveal] = useState<{ path: string; nonce: number } | null>(null);
+  const revealInTree = useCallback(
+    (path: string): void => {
+      chooseRailView("files");
+      setReveal((current) => ({ nonce: (current?.nonce ?? 0) + 1, path }));
+    },
+    [chooseRailView],
+  );
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const createNote = useCallback(async (path: string, content = ""): Promise<void> => {
@@ -415,7 +415,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       showTag: (tag) => {
         setZen(false);
         setRailOpen(true);
-        chooseRailView("tags");
+        chooseRailView("recent");
         setSelectedTag(tag);
       },
     });
@@ -441,14 +441,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       }
       case "find-in-note": {
         findInNote();
-        break;
-      }
-      case "open-search": {
-        openPalette("search");
-        break;
-      }
-      case "open-quick-switcher": {
-        openPalette("notes");
         break;
       }
       case "open-headings": {
@@ -512,7 +504,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       newNoteFromTemplate,
       openDailyNote,
       openDeletedNotes: () => {
-        setDeletedNotesOpen(true);
+        chooseRailView("deleted");
       },
       openMatch,
       openNote: setOpenNote,
@@ -549,6 +541,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       replaceAll,
       noteStore,
       openProblemLink,
+      chooseRailView,
     ],
   );
 
@@ -561,7 +554,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         }
       },
       openDeletedNotes: () => {
-        setDeletedNotesOpen(true);
+        chooseRailView("deleted");
       },
       setPinned: (pinned: boolean) => {
         const { openPath: path } = noteStore.state();
@@ -570,7 +563,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         }
       },
     }),
-    [noteStore, treeOps, setPinned],
+    [noteStore, treeOps, setPinned, chooseRailView],
   );
 
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
@@ -608,8 +601,13 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               onViewChange={chooseRailView}
               selectedTag={selectedTag}
               onSelectTag={setSelectedTag}
-              folder={sidebarFolder}
-              onFolderChange={chooseFolder}
+              reveal={reveal}
+              onOpenSearch={() => {
+                openPalette("root");
+              }}
+              searchShortcut={bindingFor("open-palette", shortcutModifier)}
+              onSyncNow={syncNow}
+              onOpenSettings={onOpenSettings}
             />
           </Sidebar>
           <SidebarInset className="relative bg-surface">
@@ -645,7 +643,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                     }}
                     onFindInNote={findInNote}
                     onOpenFolder={(folder) => {
-                      chooseFolder(folder);
+                      revealInTree(folder);
                       setZen(false);
                       setRailOpen(true);
                     }}
@@ -668,6 +666,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                 >
                   <EditorColumn />
                 </div>
+                {zen ? null : <NoteFooter path={openPath} />}
                 <ActionComposer
                   open={composerOpen}
                   onOpenChange={setComposerOpen}
@@ -710,22 +709,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               actions={paletteActions}
             />
           )}
-          <DeletedNotesDialog
-            open={deletedNotesOpen}
-            onOpenChange={setDeletedNotesOpen}
-            onOpenNote={setOpenNote}
-          />
         </SidebarProvider>
-        {zen ? null : (
-          <StatusBar
-            path={openPath}
-            onSyncNow={syncNow}
-            onOpenDeletedNotes={() => {
-              setDeletedNotesOpen(true);
-            }}
-            onOpenSettings={onOpenSettings}
-          />
-        )}
       </div>
     </VaultProvider>
   );

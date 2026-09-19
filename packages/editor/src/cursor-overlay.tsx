@@ -8,7 +8,7 @@ import { RangeApi } from "platejs";
 import type { UnknownObject } from "platejs";
 import { useEditorRef } from "platejs/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const Cursor = ({
   id,

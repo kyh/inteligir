@@ -83,8 +83,8 @@ describe("the matcher", () => {
       "find-in-note",
     );
     expect(
-      globalShortcutFor(keydown({ key: "F", metaKey: true, shiftKey: true }), "meta")?.action,
-    ).toBe("open-search");
+      globalShortcutFor(keydown({ key: "O", metaKey: true, shiftKey: true }), "meta")?.action,
+    ).toBe("open-headings");
     expect(
       globalShortcutFor(keydown({ altKey: true, key: "f", metaKey: true, shiftKey: true }), "meta"),
     ).toBeNull();
@@ -93,7 +93,7 @@ describe("the matcher", () => {
 
 describe("the spelling", () => {
   it("answers a binding by its action from the table", () => {
-    expect(bindingFor("open-quick-switcher", "meta")).toBe("⌘O");
+    expect(bindingFor("open-palette", "meta")).toBe("⌘P");
     expect(bindingFor("open-settings", "ctrl")).toBe("Ctrl+,");
   });
 });

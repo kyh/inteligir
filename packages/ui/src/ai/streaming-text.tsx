@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 const WORD_MS = 55;
 

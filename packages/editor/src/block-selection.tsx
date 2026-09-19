@@ -2,7 +2,7 @@
 
 import { useBlockSelected } from "@platejs/selection/react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 export const BlockSelection = ({ pluginKey }: { pluginKey: string }) => {
   const isBlockSelected = Boolean(useBlockSelected());

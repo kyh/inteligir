@@ -4,7 +4,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 import type { ChevronProps, DayPickerProps } from "react-day-picker";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 import { buttonVariants } from "@repo/ui/components/button";
 
 // DayPicker renders its own <button>s, so Button styling arrives as class strings.

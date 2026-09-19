@@ -6,7 +6,7 @@ import type { PlateElementProps } from "platejs/react";
 
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";

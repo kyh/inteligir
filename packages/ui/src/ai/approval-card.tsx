@@ -4,7 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode, RefAttributes } from "react";
 
-import { cn } from "cn";
+import { cn } from "@repo/ui/lib/cn";
 
 export interface ApprovalAnswer {
   questionId: string;
