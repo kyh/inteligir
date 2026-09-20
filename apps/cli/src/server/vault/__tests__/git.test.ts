@@ -311,7 +311,8 @@ describe("auto-commit", () => {
   });
 });
 
-describe("sync", () => {
+// each pass spawns a chain of git processes against a real bare remote; a loaded machine outruns vitest's 5s default.
+describe("sync", { timeout: 30_000 }, () => {
   it("stays idle with no remote", async () => {
     const { engine } = await makeEngine({ remoteUrl: null });
     const status = await engine.syncNow();
