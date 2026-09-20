@@ -95,6 +95,17 @@ catalogs:
     react: 19.2.3
     typescript: ~6.0.3
 
+# Expo-SDK-versioned names: `pnpm up --latest` must not move them past the SDK. Matched by name,
+# so react and typescript (shared with web) cannot be listed; their `expo:` rows are reverted by hand
+update:
+  ignoreDeps:
+    - expo
+    - expo-*
+    - "@expo/*"
+    - react-native
+    - react-native-*
+    - "@react-native/*"
+
 # 24h supply-chain cooldown
 minimumReleaseAge: 1440
 
