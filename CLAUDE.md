@@ -1218,6 +1218,14 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   agent-browser is pinned by hand in `.github/workflows/ci.yml` because a global
   install rides no lockfile. The arguments are `pnpm-workspace.yaml`'s comments.
 
+- **AN UPDATE SWEEP SKIPS THE EXPO SDK'S NAMES, NOT ITS `expo:` CATALOG**:
+  `update.ignoreDeps` in `pnpm-workspace.yaml` holds `expo`, `expo-*`,
+  `@expo/*`, `react-native`, `react-native-*` and `@react-native/*` still under
+  `pnpm up --latest -r`. It matches by name, so `react` and `typescript` — which
+  web shares — cannot be listed without freezing web too: after a sweep, revert
+  the `expo:` catalog rows by hand, then `npx expo install --check` in
+  `apps/mobile`. An SDK upgrade moves all of them together.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The `note` issues are
