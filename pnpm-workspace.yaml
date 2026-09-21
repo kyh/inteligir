@@ -39,9 +39,9 @@ catalog:
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
-  "@types/node": ^24.13.3
+  "@types/node": ^24.13.6
   "@types/react": 19.2.17
-  "@types/react-dom": ^19.2.7
+  "@types/react-dom": ^19.3.0
   "@vitejs/plugin-react": ^6.1.1
   # exact: 1.7.3+ drops account.issuer, which the D1 schema holds NOT NULL and unique-indexes;
   # lifting it needs a production D1 schema change first
@@ -76,7 +76,7 @@ catalog:
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
   tailwindcss: ^4.3.3
-  tsx: ^4.23.13
+  tsx: ^4.23.15
   typescript: ^7.0.2
   unified: ^11.0.5
   # exact: 8.2.x's rolldown tree-shakes better-auth's HOST_COOKIE_PREFIX and the Worker
