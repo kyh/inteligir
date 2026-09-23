@@ -102,6 +102,11 @@ what each one is FOR.
 | dictation-browser         | the composer's mic captures, transcribes and inserts — never sends        |
 | settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
 |                           | dialog on that route, and a refused connector add toasts there            |
+| vault-search-browser      | the palette's vault search lists every match; Enter lands the find bar on |
+|                           | one; Replace all rewrites the notes on disk                               |
+| tree-ops-browser          | the tree's row menu pins a note into its frontmatter, and a drag moves it |
+| extract-note-browser      | the selection toolbar extracts the selected block to a new note and       |
+|                           | leaves a link                                                             |
 
 ## Adding a scenario
 

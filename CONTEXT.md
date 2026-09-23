@@ -125,6 +125,7 @@ state.
 
 The local realtime bus is deliberately NOT in this list. It carries **change
 kinds** — `events-appended`, `content-changed`, `status-changed`
-(`@repo/api/local/notifications`) — which are invalidation pings naming a
-subscription target, never payloads. A client told "events-appended" refetches;
-it is never handed the event.
+(`@repo/domain/change-kinds` declares them; `@repo/api/local/notifications` is
+the `/ws` frame grammar that carries them) — which are invalidation pings
+naming a subscription target, never payloads. A client told
+"events-appended" refetches; it is never handed the event.

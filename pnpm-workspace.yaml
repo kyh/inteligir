@@ -16,7 +16,6 @@ catalog:
   "@zed-industries/codex-acp": 0.16.0
   # exact: prebuilt N-API addon with no build script, which `npx inteligir` depends on.
   # tar + unbzip2-stream because Node has no bzip2 and Windows tar.exe cannot -j
-  cn: ^0.3.2
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3
@@ -49,6 +48,7 @@ catalog:
   better-auth: 1.7.2
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
+  cn: ^0.3.2
   consola: ^3.4.2
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4

@@ -49,8 +49,8 @@ src/
   properties/          # the typed frontmatter panel
   lib/                 # debounce, the dark-class hook, the wire helper
   host-io.ts, host.ts  # the injected host as a MODULE SINGLETON (vault actions,
-                       # the listing store, IO, change events) and the two hooks
-                       # React reads it through
+                       # the wiki resolver store, IO, change events) and the two
+                       # hooks React reads it through
   node-props.ts        # the Slate decode boundary: a node's dialect fields ride
                        # TElement's open index signature, so every read arrives
                        # unknown and becomes a domain value here, once
@@ -62,9 +62,10 @@ src/
                        # be inserted from, and the transforms behind them
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
   formula-*.ts(x)      # the `{{` picker and its insertion
-  agent-request.ts, search-request.ts
-                       # one-shot stores the app adopts ("Ask agent", a `#tag`
-                       # search), so the editor never imports the shell
+  agent-request.ts     # the action registry the app fills at mount (Ask agent,
+                       # a `#tag` chip's showTag), so a deep node reaches the
+                       # shell without the editor importing it; the comment
+                       # surface keeps its own (comments/comment-store.ts)
   style-hooks.ts, styles.css
                        # the behaviour rules the host @imports, and the one
                        # spelling of every selector hook they read
@@ -101,13 +102,12 @@ src/
 
 - `host-io.ts` — the injected host, `EditorHostIo`, as a MODULE SINGLETON
   because kit factories and paste handlers run outside React: the vault
-  actions, the listing store (entries + the wiki resolver — subscribed to
-  rather than read, because it moves with every refresh while the actions
-  never do), vault reads, asset bytes in and out, the knowledge queries, and
-  the change events that invalidate them. The editor never reaches the server
-  for any of it; the app installs it once
-  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), and `host.ts` is
-  React's door (`useVaultActions`, `useWikiResolver`).
+  actions, the wiki resolver store (subscribed to rather than read, because
+  it moves with every refresh while the actions never do), vault reads,
+  asset bytes in and out, the knowledge queries, and the change events that
+  invalidate them. The editor never reaches the server for any of it; the app
+  installs it once (`apps/desktop/src/renderer/app/note/vault-provider.tsx`),
+  and `host.ts` is React's door (`useVaultActions`, `useWikiResolver`).
 - `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
   is driven through: boot, list, rename, the `VaultIO` it reads and writes
   notes with (`vault-editor.ts`: read/write/create/remove), and the

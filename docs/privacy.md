@@ -8,12 +8,12 @@ machine, what never does, how long the cloud keeps it, and how it dies.
 
 ## What leaves your machine
 
-Everything below lands in infrastructure scoped to YOUR account — a Cloudflare
-D1 row keyed to your user, or your own per-user Durable Object — never in
-anything shared across accounts.
+Everything below but the last item lands in infrastructure scoped to YOUR
+account — a Cloudflare D1 row keyed to your user, or your own per-user Durable
+Object — never in anything shared across accounts.
 
-- **Account data** — email, name, password hash, sessions — in Cloudflare D1
-  (Better Auth).
+- **Account data** — email, name, password hash, sessions (each with the IP
+  address and user agent it signed in from) — in Cloudflare D1 (Better Auth).
 - **Device records** — a name per device (that machine's hostname unless it was
   given another), timestamps (created, last seen, revoked) and the SHA-256 hash
   of each device credential. The credential itself is answered once, when the
@@ -41,6 +41,12 @@ anything shared across accounts.
   your own account. It is encrypted at rest by Cloudflare, but this
   deployment can read it — there is no end-to-end encryption; the trade is
   what lets your phone read notes without holding a git client.
+- **Your IP address, for throttling — the one row NOT tied to your account.**
+  Signing a device in, redeeming an invite, and every Better Auth route but the
+  session read count attempts per caller address in D1's `rate_limit` table:
+  a row holds the address beside the route it counts, a count and a
+  timestamp. Before sign-in the address is all the cloud knows about a
+  caller, and a login with no throttle is a password oracle.
 
 ## What never leaves
 
@@ -68,6 +74,11 @@ anything shared across accounts.
   until account deletion.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion.
+- Throttling rows are keyed on an address, not an account, so account deletion
+  cannot find them. Better Auth deletes every row whose timestamp is over a
+  minute old whenever one of its own limits opens a fresh window, so a row
+  outlives its minute only until the next such request from anyone; nothing
+  sweeps the table on a timer.
 
 ## Account deletion
 

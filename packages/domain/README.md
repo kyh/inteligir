@@ -108,7 +108,9 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   `NotificationBuffer` per ingest transaction and flushes it after the commit.
 - The change-kind tuples are the `/ws` bus's whole vocabulary:
   `packages/api/src/local/notifications.ts` reads them, and the repo guard's
-  ws-reachability test holds every kind to a producer and a consumer.
+  ws-reachability test holds every kind to a producer in shipped source and
+  every fired kind to the declaration; nothing checks that a client consumes
+  a kind.
 - `threadEventSchema` is what the cloud page planner
   (`packages/api/src/cloud/sync/plan-page.ts`) re-parses every pulled row
   through before it may move a cursor.

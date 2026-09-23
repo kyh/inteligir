@@ -14,9 +14,9 @@ against a real file: "two writers never allocate the same sequence", "one
 claimant per queued message", "a settle for a stale turn is a typed no-op".
 The package sits BELOW the wire (`@repo/db` → `@repo/domain` only, pinned by
 `tools/repo-guards/src/dep-dag.test.ts`): an edge to `@repo/api` would drag
-hono and the contract's notes edge into a package that only writes rows. The
-events, threads, queue and interaction writers are vendored from bb (MIT) and
-carry its header.
+the oRPC contract and its `@repo/notes` edge into a package that only writes
+rows. The events, threads, queue and interaction writers are vendored from bb
+(MIT) and carry its header.
 
 ## Layout
 

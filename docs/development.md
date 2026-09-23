@@ -24,7 +24,7 @@ pnpm cli serve        # The server ALONE, from source, no window; a shell adopts
 pnpm cli <verb>       # Every other verb, against this checkout's instance
 pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
-pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
+pnpm package:desktop  # The macOS arm64 dmg, signed + notarized when the keys are present
 pnpm smoke:cli        # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop    # Package the .app, boot its server, drive it, SIGTERM (macOS only)
 pnpm build            # Build all
@@ -72,7 +72,8 @@ task list is held against the module's own declared set by
 The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
 staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` wraps that same package in the
-unsigned .app.
+.app, signed when the keychain holds a Developer ID and notarized when
+`.release/` is present (`apps/desktop/README.md` § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
 the capture inbox, the hosted vault git remote — over a local D1 file and

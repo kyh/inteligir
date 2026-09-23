@@ -74,11 +74,12 @@ agent shells are given.
 
 ## Command surface
 
-`serve` · `vault
-list|read|history|revision|restore|write|rename|delete|deleted|mkdir|status|sync` ·
-`search` (`tag:` terms pass through) · `backlinks` · `related` · `tags` ·
-`action list|new|send|show|wait|archive` · `comment
-list|add|reply|resolve|remove` · `interactions list|answer` · `connectors
+`serve` · `open` · `vault
+list|read|history|revision|restore|write|rename|delete|deleted|mkdir|attachments|open|status|sync`
+· `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
+`unlinked` · `problems` · `tags` · `tag notes|rename` · `action
+list|new|send|show|wait|archive` · `comment list|add|reply|resolve|remove` ·
+`interactions list|answer` · `agents list|default` · `connectors
 list|add|remove` · `folders list|add|remove` · `cloud status|login|sync` ·
 `status` · `guide`.
 
@@ -127,7 +128,8 @@ that same composed env.
 The served manual (`src/server/guide/cli-skill.ts`) must name every leaf
 command AND every flag those leaves accept —
 `src/__tests__/guide-covers-commands.test.ts` walks the real citty tree against
-the guide's rendered bytes (not its source: a comment used to satisfy it).
+the guide's rendered bytes (not its source: a comment used to satisfy it), and
+against § Command surface above, which must list every leaf and no other.
 `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree and
 EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits with
 empty stdout when the server refuses.
