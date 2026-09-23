@@ -6,11 +6,14 @@ import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
-import type { ProviderEvent, ProviderEventUserContent } from "./vocabulary/provider-event.js";
+import type { ProviderEvent } from "./vocabulary/provider-event.js";
 
 export type AgentRuntimeShellEnvironment = Record<string, string>;
 
-export type PromptInput = ProviderEventUserContent;
+export type PromptInput =
+  | { type: "text"; text: string }
+  | { type: "image"; url: string }
+  | { type: "localImage"; path: string };
 
 export interface AgentRuntimeOptions {
   workspacePath: string;

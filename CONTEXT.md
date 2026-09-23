@@ -107,8 +107,9 @@ state.
   (`@repo/domain/provider-event`, despite the file's name), one row in the
   `events` table, server-assigned `sequence` contiguous per thread. This is
   what a client replays and what syncs.
-- **provider event** — the runtime's EMITTED grammar: what a provider adapter
-  is allowed to produce (`@repo/agent-runtime/vocabulary/provider-event`). The two
+- **provider event** — the runtime's EMITTED grammar: exactly what the ACP
+  mapper constructs from an adapter's session updates
+  (`@repo/agent-runtime/vocabulary/provider-event`). The two
   grammars are near-twins with the same file name and are not the same set —
   the runtime constructs its events and never parses them, and
   `apps/cli/src/server/agents/event-mapping.ts` is the one place that narrows onto

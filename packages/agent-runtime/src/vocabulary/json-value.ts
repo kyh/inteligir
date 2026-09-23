@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-export type JsonValue =
+type JsonValue =
   | boolean
   | number
   | string
@@ -14,7 +14,7 @@ export interface JsonObject {
   [key: string]: JsonValue | undefined;
 }
 
-export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
     z.boolean(),
     z.number(),

@@ -2,7 +2,7 @@
 // grammar, and permission requests onto the pending-interaction contract.
 
 import { describe, expect, it } from "vitest";
-import type { RequestPermissionRequest } from "@zed-industries/agent-client-protocol";
+import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
 import { AcpTurnMapper } from "../acp-event-mapping";
 import { toApprovalPayload, toPermissionOutcome } from "../acp-permission-mapping";
 
@@ -83,6 +83,119 @@ describe("AcpTurnMapper", () => {
     const events = m.failed("adapter died");
     expect(events.map((event) => event.type)).toEqual(["provider/error", "turn/completed"]);
     expect(events[1]).toMatchObject({ error: { message: "adapter died" }, status: "failed" });
+  });
+
+  it("streams thoughts into one reasoning item and closes it whole", () => {
+    const m = mapper();
+    const thought = (text: string) =>
+      m.update({
+        sessionId: "sess_1",
+        update: { content: { text, type: "text" }, sessionUpdate: "agent_thought_chunk" },
+      });
+    expect(thought("weigh ").map((event) => event.type)).toEqual([
+      "item/started",
+      "item/reasoning/textDelta",
+    ]);
+    expect(thought("options").map((event) => event.type)).toEqual(["item/reasoning/textDelta"]);
+    expect(m.completed("end_turn")).toContainEqual(
+      expect.objectContaining({
+        item: {
+          content: ["weigh options"],
+          id: "turn_1:reasoning",
+          summary: [],
+          type: "reasoning",
+        },
+        type: "item/completed",
+      }),
+    );
+  });
+
+  it("maps a plan's entries onto steps, in_progress as active", () => {
+    const [event] = mapper().update({
+      sessionId: "sess_1",
+      update: {
+        entries: [
+          { content: "read note.md", priority: "high", status: "completed" },
+          { content: "summarize it", priority: "medium", status: "in_progress" },
+          { content: "report back", priority: "low", status: "pending" },
+        ],
+        sessionUpdate: "plan",
+      },
+    });
+    expect(event).toMatchObject({
+      plan: [
+        { status: "completed", step: "read note.md" },
+        { status: "active", step: "summarize it" },
+        { status: "pending", step: "report back" },
+      ],
+      type: "turn/plan/updated",
+    });
+  });
+
+  it("completes a tool the adapter reports failed as failed", () => {
+    const m = mapper();
+    m.update({
+      sessionId: "sess_1",
+      update: {
+        kind: "execute",
+        sessionUpdate: "tool_call",
+        status: "in_progress",
+        title: "cat missing.md",
+        toolCallId: "call_1",
+      },
+    });
+    const [event] = m.update({
+      sessionId: "sess_1",
+      update: { sessionUpdate: "tool_call_update", status: "failed", toolCallId: "call_1" },
+    });
+    expect(event).toMatchObject({
+      item: { command: "cat missing.md", status: "failed", type: "commandExecution" },
+      type: "item/completed",
+    });
+  });
+
+  it("replaces a tool's content rather than appending to it", () => {
+    const m = mapper();
+    m.update({
+      sessionId: "sess_1",
+      update: {
+        content: [{ content: { text: "List files", type: "text" }, type: "content" }],
+        kind: "execute",
+        sessionUpdate: "tool_call",
+        status: "in_progress",
+        title: "ls",
+        toolCallId: "call_1",
+      },
+    });
+    const [event] = m.update({
+      sessionId: "sess_1",
+      update: {
+        content: [{ content: { text: "a.md\nb.md", type: "text" }, type: "content" }],
+        sessionUpdate: "tool_call_update",
+        status: "completed",
+        toolCallId: "call_1",
+      },
+    });
+    expect(event).toMatchObject({ item: { aggregatedOutput: "a.md\nb.md" } });
+  });
+
+  it.each(["refusal", "max_tokens", "max_turn_requests"] as const)(
+    "fails a turn that stopped for %s",
+    (stopReason) => {
+      expect(mapper().completed(stopReason).at(-1)).toMatchObject({
+        status: "failed",
+        type: "turn/completed",
+      });
+    },
+  );
+
+  it("drops an update for a tool call it never saw opened, which no recorded adapter sends", () => {
+    expect(
+      mapper().update({
+        sessionId: "sess_1",
+        update: { sessionUpdate: "tool_call_update", status: "completed", toolCallId: "call_x" },
+      }),
+    ).toEqual([]);
   });
 });
 

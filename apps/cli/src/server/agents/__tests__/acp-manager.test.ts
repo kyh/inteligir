@@ -174,7 +174,8 @@ describe("parseApprovalResolution", () => {
   });
 });
 
-describe("the ACP runtime manager over real HTTP", () => {
+// every case spawns node children that import the ACP sdk, a few hundred ms each before a first frame.
+describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
   it("streams a provider turn into the timeline under the HOST's turn id", async () => {
     const harness = await bootWithManager("message");
     const threadId = await createThread(harness.client);
@@ -433,7 +434,8 @@ describe("the ACP runtime manager over real HTTP", () => {
 
   it("closes the session of a turn the provider went silent on, so the next turn runs on a fresh child", async () => {
     const children: ChildProcess[] = [];
-    const managerOptions: ManagerOptions = { children, turnIdleTimeoutMs: 150 };
+    // the budget runs from dispatch, so it must outlast the next turn's child booting the sdk.
+    const managerOptions: ManagerOptions = { children, turnIdleTimeoutMs: 2000 };
     const harness = await bootWithManager("silent", managerOptions);
     const threadId = await createThread(harness.client);
     const silentTurnId = await sendMessage(harness.client, threadId, "wedge me");

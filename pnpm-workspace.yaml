@@ -10,10 +10,11 @@ catalog:
   "@orpc/contract": 2.0.0-beta.31
   "@orpc/server": 2.0.0-beta.31
   "@orpc/tanstack-query": 2.0.0-beta.31
-  # exact: spawned as child processes, so the wire is only verified against one version;
-  # codex-acp held because its newer bundled core is broken upstream
-  "@zed-industries/claude-code-acp": 0.16.2
-  "@zed-industries/codex-acp": 0.16.0
+  # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
+  # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
+  "@agentclientprotocol/claude-agent-acp": 0.81.0
+  "@agentclientprotocol/codex-acp": 1.13.0
+  "@agentclientprotocol/sdk": 1.5.0
   # exact: prebuilt N-API addon with no build script, which `npx inteligir` depends on.
   # tar + unbzip2-stream because Node has no bzip2 and Windows tar.exe cannot -j
   cn: ^0.3.2
@@ -125,5 +126,3 @@ overrides:
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
-  # claude-code-acp pins 10.2.1 exact, inside two high ReDoS advisories; the tree already resolves 10.2.6
-  "minimatch@10": ^10.2.6
