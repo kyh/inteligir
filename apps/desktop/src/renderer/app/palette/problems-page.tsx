@@ -74,6 +74,19 @@ const problemFamilies = (
       ),
       total: problems.duplicateStems.total,
     },
+    {
+      heading: "Duplicate ids",
+      id: "duplicate-ids",
+      rows: problems.duplicateIds.rows.flatMap((row) =>
+        row.paths.map((path) => ({
+          detail: path,
+          id: `duplicate-id ${path}`,
+          label: row.id,
+          path,
+        })),
+      ),
+      total: problems.duplicateIds.total,
+    },
   ];
   for (const family of families) {
     family.rows = family.rows.filter(
@@ -89,6 +102,7 @@ const problemsHidden = (problems: KnowledgeProblemsResponse): number =>
     problems.missingEmbeds,
     problems.orphans,
     problems.duplicateStems,
+    problems.duplicateIds,
   ].reduce((hidden, family) => hidden + (family.total - family.rows.length), 0);
 
 export interface ProblemsPageProps {
@@ -118,7 +132,7 @@ export const ProblemsPage = ({ open, query, onOpenNote, onOpenLink }: ProblemsPa
       return "…";
     }
     return query === ""
-      ? "No problems: every link resolves, every note is linked, every stem is unique."
+      ? "No problems: every link resolves, every note is linked, every stem and id is unique."
       : "No problem matches.";
   };
 

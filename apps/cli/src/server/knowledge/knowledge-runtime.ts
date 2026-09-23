@@ -79,6 +79,8 @@ export interface KnowledgeRuntime {
   unlinkedMentions: (path: string, limit: number) => Promise<UnlinkedMentions>;
   // what the resolver cannot answer, from the index alone
   problems: (options: VaultProblemsOptions) => Promise<VaultProblems>;
+  // every doc whose frontmatter `id` is this one, by path
+  noteIdOwners: (id: string) => Promise<string[]>;
   relatedNotes: (path: string, limit: number) => Promise<RelatedNoteEntry[]>;
   tags: () => Promise<TagCount[]>;
   // the tag's family by path: a page of it and the whole count
@@ -541,6 +543,11 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
           params.limit,
         ),
       );
+    },
+
+    async noteIdOwners(id) {
+      await settle();
+      return graph.pathsWithNoteId(id);
     },
 
     noteVaultChange(change) {

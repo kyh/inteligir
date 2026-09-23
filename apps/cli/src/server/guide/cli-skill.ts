@@ -104,7 +104,10 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   caps rows (1–200).
 - \`inteligir problems\` — what the graph cannot resolve: wiki links to notes
   that do not exist (with the source and line), embeds of missing files, notes
-  nothing links to, and stems spelled at more than one path. Daily notes and
+  nothing links to, stems spelled at more than one path, and frontmatter \`id\`s
+  carried by more than one note. A copied file (\`cp\`, Finder's duplicate)
+  keeps its original's \`id\`, so the two share one comment store and one
+  \`[[Title|uuid]]\` identity; drop the \`id:\` line from the copy. Daily notes and
   templates are orphans by design and are left out unless
   \`--include-conventions\` is given. \`--limit <n>\` caps each family (1–200).
 - \`inteligir related <path>\` — notes connected to a note WITHOUT linking to

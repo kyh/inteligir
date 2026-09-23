@@ -661,7 +661,13 @@ describe("the search page", () => {
   });
 });
 
+const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+
 const someProblems = (): KnowledgeProblemsResponse => ({
+  duplicateIds: {
+    rows: [{ id: SHARED_ID, paths: ["Plan.md", "Plan copy.md"] }],
+    total: 1,
+  },
   duplicateStems: {
     rows: [{ paths: ["Guide.md", "a/Guide.md"], stem: "Guide" }],
     total: 1,
@@ -691,6 +697,7 @@ describe("the problems page", () => {
     expect(await rows().findByText("Unresolved links · 3")).toBeDefined();
     expect(rows().getByText("Orphans · 1")).toBeDefined();
     expect(rows().getByText("Duplicate stems · 1")).toBeDefined();
+    expect(rows().getByText("Duplicate ids · 1")).toBeDefined();
     expect(rows().queryByText(/Missing embeds/u)).toBeNull();
     expect(rows().getByText(/2 more not shown/u)).toBeDefined();
     fireEvent.click(rows().getByText("[[Nowhere]] in Welcome"));
@@ -709,6 +716,15 @@ describe("the problems page", () => {
     fireEvent.click(rows().getByText("a/Guide.md"));
     expect(actions.openNote).toHaveBeenCalledWith("a/Guide.md");
     expect(actions.openProblemLink).not.toHaveBeenCalled();
+  });
+
+  it("names each note sharing an id, and opens the one picked", async () => {
+    const { actions } = renderPalette({ fakes: { problems: someProblems } });
+    fireEvent.click(rows().getByText("Problems"));
+    await rows().findByText("Duplicate ids · 1");
+    expect(rows().getAllByText(SHARED_ID)).toHaveLength(2);
+    fireEvent.click(rows().getByText("Plan copy.md"));
+    expect(actions.openNote).toHaveBeenCalledWith("Plan copy.md");
   });
 
   it("says when the vault is clean", async () => {

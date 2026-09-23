@@ -40,6 +40,7 @@ export interface KnowledgeFakes {
 const EMPTY_FAMILY = { rows: [], total: 0 };
 
 const noProblems: KnowledgeProblemsResponse = {
+  duplicateIds: EMPTY_FAMILY,
   duplicateStems: EMPTY_FAMILY,
   missingEmbeds: EMPTY_FAMILY,
   orphans: EMPTY_FAMILY,
