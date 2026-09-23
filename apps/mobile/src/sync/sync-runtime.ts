@@ -8,6 +8,7 @@ import {
   createSyncSession,
   pullPages,
 } from "@repo/api/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
 import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
 import type { CloudClient, CloudFailure, CloudResult } from "@repo/api/cloud/client";
 import { createExternalStore } from "../lib/external-store";
@@ -120,13 +121,13 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
     return outcome;
   };
 
-  const runPass = async (): Promise<void> => {
+  const runPass = async (): Promise<SyncOutcome> => {
     const current = session.current();
     if (current.kind !== "live") {
-      return;
+      return "fenced";
     }
     const sessionId = current.id;
-    const done = await pullPages({
+    const outcome = await pullPages({
       applyPlan: (steps) => {
         applyPlan(args.store, steps);
       },
@@ -142,14 +143,15 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       readCursor: () => args.store.readCursor(),
       recordFailure,
     });
-    if (!done) {
-      return;
-    }
     if (!session.fenced(sessionId)) {
-      return;
+      return "fenced";
     }
-    lastSyncedAt = Date.now();
-    publish();
+    // a capped pull is still catching up and a failed one never reached the log: neither is synced.
+    if (outcome === "caught-up") {
+      lastSyncedAt = Date.now();
+      publish();
+    }
+    return outcome;
   };
 
   const syncNow = async (): Promise<void> => {

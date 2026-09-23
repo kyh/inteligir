@@ -172,6 +172,7 @@ export class ChangeBatch {
     }
     if (this.vaultKinds.has("sync-status-changed")) {
       void queryClient.invalidateQueries({ queryKey: orpc.vault.status.key() });
+      void queryClient.invalidateQueries({ queryKey: orpc.cloud.status.key() });
     }
     if (this.contentChanged.size > 0) {
       queryClient.setQueryData(orpc.vault.tree.queryKey(), (tree) =>
@@ -215,6 +216,7 @@ const BUS_SWEPT_FAMILIES: readonly QueryKey[] = [
   orpc.knowledge.key(),
   orpc.comments.key(),
   orpc.threads.key(),
+  orpc.cloud.status.key(),
 ];
 
 // The whole vocabulary, not a list: a list claims which kinds a gap can hide.

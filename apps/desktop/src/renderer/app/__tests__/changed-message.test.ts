@@ -154,14 +154,17 @@ describe("a vault change", () => {
     expect(applied.docs).toEqual([null]);
   });
 
-  it("sweeps sync status on its own kind", () => {
+  it("sweeps both sync statuses on its own kind, the vault's git and the account's threads", () => {
     const applied = apply({
       changes: ["sync-status-changed"],
       entity: "vault",
       type: "changed",
     });
 
-    expect(applied.invalidated).toEqual([[...orpc.vault.status.key()]]);
+    expect(applied.invalidated).toEqual([
+      [...orpc.vault.status.key()],
+      [...orpc.cloud.status.key()],
+    ]);
     expect(applied.docs).toEqual([]);
   });
 });

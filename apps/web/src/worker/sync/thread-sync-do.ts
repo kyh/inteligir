@@ -16,6 +16,7 @@ import {
   devicePlatformSchema,
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_KEEPALIVE_PONG,
+  SYNC_WS_REVOKED_CLOSE_CODE,
 } from "@repo/api/cloud/sync/sync-ws";
 import type { DevicePlatform, SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { DurableObject } from "cloudflare:workers";
@@ -193,7 +194,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
         continue;
       }
       try {
-        ws.close(1008, "device revoked");
+        ws.close(SYNC_WS_REVOKED_CLOSE_CODE, "device revoked");
       } catch {
         // already closing
       }
