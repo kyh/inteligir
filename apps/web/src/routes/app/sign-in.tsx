@@ -94,7 +94,8 @@ export const Route = createFileRoute("/app/sign-in")({
     return parsed.success ? { next: parsed.data.next } : {};
   },
   beforeLoad: async ({ search }) => {
-    if ((await currentSession()) !== null) {
+    const session = await currentSession();
+    if (session.kind === "signed-in") {
       redirect({ href: internalNextPath(search.next) ?? "/", throw: true });
     }
   },

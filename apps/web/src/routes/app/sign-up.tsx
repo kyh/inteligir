@@ -103,7 +103,8 @@ const SignUpPage = () => {
 export const Route = createFileRoute("/app/sign-up")({
   ssr: ssrWhenSignedOut,
   beforeLoad: async () => {
-    if ((await currentSession()) !== null) {
+    const session = await currentSession();
+    if (session.kind === "signed-in") {
       redirect({ to: "/", throw: true });
     }
   },

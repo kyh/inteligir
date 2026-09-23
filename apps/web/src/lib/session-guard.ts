@@ -1,11 +1,11 @@
-import type { ActiveSession } from "@/lib/auth-client";
+import type { SessionState } from "@/lib/auth-client";
 
 // Dynamic import: a route guard cannot be code-split, so a static import would put Better
 // Auth's client in the entry chunk every marketing page loads. On the server the answer is
-// null, which can only send someone to sign-in, never past it.
-export const currentSession = async (): Promise<ActiveSession | null> => {
+// signed-out, which can only send someone to sign-in, never past it.
+export const currentSession = async (): Promise<SessionState> => {
   if (import.meta.env.SSR) {
-    return null;
+    return { kind: "signed-out" };
   }
   const { activeSession } = await import("@/lib/auth-client");
   return await activeSession();
