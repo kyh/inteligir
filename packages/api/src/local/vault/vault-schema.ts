@@ -324,11 +324,28 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncStatusFields,
     })
     .strict(),
+  // the remote answered and refused the push (a hook, a protected branch); `lastError` carries its
+  // words. not `offline`: no retry changes the answer.
+  z
+    .object({
+      state: z.literal("rejected"),
+      ...remoteFields,
+      ...syncStatusFields,
+    })
+    .strict(),
   // the signed-in account is not the one this vault last synced with; no pass runs, since a push
   // would upload these notes into an account that never held them.
   z
     .object({
       state: z.literal("account-mismatch"),
+      ...remoteFields,
+      ...syncStatusFields,
+    })
+    .strict(),
+  // the vault's HEAD names no branch, so a pass has nothing to push; not `clean`, which it is not.
+  z
+    .object({
+      state: z.literal("detached"),
       ...remoteFields,
       ...syncStatusFields,
     })

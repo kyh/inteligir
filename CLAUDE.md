@@ -588,6 +588,37 @@ to the END of its group.
   (`apps/cli/src/server/vault/git-run.ts`). The split is
   `apps/cli/src/server/vault/git-engine.ts`.
 
+- **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS, AND A PASS REPORTS ONE
+  OUTCOME.** Every engine commit passes `--no-verify` and every status read
+  `--untracked-files=normal`: a user's commit-msg hook or
+  `status.showUntrackedFiles=no` would refuse or hide each auto-commit, and a
+  tree that never commits holds every sync behind it. A commit that fails
+  anyway is the status's `lastError` until one lands. Git's own files are
+  asked for by `rev-parse --git-path` (`gitPath`), never joined under
+  `<root>/.git`, which is a file in a linked worktree or a submodule and has no
+  `info/` under a hooks-only template. Before the listen the bootstrap makes
+  only the empty `vault: initialize` commit a rebase needs
+  (`apps/cli/src/server/vault/git-bootstrap.ts`): staging a large folder there
+  outran the shell's readiness wait, and the runtime's boot sweep commits it
+  after. What a pass concluded is one `SyncOutcome`, the latest verdict
+  winning, except that a remote which did not answer leaves a recorded
+  conflict standing: a detached HEAD says `detached`, never `clean`; a push
+  the remote answered and refused says `rejected`, never `offline`; a push
+  that lost a race to another device's is no failure and leaves the tree to
+  say `dirty` (`classifyNetworkFailure` in
+  `apps/cli/src/server/vault/git-run.ts`).
+
+- **THE CAPTURE INBOX MERGES BY UNION.** Two signed-in desktops each append a
+  phone capture to the end of the root `Inbox.md` between syncs, and the
+  rebase that met both appends conflicted on a file the app wrote itself,
+  stopping that device's sync until someone ran git by hand. Every boot makes
+  sure `info/attributes` holds `/Inbox.md merge=union`: local like the exclude,
+  never a committed `.gitattributes`, because the vault's files are the
+  user's, and anchored, so a nested `Inbox.md` merges like any note. Residual:
+  a bullet one device deleted beside the other's append comes back.
+  `apps/cli/src/server/vault/git-bootstrap.ts`, over `CAPTURE_INBOX_PATH` in
+  `apps/cli/src/server/cloud/captures.ts`.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile

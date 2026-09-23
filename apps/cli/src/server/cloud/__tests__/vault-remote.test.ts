@@ -40,6 +40,22 @@ describe("createVaultRemoteProvider", () => {
     });
   });
 
+  it("says the account is pending until the credential names it, then carries its id", () => {
+    const dataDir = makeDataDir();
+    const provider = createVaultRemoteProvider({
+      cloudUrl: CLOUD_URL,
+      dataDir,
+      explicitRemote: null,
+    });
+    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
+    expect(provider()).toMatchObject({ account: { state: "pending" }, source: "account" });
+    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1", userId: "usr_1" });
+    expect(provider()).toMatchObject({
+      account: { id: "usr_1", state: "known" },
+      source: "account",
+    });
+  });
+
   it("flips live: signing in turns the remote on, signing out turns it off", () => {
     const dataDir = makeDataDir();
     const provider = createVaultRemoteProvider({
