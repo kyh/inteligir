@@ -21,16 +21,9 @@ interface SessionMcpServer {
   transport: StoredTransport;
 }
 
-interface ConnectorUpdate {
-  name: string;
-  transport: ConnectorTransportInput;
-}
-
 export interface ConnectorsService {
   list: () => ConnectorView[];
   add: (request: ConnectorAddRequest) => ConnectorView[];
-  // not a procedure: the one write that carries stored secrets across an endpoint edit.
-  update: (request: ConnectorUpdate) => ConnectorView[];
   remove: (name: string) => ConnectorView[];
   toggle: (name: string, enabled: boolean) => ConnectorView[];
   enabledForSessions: () => SessionMcpServer[];
@@ -79,15 +72,12 @@ const toView = (row: StoredConnector): ConnectorView => {
   };
 };
 
-const toStoredTransport = (
-  input: ConnectorTransportInput,
-  previous?: StoredTransport,
-): StoredTransport => {
+const toStoredTransport = (input: ConnectorTransportInput): StoredTransport => {
   if (input.kind === "stdio") {
     return { args: input.args, command: input.command, kind: "stdio" };
   }
   if (input.kind === "oauth") {
-    const next: StoredTransport = {
+    return {
       authorizationEndpoint: input.authorizationEndpoint,
       clientId: input.clientId,
       kind: "oauth",
@@ -95,23 +85,10 @@ const toStoredTransport = (
       tokenEndpoint: input.tokenEndpoint,
       url: input.url,
     };
-    // an endpoint edit keeps the tokens: if it made them wrong, the next refresh fails into needs-reauth.
-    if (previous !== undefined && previous.kind === "oauth") {
-      if (previous.tokens !== undefined) {
-        next.tokens = previous.tokens;
-      }
-      if (previous.needsReauth === true) {
-        next.needsReauth = true;
-      }
-    }
-    return next;
   }
-  const kept =
-    input.headers ??
-    (previous !== undefined && previous.kind === "http" ? previous.headers : undefined);
   const next: StoredTransport = { kind: "http", url: input.url };
-  if (kept !== undefined && Object.keys(kept).length > 0) {
-    next.headers = kept;
+  if (input.headers !== undefined && Object.keys(input.headers).length > 0) {
+    next.headers = input.headers;
   }
   return next;
 };
@@ -164,14 +141,6 @@ export const createConnectorsService = (store: ConnectorsStore): ConnectorsServi
   toggle(name: string, enabled: boolean): ConnectorView[] {
     const servers = store.read();
     requireRow(servers, name).enabled = enabled;
-    store.write(servers);
-    return servers.map(toView);
-  },
-
-  update(request: ConnectorUpdate): ConnectorView[] {
-    const servers = store.read();
-    const row = requireRow(servers, request.name);
-    row.transport = toStoredTransport(request.transport, row.transport);
     store.write(servers);
     return servers.map(toView);
   },

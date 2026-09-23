@@ -3,7 +3,7 @@ import { defineCommand } from "citty";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeOut } from "../output";
-import { systemOpenExternalUrl } from "../server/cloud/browser-opener";
+import { systemOpenExternalUrl } from "../server/browser-opener";
 
 export const openCommand = (deps: CliDeps) =>
   defineCommand({

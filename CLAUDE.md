@@ -130,9 +130,9 @@ packages/
                  two copies of that planner would be two answers to "did this
                  row move the cursor?", and a mis-set cursor is a duplicated
                  conversation — and, for the same reason, the CLIENT RUNTIME
-                 CORE both consumers run (the byte primitives, the approval
-                 slot, the login flow, the sync session; see "`@repo/api/cloud`
-                 IS THE CLIENT RUNTIME CORE" under Cloud, sync and accounts).
+                 CORE both consumers run (the byte primitives, the login
+                 flow, the sync session; see "`@repo/api/cloud` IS THE
+                 CLIENT RUNTIME CORE" under Cloud, sync and accounts).
                  apps/web SERVES every row; the CLI's sync client
                  consumes all of them; apps/mobile consumes the read half alone
                  — it pulls threads and produces captures, and never pushes or
@@ -966,6 +966,22 @@ agents default`; unset falls back
   row's result and arguments still ride whole.
   `packages/api/src/local/thread-timeline.ts`.
 
+- **CONNECTOR OAUTH IS THE MCP AUTHORIZATION SPEC'S, AND A REFRESH TOKEN IS
+  SPENT ONCE** (owner decision). The authorize URL and both token requests
+  carry RFC 8707's `resource`, the row's MCP url in its canonical form
+  (lowercase scheme and host, no fragment, no trailing slash), so a provider
+  that binds audiences mints a token for that server alone; discovery and
+  dynamic client registration are not built, so a row names its endpoints and
+  client id. A rotating provider honours a refresh token once, so the refresh
+  is single-flight per connector: two sessions starting together share one
+  spend, and every write it makes holds only while the row still carries the
+  token it spent, so a disconnect or a re-authorize that lands meanwhile wins.
+  Only a 400 or 401 is the provider's verdict on the grant and marks the row
+  needs-reauth; no answer, a 5xx or a captive portal's page leaves the row as
+  it was and keeps it out of that one session. A callback for a row removed
+  mid-flow answers the page, never a 500.
+  `apps/cli/src/server/connectors/oauth-flow.ts`.
+
 ### Dictation
 
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by
@@ -1048,10 +1064,15 @@ agents default`; unset falls back
   `apps/web/src/worker/device/login.ts`.
 
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
-  `bytes.ts`, `approval-slot.ts` (connector OAuth's one slot),
-  `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
+  `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
   phone inject only stores, timers and sockets; a security discipline with two
-  spellings is two to audit. The cloud vault-path grammar is `parseVaultPath`
+  spellings is two to audit. The core is what BOTH clients run: connector
+  OAuth's one-slot approval is the CLI's alone, since the phone authorizes no
+  connector, so it sits beside its consumer
+  (`apps/cli/src/server/connectors/approval-slot.ts`); the system browser
+  opener, which `serve --open`, `inteligir open` and a connector's authorize
+  all run, sits at the server's root (`apps/cli/src/server/browser-opener.ts`),
+  not in the sync client. The cloud vault-path grammar is `parseVaultPath`
   with the parse required to be the identity. The `[[Title|uuid]]` tier lives in
   `buildResolver` (tier 0); the desktop and mobile listings carry no `id` yet.
 

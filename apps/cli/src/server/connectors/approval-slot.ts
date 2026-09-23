@@ -2,12 +2,12 @@
 // the slot before the caller exchanges anything, so a callback replayed from browser history
 // completes nothing; a wrong state leaves it armed, or any local page could cancel a dance.
 
-import { constantTimeEqual, hexFromBytes } from "./bytes";
+import { constantTimeEqual, hexFromBytes } from "@repo/api/cloud/bytes";
 
-export const APPROVAL_STATE_BYTES = 16;
+const APPROVAL_STATE_BYTES = 16;
 export const APPROVAL_STATE_PATTERN = /^[0-9a-f]{32}$/u;
 
-export type ApprovalClaim<T> =
+type ApprovalClaim<T> =
   | { kind: "claimed"; payload: T }
   | { kind: "no-pending" }
   | { kind: "expired" }

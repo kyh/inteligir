@@ -2,10 +2,10 @@
 // code nobody else can spend, and a `disposed` guard so a callback in flight during shutdown
 // exchanges nothing.
 
-import { createApprovalSlot } from "@repo/api/cloud/approval-slot";
 import { z } from "zod";
 
-import type { ConnectorsStore, StoredOauthTokens } from "./connectors-store";
+import { createApprovalSlot } from "./approval-slot";
+import type { ConnectorsStore, StoredConnector, StoredOauthTokens } from "./connectors-store";
 import { ConnectorConflictError } from "./connectors-service";
 import { generatePkceVerifier, pkceChallengeS256 } from "./pkce";
 
@@ -25,6 +25,8 @@ export type OauthCompletion =
   | { kind: "no-pending" }
   | { kind: "state-mismatch" }
   | { kind: "expired" }
+  // the row was removed, or is no longer oauth, between the authorize and its callback.
+  | { kind: "removed" }
   | { kind: "refused"; detail: string };
 
 interface PendingAuthorize {
@@ -41,16 +43,46 @@ export interface ConnectorOauthFlow {
   dispose: () => void;
 }
 
-type OauthRow = Extract<
-  ReturnType<ConnectorsStore["read"]>[number]["transport"],
-  { kind: "oauth" }
->;
+type OauthRow = Extract<StoredConnector["transport"], { kind: "oauth" }>;
+
+// only a 400 or 401 is the token endpoint's verdict on the grant (rfc 6749 §5.2). no answer, a
+// 5xx, or a captive portal's page says nothing about it, and must not cost the user a re-consent.
+type TokenExchange =
+  | { ok: true; tokens: StoredOauthTokens }
+  | { ok: false; kind: "refused" | "unreachable"; detail: string };
+
+const GRANT_VERDICT_STATUSES: ReadonlySet<number> = new Set([400, 401]);
+
+interface RefreshInFlight {
+  spent: string;
+  answer: Promise<string | null>;
+}
+
+const isFresh = (tokens: StoredOauthTokens): boolean =>
+  tokens.expiresAt === null || tokens.expiresAt * 1000 - EXPIRY_SKEW_MS > Date.now();
+
+// the mcp authorization spec's canonical server uri (rfc 8707 §2): the url parser lowercases the
+// scheme and host, and the fragment and a trailing slash go, so `https://mcp.example.com/` and
+// the bare origin name one audience.
+const canonicalResourceUri = (url: string): string => {
+  const parsed = new URL(url);
+  const path = parsed.pathname.replace(/\/+$/u, "");
+  return `${parsed.protocol}//${parsed.host}${path}${parsed.search}`;
+};
+
+const oauthTransportIn = (servers: StoredConnector[], name: string): OauthRow | null => {
+  const row = servers.find((candidate) => candidate.name === name);
+  return row !== undefined && row.transport.kind === "oauth" ? row.transport : null;
+};
 
 export const createConnectorOauthFlow = (
   store: ConnectorsStore,
   fetchImpl: typeof fetch = fetch,
 ): ConnectorOauthFlow => {
   const pending = createApprovalSlot<PendingAuthorize>({ ttlMs: PENDING_TTL_MS });
+  // a rotating provider honours a refresh token once: a second concurrent spend is refused, and
+  // its needs-reauth would land over the first one's rotated tokens.
+  const refreshing = new Map<string, RefreshInFlight>();
   let disposed = false;
 
   const requireOauthRow = (name: string): OauthRow => {
@@ -67,20 +99,27 @@ export const createConnectorOauthFlow = (
     return row.transport;
   };
 
-  const patchRow = (name: string, patch: (transport: OauthRow) => void): void => {
+  // `when` is checked against the same read the patch writes, so a precondition cannot go stale
+  // between the check and the write.
+  const patchRow = (
+    name: string,
+    patch: (transport: OauthRow) => void,
+    when: (transport: OauthRow) => boolean = () => true,
+  ): boolean => {
     const servers = store.read();
-    const row = servers.find((candidate) => candidate.name === name);
-    if (row === undefined || row.transport.kind !== "oauth") {
-      return;
+    const transport = oauthTransportIn(servers, name);
+    if (transport === null || !when(transport)) {
+      return false;
     }
-    patch(row.transport);
+    patch(transport);
     store.write(servers);
+    return true;
   };
 
   const exchangeAtTokenEndpoint = async (
     transport: OauthRow,
     body: URLSearchParams,
-  ): Promise<{ ok: true; tokens: StoredOauthTokens } | { ok: false; detail: string }> => {
+  ): Promise<TokenExchange> => {
     let response: Response;
     try {
       response = await fetchImpl(transport.tokenEndpoint, {
@@ -93,12 +132,17 @@ export const createConnectorOauthFlow = (
         signal: AbortSignal.timeout(TOKEN_REQUEST_TIMEOUT_MS),
       });
     } catch {
-      return { detail: "The provider's token endpoint did not answer.", ok: false };
+      return {
+        detail: "The provider's token endpoint did not answer.",
+        kind: "unreachable",
+        ok: false,
+      };
     }
     if (!response.ok) {
       // the error body may carry anything; the status is the one fact safe to repeat.
       return {
         detail: `The provider refused the token request (HTTP ${String(response.status)}).`,
+        kind: GRANT_VERDICT_STATUSES.has(response.status) ? "refused" : "unreachable",
         ok: false,
       };
     }
@@ -106,11 +150,19 @@ export const createConnectorOauthFlow = (
     try {
       parsed = await response.json();
     } catch {
-      return { detail: "The provider's token answer was not JSON.", ok: false };
+      return {
+        detail: "The provider's token answer was not JSON.",
+        kind: "unreachable",
+        ok: false,
+      };
     }
     const verdict = tokenResponseSchema.safeParse(parsed);
     if (!verdict.success) {
-      return { detail: "The provider's token answer had no access_token.", ok: false };
+      return {
+        detail: "The provider's token answer had no access_token.",
+        kind: "unreachable",
+        ok: false,
+      };
     }
     const { access_token, refresh_token, expires_in } = verdict.data;
     const tokens: StoredOauthTokens = {
@@ -122,6 +174,49 @@ export const createConnectorOauthFlow = (
       tokens.refreshToken = refresh_token;
     }
     return { ok: true, tokens };
+  };
+
+  // every write is conditional on the row still holding the token this spent: a disconnect or a
+  // re-authorize that landed meanwhile wins over the answer to an older grant.
+  const refresh = async (
+    name: string,
+    transport: OauthRow,
+    spent: string,
+  ): Promise<string | null> => {
+    const exchange = await exchangeAtTokenEndpoint(
+      transport,
+      new URLSearchParams({
+        client_id: transport.clientId,
+        grant_type: "refresh_token",
+        refresh_token: spent,
+        resource: canonicalResourceUri(transport.url),
+      }),
+    );
+    const holdsSpent = (row: OauthRow): boolean => row.tokens?.refreshToken === spent;
+    if (!exchange.ok) {
+      if (exchange.kind === "refused") {
+        patchRow(
+          name,
+          (row) => {
+            row.needsReauth = true;
+          },
+          holdsSpent,
+        );
+      }
+      return null;
+    }
+    const next = exchange.tokens;
+    // a refresh answer without a rotated refresh_token keeps the old one (rfc 6749 §6).
+    next.refreshToken ??= spent;
+    const landed = patchRow(
+      name,
+      (row) => {
+        row.tokens = next;
+        delete row.needsReauth;
+      },
+      holdsSpent,
+    );
+    return landed ? next.accessToken : null;
   };
 
   return {
@@ -143,6 +238,7 @@ export const createConnectorOauthFlow = (
       url.searchParams.set("state", state);
       url.searchParams.set("code_challenge", challenge);
       url.searchParams.set("code_challenge_method", "S256");
+      url.searchParams.set("resource", canonicalResourceUri(transport.url));
       return url.toString();
     },
 
@@ -155,7 +251,10 @@ export const createConnectorOauthFlow = (
         return { kind: claim.kind };
       }
       const claimed = claim.payload;
-      const transport = requireOauthRow(claimed.name);
+      const transport = oauthTransportIn(store.read(), claimed.name);
+      if (transport === null) {
+        return { kind: "removed" };
+      }
       const exchange = await exchangeAtTokenEndpoint(
         transport,
         new URLSearchParams({
@@ -164,6 +263,7 @@ export const createConnectorOauthFlow = (
           code_verifier: claimed.verifier,
           grant_type: "authorization_code",
           redirect_uri: claimed.redirectUri,
+          resource: canonicalResourceUri(transport.url),
         }),
       );
       if (!exchange.ok) {
@@ -173,11 +273,11 @@ export const createConnectorOauthFlow = (
         // shutdown raced the exchange: store nothing after teardown.
         return { kind: "no-pending" };
       }
-      patchRow(claimed.name, (row) => {
+      const landed = patchRow(claimed.name, (row) => {
         row.tokens = exchange.tokens;
         delete row.needsReauth;
       });
-      return { kind: "connected", name: claimed.name };
+      return landed ? { kind: "connected", name: claimed.name } : { kind: "removed" };
     },
 
     disconnect(name): void {
@@ -199,41 +299,29 @@ export const createConnectorOauthFlow = (
       if (tokens === undefined) {
         return null;
       }
-      const fresh =
-        tokens.expiresAt === null || tokens.expiresAt * 1000 - EXPIRY_SKEW_MS > Date.now();
-      if (fresh) {
+      if (isFresh(tokens)) {
         return tokens.accessToken;
       }
-      if (tokens.refreshToken === undefined) {
+      const spent = tokens.refreshToken;
+      if (spent === undefined) {
         patchRow(name, (row) => {
           row.needsReauth = true;
         });
         return null;
       }
-      const exchange = await exchangeAtTokenEndpoint(
-        transport,
-        new URLSearchParams({
-          client_id: transport.clientId,
-          grant_type: "refresh_token",
-          refresh_token: tokens.refreshToken,
-        }),
-      );
-      if (!exchange.ok) {
-        patchRow(name, (row) => {
-          row.needsReauth = true;
-        });
-        return null;
+      const inFlight = refreshing.get(name);
+      if (inFlight !== undefined && inFlight.spent === spent) {
+        return await inFlight.answer;
       }
-      const next = exchange.tokens;
-      // a refresh answer without a rotated refresh_token keeps the old one (rfc 6749 §6).
-      if (next.refreshToken === undefined && tokens.refreshToken !== undefined) {
-        next.refreshToken = tokens.refreshToken;
+      const started: RefreshInFlight = { answer: refresh(name, transport, spent), spent };
+      refreshing.set(name, started);
+      try {
+        return await started.answer;
+      } finally {
+        if (refreshing.get(name) === started) {
+          refreshing.delete(name);
+        }
       }
-      patchRow(name, (row) => {
-        row.tokens = next;
-        delete row.needsReauth;
-      });
-      return next.accessToken;
     },
   };
 };

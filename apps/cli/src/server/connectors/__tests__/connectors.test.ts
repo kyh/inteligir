@@ -58,32 +58,14 @@ describe("the connectors registry", () => {
     ]);
   });
 
-  it("refuses a duplicate add and an unknown remove/update/toggle", () => {
+  it("refuses a duplicate add and an unknown remove/toggle", () => {
     const { service } = tempService();
     service.add({ name: "a", transport: { args: [], command: "srv", kind: "stdio" } });
     expect(() =>
       service.add({ name: "a", transport: { args: [], command: "other", kind: "stdio" } }),
     ).toThrow(ConnectorConflictError);
     expect(() => service.remove("missing")).toThrow(ConnectorConflictError);
-    expect(() =>
-      service.update({ name: "missing", transport: { kind: "http", url: "https://x.dev/mcp" } }),
-    ).toThrow(ConnectorConflictError);
     expect(() => service.toggle("missing", false)).toThrow(ConnectorConflictError);
-  });
-
-  it("keeps stored headers through an update that omits them", () => {
-    const { service } = tempService();
-    service.add({
-      name: "exa",
-      transport: { headers: { "x-api-key": "k1" }, kind: "http", url: "https://mcp.exa.ai/mcp" },
-    });
-    service.update({ name: "exa", transport: { kind: "http", url: "https://mcp.exa.ai/v2/mcp" } });
-    const [row] = service.enabledForSessions();
-    expect(row?.transport).toEqual({
-      headers: { "x-api-key": "k1" },
-      kind: "http",
-      url: "https://mcp.exa.ai/v2/mcp",
-    });
   });
 
   it("a disabled row leaves the session view; toggling restores it", () => {

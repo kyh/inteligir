@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 import { vi } from "vitest";
 import { CliExitError } from "../cli-error";
 import type { CliDeps } from "../context";
-import type { OpenExternalUrl } from "../server/cloud/browser-opener";
+import type { OpenExternalUrl } from "../server/browser-opener";
 import { FIXTURE_SERVER_TOKEN } from "./fixture-server";
 import { runCli } from "../program";
 

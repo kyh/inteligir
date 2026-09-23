@@ -1,5 +1,8 @@
 // its own module: the worker is a separate bundle entry, and a type shared through the service
-// would drag its import graph into the worker bundle.
+// would drag its import graph into the worker bundle. types only, never schemas: a runner without
+// tsx (vitest) loads the worker's .ts source through node's own type stripping, which erases a
+// type import but cannot resolve an extensionless relative one. a frame crosses as `any`, so
+// each side parses what it receives with a schema pinned to these types.
 
 export interface VoiceModelFiles {
   encoder: string;
@@ -19,8 +22,6 @@ export type VoiceWorkerResponse =
   // keeps them.
   | { kind: "failed"; message: string; modelUnusable: boolean };
 
-// the host annotates its literal against this so a mistyped kind cannot fall through to the
-// one-shot path.
 export interface VoiceStreamInit {
   kind: "stream";
   model: VoiceModelFiles;
