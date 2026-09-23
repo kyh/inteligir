@@ -87,41 +87,47 @@ export const listThreads = (db: DbConnection): ThreadRow[] => {
   return [...live, ...archived];
 };
 
+// one transaction: a folder's threads move together or not at all, and the announcements follow
+// the commit.
 export const rebindThreadOrigins = (
   db: DbConnection,
   notifier: DbNotifier,
   args: { from: string; to: string },
 ): number => {
-  const moved = db
-    .update(threads)
-    .set({ originDocPath: args.to, updatedAt: Date.now() })
-    .where(eq(threads.originDocPath, args.from))
-    .returning({ id: threads.id })
-    .all();
-  // "/" appended so a sibling sharing the name's prefix (`Notes2/`) is never caught.
-  const prefix = `${args.from}/`;
-  const descendants = db
-    .select({ id: threads.id, originDocPath: threads.originDocPath })
-    .from(threads)
-    // drizzle's `like` emits no ESCAPE clause, so escaping the prefix's own wildcards would match
-    // a literal backslash and find nothing; the pattern over-matches and `startsWith` filters.
-    .where(like(threads.originDocPath, `${prefix}%`))
-    .all();
-  for (const row of descendants) {
-    if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
-      continue;
+  const moved = writeTransaction(db, (tx) => {
+    const ids = tx
+      .update(threads)
+      .set({ originDocPath: args.to, updatedAt: Date.now() })
+      .where(eq(threads.originDocPath, args.from))
+      .returning({ id: threads.id })
+      .all()
+      .map((row) => row.id);
+    // "/" appended so a sibling sharing the name's prefix (`Notes2/`) is never caught.
+    const prefix = `${args.from}/`;
+    const descendants = tx
+      .select({ id: threads.id, originDocPath: threads.originDocPath })
+      .from(threads)
+      // drizzle's `like` emits no ESCAPE clause, so escaping the prefix's own wildcards would match
+      // a literal backslash and find nothing; the pattern over-matches and `startsWith` filters.
+      .where(like(threads.originDocPath, `${prefix}%`))
+      .all();
+    for (const row of descendants) {
+      if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
+        continue;
+      }
+      tx.update(threads)
+        .set({
+          originDocPath: `${args.to}/${row.originDocPath.slice(prefix.length)}`,
+          updatedAt: Date.now(),
+        })
+        .where(eq(threads.id, row.id))
+        .run();
+      ids.push(row.id);
     }
-    db.update(threads)
-      .set({
-        originDocPath: `${args.to}/${row.originDocPath.slice(prefix.length)}`,
-        updatedAt: Date.now(),
-      })
-      .where(eq(threads.id, row.id))
-      .run();
-    moved.push({ id: row.id });
-  }
-  for (const row of moved) {
-    notifier.notifyThread(row.id, ["origin-changed"]);
+    return ids;
+  });
+  for (const id of moved) {
+    notifier.notifyThread(id, ["origin-changed"]);
   }
   return moved.length;
 };
@@ -184,11 +190,11 @@ export interface ApplyThreadLifecycleEventArgs {
   threadId: string;
 }
 
-const applyThreadLifecycleEventRecord = (
-  db: ThreadWriteConnection,
+export const applyThreadLifecycleEventInTransaction = (
+  tx: DbTransaction,
   args: ApplyThreadLifecycleEventArgs,
 ): ApplyThreadLifecycleEventOutcome => {
-  const thread = db.select().from(threads).where(eq(threads.id, args.threadId)).get();
+  const thread = tx.select().from(threads).where(eq(threads.id, args.threadId)).get();
   if (!thread) {
     return {
       applied: false,
@@ -215,7 +221,7 @@ const applyThreadLifecycleEventRecord = (
 
   // the turn id is in the predicate so a settle validated against turn a cannot land after
   // turn b bound.
-  const updated = db
+  const updated = tx
     .update(threads)
     .set({ activeTurnId: evaluation.activeTurnId, status: evaluation.to, updatedAt: Date.now() })
     .where(
@@ -238,20 +244,3 @@ const applyThreadLifecycleEventRecord = (
   }
   return { applied: true, thread: updated };
 };
-
-export const applyThreadLifecycleEvent = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  args: ApplyThreadLifecycleEventArgs,
-): ApplyThreadLifecycleEventOutcome => {
-  const outcome = writeTransaction(db, (tx) => applyThreadLifecycleEventRecord(tx, args));
-  if (outcome.applied) {
-    notifier.notifyThread(args.threadId, ["status-changed"]);
-  }
-  return outcome;
-};
-
-export const applyThreadLifecycleEventInTransaction = (
-  tx: DbTransaction,
-  args: ApplyThreadLifecycleEventArgs,
-): ApplyThreadLifecycleEventOutcome => applyThreadLifecycleEventRecord(tx, args);

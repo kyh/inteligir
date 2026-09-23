@@ -1,12 +1,13 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
+import { writeTransaction } from "@repo/db/connection";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import {
-  claimNextQueuedThreadMessage,
+  claimNextQueuedThreadMessageInTransaction,
   listQueuedThreadMessages,
   releaseAllQueuedMessageClaims,
 } from "@repo/db/queued-messages";
-import { applyThreadLifecycleEvent } from "@repo/db/threads";
+import { applyThreadLifecycleEventInTransaction } from "@repo/db/threads";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
 import { WS_PATH } from "@repo/api/local/routes";
@@ -107,10 +108,12 @@ describe("the send policy", () => {
     });
     expect(queuedWhileActive.kind).toBe("queued");
 
-    applyThreadLifecycleEvent(activeHarness.db, noopNotifier, {
-      event: { type: "stop.requested" },
-      threadId: activeThread,
-    });
+    writeTransaction(activeHarness.db, (tx) =>
+      applyThreadLifecycleEventInTransaction(tx, {
+        event: { type: "stop.requested" },
+        threadId: activeThread,
+      }),
+    );
     expect(await getThreadStatus(activeHarness.client, activeThread)).toBe("stopping");
     const queuedWhileStopping = await activeHarness.client.threads.send({
       text: "after the stop",
@@ -295,7 +298,7 @@ describe("the queue drain", () => {
     }
     await client.threads.send({ text: "queued", threadId });
     // a drain the previous process claimed and never finished: the settle finds nothing to start.
-    claimNextQueuedThreadMessage(db, noopNotifier, threadId);
+    writeTransaction(db, (tx) => claimNextQueuedThreadMessageInTransaction(tx, threadId));
     driver.completeTurn(threadId, started.turnId, "completed");
     releaseAllQueuedMessageClaims(db);
     expect(await getThreadStatus(client, threadId)).toBe("idle");
@@ -371,7 +374,9 @@ describe("the queue drain", () => {
     const threadId = await createThread(client);
     await client.threads.send({ text: "first", threadId });
     await client.threads.send({ text: "queued", threadId });
-    const claimed = claimNextQueuedThreadMessage(db, noopNotifier, threadId);
+    const claimed = writeTransaction(db, (tx) =>
+      claimNextQueuedThreadMessageInTransaction(tx, threadId),
+    );
     expect(claimed).not.toBeNull();
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
 

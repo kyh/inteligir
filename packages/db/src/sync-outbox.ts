@@ -1,4 +1,5 @@
 import { asc, count, eq, inArray, lt, lte, sql } from "drizzle-orm";
+import { writeTransaction } from "./connection";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createSyncOutboxId } from "./ids";
 import { syncAppliedCaptures, syncOutbox, syncOwnDevices, syncState } from "./schema";
@@ -98,11 +99,14 @@ export const touchSyncedAt = (db: DbConnection, at: number): void => {
 };
 
 // on logout: a cursor carried into a second account would skip that account's log from its
-// first row. sync_own_devices is kept: the log still holds rows under those ids.
+// first row. one transaction, so a crash cannot keep one account's queue beside the next one's
+// positions. sync_own_devices is kept: the log still holds rows under those ids.
 export const resetSyncState = (db: DbConnection): void => {
-  db.delete(syncOutbox).run();
-  db.delete(syncAppliedCaptures).run();
-  db.delete(syncState).run();
+  writeTransaction(db, (tx) => {
+    tx.delete(syncOutbox).run();
+    tx.delete(syncAppliedCaptures).run();
+    tx.delete(syncState).run();
+  });
 };
 
 export const recordOwnDevice = (db: DbConnection, deviceId: string): void => {

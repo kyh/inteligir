@@ -6,7 +6,6 @@ import { getThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
 import { and, eq, gt, inArray, max, sql } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createEventId } from "./ids";
-import type { DbNotifier } from "@repo/domain/notifier";
 import { events } from "./schema";
 
 export type EventRow = typeof events.$inferSelect;
@@ -81,6 +80,9 @@ interface AppendInput {
 // one query per writing device, not one per row.
 const originKey = (deviceId: string, deviceSeq: number): string => `${deviceId} ${deviceSeq}`;
 
+// the high-water read and the inserts share the caller's writeTransaction, whose write lock is
+// taken up front, so two writers cannot allocate the same (threadId, sequence); the unique index
+// is only the backstop.
 const appendInTransaction = (
   tx: DbTransaction,
   eventInputs: readonly AppendInput[],
@@ -222,22 +224,6 @@ export const appendSyncedEventsInTransaction = (
   return { ...appendInTransaction(tx, applied), applied };
 };
 
-// the high-water read and the inserts share one immediate transaction, so two writers cannot
-// allocate the same (threadId, sequence); the unique index is only the backstop.
-export const appendEvents = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  eventInputs: readonly ThreadEvent[],
-): AppendEventsResult => {
-  const result = db.transaction((tx) => appendEventsInTransaction(tx, eventInputs), {
-    behavior: "immediate",
-  });
-  for (const threadId of new Set(eventInputs.map((event) => event.threadId))) {
-    notifier.notifyThread(threadId, ["events-appended"]);
-  }
-  return result;
-};
-
 export interface ListStoredThreadEventsArgs {
   threadId: string;
   afterSequence?: number;
@@ -283,13 +269,4 @@ export const turnStartOriginDeviceId = (
     .limit(1)
     .get();
   return row?.deviceId ?? null;
-};
-
-export const getMaxSequence = (db: DbConnection, threadId: string): number => {
-  const row = db
-    .select({ maxSequence: max(events.sequence) })
-    .from(events)
-    .where(eq(events.threadId, threadId))
-    .get();
-  return row?.maxSequence ?? 0;
 };

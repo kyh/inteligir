@@ -1,16 +1,24 @@
-import { createConnection } from "../connection";
+import { createConnection, writeTransaction } from "../connection";
+import type { DbConnection } from "../connection";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it, vi } from "vitest";
 import {
-  appendEvents,
-  getMaxSequence,
+  appendEventsInTransaction,
   listStoredThreadEvents,
   MissingTurnStartedError,
 } from "../events";
+import type { AppendEventsResult } from "../events";
 import { noopNotifier } from "@repo/domain/notifier";
 import { createThread } from "../threads";
 import { openTempDbWithPath } from "./open-temp-db";
+
+// the transaction the server composes every append in.
+const append = (db: DbConnection, events: readonly ThreadEvent[]): AppendEventsResult =>
+  writeTransaction(db, (tx) => appendEventsInTransaction(tx, events));
+
+const lastSequence = (db: DbConnection, threadId: string): number =>
+  listStoredThreadEvents(db, { threadId }).at(-1)?.sequence ?? 0;
 
 const turnStarted = (threadId: string, turnId: string): ThreadEvent => ({
   scope: turnScope(turnId),
@@ -26,36 +34,36 @@ const agentDelta = (threadId: string, turnId: string, delta: string): ThreadEven
   type: "item/agentMessage/delta",
 });
 
-describe("appendEvents", () => {
+describe("appendEventsInTransaction", () => {
   it("assigns contiguous per-thread sequences across batches", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     const other = createThread(db, noopNotifier, {});
 
-    const first = appendEvents(db, noopNotifier, [
+    const first = append(db, [
       turnStarted(thread.id, "turn_1"),
       agentDelta(thread.id, "turn_1", "a"),
       turnStarted(other.id, "turn_9"),
     ]);
     expect(first.sequences).toEqual([1, 2, 1]);
 
-    const second = appendEvents(db, noopNotifier, [agentDelta(thread.id, "turn_1", "b")]);
+    const second = append(db, [agentDelta(thread.id, "turn_1", "b")]);
     expect(second.sequences).toEqual([3]);
-    expect(getMaxSequence(db, thread.id)).toBe(3);
-    expect(getMaxSequence(db, other.id)).toBe(1);
+    expect(lastSequence(db, thread.id)).toBe(3);
+    expect(lastSequence(db, other.id)).toBe(1);
   });
 
   it("never duplicates (threadId, sequence) under interleaved writers", () => {
     const { db, databasePath } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
-    appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1")]);
+    append(db, [turnStarted(thread.id, "turn_1")]);
 
     // a second connection is an independent writer whose high-water read races the first's
     // inserts.
     const rival = createConnection(databasePath);
     for (let round = 0; round < 25; round += 1) {
-      appendEvents(db, noopNotifier, [agentDelta(thread.id, "turn_1", `db-${round}`)]);
-      appendEvents(rival, noopNotifier, [agentDelta(thread.id, "turn_1", `rival-${round}`)]);
+      append(db, [agentDelta(thread.id, "turn_1", `db-${round}`)]);
+      append(rival, [agentDelta(thread.id, "turn_1", `rival-${round}`)]);
     }
 
     const stored = listStoredThreadEvents(db, { threadId: thread.id });
@@ -67,10 +75,10 @@ describe("appendEvents", () => {
   it("refuses turn content before its turn/started is stored", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
-    expect(() =>
-      appendEvents(db, noopNotifier, [agentDelta(thread.id, "turn_ghost", "x")]),
-    ).toThrow(MissingTurnStartedError);
-    expect(getMaxSequence(db, thread.id)).toBe(0);
+    expect(() => append(db, [agentDelta(thread.id, "turn_ghost", "x")])).toThrow(
+      MissingTurnStartedError,
+    );
+    expect(lastSequence(db, thread.id)).toBe(0);
   });
 
   it("round-trips events through the stored JSON", () => {
@@ -82,7 +90,7 @@ describe("appendEvents", () => {
       threadId: thread.id,
       type: "client/turn/requested",
     };
-    appendEvents(db, noopNotifier, [request, turnStarted(thread.id, "turn_1")]);
+    append(db, [request, turnStarted(thread.id, "turn_1")]);
     const stored = listStoredThreadEvents(db, { threadId: thread.id });
     expect(stored.map((entry) => entry.event)).toEqual([request, turnStarted(thread.id, "turn_1")]);
     expect(listStoredThreadEvents(db, { afterSequence: 1, threadId: thread.id })).toHaveLength(1);
@@ -111,8 +119,8 @@ describe("scope policy at the write", () => {
       threadId: thread.id,
       type: "turn/started",
     };
-    expect(() => appendEvents(db, noopNotifier, [invalid])).toThrow(/requires turn scope/u);
-    expect(getMaxSequence(db, thread.id)).toBe(0);
+    expect(() => append(db, [invalid])).toThrow(/requires turn scope/u);
+    expect(lastSequence(db, thread.id)).toBe(0);
   });
 
   it("refuses a batch atomically: a bad tail rolls back the good head", () => {
@@ -123,10 +131,10 @@ describe("scope policy at the write", () => {
       threadId: thread.id,
       type: "turn/started",
     };
-    expect(() =>
-      appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1"), invalid]),
-    ).toThrow(/requires turn scope/u);
-    expect(getMaxSequence(db, thread.id)).toBe(0);
+    expect(() => append(db, [turnStarted(thread.id, "turn_1"), invalid])).toThrow(
+      /requires turn scope/u,
+    );
+    expect(lastSequence(db, thread.id)).toBe(0);
   });
 });
 
@@ -134,7 +142,7 @@ describe("the cost of a burst", () => {
   it("prepares two SELECTs and one INSERT, whatever the burst carries", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
-    appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1")]);
+    append(db, [turnStarted(thread.id, "turn_1")]);
 
     const prepared: string[] = [];
     const client = db.$client;
@@ -144,9 +152,8 @@ describe("the cost of a burst", () => {
       return original(source);
     });
 
-    appendEvents(
+    append(
       db,
-      noopNotifier,
       Array.from({ length: 20 }, (_, index) => agentDelta(thread.id, "turn_1", `d${index}`)),
     );
     spy.mockRestore();
