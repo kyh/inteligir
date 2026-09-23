@@ -101,6 +101,11 @@ const workerDataSchema: z.ZodType<VoiceWorkerData> = z.discriminatedUnion("kind"
   z.object({ kind: z.literal("stream"), model: modelFilesSchema }),
 ]);
 
+const streamCommandSchema: z.ZodType<VoiceStreamCommand> = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("audio"), pcm: z.instanceof(ArrayBuffer) }),
+  z.object({ kind: z.literal("finalize") }),
+]);
+
 const loadRecognizer = async (model: VoiceModelFiles): Promise<SherpaRecognizer> => {
   const sherpa = await importSherpa();
   if (sherpa === null) {
@@ -186,25 +191,34 @@ const runStream = async (model: VoiceModelFiles): Promise<void> => {
 
   let lastPartial = "";
   let finished = false;
-  port?.on("message", (command: VoiceStreamCommand) => {
-    if (finished) {
+  port?.on("message", (frame) => {
+    const parsed = streamCommandSchema.safeParse(frame);
+    // a frame this build did not write is ignored: finalizing on it would cut the hold short.
+    if (finished || !parsed.success) {
       return;
     }
+    const command = parsed.data;
     try {
-      if (command.kind === "audio") {
-        stream.acceptWaveform({
-          sampleRate: VOICE_SAMPLE_RATE,
-          samples: int16ToFloat32(command.pcm),
-        });
-        const text = decodeInto(recognizer, stream);
-        if (text !== "" && text !== lastPartial) {
-          lastPartial = text;
-          emit({ kind: "partial", text });
+      switch (command.kind) {
+        case "audio": {
+          stream.acceptWaveform({
+            sampleRate: VOICE_SAMPLE_RATE,
+            samples: int16ToFloat32(command.pcm),
+          });
+          const text = decodeInto(recognizer, stream);
+          if (text !== "" && text !== lastPartial) {
+            lastPartial = text;
+            emit({ kind: "partial", text });
+          }
+          break;
         }
-      } else {
-        finished = true;
-        stream.inputFinished();
-        emit({ kind: "final", text: decodeInto(recognizer, stream) });
+        case "finalize": {
+          finished = true;
+          stream.inputFinished();
+          emit({ kind: "final", text: decodeInto(recognizer, stream) });
+          break;
+        }
+        // no default
       }
     } catch (error) {
       finished = true;
