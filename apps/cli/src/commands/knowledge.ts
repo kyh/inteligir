@@ -195,6 +195,11 @@ const problemLines = (body: KnowledgeProblemsResponse): string[] => [
     body.duplicateStems,
     (row) => `${row.stem}  ${row.paths.join(", ")}`,
   ),
+  ...problemFamilyLines(
+    "Duplicate ids",
+    body.duplicateIds,
+    (row) => `${row.id}  ${row.paths.join(", ")}`,
+  ),
 ];
 
 export const problemsCommand = (deps: CliDeps) =>
@@ -211,7 +216,7 @@ export const problemsCommand = (deps: CliDeps) =>
       ...jsonArg,
     },
     meta: {
-      description: "Dangling links, missing embeds, orphan notes and duplicate stems",
+      description: "Dangling links, missing embeds, orphan notes, duplicate stems and ids",
       name: "problems",
     },
     run: async ({ args }) => {

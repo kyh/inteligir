@@ -2,6 +2,7 @@ import { commentsStorePath, isNoteIdKey } from "@repo/notes/comments/sidecar-sch
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 
+import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 
@@ -17,29 +18,40 @@ const docsUnder = async (service: VaultService, path: string): Promise<string[]>
 // A note's comment store goes with the note, a folder's with every note under it, so nothing
 // leaks under `.inteligir/`; the deleted-notes restore brings both back from the same revision.
 // The entry goes first: a store left behind is a leak, a store gone before its note is a loss.
-// Two notes sharing one id would lose the survivor's comments here, the same ambiguity the
-// `[[Title|uuid]]` tier already warns about.
+// A byte copy carries the `id:` line along, so a store whose id another note still carries
+// stays. An index that has not seen that note yet names no other owner, so the guard never
+// removes more than an unguarded delete would.
 export const removeEntryWithComments = async (
   service: VaultService,
   path: string,
-): Promise<void> => {
+  knowledge: Pick<KnowledgeRuntime, "noteIdOwners">,
+): Promise<{ keptStores: string[] }> => {
   const docs = await docsUnder(service, path);
-  const ids: string[] = [];
+  const ids = new Set<string>();
   for (const doc of docs) {
     const { content } = await service.read(doc);
     const id = frontmatterId(content);
     if (id !== null && isNoteIdKey(id)) {
-      ids.push(id);
+      ids.add(id);
     }
   }
   await service.remove(path);
+  const removed = new Set(docs);
+  const keptStores: string[] = [];
   for (const id of ids) {
+    const store = commentsStorePath(id);
+    const owners = await knowledge.noteIdOwners(id);
+    if (owners.some((owner) => !removed.has(owner))) {
+      keptStores.push(store);
+      continue;
+    }
     try {
-      await service.remove(commentsStorePath(id));
+      await service.remove(store);
     } catch (error) {
       if (!(error instanceof VaultServiceError && error.code === "not_found")) {
         throw error;
       }
     }
   }
+  return { keptStores };
 };

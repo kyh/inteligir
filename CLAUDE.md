@@ -781,9 +781,11 @@ rename`.
   alone: a wiki or md link the resolver answered null is an unresolved link
   (once per source and target, on its first line), one that is embedded or
   names a file is a missing embed, a doc no other doc links to is an orphan,
-  and a stem spelled at two paths is a duplicate the resolver is quietly
-  breaking a tie on. Every row disappears with the sweep that fixes it, so no
-  row is ever stale against the index. Daily notes and templates are orphans by
+  and a stem spelled at two paths or a frontmatter `id` two docs carry (a byte
+  copy keeps its original's) is a duplicate the resolver is quietly breaking a
+  tie on; a shared id shares the comment store too. Every row disappears with
+  the sweep that fixes it, so no row is ever stale against the index. Daily
+  notes and templates are orphans by
   design and are left out unless asked (`includeConventionFolders`); the two
   folders are spelled once, in `@repo/notes/templates/placeholders`. A row lands
   on the link ELEMENT (`packages/editor/src/link-locate.ts`), not the find bar:
@@ -907,7 +909,11 @@ rename`.
   vaults and agents wrote is folded into the store on first touch and over the
   whole tree at boot (`comments-migration.ts`); an unparseable one is reported
   by its own name and left. A deleted note's store goes with it
-  (`remove-with-comments.ts`, a folder's with every note under it), and the
+  (`remove-with-comments.ts`, a folder's with every note under it) unless the
+  index names a note outside the deletion still carrying that id, a byte copy
+  whose delete would otherwise take the original's bodies; an index that has
+  not seen the copy yet errs toward removing, and the Problems page's
+  duplicate ids are where a shared id surfaces. The
   deleted-notes restore brings both back from the same revision through
   `@repo/api/local/vault/restore-comment-store`, the one composition the
   dialog and `vault restore` both run after the note's own ifAbsent write.

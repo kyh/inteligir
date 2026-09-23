@@ -5,7 +5,7 @@
 import { DAILY_NOTES_FOLDER, TEMPLATES_FOLDER } from "../templates/placeholders";
 import { docStem, isDocPath } from "./doc-file";
 import type { LinkKind } from "./link-extract";
-import type { BacklinkEntry, ForwardLinkEntry, WikiTarget } from "./link-graph-index";
+import type { BacklinkEntry, ForwardLinkEntry, NoteIdEntry, WikiTarget } from "./link-graph-index";
 import { extnamePath } from "./vault-path";
 
 export interface UnresolvedLinkRow {
@@ -28,6 +28,13 @@ export interface DuplicateStemRow {
   paths: string[];
 }
 
+// a byte copy (Finder's duplicate, an agent's `cp`) carries the `id:` line along, and the id keys
+// the comment store and the `[[Title|uuid]]` tier, so the two notes share both
+export interface DuplicateIdRow {
+  id: string;
+  paths: string[];
+}
+
 export interface ProblemFamily<T> {
   rows: T[];
   total: number;
@@ -38,12 +45,15 @@ export interface VaultProblems {
   missingEmbeds: ProblemFamily<UnresolvedLinkRow>;
   orphans: ProblemFamily<OrphanRow>;
   duplicateStems: ProblemFamily<DuplicateStemRow>;
+  duplicateIds: ProblemFamily<DuplicateIdRow>;
 }
 
 export interface ProblemsGraph {
   wikiTargets: () => WikiTarget[];
   forwardLinks: (path: string) => ForwardLinkEntry[];
   backlinks: (path: string) => BacklinkEntry[];
+  // by path, so a duplicate's paths come out sorted
+  noteIds: () => NoteIdEntry[];
 }
 
 export interface VaultProblemsOptions {
@@ -132,7 +142,24 @@ export const collectVaultProblems = (
     duplicateStems.push({ paths, stem: docStem(first) });
   }
 
+  const byId = new Map<string, string[]>();
+  for (const { id, path } of graph.noteIds()) {
+    const paths = byId.get(id);
+    if (paths === undefined) {
+      byId.set(id, [path]);
+    } else {
+      paths.push(path);
+    }
+  }
+  const duplicateIds: DuplicateIdRow[] = [];
+  for (const [id, paths] of byId) {
+    if (paths.length > 1) {
+      duplicateIds.push({ id, paths });
+    }
+  }
+
   return {
+    duplicateIds: capped(duplicateIds, options.limit),
     duplicateStems: capped(duplicateStems, options.limit),
     missingEmbeds: capped(missingEmbeds, options.limit),
     orphans: capped(orphans, options.limit),

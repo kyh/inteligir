@@ -127,7 +127,7 @@ export type KnowledgeUnlinkedMentionsResponse = z.infer<
 export const linkKindSchema = z.enum(["wiki", "md", "image"]);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;
 
-// what the graph cannot resolve: four families, each capped on its own with its own total.
+// what the graph cannot resolve: five families, each capped on its own with its own total.
 // the limit applies per family; dailies and templates count as orphans only when asked
 export const knowledgeProblemsRequestSchema = z
   .object({
@@ -159,6 +159,12 @@ export const duplicateStemRowSchema = z
   .strict();
 export type DuplicateStemRowWire = z.infer<typeof duplicateStemRowSchema>;
 
+// one frontmatter `id` carried by several notes, which then share one comment store
+export const duplicateIdRowSchema = z
+  .object({ id: z.string().min(1), paths: z.array(z.string().min(1)).min(2) })
+  .strict();
+export type DuplicateIdRowWire = z.infer<typeof duplicateIdRowSchema>;
+
 const problemFamilySchema = <Row extends z.ZodType>(row: Row) =>
   z
     .object({
@@ -169,6 +175,7 @@ const problemFamilySchema = <Row extends z.ZodType>(row: Row) =>
 
 export const knowledgeProblemsResponseSchema = z
   .object({
+    duplicateIds: problemFamilySchema(duplicateIdRowSchema),
     duplicateStems: problemFamilySchema(duplicateStemRowSchema),
     missingEmbeds: problemFamilySchema(unresolvedLinkRowSchema),
     orphans: problemFamilySchema(orphanRowSchema),

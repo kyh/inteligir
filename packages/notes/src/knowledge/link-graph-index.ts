@@ -52,6 +52,11 @@ export interface LinkGraph {
   edges: GraphEdge[];
 }
 
+export interface NoteIdEntry {
+  id: string;
+  path: string;
+}
+
 export interface WikiTarget {
   path: string;
   title: string;
@@ -334,6 +339,22 @@ export class LinkGraphIndex {
 
   notesWithTag(tag: string): string[] {
     return this.tagIndex.notesWithTag(tag);
+  }
+
+  noteIds(): NoteIdEntry[] {
+    const entries: NoteIdEntry[] = [];
+    for (const [path, record] of this.docs) {
+      if (record.noteId !== null) {
+        entries.push({ id: record.noteId, path });
+      }
+    }
+    return entries.toSorted((a, b) => (a.path < b.path ? -1 : 1));
+  }
+
+  pathsWithNoteId(id: string): string[] {
+    return this.noteIds()
+      .filter((entry) => entry.id === id)
+      .map((entry) => entry.path);
   }
 
   private dropResolution(): void {

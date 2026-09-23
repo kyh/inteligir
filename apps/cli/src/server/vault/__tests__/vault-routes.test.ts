@@ -346,6 +346,18 @@ describe("a note's comment store goes with the note", () => {
     expect(listed.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
   });
 
+  it("stays while a copy still carries the id", async () => {
+    const { client } = await bootTestApp();
+    await client.vault.write({ content: NOTE, path: "notes/keep.md" });
+    await client.comments.add({ id: "c1", path: "notes/keep.md", text: "kept" });
+    await client.vault.write({ content: NOTE, path: "notes/keep copy.md" });
+
+    await client.vault.remove({ path: "notes/keep copy.md" });
+
+    const listed = await client.comments.list({ path: "notes/keep.md" });
+    expect(listed.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
+  });
+
   it("goes for every note under a removed folder, and a note without an id has none to remove", async () => {
     const { client } = await bootTestApp();
     await client.vault.write({ content: NOTE, path: "box/a.md" });

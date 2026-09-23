@@ -95,7 +95,7 @@ const deleted = base.vault.deleted.handler(async ({ context }) => ({
 const remove = base.vault.remove.handler(
   async ({ context, input }) =>
     await refusing(async () => {
-      await removeEntryWithComments(context.vault.service, input.path);
+      await removeEntryWithComments(context.vault.service, input.path, context.knowledge);
       return { ok: true } as const;
     }),
 );
