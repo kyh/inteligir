@@ -8,8 +8,10 @@ import type {
   AcpAgentRuntimeOptions,
   AcpMcpServerConfig,
 } from "@repo/agent-runtime/acp/acp-runtime";
+import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessDefinition, HarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import { describeProviderError } from "@repo/agent-runtime/acp/provider-error";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
-import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import type {
   PendingInteractionCreate,
@@ -19,9 +21,11 @@ import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { interruptOpenPendingInteractions } from "@repo/db/pending-interactions";
 import { getThread, setThreadProviderSession } from "@repo/db/threads";
+import type { ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import { messageOf } from "../error-message";
 import type {
   CreateTurnDriver,
   ProviderEventSink,
@@ -216,9 +220,7 @@ class AcpTurnDriver implements TurnDriver {
               );
             }
           } catch (error) {
-            this.debug(
-              `idle session reaping failed: ${error instanceof Error ? error.message : String(error)}`,
-            );
+            this.debug(`idle session reaping failed: ${messageOf(error)}`);
           }
         })();
       }, reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS);
@@ -311,7 +313,7 @@ class AcpTurnDriver implements TurnDriver {
     const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
-    const providerId = row?.providerId ?? this.deps.defaultProviderId();
+    const providerId = this.providerIdOf(row);
     if (persisted !== null) {
       try {
         const resumed = await runtime.resumeThread({
@@ -329,9 +331,7 @@ class AcpTurnDriver implements TurnDriver {
         // the provider's rollout can be gone (a cleaned ~/.codex, another machine); a fresh
         // session keeps the thread usable.
         this.debug(
-          `resume of thread ${threadId} from provider session ${persisted} failed; starting fresh: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          `resume of thread ${threadId} from provider session ${persisted} failed; starting fresh: ${describeProviderError(error)}`,
         );
       }
     }
@@ -342,6 +342,15 @@ class AcpTurnDriver implements TurnDriver {
       threadId,
     });
     return instructions;
+  }
+
+  private providerIdOf(row: ThreadRow | null): string {
+    return row?.providerId ?? this.deps.defaultProviderId();
+  }
+
+  private harnessOf(threadId: string): HarnessDefinition | undefined {
+    const providerId = this.providerIdOf(getThread(this.deps.db, threadId));
+    return isHarnessId(providerId) ? HARNESSES[providerId] : undefined;
   }
 
   onInteractionResolved(interaction: PendingInteraction): void {
@@ -467,20 +476,15 @@ class AcpTurnDriver implements TurnDriver {
     try {
       await writes.finish();
     } catch (error) {
-      this.debug(
-        `settling the write set for thread ${threadId} failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.debug(`settling the write set for thread ${threadId} failed: ${messageOf(error)}`);
     }
   }
 
   private failTurn(threadId: string, cause: unknown): void {
+    const detail = describeProviderError(cause, this.harnessOf(threadId));
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined || state.settled) {
-      this.debug(
-        `dispatch failure for thread ${threadId} after its turn settled: ${
-          cause instanceof Error ? cause.message : String(cause)
-        }`,
-      );
+      this.debug(`dispatch failure for thread ${threadId} after its turn settled: ${detail}`);
       return;
     }
     const scope = turnScope(state.ourTurnId);
@@ -491,7 +495,7 @@ class AcpTurnDriver implements TurnDriver {
     }
     events.push(
       {
-        detail: cause instanceof Error ? cause.message : String(cause),
+        detail,
         message: "The agent provider failed",
         scope: threadScope(),
         threadId,

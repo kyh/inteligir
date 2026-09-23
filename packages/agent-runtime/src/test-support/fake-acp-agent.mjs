@@ -1,4 +1,5 @@
-// FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent.
+// FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent |
+// authOnNewSession | authOnPrompt (a signed-out vendor, refusing at the step the real ones do).
 // session ids carry the pid: the runtime routes frames by provider session id across adapters.
 
 import { writeFileSync } from "node:fs";
@@ -6,6 +7,7 @@ import { Readable, Writable } from "node:stream";
 import {
   AgentSideConnection,
   PROTOCOL_VERSION,
+  RequestError,
   ndJsonStream,
 } from "@zed-industries/agent-client-protocol";
 
@@ -32,11 +34,17 @@ const buildAgent = (client) => ({
     return { sessionId: params.sessionId };
   },
   newSession() {
+    if (mode === "authOnNewSession") {
+      throw RequestError.authRequired();
+    }
     sessionCounter += 1;
     return { sessionId: `fakeacp_${String(process.pid)}_${String(sessionCounter)}` };
   },
   async prompt(params) {
     const { sessionId } = params;
+    if (mode === "authOnPrompt") {
+      throw RequestError.authRequired();
+    }
     if (mode === "silent") {
       // oxlint-disable-next-line promise/avoid-new -- silent mode is a turn that never settles, which no combinator expresses
       return await new Promise(() => {

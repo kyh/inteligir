@@ -29,7 +29,14 @@ import {
 const require = createRequire(import.meta.url);
 const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-agent");
 
-type FakeAcpMode = "message" | "fileChange" | "approval" | "promptEcho" | "silent";
+type FakeAcpMode =
+  | "message"
+  | "fileChange"
+  | "approval"
+  | "promptEcho"
+  | "silent"
+  | "authOnNewSession"
+  | "authOnPrompt";
 
 interface ManagerOptions {
   cliBinDir?: string;
@@ -39,13 +46,18 @@ interface ManagerOptions {
   // mutable on purpose: the Settings-edited fact, read per session open.
   connectedDirs?: string[];
   spawnedEnvs?: Record<string, string>[];
+  // mutable on purpose: a sign-in between two sends, read at the next session open.
+  mode?: FakeAcpMode;
 }
 
 const fakeSpawn =
   (mode: FakeAcpMode, options: ManagerOptions): AcpAgentRuntimeOptions["spawnAdapter"] =>
   (_harness, env) => {
     options.spawnedEnvs?.push(env);
-    const childEnv: AgentRuntimeShellEnvironment = { ...env, FAKE_ACP_MODE: mode };
+    const childEnv: AgentRuntimeShellEnvironment = {
+      ...env,
+      FAKE_ACP_MODE: options.mode ?? mode,
+    };
     if (options.filePath !== undefined) {
       childEnv.FAKE_ACP_FILE = options.filePath;
     }
@@ -283,6 +295,50 @@ describe("the ACP runtime manager over real HTTP", () => {
       expect(completedTurns).toHaveLength(2);
     }, PROVIDER_WAIT);
     await awaitThreadStatus(harness.client, threadId, "idle");
+  });
+
+  it("names the harness and its login command when session/new is refused for auth", async () => {
+    const harness = await bootWithManager("authOnNewSession");
+    const threadId = await createThread(harness.client);
+    await sendMessage(harness.client, threadId, "hello agent");
+
+    await awaitThreadStatus(harness.client, threadId, "error");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.find((row) => row.kind === "error")).toMatchObject({
+      detail: "Codex is not signed in — run: codex login",
+      message: "The agent provider failed",
+    });
+  });
+
+  it("fails a prompt refused for auth with the login hint", async () => {
+    const harness = await bootWithManager("authOnPrompt");
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "hello agent");
+
+    await awaitThreadStatus(harness.client, threadId, "error");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.find((row) => row.kind === "error")).toMatchObject({
+      message: "Codex is not signed in — run: codex login",
+      turnId,
+    });
+  });
+
+  it("opens a fresh session on the send after a sign-in, not the one session/new refused", async () => {
+    const managerOptions: ManagerOptions = {};
+    const harness = await bootWithManager("authOnNewSession", managerOptions);
+    const threadId = await createThread(harness.client);
+    await sendMessage(harness.client, threadId, "signed out");
+    await awaitThreadStatus(harness.client, threadId, "error");
+
+    managerOptions.mode = "message";
+    const turnId = await sendMessage(harness.client, threadId, "signed in");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
+    expect(assistant).toMatchObject({ text: "hello from the fake agent", turnId });
   });
 
   it("fails a turn the provider accepted and then went silent on", async () => {
