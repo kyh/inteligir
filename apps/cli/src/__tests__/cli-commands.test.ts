@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { browserHandoffUrl } from "@repo/api/local/routes";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import {
+  FIXTURE_HANDOFF_NONCE,
   FIXTURE_REVISION_SHA,
   makeFixtureState,
   makeRevision,
@@ -529,6 +531,61 @@ describe("status, guide and help", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("INTELIGIR_DATA_DIR");
     expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
+  });
+});
+
+const recordingOpener = (answer: boolean) => {
+  const opened: string[] = [];
+  const openExternalUrl = async (url: string): Promise<boolean> => {
+    opened.push(url);
+    return answer;
+  };
+  return { openExternalUrl, opened };
+};
+
+describe("open", () => {
+  it("opens a link the server minted and names the server, never the nonce", async () => {
+    const server = await boot(seededState());
+    const browser = recordingOpener(true);
+    const result = await runCliForTest({
+      argv: ["open"],
+      baseUrl: server.baseUrl,
+      openExternalUrl: browser.openExternalUrl,
+    });
+    expect(result.code).toBe(0);
+    expect(browser.opened).toEqual([
+      browserHandoffUrl(`${server.baseUrl}/`, FIXTURE_HANDOFF_NONCE),
+    ]);
+    expect(result.stdout).toContain(server.baseUrl);
+    expect(result.stdout).not.toContain(FIXTURE_HANDOFF_NONCE);
+  });
+
+  it("prints the link when no browser opens", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["open"],
+      baseUrl: server.baseUrl,
+      openExternalUrl: recordingOpener(false).openExternalUrl,
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe(
+      `${browserHandoffUrl(`${server.baseUrl}/`, FIXTURE_HANDOFF_NONCE)}\n`,
+    );
+  });
+
+  it("prints the link under --json and opens nothing", async () => {
+    const server = await boot(seededState());
+    const browser = recordingOpener(true);
+    const result = await runCliForTest({
+      argv: ["open", "--json"],
+      baseUrl: server.baseUrl,
+      openExternalUrl: browser.openExternalUrl,
+    });
+    expect(result.code).toBe(0);
+    expect(browser.opened).toEqual([]);
+    expect(JSON.parse(result.stdout)).toEqual({
+      url: browserHandoffUrl(`${server.baseUrl}/`, FIXTURE_HANDOFF_NONCE),
+    });
   });
 });
 

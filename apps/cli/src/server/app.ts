@@ -22,12 +22,14 @@ import { isSameOriginBrowserRequest } from "./browser-request";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
+import { INERT_PAGE_HEADERS } from "./inert-page";
 import type { UpgradedSocket } from "./listen";
 import { loopbackRequestOrigin } from "./loopback-origin";
 import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
 import { presentedCredential, tokenAccepted } from "./server-file";
 import type { PresentedCredential } from "./server-file";
+import { SIGNED_OUT_PAGE } from "./signed-out-page";
 import { handleVaultAsset } from "./vault/asset-route";
 import type { VoiceStreamConnection } from "./voice/voice-stream-connection";
 import type { VoiceStreamHub } from "./voice/voice-stream-hub";
@@ -233,6 +235,24 @@ export const createApp = (args: CreateAppArgs) => {
       return c.redirect(`${c.get("requestOrigin")}${target.pathname}${target.search}`, 303);
     };
 
+    // no guard, since the shell is public bytes: a tab with no session would load it and then fail
+    // every call with nothing on screen saying why. the cookie's same-origin proof stays the api's.
+    const signedOutDocument: MiddlewareHandler<AppEnv> = async (
+      c,
+      next,
+    ): Promise<Response | undefined> => {
+      const credential = presentedCredential({
+        authorization: c.req.header("authorization"),
+        cookie: c.req.header("cookie"),
+      });
+      if (credential === null || !credentialAccepted(credential)) {
+        return c.body(SIGNED_OUT_PAGE, 401, INERT_PAGE_HEADERS);
+      }
+      // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
+      await next();
+      return undefined;
+    };
+
     // stamped by content type, not route: serveStatic answers index.html for `/` and the fallback
     // reads the same file for deep links. the ws origin is the one the caller reached: a
     // connect-src naming the configured port refuses this app's own socket on a probed dev bind.
@@ -265,6 +285,7 @@ export const createApp = (args: CreateAppArgs) => {
       ["GET", "HEAD"],
       "*",
       browserHandoff,
+      signedOutDocument,
       documentHeaders,
       staticCacheControl(STATIC_NO_STORE_CACHE_CONTROL),
       serveClientFile,

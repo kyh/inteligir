@@ -1,5 +1,6 @@
-export interface InertCallbackPage {
-  status: 200 | 400;
+// the server's own browser landings, a connector's oauth callback and a tab with no session: a
+// page that runs no script and loads nothing, since the tab it lands in is not one it trusts.
+export interface InertPage {
   title: string;
   detail: string;
 }
@@ -15,7 +16,7 @@ const HTML_ESCAPES = new Map([
 const escapeHtml = (value: string): string =>
   value.replaceAll(/[&<>"']/gu, (character) => HTML_ESCAPES.get(character) ?? character);
 
-export const renderInertCallbackPage = (page: InertCallbackPage): string =>
+export const renderInertPage = (page: InertPage): string =>
   `<!doctype html>
 <html lang="en">
 <head>
@@ -35,8 +36,8 @@ export const renderInertCallbackPage = (page: InertCallbackPage): string =>
 </html>
 `;
 
-// the callback url carries a live code; no-referrer keeps it off any link added later.
-export const INERT_CALLBACK_HEADERS = {
+// a callback url carries a live code; no-referrer keeps it off any link added later.
+export const INERT_PAGE_HEADERS = {
   "cache-control": "no-store",
   "content-security-policy":
     "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",

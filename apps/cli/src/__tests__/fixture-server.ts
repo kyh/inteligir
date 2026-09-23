@@ -47,6 +47,8 @@ import { boundAddressSchema } from "../server/__tests__/bound-address";
 // required so a command that reaches the wire without the bearer fails rather than passes.
 export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
 
+export const FIXTURE_HANDOFF_NONCE = "fixture-handoff";
+
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
 
 export interface FixtureThread {
@@ -397,7 +399,7 @@ const knowledgeRouter = {
 };
 
 const systemRouter = {
-  browserHandoff: base.system.browserHandoff.handler(() => ({ nonce: "fixture-handoff" })),
+  browserHandoff: base.system.browserHandoff.handler(() => ({ nonce: FIXTURE_HANDOFF_NONCE })),
   guide: base.system.guide.handler(({ context }) => ({ markdown: context.guideMarkdown })),
   status: base.system.status.handler(({ context }) => {
     const status: SystemStatusResponse = {

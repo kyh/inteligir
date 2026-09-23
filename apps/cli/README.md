@@ -17,6 +17,7 @@ product by typing `inteligir …` in bash.
 
 ```sh
 inteligir serve --open      # zero-install: `npx inteligir serve --open`
+inteligir open              # another signed-in browser tab on the running server
 pnpm cli status             # in a checkout, against this checkout's instance
 apps/cli/bin/inteligir --help
 ```
@@ -45,9 +46,11 @@ first has not published its row yet.
 A browser cannot send that header, and it never sees the bearer. The link
 `serve` prints (and opens, under `--open`) carries a single-use handoff that the
 server trades once for a session cookie of the browser's own, answering with the
-same URL minus the handoff; the desktop's Open in Browser mints a fresh one over
-`system.browserHandoff`. A plain GET sets no cookie, and a request naming any
-host but `127.0.0.1` or `localhost` is refused before it reaches a route.
+same URL minus the handoff; `inteligir open` and the desktop's Open in Browser
+mint a fresh one over `system.browserHandoff`. A plain GET sets no cookie and
+gets a signed-out page naming those ways in, never the workspace, and a request
+naming any host but `127.0.0.1` or `localhost` is refused before it reaches a
+route.
 
 There is no probing. A derived dev port may have been probed upward at bind, so
 a client that dialled the derived value could reach a NEIGHBOURING checkout's

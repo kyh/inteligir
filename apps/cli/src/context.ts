@@ -1,5 +1,6 @@
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
+import type { OpenExternalUrl } from "./server/cloud/browser-opener";
 import { resolveCheckoutRoot } from "./server/dev-instance";
 import { createLocalClient } from "./server/local-client";
 import { DATA_DIR_ENV_VAR, resolveServer } from "./server-discovery";
@@ -14,6 +15,8 @@ export interface CliDeps {
   // the home the config derives from; a test points it at a scratch dir so a leaf that writes
   // config.json never reaches the developer's own
   homeDir?: string | undefined;
+  // a test hands in its own so running a leaf never opens a browser on the developer's screen
+  openExternalUrl?: OpenExternalUrl | undefined;
   resolveServer: () => ResolvedServer;
 }
 

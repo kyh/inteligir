@@ -191,7 +191,11 @@ try {
   await waitHealthy(baseUrl);
   const rpc = rpcClient(baseUrl, dataDir);
 
-  const shell = await fetch(baseUrl, { headers: { accept: "text/html" } });
+  // with the bearer: a request carrying no credential gets the signed-out page instead
+  const { token } = JSON.parse(readFileSync(path.join(dataDir, "server.json"), "utf-8"));
+  const shell = await fetch(baseUrl, {
+    headers: { accept: "text/html", authorization: `Bearer ${token}` },
+  });
   const html = await shell.text();
   if (!shell.ok || !html.includes("<title>inteligir</title>")) {
     fail(`the SPA shell did not answer (${shell.status}, ${html.length} bytes)`);

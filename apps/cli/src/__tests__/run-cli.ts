@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import { vi } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
 import type { CliDeps } from "../context";
+import type { OpenExternalUrl } from "../server/cloud/browser-opener";
 import { FIXTURE_SERVER_TOKEN } from "./fixture-server";
 import { runCli } from "../program";
 
@@ -21,6 +22,7 @@ export interface RunArgs {
   baseUrl: string | null;
   env?: Record<string, string>;
   homeDir?: string;
+  openExternalUrl?: OpenExternalUrl;
   // "terminal" is an interactive stdin that carries nothing.
   stdin?: Uint8Array | "terminal";
 }
@@ -35,6 +37,7 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
   const deps: CliDeps = {
     env: { ...args.env },
     homeDir: args.homeDir,
+    openExternalUrl: args.openExternalUrl,
     resolveServer: () => {
       if (baseUrl === null) {
         throw new CliExitError("No inteligir server is running (fixture)", {
