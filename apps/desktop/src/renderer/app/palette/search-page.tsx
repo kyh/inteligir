@@ -4,6 +4,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { KNOWLEDGE_MATCHES_DEFAULT_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
+import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { orpc } from "../api";
@@ -70,7 +71,7 @@ interface ReplaceRun {
 export interface SearchPageProps {
   open: boolean;
   query: string;
-  onOpenMatch: (match: VaultMatchWire, query: string) => void;
+  onOpenMatch: (match: VaultMatchWire, needle: string, options: TextMatchOptions) => void;
   // settles when the run is over, cancelled or declined included; the page shows it running
   onReplaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
 }
@@ -88,6 +89,10 @@ export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPag
     limit: KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
     q: settledQuery,
     wholeWord,
+  };
+  const inputOptions: TextMatchOptions = {
+    caseSensitive: input.caseSensitive,
+    wholeWord: input.wholeWord,
   };
   const vaultMatches = useQuery({
     ...orpc.knowledge.matches.queryOptions({ input }),
@@ -188,7 +193,7 @@ export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPag
               onClick={() => {
                 startReplace({
                   needle: input.q,
-                  options: { caseSensitive: input.caseSensitive, wholeWord: input.wholeWord },
+                  options: inputOptions,
                   paths,
                   replacement,
                 });
@@ -231,7 +236,7 @@ export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPag
               key={row.ordinal}
               action={`${group.title === "" ? group.path : group.title} line ${String(row.line)}`}
               onSelect={() => {
-                onOpenMatch(row, query);
+                onOpenMatch(row, input.q, inputOptions);
               }}
             >
               <span className="min-w-0 flex-1 truncate">

@@ -755,7 +755,10 @@ rename`.
   and the summary counts what a stop left untouched; the palette stays open on
   the run so it can show the count and offer the cancel, and a close, however
   it comes, is that cancel. The jump lands by ordinal among
-  the note's matches, because a markdown column is not a Slate offset. ⌘⇧O (Go
+  the note's matches, because a markdown column is not a Slate offset, and it
+  carries the listing's needle and toggles into the find bar, which counts with
+  the same matcher over each text leaf (`findTextOffsets`), so the ordinal
+  names the match the row showed. ⌘⇧O (Go
   to heading) is the one shifted row in `global-shortcuts.ts`; a row claims
   shift explicitly, so an unshifted row never fires on a shifted chord.
 

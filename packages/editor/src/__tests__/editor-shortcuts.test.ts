@@ -127,11 +127,14 @@ describe("editor shortcuts", () => {
   });
 });
 
+// is-hotkey matches a named key by its own code, not its name's first letter
+const NAMED_KEY_CODES = new Map([["enter", 13]]);
+
 // the chord a row spells, pressed: "mod" is ctrl where no Mac platform is detectable
 const chordEvent = (hotkey: string): ShortcutKeyEvent => {
   const parts = hotkey.split("+");
   const key = parts.at(-1) ?? "";
-  const keyCode = key.toUpperCase().codePointAt(0) ?? Number.NaN;
+  const keyCode = NAMED_KEY_CODES.get(key) ?? key.toUpperCase().codePointAt(0) ?? Number.NaN;
   return {
     altKey: parts.includes("alt"),
     ctrlKey: parts.includes("mod"),

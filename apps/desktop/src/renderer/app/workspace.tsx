@@ -1,4 +1,5 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
@@ -89,10 +90,15 @@ type PanelReveal =
 // a note that never mounts (a refused open) must not leave a jump waiting forever
 const LIVE_EDITOR_WAIT_MS = 5000;
 
-const jumpWhenLive = async (path: string, query: string, ordinal: number): Promise<void> => {
+const jumpWhenLive = async (
+  path: string,
+  needle: string,
+  ordinal: number,
+  options: TextMatchOptions,
+): Promise<void> => {
   const editor = await whenLiveEditor(path, LIVE_EDITOR_WAIT_MS);
   if (editor !== null) {
-    jumpToFindMatch(editor, query, ordinal);
+    jumpToFindMatch(editor, needle, ordinal, options);
   }
 };
 
@@ -311,9 +317,9 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   // the note opens first; the find bar takes the match once its editor is live
   const openMatch = useCallback(
-    (match: VaultMatchWire, query: string): void => {
+    (match: VaultMatchWire, needle: string, options: TextMatchOptions): void => {
       setOpenNote(match.path);
-      void jumpWhenLive(match.path, query, match.ordinal);
+      void jumpWhenLive(match.path, needle, match.ordinal, options);
     },
     [setOpenNote],
   );

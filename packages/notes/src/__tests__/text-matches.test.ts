@@ -5,6 +5,7 @@ import {
   collectVaultMatches,
   excerptAround,
   findTextMatches,
+  findTextOffsets,
   replaceTextMatches,
 } from "../knowledge/text-matches";
 
@@ -44,6 +45,23 @@ describe("finding literal occurrences", () => {
 
   it("finds nothing for an empty needle", () => {
     expect(findTextMatches("anything", "", LOOSE)).toEqual([]);
+  });
+});
+
+describe("offsets into one string", () => {
+  // `toLowerCase` turns İ into two code units, which would shift every offset after it
+  it("keeps the original text's offsets past a letter whose lower case is longer", () => {
+    expect(findTextOffsets("İstanbul foo", "FOO", LOOSE)).toEqual([{ length: 3, offset: 9 }]);
+  });
+
+  it("counts from the start of the string, across a soft break", () => {
+    expect(findTextOffsets("cat\nCat", "cat", { caseSensitive: true, wholeWord: true })).toEqual([
+      { length: 3, offset: 0 },
+    ]);
+    expect(findTextOffsets("cat\nCat", "cat", LOOSE)).toEqual([
+      { length: 3, offset: 0 },
+      { length: 3, offset: 4 },
+    ]);
   });
 });
 
