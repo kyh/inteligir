@@ -3,7 +3,12 @@ import { createStore } from "zustand/vanilla";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 import { setEditorHostIo } from "@repo/editor/host-io";
-import type { LinkResolver, ReadVaultAssetResult, VaultActions } from "@repo/editor/host-io";
+import type {
+  EditorHostIo,
+  LinkResolver,
+  ReadVaultAssetResult,
+  VaultActions,
+} from "@repo/editor/host-io";
 
 export interface HostCall {
   readonly action: keyof VaultActions;
@@ -19,6 +24,7 @@ export interface FakeEditorHostOptions {
   readonly refuseCreates?: boolean;
   // answers the rename in place of the immediate success, so a case can hold it in flight
   readonly renameEntry?: VaultActions["renameEntry"];
+  readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
 }
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
@@ -61,7 +67,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     linkResolver,
     listWikiTargets: async () => await Promise.resolve([...(options.wikiTargets ?? [])]),
     onVaultChanged: () => () => {},
-    readNoteFormulas: async () => await Promise.resolve(null),
+    readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>
       await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),
     readVaultFile: async ({ path }) => await Promise.reject(new Error(`ENOENT ${path}`)),

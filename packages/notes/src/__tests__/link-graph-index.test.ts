@@ -51,6 +51,18 @@ describe("LinkGraphIndex — [[Title|uuid]] id tier", () => {
     expect(index.backlinks("renamed.md").map((b) => b.sourcePath)).toEqual(["hub.md"]);
   });
 
+  it("wikiTargets carries the id a doc's frontmatter names, quoted or not", () => {
+    const index = new LinkGraphIndex();
+    index.applyDoc("a.md", projectDoc("a.md", `---\nid: '${UUID}'\n---\n# A\n`));
+    index.applyDoc("b.md", projectDoc("b.md", "---\nid: 42\n---\n# B\n"));
+    index.setOther("img.png");
+    expect(index.wikiTargets().map(({ path, id }) => ({ id, path }))).toEqual([
+      { id: UUID, path: "a.md" },
+      { id: undefined, path: "b.md" },
+      { id: undefined, path: "img.png" },
+    ]);
+  });
+
   it("falls back to the title tiers when no doc owns the id", () => {
     const index = new LinkGraphIndex();
     index.applyDoc("note.md", projectDoc("note.md", "# Note\n"));

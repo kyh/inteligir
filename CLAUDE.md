@@ -444,6 +444,20 @@ to the END of its group.
   created file stays, because the vault has no transaction and a note that
   exists is truer than an edit that never happened.
 
+- **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S NOTE IS FOUND BY
+  ID.** `@(name#note-id#pill-id)` names its note by frontmatter `id`, which the
+  index's wiki-targets rows carry, so the desktop reads the one note that id
+  names, cached by path until a change event names that path
+  (`apps/desktop/src/renderer/app/note/note-formulas.ts`). Reading every doc to
+  find one id is rejected: a recompute runs after each typing pause. The walk
+  follows refs through the notes it reads, up to 64, so a chain resolves
+  (`loadFormulaGraph` in `@repo/notes/formulas/resolve-graph`). The display a
+  recompute rewrites lands outside the undo history: the user never typed it,
+  and one undo must reach their own last edit
+  (`packages/editor/src/formulas/formula-recompute.ts`). The id has one
+  reader, `noteIdOfProperties` in `@repo/notes/markdown/frontmatter`, which
+  the index and the recompute share.
+
 ### Vault: writes, git and containment
 
 - **The auto-commit stages what the window's writers named.** A scheduler that
@@ -1110,7 +1124,8 @@ agents default`; unset falls back
   all run, sits at the server's root (`apps/cli/src/server/browser-opener.ts`),
   not in the sync client. The cloud vault-path grammar is `parseVaultPath`
   with the parse required to be the identity. The `[[Title|uuid]]` tier lives in
-  `buildResolver` (tier 0); the desktop and mobile listings carry no `id` yet.
+  `buildResolver` (tier 0); the desktop reaches it through the `id` its
+  wiki-targets rows carry, and the mobile listing carries none yet.
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime` and the login flow publish stores the screens subscribe to, so

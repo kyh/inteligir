@@ -200,6 +200,7 @@ export type BacklinkEntryWire = z.infer<typeof backlinkEntrySchema>;
 export const wikiTargetSchema = z
   .object({
     aliases: z.array(z.string()).optional(),
+    id: z.string().min(1).optional(),
     path: z.string().min(1),
     pinned: z.boolean().optional(),
     title: z.string(),

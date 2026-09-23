@@ -1,4 +1,5 @@
-// A changed display rewrites through an ordinary editor transaction; parsing never
+// A changed display rewrites through an editor transaction the undo history never records:
+// the user did not type it, so one undo must still reach their own last edit. Parsing never
 // rewrites, so a wrong display on disk stays until an editor session recomputes it.
 // Only a bound expression that cannot resolve marks stale and keeps its last
 // display; a plain expression that cannot evaluate is left alone.
@@ -13,12 +14,14 @@ import {
 } from "@repo/notes/formulas/expression";
 import { formatResult } from "@repo/notes/formulas/format-result";
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
-import { resolveExpression } from "@repo/notes/formulas/resolve-graph";
+import { loadFormulaGraph, resolveExpression } from "@repo/notes/formulas/resolve-graph";
 import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { noteIdOfProperties, parseProperties } from "@repo/notes/markdown/frontmatter";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { rebuildRaw } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
+import { readFrontmatterRaw } from "@repo/editor/properties/properties-node";
 
 const RECOMPUTE_DEBOUNCE_MS = 400;
 
@@ -49,17 +52,15 @@ const formulaEntries = (editor: SlateEditor): FormulaEntryInDoc[] => {
   return out;
 };
 
-const editorNoteId = (editor: SlateEditor): string | null => {
-  const [first] = editor.children;
-  if (first === undefined || first.type !== "frontmatter") {
-    return null;
-  }
-  const yaml = stringProp(first, "value") ?? "";
-  const match = /^id:\s*(?<quote>"?)(?<value>[^"\n]+)\k<quote>\s*$/mu.exec(yaml);
-  return match?.groups?.value?.trim() ?? null;
+// A note that cannot be read answers like an absent one: its refs go stale, never the whole pass.
+const readForeignFormulas = async (noteId: string): Promise<CollectedFormula[] | null> => {
+  const answer = await getEditorHostIo()
+    .readNoteFormulas({ noteId })
+    .catch(() => null);
+  return answer?.formulas ?? null;
 };
 
-const recompute = async (editor: SlateEditor): Promise<void> => {
+export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
   const before = editor.children;
   const entries = formulaEntries(editor);
   const executables = entries.filter((row) => row.collected.expression !== null);
@@ -67,32 +68,9 @@ const recompute = async (editor: SlateEditor): Promise<void> => {
     return;
   }
 
-  const selfNoteId = editorNoteId(editor);
+  const selfNoteId = noteIdOfProperties(parseProperties(readFrontmatterRaw(editor) ?? ""));
   const selfFormulas = entries.map((row) => row.collected);
-
-  const foreign = new Set<string>();
-  for (const row of executables) {
-    if (row.collected.expression === null) {
-      continue;
-    }
-    for (const ref of collectBoundRefs(row.collected.expression)) {
-      if (ref.noteId !== selfNoteId) {
-        foreign.add(ref.noteId);
-      }
-    }
-  }
-  const notes = new Map<string, readonly CollectedFormula[]>();
-  if (foreign.size > 0) {
-    const io = getEditorHostIo();
-    await Promise.all(
-      [...foreign].map(async (noteId) => {
-        const answer = await io.readNoteFormulas({ noteId }).catch(() => null);
-        if (answer !== null) {
-          notes.set(noteId, answer.formulas);
-        }
-      }),
-    );
-  }
+  const graph = await loadFormulaGraph(selfFormulas, selfNoteId, readForeignFormulas);
   // an edit landed during the reads; the next settle reruns
   if (editor.children !== before) {
     return;
@@ -108,7 +86,7 @@ const recompute = async (editor: SlateEditor): Promise<void> => {
     const outcome =
       refs.length === 0
         ? evaluateExpression(expression, () => null)
-        : resolveExpression(expression, { notes }, selfNoteId, selfFormulas);
+        : resolveExpression(expression, graph, selfNoteId, selfFormulas);
     if (outcome.ok) {
       const nextDisplay = formatResult(outcome.value);
       if (nextDisplay !== display || meta.stale) {
@@ -136,18 +114,21 @@ const recompute = async (editor: SlateEditor): Promise<void> => {
     return;
   }
 
-  editor.tf.withoutNormalizing(() => {
-    for (const update of updates) {
-      editor.tf.setNodes(update.props, { at: update.entry[1] });
-    }
+  editor.tf.withoutSaving(() => {
+    editor.tf.withoutNormalizing(() => {
+      for (const update of updates) {
+        editor.tf.setNodes(update.props, { at: update.entry[1] });
+      }
+    });
   });
 };
 
-const recomputeQuietly = async (editor: SlateEditor): Promise<void> => {
+// Nothing awaits a scheduled pass, so a throw here would vanish; the display it left stays.
+const recomputeReporting = async (editor: SlateEditor): Promise<void> => {
   try {
-    await recompute(editor);
-  } catch {
-    /* empty */
+    await recomputeFormulas(editor);
+  } catch (error) {
+    console.error("formula recompute failed", error);
   }
 };
 
@@ -157,7 +138,7 @@ export const scheduleFormulaRecompute = (editor: SlateEditor): void => {
   let scheduler = schedulers.get(editor);
   if (scheduler === undefined) {
     scheduler = createDebouncer(() => {
-      void recomputeQuietly(editor);
+      void recomputeReporting(editor);
     }, RECOMPUTE_DEBOUNCE_MS);
     schedulers.set(editor, scheduler);
   }

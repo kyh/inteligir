@@ -2,25 +2,27 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { setEditorHostIo } from "@repo/editor/host-io";
 import type { EditorHostIo, LinkResolver, VaultActions, VaultEntry } from "@repo/editor/host-io";
-import { readVaultTree, renameVaultEntry, useWikiTargets } from "../vault-hooks";
+import { readVaultTree, readWikiTargets, renameVaultEntry, useWikiTargets } from "../vault-hooks";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type { VaultSession, WorkspaceBoot } from "@repo/editor/note/vault-session";
-import { collectFormulas, noteIdOf } from "@repo/notes/formulas/collect-formulas";
-import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { base64FromBytes } from "@repo/api/cloud/bytes";
-import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
+import type {
+  KnowledgeWikiTargetsResponse,
+  WikiTargetWire,
+} from "@repo/api/local/knowledge/knowledge-schema";
 import { vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
@@ -30,6 +32,8 @@ import { readLastOpenNote, writeLastOpenNote } from "../prefs";
 import { useWorkspace } from "../workspace-context";
 import type { WorkspaceRuntime } from "../workspace-context";
 import { createGuardedVaultIo } from "./guarded-vault-io";
+import { createNoteFormulas } from "./note-formulas";
+import type { NoteFormulas } from "./note-formulas";
 
 const noOpenPathMirror = (): void => {
   /* empty */
@@ -58,6 +62,21 @@ const readFile = async (api: Api, path: string): Promise<string> => {
   return content;
 };
 
+// exactOptionalPropertyTypes: the wire's optional members may hold an explicit undefined.
+const editorWikiTarget = ({ aliases, id, pinned, ...row }: WikiTargetWire): WikiTarget => {
+  const target: WikiTarget = row;
+  if (aliases !== undefined) {
+    target.aliases = aliases;
+  }
+  if (id !== undefined) {
+    target.id = id;
+  }
+  if (pinned !== undefined) {
+    target.pinned = pinned;
+  }
+  return target;
+};
+
 export interface VaultProviderProps {
   children: ReactNode;
   initialPath: string | null;
@@ -71,7 +90,7 @@ export interface VaultProviderProps {
 interface VaultPort {
   readonly session: VaultSession;
   readonly linkResolver: StoreApi<LinkResolver>;
-  entries: () => readonly VaultEntry[];
+  readonly formulas: NoteFormulas;
   wikiTargets: () => WikiTargets;
   setWikiTargets: (next: WikiTargets) => void;
   setOnOpenPath: (next: (path: string | null) => void) => void;
@@ -92,21 +111,33 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
   // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
   const rebuildResolver = (): void => {
     const aliasEntries: (readonly [string, string])[] = [];
+    const idEntries: (readonly [string, string])[] = [];
     for (const target of wikiTargets) {
       for (const alias of target.aliases ?? []) {
         aliasEntries.push([alias, target.path]);
+      }
+      if (target.id !== undefined) {
+        idEntries.push([target.id, target.path]);
       }
     }
     const resolver = buildResolver(
       entries.map((entry) => entry.path),
       aliasEntries,
+      idEntries,
     );
     linkResolver.setState({
       resolveMdTarget: (target, fromPath) => resolver.resolveMd(target, fromPath),
-      resolveWikiTarget: (target) => resolver.resolveWiki(target),
+      resolveWikiTarget: (target, alias) => resolver.resolveWiki(target, alias),
     });
   };
   const io = createGuardedVaultIo(api);
+  const formulas = createNoteFormulas({
+    listTargets: async () => {
+      const { targets } = await readWikiTargets(queryClient);
+      return targets;
+    },
+    readFile: async (path) => await readFile(api, path),
+  });
   const session = createVaultSession({
     // discarding is the confirm, so an Escape or a dismissal re-creates and the edits survive it.
     askVanished: async (path) =>
@@ -162,7 +193,7 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
   });
 
   return {
-    entries: () => entries,
+    formulas,
     linkResolver,
     session,
     setOnOpenPath: (next) => {
@@ -188,10 +219,6 @@ export const VaultProvider = ({
   const [bootPath] = useState(initialPath);
   const { api, vaultChanges } = useWorkspace();
   const queryClient = useQueryClient();
-
-  const formulaScanRef = useRef<Promise<
-    Map<string, { path: string; formulas: CollectedFormula[] }>
-  > | null>(null);
 
   const wikiTargetsQuery = useWikiTargets();
   const wikiTargets = useMemo<WikiTargets>(
@@ -240,40 +267,9 @@ export const VaultProvider = ({
         });
       },
       linkResolver: port.linkResolver,
-      listWikiTargets: () =>
-        Promise.resolve(
-          // exactOptionalPropertyTypes: drop the explicit-undefined members.
-          port.wikiTargets().map(({ aliases, pinned, ...target }) => {
-            const withAliases = aliases === undefined ? target : Object.assign(target, { aliases });
-            return pinned === undefined ? withAliases : Object.assign(withAliases, { pinned });
-          }),
-        ),
+      listWikiTargets: () => Promise.resolve(port.wikiTargets().map(editorWikiTarget)),
       onVaultChanged: (listener) => vaultChanges.subscribe(listener),
-      readNoteFormulas: async ({ noteId }) => {
-        let scan = formulaScanRef.current;
-        if (scan === null) {
-          scan = (async () => {
-            const byId = new Map<string, { path: string; formulas: CollectedFormula[] }>();
-            for (const entry of port.entries()) {
-              if (entry.kind !== "doc") {
-                continue;
-              }
-              const content = await readFile(api, entry.path).catch(() => null);
-              if (content === null) {
-                continue;
-              }
-              const id = noteIdOf(content);
-              if (id !== null && !byId.has(id)) {
-                byId.set(id, { formulas: collectFormulas(content), path: entry.path });
-              }
-            }
-            return byId;
-          })();
-          formulaScanRef.current = scan;
-        }
-        const byId = await scan;
-        return byId.get(noteId) ?? null;
-      },
+      readNoteFormulas: port.formulas.read,
       // A plain fetch, not a procedure: the ETag and sandbox CSP do not
       // survive an RPC envelope.
       readVaultAsset: async ({ path }) => {
@@ -305,10 +301,10 @@ export const VaultProvider = ({
   useEffect(
     () =>
       vaultChanges.subscribe((event) => {
-        formulaScanRef.current = null;
+        port.formulas.forget(event);
         session.handleVaultChanged(event);
       }),
-    [vaultChanges, session],
+    [vaultChanges, port, session],
   );
 
   // No unload/pagehide flush: a `keepalive` write is best-effort, and a tab

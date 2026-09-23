@@ -33,7 +33,7 @@ export interface VaultActions {
 // index (and so Problems and a rename) says it does. Identity changes when the listing or aliases
 // refresh, so a link re-renders on that alone.
 export interface LinkResolver {
-  resolveWikiTarget: (target: string) => string | null;
+  resolveWikiTarget: (target: string, alias?: string) => string | null;
   /** `target` is an md url as `mdLinkTarget` reads it; tried beside `fromPath`, then from the root. */
   resolveMdTarget: (target: string, fromPath: string) => string | null;
 }

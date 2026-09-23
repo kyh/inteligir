@@ -3,7 +3,6 @@
 import type { Node, Parent } from "mdast";
 import { z } from "zod";
 
-import { splitFrontmatter } from "../markdown/frontmatter";
 import { parseMdast } from "../markdown/parse";
 import { parseFormulaMeta } from "./formula-meta";
 import type { FormulaMeta } from "./formula-meta";
@@ -17,14 +16,6 @@ export interface CollectedFormula {
   /** null = symbolic (not executable). */
   expression: ExpressionNode | null;
 }
-
-const frontmatterIdSchema = z.object({ id: z.string().min(1) });
-
-export const noteIdOf = (markdown: string): string | null => {
-  const { properties } = splitFrontmatter(markdown);
-  const parsed = frontmatterIdSchema.safeParse(properties);
-  return parsed.success ? parsed.data.id : null;
-};
 
 const formulaNodeSchema = z.object({
   display: z.string(),
