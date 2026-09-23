@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
@@ -34,7 +35,12 @@ export const builtCliBoot: Scenario = {
     const app = await ctx.boot({ mode: "built", name: "built" });
 
     ctx.log("GET / answers the staged workspace UI");
-    const shell = await fetch(app.baseUrl, { headers: { accept: "text/html" } });
+    const server = readServerFile(app.dataDir);
+    expect(server !== null, "the built server published no server.json");
+    // a GET with no credential is the signed-out page, never the workspace.
+    const shell = await fetch(app.baseUrl, {
+      headers: { accept: "text/html", authorization: authorizationHeader(server.token) },
+    });
     expectEq(shell.status, 200, "GET / on the built server");
     const staged = await readFile(path.join(distDir, "ui", "index.html"), "utf-8");
     expect((await shell.text()) === staged, "GET / answers dist/ui/index.html byte for byte");
