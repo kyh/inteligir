@@ -18,18 +18,22 @@ concurrency:
 
 jobs:
   detect-changes:
-    if: github.event.workflow_run.conclusion == 'success'
+    # `branches` filters on head_branch, which a fork's pull request can also name main
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     outputs:
       web: ${{ steps.check.outputs.web }}
     steps:
       # workflow_run checks out the default branch tip unless told the tested SHA
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - uses: pnpm/setup@v2
+      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@24
           cache: true
@@ -57,7 +61,10 @@ jobs:
 
   deploy-web:
     needs: detect-changes
-    if: needs.detect-changes.outputs.web == 'true'
+    if: >-
+      needs.detect-changes.outputs.web == 'true' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -66,11 +73,11 @@ jobs:
       name: production
       url: https://inteligir.com
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - uses: pnpm/setup@v2
+      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@24
           cache: true
