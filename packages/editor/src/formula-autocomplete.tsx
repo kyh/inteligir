@@ -21,14 +21,9 @@ import {
 } from "@repo/editor/inline-combobox";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
 import { stringProp } from "@repo/editor/node-props";
-import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import {
-  formulaNodeFrom,
-  formulaPropsFromEntry,
-  rebuildRaw,
-} from "@repo/editor/formulas/formula-entry";
+import { completeFormulaFromPicker, insertFormulaFromPicker } from "@repo/editor/formula-insert";
+import { formulaNodeFrom, rebuildRaw } from "@repo/editor/formulas/formula-entry";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
-import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 
 interface NamedVariable {
   name: string;
@@ -72,32 +67,10 @@ const FormulaInputElement = (props: PlateElementProps) => {
 
   const variables = useMemo(() => collectNamedVariables(editor.children), [editor.children]);
 
-  const insertPill = (pill: TElement): void => {
-    insertVoidAndEscape(editor, pill);
-  };
-
-  const completeEntry = (entry: string): void => {
-    const props2 = entry.includes("|")
-      ? { ...parseFormulaRaw(entry), raw: entry }
-      : formulaPropsFromEntry(entry);
-    commitComboboxInput(editor, element, true);
-    if (props2 === null) {
-      editor.tf.insertText(`{{${entry}}}`);
-      return;
-    }
-    insertPill(
-      formulaNodeFrom({
-        display: props2.display,
-        meta: "meta" in props2 ? (props2.meta ?? "") : "",
-        raw: props2.raw,
-        source: props2.source,
-      }),
-    );
-  };
-
   const onValueChange = (next: string): void => {
     if (next.endsWith("}}") && next.slice(0, -2) !== "") {
-      completeEntry(next.slice(0, -2));
+      commitComboboxInput(editor, element, true);
+      completeFormulaFromPicker(editor, next.slice(0, -2));
       return;
     }
     setValue(next);
@@ -118,7 +91,8 @@ const FormulaInputElement = (props: PlateElementProps) => {
                 keywords={[variable.name]}
                 onClick={() => {
                   commitComboboxInput(editor, element, true);
-                  insertPill(
+                  insertFormulaFromPicker(
+                    editor,
                     formulaNodeFrom({
                       display: variable.display,
                       meta: variable.meta,

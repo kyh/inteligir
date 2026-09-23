@@ -89,6 +89,22 @@ export const commitComboboxInput = (
   }
 };
 
+// A doubled trigger (`[[`, `{{`) opens on its second character, which
+// withTriggerCombobox swallows; the first stays in the text before the caret,
+// and a pick that does not consume it writes it into the note's bytes.
+export const consumeTriggerLead = (editor: SlateEditor, char: string): boolean => {
+  const { selection } = editor;
+  if (!selection || !editor.api.isCollapsed()) {
+    return false;
+  }
+  const lead = editor.api.range("before", selection);
+  if (!lead || editor.api.string(lead) !== char) {
+    return false;
+  }
+  editor.tf.delete({ at: lead });
+  return true;
+};
+
 export const cancelComboboxInput = (
   editor: SlateEditor,
   element: TElement,
