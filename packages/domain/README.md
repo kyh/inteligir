@@ -40,7 +40,10 @@ src/
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
                          # seven item kinds, twelve event types, scope refined
                          # at parse. `client/turn/requested` carries the
-                         # optional viewContext beside bb's `text`
+                         # optional viewContext beside bb's `text`.
+                         # `mergeAdjacentDeltas` stores one item's adjacent
+                         # deltas as one row, a reset opening a new run and a
+                         # caller's cap bounding each
   thread-event-scope.ts  # thread | turn scope, and the per-type policy table
                          # (`satisfies` keeps it total: a new type without a
                          # row stops compiling; anything looser than turn
@@ -114,7 +117,11 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 
 `pnpm --filter @repo/domain test` — vitest. `provider-event.test` pins the
 scope refusals at parse, the either-scope `provider/error`, a streamed item's
-round trip, and that a delta's item ref invents no kind.
+round trip, that a delta's item ref invents no kind, and that a delta merge
+never joins across a boundary, an item, a turn, a delta type or a reset, nor
+past its byte limit, escapes and split characters included. That
+a merged log folds to the same rows is fuzzed where the fold is reachable,
+`apps/cli/src/server/agents/__tests__/event-coalescer.test.ts`.
 `thread-lifecycle.test` fuzzes random event sequences inside the declared
 statuses and turn-binding invariants: every absent cell is an
 `illegal-transition` no-op, a settle naming another turn is `stale-turn`, an

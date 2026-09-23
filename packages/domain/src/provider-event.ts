@@ -3,7 +3,11 @@
 // bb already names.
 
 import { z } from "zod";
-import { threadEventScopeSchema, validateThreadEventScope } from "./thread-event-scope";
+import {
+  getThreadEventScopeTurnId,
+  threadEventScopeSchema,
+  validateThreadEventScope,
+} from "./thread-event-scope";
 import { viewContextSchema } from "./view-context";
 
 export const threadEventItemStatusSchema = z.enum([
@@ -228,4 +232,81 @@ export const getThreadEventItemRef = (event: ThreadEvent): ThreadEventItemRef =>
     }
     // no default
   }
+};
+
+export type ThreadEventDelta = Extract<ThreadEvent, { delta: string }>;
+
+export const isThreadEventDelta = (event: ThreadEvent): event is ThreadEventDelta => {
+  switch (event.type) {
+    case "item/agentMessage/delta":
+    case "item/commandExecution/outputDelta":
+    case "item/plan/delta":
+    case "item/reasoning/summaryTextDelta":
+    case "item/reasoning/textDelta": {
+      return true;
+    }
+    case "client/turn/requested":
+    case "item/completed":
+    case "item/started":
+    case "provider/error":
+    case "thread/tokenUsage/updated":
+    case "turn/completed":
+    case "turn/started": {
+      return false;
+    }
+    // no default
+  }
+};
+
+// a reset replaces what came before it, so it opens a run rather than joining one; the appends
+// after it join it and fold to the same text.
+const joinsRun = (run: ThreadEventDelta, next: ThreadEventDelta): boolean =>
+  next.type === run.type &&
+  next.itemId === run.itemId &&
+  next.threadId === run.threadId &&
+  getThreadEventScopeTurnId(next.scope) === getThreadEventScopeTurnId(run.scope) &&
+  !(next.type === "item/commandExecution/outputDelta" && next.reset === true);
+
+export interface DeltaRunLimit {
+  maxBytes: number;
+  // utf-8 bytes of the value's json, a text's quotes included.
+  jsonBytes: (value: ThreadEventDelta | string) => number;
+}
+
+const QUOTE_BYTES = 2;
+
+const appendDelta = (run: ThreadEventDelta, next: ThreadEventDelta): ThreadEventDelta => ({
+  ...run,
+  delta: run.delta + next.delta,
+});
+
+// every fold concatenates an item's deltas, so a run of adjacent ones is stored as one row rather
+// than one per token. a join that would take the row past `maxBytes` starts the next run instead.
+// a run grows by at most what the joined text adds, so a burst measures each event once rather
+// than the whole run at every join.
+export const mergeAdjacentDeltas = (
+  events: readonly ThreadEvent[],
+  limit: DeltaRunLimit,
+): ThreadEvent[] => {
+  const merged: ThreadEvent[] = [];
+  let run: { event: ThreadEventDelta; bytes: number } | null = null;
+  for (const event of events) {
+    if (!isThreadEventDelta(event)) {
+      merged.push(event);
+      run = null;
+      continue;
+    }
+    if (run !== null && joinsRun(run.event, event)) {
+      const bytes: number = run.bytes + limit.jsonBytes(event.delta) - QUOTE_BYTES;
+      if (bytes <= limit.maxBytes) {
+        const joined = appendDelta(run.event, event);
+        merged[merged.length - 1] = joined;
+        run = { bytes, event: joined };
+        continue;
+      }
+    }
+    merged.push(event);
+    run = { bytes: limit.jsonBytes(event), event };
+  }
+  return merged;
 };

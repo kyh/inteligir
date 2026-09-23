@@ -2,7 +2,12 @@
 // position replayed with a different body sync-conflict, so re-serializing at
 // push time turns every retry after a grammar change into one.
 
-import { PUSH_MAX_EVENTS, syncEventInputSchema } from "@repo/api/cloud/sync/sync-schema";
+import { clipThreadEventForSync } from "@repo/api/cloud/sync/fit-sync-event";
+import {
+  EVENT_MAX_BYTES,
+  PUSH_MAX_EVENTS,
+  syncEventInputSchema,
+} from "@repo/api/cloud/sync/sync-schema";
 import type { PushRequest, SyncEventInput } from "@repo/api/cloud/sync/sync-schema";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
@@ -15,11 +20,15 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 // the contract's ceiling — a batch over it is refused whole.
 const PUSH_BATCH_SIZE = PUSH_MAX_EVENTS;
 
-// same transaction as the append: a separate write can lose the queue row to a crash.
+// same transaction as the append: a separate write can lose the queue row to a crash. the frozen
+// body is the clipped one, so a large command output still reaches every device, cut in the middle.
 export const enqueueThreadEvents = (tx: DbTransaction, events: readonly ThreadEvent[]): void => {
   enqueueSyncOutboxInTransaction(
     tx,
-    events.map((event) => ({ body: JSON.stringify(event), threadId: event.threadId })),
+    events.map((event) => ({
+      body: JSON.stringify(clipThreadEventForSync(event, EVENT_MAX_BYTES)),
+      threadId: event.threadId,
+    })),
   );
 };
 

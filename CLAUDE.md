@@ -963,8 +963,18 @@ agents default`; unset falls back
 - **The outbox stores the bytes it will send, once, at enqueue.** The log calls
   a position replayed with a different body `sync-conflict`. `deviceSeq` is its
   own counter in `sync_state`, not `MAX()` over a shrinking queue and not
-  `events.sequence`. An event the contract refuses is dropped rather than
-  stranding every event behind it (`takePushBatch` in
+  `events.sequence`. A body over the row cap is CLIPPED before it is frozen,
+  never dropped for its size: a dropped `item/completed` leaves its item
+  pending on every other device forever. `clipThreadEventForSync`
+  (`@repo/api/cloud/sync/fit-sync-event`) elides the middle of the largest
+  payload texts and never a type, an id, a status or a scope, so a peer's fold
+  settles every row as this device's does and only the cut text reads short;
+  the local events row keeps every byte. The coalescer stores one item's
+  adjacent deltas as one row rather than one per token (`mergeAdjacentDeltas`
+  in `@repo/domain/provider-event`, a reset opening a new run), bounded by the
+  same cap so a merge never makes a row the clip must cut. An event the
+  contract still refuses (its envelope alone over the cap) is dropped rather
+  than stranding every event behind it (`takePushBatch` in
   `apps/cli/src/server/cloud/outbox.ts`; the frozen-body store is
   `packages/db/src/sync-outbox.ts`).
 

@@ -1,6 +1,7 @@
 import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
+import { turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
@@ -226,6 +227,79 @@ describe("two installs against one account", () => {
     expect(eventOrder(b, thread.id).some((row) => row.startsWith("provider/error"))).toBe(false);
     const afterReboot = await b.client.threads.get({ threadId: thread.id });
     expect(afterReboot.thread.status).toBe("active");
+  });
+
+  it("carries a 200KB command output to the other install clipped, and settled there", async () => {
+    const cloud = new FakeCloud();
+    // manual: the turn stays open for the test to stream into.
+    const a = await bootInstall(cloud, "manual");
+    const b = await bootInstall(cloud);
+    await login(a, "A");
+    await login(b, "B");
+
+    const { thread } = await a.client.threads.create({ title: "Big build" });
+    await a.client.threads.send({ text: "build it", threadId: thread.id });
+    const started = listStoredThreadEvents(a.db, { threadId: thread.id }).find(
+      ({ event }) => event.type === "turn/started",
+    );
+    if (started?.event.scope.kind !== "turn") {
+      throw new Error("expected the turn to have started");
+    }
+    const { turnId } = started.event.scope;
+    const scope = turnScope(turnId);
+    const output = "compiling…\n".repeat(20_000);
+    a.composed.context.threads.ingestProviderEvents(thread.id, [
+      {
+        item: {
+          approvalStatus: null,
+          command: "make",
+          cwd: "/vault",
+          id: "item_build",
+          status: "pending",
+          type: "commandExecution",
+        },
+        scope,
+        threadId: thread.id,
+        type: "item/started",
+      },
+      {
+        item: {
+          aggregatedOutput: output,
+          approvalStatus: null,
+          command: "make",
+          cwd: "/vault",
+          exitCode: 0,
+          id: "item_build",
+          status: "completed",
+          type: "commandExecution",
+        },
+        scope,
+        threadId: thread.id,
+        type: "item/completed",
+      },
+      { scope, status: "completed", threadId: thread.id, type: "turn/completed" },
+    ]);
+    await syncNow(a);
+    await syncNow(b);
+
+    const commandRow = async (install: BootedTestApp) => {
+      const body = await install.client.threads.timeline({ threadId: thread.id });
+      if (body.kind !== "full") {
+        throw new Error("expected a full timeline");
+      }
+      const row = body.timeline.rows
+        .flatMap((top) => (top.kind === "turn" ? top.children : [top]))
+        .find((child) => child.id === `item:${turnId}:item_build`);
+      if (row?.kind !== "work" || row.workKind !== "command") {
+        throw new Error("expected the command row");
+      }
+      return row;
+    };
+    const onA = await commandRow(a);
+    const onB = await commandRow(b);
+    expect(onB.status).toBe("completed");
+    expect(onB.output).toContain("bytes elided");
+    expect(onA.output).toBe(output);
   });
 
   it("carries B's reply back to A, so the log is genuinely two-way", async () => {

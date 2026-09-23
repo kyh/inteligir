@@ -39,3 +39,38 @@ export const constantTimeEqual = (a: string, b: string): boolean => {
   return diff === 0;
 };
 /* oxlint-enable no-bitwise */
+
+const codePointUtf8Bytes = (code: number): number => {
+  if (code <= 0x7f) {
+    return 1;
+  }
+  if (code <= 0x7_ff) {
+    return 2;
+  }
+  if (code <= 0xff_ff) {
+    return 3;
+  }
+  return 4;
+};
+
+// utf-8 bytes, not String.length's utf-16 units: for…of iterates code points, so a surrogate pair
+// counts once, as its four bytes.
+export const utf8ByteLength = (value: string): number => {
+  let bytes = 0;
+  for (const char of value) {
+    bytes += codePointUtf8Bytes(char.codePointAt(0) ?? 0);
+  }
+  return bytes;
+};
+
+// stops at the limit, so a megabyte body costs no more than the ceiling it is held to.
+export const exceedsUtf8Bytes = (value: string, limit: number): boolean => {
+  let bytes = 0;
+  for (const char of value) {
+    bytes += codePointUtf8Bytes(char.codePointAt(0) ?? 0);
+    if (bytes > limit) {
+      return true;
+    }
+  }
+  return false;
+};

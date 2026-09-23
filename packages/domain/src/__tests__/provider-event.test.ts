@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getThreadEventItemRef, threadEventSchema } from "../provider-event";
+import {
+  getThreadEventItemRef,
+  isThreadEventDelta,
+  mergeAdjacentDeltas,
+  threadEventSchema,
+} from "../provider-event";
+import type { DeltaRunLimit, ThreadEvent } from "../provider-event";
 import { threadScope, turnScope } from "../thread-event-scope";
 
 describe("threadEventSchema scope validation", () => {
@@ -71,5 +77,105 @@ describe("threadEventSchema scope validation", () => {
       type: "item/agentMessage/delta",
     });
     expect(getThreadEventItemRef(event)).toEqual({ itemId: "item_1", itemKind: null });
+  });
+});
+
+const message = (delta: string, itemId = "item_a", turnId = "turn_1"): ThreadEvent => ({
+  delta,
+  itemId,
+  scope: turnScope(turnId),
+  threadId: "thr_1",
+  type: "item/agentMessage/delta",
+});
+
+const output = (delta: string): ThreadEvent => ({
+  delta,
+  itemId: "item_c",
+  scope: turnScope("turn_1"),
+  threadId: "thr_1",
+  type: "item/commandExecution/outputDelta",
+});
+
+const resetOutput = (delta: string): ThreadEvent => ({
+  delta,
+  itemId: "item_c",
+  reset: true,
+  scope: turnScope("turn_1"),
+  threadId: "thr_1",
+  type: "item/commandExecution/outputDelta",
+});
+
+const deltasOf = (events: readonly ThreadEvent[]): string[] =>
+  events.map((event) => (isThreadEventDelta(event) ? event.delta : event.type));
+
+const jsonBytes = (value: ThreadEvent | string): number =>
+  new TextEncoder().encode(JSON.stringify(value)).byteLength;
+
+const unbounded: DeltaRunLimit = { jsonBytes, maxBytes: Number.POSITIVE_INFINITY };
+
+describe("mergeAdjacentDeltas", () => {
+  it("stores a run of one item's deltas as one event carrying their concatenation", () => {
+    const merged = mergeAdjacentDeltas(
+      [message("Two "), message("commits "), message("landed")],
+      unbounded,
+    );
+    expect(merged).toEqual([message("Two commits landed")]);
+  });
+
+  it("never joins across a boundary, another item, another turn or another delta type", () => {
+    const completed: ThreadEvent = {
+      item: { id: "item_a", text: "a", type: "agentMessage" },
+      scope: turnScope("turn_1"),
+      threadId: "thr_1",
+      type: "item/completed",
+    };
+    const reasoning: ThreadEvent = {
+      delta: "r",
+      itemId: "item_a",
+      scope: turnScope("turn_1"),
+      threadId: "thr_1",
+      type: "item/reasoning/textDelta",
+    };
+    const events = [
+      message("a"),
+      completed,
+      message("b"),
+      message("x", "item_b"),
+      message("c"),
+      message("d", "item_a", "turn_2"),
+      reasoning,
+      message("e"),
+    ];
+    expect(mergeAdjacentDeltas(events, unbounded)).toEqual(events);
+  });
+
+  it("opens a new run at a reset, which the appends after it join", () => {
+    const merged = mergeAdjacentDeltas(
+      [output("one "), output("two "), resetOutput("fresh "), output("tail")],
+      unbounded,
+    );
+    expect(merged).toEqual([output("one two "), resetOutput("fresh tail")]);
+  });
+
+  it("starts the next run where a join would pass the limit", () => {
+    const merged = mergeAdjacentDeltas(
+      [message("aa"), message("bb"), message("cc"), message("dd"), message("e")],
+      { jsonBytes, maxBytes: jsonBytes(message("")) + 4 },
+    );
+    expect(deltasOf(merged)).toEqual(["aabb", "ccdd", "e"]);
+  });
+
+  it("keeps every row inside the limit when deltas split characters and need escapes", () => {
+    const pieces = ["\uD83D", "\uDE00", "\n", '"', "あ", "\u0001"];
+    const events = Array.from({ length: 400 }, (_, index) =>
+      message(pieces[index % pieces.length] ?? ""),
+    );
+    const limit = { jsonBytes, maxBytes: jsonBytes(message("")) + 97 };
+    const merged = mergeAdjacentDeltas(events, limit);
+    expect(merged.length).toBeGreaterThan(1);
+    for (const event of merged) {
+      expect(jsonBytes(event)).toBeLessThanOrEqual(limit.maxBytes);
+    }
+    expect(deltasOf(merged).join("")).toBe(deltasOf(events).join(""));
   });
 });
