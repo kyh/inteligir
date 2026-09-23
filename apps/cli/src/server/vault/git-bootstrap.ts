@@ -3,29 +3,38 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import type { VaultRemoteSpec } from "../cloud/vault-remote";
-import { identityEnv, isMissingRemoteRepo, NETWORK_GIT_TIMEOUT_MS, runGit } from "./git-run";
-import type { RunGit } from "./git-run";
+import {
+  gitPath,
+  identityEnv,
+  isMissingRemoteRepo,
+  NETWORK_GIT_TIMEOUT_MS,
+  runGit,
+} from "./git-run";
+import type { RunGit, RunGitCommand } from "./git-run";
 
 export const ACCOUNT_MARKER_KEY = "inteligir.account";
 
-const ensureLocalExclude = async (root: string): Promise<void> => {
-  // info/exclude, not .gitignore: the vault's files belong to the user.
-  const excludePath = path.join(root, ".git", "info", "exclude");
-  const pattern = `${VAULT_TMP_PREFIX}*`;
-  const existing = await readFile(excludePath, "utf-8").catch(() => "");
-  if (existing.split("\n").includes(pattern)) {
+// info/, not a committed file: the vault's files belong to the user. a template without info/
+// (hooks only, say) leaves git with no such dir.
+const ensureLocalInfoLine = async (
+  git: RunGitCommand,
+  root: string,
+  rel: string,
+  line: string,
+): Promise<void> => {
+  const file = await gitPath(git, root, rel);
+  const existing = await readFile(file, "utf-8").catch(() => "");
+  if (existing.split("\n").includes(line)) {
     return;
   }
-  await appendFile(excludePath, `${pattern}\n`, "utf-8");
+  await mkdir(path.dirname(file), { recursive: true });
+  const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
+  await appendFile(file, `${separator}${line}\n`, "utf-8");
 };
 
-const hasHeadCommit = async (
-  run: RunGit,
-  root: string,
-  env?: Record<string, string>,
-): Promise<boolean> => {
+const hasHeadCommit = async (git: RunGitCommand): Promise<boolean> => {
   try {
-    await run(root, ["rev-parse", "--verify", "-q", "HEAD"], env ? { env } : {});
+    await git(["rev-parse", "--verify", "-q", "HEAD"]);
     return true;
   } catch {
     return false;
@@ -76,13 +85,15 @@ export const ensureVaultRepo = async (
   const cloned = outcome === "cloned";
   await mkdir(args.root, { recursive: true });
   const runOptions = args.env ? { env: args.env } : {};
+  const git: RunGitCommand = async (gitArgs) => await run(args.root, gitArgs, runOptions);
+  // a file, not a dir, in a linked worktree or a submodule: either way the repo is there.
   if (!existsSync(path.join(args.root, ".git"))) {
-    await run(args.root, ["init", "-b", "main"], runOptions);
+    await git(["init", "-b", "main"]);
   }
-  await ensureLocalExclude(args.root);
-  if (created && remote?.source === "account" && remote.account !== undefined && cloned) {
+  await ensureLocalInfoLine(git, args.root, "info/exclude", `${VAULT_TMP_PREFIX}*`);
+  if (created && cloned && remote?.source === "account" && remote.account.state === "known") {
     // so a later sign-in to a different account refuses rather than pushing these notes into it.
-    await run(args.root, ["config", ACCOUNT_MARKER_KEY, remote.account], runOptions);
+    await git(["config", ACCOUNT_MARKER_KEY, remote.account.id]);
   }
   // the hosted worker says "no repository" only for a truly absent repo (auth precedes it);
   // github answers 404 for a private repo the credential cannot see, so a byo not-found boots empty.
@@ -90,12 +101,21 @@ export const ensureVaultRepo = async (
   if (created && seedable && args.seed) {
     await args.seed(args.root);
   }
-  // the sync loop rebases, and a rebase needs a commit to stand on.
-  if (!(await hasHeadCommit(run, args.root, args.env))) {
-    await run(args.root, ["add", "-A"], runOptions);
+  // the sync loop rebases, and a rebase needs a commit to stand on; nothing more. staging the
+  // tree here hashes every file before the server listens, and a large folder opened as a vault
+  // outlasts the shell's readiness wait. the runtime's boot sweep commits it after the listen.
+  if (!(await hasHeadCommit(git))) {
     await run(
       args.root,
-      ["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "vault: initialize"],
+      [
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--allow-empty",
+        "--no-verify",
+        "-m",
+        "vault: initialize",
+      ],
       { env: { ...args.env, ...identityEnv() } },
     );
   }

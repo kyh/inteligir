@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
@@ -25,11 +26,14 @@ export const identityEnv = (author?: CommitAuthor) => ({
 
 export class GitError extends Error {
   readonly stderr: string;
+  // set when git never finished: the runner's timeout killed it.
+  readonly signal: string | null;
 
-  constructor(message: string, stderr: string) {
+  constructor(message: string, stderr: string, signal: string | null = null) {
     super(message);
     this.name = "GitError";
     this.stderr = stderr;
+    this.signal = signal;
   }
 }
 
@@ -59,8 +63,8 @@ const unattendedGitEnv = (env: NodeJS.ProcessEnv) => {
   return unattended;
 };
 
-// execFile's rejection carries the child's stderr as an untyped property.
-const execFileFailure = z.object({ stderr: z.string() });
+// execFile's rejection carries the child's stderr and its terminating signal as untyped properties.
+const execFileFailure = z.object({ signal: z.string().nullish(), stderr: z.string() });
 
 // --literal-pathspecs on every invocation: a pathspec is a glob, so a commit scoped to
 // `[a].md` would also stage `a.md`, and a log for it would report `a.md`'s history.
@@ -88,8 +92,16 @@ export const runGit = async (
     throw new GitError(
       `git ${gitArgs[0] ?? ""} failed: ${message}`,
       failure.success ? failure.data.stderr : "",
+      failure.success ? (failure.data.signal ?? null) : null,
     );
   }
+};
+
+// never `<root>/.git/…`: in a linked worktree or a submodule `.git` is a file naming the real
+// dir, and a worktree keeps its rebase state apart from the info/ its checkouts share.
+export const gitPath = async (run: RunGitCommand, root: string, rel: string): Promise<string> => {
+  const { stdout } = await run(["rev-parse", "--git-path", rel]);
+  return path.resolve(root, stdout.trim());
 };
 
 // scp-like git@host:path is not a url and has no password slot, so it passes through.
@@ -109,13 +121,42 @@ export const redactRemoteUrl = (url: string): string => {
 
 // "could not read username" is git answering a 401 challenge with the prompt
 // GIT_TERMINAL_PROMPT=0 forbids.
-export const isAuthRefusal = (cause: unknown): boolean => {
+const isAuthRefusal = (cause: unknown): boolean => {
   if (!(cause instanceof GitError)) {
     return false;
   }
   return /authentication failed|returned error: 40[13]|could not read username/iu.test(
     cause.stderr,
   );
+};
+
+export type NetworkFailure = "offline" | "unauthorized" | "rejected";
+
+// curl's own failures, and an ssh or local transport that never reached a git on the far end.
+const TRANSPORT_FAILURE =
+  /unable to access|could not read from remote repository|remote end hung up|rpc failed|early eof/iu;
+
+// curl reports an http status on the same "unable to access" line, but a 4xx is the remote
+// answering; only a 408 or a 429 is worth waiting out.
+const HTTP_REFUSAL = /returned error: (?!408|429)4\d\d/u;
+
+// the client's refusal, not the remote's: another device pushed after this pass fetched.
+const LOST_PUSH_RACE = /\[rejected\][^\n]*\((?:fetch first|non-fast-forward)\)/u;
+
+// offline heals on its own, unauthorized waits on a sign-in, and rejected is a remote that
+// answered and refused (a hook, a protected branch), which no retry changes. a lost race is no
+// failure of the remote at all: the next pass rebases onto the tip that won.
+export const classifyNetworkFailure = (cause: unknown): NetworkFailure | "lost-race" => {
+  if (isAuthRefusal(cause)) {
+    return "unauthorized";
+  }
+  if (!(cause instanceof GitError) || cause.signal !== null) {
+    return "offline";
+  }
+  if (TRANSPORT_FAILURE.test(cause.stderr) && !HTTP_REFUSAL.test(cause.stderr)) {
+    return "offline";
+  }
+  return LOST_PUSH_RACE.test(cause.stderr) ? "lost-race" : "rejected";
 };
 
 export const isMissingRemoteRepo = (cause: unknown): boolean => {

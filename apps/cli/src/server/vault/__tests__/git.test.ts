@@ -5,13 +5,16 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { VaultConflict, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { beginAgentTurnWrites } from "../../agents/agent-commits";
+import type { VaultRemoteSpec } from "../../cloud/vault-remote";
 import { ensureVaultRepo } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
-import { GitError, runGit } from "../git-run";
+import { classifyNetworkFailure, GitError, gitPath, runGit } from "../git-run";
+import type { RunGitCommand } from "../git-run";
 import { createVaultRuntime } from "../vault-runtime";
 import type { VaultFilesChange } from "../vault-runtime";
 import { createVaultService } from "../vault-service";
@@ -45,13 +48,14 @@ const makeEngine = async (args: {
   remoteUrl: string | null;
   timing?: AutoCommitTiming;
   env?: Record<string, string>;
+  root?: string;
 }): Promise<{
   root: string;
   engine: GitEngine;
   statusChanges: () => number;
   filesChanges: () => number;
 }> => {
-  const root = scratchDir("inteligir-git-vault-");
+  const root = args.root ?? scratchDir("inteligir-git-vault-");
   await ensureVaultRepo({ env, root });
   let statusChanges = 0;
   let filesChanges = 0;
@@ -99,12 +103,41 @@ const lastMessage = async (root: string): Promise<string> => {
   return stdout.trim();
 };
 
+const gitIn =
+  (root: string): RunGitCommand =>
+  async (gitArgs) =>
+    await runGit(root, gitArgs, { env });
+
 const expectCleanRepo = async (root: string): Promise<void> => {
-  const { stdout } = await runGit(root, ["status", "--porcelain"], { env });
+  const git = gitIn(root);
+  const { stdout } = await git(["status", "--porcelain"]);
   expect(stdout).toBe("");
-  expect(existsSync(path.join(root, ".git", "rebase-merge"))).toBe(false);
-  expect(existsSync(path.join(root, ".git", "rebase-apply"))).toBe(false);
-  await runGit(root, ["fsck", "--no-progress"], { env });
+  expect(existsSync(await gitPath(git, root, "rebase-merge"))).toBe(false);
+  expect(existsSync(await gitPath(git, root, "rebase-apply"))).toBe(false);
+  await git(["fsck", "--no-progress"]);
+};
+
+const trackedFiles = async (root: string): Promise<string[]> => {
+  const { stdout } = await runGit(root, ["ls-tree", "-r", "--name-only", "HEAD"], { env });
+  return stdout.split("\n").filter((line) => line.length > 0);
+};
+
+const refusingHook = async (hooksDir: string, name: string): Promise<void> => {
+  await mkdir(hooksDir, { recursive: true });
+  const hook = path.join(hooksDir, name);
+  await writeFile(hook, "#!/bin/sh\nexit 1\n", "utf-8");
+  await chmod(hook, 0o755);
+};
+
+// a vault that is a linked worktree: its `.git` is a file, and its rebase state lives under the
+// main checkout's git dir. main parks on another branch so the worktree can take `main`.
+const makeWorktreeVault = async (): Promise<string> => {
+  const main = scratchDir("inteligir-git-main-");
+  await ensureVaultRepo({ env, root: main });
+  await runGit(main, ["switch", "-q", "-c", "parked"], { env });
+  const root = path.join(scratchDir("inteligir-git-worktree-"), "vault");
+  await runGit(main, ["worktree", "add", "-q", root, "main"], { env });
+  return root;
 };
 
 const awaitCommitCount = async (root: string, count: number): Promise<void> => {
@@ -129,10 +162,12 @@ const expectConflict = (status: VaultStatusResponse): VaultConflict => {
 };
 
 // A pushes an edit to one note; B commits its own edit to it, which B's next pass meets.
-const divergedPair = async () => {
+const divergedPair = async (bRoot?: string) => {
   const remote = await makeBareRemote();
   const a = await makeEngine({ remoteUrl: remote });
-  const b = await makeEngine({ remoteUrl: remote });
+  const b = await makeEngine(
+    bRoot === undefined ? { remoteUrl: remote } : { remoteUrl: remote, root: bRoot },
+  );
   await a.engine.syncNow();
   await b.engine.syncNow();
   await a.engine.syncNow();
@@ -168,11 +203,47 @@ describe("ensureVaultRepo", () => {
     expect(created).toBe(true);
     expect(await readFile(path.join(root, "Welcome.md"), "utf-8")).toBe("hello\n");
     expect(await commitCount(root)).toBe(1);
-    await expectCleanRepo(root);
 
     const again = await ensureVaultRepo({ env, root });
     expect(again.created).toBe(false);
     expect(await commitCount(root)).toBe(1);
+  });
+
+  it("stages nothing before the listen: a folder of notes gets an empty HEAD, and the sweep commits them", async () => {
+    const root = scratchDir("inteligir-git-folder-");
+    await writeFile(path.join(root, "existing.md"), "already here\n", "utf-8");
+    await ensureVaultRepo({ env, root });
+    expect(await commitCount(root)).toBe(1);
+    expect(await trackedFiles(root)).toEqual([]);
+
+    const engine = createGitEngine({ env, remote: () => null, root });
+    onTestFinished(async () => {
+      await engine.dispose();
+    });
+    expect(await engine.commitNow()).toEqual({ files: 1 });
+    expect(await trackedFiles(root)).toEqual(["existing.md"]);
+  });
+
+  it("boots a repo a hooks-only template made, past a hook that refuses every commit", async () => {
+    const template = scratchDir("inteligir-git-template-");
+    await refusingHook(path.join(template, "hooks"), "commit-msg");
+    const root = path.join(scratchDir("inteligir-git-templated-"), "vault");
+    await ensureVaultRepo({ env: { ...env, GIT_TEMPLATE_DIR: template }, root });
+
+    expect(await commitCount(root)).toBe(1);
+    const exclude = await readFile(await gitPath(gitIn(root), root, "info/exclude"), "utf-8");
+    expect(exclude.split("\n")).toContain(`${VAULT_TMP_PREFIX}*`);
+  });
+
+  it("boots a linked worktree, whose .git is a file, and excludes in the info/ it shares", async () => {
+    const root = await makeWorktreeVault();
+    await ensureVaultRepo({ env, root });
+    await ensureVaultRepo({ env, root });
+
+    const exclude = await readFile(await gitPath(gitIn(root), root, "info/exclude"), "utf-8");
+    expect(exclude.split("\n").filter((line) => line === `${VAULT_TMP_PREFIX}*`)).toHaveLength(1);
+    await writeFile(path.join(root, `${VAULT_TMP_PREFIX}staged`), "mid-write\n", "utf-8");
+    await expectCleanRepo(root);
   });
 });
 
@@ -275,6 +346,66 @@ describe("auto-commit", () => {
     await writeFile(path.join(root, "swept.md"), "# Swept\n", "utf-8");
     expect(await engine.commitNow()).toEqual({ files: 1 });
     expect(await lastMessage(root)).toBe("vault: update swept.md");
+  });
+
+  it("commits past the vault's own hooks — a refused auto-commit leaves the tree dirty for good", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
+    const hooks = scratchDir("inteligir-git-hooks-");
+    await refusingHook(hooks, "pre-commit");
+    await refusingHook(hooks, "commit-msg");
+    await runGit(root, ["config", "core.hooksPath", hooks], { env });
+
+    await writeFile(path.join(root, "swept.md"), "a\n", "utf-8");
+    expect(await engine.commitNow()).toEqual({ files: 1 });
+    await writeFile(path.join(root, "scoped.md"), "b\n", "utf-8");
+    expect(
+      await engine.commitPaths(["scoped.md"], { email: "a@inteligir", name: "agent" }, "agent"),
+    ).toEqual({ files: 1 });
+    const before = await commitCount(root);
+    await writeFile(path.join(root, "flushed.md"), "c\n", "utf-8");
+    engine.scheduleCommit(["flushed.md"]);
+    await awaitCommitCount(root, before + 1);
+    await expectCleanRepo(root);
+  });
+
+  it("sees a new note in a vault whose config hides untracked files from status", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null });
+    await runGit(root, ["config", "status.showUntrackedFiles", "no"], { env });
+    await writeFile(path.join(root, "fresh.md"), "new\n", "utf-8");
+    expect(await engine.commitNow()).toEqual({ files: 1 });
+    expect(await trackedFiles(root)).toEqual(["fresh.md"]);
+  });
+
+  it("reports a failed flush in the status until a flush lands", async () => {
+    const { root, engine, statusChanges } = await makeEngine({
+      remoteUrl: null,
+      timing: FAST_COMMIT,
+    });
+    // git's own lock, held as a GUI client or a crashed git would leave it.
+    const lock = path.join(root, ".git", "index.lock");
+    await writeFile(lock, "", "utf-8");
+    await writeFile(path.join(root, "stuck.md"), "a\n", "utf-8");
+    engine.scheduleCommit(["stuck.md"]);
+    await vi.waitFor(
+      () => {
+        expect(statusChanges()).toBe(1);
+      },
+      { timeout: 5000 },
+    );
+    const failed = await engine.status();
+    expect(failed.lastError).toMatch(/index\.lock/u);
+
+    await rm(lock);
+    engine.scheduleCommit(["stuck.md"]);
+    await vi.waitFor(
+      () => {
+        expect(statusChanges()).toBe(2);
+      },
+      { timeout: 5000 },
+    );
+    const landed = await engine.status();
+    expect(landed.lastError).toBeNull();
+    await expectCleanRepo(root);
   });
 
   it("commitNow is a no-op on a clean tree and commits as the engine", async () => {
@@ -475,6 +606,37 @@ describe("sync", { timeout: 30_000 }, () => {
     expect(recovered.state).toBe("clean");
     expect(recovered.lastError).toBeNull();
   });
+
+  it("says detached, never synced, while HEAD names no branch", async () => {
+    const remote = await makeBareRemote();
+    const { root, engine } = await makeEngine({ remoteUrl: remote });
+    expect(await syncState(engine)).toBe("clean");
+
+    await runGit(root, ["switch", "-q", "--detach"], { env });
+    expect(await syncState(engine)).toBe("detached");
+    expect(await reportedState(engine)).toBe("detached");
+
+    await runGit(root, ["switch", "-q", "main"], { env });
+    expect(await syncState(engine)).toBe("clean");
+  });
+
+  it("says rejected, not offline, when the remote answers and refuses the push", async () => {
+    const remote = await makeBareRemote();
+    await refusingHook(path.join(remote, "hooks"), "pre-receive");
+    const { engine } = await makeEngine({ remoteUrl: remote });
+    const status = await engine.syncNow();
+    expect(status.state).toBe("rejected");
+    expect(status.lastError).toMatch(/pre-receive hook declined/u);
+    expect(await reportedState(engine)).toBe("rejected");
+  });
+
+  it("records a conflict in a linked-worktree vault instead of calling the repo broken", async () => {
+    const { b } = await divergedPair(await makeWorktreeVault());
+    const conflict = expectConflict(await b.engine.syncNow());
+    expect(conflict.files).toEqual(["shared.md"]);
+    await expectCleanRepo(b.root);
+    expect(await readFile(path.join(b.root, "shared.md"), "utf-8")).toBe("from B\n");
+  });
 });
 
 // answers no request: a network dropping every packet, as git sees it short of its own limits.
@@ -497,20 +659,22 @@ const makeSilentRemote = async () => {
   return { hangUp, requested, url: `http://127.0.0.1:${String(port)}/vault.git` };
 };
 
-// holds a local fetch inside upload-pack while closed, so a test can act between a pass's
-// pre-fetch step and its rebase. the loop also ends with its dir, so a failed test leaks no shell.
-const makeGatedFetch = async () => {
+// holds a local fetch (upload-pack) or push (receive-pack) before the far end starts while
+// closed, so a test can act inside a pass: between its pre-fetch step and its rebase, or between
+// its rebase and the ref advertisement its push is judged against. the loop also ends with its
+// dir, so a failed test leaks no shell.
+const makeGatedService = async (service: "upload-pack" | "receive-pack") => {
   const dir = scratchDir("inteligir-git-gate-");
   const reached = path.join(dir, "reached");
   const opened = path.join(dir, "open");
-  const script = path.join(dir, "upload-pack.sh");
+  const script = path.join(dir, `${service}.sh`);
   await writeFile(
     script,
     [
       "#!/bin/sh",
       `: > '${reached}'`,
       `while [ -d '${dir}' ] && [ ! -e '${opened}' ]; do sleep 0.05; done`,
-      'exec git-upload-pack "$@"',
+      `exec git-${service} "$@"`,
       "",
     ].join("\n"),
     "utf-8",
@@ -523,7 +687,7 @@ const makeGatedFetch = async () => {
     },
     env: {
       GIT_CONFIG_COUNT: "1",
-      GIT_CONFIG_KEY_0: "remote.origin.uploadpack",
+      GIT_CONFIG_KEY_0: `remote.origin.${service.replace("-", "")}`,
       GIT_CONFIG_VALUE_0: script,
     },
     open: async () => {
@@ -595,7 +759,7 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
   it("ends the pass before its rebase when a turn takes its hold during the fetch", async () => {
     const remote = await makeBareRemote();
     const a = await makeEngine({ remoteUrl: remote });
-    const gate = await makeGatedFetch();
+    const gate = await makeGatedService("upload-pack");
     const b = await makeEngine({ env: gate.env, remoteUrl: remote });
     await a.engine.syncNow();
     await gate.open();
@@ -629,6 +793,35 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
 
     await turn.finish();
     expect(await lastMessage(b.root)).toBe("agent: vault update");
+    expect(await syncState(b.engine)).toBe("clean");
+    expect(await readFile(path.join(b.root, "from-a.md"), "utf-8")).toBe("pushed by A\n");
+  });
+
+  it("says dirty, not rejected, when its push loses a race to another device's", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    const gate = await makeGatedService("receive-pack");
+    const b = await makeEngine({ env: gate.env, remoteUrl: remote });
+    await a.engine.syncNow();
+    await gate.open();
+    await b.engine.syncNow();
+    await gate.close();
+
+    await writeFile(path.join(b.root, "from-b.md"), "pushed by B\n", "utf-8");
+    await b.engine.commitNow();
+    const pass = b.engine.syncNow();
+    try {
+      await gate.reached();
+      await writeFile(path.join(a.root, "from-a.md"), "pushed by A\n", "utf-8");
+      await a.engine.commitNow();
+      expect(await syncState(a.engine)).toBe("clean");
+    } finally {
+      await gate.open();
+    }
+
+    const raced = await pass;
+    expect(raced.state).toBe("dirty");
+    expect(raced.lastError).toMatch(/fetch first/u);
     expect(await syncState(b.engine)).toBe("clean");
     expect(await readFile(path.join(b.root, "from-a.md"), "utf-8")).toBe("pushed by A\n");
   });
@@ -721,6 +914,51 @@ describe("runGit", () => {
   });
 });
 
+const failedPush = (stderr: string, signal: string | null = null) =>
+  new GitError("git push failed", stderr, signal);
+
+describe("classifyNetworkFailure", () => {
+  it.each([
+    ["fatal: Authentication failed for 'https://cloud.test/v1/git/me/'", "unauthorized"],
+    [
+      "fatal: unable to access 'https://cloud.test/': Could not resolve host: cloud.test",
+      "offline",
+    ],
+    [
+      "ssh: connect to host h port 22: Connection refused\nfatal: Could not read from remote repository.",
+      "offline",
+    ],
+    ["error: RPC failed; curl 28 Operation too slow\nfatal: early EOF", "offline"],
+    [
+      "fatal: unable to access 'https://cloud.test/': The requested URL returned error: 503",
+      "offline",
+    ],
+    [
+      "fatal: unable to access 'https://cloud.test/': The requested URL returned error: 429",
+      "offline",
+    ],
+    [
+      "error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\nfatal: the remote end hung up unexpectedly",
+      "rejected",
+    ],
+    [
+      " ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs",
+      "rejected",
+    ],
+    [
+      " ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs",
+      "lost-race",
+    ],
+    [" ! [rejected]        main -> main (non-fast-forward)", "lost-race"],
+  ])("%s → %s", (stderr, expected) => {
+    expect(classifyNetworkFailure(failedPush(stderr))).toBe(expected);
+  });
+
+  it("calls a git the timeout killed offline, whatever it had printed", () => {
+    expect(classifyNetworkFailure(failedPush("", "SIGTERM"))).toBe("offline");
+  });
+});
+
 describe("the clone path", () => {
   it("clones a populated remote instead of init+seed — a second device joins the vault", async () => {
     const remote = await makeBareRemote();
@@ -770,7 +1008,7 @@ describe("the clone path", () => {
     const viaAccount = await ensureVaultRepo({
       env,
       remote: {
-        account: "user-a",
+        account: { id: "user-a", state: "known" },
         source: "account",
         url: path.join(scratchDir("inteligir-git-nowhere-2-"), "gone.git"),
       },
@@ -792,7 +1030,7 @@ describe("the cross-account fence", () => {
     let account = "user-a";
     const engine = createGitEngine({
       env,
-      remote: () => ({ account, source: "account", url: remote }),
+      remote: () => ({ account: { id: account, state: "known" }, source: "account", url: remote }),
       root,
     });
     onTestFinished(async () => {
@@ -825,7 +1063,7 @@ describe("the cross-account fence", () => {
     let account = "user-a";
     const engine = createGitEngine({
       env,
-      remote: () => ({ account, source: "account", url: remote }),
+      remote: () => ({ account: { id: account, state: "known" }, source: "account", url: remote }),
       root,
     });
     onTestFinished(async () => {
@@ -892,7 +1130,11 @@ describe("clone failure classes", () => {
     let seeded = false;
     const { created, cloned } = await ensureVaultRepo({
       env,
-      remote: { source: "account", url: `http://127.0.0.1:${String(port)}/vault.git` },
+      remote: {
+        account: { state: "pending" },
+        source: "account",
+        url: `http://127.0.0.1:${String(port)}/vault.git`,
+      },
       root,
       seed: () => {
         seeded = true;
@@ -914,7 +1156,7 @@ describe("the bootstrap port", () => {
     env: Record<string, string> | undefined;
   }
 
-  // init creates .git/info because ensureLocalExclude appends there.
+  // answers --git-path as a plain repo would; the bootstrap makes the dir it appends in.
   const fakeGit = (clone: "missing" | "failed") => {
     const calls: Invocation[] = [];
     const run = async (
@@ -932,11 +1174,10 @@ describe("the bootstrap port", () => {
               : "fatal: unable to access 'https://cloud.test/v1/git/me/': could not resolve host",
           );
         }
-        case "init": {
-          await mkdir(path.join(cwd, ".git", "info"), { recursive: true });
-          return { stdout: "" };
-        }
         case "rev-parse": {
+          if (args[1] === "--git-path") {
+            return { stdout: `.git/${args[2] ?? ""}\n` };
+          }
           throw new GitError("git rev-parse failed", "");
         }
         case undefined: {
@@ -950,12 +1191,16 @@ describe("the bootstrap port", () => {
     return { calls, run };
   };
 
-  it("drives clone-miss → init → seed → born HEAD through the injected run", async () => {
+  it("drives clone-miss → init → seed → born HEAD through the injected run, staging nothing", async () => {
     const root = path.join(scratchDir("inteligir-git-port-"), "vault");
     const fake = fakeGit("missing");
     let seeded = false;
     const args: EnsureVaultRepoArgs = {
-      remote: { account: "user-x", source: "account", url: "https://cloud.test/v1/git/me/" },
+      remote: {
+        account: { id: "user-x", state: "known" },
+        source: "account",
+        url: "https://cloud.test/v1/git/me/",
+      },
       root,
       run: fake.run,
       seed: () => {
@@ -967,12 +1212,12 @@ describe("the bootstrap port", () => {
     expect(created).toBe(true);
     expect(cloned).toBe(false);
     expect(seeded).toBe(true);
-    expect(fake.calls.map((call) => call.args[0])).toEqual([
-      "clone",
-      "init",
-      "rev-parse",
-      "add",
-      "-c",
+    expect(fake.calls.map((call) => call.args.slice(0, 2).join(" "))).toEqual([
+      "clone --",
+      "init -b",
+      "rev-parse --git-path",
+      "rev-parse --verify",
+      "-c commit.gpgsign=false",
     ]);
     const [clone] = fake.calls;
     expect(clone?.cwd).not.toBe(root);
@@ -987,7 +1232,11 @@ describe("the bootstrap port", () => {
     const fake = fakeGit("failed");
     let seeded = false;
     await ensureVaultRepo({
-      remote: { account: "user-x", source: "account", url: "https://cloud.test/v1/git/me/" },
+      remote: {
+        account: { id: "user-x", state: "known" },
+        source: "account",
+        url: "https://cloud.test/v1/git/me/",
+      },
       root,
       run: fake.run,
       seed: () => {
@@ -1039,7 +1288,7 @@ describe("a live remote provider", () => {
     const remote = await makeBareRemote();
     const root = scratchDir("inteligir-git-live-");
     await ensureVaultRepo({ env, root });
-    let current: { url: string; source: "account"; account: string } | null = null;
+    let current: VaultRemoteSpec | null = null;
     const engine = createGitEngine({ env, remote: () => current, root });
     onTestFinished(async () => {
       await engine.dispose();
@@ -1047,7 +1296,7 @@ describe("a live remote provider", () => {
 
     expect(await reportedState(engine)).toBe("no-remote");
 
-    current = { account: "user-live", source: "account", url: remote };
+    current = { account: { id: "user-live", state: "known" }, source: "account", url: remote };
     await writeFile(path.join(root, "note.md"), "# signed in\n");
     await engine.commitNow();
     expect(await syncState(engine)).toBe("clean");

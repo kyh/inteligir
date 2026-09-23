@@ -38,7 +38,15 @@ export const readPorcelain = async (
   paths: readonly string[] = [],
 ): Promise<PorcelainEntry[]> => {
   const pathspec = paths.length === 0 ? [] : ["--", ...paths];
-  const { stdout } = await run(["--no-optional-locks", "status", "--porcelain", "-z", ...pathspec]);
+  // explicit, because a vault's status.showUntrackedFiles=no hides every new note from a commit.
+  const { stdout } = await run([
+    "--no-optional-locks",
+    "status",
+    "--porcelain",
+    "-z",
+    "--untracked-files=normal",
+    ...pathspec,
+  ]);
   return parsePorcelain(stdout);
 };
 

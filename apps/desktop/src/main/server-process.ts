@@ -76,7 +76,10 @@ export const createServerProcess = (args: ServerProcessArgs): ServerProcess => {
         interval = Math.min(interval * 2, READY_POLL_MAX_MS);
       }
       spawned.kill();
-      throw new Error(`the server did not become ready within ${READY_TIMEOUT_MS}ms`);
+      throw new Error(
+        `the server was still booting when its ${READY_TIMEOUT_MS}ms readiness wait ran out, ` +
+          "so it was stopped; it had neither failed nor exited",
+      );
     },
 
     async stop() {

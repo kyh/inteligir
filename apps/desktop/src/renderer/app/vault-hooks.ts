@@ -63,8 +63,14 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     case "unauthorized": {
       return "Not authorized — sign this device in again";
     }
+    case "rejected": {
+      return "The remote refused the push";
+    }
     case "account-mismatch": {
       return "This vault belongs to a different account";
+    }
+    case "detached": {
+      return "Not on a branch — check one out to sync";
     }
     case "conflict": {
       return `Conflict (${status.conflict.files.length})`;
@@ -100,7 +106,9 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
       return "bg-muted-foreground/60";
     }
     case "unauthorized":
+    case "rejected":
     case "account-mismatch":
+    case "detached":
     case "conflict":
     case "broken": {
       return "bg-destructive";
@@ -130,6 +138,8 @@ export const syncBlockedReason = (status: VaultStatusResponse): string | null =>
     case "dirty":
     case "offline":
     case "unauthorized":
+    case "rejected":
+    case "detached":
     case "conflict":
     case "broken": {
       return null;
@@ -181,6 +191,21 @@ const syncNowNotice = (status: VaultStatusResponse): SyncNowNotice | null => {
         message:
           "The remote refused this device's credential — sign in again in Settings → Devices.",
         tone: "error",
+      };
+    }
+    case "rejected": {
+      return {
+        message:
+          status.lastError === null
+            ? "The git remote refused the push."
+            : `The git remote refused the push: ${status.lastError}`,
+        tone: "error",
+      };
+    }
+    case "detached": {
+      return {
+        message: "Sync is paused: the vault's git HEAD is detached. Check out a branch in it.",
+        tone: "warning",
       };
     }
     case "clean":
