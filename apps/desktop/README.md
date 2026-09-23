@@ -7,7 +7,8 @@ a process that starts and stops the server with the app.
 
 ```
 src/main/       the Electron main process: the window, the protocol, the fork
-src/preload/    the ONE bridge into the app window (the loopback ws origin, the updater)
+src/preload/    the ONE bridge into the app window (the loopback ws origin, the updater,
+                the spell checker, the vault switch, Reveal/Open)
 src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 ```
 
@@ -43,8 +44,8 @@ between this shell and a browser:
   target is handed to the system browser instead.
 - **`window.open` is denied unconditionally**, even same-origin.
 - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The one
-  preload exposes the loopback origin and the updater, nothing that holds a
-  token.
+  preload exposes the loopback origin, the updater, the spell checker, the
+  vault switch and Reveal/Open, nothing that holds a token.
 
 Origins are compared **field by field** — scheme, host, and port only where the
 scheme has one — never with `URL.origin`: Node's parser answers the opaque
@@ -218,7 +219,9 @@ bridge by the page; the policy is unit-tested against a fake updater
 - **No deep-link scheme.** `inteligir://` is the renderer's own origin now; a
   cross-device link would need a second, registered scheme and there is nothing
   to receive yet.
-- **No IPC beyond the socket origin and the updater.** The bridge carries what
-  the page cannot ask its server: the loopback origin, because a browser
-  `WebSocket` cannot be proxied, and the updater, because it lives in main.
-  Every other question the page has, it asks its own server over `/rpc`.
+- **No IPC for anything the server can answer.** The bridge carries what the
+  page cannot ask its server: the loopback origin, because a browser
+  `WebSocket` cannot be proxied; the updater, the spell checker and the vault
+  switch, because each lives in main; and Reveal/Open of a vault entry,
+  because only main may hand the OS a path. Every other question the page
+  has, it asks its own server over `/rpc`.

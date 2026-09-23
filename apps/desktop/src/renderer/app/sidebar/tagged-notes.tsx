@@ -65,7 +65,7 @@ export const TaggedNotes = ({
         entries={taggedEntries}
         openPath={openPath}
         onOpenFile={onOpenFile}
-        emptyText={taggedQuery.data === undefined ? "…" : `No notes tagged #${tag} here.`}
+        emptyText={taggedQuery.data === undefined ? "…" : `No notes tagged #${tag}.`}
         onSetPinned={onSetPinned}
       />
       {cut && limit < KNOWLEDGE_TAG_NOTES_MAX_LIMIT ? (
