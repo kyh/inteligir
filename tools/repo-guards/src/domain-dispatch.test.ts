@@ -70,6 +70,8 @@ const VOCABULARIES: Vocabulary[] = [
     dispatchedIn: {
       "apps/desktop/src/renderer/app/actions/thread-hooks.ts":
         "which kinds move the TIMELINE, and therefore earn a delta fetch — the one thread surface the query sweep does not cover, so a kind nobody weighed here is a row the user never sees; a table rather than a list, because the answer for a new kind is a decision and not a default",
+      "apps/desktop/src/renderer/app/workspace-context.tsx":
+        "which kinds move the cached thread LIST and which move a thread's DETAIL, and therefore earn a refetch — beside the vault kinds' invalidations because this file is the client's one answer to what a frame invalidates, and not in thread-hooks because a streamed turn's events-appended moves neither: refetching both per frame is the cost these tables exist to refuse",
     },
     members: THREAD_CHANGE_KINDS,
     name: "thread change kind",

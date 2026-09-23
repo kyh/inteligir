@@ -1227,6 +1227,23 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `packages/ui/src/components/command.tsx` and
   `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
 
+- **THE BUS IS APPLIED ONCE PER FRAME, AND A KIND REFETCHES ONLY WHAT IT
+  MOVES.** `ChangeBatch` folds every ws frame since the last animation frame
+  and flushes once, so a K-note rename is one knowledge sweep rather than K,
+  and a hidden window, which runs no frames, folds a long turn into one flush
+  on return. Thread kinds are weighed in two total tables beside the vault
+  kinds' invalidations, `MOVES_THE_LIST` and `MOVES_THE_DETAIL`, next to
+  thread-hooks' `MOVES_THE_TIMELINE`: `events-appended` moves neither, so a
+  streamed turn refetches the timeline's delta and never the unpaged thread
+  list. A `content-changed` under the comment store sweeps the comments, since
+  a second comment rewrites an existing store and announces no row; every
+  `content-changed` stamps the cached listing's `modifiedMs` with the frame's
+  arrival instead of re-walking the vault, so the recents move while a note is
+  edited. A reconnect sweeps every family the bus reaches, declared once and
+  checked against every frame's invalidations.
+  `apps/desktop/src/renderer/app/workspace-context.tsx` and
+  `apps/desktop/src/renderer/app/__tests__/changed-message.test.ts`.
+
 ### Repo guards, vendoring and tooling
 
 - **No coverage tooling, on purpose.** Targeted structural invariants instead:
