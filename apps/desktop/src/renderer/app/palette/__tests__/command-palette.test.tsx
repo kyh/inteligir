@@ -15,7 +15,7 @@ import type {
   KnowledgeProblemsResponse,
   KnowledgeSearchResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
-import { applyChangedMessage } from "../../workspace-context";
+import { ChangeBatch } from "../../workspace-context";
 import type { CommandPalette, PaletteActions } from "../command-palette";
 import {
   defaultRequest,
@@ -238,11 +238,9 @@ describe("note search", () => {
     expect(await rows().findByText("Before")).toBeDefined();
     title = "After";
     act(() => {
-      applyChangedMessage(queryClient, vi.fn(), vi.fn(), {
-        changes: ["files-changed"],
-        entity: "vault",
-        type: "changed",
-      });
+      const batch = new ChangeBatch();
+      batch.add({ changes: ["files-changed"], entity: "vault", type: "changed" });
+      batch.apply(queryClient, vi.fn(), vi.fn());
     });
     expect(await rows().findByText("After")).toBeDefined();
   });
