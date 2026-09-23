@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   defaultRequest,
   makeActions,
+  makeNote,
   renderWithQueries,
   stubKnowledgeFetch,
 } from "../palette/__tests__/palette-harness";
+import type { PaletteNote } from "../palette/command-palette";
 import { exportNoteAsPdf } from "../note/export-pdf";
 
 afterEach(() => {
@@ -69,10 +71,10 @@ describe("exportNoteAsPdf", () => {
   });
 });
 
-const mount = (exportPdf: (() => void) | null) => {
+const mount = (note: PaletteNote | null) => {
   stubKnowledgeFetch({});
   return renderWithQueries({
-    actions: { ...makeActions(), exportPdf },
+    actions: { ...makeActions(), note },
     canSync: false,
     entries: [],
     onOpenChange: vi.fn<() => void>(),
@@ -84,10 +86,10 @@ const mount = (exportPdf: (() => void) | null) => {
 
 describe("the palette's Export as PDF row", () => {
   it("exists only while a note is open, and runs the export", () => {
-    const exportPdf = vi.fn<() => void>();
-    mount(exportPdf);
+    const note = makeNote();
+    mount(note);
     screen.getByText("Export as PDF").click();
-    expect(exportPdf).toHaveBeenCalledOnce();
+    expect(note.exportPdf).toHaveBeenCalledOnce();
     cleanup();
     mount(null);
     expect(screen.queryByText("Export as PDF")).toBeNull();

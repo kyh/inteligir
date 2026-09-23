@@ -678,10 +678,15 @@ rename`.
   notes is a per-file write with the hash of the bytes it read, and a mismatch
   is REPORTED by name, never diff3-merged: the user named exact bytes
   (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing
-  cannot replace: it does not name every note. The run reports a count after
-  every note and honours a cancel between notes, never inside one, and the
-  summary counts what a stop left untouched; the palette stays open on the run
-  so it can show the count and offer the cancel. The jump lands by ordinal among
+  cannot replace: it does not name every note. Nor can a listing that no longer
+  answers the box and the toggles — a toggle's or a keystroke's read still in
+  flight behind the rows on screen — and the request is built from the input
+  that listing was read with, never the live box
+  (`apps/desktop/src/renderer/app/palette/search-page.tsx`). The run reports a
+  count after every note and honours a cancel between notes, never inside one,
+  and the summary counts what a stop left untouched; the palette stays open on
+  the run so it can show the count and offer the cancel, and a close, however
+  it comes, is that cancel. The jump lands by ordinal among
   the note's matches, because a markdown column is not a Slate offset. ⌘⇧O (Go
   to heading) is the one shifted row in `global-shortcuts.ts`; a row claims
   shift explicitly, so an unshifted row never fires on a shifted chord.
@@ -1252,8 +1257,15 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `spellHotkey` already spelled (`shortcutCaps`), because @repo/ui cannot
   reach `@repo/editor` and a second spelling of ⌘ would be a second spelling.
   What went with cmdk is `input-group.tsx`: the palette's framed field was its
-  last consumer, and Fluid's field is frameless over a divider.
-  `packages/ui/src/components/command.tsx` and
+  last consumer, and Fluid's field is frameless over a divider. ONE DIALOG FOR
+  EVERY PAGE: the dialog, the field and the footer are drawn once, their words
+  read from a per-page table, and a page draws only its toolbar and its list,
+  so a page switch never re-animates the backdrop or takes the caret out of
+  the field. A page the palette opens onto is a union member, so a move page
+  cannot exist without the entry it moves, and the open note's verbs are one
+  nullable `note`, so no row can be offered without its note.
+  `packages/ui/src/components/command.tsx`,
+  `apps/desktop/src/renderer/app/palette/command-palette.tsx` and
   `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
 
 - **THE BUS IS APPLIED ONCE PER FRAME, AND A KIND REFETCHES ONLY WHAT IT
