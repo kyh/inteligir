@@ -5,6 +5,8 @@
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
+import { finished } from "node:stream/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   ClientSideConnection,
   PROTOCOL_VERSION,
@@ -12,9 +14,9 @@ import {
 } from "@zed-industries/agent-client-protocol";
 import type {
   Agent,
+  AgentCapabilities,
   Client,
   ContentBlock,
-  InitializeResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
@@ -24,7 +26,6 @@ import type { PendingInteractionResolution } from "@repo/domain/pending-interact
 import type {
   AgentRuntime,
   AgentRuntimeOptions,
-  AgentRuntimeProcessExitThreadState,
   ReapIdleProviderSessionsArgs,
   ReapIdleProviderSessionsResult,
   ResumeThreadArgs,
@@ -44,6 +45,10 @@ import type { HarnessDefinition } from "./harness-registry.js";
 import { acpCall, describeProviderError } from "./provider-error.js";
 
 const SESSION_SHUTDOWN_GRACE_MS = 1000;
+
+// 'exit' can arrive before the child's last stderr chunk, and that chunk is usually what names the crash.
+const STDERR_DRAIN_MS = 200;
+const STDERR_TAIL_LINES = 20;
 
 const definedProcessEnv = (): AgentRuntimeShellEnvironment => {
   const env: AgentRuntimeShellEnvironment = {};
@@ -71,18 +76,38 @@ export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   spawnAdapter?: (harness: HarnessDefinition, env: Record<string, string>) => AcpSpawnedAdapter;
 }
 
-interface AcpSession {
+interface AdapterExit {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+}
+
+// one spawned child, from spawn to exit. the 0.4 client never rejects a pending request when its
+// stream ends, so every request races the child's exit.
+interface AcpAdapter {
   threadId: string;
   providerId: string;
   harness: HarnessDefinition;
   child: ChildProcess;
   connection: ClientSideConnection;
-  agentCapabilities: InitializeResponse["agentCapabilities"];
-  providerThreadId: string | null;
-  activeMapper: AcpTurnMapper | null;
-  pendingTurnStart: boolean;
+  gone: Promise<AdapterExit>;
+  // resolved, never rejected: a child no request is waiting on exits without an unhandled rejection.
+  exitError: Promise<Error>;
+  // set once the runtime ends the child itself: a session/new answering during the kill registers
+  // nothing, and a turn it was running is the host's to settle.
+  closing: boolean;
+}
+
+interface AcpTurn {
+  mapper: AcpTurnMapper;
+  settled: Promise<void>;
+}
+
+// registered only once the agent has named its session, so every registered session can be prompted.
+interface AcpSession {
+  adapter: AcpAdapter;
+  providerThreadId: string;
+  turn: AcpTurn | null;
   idleSinceMs: number;
-  expectedExit: boolean;
 }
 
 let turnCounter = 0;
@@ -117,7 +142,35 @@ const promptBlocks = (input: PromptInput[]): ContentBlock[] => {
   return blocks;
 };
 
+const adapterExitError = (
+  harness: HarnessDefinition,
+  exit: AdapterExit,
+  stderrTail: readonly string[],
+): Error => {
+  const how = exit.signal === null ? `code ${String(exit.code)}` : `signal ${exit.signal}`;
+  const tail = stderrTail.length === 0 ? "" : `: ${stderrTail.join("\n")}`;
+  return new Error(`The ${harness.displayName} adapter exited (${how})${tail}`);
+};
+
+const call = async <T>(adapter: AcpAdapter, request: Promise<T>): Promise<T> => {
+  const exited = (async (): Promise<never> => {
+    throw await adapter.exitError;
+  })();
+  return await Promise.race([acpCall(request), exited]);
+};
+
+const drained = async (stream: Readable): Promise<void> => {
+  try {
+    await finished(stream);
+  } catch {
+    // a destroyed stream has nothing more to add to the tail.
+  }
+};
+
 export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRuntime => {
+  // a thread's one child in whichever phase, until it exits; `sessions` holds the ones that can be
+  // prompted.
+  const adapters = new Map<string, AcpAdapter>();
   const sessions = new Map<string, AcpSession>();
   let shuttingDown = false;
 
@@ -127,21 +180,15 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
   };
 
-  const sessionByProviderThreadId = (providerThreadId: string): AcpSession | null => {
-    for (const session of sessions.values()) {
-      if (session.providerThreadId === providerThreadId) {
-        return session;
-      }
-    }
-    return null;
+  const sessionOf = (threadId: string, child: ChildProcess): AcpSession | undefined => {
+    const session = sessions.get(threadId);
+    return session?.adapter.child === child ? session : undefined;
   };
 
   const spawnAdapter = (harness: HarnessDefinition, threadId: string): AcpSpawnedAdapter => {
     const omitted = new Set(harness.envOmit);
     const env: AgentRuntimeShellEnvironment = Object.fromEntries(
-      Object.entries({ ...definedProcessEnv(), ...options.env }).filter(
-        ([key]) => !omitted.has(key),
-      ),
+      Object.entries(definedProcessEnv()).filter(([key]) => !omitted.has(key)),
     );
     // the agent's shell inherits this env: it is how the server url and the cli's PATH reach
     // `inteligir`.
@@ -168,21 +215,18 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     async requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
       const current = session();
       const handler = options.onInteractiveRequest;
-      if (current === undefined || handler === undefined) {
-        return { outcome: { outcome: "cancelled" } };
-      }
-      const turnId = current.activeMapper?.turnId ?? null;
-      if (turnId === null || current.providerThreadId === null) {
+      const turnId = current?.turn?.mapper.turnId;
+      if (current === undefined || turnId === undefined || handler === undefined) {
         return { outcome: { outcome: "cancelled" } };
       }
       let resolution: PendingInteractionResolution;
       try {
         resolution = await handler({
           payload: toApprovalPayload(params),
-          providerId: current.providerId,
+          providerId: current.adapter.providerId,
           providerRequestId: params.toolCall.toolCallId,
           providerThreadId: current.providerThreadId,
-          threadId: current.threadId,
+          threadId: current.adapter.threadId,
           turnId,
         });
       } catch {
@@ -194,9 +238,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       // mapping and the host's onEvent both run synchronously; the catch keeps a throw a
       // rejection, which is what the ACP connection expects from this handler.
       try {
-        const current = sessionByProviderThreadId(params.sessionId);
-        if (current !== null && current.activeMapper !== null) {
-          emit(current.activeMapper.update(params));
+        const current = session();
+        if (current?.providerThreadId === params.sessionId && current.turn !== null) {
+          emit(current.turn.mapper.update(params));
         }
         return Promise.resolve();
       } catch (error) {
@@ -205,30 +249,72 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     },
   });
 
-  const destroySession = async (session: AcpSession): Promise<void> => {
-    session.expectedExit = true;
-    sessions.delete(session.threadId);
-    if (session.child.exitCode === null && session.child.signalCode === null) {
-      session.child.kill("SIGTERM");
-      // oxlint-disable-next-line promise/avoid-new -- adapts the child's one-shot "exit" event
-      const exited = new Promise<void>((resolve) => {
-        session.child.once("exit", () => {
-          resolve();
-        });
-      });
-      // oxlint-disable-next-line promise/avoid-new -- adapts a timer; there is no promise form
-      const grace = new Promise<void>((resolve) => {
-        setTimeout(() => {
-          session.child.kill("SIGKILL");
-          resolve();
-        }, SESSION_SHUTDOWN_GRACE_MS).unref?.();
-      });
-      await Promise.race([exited, grace]);
+  // the runtime is ending this child itself, so it stops answering to the host at once.
+  const detach = (adapter: AcpAdapter): void => {
+    adapter.closing = true;
+    if (sessions.get(adapter.threadId)?.adapter === adapter) {
+      sessions.delete(adapter.threadId);
     }
   };
 
-  const openSession = async (threadId: string, providerId: string): Promise<AcpSession> => {
+  const kill = async (adapter: AcpAdapter): Promise<void> => {
+    const { child } = adapter;
+    if (child.exitCode !== null || child.signalCode !== null) {
+      return;
+    }
+    child.kill("SIGTERM");
+    const stopped = await Promise.race([
+      (async () => {
+        await adapter.gone;
+        return true;
+      })(),
+      delay(SESSION_SHUTDOWN_GRACE_MS, false, { ref: false }),
+    ]);
+    if (!stopped) {
+      child.kill("SIGKILL");
+    }
+  };
+
+  const destroyAdapter = async (adapter: AcpAdapter): Promise<void> => {
+    detach(adapter);
+    await kill(adapter);
+  };
+
+  const closeThread = async (threadId: string): Promise<void> => {
+    const adapter = adapters.get(threadId);
+    if (adapter === undefined) {
+      return;
+    }
+    const session = sessionOf(threadId, adapter.child);
+    detach(adapter);
+    const turn = session?.turn ?? null;
+    if (session !== undefined && turn !== null) {
+      // a cancel first, so the agent can stop the tools it started; the kill below is the backstop
+      // for an agent that will not answer it.
+      await Promise.race([
+        (async () => {
+          try {
+            await adapter.connection.cancel({ sessionId: session.providerThreadId });
+            await turn.settled;
+          } catch {
+            // an adapter that cannot take the cancel meets the kill below.
+          }
+        })(),
+        adapter.gone,
+        delay(SESSION_SHUTDOWN_GRACE_MS, null, { ref: false }),
+      ]);
+    }
+    await kill(adapter);
+  };
+
+  const openAdapter = async (threadId: string, providerId: string): Promise<AcpAdapter> => {
     const harness = requireHarness(providerId);
+    // a thread has one child: whatever it still holds goes first, so two adapters never write one
+    // provider session's files.
+    await closeThread(threadId);
+    if (shuttingDown) {
+      throw new Error("The agent runtime is shut down");
+    }
     const { child } = spawnAdapter(harness, threadId);
     const { stdin, stdout } = child;
     if (stdin === null || stdout === null) {
@@ -242,71 +328,61 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       try {
         await Readable.toWeb(stdout).pipeTo(identity.writable);
       } catch {
-        // stdout ending is the child's exit path, which the exit handler already reports.
+        // stdout ending is the child's exit path, which `exitError` reports.
       }
     })();
     const stdoutWeb: ReadableStream<Uint8Array> = identity.readable;
     const connection = new ClientSideConnection(
-      (_agent: Agent) => buildClient(() => sessions.get(threadId)),
+      (_agent: Agent) => buildClient(() => sessionOf(threadId, child)),
       ndJsonStream(stdinWeb, stdoutWeb),
     );
-    const session: AcpSession = {
-      activeMapper: null,
-      agentCapabilities: undefined,
-      child,
-      connection,
-      expectedExit: false,
-      harness,
-      idleSinceMs: Date.now(),
-      pendingTurnStart: false,
-      providerId,
-      providerThreadId: null,
-      threadId,
-    };
+    const stderrTail: string[] = [];
     child.stderr?.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString("utf-8").split("\n")) {
         if (line.trim() !== "") {
+          stderrTail.push(line);
+          if (stderrTail.length > STDERR_TAIL_LINES) {
+            stderrTail.shift();
+          }
           options.onStderr?.(line, threadId);
         }
       }
     });
-    child.on("exit", (code, signal) => {
-      const current = sessions.get(threadId);
-      if (current !== session) {
-        return;
-      }
-      sessions.delete(threadId);
-      const threads: AgentRuntimeProcessExitThreadState[] = [
-        {
-          activeTurnId: session.activeMapper?.turnId ?? null,
-          pendingTurnStart: session.pendingTurnStart,
-          providerThreadId: session.providerThreadId,
-          threadId,
-        },
-      ];
-      options.onProcessExit?.({
-        code,
-        expected: session.expectedExit || shuttingDown,
-        providerId,
-        signal,
-        stderr: null,
-        threads,
+    // oxlint-disable-next-line promise/avoid-new -- adapts the child's one-shot "exit" event
+    const gone = new Promise<AdapterExit>((resolve) => {
+      child.once("exit", (code, signal) => {
+        resolve({ code, signal });
       });
     });
-    sessions.set(threadId, session);
-    try {
-      const initialized = await acpCall(
-        connection.initialize({
-          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
-          protocolVersion: PROTOCOL_VERSION,
-        }),
-      );
-      session.agentCapabilities = initialized.agentCapabilities;
-    } catch (error) {
-      await destroySession(session);
-      throw error;
-    }
-    return session;
+    const exitError = (async (): Promise<Error> => {
+      const exit = await gone;
+      if (child.stderr !== null) {
+        await Promise.race([drained(child.stderr), delay(STDERR_DRAIN_MS, null, { ref: false })]);
+      }
+      return adapterExitError(harness, exit, stderrTail);
+    })();
+    const adapter: AcpAdapter = {
+      child,
+      closing: false,
+      connection,
+      exitError,
+      gone,
+      harness,
+      providerId,
+      threadId,
+    };
+    child.once("exit", () => {
+      if (adapters.get(threadId) === adapter) {
+        adapters.delete(threadId);
+      }
+      // an exit nobody asked for: a turn it was running fails through its prompt, and the next send
+      // opens a new child.
+      if (sessions.get(threadId)?.adapter === adapter) {
+        sessions.delete(threadId);
+      }
+    });
+    adapters.set(threadId, adapter);
+    return adapter;
   };
 
   const requireSession = (threadId: string): AcpSession => {
@@ -332,25 +408,79 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     });
   };
 
-  // a refused session/new leaves no session to prompt, so the child goes with it and the next send
-  // opens afresh: after a sign-in, the retry must reach a new adapter.
-  const openProviderSession = async (session: AcpSession): Promise<string> => {
+  const newSession = async (adapter: AcpAdapter): Promise<string> => {
+    const response = await call(
+      adapter,
+      adapter.connection.newSession({
+        cwd: options.workspacePath,
+        mcpServers: await sessionMcpServers(),
+      }),
+    );
+    return response.sessionId;
+  };
+
+  // a refused session/new or session/load registers nothing and takes its child with it, so the
+  // send after a sign-in opens a new adapter rather than prompting a session that never existed.
+  const startSession = async (
+    threadId: string,
+    providerId: string,
+    open: (adapter: AcpAdapter, capabilities: AgentCapabilities | undefined) => Promise<string>,
+  ): Promise<string> => {
+    const adapter = await openAdapter(threadId, providerId);
     try {
-      const response = await acpCall(
-        session.connection.newSession({
-          cwd: options.workspacePath,
-          mcpServers: await sessionMcpServers(),
+      const initialized = await call(
+        adapter,
+        adapter.connection.initialize({
+          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
+          protocolVersion: PROTOCOL_VERSION,
         }),
       );
-      session.providerThreadId = response.sessionId;
-      return response.sessionId;
+      const providerThreadId = await open(adapter, initialized.agentCapabilities);
+      if (adapter.closing) {
+        throw new Error(
+          `The ${adapter.harness.displayName} adapter was closed before its session opened`,
+        );
+      }
+      sessions.set(threadId, { adapter, idleSinceMs: Date.now(), providerThreadId, turn: null });
+      return providerThreadId;
     } catch (error) {
-      await destroySession(session);
+      await destroyAdapter(adapter);
       throw error;
     }
   };
 
+  const runPrompt = async (
+    session: AcpSession,
+    mapper: AcpTurnMapper,
+    input: PromptInput[],
+  ): Promise<void> => {
+    const settle = (events: readonly ProviderEvent[]): void => {
+      if (session.turn?.mapper !== mapper) {
+        return;
+      }
+      session.turn = null;
+      session.idleSinceMs = Date.now();
+      if (!session.adapter.closing) {
+        emit(events);
+      }
+    };
+    try {
+      const response = await call(
+        session.adapter,
+        session.adapter.connection.prompt({
+          prompt: promptBlocks(input),
+          sessionId: session.providerThreadId,
+        }),
+      );
+      settle(mapper.completed(response.stopReason));
+    } catch (error) {
+      settle(mapper.failed(describeProviderError(error, session.adapter.harness)));
+    }
+  };
+
   const runtime: AgentRuntime = {
+    closeThread,
+
     hasThread(threadId: string): boolean {
       return sessions.has(threadId);
     },
@@ -359,60 +489,62 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       args: ReapIdleProviderSessionsArgs,
     ): Promise<ReapIdleProviderSessionsResult> {
       const reaped: ReapIdleProviderSessionsResult["reapedSessions"] = [];
-      // snapshot: destroySession mutates the map mid-iteration.
+      // snapshot: destroyAdapter mutates the map mid-iteration.
       const live = [...sessions.values()];
       for (const session of live) {
-        if (session.activeMapper !== null || session.providerThreadId === null) {
+        if (session.turn !== null) {
           continue;
         }
         const idleForMs = args.nowMs - session.idleSinceMs;
         if (idleForMs < args.idleForMs) {
           continue;
         }
-        await destroySession(session);
+        await destroyAdapter(session.adapter);
         reaped.push({
           idleForMs,
-          providerId: session.providerId,
+          providerId: session.adapter.providerId,
           providerThreadId: session.providerThreadId,
-          threadId: session.threadId,
+          threadId: session.adapter.threadId,
         });
       }
       return { reapedSessions: reaped };
     },
 
     async resumeThread(args: ResumeThreadArgs): Promise<ResumeThreadResult> {
-      const session = await openSession(args.threadId, args.providerId);
-      const wantsLoad =
-        args.providerThreadId !== undefined &&
-        session.harness.supportsLoadSession &&
-        session.agentCapabilities?.loadSession === true;
-      if (wantsLoad && args.providerThreadId !== undefined) {
-        try {
-          await acpCall(
-            session.connection.loadSession({
-              cwd: options.workspacePath,
-              mcpServers: await sessionMcpServers(),
-              sessionId: args.providerThreadId,
-            }),
-          );
-          session.providerThreadId = args.providerThreadId;
-          return { providerThreadId: args.providerThreadId };
-        } catch (error) {
-          options.onStderr?.(
-            `session/load failed for thread "${args.threadId}" (${describeProviderError(error, session.harness)}); starting fresh`,
-            args.threadId,
-          );
-        }
-      }
-      return { providerThreadId: await openProviderSession(session) };
+      const { providerThreadId } = args;
+      return {
+        providerThreadId: await startSession(
+          args.threadId,
+          args.providerId,
+          async (adapter, capabilities) => {
+            if (providerThreadId === undefined || capabilities?.loadSession !== true) {
+              return await newSession(adapter);
+            }
+            try {
+              await call(
+                adapter,
+                adapter.connection.loadSession({
+                  cwd: options.workspacePath,
+                  mcpServers: await sessionMcpServers(),
+                  sessionId: providerThreadId,
+                }),
+              );
+              return providerThreadId;
+            } catch (error) {
+              options.onStderr?.(
+                `session/load failed for thread "${args.threadId}" (${describeProviderError(error, adapter.harness)}); starting fresh`,
+                args.threadId,
+              );
+              return await newSession(adapter);
+            }
+          },
+        ),
+      };
     },
 
     async runTurn(args: RunTurnArgs): Promise<void> {
       const session = requireSession(args.threadId);
-      if (session.providerThreadId === null) {
-        throw new Error(`Thread "${args.threadId}" has no provider session id`);
-      }
-      if (session.activeMapper !== null) {
+      if (session.turn !== null) {
         throw new Error(`Thread "${args.threadId}" already has an active turn`);
       }
       const mapper = new AcpTurnMapper({
@@ -420,32 +552,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         threadId: args.threadId,
         turnId: mintTurnId(),
       });
-      session.activeMapper = mapper;
-      session.pendingTurnStart = false;
       emit(mapper.started());
-      void (async () => {
-        try {
-          const response = await acpCall(
-            session.connection.prompt({
-              prompt: promptBlocks(args.input),
-              sessionId: session.providerThreadId ?? "",
-            }),
-          );
-          if (session.activeMapper !== mapper) {
-            return;
-          }
-          session.activeMapper = null;
-          session.idleSinceMs = Date.now();
-          emit(mapper.completed(response.stopReason));
-        } catch (error) {
-          if (session.activeMapper !== mapper) {
-            return;
-          }
-          session.activeMapper = null;
-          session.idleSinceMs = Date.now();
-          emit(mapper.failed(describeProviderError(error, session.harness)));
-        }
-      })();
+      session.turn = { mapper, settled: runPrompt(session, mapper, args.input) };
       // resolve once the prompt is on the wire, not when it settles: the send must return while the
       // turn streams.
       await Promise.resolve();
@@ -454,15 +562,16 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     async shutdown(): Promise<void> {
       shuttingDown = true;
       await Promise.all(
-        [...sessions.values()].map(async (session) => {
-          await destroySession(session);
+        [...adapters.values()].map(async (adapter) => {
+          await destroyAdapter(adapter);
         }),
       );
     },
 
     async startThread(args: StartThreadArgs): Promise<StartThreadResult> {
-      const session = await openSession(args.threadId, args.providerId);
-      return { providerThreadId: await openProviderSession(session) };
+      return {
+        providerThreadId: await startSession(args.threadId, args.providerId, newSession),
+      };
     },
   };
 

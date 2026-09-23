@@ -45,7 +45,11 @@ const fakeGitEngine = (): GitEngine => ({
     await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
 });
 
-const fakeAgentRuntime = (): AgentRuntime => ({
+const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>): AgentRuntime => ({
+  closeThread: async (threadId) => {
+    timeline.push(`closeThread ${threadId}`);
+    await Promise.resolve();
+  },
   hasThread: () => true,
   reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
   resumeThread: async () => await Promise.resolve({ providerThreadId: "pt_1" }),
@@ -56,6 +60,7 @@ const fakeAgentRuntime = (): AgentRuntime => ({
     await Promise.resolve();
   },
   startThread: async () => await Promise.resolve({ providerThreadId: "pt_1" }),
+  ...overrides,
 });
 
 interface Harness {
@@ -64,19 +69,22 @@ interface Harness {
   driver: TurnDriver;
   manager: AcpRuntimeManager;
   ingested: ThreadEvent[];
+  // the runtime's closes and the ingested event types, in the order they happened.
+  timeline: string[];
   runtimeOptions: () => AcpAgentRuntimeOptions;
 }
 
-const makeHarness = (): Harness => {
+const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
   const db = createConnection(path.join(makeTempDir("inteligir-watchdog-"), "test.db"));
   runMigrations(db);
   const threadId = createThread(db, noopNotifier, {}).id;
   const ingested: ThreadEvent[] = [];
+  const timeline: string[] = [];
   let captured: AcpAgentRuntimeOptions | null = null;
   const manager = createAcpRuntimeManager({
     createRuntime: (options) => {
       captured = options;
-      return fakeAgentRuntime();
+      return fakeAgentRuntime(timeline, runtime);
     },
     db,
     defaultProviderId: () => "claude",
@@ -93,6 +101,7 @@ const makeHarness = (): Harness => {
   const driver = manager.createTurnDriver({
     ingestProviderEvents: (_threadId, events) => {
       ingested.push(...events);
+      timeline.push(...events.map((event) => event.type));
     },
   });
   onTestFinished(async () => {
@@ -113,6 +122,7 @@ const makeHarness = (): Harness => {
       return captured;
     },
     threadId,
+    timeline,
   };
 };
 
@@ -155,6 +165,18 @@ describe("the silent-turn watchdog", () => {
     expect(failure?.type === "provider/error" ? failure.detail : "").toContain(
       `produced nothing for ${BUDGET_MS}ms`,
     );
+  });
+
+  it("closes the provider session before the fail, so no later turn is sent to it", async () => {
+    vi.useFakeTimers();
+    const harness = makeHarness();
+    await startSilentTurn(harness);
+
+    await vi.advanceTimersByTimeAsync(BUDGET_MS * 2);
+
+    const closed = harness.timeline.indexOf(`closeThread ${harness.threadId}`);
+    expect(closed).toBeGreaterThanOrEqual(0);
+    expect(closed).toBeLessThan(harness.timeline.indexOf("turn/completed"));
   });
 
   it("measures SILENCE, not duration: every frame restarts the clock", async () => {
@@ -219,5 +241,35 @@ describe("the silent-turn watchdog", () => {
     expect(turnFailed(harness.ingested)).toBe(false);
     await vi.advanceTimersByTimeAsync(BUDGET_MS * 2);
     expect(turnFailed(harness.ingested)).toBe(true);
+  });
+});
+
+describe("a dispatch that outlives its turn", () => {
+  it("fails nothing once the turn it was dispatching has been replaced", async () => {
+    vi.useFakeTimers();
+    const opening: PromiseWithResolvers<{ providerThreadId: string }>[] = [];
+    const harness = makeHarness({
+      hasThread: () => false,
+      startThread: async () => {
+        const open = Promise.withResolvers<{ providerThreadId: string }>();
+        opening.push(open);
+        return await open.promise;
+      },
+    });
+    harness.driver.startTurn({ text: "stuck", threadId: harness.threadId, turnId: "turn_1" });
+    await vi.advanceTimersByTimeAsync(BUDGET_MS * 2);
+    expect(turnFailed(harness.ingested)).toBe(true);
+
+    harness.driver.startTurn({ text: "again", threadId: harness.threadId, turnId: "turn_2" });
+    await vi.advanceTimersByTimeAsync(0);
+    const [stale] = opening;
+    if (stale === undefined || opening.length !== 2) {
+      throw new Error("expected both dispatches to be opening a session");
+    }
+    stale.reject(new Error("the stuck session/new finally refused"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const completed = harness.ingested.filter((event) => event.type === "turn/completed");
+    expect(completed).toEqual([expect.objectContaining({ scope: turnScope("turn_1") })]);
   });
 });

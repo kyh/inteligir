@@ -1,6 +1,7 @@
 // FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent |
-// authOnNewSession | authOnPrompt (a signed-out vendor, refusing at the step the real ones do).
-// session ids carry the pid: the runtime routes frames by provider session id across adapters.
+// authOnSessionOpen | authOnPrompt (a signed-out vendor, refusing at the step the real ones do) |
+// crashOnBoot (exits before the handshake, saying why on stderr, as a missing module would).
+// session ids carry the pid, so two adapters never mint the same one.
 
 import { writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
@@ -31,10 +32,13 @@ const buildAgent = (client) => ({
     };
   },
   loadSession(params) {
+    if (mode === "authOnSessionOpen") {
+      throw RequestError.authRequired();
+    }
     return { sessionId: params.sessionId };
   },
   newSession() {
-    if (mode === "authOnNewSession") {
+    if (mode === "authOnSessionOpen") {
       throw RequestError.authRequired();
     }
     sessionCounter += 1;
@@ -135,6 +139,14 @@ const buildAgent = (client) => ({
   },
 });
 
-const stream = ndJsonStream(Writable.toWeb(process.stdout), Readable.toWeb(process.stdin));
-const connection = new AgentSideConnection(buildAgent, stream);
-void connection;
+if (mode === "crashOnBoot") {
+  // exit only once the line is written: a pipe write is asynchronous here, and the host's error
+  // names the crash from it.
+  process.stderr.write("fake agent: cannot start\n", () => {
+    process.exit(3);
+  });
+} else {
+  const stream = ndJsonStream(Writable.toWeb(process.stdout), Readable.toWeb(process.stdin));
+  const connection = new AgentSideConnection(buildAgent, stream);
+  void connection;
+}

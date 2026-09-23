@@ -13,6 +13,9 @@ const recordingCreateRuntime =
   (options) => {
     recorded.push(options);
     const runtime: AgentRuntime = {
+      closeThread: async () => {
+        await Promise.resolve();
+      },
       hasThread: () => false,
       reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
       resumeThread: async () => await Promise.resolve({ providerThreadId: "prov_1" }),

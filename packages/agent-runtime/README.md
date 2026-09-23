@@ -13,9 +13,9 @@ and both speak ACP, so the seam between "the server's thread service" and "a
 vendor's CLI" is one adapter over one protocol, and adding a harness is a row
 in a table rather than a second runtime. What the server needs from that seam
 is small — an `AgentRuntime` with `startThread`, `resumeThread`, `runTurn`,
-`reapIdleProviderSessions`, `hasThread`, `shutdown` (`types.ts`) — and the
-interface carries only what the host calls, because a method kept for a
-re-vendor is a stub every test double must write.
+`reapIdleProviderSessions`, `hasThread`, `closeThread`, `shutdown`
+(`types.ts`) — and the interface carries only what the host calls, because a
+method kept for a re-vendor is a stub every test double must write.
 
 The package is node-side by definition (it spawns processes), so nothing it
 exports may pull a process tree into a renderer: the grammars a client reads
@@ -32,7 +32,7 @@ src/
                        # only what the host calls
   acp/
     acp-runtime.ts     # createAcpAgentRuntime: one adapter child per thread,
-                       # the ACP client handlers, session open/load/reap/destroy
+                       # the ACP client handlers, session open/load/close/reap
     harness-registry.ts  # HARNESSES — claude and codex as rows: vendor binary,
                        # login command, adapter entry, credential probes,
                        # model application, env keys to omit
@@ -99,14 +99,26 @@ src/
   `acpCall`, which rebuilds it as the SDK's `RequestError`. What a user reads
   is `describeProviderError`: the adapter's message, except an auth refusal
   (`-32000`) with a harness in hand, which names the harness and its login
-  command. A refused `session/new` destroys the child it opened, so the send
-  after a sign-in opens a new adapter rather than prompting a session that
-  never existed.
-- **The child's exit is reported, never interpreted.** `onProcessExit` carries
-  the thread's `activeTurnId`, `pendingTurnStart` and `providerThreadId` with
-  `expected` set only by an ordered destroy or shutdown; deciding a turn failed
-  is the host's. `destroySession` sends SIGTERM and follows with SIGKILL after
-  `SESSION_SHUTDOWN_GRACE_MS`.
+  command.
+- **A session is registered only once the agent names it.** A refused or
+  failed `initialize`, `session/new` or `session/load` registers nothing and
+  takes its child with it, so the send after a sign-in opens a new adapter
+  rather than prompting a session that never existed, and every registered
+  session can be prompted. A thread has one child at a time: opening one first
+  ends whatever the thread still holds, so two adapters never write one
+  provider session's files.
+- **A request never outlives its child.** The 0.4 client never rejects a
+  pending request when its stream ends, so every request races the child's
+  exit, which rejects naming the harness, the exit status and the child's last
+  stderr lines. A crash at boot fails the dispatch; a crash mid-turn fails the
+  turn through the mapper, like a refused prompt. There is no exit callback: a
+  second answer to "did this turn fail?" would be one to keep in step.
+- **A child the runtime ends itself emits nothing more.** `closeThread` (the
+  host abandoning a turn), a reap and `shutdown` unregister the session first,
+  and the turn it was running is the host's to settle. `closeThread` sends
+  `session/cancel` so the agent can stop its own tools, then SIGTERM once the
+  prompt settles or `SESSION_SHUTDOWN_GRACE_MS` passes, then SIGKILL after the
+  same grace.
 - **Nothing here remembers.** Claude Code and Codex carry their own memory; the
   repo's decision record retired a third beside them.
 
@@ -114,8 +126,8 @@ src/
 
 - `AgentRuntimeOptions` (`types.ts`) — `onEvent` (every `ProviderEvent`),
   `onInteractiveRequest` (a permission request as a `PendingInteractionCreate`,
-  answered with a `PendingInteractionResolution`), `onStderr`, `onProcessExit`,
-  and the two getters above.
+  answered with a `PendingInteractionResolution`), `onStderr`, and the two
+  getters above.
 - `AcpAgentRuntimeOptions.spawnAdapter` (`acp/acp-runtime.ts`) — the one
   injection point for a fake child: the server's suites spawn
   `test-support/fake-acp-agent.mjs` through it.
@@ -135,8 +147,9 @@ edit-kind calls as `fileChange`, cancellation interrupting open items, a prompt
 rejection failing through the grammar) and permission requests onto the
 pending-interaction contract; `provider-error.test.ts` pins the rejection
 rebuild and the auth hint. The process half — spawning, `initialize`,
-`session/new`, `session/load`, reaping, exit reporting, an adapter refusing
-for auth at `session/new` or at the prompt — is exercised by the
-server's `apps/cli/src/server/agents/__tests__/acp-manager.test.ts` against
-the fake agent, because the assertions there are about what the host does with
-the events.
+`session/new`, `session/load`, a close after the watchdog, an adapter crashing
+at boot or mid-prompt, an adapter refusing for auth as a session opens or at
+the prompt — is exercised by the server's
+`apps/cli/src/server/agents/__tests__/acp-manager.test.ts` against the fake
+agent, because the assertions there are about what the host does with the
+events.

@@ -12,26 +12,8 @@ export type AgentRuntimeShellEnvironment = Record<string, string>;
 
 export type PromptInput = ProviderEventUserContent;
 
-export interface AgentRuntimeProcessExitThreadState {
-  activeTurnId: string | null;
-  pendingTurnStart: boolean;
-  providerThreadId: string | null;
-  threadId: string;
-}
-
-export interface AgentRuntimeProcessExitInfo {
-  providerId: string;
-  threads: AgentRuntimeProcessExitThreadState[];
-  code: number | null;
-  expected: boolean;
-  signal: string | null;
-  stderr: string | null;
-}
-
 export interface AgentRuntimeOptions {
   workspacePath: string;
-
-  env?: Record<string, string>;
 
   // a getter read at every spawn, so a host-side edit reaches the next session without rebuilding
   // the runtime.
@@ -44,8 +26,6 @@ export interface AgentRuntimeOptions {
   ) => Promise<PendingInteractionResolution>;
 
   onStderr?: (line: string, threadId?: string) => void;
-
-  onProcessExit?: (info: AgentRuntimeProcessExitInfo) => void;
 }
 
 export interface StartThreadArgs {
@@ -100,6 +80,10 @@ export interface AgentRuntime {
   ) => Promise<ReapIdleProviderSessionsResult>;
 
   hasThread: (threadId: string) => boolean;
+
+  // ends the thread's provider session, whichever phase it is in, and resolves once its child is gone. a
+  // turn it was running emits nothing more: the host that closed it settles that turn itself.
+  closeThread: (threadId: string) => Promise<void>;
 
   shutdown: () => Promise<void>;
 }

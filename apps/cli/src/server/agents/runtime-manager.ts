@@ -92,14 +92,13 @@ export interface AcpRuntimeManager {
   dispose: () => Promise<void>;
 }
 
+// the first turn/started binds the provider's turn id (null when it names none) to the host's.
+type TurnPhase = { kind: "dispatched" } | { kind: "started"; providerTurnId: string | null };
+
+// in the map from startTurn until the turn settles, so membership is the unsettled test.
 interface ActiveTurn {
   ourTurnId: string;
-  providerTurnId: string | null;
-  started: boolean;
-  // the per-thread exit counter at turn/started. a process exit fails only turns its own generation
-  // accepted: a turn dispatched into a harness's account-restart window must survive onto the replacement.
-  acceptedGeneration: number | null;
-  settled: boolean;
+  phase: TurnPhase;
   writes: AgentTurnWrites;
   lastEventAt: number;
 }
@@ -114,7 +113,6 @@ class AcpTurnDriver implements TurnDriver {
     this.sink.ingestProviderEvents(threadId, batch);
   });
   private readonly turnsByThreadId = new Map<string, ActiveTurn>();
-  private readonly exitGenerationByThreadId = new Map<string, number>();
   private readonly waiters: InteractionWaiters;
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
@@ -151,6 +149,9 @@ class AcpTurnDriver implements TurnDriver {
   }
 
   private ensureRuntime(): AgentRuntime {
+    if (this.disposed) {
+      throw new Error("The agent runtime manager is disposed");
+    }
     if (this.runtime !== null) {
       return this.runtime;
     }
@@ -160,34 +161,6 @@ class AcpTurnDriver implements TurnDriver {
         this.onRuntimeEvent(event);
       },
       onInteractiveRequest: async (request) => await this.onInteractiveRequest(request),
-      onProcessExit: (info) => {
-        for (const thread of info.threads) {
-          const generationAtExit = this.exitGenerationByThreadId.get(thread.threadId) ?? 0;
-          this.exitGenerationByThreadId.set(thread.threadId, generationAtExit + 1);
-          const state = this.turnsByThreadId.get(thread.threadId);
-          if (state === undefined || state.settled) {
-            continue;
-          }
-          // fail only what the dying process ran: a turn it accepted (matching generation) or acknowledged
-          // but never started. a not-yet-sent turn continues on the replacement; a crash before
-          // acceptance is settled by the dispatch rejection.
-          const dyingProcessOwnedTurn =
-            (state.started && state.acceptedGeneration === generationAtExit) ||
-            (!state.started && thread.pendingTurnStart);
-          if (!dyingProcessOwnedTurn) {
-            this.debug(
-              `provider process exit (expected=${String(info.expected)}) skipped thread ${thread.threadId}: its turn is not bound to the dying process`,
-            );
-            continue;
-          }
-          this.failTurn(
-            thread.threadId,
-            new Error(
-              `The ${info.providerId} process exited mid-turn${info.stderr === null ? "" : `: ${info.stderr}`}`,
-            ),
-          );
-        }
-      },
       onStderr: (line) => {
         this.debug(`agent: ${line}`);
       },
@@ -233,17 +206,13 @@ class AcpTurnDriver implements TurnDriver {
     if (this.disposed) {
       throw new Error("The agent runtime manager is disposed");
     }
-    const existing = this.turnsByThreadId.get(args.threadId);
-    if (existing !== undefined && !existing.settled) {
+    if (this.turnsByThreadId.has(args.threadId)) {
       throw new Error(`Thread ${args.threadId} already has a running turn`);
     }
     this.turnsByThreadId.set(args.threadId, {
-      acceptedGeneration: null,
       lastEventAt: Date.now(),
       ourTurnId: args.turnId,
-      providerTurnId: null,
-      settled: false,
-      started: false,
+      phase: { kind: "dispatched" },
       writes: beginAgentTurnWrites({
         git: this.deps.git,
         threadId: args.threadId,
@@ -257,13 +226,53 @@ class AcpTurnDriver implements TurnDriver {
     try {
       await this.dispatchTurn(args);
     } catch (error) {
+      // a disposed manager leaves its turns to the next boot's recovery; a turn the watchdog settled
+      // mid-dispatch is already failed, and failing it here would fail the turn that replaced it.
+      if (this.disposed || !this.isDispatching(args)) {
+        this.debug(
+          `dispatch of turn ${args.turnId} on thread ${args.threadId} stopped: ${describeProviderError(error)}`,
+        );
+        return;
+      }
+      // what a failed dispatch opened is not trusted either: the next send opens afresh, standing
+      // instructions first.
+      this.abandonProviderSession(args.threadId);
       this.failTurn(args.threadId, error);
     }
   }
 
+  private isDispatching(args: TurnDriverStartArgs): boolean {
+    return this.turnsByThreadId.get(args.threadId)?.ourTurnId === args.turnId;
+  }
+
+  // a dispatch resumes after every await into a thread that may have moved on; one whose turn was
+  // settled meanwhile stops rather than opening a session or prompting a turn nobody awaits.
+  private assertDispatching(args: TurnDriverStartArgs): void {
+    if (!this.isDispatching(args)) {
+      throw new Error(`Turn ${args.turnId} settled before its dispatch finished`);
+    }
+  }
+
+  // a provider the host gave up on must not carry the settled turn into the next one.
+  private abandonProviderSession(threadId: string): void {
+    const { runtime } = this;
+    if (runtime === null) {
+      return;
+    }
+    void (async () => {
+      try {
+        await runtime.closeThread(threadId);
+      } catch (error) {
+        this.debug(
+          `closing the provider session for thread ${threadId} failed: ${messageOf(error)}`,
+        );
+      }
+    })();
+  }
+
   private noteTurnActivity(threadId: string): void {
     const state = this.turnsByThreadId.get(threadId);
-    if (state === undefined || state.settled) {
+    if (state === undefined) {
       return;
     }
     state.lastEventAt = Date.now();
@@ -276,12 +285,15 @@ class AcpTurnDriver implements TurnDriver {
     }
     const now = Date.now();
     for (const [threadId, state] of this.turnsByThreadId) {
-      if (state.settled || this.waiters.hasParked(threadId)) {
+      if (this.waiters.hasParked(threadId)) {
         continue;
       }
       if (now - state.lastEventAt <= budgetMs) {
         continue;
       }
+      // closed before the fail, whose ingest can dispatch the next queued turn: that turn must not
+      // find the silent session.
+      this.abandonProviderSession(threadId);
       this.failTurn(
         threadId,
         new Error(
@@ -295,11 +307,13 @@ class AcpTurnDriver implements TurnDriver {
     // the hold blocks new sync passes; this waits out one already mid-flight, so the provider
     // never writes into a rebase's checkout window.
     await this.turnsByThreadId.get(args.threadId)?.writes.ready;
+    this.assertDispatching(args);
     const runtime = this.ensureRuntime();
     // acp's session/new carries no instructions field, so the first turn's prompt is the only channel.
     const instructions = runtime.hasThread(args.threadId)
       ? undefined
-      : await this.openThreadSession(runtime, args.threadId);
+      : await this.openThreadSession(runtime, args);
+    this.assertDispatching(args);
     await runtime.runTurn({
       input: turnPromptInput(args.text, args.viewContext, instructions),
       threadId: args.threadId,
@@ -308,8 +322,9 @@ class AcpTurnDriver implements TurnDriver {
 
   private async openThreadSession(
     runtime: AgentRuntime,
-    threadId: string,
+    args: TurnDriverStartArgs,
   ): Promise<string | undefined> {
+    const { threadId } = args;
     const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
@@ -334,6 +349,7 @@ class AcpTurnDriver implements TurnDriver {
           `resume of thread ${threadId} from provider session ${persisted} failed; starting fresh: ${describeProviderError(error)}`,
         );
       }
+      this.assertDispatching(args);
     }
     const started = await runtime.startThread({ providerId, threadId });
     setThreadProviderSession(this.deps.db, {
@@ -373,12 +389,7 @@ class AcpTurnDriver implements TurnDriver {
 
     let hostTurnId: string | null = null;
     if (event.scope.kind === "turn") {
-      if (
-        state === undefined ||
-        state.settled ||
-        !state.started ||
-        state.providerTurnId !== event.scope.turnId
-      ) {
+      if (state?.phase.kind !== "started" || state.phase.providerTurnId !== event.scope.turnId) {
         this.debug(
           `dropped ${event.type} for thread ${threadId}: provider turn ${event.scope.turnId} is not the bound one`,
         );
@@ -417,13 +428,14 @@ class AcpTurnDriver implements TurnDriver {
     state: ActiveTurn | undefined,
   ): void {
     const { threadId } = event;
-    if (state === undefined || state.settled || state.started) {
+    if (state?.phase.kind !== "dispatched") {
       this.debug(`dropped ${event.type} for thread ${threadId}: no dispatched turn awaits it`);
       return;
     }
-    state.providerTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
-    state.started = true;
-    state.acceptedGeneration = this.exitGenerationByThreadId.get(threadId) ?? 0;
+    state.phase = {
+      kind: "started",
+      providerTurnId: event.scope.kind === "turn" ? event.scope.turnId : null,
+    };
     const mapped = mapProviderEvent(event, state.ourTurnId);
     if (mapped.kind === "mapped") {
       this.events.push(threadId, mapped.event);
@@ -452,7 +464,7 @@ class AcpTurnDriver implements TurnDriver {
   ): Promise<PendingInteractionResolution> {
     const state = this.turnsByThreadId.get(create.threadId);
     const hostTurnId =
-      state !== undefined && !state.settled && state.providerTurnId === create.turnId
+      state?.phase.kind === "started" && state.phase.providerTurnId === create.turnId
         ? state.ourTurnId
         : null;
     return await this.waiters.park(create, hostTurnId);
@@ -462,10 +474,9 @@ class AcpTurnDriver implements TurnDriver {
     // buffered deltas must be in the log before anything reads the turn as settled.
     this.events.flush(threadId);
     const state = this.turnsByThreadId.get(threadId);
-    if (state === undefined || state.settled) {
+    if (state === undefined) {
       return;
     }
-    state.settled = true;
     this.turnsByThreadId.delete(threadId);
     this.waiters.cancel(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
@@ -483,14 +494,13 @@ class AcpTurnDriver implements TurnDriver {
   private failTurn(threadId: string, cause: unknown): void {
     const detail = describeProviderError(cause, this.harnessOf(threadId));
     const state = this.turnsByThreadId.get(threadId);
-    if (state === undefined || state.settled) {
+    if (state === undefined) {
       this.debug(`dispatch failure for thread ${threadId} after its turn settled: ${detail}`);
       return;
     }
     const scope = turnScope(state.ourTurnId);
     const events: ThreadEvent[] = [];
-    if (!state.started) {
-      state.started = true;
+    if (state.phase.kind === "dispatched") {
       events.push({ scope, threadId, type: "turn/started" });
     }
     events.push(

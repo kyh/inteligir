@@ -820,6 +820,22 @@ agents default`; unset falls back
   a getter read at every spawn, because read once `INTELIGIR_CONNECTED_DIRS`
   froze at the first turn (`apps/cli/src/server/agents/agent-shell-env.ts`).
 
+- **THE HOST CLOSES A PROVIDER SESSION IT GIVES UP ON, AND A CHILD'S DEATH
+  FAILS ITS TURN THROUGH THE PROMPT.** The watchdog and a failed dispatch call
+  `closeThread` before they fail the turn, so the next send resumes on a fresh
+  child instead of meeting a session still holding the abandoned prompt; a
+  dispatch re-checks its turn after every await and stops once it was settled
+  or the manager disposed, so it neither fails the turn that replaced it nor
+  spawns a child nobody will close. The 0.4 ACP client never rejects a pending
+  request when its child exits, so every request races that exit, naming the
+  exit status and the child's last stderr lines: a crash at boot fails the
+  dispatch, a crash mid-turn fails the turn like a refused prompt. Rejected: an
+  exit callback beside it, and per-thread exit generations under it, which fit
+  a process shared by threads (one child per thread here) and would be a second
+  answer to "did this turn fail?".
+  `packages/agent-runtime/src/acp/acp-runtime.ts` and
+  `apps/cli/src/server/agents/runtime-manager.ts`.
+
 ### Dictation
 
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by

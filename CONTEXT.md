@@ -59,9 +59,10 @@ and `threads.activeTurnId` is the one the current status describes — bound by
 **session** — the PROVIDER's own conversation, `{ providerId, providerThreadId }`
 (`setThreadProviderSession` in `@repo/db/threads`, the one writer), cached on
 the thread row so a later turn resumes into it. A session is disposable: it is
-reaped when idle and dies with the provider process, while the thread and its
-events do not. Not to be confused with the auth **session** in `apps/web` — a
-signed-in user's row in D1 — which shares only the word.
+reaped when idle, closed when the host abandons a turn on it, and dies with
+the provider process, while the thread and its events do not. Not to be
+confused with the auth **session** in `apps/web` — a signed-in user's row in
+D1 — which shares only the word.
 
 **host turn id vs provider turn id** — TWO id spaces for one turn, and the
 distinction is load-bearing. The service mints the host id (`turn_…`) and hands

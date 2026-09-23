@@ -22,7 +22,6 @@ export interface HarnessDefinition {
   adapterEntry: string;
   adapterArgs: readonly string[];
   credentialProbes: readonly (HarnessCredentialProbe | HarnessKeychainProbe)[];
-  supportsLoadSession: boolean;
   applyModel: (model: string, env: Record<string, string>, args: string[]) => void;
   // the claude SDK refuses to run when it believes it is nested inside another claude session, so
   // the nesting sentinel must not leak through from whatever launched this app.
@@ -46,7 +45,6 @@ export const HARNESSES = {
     envOmit: ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"],
     id: "claude",
     loginCommand: "claude /login",
-    supportsLoadSession: true,
     vendorBinary: "claude",
   },
   codex: {
@@ -60,7 +58,6 @@ export const HARNESSES = {
     envOmit: [],
     id: "codex",
     loginCommand: "codex login",
-    supportsLoadSession: true,
     vendorBinary: "codex",
   },
 } satisfies Record<HarnessId, HarnessDefinition>;

@@ -1,6 +1,8 @@
 import { execFileSync, spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { setImmediate } from "node:timers/promises";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
 import { parseApprovalResolution } from "@repo/domain/pending-interactions";
@@ -8,10 +10,11 @@ import type { PendingInteractionPayload } from "@repo/domain/pending-interaction
 import { getThread } from "@repo/db/threads";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
+import type { TurnDriver } from "../../threads/turn-driver";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
 import { createAcpRuntimeManager } from "../runtime-manager";
-import type { AcpRuntimeManagerDeps } from "../runtime-manager";
+import type { AcpRuntimeManager, AcpRuntimeManagerDeps } from "../runtime-manager";
 import { bootTestApp } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import {
@@ -35,8 +38,9 @@ type FakeAcpMode =
   | "approval"
   | "promptEcho"
   | "silent"
-  | "authOnNewSession"
-  | "authOnPrompt";
+  | "authOnSessionOpen"
+  | "authOnPrompt"
+  | "crashOnBoot";
 
 interface ManagerOptions {
   cliBinDir?: string;
@@ -46,8 +50,14 @@ interface ManagerOptions {
   // mutable on purpose: the Settings-edited fact, read per session open.
   connectedDirs?: string[];
   spawnedEnvs?: Record<string, string>[];
+  children?: ChildProcess[];
   // mutable on purpose: a sign-in between two sends, read at the next session open.
   mode?: FakeAcpMode;
+}
+
+interface ManagerHarness extends BootedTestApp {
+  manager: AcpRuntimeManager;
+  driver: TurnDriver;
 }
 
 const fakeSpawn =
@@ -65,14 +75,16 @@ const fakeSpawn =
       env: childEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
+    options.children?.push(child);
     return { child };
   };
 
 const bootWithManager = async (
   mode: FakeAcpMode,
   options: ManagerOptions = {},
-): Promise<BootedTestApp> =>
-  await bootTestApp({
+): Promise<ManagerHarness> => {
+  const wired: { manager: AcpRuntimeManager; driver: TurnDriver }[] = [];
+  const booted = await bootTestApp({
     agent: { detail: null, mode: "auto", runtime: "acp" },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const deps: AcpRuntimeManagerDeps = {
@@ -98,13 +110,32 @@ const bootWithManager = async (
       }
       const manager = createAcpRuntimeManager(deps);
       return {
-        createTurnDriver: manager.createTurnDriver,
+        createTurnDriver: (sink) => {
+          const driver = manager.createTurnDriver(sink);
+          wired.push({ driver, manager });
+          return driver;
+        },
         dispose: async () => {
           await manager.dispose();
         },
       };
     },
   });
+  const [driven] = wired;
+  if (driven === undefined) {
+    throw new Error("the thread service never asked for its turn driver");
+  }
+  return { ...booted, ...driven };
+};
+
+const hasExited = (child: ChildProcess): boolean =>
+  child.exitCode !== null || child.signalCode !== null;
+
+const awaitExited = async (children: readonly ChildProcess[]): Promise<void> => {
+  await vi.waitFor(() => {
+    expect(children.filter((child) => !hasExited(child))).toEqual([]);
+  }, PROVIDER_WAIT);
+};
 
 const headCommit = (vaultDir: string) => {
   const stdout = execFileSync("git", ["show", "--name-only", "--format=%an%n%ae", "HEAD"], {
@@ -298,7 +329,7 @@ describe("the ACP runtime manager over real HTTP", () => {
   });
 
   it("names the harness and its login command when session/new is refused for auth", async () => {
-    const harness = await bootWithManager("authOnNewSession");
+    const harness = await bootWithManager("authOnSessionOpen");
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "hello agent");
 
@@ -326,11 +357,13 @@ describe("the ACP runtime manager over real HTTP", () => {
   });
 
   it("opens a fresh session on the send after a sign-in, not the one session/new refused", async () => {
-    const managerOptions: ManagerOptions = {};
-    const harness = await bootWithManager("authOnNewSession", managerOptions);
+    const children: ChildProcess[] = [];
+    const managerOptions: ManagerOptions = { children };
+    const harness = await bootWithManager("authOnSessionOpen", managerOptions);
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "signed out");
     await awaitThreadStatus(harness.client, threadId, "error");
+    await awaitExited(children);
 
     managerOptions.mode = "message";
     const turnId = await sendMessage(harness.client, threadId, "signed in");
@@ -341,20 +374,102 @@ describe("the ACP runtime manager over real HTTP", () => {
     expect(assistant).toMatchObject({ text: "hello from the fake agent", turnId });
   });
 
-  it("fails a turn the provider accepted and then went silent on", async () => {
-    const harness = await bootWithManager("silent", { turnIdleTimeoutMs: 150 });
+  it("leaves no child behind when a resumed thread's session/load and session/new are both refused", async () => {
+    const children: ChildProcess[] = [];
+    const managerOptions: ManagerOptions = { children };
+    const harness = await bootWithManager("message", managerOptions);
     const threadId = await createThread(harness.client);
-    const turnId = await sendMessage(harness.client, threadId, "wedge me");
+    await sendMessage(harness.client, threadId, "signed in");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    const [first] = children;
+    first?.kill("SIGKILL");
+    await awaitExited(children);
+
+    managerOptions.mode = "authOnSessionOpen";
+    await sendMessage(harness.client, threadId, "signed out since");
+    await awaitThreadStatus(harness.client, threadId, "error");
+
+    // the resume's child and the fresh start's child, each refused and each gone.
+    expect(children).toHaveLength(3);
+    await awaitExited(children);
+    await harness.manager.dispose();
+    expect(children.filter((child) => !hasExited(child))).toEqual([]);
+  });
+
+  it("fails a turn whose adapter dies before the handshake, naming what it said on stderr", async () => {
+    const harness = await bootWithManager("crashOnBoot");
+    const threadId = await createThread(harness.client);
+    await sendMessage(harness.client, threadId, "hello agent");
 
     await awaitThreadStatus(harness.client, threadId, "error");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
-    expect(rows.find((row) => row.kind === "turn")).toMatchObject({ status: "error", turnId });
-
-    const next = await harness.client.threads.send({
-      text: "again",
-      threadId,
+    expect(rows.find((row) => row.kind === "error")).toMatchObject({
+      detail: "The Codex adapter exited (code 3): fake agent: cannot start",
+      message: "The agent provider failed",
     });
-    expect(next.kind).toBe("started");
+  });
+
+  it("fails a turn whose adapter dies mid-prompt through the turn's own grammar", async () => {
+    const children: ChildProcess[] = [];
+    const harness = await bootWithManager("silent", { children });
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "wedge me");
+    await vi.waitFor(async () => {
+      const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+      expect(rows.find((row) => row.kind === "turn")).toMatchObject({ turnId });
+    }, PROVIDER_WAIT);
+
+    const [child] = children;
+    child?.kill("SIGKILL");
+    await awaitThreadStatus(harness.client, threadId, "error");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.find((row) => row.kind === "error")).toMatchObject({
+      message: "The Codex adapter exited (signal SIGKILL)",
+      turnId,
+    });
+  });
+
+  it("closes the session of a turn the provider went silent on, so the next turn runs on a fresh child", async () => {
+    const children: ChildProcess[] = [];
+    const managerOptions: ManagerOptions = { children, turnIdleTimeoutMs: 150 };
+    const harness = await bootWithManager("silent", managerOptions);
+    const threadId = await createThread(harness.client);
+    const silentTurnId = await sendMessage(harness.client, threadId, "wedge me");
+
+    await awaitThreadStatus(harness.client, threadId, "error");
+
+    const failed = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(failed.find((row) => row.kind === "turn")).toMatchObject({
+      status: "error",
+      turnId: silentTurnId,
+    });
+
+    managerOptions.mode = "message";
+    const turnId = await sendMessage(harness.client, threadId, "again");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
+    expect(assistant).toMatchObject({ text: "hello from the fake agent", turnId });
+    expect(children).toHaveLength(2);
+    await awaitExited(children.slice(0, 1));
+  });
+
+  it("spawns nothing for a dispatch that resumes after dispose", async () => {
+    const children: ChildProcess[] = [];
+    const harness = await bootWithManager("message", { children });
+    const threadId = await createThread(harness.client);
+
+    // straight to the driver: the dispatch parks on the vault lock, so dispose lands before it spawns.
+    harness.driver.startTurn({ text: "too late", threadId, turnId: "turn_after_dispose" });
+    await harness.manager.dispose();
+    await harness.vault.git.runExclusive(async () => {
+      await Promise.resolve();
+    });
+    await setImmediate();
+
+    expect(children).toEqual([]);
   });
 });
