@@ -1120,8 +1120,12 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
-  `panelOpen` defaults off; a comment focus, the top bar's Comments or its
-  toggle opens it. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
+  `panelOpen` defaults off; its toggle opens it, and so does every entry
+  that shows something in it — a comment focus, the top bar's Comments, a
+  thread the composer launched or the palette picked — through one
+  `revealPanel` (`app/workspace.tsx`) that leaves zen, persists the open and
+  picks the tab, because an entry that only picks its tab or thread shows
+  nothing in a closed panel. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
   the flat underline row; the pill switch went with its last consumer. Its width persists through the same Fluid resize handle the
   rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
   second resize mechanism would be a second answer to one drag.

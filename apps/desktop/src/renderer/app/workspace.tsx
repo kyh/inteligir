@@ -15,6 +15,7 @@ import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
+import type { CommentFocus } from "./actions/comments-tab";
 import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
 import { NoteFooter } from "./note-footer";
@@ -80,6 +81,11 @@ export interface WorkspaceProps {
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 const EMPTY_THREADS: readonly Thread[] = [];
+
+// what the panel is asked to show; a comments reveal with no focus keeps the last one
+type PanelReveal =
+  | { tab: "actions"; threadId: string }
+  | { tab: "comments"; focus?: readonly string[] };
 
 // a note that never mounts (a refused open) must not leave a jump waiting forever
 const LIVE_EDITOR_WAIT_MS = 5000;
@@ -175,15 +181,32 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   useNoteCommentMeta(loadedPath);
 
-  const openThread = useCallback((threadId: string | null): void => {
-    setPanelThreadId(threadId);
-  }, []);
+  const [commentFocus, setCommentFocus] = useState<CommentFocus | null>(null);
+  // One verb for every entry that shows something in the panel: it starts closed, so an entry
+  // that only picks its tab or thread shows nothing.
+  const revealPanel = useCallback(
+    (target: PanelReveal): void => {
+      setZen(false);
+      setPanelOpenPersisted(true);
+      setPanelTab(target.tab);
+      if (target.tab === "actions") {
+        setPanelThreadId(target.threadId);
+      } else if (target.focus !== undefined) {
+        const ids = target.focus;
+        setCommentFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
+      }
+    },
+    [setPanelOpenPersisted],
+  );
+
+  const openThread = useCallback(
+    (threadId: string): void => {
+      revealPanel({ tab: "actions", threadId });
+    },
+    [revealPanel],
+  );
 
   // `create` flushes before adding: the route derives `anchored` from disk.
-  const [commentFocus, setCommentFocus] = useState<{
-    ids: readonly string[];
-    nonce: number;
-  } | null>(null);
   useEffect(() => {
     setCommentActions({
       create: async (id, text) => {
@@ -201,15 +224,13 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         return true;
       },
       open: (ids) => {
-        setPanelOpen(true);
-        setPanelTab("comments");
-        setCommentFocus({ ids, nonce: Date.now() });
+        revealPanel({ focus: ids, tab: "comments" });
       },
     });
     return () => {
       setCommentActions(null);
     };
-  }, [api, queryClient, noteStore]);
+  }, [api, queryClient, noteStore, revealPanel]);
 
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
     const { path } = noteStore.state().editor;
@@ -649,8 +670,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                     }}
                     commentCount={openCommentCount}
                     onOpenComments={() => {
-                      setPanelOpenPersisted(true);
-                      setPanelTab("comments");
+                      revealPanel({ tab: "comments" });
                     }}
                     onExportPdf={() => {
                       const { openPath: path } = noteStore.state();
