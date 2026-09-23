@@ -397,6 +397,7 @@ const knowledgeRouter = {
 };
 
 const systemRouter = {
+  browserHandoff: base.system.browserHandoff.handler(() => ({ nonce: "fixture-handoff" })),
   guide: base.system.guide.handler(({ context }) => ({ markdown: context.guideMarkdown })),
   status: base.system.status.handler(({ context }) => {
     const status: SystemStatusResponse = {

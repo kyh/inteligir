@@ -11,6 +11,7 @@ import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import { createAgentsService } from "./agents/agents-service";
+import { createBrowserSession } from "./browser-session";
 import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { createCommentsService } from "./comments/comments-service";
 import { systemOpenExternalUrl } from "./cloud/browser-opener";
@@ -228,6 +229,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
 
   const context: AppServices = {
     agents,
+    browserSession: createBrowserSession(),
     cloud,
     comments,
     connectors,

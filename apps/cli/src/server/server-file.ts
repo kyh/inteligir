@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
 import { constantTimeEqual } from "@repo/api/cloud/bytes";
+import { BROWSER_SESSION_COOKIE } from "./browser-session";
 import { errnoCode } from "./errno";
 import { stagedWriteFileSync } from "./staged-write";
 
@@ -18,15 +19,6 @@ const SERVER_FILE_MODE = 0o600;
 const TOKEN_BYTES = 32;
 
 const BEARER_PREFIX = "Bearer ";
-
-// a browser cannot attach an Authorization header to a navigation, an <img> or
-// a WebSocket, so it gets the token as a cookie. SameSite=Strict does not close
-// cross-port ("site" ignores the port); browser-request.ts checks the origin
-// of cookie-authed requests. not Secure: some browsers drop a Secure cookie on plain http.
-export const SERVER_TOKEN_COOKIE = "inteligir_session";
-
-export const serverTokenCookie = (token: string): string =>
-  `${SERVER_TOKEN_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/`;
 
 // lenient about extra keys: a newer build's file must not brick an older reader.
 const serverFileSchema = z.object({
@@ -76,7 +68,8 @@ export const removeServerFile = (dataDir: string): void => {
   rmSync(serverFilePath(dataDir), { force: true });
 };
 
-// the bearer proves the caller read the data dir; the cookie is ambient, so only it needs the same-origin check.
+// the bearer proves the caller read the data dir; the cookie holds the browser's own secret and
+// is ambient, so only it needs the same-origin check.
 export type TokenCarrier = "header" | "cookie";
 
 export interface PresentedCredential {
@@ -110,7 +103,7 @@ export const presentedCredential = (headers: {
     const value = authorization.slice(BEARER_PREFIX.length).trim();
     return value.length === 0 ? null : { carrier: "header", token: value };
   }
-  const cookie = cookieValue(headers.cookie, SERVER_TOKEN_COOKIE);
+  const cookie = cookieValue(headers.cookie, BROWSER_SESSION_COOKIE);
   return cookie === null ? null : { carrier: "cookie", token: cookie };
 };
 

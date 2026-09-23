@@ -4,6 +4,7 @@
 
 import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
+import { browserHandoffUrl } from "@repo/api/local/routes";
 import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
 import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
@@ -38,7 +39,7 @@ export interface ServeOverrides {
 
 export interface ServeResult {
   serverUrl: string;
-  // null when this install ships no UI (an unbuilt checkout).
+  // a single-use sign-in for one browser; null when this install ships no UI (an unbuilt checkout).
   uiUrl: string | null;
 }
 
@@ -161,7 +162,6 @@ const boot = async (
   const { app, injectWebSocket } = createApp({
     bus: runtime.bus,
     clientDir,
-    configuredPort: config.port,
     context: runtime.context,
     serverToken,
     voiceStreamHub: runtime.voiceStreamHub,
@@ -212,7 +212,11 @@ const boot = async (
   );
   console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
   const serverUrl = `http://127.0.0.1:${port}`;
-  return { serverUrl, uiUrl: clientDir === null ? null : `${serverUrl}/` };
+  const uiUrl =
+    clientDir === null
+      ? null
+      : browserHandoffUrl(`${serverUrl}/`, runtime.context.browserSession.mintHandoff());
+  return { serverUrl, uiUrl };
 };
 
 // both installers go on before the boot, over the live steps array: a ^C during

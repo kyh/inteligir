@@ -33,6 +33,7 @@ import { createUpdates } from "./updates";
 import type { UpdaterPort, Updates } from "./updates";
 import { resolveVaultEntry } from "./vault-entry";
 import {
+  browserSignInUrl,
   describeServerVerdict,
   planServerStart,
   resolveServerTarget,
@@ -669,6 +670,18 @@ const switchVaultFromMenu = async (vaultDir: string): Promise<void> => {
   }
 };
 
+const openInBrowserFromMenu = async (): Promise<void> => {
+  const server = live;
+  if (server === null) {
+    return;
+  }
+  try {
+    await shell.openExternal(await browserSignInUrl(server));
+  } catch (error) {
+    dialog.showErrorBox("Could not open Inteligir in the browser", toErrorMessage(error));
+  }
+};
+
 const pickAndSwitchFromMenu = async (): Promise<void> => {
   const picked = await pickVaultDir();
   if (picked !== null) {
@@ -764,9 +777,7 @@ const configureApplicationMenu = (): void => {
       submenu: [
         {
           click: () => {
-            if (live !== null) {
-              void shell.openExternal(`${live.origin}/`);
-            }
+            void openInBrowserFromMenu();
           },
           label: "Open in Browser",
         },

@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { BROWSER_SESSION_COOKIE } from "../browser-session";
 import {
   authorizationHeader,
   mintServerToken,
@@ -8,8 +9,6 @@ import {
   readServerFile,
   removeServerFile,
   SERVER_FILE_NAME,
-  SERVER_TOKEN_COOKIE,
-  serverTokenCookie,
   tokenAccepted,
   writeServerFile,
 } from "../server-file";
@@ -75,7 +74,7 @@ describe("what a request presents", () => {
     expect(
       presentedCredential({
         authorization: authorizationHeader("header-tok"),
-        cookie: `${SERVER_TOKEN_COOKIE}=cookie-tok`,
+        cookie: `${BROWSER_SESSION_COOKIE}=cookie-tok`,
       }),
     ).toEqual({ carrier: "header", token: "header-tok" });
   });
@@ -84,7 +83,7 @@ describe("what a request presents", () => {
     expect(
       presentedCredential({
         authorization: undefined,
-        cookie: `theme=dark; ${SERVER_TOKEN_COOKIE}=cookie-tok; other=1`,
+        cookie: `theme=dark; ${BROWSER_SESSION_COOKIE}=cookie-tok; other=1`,
       }),
     ).toEqual({ carrier: "cookie", token: "cookie-tok" });
   });
@@ -102,16 +101,5 @@ describe("what a request presents", () => {
     expect(tokenAccepted("abc", "abd")).toBe(false);
     expect(tokenAccepted("abc", "ab")).toBe(false);
     expect(tokenAccepted("abc", null)).toBe(false);
-  });
-});
-
-describe("the browser's carrier", () => {
-  it("is HttpOnly and SameSite=Strict — script cannot read it, a hostile page cannot send it", () => {
-    const cookie = serverTokenCookie("tok");
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("SameSite=Strict");
-    expect(cookie).toContain("Path=/");
-    // never `Secure`: some browsers drop a Secure cookie on plain-http loopback rather than ignoring the attribute.
-    expect(cookie).not.toContain("Secure");
   });
 });

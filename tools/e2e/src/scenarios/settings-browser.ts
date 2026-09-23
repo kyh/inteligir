@@ -56,7 +56,7 @@ export const settingsBrowser: Scenario = {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/settings`);
-      await agentBrowser(["open", `${app.baseUrl}/settings`], 60_000);
+      await agentBrowser(["open", await app.browserUrl("/settings")], 60_000);
       await agentBrowser(["wait", NAME_INPUT], 90_000);
 
       ctx.log("waiting for the signed-in status to reach the page");

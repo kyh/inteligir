@@ -7,6 +7,7 @@ import type { AgentStatus, DataDirScope } from "@repo/api/local/system/system-sc
 import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
 import type { AgentsService } from "./agents/agents-service";
+import type { BrowserSession } from "./browser-session";
 import type { CommentsService } from "./comments/comments-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
@@ -33,6 +34,7 @@ interface SystemFacts {
 
 export interface AppContext {
   agents: AgentsService;
+  browserSession: BrowserSession;
   cloud: CloudRuntime;
   comments: CommentsService;
   connectors: ConnectorsService;
