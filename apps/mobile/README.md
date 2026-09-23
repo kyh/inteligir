@@ -15,13 +15,18 @@ wire.
 
 ```
 src/
+  capture/      capture-sender.ts: one idempotency key per unsent capture,
+                kept across its retries so a lost response cannot duplicate
+                it (pure, unit-tested)
   sync/         the RN sync client (pure, unit-tested)
     sync-store.ts          the storage PORT (pull cursor + applied thread log)
     memory-sync-store.ts   the in-memory implementation (v1 runtime + the test fake)
     thread-log.ts          execute a planned page (@repo/api/cloud/sync/plan-page plans it)
     sync-runtime.ts        the pull loop over the contract's own session machine
                            (@repo/api/cloud/sync/sync-session); publishes the
-                           status store the screens subscribe to
+                           status store the screens subscribe to (`restoring`
+                           until the boot read ends), and lends that session to
+                           every other read under the sign-in
     thread-projection.ts   fold a thread's events into display rows
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
@@ -34,15 +39,20 @@ src/
                         (@repo/api/cloud/device/login-flow)
     device-name.ts      the name this phone offers the device list
   notes/        the vault read surface over the /v1/vault rows
-    notes-store.ts      tree + cached note reads + wiki resolver (pure, unit-tested)
+    notes-store.ts      tree + cached note reads + wiki resolver over the sync
+                        runtime's session (pure, unit-tested)
     note-cache.ts       the note-body cache port + its memory implementation
     expo-note-cache.ts  expo-file-system adapter ((commit, path)-keyed, durable)
     note-projection.ts  dialect markdown → typed blocks (pure, unit-tested)
     markdown-view.tsx   projected blocks → RN elements (the thin half)
-  lib/          composition root + hooks (app-runtime.ts), the external
-                store the runtimes publish through, theme, cloud URL
-  app/          expo-router screens: thread list + quick-capture, a thread
-                view, the notes list + read-only note view
+  lib/          the composition root: compose-runtime.ts (platform-free and
+                unit-tested: the restore, sign-out, revocation and resume)
+                and app-runtime.ts (its binding to the Keychain, the disk
+                cache and AppState, plus the hooks); the external store the
+                runtimes publish through, theme, cloud URL
+  app/          expo-router screens: sign-in, thread list + quick-capture, a
+                thread view, the notes list + read-only note view;
+                _layout.tsx holds the splash and the route guard
 ```
 
 ## The storage choice
@@ -67,8 +77,8 @@ mirroring the desktop's `<dataDir>/device-credential`.
 moves the tree's commit makes old rows unreachable and sweeps them. The TREE
 stays in memory on purpose: the resolver and the commit must be current before
 any read is pinned, so a cold launch re-fetches the listing and then reads
-note bodies from disk. A sign-in and a sign-out wipe the rows; the boot
-RESTORE keeps them — that launch is what the cache exists for. Which
+note bodies from disk. A sign-in, a sign-out and a revocation wipe the rows;
+the boot RESTORE keeps them — that launch is what the cache exists for. Which
 transition it is comes from the composition root, which knows, rather than
 from comparing bearers inside the store. Image BYTES are the stated residual:
 an embed's fetch lands in the platform's own image caches, which a sign-out
@@ -96,18 +106,33 @@ row and writes the answer through the injected credential store — here the
 Keychain adapter, which also activates the sync and notes runtimes. The
 password is held nowhere on the phone: it crosses the wire once and only the
 device credential remains, revocable from the account's Devices page. A
-refusal on the wire and a Keychain that cannot write both land in the one
-store the screen reads, so each is shown rather than dropped.
+refusal on the wire and a Keychain that cannot write, read or delete all land
+in the one store the screen reads, so each is shown rather than dropped.
+
+The notes store holds no client of its own: it reads under the sync runtime's
+session, so one fence covers every request a sign-in makes, and an
+`unauthorized` from a vault read, a capture or a pull ends the sign-in for all
+of them. The composition root then idles the tree and wipes the note cache,
+and keeps the credential, so the sign-in screen can say this device was
+signed out. Which screens exist is the ROUTE GUARD's answer
+(`Stack.Protected` in `app/_layout.tsx`), never a per-screen branch: the
+signed-in screens and `app/sign-in.tsx` each sit behind one guard, and a
+revocation takes the signed-in history away with it. A cold launch is
+`restoring` until the Keychain read ends, and the splash stays up and no
+navigator mounts until then, so the sign-in form never flashes over a device
+that is signed in.
 
 ## Verified vs device-side
 
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the sync client (pull applies by global seq
   idempotently, and a pass neither pushes a thread event nor claims a capture),
-  the credential codec, and the sign-in store — all against faked storage /
-  fetch. Unit tests, no device.
+  the credential codec, the sign-in store, the notes store, the capture
+  sender, and the composition's restore, sign-out, revocation and resume — all
+  against faked storage / fetch. Unit tests, no device.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
-  actually booting, the expo-secure-store Keychain round trip, and a live
+  actually booting, the held splash and the route guard's redirects, the
+  expo-secure-store Keychain round trip, the AppState resume, and a live
   sign-in against a running cloud Worker.
 
 ## Dev

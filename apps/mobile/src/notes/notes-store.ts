@@ -6,17 +6,19 @@ import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
-import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudFetch, VaultAssetSource } from "@repo/api/cloud/client";
+import { describeCloudFailure } from "@repo/api/cloud/client";
+import type { CloudClient, VaultAssetSource } from "@repo/api/cloud/client";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
+import type { SessionPort } from "../sync/sync-runtime";
 import { createMemoryNoteCache } from "./note-cache";
 import type { CachedNote, NoteCache } from "./note-cache";
 
 const NOTE_CACHE_MAX = 100;
 
 const MAX_TREE_PAGES = 40;
+
+const NOT_SIGNED_IN = "Not signed in.";
 
 export type NotesTreeState =
   | { state: "idle" }
@@ -35,15 +37,14 @@ export type CommentsRead =
 // a file read pinned to the tree's commit; `notFound` is the one refusal a reader may treat as absence
 type FileRead = ({ ok: true } & CachedNote) | { ok: false; notFound: boolean; message: string };
 
-export interface CredentialHandover {
-  credential: DeviceCredential;
-  // restored: the boot read of a credential whose cached rows are on disk. signed-in: nothing on
-  // disk is this sign-in's.
-  source: "restored" | "signed-in";
-}
+// restored: the boot read of a credential whose cached rows are on disk. signed-in: nothing on
+// disk is this sign-in's.
+export type SignInSource = "restored" | "signed-in";
 
 export interface NotesStore {
-  setCredential: (next: CredentialHandover | null) => void;
+  // drops what the previous sign-in fetched. null is no sign-in, or one the cloud refused, and
+  // wipes the disk rows like a new sign-in does: only a restore keeps them.
+  reset: (next: SignInSource | null) => void;
   refresh: () => Promise<void>;
   tree: ReadableStore<NotesTreeState>;
   readNote: (path: string) => Promise<NoteRead>;
@@ -56,12 +57,9 @@ export interface NotesStore {
 }
 
 export interface CreateNotesStoreArgs {
-  cloudUrl: string;
-  fetch?: CloudFetch;
+  session: SessionPort;
   cache?: NoteCache;
 }
-
-type Client = ReturnType<typeof createCloudClient>;
 
 const bestEffort = (work: Promise<void>): void => {
   void (async () => {
@@ -73,49 +71,47 @@ const bestEffort = (work: Promise<void>): void => {
   })();
 };
 
+// every await is followed by the session's fence: a response from an earlier sign-in, or from one
+// the cloud has since refused, must not land.
 export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
-  let client: Client | null = null;
+  const { session } = args;
   let resolver: TargetResolver | null = null;
-  // a generation, not a boolean, so a new sign-in's refresh is never blocked by the previous sign-in's
-  // stalled one.
+  // a session id, not a boolean, so a new sign-in's refresh is never blocked by the previous
+  // sign-in's stalled one.
   let refreshingFor = -1;
-  // bumped on every credential change and checked after every await: a response from the previous
-  // sign-in must not land.
-  let generation = 0;
   const noteCache = args.cache ?? createMemoryNoteCache(NOTE_CACHE_MAX);
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
   const assetSources = new Map<string, VaultAssetSource>();
 
   // only a read pinned to the tree's commit touches the cache: head moves.
   const readFile = async (path: string): Promise<FileRead> => {
-    if (client === null) {
-      return { message: "Not signed in.", notFound: false, ok: false };
+    const current = session.current();
+    if (current.kind !== "live") {
+      return { message: NOT_SIGNED_IN, notFound: false, ok: false };
     }
-    // captured: a sign-out nulls the closure's client mid-await.
-    const activeClient = client;
-    const startedAt = generation;
-    const current = tree.get();
-    const commit = current.state === "ready" ? current.commit : undefined;
+    const view = tree.get();
+    const commit = view.state === "ready" ? view.commit : undefined;
 
     if (commit !== undefined) {
       const cached = await noteCache.get(commit, path).catch(() => null);
-      if (generation !== startedAt) {
-        return { message: "Not signed in.", notFound: false, ok: false };
+      if (!session.fenced(current.id)) {
+        return { message: NOT_SIGNED_IN, notFound: false, ok: false };
       }
       if (cached !== null) {
         return { ok: true, ...cached };
       }
     }
 
-    const query: Parameters<Client["vaultFile"]>[0] = { path };
+    const query: Parameters<CloudClient["vaultFile"]>[0] = { path };
     if (commit !== undefined) {
       query.ref = commit;
     }
-    const result = await activeClient.vaultFile(query);
-    if (generation !== startedAt) {
-      return { message: "Not signed in.", notFound: false, ok: false };
+    const result = await current.client.vaultFile(query);
+    if (!session.fenced(current.id)) {
+      return { message: NOT_SIGNED_IN, notFound: false, ok: false };
     }
     if (!result.ok) {
+      session.recordFailure(result.failure);
       return {
         message: describeCloudFailure(result.failure),
         notFound: result.failure.kind === "refused" && result.failure.code === "not-found",
@@ -130,15 +126,16 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   return {
     assetSource(path) {
-      const current = tree.get();
-      if (client === null || current.state !== "ready") {
+      const current = session.current();
+      const view = tree.get();
+      if (current.kind !== "live" || view.state !== "ready") {
         return null;
       }
       const cached = assetSources.get(path);
       if (cached !== undefined) {
         return cached;
       }
-      const source = client.vaultAssetSource({ path, ref: current.commit });
+      const source = current.client.vaultAssetSource({ path, ref: view.commit });
       assetSources.set(path, source);
       return source;
     },
@@ -174,11 +171,12 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     },
 
     async refresh() {
-      if (client === null || refreshingFor === generation) {
+      const current = session.current();
+      if (current.kind !== "live" || refreshingFor === current.id) {
         return;
       }
-      const startedAt = generation;
-      refreshingFor = startedAt;
+      const sessionId = current.id;
+      refreshingFor = sessionId;
       if (tree.get().state === "idle") {
         tree.set({ state: "loading" });
       }
@@ -187,18 +185,23 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         let commit: string | undefined;
         let after: string | undefined;
         for (let page = 0; page < MAX_TREE_PAGES; page += 1) {
-          const query: Parameters<Client["vaultTree"]>[0] = {};
+          const query: Parameters<CloudClient["vaultTree"]>[0] = {};
           if (commit !== undefined) {
             query.ref = commit;
           }
           if (after !== undefined) {
             query.after = after;
           }
-          const result = await client.vaultTree(query);
-          if (generation !== startedAt) {
+          const result = await current.client.vaultTree(query);
+          if (!session.fenced(sessionId)) {
             return;
           }
           if (!result.ok) {
+            // a listing at a commit stays true, so a refresh that could not reach the cloud (a
+            // resume while offline) keeps it rather than trading it for an error.
+            if (session.recordFailure(result.failure) === "ended" || tree.get().state === "ready") {
+              return;
+            }
             // an account with no hosted vault answers 404 forever; that is a state, not a fault to
             // hunt.
             const noVault =
@@ -233,37 +236,23 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         tree.set({ commit, entries, state: "ready" });
         bestEffort(noteCache.sweep(commit));
       } finally {
-        if (refreshingFor === startedAt) {
+        if (refreshingFor === sessionId) {
           refreshingFor = -1;
         }
       }
     },
 
-    resolveWiki(target) {
-      return resolver === null ? null : resolver.resolveWiki(target);
-    },
-
-    setCredential(next) {
-      generation += 1;
+    reset(next) {
       resolver = null;
       assetSources.clear();
       tree.set({ state: "idle" });
-      // durable rows survive only the boot restore of the credential that wrote them.
-      if (next === null || next.source === "signed-in") {
+      if (next !== "restored") {
         bestEffort(noteCache.clear());
       }
-      if (next === null) {
-        client = null;
-        return;
-      }
-      const clientArgs: Parameters<typeof createCloudClient>[0] = {
-        baseUrl: args.cloudUrl,
-        credential: next.credential.credential,
-      };
-      if (args.fetch !== undefined) {
-        clientArgs.fetch = args.fetch;
-      }
-      client = createCloudClient(clientArgs);
+    },
+
+    resolveWiki(target) {
+      return resolver === null ? null : resolver.resolveWiki(target);
     },
 
     tree,

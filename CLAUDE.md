@@ -975,7 +975,15 @@ agents default`; unset falls back
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime` and the login flow publish stores the screens subscribe to, so
   a poll pass, a revocation or a refused login is shown. A refused capture keeps
-  its text and says why. `apps/mobile/src/sync/sync-runtime.ts`,
+  its text and says why, and its retry carries the same idempotency key. A
+  sign-in is ONE session: the notes store reads under `SyncRuntime`'s session
+  rather than a client of its own, so a revocation any request hears ends the
+  sign-in for all of them, and the composition root idles the notes and wipes
+  their cache (`apps/mobile/src/lib/compose-runtime.ts`). Which screens exist
+  is the route guard's answer (`Stack.Protected` in
+  `apps/mobile/src/app/_layout.tsx`), never a per-screen branch, and a cold
+  launch is `restoring` under the held splash until the Keychain read ends.
+  `apps/mobile/src/sync/sync-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**

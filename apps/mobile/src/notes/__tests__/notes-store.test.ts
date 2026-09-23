@@ -1,20 +1,23 @@
+import { createCloudClient } from "@repo/api/cloud/client";
+import type { CloudFetch } from "@repo/api/cloud/client";
+import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
+import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
+import { createMemorySyncStore } from "../../sync/memory-sync-store";
+import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createMemoryNoteCache } from "../note-cache";
 import type { NoteCache } from "../note-cache";
 import { createNotesStore } from "../notes-store";
+import type { SignInSource } from "../notes-store";
 
 const COMMIT = "c".repeat(40);
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const OTHER_CREDENTIAL = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_2" };
 
-const restored = (credential: typeof CREDENTIAL) => ({ credential, source: "restored" }) as const;
-
-const signedIn = (credential: typeof CREDENTIAL) => ({ credential, source: "signed-in" }) as const;
-
 interface FakeCloud {
   requests: string[];
-  fetch: (input: string, init?: RequestInit) => Promise<Response>;
+  fetch: CloudFetch;
 }
 
 const fakeCloud = (extra: Record<string, string> = {}): FakeCloud => {
@@ -61,10 +64,40 @@ const fakeCloud = (extra: Record<string, string> = {}): FakeCloud => {
   };
 };
 
+const refusedAs = (code: string, message: string): Response =>
+  Response.json({ error: { code, message } }, { status: code === "unauthorized" ? 401 : 404 });
+
+// the store reads under the sync runtime's session, as the composition root wires it
+const notesOver = (fetch: CloudFetch, cache?: NoteCache) => {
+  const sync = createSyncRuntime({
+    cloudUrl: "https://cloud.test",
+    createClient: (credential) =>
+      createCloudClient({
+        baseUrl: "https://cloud.test",
+        credential: credential.credential,
+        fetch,
+      }),
+    pollIntervalMs: null,
+    store: createMemorySyncStore(),
+  });
+  const store = createNotesStore(
+    cache === undefined ? { session: sync.session } : { cache, session: sync.session },
+  );
+  const signIn = (credential: DeviceCredential, source: SignInSource): void => {
+    sync.setCredential(credential);
+    store.reset(source);
+  };
+  const signOut = (): void => {
+    sync.setCredential(null);
+    store.reset(null);
+  };
+  return { signIn, signOut, store, sync };
+};
+
 describe("the notes store", () => {
   it("makes no request without a credential — the file is the switch here too", async () => {
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
+    const { store } = notesOver(cloud.fetch);
     await store.refresh();
     expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(cloud.requests).toEqual([]);
@@ -73,8 +106,8 @@ describe("the notes store", () => {
 
   it("walks every page into one listing pinned to one commit", async () => {
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     const tree = store.tree.get();
     expect(tree).toEqual({
@@ -92,8 +125,8 @@ describe("the notes store", () => {
 
   it("resolves wiki targets over the tree with the vault's own tiers", async () => {
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     expect(store.resolveWiki("b")).toBe("notes/b.md");
     expect(store.resolveWiki("deep/c")).toBe("notes/deep/c.md");
@@ -102,8 +135,8 @@ describe("the notes store", () => {
 
   it("caches a note at the tree's commit — one request, many reads", async () => {
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     const first = await store.readNote("notes/b.md");
     const again = await store.readNote("notes/b.md");
@@ -114,37 +147,48 @@ describe("the notes store", () => {
   });
 
   it("reads 'no hosted vault' as the empty STATE, not an error", async () => {
-    const store = createNotesStore({
-      cloudUrl: "https://cloud.test",
-      fetch: async () =>
-        Response.json(
-          { error: { code: "not-found", message: "This account has no hosted vault yet." } },
-          { status: 404 },
-        ),
-    });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(async () =>
+      refusedAs("not-found", "This account has no hosted vault yet."),
+    );
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     const tree = store.tree.get();
     expect(tree.state).toBe("empty");
   });
 
-  it("a response from the previous sign-in never lands — the generation fence", async () => {
+  it("keeps a ready listing when a later refresh cannot reach the cloud", async () => {
+    const cloud = fakeCloud();
+    let offline = false;
+    const { signIn, store } = notesOver(async (input, init) => {
+      if (offline) {
+        throw new Error("offline");
+      }
+      return await cloud.fetch(input, init);
+    });
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+    const ready = store.tree.get();
+    expect(ready.state).toBe("ready");
+
+    offline = true;
+    await store.refresh();
+    expect(store.tree.get()).toBe(ready);
+  });
+
+  it("a response from the previous sign-in never lands — the session fence", async () => {
     const releases: (() => void)[] = [];
     // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the fetch by hand
     const gate = new Promise<void>((resolve) => {
       releases.push(resolve);
     });
     const inner = fakeCloud();
-    const store = createNotesStore({
-      cloudUrl: "https://cloud.test",
-      fetch: async (input, init) => {
-        await gate;
-        return await inner.fetch(input, init);
-      },
+    const { signIn, signOut, store } = notesOver(async (input, init) => {
+      await gate;
+      return await inner.fetch(input, init);
     });
-    store.setCredential(restored(CREDENTIAL));
+    signIn(CREDENTIAL, "restored");
     const pending = store.refresh();
-    store.setCredential(null);
+    signOut();
     releases[0]?.();
     await pending;
     expect(store.tree.get()).toEqual({ state: "idle" });
@@ -152,21 +196,21 @@ describe("the notes store", () => {
 
   it("signing in again resets the previous account's state before the new client serves", async () => {
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     expect(store.tree.get().state).toBe("ready");
-    store.setCredential(signedIn(OTHER_CREDENTIAL));
+    signIn(OTHER_CREDENTIAL, "signed-in");
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
   });
 
   it("signing out clears everything and answers idle", async () => {
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, signOut, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
-    store.setCredential(null);
+    signOut();
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
     expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
@@ -174,8 +218,8 @@ describe("the notes store", () => {
 
   it("composes an asset source pinned to the tree's commit, credential in a header", async () => {
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, signOut, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
     expect(store.assetSource("media/a.png")).toBeNull();
     await store.refresh();
     const source = store.assetSource("media/a.png");
@@ -186,8 +230,45 @@ describe("the notes store", () => {
     expect(url.searchParams.get("ref")).toBe(COMMIT);
     expect(source?.headers).toEqual({ authorization: `Bearer ${CREDENTIAL.credential}` });
     expect(store.assetSource("media/a.png")).toBe(source);
-    store.setCredential(null);
+    signOut();
     expect(store.assetSource("media/a.png")).toBeNull();
+  });
+});
+
+describe("the notes store under the sync session", () => {
+  it("ends the sign-in when a vault read is refused as unauthorized", async () => {
+    const cloud = fakeCloud();
+    const { signIn, store, sync } = notesOver(async (input, init) =>
+      new URL(input).pathname === VAULT_API_PATHS.file
+        ? refusedAs("unauthorized", "This device was signed out.")
+        : await cloud.fetch(input, init),
+    );
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+
+    const read = await store.readNote("a.md");
+
+    expect(read).toEqual({ message: "This device was signed out.", ok: false });
+    expect(sync.get()).toMatchObject({ deviceId: CREDENTIAL.deviceId, state: "unauthorized" });
+  });
+
+  it("refuses a read once the sync side has heard unauthorized, without asking the cloud", async () => {
+    const cloud = fakeCloud();
+    const { signIn, store, sync } = notesOver(async (input, init) =>
+      new URL(input).pathname === SYNC_API_PATHS.pull
+        ? refusedAs("unauthorized", "This device was signed out.")
+        : await cloud.fetch(input, init),
+    );
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+    const before = cloud.requests.length;
+
+    await sync.syncNow();
+
+    expect(sync.get().state).toBe("unauthorized");
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
+    expect(store.assetSource("media/a.png")).toBeNull();
+    expect(cloud.requests).toHaveLength(before);
   });
 });
 
@@ -221,24 +302,16 @@ describe("the notes store over a durable cache", () => {
   it("serves a cached note across a relaunch — no second request", async () => {
     const { cache } = recordingCache();
     const firstLaunch = fakeCloud();
-    const first = createNotesStore({
-      cache,
-      cloudUrl: "https://cloud.test",
-      fetch: firstLaunch.fetch,
-    });
-    first.setCredential(restored(CREDENTIAL));
-    await first.refresh();
-    await first.readNote("notes/b.md");
+    const first = notesOver(firstLaunch.fetch, cache);
+    first.signIn(CREDENTIAL, "restored");
+    await first.store.refresh();
+    await first.store.readNote("notes/b.md");
 
     const secondLaunch = fakeCloud();
-    const second = createNotesStore({
-      cache,
-      cloudUrl: "https://cloud.test",
-      fetch: secondLaunch.fetch,
-    });
-    second.setCredential(restored(CREDENTIAL));
-    await second.refresh();
-    const read = await second.readNote("notes/b.md");
+    const second = notesOver(secondLaunch.fetch, cache);
+    second.signIn(CREDENTIAL, "restored");
+    await second.store.refresh();
+    const read = await second.store.readNote("notes/b.md");
     expect(read).toEqual({ commit: COMMIT, content: "# b\n", ok: true, path: "notes/b.md" });
     const fileRequests = secondLaunch.requests.filter((line) =>
       line.startsWith(VAULT_API_PATHS.file),
@@ -249,8 +322,8 @@ describe("the notes store over a durable cache", () => {
   it("never caches a read the tree did not pin — 'head' moves", async () => {
     const { cache, calls } = recordingCache();
     const cloud = fakeCloud();
-    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(cloud.fetch, cache);
+    signIn(CREDENTIAL, "restored");
     // no refresh on purpose: the read must be unpinned.
     const read = await store.readNote("a.md");
     expect(read.ok).toBe(true);
@@ -261,8 +334,8 @@ describe("the notes store over a durable cache", () => {
   it("sweeps to the tree's commit on every refresh", async () => {
     const { cache, calls } = recordingCache();
     const cloud = fakeCloud();
-    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(cloud.fetch, cache);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     expect(calls).toContain(`sweep ${COMMIT}`);
   });
@@ -281,27 +354,27 @@ describe("the notes store over a durable cache", () => {
       },
     };
     const cloud = fakeCloud();
-    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, signOut, store } = notesOver(cloud.fetch, cache);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     await inner.set({ commit: COMMIT, content: "# a\n", path: "a.md" });
 
     const pending = store.readNote("a.md");
-    store.setCredential(null);
+    signOut();
     releases[0]?.();
     expect(await pending).toEqual({ message: "Not signed in.", ok: false });
   });
 
   it("wipes on a sign-in and on sign-out; the boot restore keeps its rows", () => {
     const { cache, calls } = recordingCache();
-    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test" });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, signOut } = notesOver(fakeCloud().fetch, cache);
+    signIn(CREDENTIAL, "restored");
     expect(calls).toEqual([]);
-    store.setCredential(signedIn(CREDENTIAL));
+    signIn(CREDENTIAL, "signed-in");
     expect(calls).toEqual(["clear"]);
-    store.setCredential(signedIn(OTHER_CREDENTIAL));
+    signIn(OTHER_CREDENTIAL, "signed-in");
     expect(calls).toEqual(["clear", "clear"]);
-    store.setCredential(null);
+    signOut();
     expect(calls).toEqual(["clear", "clear", "clear"]);
   });
 
@@ -321,12 +394,8 @@ describe("the notes store over a durable cache", () => {
       },
     };
     const cloud = fakeCloud();
-    const store = createNotesStore({
-      cache: angry,
-      cloudUrl: "https://cloud.test",
-      fetch: cloud.fetch,
-    });
-    store.setCredential(restored(CREDENTIAL));
+    const { signIn, store } = notesOver(cloud.fetch, angry);
+    signIn(CREDENTIAL, "restored");
     await store.refresh();
     expect(store.tree.get().state).toBe("ready");
     expect(await store.readNote("notes/b.md")).toEqual({
@@ -340,8 +409,8 @@ describe("the notes store over a durable cache", () => {
 
 const signedInStore = async (extra: Record<string, string>) => {
   const cloud = fakeCloud(extra);
-  const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-  store.setCredential(restored(CREDENTIAL));
+  const { signIn, store } = notesOver(cloud.fetch);
+  signIn(CREDENTIAL, "restored");
   await store.refresh();
   return { cloud, store };
 };

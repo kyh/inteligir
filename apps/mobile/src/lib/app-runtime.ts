@@ -1,46 +1,22 @@
 import { useMemo, useSyncExternalStore } from "react";
+import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
 import {
   clearDeviceCredential,
   readDeviceCredential,
   writeDeviceCredential,
 } from "../credential/secure-store-credential";
-import { createLoginStore } from "../login/login-store";
-import type { LoginRequest, LoginState, LoginStore } from "../login/login-store";
-import { createMemorySyncStore } from "../sync/memory-sync-store";
+import type { LoginRequest, LoginState } from "../login/login-store";
 import { createExpoNoteCache } from "../notes/expo-note-cache";
-import { createNotesStore } from "../notes/notes-store";
-import type {
-  CredentialHandover,
-  CommentsRead,
-  NoteRead,
-  NotesStore,
-  NotesTreeState,
-} from "../notes/notes-store";
-import { createSyncRuntime } from "../sync/sync-runtime";
-import type { SyncRuntime, SyncStatus } from "../sync/sync-runtime";
-import type { SyncStore } from "../sync/sync-store";
+import type { CommentsRead, NoteRead, NotesTreeState } from "../notes/notes-store";
+import type { SyncStatus } from "../sync/sync-runtime";
 import { projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
 import { getCloudUrl } from "./cloud-url";
-
-interface AppRuntime {
-  store: SyncStore;
-  sync: SyncRuntime;
-  notes: NotesStore;
-  login: LoginStore;
-  started: boolean;
-}
-
-// the tree is fetched here so no screen carries its own cold-fetch effect.
-const activate = (rt: Pick<AppRuntime, "sync" | "notes">, handover: CredentialHandover): void => {
-  rt.sync.setCredential(handover.credential);
-  rt.notes.setCredential(handover);
-  rt.sync.start();
-  void rt.notes.refresh();
-};
+import { composeRuntime } from "./compose-runtime";
+import type { AppRuntime } from "./compose-runtime";
 
 let runtime: AppRuntime | null = null;
 
@@ -53,21 +29,33 @@ const resolveCloudUrl = (): string => {
   }
 };
 
+// console.warn would raise a LogBox toast per skipped row or offline pass.
+const devLog = (message: string): void => {
+  if (__DEV__) {
+    console.log(`sync: ${message}`);
+  }
+};
+
 const build = (): AppRuntime => {
-  const store = createMemorySyncStore();
-  const cloudUrl = resolveCloudUrl();
-  const sync = createSyncRuntime({ cloudUrl, store });
-  const notes = createNotesStore({ cache: createExpoNoteCache(), cloudUrl });
-  const login = createLoginStore({
-    client: { baseUrl: cloudUrl },
-    store: {
-      write: async (credential) => {
-        await writeDeviceCredential(credential);
-        activate({ notes, sync }, { credential, source: "signed-in" });
-      },
+  const rt = composeRuntime({
+    cache: createExpoNoteCache(),
+    cloudUrl: resolveCloudUrl(),
+    credentials: {
+      clear: clearDeviceCredential,
+      read: readDeviceCredential,
+      write: writeDeviceCredential,
     },
+    // the contract requires an idempotency key of at least 8 chars.
+    mintCaptureKey: () => hexFromBytes(Crypto.getRandomBytes(16)),
+    sync: { onDebug: devLog },
   });
-  return { login, notes, started: false, store, sync };
+  // never removed: the runtime lives as long as the app, and a resume while signed out is a no-op.
+  AppState.addEventListener("change", (state) => {
+    if (state === "active") {
+      rt.resume();
+    }
+  });
+  return rt;
 };
 
 const getRuntime = (): AppRuntime => {
@@ -76,15 +64,7 @@ const getRuntime = (): AppRuntime => {
 };
 
 export const ensureStarted = async (): Promise<void> => {
-  const rt = getRuntime();
-  if (rt.started) {
-    return;
-  }
-  rt.started = true;
-  const stored = await readDeviceCredential();
-  if (stored !== null) {
-    activate(rt, { credential: stored, source: "restored" });
-  }
+  await getRuntime().start();
 };
 
 export const syncNow = async (): Promise<void> => {
@@ -92,26 +72,17 @@ export const syncNow = async (): Promise<void> => {
 };
 
 export const logout = async (): Promise<void> => {
-  const rt = getRuntime();
-  await clearDeviceCredential();
-  rt.sync.setCredential(null);
-  rt.notes.setCredential(null);
+  await getRuntime().logout();
 };
 
 export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);
 };
 
-// the contract requires an idempotency key of at least 8 chars.
-const newIdempotencyKey = (): string => hexFromBytes(Crypto.getRandomBytes(16));
-
 export const submitCapture = async (
   text: string,
 ): Promise<{ ok: true } | { ok: false; failure: CloudFailure }> => {
-  const result = await getRuntime().sync.createCapture({
-    idempotencyKey: newIdempotencyKey(),
-    text,
-  });
+  const result = await getRuntime().submitCapture(text);
   return result.ok ? { ok: true } : { failure: result.failure, ok: false };
 };
 
