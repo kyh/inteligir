@@ -1,0 +1,148 @@
+# Vercel-style previews on Cloudflare Worker Previews. Every PR from a branch of this repo gets
+# its own Preview of inteligir-web once CI is green: its own URL and Durable Objects over the
+# preview-only D1 and bucket that apps/web/wrangler.jsonc's `previews` block names. The PR shows
+# it twice, as Vercel's does: one sticky status comment, and a "View deployment" button from a
+# GitHub deployment in "Preview – inteligir-web". Closing the PR deletes the Preview.
+#
+# workflow_run, not pull_request, for the reason Deploy gives: a preview of a red tree is noise.
+# It also keeps this out of the CI-parity sweep, which reads every pull_request workflow as a
+# gate. workflow_run runs with secrets against PR code, so it is limited to this repo's own
+# branches; a fork's PR never reaches the build.
+#
+# Needs, beyond Deploy's CLOUDFLARE_API_TOKEN: the token also granted D1: Edit and Workers R2
+# Storage: Edit, the CLOUDFLARE_ACCOUNT_ID secret, and once, from a machine:
+#   pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET
+name: Preview
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  # closed only, and nothing from the PR is checked out: this leg deletes by name
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.pull_requests[0].number
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
+    concurrency:
+      group: preview-${{ github.event.workflow_run.pull_requests[0].number }}
+    env:
+      PROJECT: inteligir-web
+      PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      GITHUB_TOKEN: ${{ github.token }}
+      TURBO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Report building
+        run: node .github/scripts/worker-preview.mjs report "$PROJECT" building
+
+      - uses: pnpm/setup@v2
+        with:
+          runtime: node@24
+          cache: true
+
+      # find-or-create, so the first PR provisions them and every later one reuses them
+      - name: Preview resources
+        id: resources
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          d1_id() { pnpm exec wrangler d1 list --json | jq -r '.[] | select(.name == "inteligir-auth-preview") | .uuid'; }
+          id="$(d1_id)"
+          if [ -z "$id" ]; then
+            pnpm exec wrangler d1 create inteligir-auth-preview
+            id="$(d1_id)"
+          fi
+          pnpm exec wrangler r2 bucket info inteligir-vault-preview >/dev/null 2>&1 \
+            || pnpm exec wrangler r2 bucket create inteligir-vault-preview
+          sed -i "s/<REPLACE_ME>/$id/" wrangler.jsonc
+          echo "d1_id=$id" >> "$GITHUB_OUTPUT"
+
+      # --force: this is the preview database, and a PR's schema is the one it ships
+      - name: Preview schema
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_DATABASE_ID: ${{ steps.resources.outputs.d1_id }}
+          CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec drizzle-kit push --force
+
+      - name: Build
+        run: pnpm turbo run build --filter=@repo/web...
+
+      - name: Deploy preview
+        id: preview
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_URL: ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.workflow_run.pull_requests[0].number }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+        run: |
+          pnpm exec wrangler preview --name "pr-$PR_NUMBER" --tag "${HEAD_SHA:0:7}"
+          url="$(jq -rs 'map(select(.type == "preview")) | last | (.preview_urls[0] // .deployment_urls[0] // empty)' "$WRANGLER_OUTPUT_FILE_PATH")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Report ready
+        env:
+          URL: ${{ steps.preview.outputs.url }}
+        run: node .github/scripts/worker-preview.mjs report "$PROJECT" ready "$URL"
+
+      - name: Report failure
+        if: failure()
+        run: node .github/scripts/worker-preview.mjs report "$PROJECT" error
+
+  cleanup:
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      # the base branch: pull_request_target must never run the PR's code
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/setup@v2
+        with:
+          runtime: node@24
+          cache: true
+
+      # a PR that never went green never had a Preview, so a miss is not a failure
+      - name: Delete preview
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler preview delete --name "pr-$PR_NUMBER" --skip-confirmation || true
+
+      - name: Report deleted
+        run: node .github/scripts/worker-preview.mjs close inteligir-web

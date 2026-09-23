@@ -199,3 +199,33 @@ does not know, while a new Worker against an old database 500s on every
 request touching a table that isn't there. The workflow's one secret is
 `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, plus Workers Routes: Edit on
 the inteligir.com zone).
+
+## Previews
+
+Every PR from a branch of this repo gets a
+[Worker Preview](https://developers.cloudflare.com/workers/previews/) once CI is
+green, the way Vercel previews a PR: a sticky comment with the status and the
+URL, a "View deployment" button on the PR, a fresh deploy on every push, and the
+Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
+`.github/scripts/worker-preview.mjs` draws the comment and the deployment.
+
+A Preview never touches production data. `wrangler.jsonc`'s `previews` block
+binds `inteligir-auth-preview` (D1) and `inteligir-vault-preview` (R2), which
+the workflow creates on first use and pushes the PR's schema into with
+`drizzle-kit push --force`; the Durable Objects are a fresh namespace per
+Preview. All PRs share the one preview D1, so an account made on one Preview
+signs in on the next. There is no `send_email` binding, so a reset email is
+logged, not sent. Sign-up stays invite-gated: mint a code into the preview D1
+to create the first account.
+
+Setup, once:
+
+```bash
+# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit, and the
+# repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
+pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET  # a preview-only value
+```
+
+Locally, `wrangler preview --name <name>` works once `<REPLACE_ME>` in the
+`previews` block holds the preview D1's id (`wrangler d1 info
+inteligir-auth-preview`); leave it uncommitted.

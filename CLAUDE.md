@@ -248,7 +248,7 @@ to the END of its group.
 - [Knowledge: index, search and links](#knowledge-index-search-and-links) — 12
 - [Agents and threads](#agents-and-threads) — 11
 - [Dictation](#dictation) — 6
-- [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
+- [Cloud, sync and accounts](#cloud-sync-and-accounts) — 18
 - [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
 - [Desktop workspace surfaces](#desktop-workspace-surfaces) — 6
 - [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
@@ -946,6 +946,19 @@ agents default`; unset falls back
   `uniqueIndex("<table>_<column>_unique")` in the table's extra config,
   `drizzle-kit push --explain` against a 0.31-shaped database reports no
   changes; refuse any plan that recreates a table.
+
+- **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**, and
+  it binds preview-only resources. Workers Builds would deploy on push and could
+  not wait for CI or keep Deploy's environment gate, so previews ride
+  `workflow_run` after CI like Deploy does (which also keeps them out of the
+  CI-parity sweep), limited to this repo's branches because that trigger holds
+  secrets. A preview inherits no binding, so `apps/web/wrangler.jsonc` restates
+  each against `inteligir-auth-preview` / `inteligir-vault-preview`; pointing a
+  preview at the production D1 was rejected, since PR code would write real
+  accounts. The status is one sticky comment plus a GitHub deployment on the
+  head commit (`.github/scripts/worker-preview.mjs`), created by the script
+  because a job's `environment:` under `workflow_run` records the default
+  branch. `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
 
 ### Server process and the desktop shell
 
