@@ -12,7 +12,8 @@ import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("tree-ops");
-// sorts before the seeded notes, so the virgin boot opens it: the pin then rides the open buffer.
+// not the note the virgin boot opens (the listing puts folders first), so the pin is a closed
+// note's guarded write and the reload below names the moved note rather than trusting the boot.
 const NOTE = "Aardvark.md";
 const PROSE = "A burrowing note.";
 // the spaced name a paste writes as it is; the move re-bases it file-relative and percent-encoded
@@ -97,7 +98,10 @@ export const treeOpsBrowser: Scenario = {
 
       // a fresh load, so no image the note drew before the move can answer for it
       ctx.log("the moved note's re-based image still loads");
-      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
+      await agentBrowser(
+        ["open", await app.browserUrl(`/?note=${encodeURIComponent(`${FOLDER}/${NOTE}`)}`)],
+        60_000,
+      );
       await agentBrowser(["wait", EDITOR], 90_000);
       const imageDeadline = Date.now() + IMAGE_DEADLINE_MS;
       for (;;) {
