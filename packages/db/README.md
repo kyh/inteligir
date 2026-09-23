@@ -25,7 +25,8 @@ carry its header.
 src/
   connection.ts       # createConnection (WAL, synchronous=NORMAL, foreign_keys, a
                       # 5s busy_timeout); writeTransaction — the ONE spelling of
-                      # BEGIN IMMEDIATE; closeConnection, which checkpoints the -wal
+                      # BEGIN IMMEDIATE; closeConnection, which hands free pages
+                      # back and checkpoints the -wal
   schema.ts           # the tables: meta, threads, events, queued_thread_messages,
                       # pending_interactions, sync_outbox, sync_state,
                       # sync_applied_captures, sync_own_devices — each constraint
@@ -59,7 +60,10 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 - **WAL + `synchronous=NORMAL`, on purpose.** No fsync per commit; a power
   loss can drop the last transactions and cannot corrupt the file. Pinned by
   `db.test.ts`. `auto_vacuum=INCREMENTAL` takes effect only on a brand-new
-  file; an existing one converts on its next full VACUUM.
+  file; an existing one converts on its next full VACUUM. It only marks a
+  deleted row's pages free: `closeConnection` runs `incremental_vacuum` before
+  the close to hand them back, best effort, so a crash or a file another writer
+  holds leaves them for the next clean close.
 - **`writeTransaction` is the ONE spelling of `BEGIN IMMEDIATE`** (repo
   Decisions). The write lock is taken up front, so a read-then-write can never
   hit `SQLITE_BUSY` upgrading midway; `appendEventsInTransaction` reads its
@@ -156,11 +160,11 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 (`__tests__/open-temp-db.ts`, disposed with the test). Pinned: boot migrates
 and bumps the version, upgrades a POPULATED v2 file in place with its child
 rows and foreign keys intact, refuses a newer build's file, opens with WAL and
-`synchronous=NORMAL`; contiguous sequences under interleaved writers, the
-turn/started gate, the scope CHECK at the database, a 20-event burst prepares
-two SELECTs and one INSERT; the lifecycle happy path and its typed no-ops, a folder rebind a write refuses
-partway moving nothing,
-`listThreads` answered from its partial indexes with no temp b-tree; FIFO
-claims across connections and same-millisecond bursts; interaction
-idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so it carries
-its own 30s budget.
+`synchronous=NORMAL`, hands a deleted row's pages back on close; contiguous
+sequences under interleaved writers, the turn/started gate, the scope CHECK at
+the database, a 20-event burst prepares two SELECTs and one INSERT; the
+lifecycle happy path and its typed no-ops, a folder rebind a write refuses
+partway moving nothing, `listThreads` answered from its partial indexes with
+no temp b-tree; FIFO claims across connections and same-millisecond bursts;
+interaction idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so
+it carries its own 30s budget.
