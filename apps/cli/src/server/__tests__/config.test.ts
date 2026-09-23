@@ -147,7 +147,21 @@ describe("port layering: env → managed file → default", () => {
         env: { INTELIGIR_DATA_DIR: dataDir },
         homeDir,
       }),
-    ).toThrow(/config\.json/u);
+    ).toThrow(`${path.join(dataDir, "config.json")} is not valid JSON`);
+  });
+
+  it("names the file and the offending key when the managed file has the wrong shape", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
+    writeFileSync(path.join(dataDir, "config.json"), JSON.stringify({ port: "4555" }));
+    const boot = () =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_DATA_DIR: dataDir },
+        homeDir,
+      });
+    expect(boot).toThrow(`${path.join(dataDir, "config.json")} does not match`);
+    expect(boot).toThrow(/at port/u);
   });
 
   it("refuses a malformed INTELIGIR_PORT", () => {

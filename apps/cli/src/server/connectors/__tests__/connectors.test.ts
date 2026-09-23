@@ -2,6 +2,7 @@ import { readFileSync, statSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import { ORPCError, safe } from "@orpc/client";
 import { connectorsResponseSchema } from "@repo/api/local/connectors/connectors-schema";
+import { RPC_PREFIX } from "@repo/api/local/routes";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ConnectorConflictError, createConnectorsService } from "../connectors-service";
@@ -11,6 +12,9 @@ import { bootTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 const storeFileSchema = z.object({ servers: z.array(z.unknown()) });
+
+// the RPC protocol's error envelope, as far as a caller reads it.
+const rpcErrorBodySchema = z.object({ json: z.object({ message: z.string() }) });
 
 const readServersLength = (path: string): number =>
   storeFileSchema.parse(JSON.parse(readFileSync(path, "utf-8"))).servers.length;
@@ -126,5 +130,20 @@ describe("the connector procedures", () => {
 
     const [missing] = await safe(harness.client.connectors.remove({ name: "ghost" }));
     expect(missing instanceof ORPCError && missing.code).toBe("NOT_FOUND");
+  });
+
+  // over http, not the router client: the wire is where a bare 500 would lose the file's name.
+  it("names a malformed store on the wire", async () => {
+    const harness = await bootTestApp();
+    const storePath = nodePath.join(harness.dataDir, "connectors.json");
+    writeFileSync(storePath, "{");
+    const response = await harness.request(`${RPC_PREFIX}/connectors/list`, {
+      body: JSON.stringify({ json: {} }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(response.status).toBe(500);
+    const body = rpcErrorBodySchema.parse(await response.json());
+    expect(body.json.message).toContain(storePath);
   });
 });
