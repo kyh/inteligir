@@ -1,9 +1,10 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-import type { VaultIO } from "@repo/editor/vault-editor";
+import type { VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `hangReads` never settles a read, so a runtime can be observed before its first
 // load; `manualRead`/`manualWrite` park each call in pendingReads/pendingWrites until the test settles it;
-// `landAs` makes a write land other bytes than it was sent, as a host's merge does.
+// `landAs` makes a write land other bytes than it was sent, as a host's merge does. A write to a
+// path with no file answers vanished, as a guarded write does; a remove takes a folder's files with it.
 export class FakeVault implements VaultIO {
   files = new Map<string, string>();
   writes = 0;
@@ -30,8 +31,11 @@ export class FakeVault implements VaultIO {
       : await Promise.resolve(content);
   };
 
-  write = async (path: string, content: string): Promise<string> => {
+  write = async (path: string, content: string): Promise<WriteOutcome> => {
     this.writes += 1;
+    if (!this.files.has(path)) {
+      return { kind: "vanished" };
+    }
     const landed = this.landAs?.(content) ?? content;
     this.files.set(path, landed);
     if (this.manualWrite) {
@@ -39,7 +43,7 @@ export class FakeVault implements VaultIO {
       this.pendingWrites.push(pending);
       await pending.promise;
     }
-    return landed;
+    return { content: landed, kind: "landed" };
   };
 
   create = async (path: string, content: string): Promise<void> => {
@@ -52,9 +56,14 @@ export class FakeVault implements VaultIO {
 
   remove = async (path: string): Promise<DeleteVaultEntryResult> => {
     this.removes += 1;
-    const outcome: DeleteVaultEntryResult = this.files.delete(path)
-      ? { outcome: "removed" }
-      : { outcome: "absent" };
+    const gone = [...this.files.keys()].filter(
+      (file) => file === path || file.startsWith(`${path}/`),
+    );
+    for (const file of gone) {
+      this.files.delete(file);
+    }
+    const outcome: DeleteVaultEntryResult =
+      gone.length > 0 ? { outcome: "removed" } : { outcome: "absent" };
     return await Promise.resolve(outcome);
   };
 }

@@ -409,8 +409,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     actions: actionsRef,
     api,
     createNote,
-    openNote,
-    setOpenNote,
     setPinned,
   });
 

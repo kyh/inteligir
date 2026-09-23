@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { describeGateReason } from "@repo/editor/markdown/markdown-doc";
+import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
 import type { OpenNoteState } from "@repo/editor/note/open-note-store";
 
@@ -58,12 +59,7 @@ const GATED_REASON = {
 } as const;
 
 class FakeController {
-  private state: VaultEditorState = {
-    content: "",
-    dirty: false,
-    path: null,
-    saving: false,
-  };
+  private state: VaultEditorState = EMPTY_EDITOR_STATE;
   private readonly subs = new Set<() => void>();
 
   getState = (): VaultEditorState => this.state;

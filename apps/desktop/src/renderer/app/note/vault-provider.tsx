@@ -18,6 +18,7 @@ import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/kno
 import { vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
@@ -107,6 +108,17 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
   };
   const io = createGuardedVaultIo(api);
   const session = createVaultSession({
+    // discarding is the confirm, so an Escape or a dismissal re-creates and the edits survive it.
+    askVanished: async (path) =>
+      (await confirm({
+        body: "It was deleted while it had unsaved edits. Re-create it with them, or discard them.",
+        cancelLabel: "Re-create",
+        confirmLabel: "Discard edits",
+        destructive: true,
+        title: `${basenamePath(path)} was deleted`,
+      }))
+        ? "discard"
+        : "recreate",
     boot: async (): Promise<WorkspaceBoot> => {
       const flat = listingEntries(await readVaultTree(queryClient));
       const known = (path: string | null): path is string =>

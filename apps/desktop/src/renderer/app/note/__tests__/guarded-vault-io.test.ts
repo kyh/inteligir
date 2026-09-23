@@ -97,8 +97,8 @@ describe("the guarded vault io", () => {
     const io = createGuardedVaultIo(api);
 
     expect(await io.read(NOTE)).toBe("v1");
-    expect(await io.write(NOTE, "v2")).toBe("v2");
-    expect(await io.write(NOTE, "v3")).toBe("v3");
+    expect(await io.write(NOTE, "v2")).toStrictEqual({ content: "v2", kind: "landed" });
+    expect(await io.write(NOTE, "v3")).toStrictEqual({ content: "v3", kind: "landed" });
     expect(sent).toStrictEqual([
       { content: "v2", expectedHash: await contentHashHex("v1"), path: NOTE },
       { content: "v3", expectedHash: await contentHashHex("v2"), path: NOTE },
@@ -122,7 +122,7 @@ describe("the guarded vault io", () => {
       await contentHashHex(EXTERNAL),
     ]);
     const onDisk = await readFile(path.join(vaultDir, NOTE), "utf-8");
-    expect(landed).toBe(onDisk);
+    expect(landed).toStrictEqual({ content: onDisk, kind: "landed" });
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
     expect(onDisk).not.toContain("\nintro\n");
@@ -186,6 +186,19 @@ describe("the guarded vault io", () => {
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
     runtime.dispose();
+  });
+
+  it("names a write to a note deleted since it was read as vanished, and never recreates it", async () => {
+    const { client, vaultDir } = await bootTestApp();
+    await client.vault.write({ content: "v1", path: NOTE });
+    const io = createGuardedVaultIo(recordingWrites(client).api);
+    await io.read(NOTE);
+    await client.vault.remove({ path: NOTE });
+
+    expect(await io.write(NOTE, "v2")).toStrictEqual({ kind: "vanished" });
+    await expect(readFile(path.join(vaultDir, NOTE), "utf-8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("refuses a write for a path it never read rather than guessing a base", async () => {

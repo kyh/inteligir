@@ -15,24 +15,9 @@ interface TreeOpsApi {
   };
 }
 
-// Ref-held: the vault session mounts below the component that owns these.
+// Ref-held: the vault session mounts below the component that owns these. The session carries
+// or closes the open note for a rename or delete of it or a folder above it, so nothing here does.
 type TreeVaultActions = Pick<VaultActions, "renameEntry" | "deleteEntry">;
-
-// A rename of the open file itself answers null: the session already carries
-// that case, and a second remap here could disagree with it.
-export const openNoteAfterRename = (
-  openNote: string | null,
-  fromPath: string,
-  toPath: string,
-): string | null => {
-  if (openNote === null || openNote === fromPath || !openNote.startsWith(`${fromPath}/`)) {
-    return null;
-  }
-  return `${toPath}/${openNote.slice(fromPath.length + 1)}`;
-};
-
-export const deleteSwallowsOpenNote = (openNote: string | null, path: string): boolean =>
-  openNote !== null && openNote !== path && openNote.startsWith(`${path}/`);
 
 // the server's root is a native path, so the join keeps its separator; the entry is always "/"-joined
 export const absoluteEntryPath = (root: string, path: string): string => {
@@ -63,19 +48,10 @@ interface TreeOpsDeps {
   api: TreeOpsApi;
   actions: RefObject<TreeVaultActions | null>;
   createNote: (path: string, content?: string) => Promise<void>;
-  openNote: string | null;
-  setOpenNote: (path: string | null) => void;
   setPinned: (path: string, pinned: boolean) => void;
 }
 
-export const useTreeOps = ({
-  api,
-  actions,
-  createNote,
-  openNote,
-  setOpenNote,
-  setPinned,
-}: TreeOpsDeps): TreeOps =>
+export const useTreeOps = ({ api, actions, createNote, setPinned }: TreeOpsDeps): TreeOps =>
   useMemo<TreeOps>(() => {
     const paths = desktopPaths();
     // absent outside the shell, so the tree draws no row for them there
@@ -91,13 +67,7 @@ export const useTreeOps = ({
             },
           };
     const renameEntry: TreeOps["renameEntry"] = (fromPath, toPath) => {
-      void (async () => {
-        const moved = await actions.current?.renameEntry(fromPath, toPath);
-        const carried = openNoteAfterRename(openNote, fromPath, toPath);
-        if (moved === true && carried !== null) {
-          setOpenNote(carried);
-        }
-      })();
+      void actions.current?.renameEntry(fromPath, toPath);
     };
     return {
       createFolder: (path) => {
@@ -136,10 +106,7 @@ export const useTreeOps = ({
             return;
           }
           await actions.current?.deleteEntry(path);
-          if (deleteSwallowsOpenNote(openNote, path)) {
-            setOpenNote(null);
-          }
         })();
       },
     };
-  }, [api, actions, createNote, openNote, setOpenNote, setPinned]);
+  }, [api, actions, createNote, setPinned]);

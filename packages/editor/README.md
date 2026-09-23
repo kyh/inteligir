@@ -40,7 +40,7 @@ src/
     open-note-store.ts, open-note-context.tsx
                        # the open-note store (zustand) and React's door to it
     vault-session.ts   # the open note's ORDERING, drivable without React
-    note-runtime.ts    # controller + autosave debounce + vanish watcher
+    note-runtime.ts    # controller + autosave debounce + save retry + vanish watcher
     open-doc.ts, markdown-gate.ts, open-note-flush.ts
                        # the open-document union, the raw/rich gate, the flush
                        # that visits every registered store
@@ -114,8 +114,9 @@ src/
   says it does).
 - `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
   is driven through: boot, list, rename, the `VaultIO` it reads and writes
-  notes with (`vault-editor.ts`: read/write/create/remove), and the
-  publish/notify callbacks. Drivable without React.
+  notes with (`vault-editor.ts`: read/write/create/remove), the
+  publish/notify callbacks, and the one question it asks the user
+  (`askVanished`). Drivable without React.
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.
 - `live-editor.ts` — the path-keyed registry the shell reaches a mounted

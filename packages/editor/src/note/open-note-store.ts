@@ -10,16 +10,10 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { describeGateReason, safeGateReason } from "@repo/editor/note/markdown-gate";
 import type { GateReason } from "@repo/editor/note/markdown-gate";
+import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
 import { deriveOpenDoc, isMarkdownPath } from "@repo/editor/note/open-doc";
 import type { OpenDoc } from "@repo/editor/note/open-doc";
-
-const NO_NOTE_STATE: VaultEditorState = {
-  content: "",
-  dirty: false,
-  path: null,
-  saving: false,
-};
 
 // keyed to the saved (path, content) it was computed for; analysis lags typing on purpose.
 interface Analyzed {
@@ -44,7 +38,7 @@ const INITIAL_ANALYZED: Analyzed = { content: "", path: null, rawReason: null };
 const INITIAL_STATE: OpenNoteState = {
   analyzed: INITIAL_ANALYZED,
   back: [],
-  editor: NO_NOTE_STATE,
+  editor: EMPTY_EDITOR_STATE,
   flush: null,
   forward: [],
   openDoc: { kind: "none" },
@@ -190,7 +184,7 @@ export const createOpenNoteStore = (): OpenNoteStore => {
     }
     apply({ openPath: path });
     if (path === null) {
-      publishEditor(NO_NOTE_STATE);
+      publishEditor(EMPTY_EDITOR_STATE);
     }
   };
 

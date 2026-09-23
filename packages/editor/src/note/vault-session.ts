@@ -6,7 +6,7 @@ import type { VaultActions, VaultChangedEvent, VaultEntry } from "@repo/editor/h
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import type { NoteRuntime } from "@repo/editor/note/note-runtime";
-import type { VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
+import type { SaveError, VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -16,6 +16,8 @@ export interface WorkspaceBoot {
 }
 
 export type RenameResult = { ok: true } | { ok: false; error: string };
+
+export type VanishedChoice = "recreate" | "discard";
 
 export interface VaultSessionPorts {
   boot: () => Promise<WorkspaceBoot>;
@@ -27,6 +29,8 @@ export interface VaultSessionPorts {
   publishOpenPath: (path: string | null, change: OpenPathChange) => void;
   publishEditor: (state: VaultEditorState) => void;
   notify: (message: string) => void;
+  // asked when the user leaves a note whose file was deleted under unsaved edits.
+  askVanished: (path: string) => Promise<VanishedChoice>;
 }
 
 export interface VaultSession {
@@ -53,6 +57,24 @@ const validNotePath = (
   return { ok: true, path: dir === "" ? verdict.name : `${dir}/${verdict.name}` };
 };
 
+const isWithin = (path: string, entry: string): boolean =>
+  path === entry || path.startsWith(`${entry}/`);
+
+// where the open note lands when `from` moves to `to`: `from` is the note itself or a folder above it.
+const carriedNote = (
+  open: string | null,
+  from: string,
+  to: string,
+): { readonly from: string; readonly to: string } | null =>
+  open !== null && isWithin(open, from)
+    ? { from: open, to: `${to}${open.slice(from.length)}` }
+    : null;
+
+const saveErrorMessage = (path: string, error: SaveError): string =>
+  error.kind === "vanished"
+    ? `${path} was deleted elsewhere, and its edits are not saved.`
+    : `Couldn't save ${path}: ${error.message}. Retrying.`;
+
 export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
   let running = false;
   let entries: VaultEntry[] = [];
@@ -62,6 +84,9 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
   let unpublish: (() => void) | null = null;
   // overlapping listings apply in issue order, never arrival order.
   let listSeq = 0;
+  // the latest openFile wins: one issued while an earlier one waits on its flush supersedes it,
+  // a return to the note already open included.
+  let navSeq = 0;
 
   const applyOpenPath = (next: string | null, change: OpenPathChange = "navigate"): void => {
     if (next === openPath) {
@@ -93,9 +118,17 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     }
     const created = createNoteRuntime(path, ports.note, { onVanished: dropNote }, initial);
     runtime = created;
+    // said once per failure, not per retry: the error stands until a write lands.
+    let failing: SaveError["kind"] | null = null;
     // subscribe before the first publish so no emission slips between snapshot and subscription.
     const publish = (): void => {
-      ports.publishEditor(created.controller.getState());
+      const state = created.controller.getState();
+      ports.publishEditor(state);
+      const { saveError } = state;
+      if (saveError !== null && saveError.kind !== failing) {
+        ports.notify(saveErrorMessage(path, saveError));
+      }
+      failing = saveError?.kind ?? null;
     };
     unpublish = created.controller.subscribe(publish);
     publish();
@@ -110,13 +143,41 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return await current.flush();
   };
 
+  // a note deleted under unsaved edits can never save, so refusing the switch would hold the user
+  // on it for good: the host asks whether to write it back or let the edits go.
+  const releaseVanished = async (leaving: NoteRuntime): Promise<boolean> => {
+    const choice = await ports.askVanished(leaving.path);
+    if (runtime !== leaving) {
+      return false;
+    }
+    if (choice === "discard" || (await leaving.recreate())) {
+      return true;
+    }
+    ports.notify(`Couldn't re-create ${leaving.path}.`);
+    return false;
+  };
+
   const openFile = (path: string): void => {
+    navSeq += 1;
+    const seq = navSeq;
+    if (openPath === path) {
+      return;
+    }
     void (async () => {
-      if (openPath === path) {
-        return;
-      }
+      const leaving = runtime;
       if (!(await flush())) {
-        ports.notify("Couldn't save the current file — resolve that before switching.");
+        if (seq !== navSeq) {
+          return;
+        }
+        if (leaving?.controller.getState().saveError?.kind !== "vanished") {
+          ports.notify("Couldn't save the current file — resolve that before switching.");
+          return;
+        }
+        if (!(await releaseVanished(leaving))) {
+          return;
+        }
+      }
+      if (seq !== navSeq) {
         return;
       }
       disposeRuntime();
@@ -211,43 +272,47 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     if (dest === "" || dest === from) {
       return true;
     }
-    const wasOpen = openPath === from;
-    // flush first so an in-flight write of `from` can't recreate it post-move.
-    if (wasOpen && !(await flush())) {
-      ports.notify("Couldn't save the file — resolve that before renaming.");
+    const carry = carriedNote(openPath, from, dest);
+    // flush first so an in-flight write of the open note can't recreate it post-move.
+    if (carry !== null && !(await flush())) {
+      ports.notify("Couldn't save the open note — resolve that before renaming.");
       return false;
     }
-    // dispose before the call: the rename's own broadcast otherwise reaches a controller still
-    // on `from`, which reloads the moved file and closes the note being carried over.
-    if (wasOpen) {
+    // dispose before the call: the move's own broadcast otherwise reaches a controller still on
+    // the old path, which reloads the moved file and closes the note being carried over.
+    if (carry !== null) {
       disposeRuntime();
     }
     const result = await ports.rename(from, dest).catch(() => null);
     if (result === null || !result.ok) {
       ports.notify(result?.ok === false ? result.error : "Couldn't rename the file.");
-      // the file never moved: re-attach a controller to the still-open note.
-      if (wasOpen && openPath === from) {
-        ensureRuntime(from);
+      // nothing moved: re-attach a controller to the still-open note.
+      if (carry !== null && openPath === carry.from) {
+        ensureRuntime(carry.from);
       }
       return false;
     }
     refreshList();
-    if (wasOpen && openPath === from) {
-      ensureRuntime(dest);
-      applyOpenPath(dest, "carry");
+    if (carry !== null && openPath === carry.from) {
+      ensureRuntime(carry.to);
+      applyOpenPath(carry.to, "carry");
     }
     return true;
   };
 
   const deleteEntry = async (path: string): Promise<void> => {
-    const open = runtime?.path === path ? runtime : null;
-    // null is a delete that threw: the file's fate is unknown, so the note stays open over it.
+    const open = runtime !== null && isWithin(runtime.path, path) ? runtime : null;
+    // a folder delete that fails leaves the note under it open, so its edits are written first.
+    if (open !== null && open.path !== path) {
+      await flush();
+    }
+    // null is a delete that threw: its fate is unknown, so the note stays open over it.
     const outcome =
-      open === null ? await ports.note.remove(path).catch(() => null) : await open.remove();
+      open?.path === path ? await open.remove() : await ports.note.remove(path).catch(() => null);
     if (outcome === null) {
       ports.notify(`Couldn't delete ${path}.`);
     } else if (open !== null) {
-      dropNote(path);
+      dropNote(open.path);
     }
     refreshList();
   };
