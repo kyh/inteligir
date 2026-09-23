@@ -1,13 +1,16 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+import { describeExecError, exec, hermeticProcessEnv } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
 import type { TrackedProcess } from "./harness/tracked-child";
 import { createScenarioContext } from "./harness/scenario";
-import type { Scenario } from "./harness/scenario";
+import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
+import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
 import { dictationBrowser } from "./scenarios/dictation-browser";
@@ -30,6 +33,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultSync,
   hostedVaultSync,
   builtWorkerBoot,
+  builtCliBoot,
   threadsScripted,
   actionScripted,
   cliDrive,
@@ -46,25 +50,35 @@ const SCENARIOS: readonly Scenario[] = [
   extractNoteBrowser,
 ];
 
-const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list]
+const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--require-browser]
 
-  --only <names>  comma-separated scenario names (repeatable)
-  --keep          keep the scratch dirs for post-mortem
-  --list          print the scenario names and exit
+  --only <names>     comma-separated scenario names (repeatable)
+  --keep             keep the scratch dirs for post-mortem
+  --list             print the scenario names and exit
+  --require-browser  a scenario whose headless browser cannot launch FAILS instead of skipping;
+                     for a run that installed the browser, where a skip is a broken install
 `;
+
+// a hang backstop, far above any scenario's green run: they pass in seconds.
+const DEFAULT_SCENARIO_TIMEOUT_MS = 180_000;
+// a cold build runs the desktop renderer's vite build before the CLI bundles it.
+const CLI_BUILD_TIMEOUT_MS = 300_000;
 
 interface CliOptions {
   only: string[];
   keep: boolean;
   list: boolean;
+  requireBrowser: boolean;
 }
 
 const parseArgs = (argv: readonly string[]): CliOptions => {
-  const options: CliOptions = { keep: false, list: false, only: [] };
+  const options: CliOptions = { keep: false, list: false, only: [], requireBrowser: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--keep") {
       options.keep = true;
+    } else if (arg === "--require-browser") {
+      options.requireBrowser = true;
     } else if (arg === "--list") {
       options.list = true;
     } else if (arg === "--only") {
@@ -106,6 +120,30 @@ const seconds = (durationMs: number): string => `${(durationMs / 1000).toFixed(1
 
 const timestamp = (): string => new Date().toISOString().slice(11, 19);
 
+// the losing run is abandoned, not cancelled: the teardown after it kills the processes it awaits,
+// which settles it, and the race has already taken its rejection.
+const runWithinDeadline = async (scenario: Scenario, context: ScenarioContext): Promise<void> => {
+  const timeoutMs = scenario.timeoutMs ?? DEFAULT_SCENARIO_TIMEOUT_MS;
+  const deadline = new AbortController();
+  const expire = async (): Promise<never> => {
+    await delay(timeoutMs, undefined, { signal: deadline.signal });
+    throw new Error(`still running after ${seconds(timeoutMs)}: abandoned and torn down`);
+  };
+  try {
+    await Promise.race([scenario.run(context), expire()]);
+  } finally {
+    deadline.abort();
+  }
+};
+
+// a skip reaches here only under --require-browser; every other one is an outcome of its own.
+const describeFailure = (cause: unknown): string => {
+  if (cause instanceof ScenarioSkipError) {
+    return `SKIP not allowed under --require-browser: ${cause.message}`;
+  }
+  return cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
+};
+
 const runScenario = async (
   scenario: Scenario,
   options: CliOptions,
@@ -129,13 +167,13 @@ const runScenario = async (
   let outcome: ScenarioOutcome;
   let teardownClean = true;
   try {
-    await scenario.run(context);
+    await runWithinDeadline(scenario, context);
     outcome = { durationMs: Date.now() - startedAt, kind: "pass" };
   } catch (error) {
-    if (error instanceof ScenarioSkipError) {
+    if (error instanceof ScenarioSkipError && !options.requireBrowser) {
       outcome = { durationMs: Date.now() - startedAt, kind: "skip", reason: error.message };
     } else {
-      const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      const message = describeFailure(error);
       const tails = instances
         .map((instance) => {
           const tail = instance.outputTail();
@@ -190,6 +228,22 @@ const installSignalCleanup = (): void => {
   }
 };
 
+// built through turbo, not looked for on disk: a present dist/ may be last week's server and UI.
+const buildCli = async (repoRoot: string): Promise<void> => {
+  const startedAt = Date.now();
+  console.log(`${timestamp()} building the CLI bundle and the workspace UI it stages`);
+  try {
+    await exec(
+      "pnpm",
+      ["turbo", "run", "build", "--filter=inteligir", "--output-logs=errors-only"],
+      { cwd: repoRoot, env: hermeticProcessEnv(), timeoutMs: CLI_BUILD_TIMEOUT_MS },
+    );
+  } catch (error) {
+    throw new Error(`the suite-start build failed:\n${describeExecError(error)}`, { cause: error });
+  }
+  console.log(`${timestamp()} built (${seconds(Date.now() - startedAt)})`);
+};
+
 const main = async (): Promise<number> => {
   const options = parseArgs(process.argv.slice(2));
   if (options.list) {
@@ -201,6 +255,7 @@ const main = async (): Promise<number> => {
   installSignalCleanup();
   const selected = selectScenarios(options);
   const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
+  await buildCli(repoRoot);
   const scratchRoot = await mkdtemp(path.join(tmpdir(), "inteligir-e2e-"));
   console.log(`e2e: ${selected.length} scenario(s), scratch=${scratchRoot}`);
 

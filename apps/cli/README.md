@@ -165,7 +165,8 @@ staged-first, which is why the two resolvers read differently.
 `pnpm smoke:cli` proves all of it against a real `npm install` of the packed
 tarball: the layout (every file the build emitted, chunks included), the
 execute bit, the licence texts, a boot, the three native modules, a graceful
-SIGTERM.
+SIGTERM. The e2e `built-cli-boot` scenario boots the same bundle from the
+checkout on every CI run.
 
 The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in

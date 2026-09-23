@@ -1324,7 +1324,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   because the catalog bound only the manifests that spell it; `@types/node`
   tracks `engines.node`; `compatibility_date` is the lockfile's oldest workerd,
   held by `tools/repo-guards/src/wrangler-compat-date.test.ts`; `pnpm e2e` boots
-  the built Worker bundle (`tools/e2e/src/scenarios/built-worker-boot.ts`);
+  the built Worker bundle (`tools/e2e/src/scenarios/built-worker-boot.ts`) and
+  the built CLI bundle (`tools/e2e/src/scenarios/built-cli-boot.ts`);
   agent-browser is pinned by hand in `.github/workflows/ci.yml` because a global
   install rides no lockfile. The arguments are `pnpm-workspace.yaml`'s comments.
 

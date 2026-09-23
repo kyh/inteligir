@@ -22,8 +22,8 @@ const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string(
 export const cliDrive: Scenario = {
   description: "the CLI drives a real instance: vault write, search, action new+wait+show",
   name: "cli-drive",
-  // no build step: bin/inteligir runs src/ under tsx in a checkout; the published bundle is pnpm
-  // smoke:cli's to test.
+  // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
+  // the packed tarball pnpm smoke:cli's.
   async run(ctx) {
     const app = await ctx.boot({
       extraEnv: { INTELIGIR_AGENT: "scripted" },

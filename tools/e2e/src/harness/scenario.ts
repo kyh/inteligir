@@ -4,11 +4,12 @@ import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { exec, hermeticProcessEnv } from "./exec";
 import { launchApp } from "./instance";
-import type { AppInstance, LaunchAppArgs } from "./instance";
+import type { AppInstance, LaunchAppArgs, LaunchMode } from "./instance";
 import type { TrackedProcess } from "./tracked-child";
 
 interface BootOptions {
   name: string;
+  mode?: LaunchMode;
   vaultRemote?: string;
   extraEnv?: Readonly<Record<string, string>>;
   // both run before boot; the app's repo init commits whatever it finds in the vault.
@@ -28,6 +29,8 @@ export interface ScenarioContext {
 export interface Scenario {
   name: string;
   description: string;
+  // the runner fails a run still going past this, so a hang costs one scenario, not the job.
+  timeoutMs?: number;
   run: (context: ScenarioContext) => Promise<void>;
 }
 
@@ -62,6 +65,7 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     }
     const launchArgs: LaunchAppArgs = {
       instanceDir,
+      mode: options.mode ?? "source",
       name: options.name,
       onLog: args.log,
       register: (instance) => {
