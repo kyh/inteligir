@@ -7,21 +7,16 @@ import type { ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import { finished } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import {
-  ClientSideConnection,
-  PROTOCOL_VERSION,
-  ndJsonStream,
-} from "@zed-industries/agent-client-protocol";
+import { PROTOCOL_VERSION, client, ndJsonStream } from "@agentclientprotocol/sdk";
 import type {
-  Agent,
   AgentCapabilities,
-  Client,
+  ClientConnection,
   ContentBlock,
+  McpServer,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
-  McpServer,
-} from "@zed-industries/agent-client-protocol";
+} from "@agentclientprotocol/sdk";
 import type { PendingInteractionResolution } from "@repo/domain/pending-interactions";
 import type {
   AgentRuntime,
@@ -42,7 +37,7 @@ import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { requireHarness } from "./harness-registry.js";
 import type { HarnessDefinition } from "./harness-registry.js";
-import { acpCall, describeProviderError } from "./provider-error.js";
+import { describeProviderError } from "./provider-error.js";
 
 const SESSION_SHUTDOWN_GRACE_MS = 1000;
 
@@ -81,17 +76,15 @@ interface AdapterExit {
   signal: NodeJS.Signals | null;
 }
 
-// one spawned child, from spawn to exit. the 0.4 client never rejects a pending request when its
-// stream ends, so every request races the child's exit.
+// one spawned child, from spawn to exit. the connection closes with the child's exit, so every
+// request still pending rejects naming the harness, the exit status and the last stderr lines.
 interface AcpAdapter {
   threadId: string;
   providerId: string;
   harness: HarnessDefinition;
   child: ChildProcess;
-  connection: ClientSideConnection;
+  connection: ClientConnection;
   gone: Promise<AdapterExit>;
-  // resolved, never rejected: a child no request is waiting on exits without an unhandled rejection.
-  exitError: Promise<Error>;
   // set once the runtime ends the child itself: a session/new answering during the kill registers
   // nothing, and a turn it was running is the host's to settle.
   closing: boolean;
@@ -152,13 +145,6 @@ const adapterExitError = (
   return new Error(`The ${harness.displayName} adapter exited (${how})${tail}`);
 };
 
-const call = async <T>(adapter: AcpAdapter, request: Promise<T>): Promise<T> => {
-  const exited = (async (): Promise<never> => {
-    throw await adapter.exitError;
-  })();
-  return await Promise.race([acpCall(request), exited]);
-};
-
 const drained = async (stream: Readable): Promise<void> => {
   try {
     await finished(stream);
@@ -196,14 +182,13 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       env,
       buildThreadShellEnvironment({ baseShellEnv: options.shellEnv?.(), threadId }),
     );
-    const args = [...harness.adapterArgs];
     if (options.model !== undefined) {
-      harness.applyModel(options.model, env, args);
+      harness.applyModel(options.model, env);
     }
     if (options.spawnAdapter !== undefined) {
       return options.spawnAdapter(harness, env);
     }
-    const child = spawn(process.execPath, [harness.adapterEntry, ...args], {
+    const child = spawn(process.execPath, [harness.adapterEntry], {
       cwd: options.workspacePath,
       env,
       stdio: ["pipe", "pipe", "pipe"],
@@ -211,43 +196,51 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     return { child };
   };
 
-  const buildClient = (session: () => AcpSession | undefined): Client => ({
-    async requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
-      const current = session();
-      const handler = options.onInteractiveRequest;
-      const turnId = current?.turn?.mapper.turnId;
-      if (current === undefined || turnId === undefined || handler === undefined) {
-        return { outcome: { outcome: "cancelled" } };
-      }
-      let resolution: PendingInteractionResolution;
-      try {
-        resolution = await handler({
-          payload: toApprovalPayload(params),
-          providerId: current.adapter.providerId,
-          providerRequestId: params.toolCall.toolCallId,
-          providerThreadId: current.providerThreadId,
-          threadId: current.adapter.threadId,
-          turnId,
-        });
-      } catch {
-        return { outcome: { outcome: "cancelled" } };
-      }
-      return { outcome: toPermissionOutcome(params, resolution) };
-    },
-    sessionUpdate(params: SessionNotification): Promise<void> {
-      // mapping and the host's onEvent both run synchronously; the catch keeps a throw a
-      // rejection, which is what the ACP connection expects from this handler.
-      try {
-        const current = session();
-        if (current?.providerThreadId === params.sessionId && current.turn !== null) {
-          emit(current.turn.mapper.update(params));
-        }
-        return Promise.resolve();
-      } catch (error) {
-        return Promise.reject(error);
-      }
-    },
-  });
+  const requestPermission = async (
+    current: AcpSession | undefined,
+    params: RequestPermissionRequest,
+  ): Promise<RequestPermissionResponse> => {
+    const handler = options.onInteractiveRequest;
+    const turnId = current?.turn?.mapper.turnId;
+    if (current === undefined || turnId === undefined || handler === undefined) {
+      return { outcome: { outcome: "cancelled" } };
+    }
+    let resolution: PendingInteractionResolution;
+    try {
+      resolution = await handler({
+        payload: toApprovalPayload(params),
+        providerId: current.adapter.providerId,
+        providerRequestId: params.toolCall.toolCallId,
+        providerThreadId: current.providerThreadId,
+        threadId: current.adapter.threadId,
+        turnId,
+      });
+    } catch {
+      return { outcome: { outcome: "cancelled" } };
+    }
+    return { outcome: toPermissionOutcome(params, resolution) };
+  };
+
+  const sessionUpdate = (current: AcpSession | undefined, params: SessionNotification): void => {
+    if (current?.providerThreadId === params.sessionId && current.turn !== null) {
+      emit(current.turn.mapper.update(params));
+    }
+  };
+
+  const connectClient = (
+    session: () => AcpSession | undefined,
+    stdin: WritableStream<Uint8Array>,
+    stdout: ReadableStream<Uint8Array>,
+  ): ClientConnection =>
+    client({ name: "inteligir" })
+      .onRequest(
+        "session/request_permission",
+        async ({ params }) => await requestPermission(session(), params),
+      )
+      .onNotification("session/update", ({ params }) => {
+        sessionUpdate(session(), params);
+      })
+      .connect(ndJsonStream(stdin, stdout));
 
   // the runtime is ending this child itself, so it stops answering to the host at once.
   const detach = (adapter: AcpAdapter): void => {
@@ -294,7 +287,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       await Promise.race([
         (async () => {
           try {
-            await adapter.connection.cancel({ sessionId: session.providerThreadId });
+            await adapter.connection.agent.notify("session/cancel", {
+              sessionId: session.providerThreadId,
+            });
             await turn.settled;
           } catch {
             // an adapter that cannot take the cancel meets the kill below.
@@ -322,20 +317,17 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
     const stdinWeb: WritableStream<Uint8Array> = Writable.toWeb(stdin);
     // Readable.toWeb types its stream any; the identity TransformStream stamps the chunk type
-    // without an assertion.
+    // without an assertion. stdout's end does not close it: an ended stream closes the connection
+    // with a bare "connection closed" before the exit below can name the crash.
     const identity = new TransformStream<Uint8Array, Uint8Array>();
     void (async () => {
       try {
-        await Readable.toWeb(stdout).pipeTo(identity.writable);
+        await Readable.toWeb(stdout).pipeTo(identity.writable, { preventClose: true });
       } catch {
-        // stdout ending is the child's exit path, which `exitError` reports.
+        // a destroyed stdout is the child's exit path, which the close below reports.
       }
     })();
-    const stdoutWeb: ReadableStream<Uint8Array> = identity.readable;
-    const connection = new ClientSideConnection(
-      (_agent: Agent) => buildClient(() => sessionOf(threadId, child)),
-      ndJsonStream(stdinWeb, stdoutWeb),
-    );
+    const connection = connectClient(() => sessionOf(threadId, child), stdinWeb, identity.readable);
     const stderrTail: string[] = [];
     child.stderr?.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString("utf-8").split("\n")) {
@@ -354,18 +346,17 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         resolve({ code, signal });
       });
     });
-    const exitError = (async (): Promise<Error> => {
+    void (async () => {
       const exit = await gone;
       if (child.stderr !== null) {
         await Promise.race([drained(child.stderr), delay(STDERR_DRAIN_MS, null, { ref: false })]);
       }
-      return adapterExitError(harness, exit, stderrTail);
+      connection.close(adapterExitError(harness, exit, stderrTail));
     })();
     const adapter: AcpAdapter = {
       child,
       closing: false,
       connection,
-      exitError,
       gone,
       harness,
       providerId,
@@ -409,13 +400,10 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   };
 
   const newSession = async (adapter: AcpAdapter): Promise<string> => {
-    const response = await call(
-      adapter,
-      adapter.connection.newSession({
-        cwd: options.workspacePath,
-        mcpServers: await sessionMcpServers(),
-      }),
-    );
+    const response = await adapter.connection.agent.request("session/new", {
+      cwd: options.workspacePath,
+      mcpServers: await sessionMcpServers(),
+    });
     return response.sessionId;
   };
 
@@ -428,13 +416,10 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   ): Promise<string> => {
     const adapter = await openAdapter(threadId, providerId);
     try {
-      const initialized = await call(
-        adapter,
-        adapter.connection.initialize({
-          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
-          protocolVersion: PROTOCOL_VERSION,
-        }),
-      );
+      const initialized = await adapter.connection.agent.request("initialize", {
+        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
+        protocolVersion: PROTOCOL_VERSION,
+      });
       const providerThreadId = await open(adapter, initialized.agentCapabilities);
       if (adapter.closing) {
         throw new Error(
@@ -465,13 +450,10 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       }
     };
     try {
-      const response = await call(
-        session.adapter,
-        session.adapter.connection.prompt({
-          prompt: promptBlocks(input),
-          sessionId: session.providerThreadId,
-        }),
-      );
+      const response = await session.adapter.connection.agent.request("session/prompt", {
+        prompt: promptBlocks(input),
+        sessionId: session.providerThreadId,
+      });
       settle(mapper.completed(response.stopReason));
     } catch (error) {
       settle(mapper.failed(describeProviderError(error, session.adapter.harness)));
@@ -521,14 +503,11 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
               return await newSession(adapter);
             }
             try {
-              await call(
-                adapter,
-                adapter.connection.loadSession({
-                  cwd: options.workspacePath,
-                  mcpServers: await sessionMcpServers(),
-                  sessionId: providerThreadId,
-                }),
-              );
+              await adapter.connection.agent.request("session/load", {
+                cwd: options.workspacePath,
+                mcpServers: await sessionMcpServers(),
+                sessionId: providerThreadId,
+              });
               return providerThreadId;
             } catch (error) {
               options.onStderr?.(

@@ -2,7 +2,7 @@
   "name": "@repo/agent-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "The ACP agent runtime: one adapter speaks Zed's agent-client-protocol to claude-code-acp and codex-acp children; harnesses are data rows, and events translate into the runtime's own provider grammar. Consumers say \"start a session, run a turn, give me events\" — they never touch processes or wire formats.",
+  "description": "The ACP agent runtime: one adapter speaks the Agent Client Protocol to claude-agent-acp and codex-acp children; harnesses are data rows, and events translate into the runtime's own provider grammar. Consumers say \"start a session, run a turn, give me events\" — they never touch processes or wire formats.",
   "type": "module",
   "exports": {
     "./acp/acp-runtime": "./src/acp/acp-runtime.ts",
@@ -13,18 +13,20 @@
     "./test-support/fake-acp-agent": "./src/test-support/fake-acp-agent.mjs"
   },
   "scripts": {
+    "record:transcripts": "tsx scripts/record-acp-transcripts.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "catalog:",
+    "@agentclientprotocol/codex-acp": "catalog:",
+    "@agentclientprotocol/sdk": "catalog:",
     "@repo/domain": "workspace:*",
-    "@zed-industries/agent-client-protocol": "0.4.5",
-    "@zed-industries/claude-code-acp": "catalog:",
-    "@zed-industries/codex-acp": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -30,7 +30,7 @@ describe("provider event mapping", () => {
     });
   });
 
-  it("maps every kept item kind onto a persisted item that still parses", () => {
+  it("maps every item kind onto a persisted item that still parses", () => {
     const items = [
       { id: "i1", text: "hi", type: "agentMessage" as const },
       { content: [], id: "i2", summary: ["s"], type: "reasoning" as const },
@@ -39,8 +39,6 @@ describe("provider event mapping", () => {
         approvalStatus: null,
         command: "ls",
         cwd: "/vault",
-        durationMs: 4,
-        exitCode: 0,
         id: "i3",
         status: "completed" as const,
         type: "commandExecution" as const,
@@ -54,14 +52,12 @@ describe("provider event mapping", () => {
       },
       {
         arguments: { q: "x" },
-        error: "boom",
         id: "i5",
-        server: "mcp",
+        result: "no hits",
         status: "failed" as const,
         tool: "search",
         type: "toolCall" as const,
       },
-      { id: "i6", text: "1. do", type: "plan" as const },
     ];
     for (const item of items) {
       const result = mapProviderEvent(
@@ -81,37 +77,36 @@ describe("provider event mapping", () => {
     }
   });
 
-  it("drops the user-message echo and the kinds with no persisted renderer", () => {
-    const echo = mapProviderEvent(
+  it("drops the kinds with no persisted renderer, naming them", () => {
+    const plan = mapProviderEvent(
       {
-        item: { content: [{ text: "hi", type: "text" }], id: "u1", type: "userMessage" },
+        plan: [{ status: "active", step: "read the note" }],
         providerThreadId: "cthr_1",
         scope: providerScope,
         threadId: "thr_1",
-        type: "item/completed",
+        type: "turn/plan/updated",
       },
       "turn_host",
     );
-    expect(echo.kind).toBe("dropped");
-    expect(echo.kind === "dropped" ? echo.reason : "").toContain("userMessage");
+    expect(plan).toEqual({ kind: "dropped", reason: "turn/plan/updated has no persisted mapping" });
 
-    const unknownKind = mapProviderEvent(
+    const progress = mapProviderEvent(
       {
-        diff: "+x",
+        itemId: "call_1",
+        message: "Read note.md",
         providerThreadId: "cthr_1",
         scope: providerScope,
         threadId: "thr_1",
-        type: "turn/diff/updated",
+        type: "item/toolCall/progress",
       },
       "turn_host",
     );
-    expect(unknownKind).toMatchObject({ kind: "dropped" });
+    expect(progress).toMatchObject({ kind: "dropped" });
   });
 
   it("keeps a session-level provider error at thread scope", () => {
     const result = mapProviderEvent(
       {
-        detail: "401",
         message: "Provider error",
         providerThreadId: "cthr_1",
         scope: threadScope(),
@@ -122,7 +117,6 @@ describe("provider event mapping", () => {
     );
     expect(result).toEqual({
       event: {
-        detail: "401",
         message: "Provider error",
         scope: threadScope(),
         threadId: "thr_1",

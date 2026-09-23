@@ -2,6 +2,7 @@
 // code a real provider would receive and an e2e otherwise cannot see.
 
 import { turnScope } from "@repo/domain/thread-event-scope";
+import { messageOf } from "../error-message";
 import type { GitEngine } from "../vault/git-engine";
 import type { VaultService } from "../vault/vault-service";
 import type {
@@ -82,13 +83,14 @@ class ScriptedTurnDriver implements TurnDriver {
         { scope, status: "completed", threadId: args.threadId, type: "turn/completed" },
       ]);
     } catch (error) {
-      this.deps.onError?.(error instanceof Error ? error.message : String(error));
+      const detail = messageOf(error);
+      this.deps.onError?.(detail);
       await turnCommit.finish().catch(() => {
         /* empty */
       });
       this.sink.ingestProviderEvents(args.threadId, [
         {
-          detail: error instanceof Error ? error.message : String(error),
+          detail,
           message: "Scripted turn failed",
           scope,
           threadId: args.threadId,

@@ -1,0 +1,1149 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`claude-agent-acp@0.81.0 > replays command onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "command": "Terminal",
+        "cwd": "",
+        "id": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
+        "status": "pending",
+        "type": "commandExecution",
+      },
+      "type": "item/started",
+    },
+    {
+      "itemId": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
+      "message": "ls",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
+      "message": "ls",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
+      "message": "ls",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "aggregatedOutput": "\`\`\`console
+a.md
+b.md
+\`\`\`",
+        "approvalStatus": null,
+        "command": "ls",
+        "cwd": "",
+        "id": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
+        "status": "completed",
+        "type": "commandExecution",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "\`ls\` printed 2 entries: \`a.md\` and \`b.md\`.",
+      "deltas": 3,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "\`ls\` printed 2 entries: \`a.md\` and \`b.md\`.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`claude-agent-acp@0.81.0 > replays edit onto the provider grammar 1`] = `
+{
+  "approvals": [
+    {
+      "availableDecisions": [
+        "allow_once",
+        "allow_for_session",
+        "deny",
+      ],
+      "kind": "approval",
+      "reason": null,
+      "subject": {
+        "itemId": "toolu_01Tu3swHLfdNedtbMYueiE8r",
+        "kind": "file_change",
+        "writeScope": "/vault/hello.md",
+      },
+    },
+    {
+      "availableDecisions": [
+        "allow_once",
+        "allow_for_session",
+        "deny",
+      ],
+      "kind": "approval",
+      "reason": null,
+      "subject": {
+        "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
+        "kind": "file_change",
+        "writeScope": "/vault/note.md",
+      },
+    },
+  ],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [],
+        "id": "toolu_01Tu3swHLfdNedtbMYueiE8r",
+        "status": "pending",
+        "type": "fileChange",
+      },
+      "type": "item/started",
+    },
+    {
+      "itemId": "toolu_01Tu3swHLfdNedtbMYueiE8r",
+      "message": "Write /vault/hello.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01Tu3swHLfdNedtbMYueiE8r",
+      "message": "Write /vault/hello.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "arguments": {},
+        "id": "toolu_014E4egGfTaAc2Px2YDYiJUh",
+        "status": "pending",
+        "tool": "Read File",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "itemId": "toolu_01Tu3swHLfdNedtbMYueiE8r",
+      "message": "Write /vault/hello.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [
+          {
+            "kind": "add",
+            "path": "/vault/hello.md",
+          },
+        ],
+        "id": "toolu_01Tu3swHLfdNedtbMYueiE8r",
+        "status": "completed",
+        "type": "fileChange",
+      },
+      "type": "item/completed",
+    },
+    {
+      "itemId": "toolu_014E4egGfTaAc2Px2YDYiJUh",
+      "message": "Read /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_014E4egGfTaAc2Px2YDYiJUh",
+      "message": "Read /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "arguments": {
+          "file_path": "/vault/note.md",
+        },
+        "id": "toolu_014E4egGfTaAc2Px2YDYiJUh",
+        "result": "\`\`\`
+1	# Notes
+2	
+3	This is a draft.
+\`\`\`",
+        "status": "completed",
+        "tool": "Read /vault/note.md",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [],
+        "id": "toolu_01RZagn7HdyiZPaFa2psPQN8",
+        "status": "pending",
+        "type": "fileChange",
+      },
+      "type": "item/started",
+    },
+    {
+      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
+      "message": "Edit /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
+      "message": "Edit /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
+      "message": "Edit /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
+      "message": "Edit /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [
+          {
+            "kind": "update",
+            "path": "/vault/note.md",
+          },
+        ],
+        "id": "toolu_01RZagn7HdyiZPaFa2psPQN8",
+        "status": "completed",
+        "type": "fileChange",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "Both changes made with the file tools:
+- Created \`hello.md\` with the single line \`hello\`.
+- Changed \`draft\` to \`final\` in \`note.md\`. The line now reads \`This is a final.\`
+
+"a final" reads oddly. \`This is final.\` would fix it — say if you want that.
+
+Separately, the Figma plugin needs sign-in before its tools work. Use \`/mcp\` in an interactive session.",
+      "deltas": 26,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "Both changes made with the file tools:
+- Created \`hello.md\` with the single line \`hello\`.
+- Changed \`draft\` to \`final\` in \`note.md\`. The line now reads \`This is a final.\`
+
+"a final" reads oddly. \`This is final.\` would fix it — say if you want that.
+
+Separately, the Figma plugin needs sign-in before its tools work. Use \`/mcp\` in an interactive session.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`claude-agent-acp@0.81.0 > replays failed-command onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "command": "Terminal",
+        "cwd": "",
+        "id": "toolu_01XUDYcwND6ZkzDDCtot2mGe",
+        "status": "pending",
+        "type": "commandExecution",
+      },
+      "type": "item/started",
+    },
+    {
+      "itemId": "toolu_01XUDYcwND6ZkzDDCtot2mGe",
+      "message": "cat missing-file.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01XUDYcwND6ZkzDDCtot2mGe",
+      "message": "cat missing-file.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "aggregatedOutput": "\`\`\`
+Exit code 1
+[31m[bat error][0m: 'missing-file.md': No such file or directory (os error 2)
+\`\`\`",
+        "approvalStatus": null,
+        "command": "cat missing-file.md",
+        "cwd": "",
+        "id": "toolu_01XUDYcwND6ZkzDDCtot2mGe",
+        "status": "failed",
+        "type": "commandExecution",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "The command failed with exit code 1. The file \`missing-file.md\` doesn't exist in the working directory.
+
+The error came from \`bat\`, not \`cat\`: \`[bat error]: 'missing-file.md': No such file or directory (os error 2)\`. So your shell aliases \`cat\` to \`bat\`. I didn't retry or run anything else.
+
+Separately, the Figma MCP server needs authorization. Until you authorize it with \`claude mcp\` or \`/mcp\` in an interactive session, its tools aren't available.",
+      "deltas": 24,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "The command failed with exit code 1. The file \`missing-file.md\` doesn't exist in the working directory.
+
+The error came from \`bat\`, not \`cat\`: \`[bat error]: 'missing-file.md': No such file or directory (os error 2)\`. So your shell aliases \`cat\` to \`bat\`. I didn't retry or run anything else.
+
+Separately, the Figma MCP server needs authorization. Until you authorize it with \`claude mcp\` or \`/mcp\` in an interactive session, its tools aren't available.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`claude-agent-acp@0.81.0 > replays plan onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "arguments": {},
+        "id": "toolu_01AqCHfey3TGN1WybhnMXSBX",
+        "status": "pending",
+        "tool": "ToolSearch",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "itemId": "toolu_01AqCHfey3TGN1WybhnMXSBX",
+      "message": "ToolSearch",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01AqCHfey3TGN1WybhnMXSBX",
+      "message": "ToolSearch",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01AqCHfey3TGN1WybhnMXSBX",
+      "message": "ToolSearch",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "arguments": {
+          "max_results": 5,
+          "query": "todo task plan",
+        },
+        "id": "toolu_01AqCHfey3TGN1WybhnMXSBX",
+        "result": "Tool: EnterPlanModeTool: ExitPlanModeTool: TaskStopTool: CronCreateTool: DesignSync",
+        "status": "completed",
+        "tool": "ToolSearch",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "arguments": {},
+        "id": "toolu_01DJMy4KWzxbEEurpBcAJsnm",
+        "status": "pending",
+        "tool": "Read File",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "itemId": "toolu_01DJMy4KWzxbEEurpBcAJsnm",
+      "message": "Read /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "itemId": "toolu_01DJMy4KWzxbEEurpBcAJsnm",
+      "message": "Read /vault/note.md",
+      "type": "item/toolCall/progress",
+    },
+    {
+      "item": {
+        "arguments": {
+          "file_path": "/vault/note.md",
+        },
+        "id": "toolu_01DJMy4KWzxbEEurpBcAJsnm",
+        "result": "\`\`\`
+1	# Draft
+2	
+3	The launch moves to Thursday.
+\`\`\`",
+        "status": "completed",
+        "tool": "Read /vault/note.md",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "- [x] 1. Read note.md
+- [x] 2. Summarize in one sentence
+
+**Summary:** The note is a draft saying the launch moves to Thursday.
+
+This session has no todo tool, so I kept the checklist in chat. If you want real tracking, TodoWrite has to be enabled.",
+      "deltas": 16,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "- [x] 1. Read note.md
+- [x] 2. Summarize in one sentence
+
+**Summary:** The note is a draft saying the launch moves to Thursday.
+
+This session has no todo tool, so I kept the checklist in chat. If you want real tracking, TodoWrite has to be enabled.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`claude-agent-acp@0.81.0 > replays reply onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "pong",
+      "deltas": 1,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "pong",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`codex-acp@1.13.0 > replays command onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll run \`ls\` once and count the entries.
+",
+      "deltas": 13,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "exec-7e3620f0-1bb3-4032-bba1-fd603d57d8be",
+        "status": "pending",
+        "tool": "List files",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "id": "exec-7e3620f0-1bb3-4032-bba1-fd603d57d8be",
+        "status": "completed",
+        "tool": "List files",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "delta": "2 entries.",
+      "deltas": 3,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll run \`ls\` once and count the entries.
+2 entries.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.",
+      "deltas": 26,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "content": [],
+        "id": "turn_replay:reasoning",
+        "summary": [],
+        "type": "reasoning",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "
+
+**Reading draft note**",
+      "deltas": 2,
+      "itemId": "turn_replay:reasoning",
+      "type": "item/reasoning/textDelta",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [
+          {
+            "kind": "add",
+            "path": "/vault/hello.md",
+          },
+        ],
+        "id": "exec-2c2e9639-fdaf-4097-b619-2446c7b490d2",
+        "status": "pending",
+        "type": "fileChange",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [
+          {
+            "kind": "add",
+            "path": "/vault/hello.md",
+          },
+        ],
+        "id": "exec-2c2e9639-fdaf-4097-b619-2446c7b490d2",
+        "status": "completed",
+        "type": "fileChange",
+      },
+      "type": "item/completed",
+    },
+    {
+      "delta": "
+
+**Awaiting file contents**",
+      "deltas": 2,
+      "itemId": "turn_replay:reasoning",
+      "type": "item/reasoning/textDelta",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "command": "mcp.node_repl.js",
+        "cwd": "",
+        "id": "exec-486884d5-a68d-43a7-918a-b1c645e0e2c4",
+        "status": "pending",
+        "type": "commandExecution",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "arguments": {
+          "action": {
+            "connectorId": "node_repl",
+            "connectorName": "Node REPL",
+            "server": "node_repl",
+            "toolName": "js",
+            "toolTitle": "Read note.md",
+            "type": "mcpToolCall",
+          },
+          "review": {
+            "rationale": null,
+            "riskLevel": null,
+            "status": "inProgress",
+            "userAuthorization": null,
+          },
+          "reviewId": "9cf264dd-243a-44df-a46c-0414b0fcb22c",
+          "startedAtMs": 1790198018916,
+          "targetItemId": "exec-486884d5-a68d-43a7-918a-b1c645e0e2c4",
+          "threadId": "session_recorded",
+          "turnId": "01a0d01d-78c2-7143-87f6-3e5608dcdcfa",
+        },
+        "id": "guardian_assessment:9cf264dd-243a-44df-a46c-0414b0fcb22c",
+        "result": "Status: In progress
+Action: MCP js on Node REPL",
+        "status": "pending",
+        "tool": "Guardian Review",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "arguments": {
+          "action": {
+            "connectorId": "node_repl",
+            "connectorName": "Node REPL",
+            "server": "node_repl",
+            "toolName": "js",
+            "toolTitle": "Read note.md",
+            "type": "mcpToolCall",
+          },
+          "review": {
+            "rationale": null,
+            "riskLevel": null,
+            "status": "inProgress",
+            "userAuthorization": null,
+          },
+          "reviewId": "9cf264dd-243a-44df-a46c-0414b0fcb22c",
+          "startedAtMs": 1790198018916,
+          "targetItemId": "exec-486884d5-a68d-43a7-918a-b1c645e0e2c4",
+          "threadId": "session_recorded",
+          "turnId": "01a0d01d-78c2-7143-87f6-3e5608dcdcfa",
+        },
+        "id": "guardian_assessment:9cf264dd-243a-44df-a46c-0414b0fcb22c",
+        "result": "Status: Approved
+Action: MCP js on Node REPL
+Risk: low
+Authorization: medium
+Rationale: Read-only inspection of note.md is narrowly scoped and needed to complete the user-requested edit.",
+        "status": "completed",
+        "tool": "Guardian Review",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "command": "mcp.node_repl.js",
+        "cwd": "",
+        "id": "exec-486884d5-a68d-43a7-918a-b1c645e0e2c4",
+        "status": "completed",
+        "type": "commandExecution",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [
+          {
+            "kind": "update",
+            "path": "/vault/note.md",
+          },
+        ],
+        "id": "exec-33e6753a-cfa0-467d-a9a6-3d87c7b320bc",
+        "status": "pending",
+        "type": "fileChange",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "changes": [
+          {
+            "kind": "update",
+            "path": "/vault/note.md",
+          },
+        ],
+        "id": "exec-33e6753a-cfa0-467d-a9a6-3d87c7b320bc",
+        "status": "completed",
+        "type": "fileChange",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "command": "mcp.node_repl.js",
+        "cwd": "",
+        "id": "exec-8380a879-3d4c-4bd0-ad16-741cfaf9e853",
+        "status": "pending",
+        "type": "commandExecution",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "arguments": {
+          "action": {
+            "connectorId": "node_repl",
+            "connectorName": "Node REPL",
+            "server": "node_repl",
+            "toolName": "js",
+            "toolTitle": "Verify both files",
+            "type": "mcpToolCall",
+          },
+          "review": {
+            "rationale": null,
+            "riskLevel": null,
+            "status": "inProgress",
+            "userAuthorization": null,
+          },
+          "reviewId": "1d7a8c80-bb55-42f1-a75a-1e64728438c8",
+          "startedAtMs": 1790198039197,
+          "targetItemId": "exec-8380a879-3d4c-4bd0-ad16-741cfaf9e853",
+          "threadId": "session_recorded",
+          "turnId": "01a0d01d-78c2-7143-87f6-3e5608dcdcfa",
+        },
+        "id": "guardian_assessment:1d7a8c80-bb55-42f1-a75a-1e64728438c8",
+        "result": "Status: In progress
+Action: MCP js on Node REPL",
+        "status": "pending",
+        "tool": "Guardian Review",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "arguments": {
+          "action": {
+            "connectorId": "node_repl",
+            "connectorName": "Node REPL",
+            "server": "node_repl",
+            "toolName": "js",
+            "toolTitle": "Verify both files",
+            "type": "mcpToolCall",
+          },
+          "review": {
+            "rationale": null,
+            "riskLevel": null,
+            "status": "inProgress",
+            "userAuthorization": null,
+          },
+          "reviewId": "1d7a8c80-bb55-42f1-a75a-1e64728438c8",
+          "startedAtMs": 1790198039197,
+          "targetItemId": "exec-8380a879-3d4c-4bd0-ad16-741cfaf9e853",
+          "threadId": "session_recorded",
+          "turnId": "01a0d01d-78c2-7143-87f6-3e5608dcdcfa",
+        },
+        "id": "guardian_assessment:1d7a8c80-bb55-42f1-a75a-1e64728438c8",
+        "result": "Status: Approved
+Action: MCP js on Node REPL
+Risk: low
+Authorization: medium
+Rationale: Read-only verification of the two user-requested file changes; no external side effects.",
+        "status": "completed",
+        "tool": "Guardian Review",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "approvalStatus": null,
+        "command": "mcp.node_repl.js",
+        "cwd": "",
+        "id": "exec-8380a879-3d4c-4bd0-ad16-741cfaf9e853",
+        "status": "completed",
+        "type": "commandExecution",
+      },
+      "type": "item/completed",
+    },
+    {
+      "delta": "Created \`hello.md\` with only \`hello\`. Replaced \`draft\` with \`final\` in \`note.md\`. Verified both. No shell used.",
+      "deltas": 31,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "content": [
+          "
+
+**Reading draft note**
+
+**Awaiting file contents**",
+        ],
+        "id": "turn_replay:reasoning",
+        "summary": [],
+        "type": "reasoning",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.Created \`hello.md\` with only \`hello\`. Replaced \`draft\` with \`final\` in \`note.md\`. Verified both. No shell used.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`codex-acp@1.13.0 > replays failed-command onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll run \`cat missing-file.md\` once.
+",
+      "deltas": 12,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "exec-8d7d3dd9-d6d7-410a-9b05-ef7d7a04a36d",
+        "status": "pending",
+        "tool": "Read file '/vault/missing-file.md'",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "id": "exec-8d7d3dd9-d6d7-410a-9b05-ef7d7a04a36d",
+        "status": "failed",
+        "tool": "Read file '/vault/missing-file.md'",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "delta": "Ran once. Exit code 1: \`cat: missing-file.md: No such file or directory\`.",
+      "deltas": 21,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll run \`cat missing-file.md\` once.
+Ran once. Exit code 1: \`cat: missing-file.md: No such file or directory\`.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
+",
+      "deltas": 19,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "content": [],
+        "id": "turn_replay:reasoning",
+        "summary": [],
+        "type": "reasoning",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "
+
+**Checking planning options first.**
+
+**Reading the note**",
+      "deltas": 4,
+      "itemId": "turn_replay:reasoning",
+      "type": "item/reasoning/textDelta",
+    },
+    {
+      "delta": "No todo/plan tool is available. I’ll track them here:
+
+- [ ] Read \`note.md\`.
+- [ ] Summarize it in one sentence.
+",
+      "deltas": 33,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "exec-1fca24fb-47f5-4287-8c22-43be2293c060",
+        "status": "pending",
+        "tool": "Read file '/vault/note.md'",
+        "type": "toolCall",
+      },
+      "type": "item/started",
+    },
+    {
+      "item": {
+        "id": "exec-1fca24fb-47f5-4287-8c22-43be2293c060",
+        "status": "completed",
+        "tool": "Read file '/vault/note.md'",
+        "type": "toolCall",
+      },
+      "type": "item/completed",
+    },
+    {
+      "delta": "- [x] Read \`note.md\`.
+- [ ] Summarize it in one sentence.
+The launch moves to Thursday.
+
+- [x] Read \`note.md\`.
+- [x] Summarize it in one sentence.
+
+Tracked here because no todo/plan tool was available.",
+      "deltas": 58,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "content": [
+          "
+
+**Checking planning options first.**
+
+**Reading the note**",
+        ],
+        "id": "turn_replay:reasoning",
+        "summary": [],
+        "type": "reasoning",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
+No todo/plan tool is available. I’ll track them here:
+
+- [ ] Read \`note.md\`.
+- [ ] Summarize it in one sentence.
+- [x] Read \`note.md\`.
+- [ ] Summarize it in one sentence.
+The launch moves to Thursday.
+
+- [x] Read \`note.md\`.
+- [x] Summarize it in one sentence.
+
+Tracked here because no todo/plan tool was available.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
+exports[`codex-acp@1.13.0 > replays reply onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "",
+        "type": "agentMessage",
+      },
+      "type": "item/started",
+    },
+    {
+      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+pong",
+      "deltas": 2,
+      "itemId": "turn_replay:message",
+      "type": "item/agentMessage/delta",
+    },
+    {
+      "item": {
+        "id": "turn_replay:message",
+        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+
+pong",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "status": "completed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;

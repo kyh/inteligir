@@ -58,9 +58,9 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "catalog:",
+    "@agentclientprotocol/codex-acp": "catalog:",
     "@parcel/watcher": "catalog:",
-    "@zed-industries/claude-code-acp": "catalog:",
-    "@zed-industries/codex-acp": "catalog:",
     "better-sqlite3": "catalog:",
     "sherpa-onnx-node": "catalog:"
   },

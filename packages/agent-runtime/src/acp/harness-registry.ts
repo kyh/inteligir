@@ -20,9 +20,8 @@ export interface HarnessDefinition {
   vendorBinary: string;
   loginCommand: string;
   adapterEntry: string;
-  adapterArgs: readonly string[];
   credentialProbes: readonly (HarnessCredentialProbe | HarnessKeychainProbe)[];
-  applyModel: (model: string, env: Record<string, string>, args: string[]) => void;
+  applyModel: (model: string, env: Record<string, string>) => void;
   // the claude SDK refuses to run when it believes it is nested inside another claude session, so
   // the nesting sentinel must not leak through from whatever launched this app.
   envOmit: readonly string[];
@@ -32,8 +31,7 @@ const resolveAdapterEntry = (specifier: string): string => require.resolve(speci
 
 export const HARNESSES = {
   claude: {
-    adapterArgs: [],
-    adapterEntry: resolveAdapterEntry("@zed-industries/claude-code-acp/dist/index.js"),
+    adapterEntry: resolveAdapterEntry("@agentclientprotocol/claude-agent-acp/dist/index.js"),
     applyModel: (model: string, env: Record<string, string>) => {
       env.ANTHROPIC_MODEL = model;
     },
@@ -48,10 +46,10 @@ export const HARNESSES = {
     vendorBinary: "claude",
   },
   codex: {
-    adapterArgs: [],
-    adapterEntry: resolveAdapterEntry("@zed-industries/codex-acp/bin/codex-acp.js"),
-    applyModel: (model: string, _env: Record<string, string>, args: string[]) => {
-      args.push("-c", `model=${JSON.stringify(model)}`);
+    adapterEntry: resolveAdapterEntry("@agentclientprotocol/codex-acp/dist/index.js"),
+    // the adapter reads no argv; CODEX_CONFIG is merged over every session's codex config.
+    applyModel: (model: string, env: Record<string, string>) => {
+      env.CODEX_CONFIG = JSON.stringify({ model });
     },
     credentialProbes: [{ kind: "home-file", relativePath: ".codex/auth.json" }],
     displayName: "Codex",

@@ -14,7 +14,11 @@
       ],
       "project": ["src/**/*.ts", "scripts/**/*.mjs"],
       // the ACP adapters are resolved with require from the running bundle, never imported
-      "ignoreDependencies": ["@zed-industries/claude-code-acp", "@zed-industries/codex-acp", "tsx"]
+      "ignoreDependencies": [
+        "@agentclientprotocol/claude-agent-acp",
+        "@agentclientprotocol/codex-acp",
+        "tsx"
+      ]
     },
     "apps/desktop": {
       "entry": [
@@ -54,9 +58,12 @@
       "project": ["src/**/*.ts"]
     },
     "packages/agent-runtime": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,mjs}"],
-      "ignoreDependencies": ["@zed-industries/claude-code-acp", "@zed-industries/codex-acp"]
+      "entry": ["src/**/__tests__/**/*.test.ts", "scripts/*.ts"],
+      "project": ["src/**/*.{ts,mjs}", "scripts/*.ts"],
+      "ignoreDependencies": [
+        "@agentclientprotocol/claude-agent-acp",
+        "@agentclientprotocol/codex-acp"
+      ]
     },
     "packages/api": {
       "entry": ["src/**/__tests__/**/*.test.ts"],

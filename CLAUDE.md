@@ -184,9 +184,10 @@ packages/
                  arrives as `unknown` and this is the one place it becomes a
                  domain value.
   agent-runtime/ @repo/agent-runtime — the ACP runtime (#588): one adapter
-                 speaks Zed's agent-client-protocol to claude-code-acp and
-                 codex-acp children; harnesses are data rows; the
-                 provider-event vocabulary is the one internal grammar.
+                 speaks the Agent Client Protocol (@agentclientprotocol/sdk)
+                 to claude-agent-acp and codex-acp children; harnesses are
+                 data rows; the provider-event vocabulary is the one internal
+                 grammar, exactly what the ACP mapper emits.
   agent-skills/  @repo/agent-skills — product skill files: the
                  dialect's first-party spec, served to agents as files.
   ui/            @repo/ui — the shared component vocabulary on Base UI:
@@ -908,15 +909,30 @@ agents default`; unset falls back
   child instead of meeting a session still holding the abandoned prompt; a
   dispatch re-checks its turn after every await and stops once it was settled
   or the manager disposed, so it neither fails the turn that replaced it nor
-  spawns a child nobody will close. The 0.4 ACP client never rejects a pending
-  request when its child exits, so every request races that exit, naming the
-  exit status and the child's last stderr lines: a crash at boot fails the
+  spawns a child nobody will close. The child's exit closes the ACP connection
+  with an error naming the exit status and the child's last stderr lines, and
+  the SDK rejects every pending request with it (stdout's end is kept from
+  closing it first with a bare "connection closed"): a crash at boot fails the
   dispatch, a crash mid-turn fails the turn like a refused prompt. Rejected: an
   exit callback beside it, and per-thread exit generations under it, which fit
   a process shared by threads (one child per thread here) and would be a second
   answer to "did this turn fail?".
   `packages/agent-runtime/src/acp/acp-runtime.ts` and
   `apps/cli/src/server/agents/runtime-manager.ts`.
+
+- **THE PROVIDER GRAMMAR IS WHAT THE ACP MAPPER EMITS, AND THE MAPPER IS PINNED
+  TO THE ADAPTERS' REAL WIRE** (owner decision, reversing the kept-wide bb
+  vocabulary). `ProviderEvent` carries exactly the kinds and fields
+  `AcpTurnMapper` constructs; a kind nothing produces was a branch every
+  consumer carried and a test hand-built. `ThreadEvent` stays its own union:
+  only the emitted side shrank. The mapper is tested against turns the pinned
+  adapters really sent, recorded through the runtime into
+  `packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/` and
+  replayed through the SDK's own client, because the fake agent encodes what
+  the adapters were believed to send; the recording is what showed content
+  replaces rather than appends. The adapter and SDK pins are exact and move
+  together, and a bump re-records (`record:transcripts`,
+  `packages/agent-runtime/scripts/record-acp-transcripts.ts`).
 
 ### Dictation
 

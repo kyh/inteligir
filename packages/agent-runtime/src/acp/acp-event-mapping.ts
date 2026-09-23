@@ -9,9 +9,9 @@ import type {
   PlanEntry,
   PromptResponse,
   SessionNotification,
+  ToolCallContent,
   ToolCallLocation,
-  ToolCallUpdate,
-} from "@zed-industries/agent-client-protocol";
+} from "@agentclientprotocol/sdk";
 import { jsonObjectSchema } from "../vocabulary/json-value.js";
 import type { JsonObject } from "../vocabulary/json-value.js";
 import type {
@@ -43,10 +43,6 @@ interface OpenToolCall {
   diffs: ThreadEventFileChange[];
   outputText: string;
   rawInput?: JsonObject;
-}
-
-interface ToolCallContentCarrier {
-  content?: ToolCallUpdate["content"];
 }
 
 const mapToolStatus = (status: string | null | undefined): ThreadEventItemStatus => {
@@ -84,20 +80,23 @@ const mapPlanEntry = (entry: PlanEntry): ProviderEventPlanStep => ({
   step: entry.content,
 });
 
-const absorbContent = (
+// a content collection replaces the one before it (the protocol's rule): claude sends a Bash call's
+// description as content, then its output, and appending ran the two together.
+const replaceContent = (
   open: OpenToolCall,
-  update: ToolCallUpdate | ToolCallContentCarrier,
+  content: ToolCallContent[] | null | undefined,
 ): void => {
-  for (const content of update.content ?? []) {
-    if (content.type === "diff") {
-      const isNewFile = content.oldText === undefined || content.oldText === null;
-      const change: ThreadEventFileChange = {
-        kind: isNewFile ? "add" : "update",
-        path: content.path,
-      };
-      open.diffs.push(change);
-    } else if (content.type === "content" && content.content.type === "text") {
-      open.outputText += content.content.text;
+  if (content === undefined || content === null) {
+    return;
+  }
+  open.diffs = [];
+  open.outputText = "";
+  for (const entry of content) {
+    if (entry.type === "diff") {
+      const isNewFile = entry.oldText === undefined || entry.oldText === null;
+      open.diffs.push({ kind: isNewFile ? "add" : "update", path: entry.path });
+    } else if (entry.type === "content" && entry.content.type === "text") {
+      open.outputText += entry.content.text;
     }
   }
 };
@@ -124,7 +123,7 @@ const applyToolCallUpdate = (
   if (update.status !== undefined && update.status !== null) {
     open.status = mapToolStatus(update.status);
   }
-  absorbContent(open, update);
+  replaceContent(open, update.content);
 };
 
 // file-shaped kinds become fileChange items: the commit hold stages a turn's write set from
@@ -246,7 +245,15 @@ export class AcpTurnMapper {
       }
       case "user_message_chunk":
       case "available_commands_update":
-      case "current_mode_update": {
+      case "current_mode_update":
+      case "config_option_update":
+      case "session_info_update":
+      case "usage_update":
+      case "notice":
+      case "plan_update":
+      case "plan_removed":
+      case "compaction_update":
+      case "compaction_summary_chunk": {
         return [];
       }
       // no default
@@ -312,7 +319,7 @@ export class AcpTurnMapper {
     if (update.rawInput !== undefined && parsedInput.success) {
       open.rawInput = parsedInput.data;
     }
-    absorbContent(open, update);
+    replaceContent(open, update.content);
     this.#toolCalls.set(update.toolCallId, open);
     return [
       {
@@ -352,11 +359,9 @@ export class AcpTurnMapper {
   completed(stopReason: StopReason): ProviderEvent[] {
     const events = this.#closeOpenItems(stopReason === "cancelled" ? "interrupted" : "completed");
     events.push({
-      providerThreadId: this.#ctx.providerThreadId,
-      scope: this.#scope(),
       status: mapStopReason(stopReason),
-      threadId: this.#ctx.threadId,
       type: "turn/completed",
+      ...this.#threadData(),
     });
     return events;
   }
@@ -364,20 +369,8 @@ export class AcpTurnMapper {
   failed(message: string): ProviderEvent[] {
     const events = this.#closeOpenItems("failed");
     events.push(
-      {
-        errorInfo: { category: "internal", httpStatusCode: null, providerCode: null },
-        message,
-        type: "provider/error",
-        ...this.#threadData(),
-      },
-      {
-        error: { message },
-        providerThreadId: this.#ctx.providerThreadId,
-        scope: this.#scope(),
-        status: "failed",
-        threadId: this.#ctx.threadId,
-        type: "turn/completed",
-      },
+      { message, type: "provider/error", ...this.#threadData() },
+      { error: { message }, status: "failed", type: "turn/completed", ...this.#threadData() },
     );
     return events;
   }

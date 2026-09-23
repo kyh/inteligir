@@ -44,15 +44,10 @@ import { createInteractionWaiters } from "./interaction-waiters";
 import type { InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
 
-// arrives on every token tick beside the persisted tokenUsage half; not worth a debug line each time.
 type FileChangeProviderItem = Extract<
   Extract<ProviderEvent, { type: "item/started" }>["item"],
   { type: "fileChange" }
 >;
-
-const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<ProviderEvent["type"]> = new Set([
-  "thread/contextWindowUsage/updated",
-]);
 
 const DEFAULT_REAP_INTERVAL_MS = 60_000;
 const DEFAULT_IDLE_REAP_MS = 10 * 60_000;
@@ -408,9 +403,7 @@ class AcpTurnDriver implements TurnDriver {
 
     const mapped = mapProviderEvent(event, hostTurnId);
     if (mapped.kind === "dropped") {
-      if (!SILENTLY_DROPPED_EVENT_TYPES.has(event.type)) {
-        this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
-      }
+      this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
       return;
     }
     if (event.type === "turn/completed") {

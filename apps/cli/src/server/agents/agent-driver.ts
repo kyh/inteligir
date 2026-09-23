@@ -41,8 +41,6 @@ const noDispose = async (): Promise<void> => {
   /* empty */
 };
 
-// default harness is claude while codex-acp 0.16.0 is broken upstream (its bundled core cannot parse the
-// current models response); flip the fallback back when the adapter heals.
 export const defaultHarnessId = (
   preferred: HarnessId | null,
   env: NodeJS.ProcessEnv,
