@@ -12,11 +12,21 @@ suite drives the same bytes and the same policy a user gets.
 ## Run it
 
 ```sh
-pnpm e2e                      # every scenario (build first: pnpm build)
+pnpm e2e                      # every scenario (the runner builds the CLI first)
 pnpm e2e --only vault-sync    # one scenario (comma-separated, repeatable)
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # names + descriptions
+pnpm e2e --require-browser    # a browser that cannot launch FAILS, never skips
 ```
+
+Before the first scenario the runner builds the CLI bundle and the workspace
+UI it stages, through turbo (`--filter=inteligir`): a cache hit when nothing
+changed, and never a stale `dist/` booted as if it were this checkout.
+
+Every scenario runs under a deadline (`timeoutMs`, default 180s; the two that
+build or boot a Worker declare more). A run still going past it FAILS with
+its instances' output tails and is torn down, so a hang costs one scenario,
+not the whole job.
 
 Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
 the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
@@ -28,11 +38,14 @@ sweep), but its scenarios boot processes and a browser, so they run only via
 Each scenario receives a context (`src/harness/scenario.ts`) that owns its
 scratch dir and tears everything down afterwards:
 
-- `boot({ name, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a fresh
-  instance: scratch `data/` + `vault/` siblings, a reserved free port (bind
-  races retry with a fresh port, bounded), health-gated on `/health` answering
-  `{ok:true}`. Registered for teardown at SPAWN, before the health wait, and
-  torn down as a process group that is polled to verified-dead (SIGTERM →
+- `boot({ name, mode?, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a
+  fresh instance. `mode` is `source` (the default: `bin/inteligir`, which runs
+  `src/` under tsx in a checkout) or `built` (`dist/index.js` under
+  `NODE_ENV=production`, what npm and the .app run). Scratch `data/` + `vault/`
+  siblings, a reserved free port (bind races retry with a fresh port,
+  bounded), health-gated on `/health` answering `{ok:true}`. Registered for
+  teardown at SPAWN, before the health wait, and torn down as a process group
+  that is polled to verified-dead (SIGTERM →
   SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
   group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
   `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
@@ -64,6 +77,10 @@ what each one is FOR.
 |                           | wrangler dev and answers; built through turbo on every run, so it is the  |
 |                           | current source, and the one place a module-scope crash of the emitted     |
 |                           | module can show                                                           |
+| built-cli-boot            | the esbuild bundle — what npm and the .app run — boots in production      |
+|                           | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
+|                           | write, hears an on-disk write through its forked watcher, and answers a   |
+|                           | client verb run from the same split bundle                                |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline                |
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
 |                           | CAS write guards the save (typed conflict, current bytes in the body);    |
@@ -89,8 +106,9 @@ what each one is FOR.
 ## Adding a scenario
 
 1. `src/scenarios/<name>.ts` exporting a `Scenario` (`name`, `description`,
-   `run(ctx)`); assert with `expect`/`expectEq`, bail with `skip(reason)` for
-   a capability this environment/branch does not have yet.
+   `run(ctx)`, and `timeoutMs` only when a green run can near the default);
+   assert with `expect`/`expectEq`, bail with `skip(reason)` for a capability
+   this environment/branch does not have yet.
 2. Register it in `SCENARIOS` in `src/run.ts` (a static import — knip reads
    reachability from there).
 
@@ -132,9 +150,15 @@ agent-browser install` (Linux: `--with-deps`), at the version
 Every browser scenario probes the environment with `about:blank` first — only
 a failure THERE (the browser cannot launch at all) reports SKIP, with the exact
 launcher error; opening the app and everything after is a real assertion.
+A SKIP still exits 0, which is right on a machine with no browser and wrong on
+one that just installed it: there a failed install passes as every browser
+scenario skipped behind a green step. So a run that installed the browser
+passes `--require-browser`, and every skip becomes a FAIL carrying the same
+launcher error.
 
-`pnpm build` must have run: the harness refuses to boot without
-`apps/cli/dist/ui`, because a server with no workspace UI answers the API and
-serves a 404 to the browser — a green API run beside a page that never loads.
-built-worker-boot is the one scenario that builds for itself (apps/web,
-through turbo), because the bundle it boots is the thing under test.
+The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
+still refuses to boot without it, because a server with no workspace UI
+answers the API and serves a 404 to the browser — a green API run beside a
+page that never loads. built-worker-boot builds apps/web for itself, through
+turbo, because the bundle it boots is the thing under test and no other
+scenario needs it.

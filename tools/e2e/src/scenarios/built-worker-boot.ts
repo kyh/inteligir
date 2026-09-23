@@ -10,6 +10,8 @@ const BUILD_TIMEOUT_MS = 300_000;
 export const builtWorkerBoot: Scenario = {
   description: "the vite-built Worker bundle boots under wrangler dev and answers its routes",
   name: "built-worker-boot",
+  // the build's own budget plus a cold wrangler dev boot.
+  timeoutMs: BUILD_TIMEOUT_MS + 180_000,
   async run(context) {
     // built through turbo, not looked for on disk: a present artifact may be stale and boot last
     // week's Worker.

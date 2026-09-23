@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { skip } from "./assert";
-import { exec, ExecError } from "./exec";
+import { describeExecError, exec } from "./exec";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
@@ -19,17 +19,8 @@ export const parseEval = <T>(raw: string, schema: z.ZodType<T>): T => {
   return schema.parse(/^[{[]/u.test(text) ? JSON.parse(text) : text);
 };
 
-const describeExecError = (cause: unknown): string => {
-  if (cause instanceof ExecError) {
-    return [cause.message, cause.stdout.trim(), cause.stderr.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n");
-  }
-  return cause instanceof Error ? cause.message : String(cause);
-};
-
 // about:blank needs nothing of the product, so a failure here is an environment gap (skip), not an
-// assertion.
+// assertion; a run that installed the browser passes --require-browser, and the runner fails it.
 export const probeHeadlessOrSkip = async (
   browser: AgentBrowser,
   log: (message: string) => void,

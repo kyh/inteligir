@@ -149,6 +149,8 @@ const expectNoTokenInGitConfig = async (
 export const hostedVaultSync: Scenario = {
   description: "two instances against a real dev Worker: sign in, converge, clone, revoke",
   name: "hosted-vault-sync",
+  // a cold wrangler dev boot alone may take its two-minute ready deadline.
+  timeoutMs: 360_000,
   async run(ctx) {
     const worker = await ctx.cloudWorker();
 

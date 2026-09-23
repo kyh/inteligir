@@ -5,7 +5,7 @@ export interface ExecResult {
   stderr: string;
 }
 
-export class ExecError extends Error {
+class ExecError extends Error {
   readonly stdout: string;
   readonly stderr: string;
 
@@ -50,6 +50,15 @@ export const exec = async (
       },
     );
   });
+
+export const describeExecError = (cause: unknown): string => {
+  if (cause instanceof ExecError) {
+    return [cause.message, cause.stdout.trim(), cause.stderr.trim()]
+      .filter((part) => part.length > 0)
+      .join("\n");
+  }
+  return cause instanceof Error ? cause.message : String(cause);
+};
 
 // sweeps every GIT_* (GIT_DIR, GIT_INDEX_FILE, GIT_CONFIG_COUNT rows, …) and nulls the
 // global/system config so no commit the harness or the app makes depends on the host's hooks,

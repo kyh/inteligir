@@ -37,11 +37,17 @@ const shared = {
 
 await rm(distDir, { force: true, recursive: true });
 
+// split so a client verb parses the client alone: every dynamic import is a chunk loaded on use.
+// the chunks sit flat beside index.js, because `import.meta.url` and `import.meta.dirname` in any
+// of them must name dist/ (src/paths.ts, and the sibling lookups of the two bundles below).
 await build({
   ...shared,
+  chunkNames: "chunk-[hash]",
+  entryNames: "[name]",
   entryPoints: [path.join(packageRoot, "src", "index.ts")],
   external: NATIVE,
-  outfile: path.join(distDir, "index.js"),
+  outdir: distDir,
+  splitting: true,
 });
 
 // the watcher is a forked child process, so it needs its own file beside the entry
