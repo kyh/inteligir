@@ -2,6 +2,7 @@ import { closeConnection, createConnection, writeTransaction } from "@repo/db/co
 import type { DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { readSyncState } from "@repo/db/sync-outbox";
+import { threadEventSchema } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import path from "node:path";
@@ -86,12 +87,63 @@ describe("the outbox", () => {
     closeConnection(db);
   });
 
+  it("freezes an over-cap event clipped, so a large command output still syncs, settled", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    const output = "compiling…\n".repeat(20_000);
+    enqueue(db, [
+      {
+        item: {
+          aggregatedOutput: output,
+          approvalStatus: null,
+          command: "make",
+          cwd: "/vault",
+          exitCode: 0,
+          id: "item_c",
+          status: "completed",
+          type: "commandExecution",
+        },
+        scope: turnScope("turn_1"),
+        threadId: "thr_1",
+        type: "item/completed",
+      },
+      message("thr_1", "x".repeat(70_000)),
+    ]);
+    const batch = takePushBatch(db);
+    expect(batch?.rejected).toEqual([]);
+    const [command, said] = (batch?.request.events ?? []).map((row) =>
+      threadEventSchema.parse(row.event),
+    );
+    if (command?.type !== "item/completed" || command.item.type !== "commandExecution") {
+      throw new Error("expected the command's completion");
+    }
+    expect(command.item.status).toBe("completed");
+    expect(command.item.aggregatedOutput?.length).toBeLessThan(output.length);
+    expect(command.item.aggregatedOutput).toContain("bytes elided");
+    expect(said?.type).toBe("client/turn/requested");
+    closeConnection(db);
+  });
+
   it("leaves an event the log would refuse out of the batch rather than wedging", () => {
     const dataDir = makeTempDir("inteligir-outbox-");
     const db = openStore(dataDir);
-    // past the contract's per-event byte ceiling.
+    // no payload text to clip: the envelope alone is past the contract's per-event byte ceiling.
     enqueue(db, [
-      message("thr_1", "x".repeat(70_000)),
+      {
+        item: {
+          approvalStatus: null,
+          changes: Array.from({ length: 3000 }, (_, index) => ({
+            kind: "add",
+            path: `notes/renamed-in-bulk-${index}.md`,
+          })),
+          id: "item_f",
+          status: "completed",
+          type: "fileChange",
+        },
+        scope: turnScope("turn_1"),
+        threadId: "thr_1",
+        type: "item/completed",
+      },
       message("thr_1", "the one that must still get through"),
     ]);
     const batch = takePushBatch(db);

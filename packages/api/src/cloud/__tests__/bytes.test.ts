@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { constantTimeEqual, hexFromBytes, sha256Hex } from "../bytes";
+import {
+  constantTimeEqual,
+  exceedsUtf8Bytes,
+  hexFromBytes,
+  sha256Hex,
+  utf8ByteLength,
+} from "../bytes";
 
 describe("hexFromBytes", () => {
   it("encodes to lowercase, zero-padded hex", () => {
@@ -25,5 +31,20 @@ describe("constantTimeEqual", () => {
     expect(constantTimeEqual("", "")).toBe(true);
     expect(constantTimeEqual("a".repeat(43), "a".repeat(43))).toBe(true);
     expect(constantTimeEqual(`${"a".repeat(42)}b`, "a".repeat(43))).toBe(false);
+  });
+});
+
+describe("utf8ByteLength", () => {
+  it("agrees with the encoder, a surrogate pair counting once as its four bytes", () => {
+    for (const value of ["", "ascii", "é", "あ", "😀", "a😀あé"]) {
+      expect(utf8ByteLength(value)).toBe(new TextEncoder().encode(value).byteLength);
+    }
+  });
+});
+
+describe("exceedsUtf8Bytes", () => {
+  it("is true only past the limit", () => {
+    expect(exceedsUtf8Bytes("あ", 3)).toBe(false);
+    expect(exceedsUtf8Bytes("あ", 2)).toBe(true);
   });
 });

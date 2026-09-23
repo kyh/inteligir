@@ -1,15 +1,17 @@
-// deltas park until the next macrotask so a streaming burst lands as one ingest transaction and one ws frame;
-// a non-delta event flushes its thread immediately, buffered deltas first, so boundaries never reorder around deltas.
+// deltas park until the next macrotask so a streaming burst lands as one ingest transaction and one ws frame,
+// and each item's run of deltas as one row; a non-delta event flushes its thread immediately, buffered deltas
+// first, so boundaries never reorder around deltas. a merged row stays inside the sync row cap, so a merge
+// never turns deltas that would each have synced whole into one the outbox has to clip.
 
-import type { ThreadEvent } from "@repo/domain/provider-event";
+import { utf8ByteLength } from "@repo/api/cloud/bytes";
+import { EVENT_MAX_BYTES } from "@repo/api/cloud/sync/sync-schema";
+import { isThreadEventDelta, mergeAdjacentDeltas } from "@repo/domain/provider-event";
+import type { DeltaRunLimit, ThreadEvent } from "@repo/domain/provider-event";
 
-const DELTA_EVENT_TYPES: ReadonlySet<ThreadEvent["type"]> = new Set([
-  "item/agentMessage/delta",
-  "item/reasoning/summaryTextDelta",
-  "item/reasoning/textDelta",
-  "item/plan/delta",
-  "item/commandExecution/outputDelta",
-]);
+const SYNC_ROW_LIMIT: DeltaRunLimit = {
+  jsonBytes: (value) => utf8ByteLength(JSON.stringify(value)),
+  maxBytes: EVENT_MAX_BYTES,
+};
 
 export class ProviderEventCoalescer {
   private readonly ingest: (threadId: string, events: readonly ThreadEvent[]) => void;
@@ -27,7 +29,7 @@ export class ProviderEventCoalescer {
     } else {
       pending.push(event);
     }
-    if (DELTA_EVENT_TYPES.has(event.type)) {
+    if (isThreadEventDelta(event)) {
       this.scheduleFlush();
     } else {
       this.flush(threadId);
@@ -40,7 +42,7 @@ export class ProviderEventCoalescer {
       return;
     }
     this.pendingByThreadId.delete(threadId);
-    this.ingest(threadId, pending);
+    this.ingest(threadId, mergeAdjacentDeltas(pending, SYNC_ROW_LIMIT));
   }
 
   flushAll(): void {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { exceedsUtf8Bytes } from "../bytes";
 
 // event bodies are opaque json: the cloud never interprets them, so the grammar evolves
 // without a deploy. `deviceSeq` is strictly increasing per device; re-pushing a stored
@@ -19,32 +20,6 @@ export const PUSH_MAX_EVENTS = 200;
 export const PUSH_MAX_THREADS = 50;
 // utf-8 bytes, not String.length's utf-16 units
 export const EVENT_MAX_BYTES = 64 * 1024;
-
-const utf8ByteLength = (code: number): number => {
-  if (code <= 0x7f) {
-    return 1;
-  }
-  if (code <= 0x7_ff) {
-    return 2;
-  }
-  if (code <= 0xff_ff) {
-    return 3;
-  }
-  return 4;
-};
-
-// for…of iterates code points, so a surrogate pair counts once, as its four bytes
-const exceedsUtf8Bytes = (value: string, limit: number): boolean => {
-  let bytes = 0;
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    bytes += utf8ByteLength(code);
-    if (bytes > limit) {
-      return true;
-    }
-  }
-  return false;
-};
 
 export const syncEventInputSchema = z
   .object({

@@ -51,7 +51,8 @@ src/
     cloud-client.ts    # fetch over the paths: a refusal is a VALUE (CloudResult),
                        # never a throw, so the sync loop switches on the code
     bytes.ts           # hex/base64/sha256/constant-time compare on web-crypto
-                       # globals alone — the leaf that loads everywhere
+                       # globals alone, and the utf-8 byte count the row cap
+                       # is held in — the leaf that loads everywhere
     approval-slot.ts   # connector OAuth's one slot: arm, claim once, expire
     device/            # DEVICE_API_PATHS, the igd_ credential grammar, and
                        # login-flow.ts — the one spelling of "join an account"
@@ -59,7 +60,9 @@ src/
                        # plan-page.ts (the ONE page planner every reader of the
                        # merged log runs); sync-session.ts (the id-fenced
                        # session, pullPages, the single-flight pass); sync-ws.ts
-                       # (the bare ping frames)
+                       # (the bare ping frames); fit-sync-event.ts (the clip
+                       # that fits an over-cap event to one row, payload text
+                       # only, so a peer's fold settles it the same)
     captures/          # at-least-once delivery, exactly-once deletion by claim
     account/           # /v1/account — its own route, because a login field
                        # cannot be added
@@ -129,7 +132,9 @@ src/
 
 `pnpm --filter @repo/api test` — vitest, no platform. `src/cloud/__tests__/`
 pins the contract shapes and refusals, the login flow, the session fence and
-single-flight, the approval slot, the byte primitives, and that the cloud
+single-flight, the approval slot, the byte primitives, the sync clip (every
+event type fits the cap with its envelope untouched), and that the cloud
 vault-path grammar admits exactly what `parseVaultPath` returns unchanged;
-`src/local/__tests__/` the timeline fold and delta algebra, the `/ws`
-strict/lenient pair, and the vault and comments schemas.
+`src/local/__tests__/` the timeline fold and delta algebra (a clipped log
+folds to the same statuses), the `/ws` strict/lenient pair, and the vault and
+comments schemas.
