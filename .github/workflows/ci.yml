@@ -16,6 +16,8 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # a backstop over the e2e runner's per-scenario deadlines
+    timeout-minutes: 30
     env:
       TURBO_TELEMETRY_DISABLED: 1
     steps:
@@ -64,11 +66,12 @@ jobs:
 
       - name: E2E browser
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # pnpm, not npm: only PNPM_HOME is on PATH here. the suite skips browser scenarios
-        # (still PASS) when agent-browser cannot launch. pinned by hand: a global install
+        # pnpm, not npm: only PNPM_HOME is on PATH here. pinned by hand: a global install
         # rides no lockfile and no release cooldown
         run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
 
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm e2e
+        # the step above installed the browser, so one that cannot launch is a broken install:
+        # --require-browser fails those scenarios instead of skipping them behind a green step
+        run: pnpm e2e --require-browser
