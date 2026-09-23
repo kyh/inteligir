@@ -51,6 +51,11 @@ export const registerListener = (teardown: ShutdownStep[], run: ShutdownStep["ru
   teardown.unshift(teardownStep("listener", run));
 };
 
+// push: whenever it is registered, the data dir is released only after the db behind it closes.
+export const registerLockRelease = (teardown: ShutdownStep[], run: ShutdownStep["run"]): void => {
+  teardown.push(teardownStep("lock", run));
+};
+
 interface ComposeDriverDeps {
   config: AppConfig;
   db: DbConnection;

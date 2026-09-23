@@ -496,6 +496,22 @@ describe("the real socket upgrade", () => {
       type: "changed",
     });
   });
+
+  it("closes a bus socket as going-away when the listener tears down", async () => {
+    const booted = await bootTestApp();
+    const { server, port } = await listenTestApp(booted);
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}`, {
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+    });
+    const closeCode = Promise.withResolvers<number>();
+    socket.addEventListener("close", (event) => {
+      closeCode.resolve(event.code);
+    });
+    await awaitOpen(socket, "ws error");
+
+    await closeServer(server, booted.composed.upgradedSockets);
+    await expect(closeCode.promise).resolves.toBe(1001);
+  });
 });
 
 describe("the dictation stream socket", () => {
@@ -545,14 +561,13 @@ describe("the dictation stream socket", () => {
     // keep it open (mid-hold): a frame up, no finalize.
     socket.send(new Uint8Array([1, 0]).buffer);
 
-    await closeServer(server, {
-      closeAllClients: () => {
-        booted.composed.voiceStreamHub.closeAllClients();
-      },
-      terminateAllClients: () => {
-        booted.composed.voiceStreamHub.terminateAllClients();
-      },
-    });
+    await closeServer(server, booted.composed.upgradedSockets);
     socket.close();
+    await vi.waitFor(
+      () => {
+        expect(booted.composed.voiceStreamHub.size, "the closed socket's onClose disposes").toBe(0);
+      },
+      { timeout: 5000 },
+    );
   });
 });

@@ -86,24 +86,20 @@ afterEach(() => {
 });
 
 describe("VoiceStreamHub teardown", () => {
-  it("terminates a stuck socket after the drain — closeAllClients does not forget it", () => {
+  it("disposes the session and forgets the connection once its socket closes", async () => {
     const { voice, sessions } = fakeVoice();
     const hub = new VoiceStreamHub(voice);
-    const fake = fakeSocket();
-    hub.open(fake.socket);
+    const connection = hub.open(fakeSocket().socket);
     expect(hub.size).toBe(1);
     const [session] = sessions;
     if (session === undefined) {
       throw new Error("no session");
     }
 
-    hub.closeAllClients();
-    expect(fake.closes.at(-1)?.code).toBe(1001);
+    // what the route's onClose runs, for a close the listener's teardown started or the page did.
+    await connection.dispose();
     expect(session.disposed).toBe(true);
-    expect(fake.terminated()).toBe(0);
-
-    hub.terminateAllClients();
-    expect(fake.terminated()).toBe(1);
+    expect(hub.size).toBe(0);
   });
 });
 

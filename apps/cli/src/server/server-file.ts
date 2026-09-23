@@ -14,6 +14,12 @@ import { stagedWriteFileSync } from "./staged-write";
 
 export const SERVER_FILE_NAME = "server.json";
 
+// the one address the server binds and every client dials. never `localhost`: it resolves to ::1
+// or 127.0.0.1 per machine, and those are different origins to the desktop's pin.
+export const LOOPBACK_HOST = "127.0.0.1";
+
+export const loopbackOrigin = (port: number): string => `http://${LOOPBACK_HOST}:${String(port)}`;
+
 const SERVER_FILE_MODE = 0o600;
 
 const TOKEN_BYTES = 32;
@@ -64,7 +70,11 @@ export const readServerFile = (dataDir: string): ServerFile | null => {
   }
 };
 
-export const removeServerFile = (dataDir: string): void => {
+// only this boot's own row: a row minted by another boot is that server's address, not ours to retract.
+export const removeServerFile = (dataDir: string, token: string): void => {
+  if (readServerFile(dataDir)?.token !== token) {
+    return;
+  }
   rmSync(serverFilePath(dataDir), { force: true });
 };
 

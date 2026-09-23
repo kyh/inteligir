@@ -16,8 +16,9 @@ import type { CloudTransport } from "../cloud/sync-runtime";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
 import type { AppConfig } from "../config";
+import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
-import { authorizationHeader } from "../server-file";
+import { authorizationHeader, LOOPBACK_HOST, loopbackOrigin } from "../server-file";
 import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import type { CreateTurnDriver } from "../threads/turn-driver";
@@ -211,15 +212,14 @@ export interface ListeningTestApp {
 }
 
 export const listenTestApp = async (booted: BootedTestApp): Promise<ListeningTestApp> => {
-  const server = serve({ fetch: booted.composed.app.fetch, hostname: "127.0.0.1", port: 0 });
+  const server = serve({ fetch: booted.composed.app.fetch, hostname: LOOPBACK_HOST, port: 0 });
   booted.composed.injectWebSocket(server);
   onTestFinished(async () => {
     // a suite that is about the listener's teardown closes it itself.
     if (!server.listening) {
       return;
     }
-    server.close();
-    await once(server, "close");
+    await closeServer(server, booted.composed.upgradedSockets);
   });
   if (server.address() === null) {
     await once(server, "listening");
@@ -228,7 +228,7 @@ export const listenTestApp = async (booted: BootedTestApp): Promise<ListeningTes
   const client: RouterClient<typeof localRouter> = createORPCClient(
     new RPCLink({
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
-      origin: `http://127.0.0.1:${port}`,
+      origin: loopbackOrigin(port),
       url: RPC_PREFIX,
     }),
   );

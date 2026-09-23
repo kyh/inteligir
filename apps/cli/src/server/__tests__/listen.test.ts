@@ -7,7 +7,7 @@ import type { Duplex } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { closeServer, listenWithRetry } from "../listen";
-import type { ListenResult } from "../listen";
+import type { ListenResult, UpgradedSocket } from "../listen";
 import { boundAddressSchema } from "./bound-address";
 
 const closeNetServer = async (server: Server): Promise<void> => {
@@ -120,8 +120,6 @@ const upgradingServer = async (): Promise<UpgradingServer> => {
   return { port: address.success ? address.data.port : 0, server, serverSockets };
 };
 
-const noSockets = { closeAllClients: () => {}, terminateAllClients: () => {} };
-
 describe("closeServer", () => {
   it("Node's own close() never completes while a socket is upgraded", async () => {
     // if this ever resolves quickly, the by-name websocket close has become unnecessary rather than untested.
@@ -142,22 +140,24 @@ describe("closeServer", () => {
     const { server, port, serverSockets } = await upgradingServer();
     await upgradeAgainst(port);
 
-    // mirrors WsBus: the close frame first, then terminate destroys the server-side socket.
-    let closeFrames = 0;
-    const sockets = {
-      closeAllClients: () => {
-        closeFrames += 1;
-      },
-      terminateAllClients: () => {
-        for (const socket of serverSockets) {
+    // a client that ignores its close frame: only terminate destroys the server-side socket.
+    const closeCodes: number[] = [];
+    const sockets = new Set(
+      serverSockets.map((socket): UpgradedSocket => ({
+        close: (code) => {
+          closeCodes.push(code);
+        },
+        terminate: () => {
           socket.destroy();
-        }
-      },
-    };
+        },
+      })),
+    );
 
     const startedAt = Date.now();
     await closeServer(server, sockets);
-    expect(closeFrames).toBe(1);
+    expect(closeCodes, "rfc 6455 going away, so the page can tell a stop from a drop").toEqual([
+      1001,
+    ]);
     // under the vault step's own budget.
     expect(Date.now() - startedAt).toBeLessThan(6000);
   });
@@ -166,22 +166,23 @@ describe("closeServer", () => {
     const { server, port, serverSockets } = await upgradingServer();
     await upgradeAgainst(port);
 
-    const startedAt = Date.now();
-    await closeServer(server, {
-      closeAllClients: () => {
-        for (const socket of serverSockets) {
+    const sockets = new Set(
+      serverSockets.map((socket): UpgradedSocket => ({
+        close: () => {
           socket.end();
-        }
-      },
-      terminateAllClients: () => {
-        throw new Error("a cooperative client must never reach the terminate pass");
-      },
-    });
+        },
+        terminate: () => {
+          throw new Error("a cooperative client must never reach the terminate pass");
+        },
+      })),
+    );
+    const startedAt = Date.now();
+    await closeServer(server, sockets);
     expect(Date.now() - startedAt).toBeLessThan(1500);
   });
 
   it("closes with no upgraded sockets at all", async () => {
     const { server } = await upgradingServer();
-    await expect(closeServer(server, noSockets)).resolves.toBeUndefined();
+    await expect(closeServer(server, new Set())).resolves.toBeUndefined();
   });
 });

@@ -19,38 +19,9 @@ export interface BusSocket {
   close: (code?: number, reason?: string) => void;
   readyState: number;
   send: (data: string) => void;
-  // the transport under hono's wrapper; only the shutdown path terminates through it.
-  readonly raw?: unknown;
 }
 
 const SOCKET_OPEN_STATE = 1;
-
-// rfc 6455 going away, so the page can tell a deliberate stop from a dropped connection.
-const GOING_AWAY_CLOSE_CODE = 1001;
-
-interface TerminableTransport {
-  terminate: () => void;
-}
-
-// z.custom passes the original object through, keeping terminate() bound to its socket.
-const terminableTransportSchema = z.custom<TerminableTransport>(
-  (value) =>
-    z.looseObject({ terminate: z.custom((member) => member instanceof Function) }).safeParse(value)
-      .success,
-);
-
-// parsed rather than asserted: the fake sockets tests inject have no raw at all.
-export const terminateTransport = (socket: { readonly raw?: unknown }): void => {
-  const transport = terminableTransportSchema.safeParse(socket.raw);
-  if (!transport.success) {
-    return;
-  }
-  try {
-    transport.data.terminate();
-  } catch {
-    // A socket already gone is the outcome we wanted.
-  }
-};
 
 const socketPayloadDecoder = new TextDecoder();
 
@@ -80,24 +51,6 @@ export class WsBus implements DbNotifier {
     }
     const hello: HelloMessage = { type: "hello" };
     socket.send(JSON.stringify(hello));
-  }
-
-  // an upgraded socket is detached from the http server's connection tracking, so server.close()
-  // never completes while one is open and closeAllConnections() does not touch it.
-  closeAllClients(): void {
-    for (const socket of this.keysBySocket.keys()) {
-      try {
-        socket.close(GOING_AWAY_CLOSE_CODE, "server-shutting-down");
-      } catch {
-        // Already closing; the terminate pass below is the backstop.
-      }
-    }
-  }
-
-  terminateAllClients(): void {
-    for (const socket of this.keysBySocket.keys()) {
-      terminateTransport(socket);
-    }
   }
 
   unregisterClient(socket: BusSocket): void {

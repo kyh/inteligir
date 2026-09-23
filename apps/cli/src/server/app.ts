@@ -22,6 +22,7 @@ import { isSameOriginBrowserRequest } from "./browser-request";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
+import type { UpgradedSocket } from "./listen";
 import { loopbackRequestOrigin } from "./loopback-origin";
 import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
@@ -72,6 +73,8 @@ export const createApp = (args: CreateAppArgs) => {
   const nodeWebSocket = createNodeWebSocket({ app });
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
+  // ws tracks every socket it upgraded, whichever route took it; the http server lost them at the upgrade.
+  const upgradedSockets: ReadonlySet<UpgradedSocket> = nodeWebSocket.wss.clients;
 
   // first, ahead of every route, /health and the oauth landing included: the server binds 127.0.0.1
   // alone, so any other name is a page that rebound its own hostname onto this port. the header,
@@ -269,5 +272,5 @@ export const createApp = (args: CreateAppArgs) => {
     );
   }
 
-  return { app, injectWebSocket };
+  return { app, injectWebSocket, upgradedSockets };
 };

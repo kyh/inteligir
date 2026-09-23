@@ -1071,11 +1071,12 @@ agents default`; unset falls back
 
 - **ONE COMPOSITION ROOT.** `apps/cli/src/server/compose.ts` builds every
   service in boot order and returns `{ context, teardown }`; `createApp` is
-  route wiring, `serve.ts` is listen + `server.json` + signals + exit code, and
-  the booted suites call the same composition. The two dials `serve.ts` injects
-  (the cloud socket opener, the agent driver) are injected because compose is
-  reachable from the renderer's test program. `dev-instance.ts` owns the
-  per-checkout derivation; `config.ts` stays the parser.
+  route wiring, `serve.ts` is the data-dir claim + listen + `server.json` +
+  signals + exit code, and the booted suites call the same composition. The
+  two dials `serve.ts` injects (the cloud socket opener, the agent driver) are
+  injected because compose is reachable from the renderer's test program.
+  `dev-instance.ts` owns the per-checkout derivation; `config.ts` stays the
+  parser.
 
 - **THE BIN EXITS 128+n WHEN THE SERVER DIES BY SIGNAL, NEVER 0**
   (`apps/cli/bin/inteligir`). Re-raising the signal at the wrapper exited 0.
@@ -1106,7 +1107,13 @@ agents default`; unset falls back
   budget because one wedged step under a single budget starves the flush. The
   listener step closes websockets by name, because an upgraded socket is
   detached from the HTTP server's tracking and one open tab once stalled the
-  whole teardown. `apps/cli/src/server/shutdown.ts` and `ws-bus.ts`.
+  whole teardown; the names come from `ws`'s own client set (`wss.clients`,
+  which `createApp` hands out), not from a registry per socket route. SIGINT,
+  SIGTERM and SIGHUP (a closed terminal) all run it, and a write error from a
+  gone terminal or pipe is swallowed so it cannot turn the teardown into a
+  fatal. The step list is re-read before every step, so a boot still composing
+  when the signal lands adds what it brings up and each step runs once.
+  `apps/cli/src/server/shutdown.ts` and `listen.ts`.
 
 - **THE CSP IS STATIC, and deleting TanStack Start from the product bought
   that** (reversing the nonce CSP). Start injected per-render inline scripts; a
@@ -1172,6 +1179,21 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   neither can know a version manager's directory, and `codex` installed under
   one is invisible to both. A dev launch is left alone: it comes from a
   terminal whose PATH is already the user's. `apps/desktop/src/main/login-shell-path.ts`.
+
+- **A DATA DIR HAS ONE SERVER, AND THE LOCK, NOT THE ROW, DECIDES IT.**
+  `server.json` is published only after compose and listen, so two boots
+  started together both find no row and would both open one db. `serve` takes
+  `<dataDir>/serve.lock` (O_EXCL, holding its pid) before anything is composed
+  and releases it as the teardown's last step, after the db closes. A lock
+  whose pid is dead is broken and retaken once; a live pid holds it unless that
+  pid has published a row the guard judges gone (refused, or answering for
+  another data dir), because a crash's pid can be reused by an unrelated
+  process and must not block boot forever. An unreadable pid counts as held:
+  it is a boot between its create and its write. `assertNoLiveServer` still
+  runs first for the message that names the port. A server removes
+  `server.json` only when the row carries its own token, so a shutdown never
+  retracts another boot's address. `apps/cli/src/server/serve-lock.ts` and
+  `claimDataDir` in `serve.ts`.
 
 ### Desktop workspace surfaces
 
