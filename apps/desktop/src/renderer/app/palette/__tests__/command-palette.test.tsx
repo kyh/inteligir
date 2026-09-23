@@ -517,8 +517,32 @@ describe("the search page", () => {
     expect(actions.openMatch).toHaveBeenCalledWith(
       expect.objectContaining({ line: 9, ordinal: 1, path: "notes/ideas.md" }),
       "big",
+      { caseSensitive: false, wholeWord: false },
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("hands a pick the toggles its listing was read with, so the ordinal counts among them", async () => {
+    const { actions } = renderPalette({
+      fakes: { matches: twoMatches(2) },
+      request: { nonce: 1, page: "search" },
+    });
+    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
+    await rows().findByText("again");
+    fireEvent.click(screen.getByLabelText("Whole word"));
+    await waitFor(() => {
+      expect(replaceButton()).toHaveProperty("disabled", false);
+    });
+    const [first] = rows().getAllByText("big");
+    if (first === undefined) {
+      throw new Error("the first match row is missing");
+    }
+    fireEvent.click(first);
+    expect(actions.openMatch).toHaveBeenCalledWith(
+      expect.objectContaining({ ordinal: 0, path: "notes/ideas.md" }),
+      "big",
+      { caseSensitive: false, wholeWord: true },
+    );
   });
 
   it("replaces across the listed notes with the toggles it shows", async () => {

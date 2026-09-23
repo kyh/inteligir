@@ -16,6 +16,13 @@ export interface TextMatch {
   length: number;
 }
 
+// offset is the utf-16 offset into the whole string, for a caller whose text is not a file's
+// lines (an editor's text leaf)
+export interface TextOffset {
+  offset: number;
+  length: number;
+}
+
 export interface DocText {
   path: string;
   title: string;
@@ -56,6 +63,21 @@ const matcher = (needle: string, options: TextMatchOptions): RegExp => {
   return new RegExp(source, options.caseSensitive ? "gu" : "giu");
 };
 
+const hitsIn = (pattern: RegExp, text: string): TextOffset[] => {
+  pattern.lastIndex = 0;
+  const found: TextOffset[] = [];
+  for (let hit = pattern.exec(text); hit !== null; hit = pattern.exec(text)) {
+    found.push({ length: hit[0].length, offset: hit.index });
+  }
+  return found;
+};
+
+export const findTextOffsets = (
+  text: string,
+  needle: string,
+  options: TextMatchOptions,
+): TextOffset[] => (needle === "" ? [] : hitsIn(matcher(needle, options), text));
+
 export const findTextMatches = (
   text: string,
   needle: string,
@@ -68,10 +90,8 @@ export const findTextMatches = (
   const parts = splitLinesKeepingTerminators(text);
   const found: TextMatch[] = [];
   for (let index = 0; index < parts.length; index += 2) {
-    const line = parts[index] ?? "";
-    pattern.lastIndex = 0;
-    for (let hit = pattern.exec(line); hit !== null; hit = pattern.exec(line)) {
-      found.push({ column: hit.index, length: hit[0].length, line: index / 2 + 1 });
+    for (const hit of hitsIn(pattern, parts[index] ?? "")) {
+      found.push({ column: hit.offset, length: hit.length, line: index / 2 + 1 });
     }
   }
   return found;

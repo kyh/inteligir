@@ -11,6 +11,7 @@ import { cn } from "@repo/ui/lib/cn";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { isTemplatePath } from "@repo/notes/templates/placeholders";
 import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
@@ -82,7 +83,8 @@ export interface PaletteActions {
   openDeletedNotes: () => void;
   note: PaletteNote | null;
   moveNote: (path: string, toDir: string) => void;
-  openMatch: (match: VaultMatchWire, query: string) => void;
+  // `needle` and `options` are the search the row was listed by, so its ordinal counts among them
+  openMatch: (match: VaultMatchWire, needle: string, options: TextMatchOptions) => void;
   // settles when the run is over, cancelled or declined included; the palette shows it running
   replaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
   goToHeading: (heading: HeadingItem) => void;
@@ -549,9 +551,9 @@ export const CommandPalette = ({
           <SearchPage
             open={open}
             query={query}
-            onOpenMatch={(match, needle) => {
+            onOpenMatch={(match, needle, options) => {
               run(() => {
-                actions.openMatch(match, needle);
+                actions.openMatch(match, needle, options);
               });
             }}
             onReplaceAll={handleReplaceAll}

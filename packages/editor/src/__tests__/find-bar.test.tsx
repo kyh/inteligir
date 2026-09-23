@@ -66,6 +66,27 @@ describe("find bar", () => {
     act(() => {
       setFindQuery(editor, "");
     });
-    expect(getFindBarState().active).toBeNull();
+    expect(getFindBarState(editor).active).toBeNull();
+  });
+
+  it("recounts when the note changes under the open bar", async () => {
+    const holder = createRef<PlateEditor>();
+    const view = render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
+    const editor = holder.current;
+    if (editor === null) {
+      throw new Error("the harness mounted no editor");
+    }
+
+    act(() => {
+      openFindBar(editor);
+      setFindQuery(editor, "alpha");
+    });
+    expect(view.getByText("1/2")).toBeDefined();
+
+    // Slate announces a change from a microtask, so the act must await it
+    await act(async () => {
+      editor.tf.insertText(" alpha", { at: { offset: 22, path: [0, 0] } });
+    });
+    expect(view.getByText("1/3")).toBeDefined();
   });
 });
