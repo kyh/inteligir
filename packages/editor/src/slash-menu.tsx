@@ -77,7 +77,7 @@ interface SlashItem {
   onSelect: (editor: PlateEditor) => void;
 }
 
-const GROUPS: { group: string; items: SlashItem[] }[] = [
+export const GROUPS: { group: string; items: SlashItem[] }[] = [
   {
     group: "Basic blocks",
     items: [
