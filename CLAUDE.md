@@ -1088,7 +1088,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   toggle live above the note; copy link, export and share sit under its ⋯
   menu. One `useVaultSwitch` and one `RecentVaultLabel`
   (`app/desktop-vaults.tsx`) serve the rail's vault row and Settings alike.
-  The rail hides what the user did not write
+  The rail and the palette's note rows and folder pages hide what the user
+  did not write through one filter, `visibleEntries` in `app/vault-hooks.ts`
   (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment
   sidecars, dot-entries); the server's listing stays complete because the
   CLI and the agent read it. Under the macOS shell the rail reserves the

@@ -254,10 +254,14 @@ export const renameVaultEntry = async (
   }
 };
 
-// the folders a user may pick: what the rail lists, so a dot-dir is hidden here too
+// what the user wrote, which every listing draws; the server's listing stays complete for the
+// CLI and the agent
+export const visibleEntries = (entries: readonly VaultEntry[]): VaultEntry[] =>
+  entries.filter((entry) => !isVaultMetadataPath(entry.path));
+
 export const vaultFolders = (entries: readonly VaultEntry[]): string[] =>
-  entries
-    .filter((entry) => entry.kind === "dir" && !isVaultMetadataPath(entry.path))
+  visibleEntries(entries)
+    .filter((entry) => entry.kind === "dir")
     .map((entry) => entry.path);
 
 // Lowercased: the disk may be case-insensitive, so name generation must be too.

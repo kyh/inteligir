@@ -30,7 +30,6 @@ import { Spinner } from "@repo/ui/components/spinner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useTheme } from "@repo/ui/lib/theme";
 import { cn } from "@repo/ui/lib/cn";
-import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   ChevronDownIcon,
@@ -70,6 +69,7 @@ import {
   usePinnedPaths,
   useVaultStatus,
   useVaultTree,
+  visibleEntries,
 } from "../vault-hooks";
 import { DeletedNotes } from "./deleted-notes";
 import { FileTree } from "./file-tree";
@@ -79,10 +79,6 @@ import { TaggedNotes } from "./tagged-notes";
 import { createDirFor, revealInTree, useTreeState } from "./tree-state";
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
-
-// the rail draws what the user wrote; the server's listing stays complete for the CLI and the agent
-export const visibleEntries = (entries: readonly VaultEntry[]): VaultEntry[] =>
-  entries.filter((entry) => !isVaultMetadataPath(entry.path));
 
 const treeLoadState = (query: ReturnType<typeof useVaultTree>): TreeLoadState => {
   if (query.isError) {

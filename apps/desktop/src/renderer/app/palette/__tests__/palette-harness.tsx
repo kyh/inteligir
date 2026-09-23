@@ -1,24 +1,33 @@
 // The palette reads its pages through the one oRPC client, so a test answers the wire
 // rather than injecting a source: `fetch` is stubbed with the RPC body shape the client
-// speaks (`{ json }` in, `{ json }` out), and each render gets a QueryClient of its own.
+// speaks (`{ json }` in, `{ json }` out), and each render gets a QueryClient of its own, built
+// with the shipped defaults so a cache the bus never sweeps stays stale here as it does there.
 
 import type {
   KnowledgeMatchesRequest,
   KnowledgeMatchesResponse,
   KnowledgeProblemsResponse,
+  KnowledgeSearchRequest,
+  KnowledgeSearchResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { RPC_PREFIX } from "@repo/api/local/routes";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { vi } from "vitest";
 import { z } from "zod";
 import { CommandPalette } from "../command-palette";
 import type { CommandPaletteProps, PaletteActions, PaletteRequest } from "../command-palette";
-import type { NoteSearchSource } from "../note-search";
+import { createWorkspaceQueryClient } from "../../workspace-context";
 
 export interface KnowledgeFakes {
   matches?: (request: KnowledgeMatchesRequest) => KnowledgeMatchesResponse;
   problems?: () => KnowledgeProblemsResponse;
+  // unset, the index answers nothing; a throw is the index unreachable
+  search?: (
+    request: KnowledgeSearchRequest,
+    signal: AbortSignal | undefined,
+  ) => KnowledgeSearchResponse | Promise<KnowledgeSearchResponse>;
 }
 
 const EMPTY_FAMILY = { rows: [], total: 0 };
@@ -37,8 +46,11 @@ const matchesRequestSchema = z.object({
   q: z.string(),
   wholeWord: z.boolean(),
 });
+const searchRequestSchema = z.object({ limit: z.number(), q: z.string() });
 
-const answer = (json: KnowledgeMatchesResponse | KnowledgeProblemsResponse): Response =>
+const answer = (
+  json: KnowledgeMatchesResponse | KnowledgeProblemsResponse | KnowledgeSearchResponse,
+): Response =>
   Response.json(
     { json },
     {
@@ -60,13 +72,19 @@ export const stubKnowledgeFetch = (fakes: KnowledgeFakes): void => {
     if (procedure === "knowledge/problems") {
       return answer(fakes.problems === undefined ? noProblems : fakes.problems());
     }
+    if (procedure === "knowledge/search") {
+      const request = searchRequestSchema.parse(body.json);
+      return answer(
+        fakes.search === undefined
+          ? { results: [] }
+          : await fakes.search(request, init?.signal ?? undefined),
+      );
+    }
     return new Response("not stubbed", { status: 404 });
   });
 };
 
 export const defaultRequest: PaletteRequest = { nonce: 1, page: "root" };
-
-export const emptySearchSource: NoteSearchSource = async () => [];
 
 // Every verb the palette can run, each a mock typed by the contract it stands for. A test
 // spreads its own over the ones it asserts on.
@@ -92,11 +110,24 @@ export const makeActions = () =>
     syncNow: vi.fn<PaletteActions["syncNow"]>(),
   }) satisfies PaletteActions;
 
+// keyed like the workspace keys it, so a rerender with a new nonce is a fresh open
+const palette = (props: CommandPaletteProps) => (
+  <CommandPalette key={props.request.nonce} {...props} />
+);
+
 export const renderWithQueries = (props: CommandPaletteProps) => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <CommandPalette {...props} />
-    </QueryClientProvider>,
+  const queryClient = createWorkspaceQueryClient();
+  queryClient.setDefaultOptions({
+    queries: { ...queryClient.getDefaultOptions().queries, retry: false },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+  const view = render(palette(props), { wrapper });
+  return {
+    queryClient,
+    rerender: (next: CommandPaletteProps): void => {
+      view.rerender(palette(next));
+    },
+  };
 };

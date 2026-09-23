@@ -3,13 +3,19 @@ import path from "node:path";
 import { ORPCError } from "@orpc/client";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
 import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
-import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type {
+  VaultEntry,
+  VaultStatusResponse,
+  VaultTreeResponse,
+} from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import {
   filePathsLowercased,
   renameVaultEntry,
   syncStateLabel,
   untitledNotePath,
+  vaultFolders,
+  visibleEntries,
 } from "../vault-hooks";
 import type { RenameVaultApi } from "../vault-hooks";
 import { rendererSources } from "./renderer-sources";
@@ -148,5 +154,32 @@ describe("naming a new note", () => {
     const existing = filePathsLowercased(tree("Untitled.md", "notes/Untitled 2.md"));
     expect(untitledNotePath("", existing)).toBe("Untitled 2.md");
     expect(untitledNotePath("notes", existing)).toBe("notes/Untitled.md");
+  });
+});
+
+const LISTING: VaultEntry[] = [
+  { kind: "dir", path: ".obsidian" },
+  { kind: "file", path: ".obsidian/app.json" },
+  { kind: "dir", path: "notes" },
+  { kind: "dir", path: "notes/daily" },
+  { kind: "file", path: "notes/daily/2026-08-16.md" },
+  { kind: "file", path: "notes/ideas.md" },
+  { kind: "file", path: "notes/ideas.md.comments.json" },
+  { kind: "file", path: "Welcome.md" },
+];
+
+describe("what a listing shows", () => {
+  it("hides what the user did not write, and shows everything else", () => {
+    expect(visibleEntries(LISTING).map((entry) => entry.path)).toEqual([
+      "notes",
+      "notes/daily",
+      "notes/daily/2026-08-16.md",
+      "notes/ideas.md",
+      "Welcome.md",
+    ]);
+  });
+
+  it("offers the folders it shows, and no dot-dir", () => {
+    expect(vaultFolders(LISTING)).toEqual(["notes", "notes/daily"]);
   });
 });
