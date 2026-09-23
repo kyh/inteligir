@@ -41,7 +41,6 @@ const useOpenNote = {
     }),
 };
 
-const ROOT = "/vault";
 const RICH_PATH = "notes/a.md";
 const OTHER_PATH = "notes/b.md";
 
@@ -63,7 +62,6 @@ class FakeController {
     content: "",
     dirty: false,
     path: null,
-    root: ROOT,
     saving: false,
   };
   private readonly subs = new Set<() => void>();

@@ -18,7 +18,6 @@ const NO_NOTE_STATE: VaultEditorState = {
   content: "",
   dirty: false,
   path: null,
-  root: "",
   saving: false,
 };
 

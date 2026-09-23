@@ -1,6 +1,5 @@
-// held outside React: every async edge (save-vs-reload, open-vs-reload, root switch,
-// delete-vs-save) needs a guard that reads and writes in one tick, which render-timed refs
-// cannot give.
+// held outside React: every async edge (save-vs-reload, open-vs-reload, delete-vs-save) needs
+// a guard that reads and writes in one tick, which render-timed refs cannot give.
 
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import { diff3 } from "@repo/notes/text/diff3";
@@ -11,20 +10,18 @@ export interface VaultIO {
   write: (path: string, content: string) => Promise<string>;
   // refuses an existing path.
   create: (path: string, content: string) => Promise<void>;
-  // answers the outcome: the host can hold a delete, and closing the note anyway would report
-  // a deletion that did not happen.
+  // rejects when the host cannot say the file is gone, so the note stays open over it.
   remove: (path: string) => Promise<DeleteVaultEntryResult>;
 }
 
 export interface VaultEditorState {
-  readonly root: string;
   readonly path: string | null;
   readonly content: string;
   readonly dirty: boolean;
   readonly saving: boolean;
 }
 
-const EMPTY: VaultEditorState = { content: "", dirty: false, path: null, root: "", saving: false };
+const EMPTY: VaultEditorState = { content: "", dirty: false, path: null, saving: false };
 
 const drainNothing = (): void => {
   /* no surface holds edits back */
@@ -74,28 +71,7 @@ export class VaultEditorController {
     }
   }
 
-  setRoot(root: string): void {
-    if (root !== this.st.root) {
-      this.emit({ root });
-    }
-  }
-
-  // the empty sentinel before the root is first known is not a switch, or the user's own first
-  // autosave broadcast would wipe their edits.
-  externalChange(nextRoot: string): void {
-    const rootChanged = this.st.root !== "" && nextRoot !== this.st.root;
-    if (rootChanged) {
-      // cancel in-flight reads against the old root
-      this.readSeq += 1;
-      this.st = { ...EMPTY, root: nextRoot };
-      for (const fn of this.subs) {
-        fn();
-      }
-      return;
-    }
-    if (nextRoot !== this.st.root) {
-      this.emit({ root: nextRoot });
-    }
+  externalChange(): void {
     void this.reloadOpen();
   }
 
@@ -197,7 +173,7 @@ export class VaultEditorController {
     } catch {
       // the file's fate is unknown, so the note stays.
     }
-    if (outcome !== null && outcome.outcome !== "held") {
+    if (outcome !== null) {
       this.emit({ content: "", dirty: false, path: null });
     }
     return outcome;

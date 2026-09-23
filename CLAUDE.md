@@ -1268,8 +1268,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   a second comment rewrites an existing store and announces no row; every
   `content-changed` stamps the cached listing's `modifiedMs` with the frame's
   arrival instead of re-walking the vault, so the recents move while a note is
-  edited. A reconnect sweeps every family the bus reaches, declared once and
-  checked against every frame's invalidations.
+  edited. The note session hears the flush as `VaultChangedEvent`s
+  (`packages/editor/src/host-io.ts`): ONE `files` event however many paths
+  moved, which always re-lists, since a named path may have left the vault as
+  easily as joined it, or a `content` event per doc, which re-lists nothing.
+  Its listing is the rail's own tree query (`readVaultTree` in
+  `apps/desktop/src/renderer/app/vault-hooks.ts`), read after the flush
+  invalidates it, so it joins the rail's refetch and a K-path frame is one walk.
+  A reconnect sweeps every family the bus reaches, declared once and checked
+  against every frame's invalidations, and tells the session a `files` event
+  naming nothing; that sweep is why no window-focus re-walk backs it up.
   `apps/desktop/src/renderer/app/workspace-context.tsx` and
   `apps/desktop/src/renderer/app/__tests__/changed-message.test.ts`.
 

@@ -15,7 +15,6 @@ export type NoteRuntime = ReturnType<typeof createNoteRuntime>;
 // the caller disposes the previous runtime first; this one never checks.
 export const createNoteRuntime = (
   path: string,
-  root: string,
   io: VaultIO,
   cb: NoteRuntimeCallbacks,
   initial?: string,
@@ -24,7 +23,6 @@ export const createNoteRuntime = (
   const controller = new VaultEditorController(io, () => {
     preFlush?.();
   });
-  controller.setRoot(root);
 
   const autosave = createDebouncer(() => {
     void controller.flush();
@@ -84,7 +82,7 @@ export const createNoteRuntime = (
     registerPreFlush(fn: (() => void) | null): void {
       preFlush = fn;
     },
-    // a held delete leaves the note open because the file is still there; null is a delete that threw.
+    // null is a delete that threw, and the note stays open.
     async remove(): Promise<DeleteVaultEntryResult | null> {
       preFlush?.();
       autosave.cancel();

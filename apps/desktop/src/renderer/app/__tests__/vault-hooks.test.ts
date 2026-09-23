@@ -69,10 +69,7 @@ describe("renaming a vault entry", () => {
       throw new ORPCError("CONFLICT", { message: "Target already exists: notes/plans.md" });
     });
     const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
-    expect(outcome).toEqual({
-      message: "Target already exists: notes/plans.md",
-      ok: false,
-    });
+    expect(outcome).toEqual({ error: "Target already exists: notes/plans.md", ok: false });
   });
 
   it("falls back only when the failure carries no sentence of its own", async () => {
@@ -80,7 +77,7 @@ describe("renaming a vault entry", () => {
       throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "" });
     });
     const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
-    expect(outcome).toEqual({ message: "Could not rename notes/ideas.md.", ok: false });
+    expect(outcome).toEqual({ error: "Could not rename notes/ideas.md.", ok: false });
   });
 
   it("reports a rename that landed", async () => {

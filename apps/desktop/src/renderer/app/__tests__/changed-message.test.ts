@@ -3,6 +3,7 @@ import type { QueryKey } from "@tanstack/react-query";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
+import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { describe, expect, it, vi } from "vitest";
@@ -11,7 +12,7 @@ import { ChangeBatch, sweepAfterReconnect } from "../workspace-context";
 
 interface Applied {
   invalidated: readonly unknown[][];
-  docs: (string | null)[];
+  vaultChanges: VaultChangedEvent[];
   threads: ThreadChangedMessage[];
   queryClient: QueryClient;
 }
@@ -25,12 +26,12 @@ const record = (
   const queryClient = new QueryClient();
   seed(queryClient);
   const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-  const docs: (string | null)[] = [];
+  const vaultChanges: VaultChangedEvent[] = [];
   const threads: ThreadChangedMessage[] = [];
   run(
     queryClient,
-    (docId) => {
-      docs.push(docId);
+    (event) => {
+      vaultChanges.push(event);
     },
     (message) => {
       threads.push(message);
@@ -39,7 +40,7 @@ const record = (
   const invalidated = invalidateQueries.mock.calls.map(([filters]) => [
     ...(filters?.queryKey ?? []),
   ]);
-  return { docs, invalidated, queryClient, threads };
+  return { invalidated, queryClient, threads, vaultChanges };
 };
 
 const applyBatch = (
@@ -78,7 +79,7 @@ describe("a doc change", () => {
   it("reaches the open note's reader and re-reads none of its bytes", () => {
     const applied = apply(contentChanged("notes/open.md"));
 
-    expect(applied.docs).toEqual(["notes/open.md"]);
+    expect(applied.vaultChanges).toEqual([{ kind: "content", path: "notes/open.md" }]);
     // the open note reads its own file; a `vaultFile` invalidation here read the same bytes twice per agent write.
     expect(applied.invalidated).toEqual([[...orpc.knowledge.key()]]);
   });
@@ -131,7 +132,7 @@ describe("a doc change", () => {
 });
 
 describe("a vault change", () => {
-  it("sweeps the tree and names each moved path once", () => {
+  it("sweeps the tree and tells the note session once, naming every moved path", () => {
     const applied = apply({
       changes: ["files-changed"],
       entity: "vault",
@@ -145,13 +146,13 @@ describe("a vault change", () => {
       [...orpc.knowledge.key()],
       [...orpc.comments.key()],
     ]);
-    expect(applied.docs).toEqual(["a.md", "b.md"]);
+    expect(applied.vaultChanges).toEqual([{ kind: "files", paths: ["a.md", "b.md"] }]);
   });
 
   it("asserts nothing when it names no paths, so every note re-checks", () => {
     const applied = apply({ changes: ["files-changed"], entity: "vault", type: "changed" });
 
-    expect(applied.docs).toEqual([null]);
+    expect(applied.vaultChanges).toEqual([{ kind: "files", paths: null }]);
   });
 
   it("sweeps sync status on its own kind", () => {
@@ -162,7 +163,7 @@ describe("a vault change", () => {
     });
 
     expect(applied.invalidated).toEqual([[...orpc.vault.status.key()]]);
-    expect(applied.docs).toEqual([]);
+    expect(applied.vaultChanges).toEqual([]);
   });
 });
 
@@ -172,7 +173,7 @@ describe("a burst of frames in one flush", () => {
     const applied = applyBatch(frames);
 
     expect(applied.invalidated).toEqual([[...orpc.knowledge.key()]]);
-    expect(applied.docs).toHaveLength(20);
+    expect(applied.vaultChanges).toHaveLength(20);
   });
 
   it("folds a rename's rewrites into the files-changed sweep, naming each note once", () => {
@@ -191,7 +192,9 @@ describe("a burst of frames in one flush", () => {
     expect(applied.invalidated.filter((key) => partialMatchKey(key, orpc.knowledge.key()))).toEqual(
       [[...orpc.knowledge.key()]],
     );
-    expect(applied.docs.toSorted()).toEqual(["a.md", "b.md", "new.md", "old.md"]);
+    expect(applied.vaultChanges).toEqual([
+      { kind: "files", paths: ["old.md", "new.md", "a.md", "b.md"] },
+    ]);
   });
 
   it("lets an unnamed vault change stand for every doc the burst named", () => {
@@ -201,7 +204,7 @@ describe("a burst of frames in one flush", () => {
       type: "changed",
     });
 
-    expect(applied.docs).toEqual([null]);
+    expect(applied.vaultChanges).toEqual([{ kind: "files", paths: null }]);
   });
 
   it("forwards one message per thread with every kind its frames carried", () => {
@@ -320,9 +323,9 @@ describe("a reconnect", () => {
   });
 
   it("tells every note and every thread to re-check", () => {
-    const { docs, threads } = record(sweepAfterReconnect);
+    const { vaultChanges, threads } = record(sweepAfterReconnect);
 
-    expect(docs).toEqual([null]);
+    expect(vaultChanges).toEqual([{ kind: "files", paths: null }]);
     expect(threads).toEqual([{ changes: THREAD_CHANGE_KINDS, entity: "thread", type: "changed" }]);
   });
 });

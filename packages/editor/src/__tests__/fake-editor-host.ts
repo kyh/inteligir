@@ -42,7 +42,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     editNote: recordVoid("editNote"),
     flush: record("flush", Promise.resolve(true)),
     openFile: recordVoid("openFile"),
-    refreshVault: recordVoid("refreshVault"),
     registerNoteSerializeFlush: recordVoid("registerNoteSerializeFlush"),
     renameEntry: record("renameEntry", Promise.resolve(true)),
   };
@@ -54,9 +53,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   setEditorHostIo({
     actions,
     getBacklinks: async () => await Promise.resolve([]),
-    getForwardLinks: async () => await Promise.resolve([]),
     listWikiTargets: async () => await Promise.resolve([...(options.wikiTargets ?? [])]),
-    onKnowledgeUpdated: () => () => {},
     onVaultChanged: () => () => {},
     readNoteFormulas: async () => await Promise.resolve(null),
     readVaultAsset: async () => await Promise.resolve({ error: "no assets", ok: false }),

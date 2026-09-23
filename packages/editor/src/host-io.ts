@@ -1,9 +1,5 @@
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
-import type {
-  BacklinkEntry,
-  ForwardLinkEntry,
-  WikiTarget,
-} from "@repo/notes/knowledge/link-graph-index";
+import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import type { StoreApi } from "zustand/vanilla";
 
 // The host as a module singleton rather than context: kit factories and paste handlers run
@@ -18,7 +14,7 @@ export interface VaultEntry {
 }
 
 export interface VaultActions {
-  /** Also raises the editor surface; a failed flush of the current note refuses to navigate. */
+  /** A failed flush of the current note refuses to navigate. */
   openFile: (path: string) => void;
   /** Keyed by path: a teardown or surface switch can emit after the open note changed, and those bytes must no-op. */
   editNote: (path: string, content: string) => void;
@@ -31,7 +27,6 @@ export interface VaultActions {
   renameEntry: (from: string, to: string) => Promise<boolean>;
   deleteEntry: (path: string) => Promise<void>;
   flush: () => Promise<boolean>;
-  refreshVault: () => void;
 }
 
 export interface WikiResolver {
@@ -49,48 +44,19 @@ export type WikiResolverStore = Pick<
 // A Blob, not base64: the asset route already answers the media type, and re-deriving it from the extension is a second allowlist.
 export type ReadVaultAssetResult = { ok: true; bytes: Blob } | { ok: false; error: string };
 
-export interface HeldDeletions {
-  /** What the rolling window would hold after this call, not this call's own count. */
-  readonly deletions: number;
-  readonly liveCount: number;
-  readonly limit: number;
-  readonly windowMs: number;
-  readonly sample: readonly string[];
-}
-
 export type DeleteVaultEntryResult =
   | { readonly outcome: "removed" }
-  | { readonly outcome: "absent" }
-  | { readonly outcome: "held"; readonly held: HeldDeletions };
+  | { readonly outcome: "absent" };
 
-// `changed` is null when the host re-announced without diffing; callers must re-read.
-export interface VaultChangedEvent {
-  readonly root: string;
-  readonly changed: {
-    readonly upserted: readonly string[];
-    readonly removed: readonly string[];
-  } | null;
-}
+// `files` moved a listing row (a create, rename, delete or a change the watcher saw), and
+// `paths: null` is one nobody could attribute, so every reader re-checks; `content` rewrote one
+// file in place and moved no row.
+export type VaultChangedEvent =
+  | { readonly kind: "files"; readonly paths: readonly string[] | null }
+  | { readonly kind: "content"; readonly path: string };
 
-export const vaultChangeTouches = (event: VaultChangedEvent, path: string): boolean => {
-  const { changed } = event;
-  if (changed === null) {
-    return true;
-  }
-  return changed.upserted.includes(path) || changed.removed.includes(path);
-};
-
-export const heldDeletionMessage = (held: HeldDeletions): string => {
-  const named = held.sample.map((path) => `"${path}"`).join(", ");
-  const more = held.sample.length < held.deletions ? ", …" : "";
-  return (
-    `Held: this would make ${held.deletions} deletions inside ` +
-    `${Math.round(held.windowMs / 60_000)} minutes, past the limit of ` +
-    `${Math.round(held.limit)} for a vault of ${held.liveCount} files. ` +
-    `Nothing was deleted (${named}${more}). The count is a rolling window that drains on ` +
-    `its own — wait for it to clear, then delete again.`
-  );
-};
+export const vaultChangeTouches = (event: VaultChangedEvent, path: string): boolean =>
+  event.kind === "files" ? event.paths === null || event.paths.includes(path) : event.path === path;
 
 export interface EditorHostIo {
   actions: VaultActions;
@@ -106,9 +72,7 @@ export interface EditorHostIo {
     path: string;
     formulas: CollectedFormula[];
   } | null>;
-  getForwardLinks: (payload: { path: string }) => Promise<ForwardLinkEntry[]>;
   onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
-  onKnowledgeUpdated: (listener: () => void) => () => void;
 }
 
 let installed: EditorHostIo | null = null;

@@ -121,10 +121,9 @@ describe("VaultEditorController", () => {
         held = null;
       }
     });
-    c.setRoot("/vault");
     await c.open("a.md");
     io.files.set("a.md", "one\ntwo\nthree\nexternal\n");
-    c.externalChange("/vault");
+    c.externalChange();
     await tick();
     expect(c.getState()).toMatchObject({ content: "one typed\ntwo\nthree\n", dirty: true });
   });
@@ -144,10 +143,9 @@ describe("VaultEditorController", () => {
           held = null;
         }
       });
-      c.setRoot("/vault");
       await c.open("a.md");
       io.manualRead = true;
-      c.externalChange("/vault");
+      c.externalChange();
       if (viaSurface) {
         held = "one typed\ntwo\nthree\n";
       } else {
@@ -186,8 +184,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("typed");
     io.files.set("a.md", "external");
-    // same (empty) root → not a switch
-    c.externalChange("");
+    c.externalChange();
     await tick();
     expect(c.getState().content).toBe("typed");
     expect(c.getState().dirty).toBe(true);
@@ -197,38 +194,11 @@ describe("VaultEditorController", () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
     const c = new VaultEditorController(io);
-    c.setRoot("/vault");
     await c.open("a.md");
     io.files.set("a.md", "v1-external");
-    c.externalChange("/vault");
+    c.externalChange();
     await tick();
     expect(c.getState().content).toBe("v1-external");
-  });
-
-  it("treats a different non-empty root as a switch and drops the open file", async () => {
-    const io = new FakeVault();
-    io.files.set("a.md", "A");
-    const c = new VaultEditorController(io);
-    c.setRoot("/vault-1");
-    await c.open("a.md");
-    c.externalChange("/vault-2");
-    expect(c.getState()).toMatchObject({ content: "", path: null, root: "/vault-2" });
-  });
-
-  it("does not treat the first event (empty root) as a switch", async () => {
-    const io = new FakeVault();
-    io.files.set("a.md", "A");
-    const c = new VaultEditorController(io);
-    await c.open("a.md");
-    c.edit("unsaved");
-    c.externalChange("/vault");
-    await tick();
-    expect(c.getState()).toMatchObject({
-      content: "unsaved",
-      dirty: true,
-      path: "a.md",
-      root: "/vault",
-    });
   });
 
   it("delete waits for an in-flight save then clears", async () => {
@@ -245,21 +215,6 @@ describe("VaultEditorController", () => {
     await Promise.all([flush, removed]);
     expect(c.getState().path).toBe(null);
     expect(io.files.has("a.md")).toBe(false);
-  });
-
-  it("keeps the note open when the host holds the delete", async () => {
-    const io = new FakeVault();
-    io.files.set("a.md", "A");
-    io.removeOutcome = {
-      held: { deletions: 40, limit: 25, liveCount: 100, sample: ["a.md"], windowMs: 600_000 },
-      outcome: "held",
-    };
-    const c = new VaultEditorController(io);
-    await c.open("a.md");
-    const outcome = await c.remove();
-    expect(outcome).toMatchObject({ outcome: "held" });
-    expect(c.getState()).toMatchObject({ content: "A", path: "a.md" });
-    expect(io.files.has("a.md")).toBe(true);
   });
 
   it("keeps the note open when the delete itself fails", async () => {
@@ -297,10 +252,9 @@ describe("VaultEditorController", () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
     const c = new VaultEditorController(io);
-    c.setRoot("/vault");
     await c.open("a.md");
     io.files.delete("a.md");
-    c.externalChange("/vault");
+    c.externalChange();
     await tick();
     expect(c.getState().path).toBe(null);
   });

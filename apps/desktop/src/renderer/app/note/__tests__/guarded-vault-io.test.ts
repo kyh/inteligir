@@ -46,14 +46,13 @@ const gatedReads = (client: BootedTestApp["client"]) => {
 };
 
 const NOTE = "notes/plans.md";
-const ROOT = "/vault";
 const BASE = "# Plans\n\nintro\n\nfooter\n";
 const EXTERNAL = `${BASE}external-appended-line\n`;
 
 // the surface stands in for the rich editor: what it types waits in its serialize debounce
 // until the runtime drains it.
 const openRuntime = async (api: GuardedVaultApi) => {
-  const runtime = createNoteRuntime(NOTE, ROOT, createGuardedVaultIo(api), {
+  const runtime = createNoteRuntime(NOTE, createGuardedVaultIo(api), {
     onVanished: () => {},
   });
   let held: string | null = null;
@@ -156,7 +155,7 @@ describe("the guarded vault io", () => {
     await client.vault.write({ content: EXTERNAL, path: NOTE });
 
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
-    runtime.controller.externalChange(ROOT);
+    runtime.controller.externalChange();
     expect(runtime.controller.getState().dirty).toBe(true);
 
     expect(await runtime.flush()).toBe(true);
@@ -175,7 +174,7 @@ describe("the guarded vault io", () => {
     await client.vault.write({ content: EXTERNAL, path: NOTE });
 
     const gate = reads.hold();
-    runtime.controller.externalChange(ROOT);
+    runtime.controller.externalChange();
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
     gate.resolve();
     await vi.waitFor(() => {
