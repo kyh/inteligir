@@ -14,6 +14,7 @@ import { notesInTagFamily } from "@repo/notes/knowledge/tag-notes";
 import { relatedNotes } from "@repo/notes/knowledge/related-notes";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import { projectDoc } from "@repo/notes/knowledge/projection";
+import type { DocProjection } from "@repo/notes/knowledge/projection";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
@@ -99,6 +100,15 @@ const assertUnhandledVerdict = (verdict: never): never => {
   throw new Error(`unhandled file verdict: ${JSON.stringify(verdict)}`);
 };
 
+// thrown at a batch boundary so a pass stops within one chunk of dispose(), and never read as a
+// failure: nothing is rebuilt for a runtime that is going away.
+class PassDisposedError extends Error {
+  constructor() {
+    super("the knowledge runtime was disposed mid-pass");
+    this.name = "PassDisposedError";
+  }
+}
+
 export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRuntime => {
   const store: SqlKnowledgeStore = createSqlKnowledgeStore(
     createSqliteDriver(nodePath.join(args.dataDir, KNOWLEDGE_DB_FILE_NAME)),
@@ -115,15 +125,34 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   const pendingPaths = new Set<string>();
   let disposed = false;
 
+  // a failed read is the vault's trouble, not the index's: the prior row stands and every pass
+  // retries the path, since a permission fix announces nothing.
+  const unreadable = new Set<string>();
+  // the hash of bytes whose projection threw, so an unchanged doc is not re-projected by every
+  // reconcile; the path is indexed as an other meanwhile.
+  const unprojectable = new Map<string, string>();
+
   // at most one pass runs and one is queued; later triggers fold into the queued one.
   let runningPass: Promise<void> | null = null;
   let queuedPass: Promise<void> | null = null;
 
+  const assertLive = (): void => {
+    if (disposed) {
+      throw new PassDisposedError();
+    }
+  };
+
   const recover = (): void => {
+    // the store is closed or closing; a reset would reopen the file behind dispose's back.
+    if (disposed) {
+      return;
+    }
     graph.clear();
     hashes.clear();
     others.clear();
     pendingPaths.clear();
+    unreadable.clear();
+    unprojectable.clear();
     try {
       store.nuke();
     } catch (error) {
@@ -137,6 +166,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   const hydrateMirrors = async (): Promise<void> => {
     const cursor = store.hydrate(BATCH_DOCS);
     for (;;) {
+      assertLive();
       const page = cursor.next();
       if (page.kind === "done") {
         break;
@@ -163,25 +193,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     hash: string;
   }
 
-  const applyDocUpdates = (updates: readonly DocUpdate[]): void => {
-    if (updates.length === 0) {
-      return;
-    }
-    store.transaction(() => {
-      for (const update of updates) {
-        const projection = projectDoc(update.path, update.content);
-        store.upsertDoc(
-          { contentHash: update.hash, path: update.path, projection },
-          update.content,
-        );
-        graph.applyDoc(update.path, projection);
-        others.delete(update.path);
-        hashes.set(update.path, update.hash);
-      }
-    });
-  };
-
   const removeIndexed = (path: string): boolean => {
+    unprojectable.delete(path);
     const known = hashes.delete(path) || others.delete(path);
     if (!known) {
       return false;
@@ -203,11 +216,44 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     others.add(path);
   };
 
+  // projected outside the transaction, one doc at a time: a doc the scan cannot take (a
+  // stack-deep nesting overflows it) costs that doc its searchable row, never the batch.
+  const applyDocUpdates = (updates: readonly DocUpdate[]): void => {
+    const projected: (DocUpdate & { projection: DocProjection })[] = [];
+    for (const update of updates) {
+      try {
+        projected.push({ ...update, projection: projectDoc(update.path, update.content) });
+      } catch (error) {
+        console.warn(`[knowledge] cannot index ${update.path}: ${messageOf(error)}`);
+        indexOther(update.path);
+        unprojectable.set(update.path, update.hash);
+      }
+    }
+    if (projected.length === 0) {
+      return;
+    }
+    store.transaction(() => {
+      for (const doc of projected) {
+        store.upsertDoc(
+          { contentHash: doc.hash, path: doc.path, projection: doc.projection },
+          doc.content,
+        );
+      }
+    });
+    for (const doc of projected) {
+      graph.applyDoc(doc.path, doc.projection);
+      others.delete(doc.path);
+      hashes.set(doc.path, doc.hash);
+      unprojectable.delete(doc.path);
+    }
+  };
+
   type FileVerdict =
     | { kind: "projected"; update: DocUpdate }
     | { kind: "unchanged" }
     | { kind: "other" }
-    | { kind: "missing" };
+    | { kind: "missing" }
+    | { kind: "unreadable"; reason: string };
 
   const readFileVerdict = async (path: string): Promise<FileVerdict> => {
     if (!isDocPath(path)) {
@@ -218,14 +264,14 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       ({ bytes } = await args.vault.readBytes(path));
     } catch (error) {
       if (!(error instanceof VaultServiceError)) {
-        throw error;
+        return { kind: "unreadable", reason: messageOf(error) };
       }
       // over the read cap: unsearchable, but still in the link-resolution universe.
       return error.code === "too_large" ? { kind: "other" } : { kind: "missing" };
     }
     // hash the bytes and decode only what moved; the common verdict is unchanged.
     const hash = await contentHashBytesHex(bytes);
-    if (hashes.get(path) === hash) {
+    if (hashes.get(path) === hash || unprojectable.get(path) === hash) {
       return { kind: "unchanged" };
     }
     return { kind: "projected", update: { content: utf8.decode(bytes), hash, path } };
@@ -233,6 +279,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
 
   const projectFiles = async (paths: readonly string[], stats?: ReconcileStats): Promise<void> => {
     for (let start = 0; start < paths.length; start += BATCH_DOCS) {
+      assertLive();
       const chunk = paths.slice(start, start + BATCH_DOCS);
       const verdicts = await mapWithConcurrency(chunk, READ_CONCURRENCY, readFileVerdict);
       const updates: DocUpdate[] = [];
@@ -241,6 +288,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         if (path === undefined) {
           continue;
         }
+        const wasUnreadable = unreadable.delete(path);
         switch (verdict.kind) {
           case "projected": {
             updates.push(verdict.update);
@@ -261,6 +309,15 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
           }
           case "missing": {
             removeIndexed(path);
+            break;
+          }
+          case "unreadable": {
+            unreadable.add(path);
+            if (!wasUnreadable) {
+              console.warn(
+                `[knowledge] cannot read ${path}, keeping its last entry: ${verdict.reason}`,
+              );
+            }
             break;
           }
           default: {
@@ -297,43 +354,67 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     return stats;
   };
 
+  const removeGone = (gone: readonly string[]): void => {
+    if (gone.length === 0) {
+      return;
+    }
+    // one snapshot, taken at the first folder: re-reading the live maps per path walks the whole index per deletion.
+    let indexed: string[] | undefined;
+    store.transaction(() => {
+      for (const path of gone) {
+        unreadable.delete(path);
+        // an indexed file has no indexed children, so only a folder pays for the prefix scan.
+        if (removeIndexed(path)) {
+          continue;
+        }
+        indexed ??= [...hashes.keys(), ...others];
+        const prefix = `${path}/`;
+        for (const candidate of indexed) {
+          if (candidate.startsWith(prefix)) {
+            removeIndexed(candidate);
+          }
+        }
+      }
+    });
+  };
+
   const applyChangedPaths = async (paths: readonly string[]): Promise<void> => {
     const kinds = await mapWithConcurrency(
       paths,
       READ_CONCURRENCY,
       async (path) => await args.vault.statEntry(path),
     );
-    // one snapshot before any removal: re-reading the live maps per path walks the whole index per deletion.
-    const indexedSnapshot: string[] = kinds.includes(null) ? [...hashes.keys(), ...others] : [];
-
-    const files: string[] = [];
+    // a set: a folder's expansion repeats the file events announced beside it.
+    const files = new Set<string>();
+    const gone: string[] = [];
     for (const [index, kind] of kinds.entries()) {
       const path = paths[index];
       if (path === undefined) {
         continue;
       }
       if (kind === "file") {
-        files.push(path);
+        files.add(path);
         continue;
       }
       if (kind === "dir") {
-        files.push(...(await args.vault.listFilesUnder(path)));
+        assertLive();
+        for (const file of await args.vault.listFilesUnder(path)) {
+          files.add(file);
+        }
         continue;
       }
-      const prefix = `${path}/`;
-      removeIndexed(path);
-      for (const indexed of indexedSnapshot) {
-        if (indexed.startsWith(prefix)) {
-          removeIndexed(indexed);
-        }
-      }
+      gone.push(path);
     }
-    await projectFiles(files);
+    removeGone(gone);
+    await projectFiles([...files]);
   };
 
   const passWork = async (): Promise<void> => {
     if (!hydrated) {
       await hydrateMirrors();
+    }
+    for (const path of unreadable) {
+      pendingPaths.add(path);
     }
     if (needsReconcile) {
       pendingPaths.clear();
@@ -362,6 +443,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     try {
       await passWork();
     } catch (error) {
+      if (error instanceof PassDisposedError) {
+        return;
+      }
       // rebuild before this pass resolves: a caller awaiting it must not read the nuked index as a success.
       console.warn("[knowledge] pass failed — rebuilding the index:", messageOf(error));
       recover();
@@ -474,7 +558,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     },
 
     async problems(options) {
-      return await readThroughIndex("problems", () => collectVaultProblems(graph, options));
+      await settle();
+      return collectVaultProblems(graph, options);
     },
 
     // the ranked read: the probe runs once per title token and keeps only the score, so search's excerpts would be wasted.
