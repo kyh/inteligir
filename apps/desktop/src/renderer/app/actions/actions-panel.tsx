@@ -1,4 +1,4 @@
-import { getLiveEditor } from "@repo/editor/live-editor";
+import { useLiveEditor } from "@repo/editor/live-editor";
 import {
   TaskItem,
   TaskItemLabel,
@@ -68,7 +68,7 @@ export interface ActionsPanelProps {
   noteMetadata: NoteMetadataActions;
 }
 
-const InlineProperties = ({
+export const InlineProperties = ({
   docPath,
   open,
   onOpenChange,
@@ -77,7 +77,7 @@ const InlineProperties = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
-  const editor = open ? getLiveEditor(docPath) : null;
+  const editor = useLiveEditor(open ? docPath : null);
   return (
     <FoldSection label="Properties" open={open} onOpenChange={onOpenChange}>
       <div className="px-3 pb-2">

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
 import type { SlateEditor } from "platejs";
@@ -15,6 +15,7 @@ import type {
 } from "@repo/notes/markdown/frontmatter";
 import { Input } from "@repo/ui/components/input";
 
+import { subscribeLiveEditors } from "@repo/editor/live-editor";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
 import {
   CheckboxField,
@@ -194,11 +195,44 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
   );
 };
 
+// one row's change, applied to the frontmatter as it stands when the edit lands rather than to
+// the list the render drew: a pin, an undo or the previous edit may have moved it since
+type PropertyEdit =
+  | { readonly kind: "set"; readonly prop: TypedProperty }
+  | { readonly kind: "remove"; readonly key: string }
+  | { readonly kind: "add"; readonly prop: TypedProperty };
+
+const hasKey = (properties: readonly TypedProperty[], key: string): boolean =>
+  properties.some((p) => p.key === key);
+
+// null when the edit no longer applies: its row is gone, or the key it adds exists (a duplicate
+// key would make the whole block invalid)
+const applyEdit = (
+  properties: readonly TypedProperty[],
+  edit: PropertyEdit,
+): TypedProperty[] | null => {
+  switch (edit.kind) {
+    case "set": {
+      return hasKey(properties, edit.prop.key)
+        ? properties.map((p) => (p.key === edit.prop.key ? edit.prop : p))
+        : null;
+    }
+    case "remove": {
+      return hasKey(properties, edit.key) ? properties.filter((p) => p.key !== edit.key) : null;
+    }
+    case "add": {
+      return hasKey(properties, edit.prop.key) ? null : [...properties, edit.prop];
+    }
+    default: {
+      const exhaustive: never = edit;
+      return exhaustive;
+    }
+  }
+};
+
 export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
-  // no useEditorSelector: the drawer remounts the panel on each open, and `commit` bumps
-  // the tick to re-render over its own writes.
-  const [, bumpRead] = useReducer((n: number) => n + 1, 0);
-  const raw = readFrontmatterRaw(editor);
+  // outside the Plate tree, so no useEditorSelector: the live-editor channel carries its edits
+  const raw = useSyncExternalStore(subscribeLiveEditors, () => readFrontmatterRaw(editor));
   const parsed = useMemo<ParsedProperties | null>(
     () => (raw === null ? null : parseProperties(raw)),
     [raw],
@@ -208,13 +242,17 @@ export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
   const properties = parsed?.kind === "valid" ? parsed.properties : [];
   const invalid = parsed?.kind === "invalid";
 
-  const commit = useCallback(
-    (next: TypedProperty[]) => {
-      writeFrontmatterRaw(editor, serializeProperties(next, raw ?? ""));
-      bumpRead();
-    },
-    [editor, raw],
-  );
+  const commit = (edit: PropertyEdit) => {
+    const current = readFrontmatterRaw(editor) ?? "";
+    const fresh = parseProperties(current);
+    if (fresh.kind === "invalid") {
+      return;
+    }
+    const next = applyEdit(fresh.kind === "valid" ? fresh.properties : [], edit);
+    if (next !== null) {
+      writeFrontmatterRaw(editor, serializeProperties(next, current));
+    }
+  };
 
   const applyOverride = (prop: TypedProperty): TypedProperty => {
     const forced = overrides[prop.key];
@@ -230,20 +268,8 @@ export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
     return prop;
   };
 
-  const handleChange = (index: number, nextProp: TypedProperty) => {
-    const next = [...properties];
-    next[index] = nextProp;
-    commit(next);
-  };
-  const handleDelete = (index: number) => {
-    commit(properties.filter((_, i) => i !== index));
-  };
   const handleAdd = (key: string, value: string) => {
-    // a duplicate key would make the whole block invalid.
-    if (properties.some((p) => p.key === key)) {
-      return;
-    }
-    commit([...properties, typeNewProperty(key, value)]);
+    commit({ kind: "add", prop: typeNewProperty(key, value) });
   };
 
   if (invalid) {
@@ -257,17 +283,17 @@ export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
 
   return (
     <div className="flex flex-col gap-0.5">
-      {properties.map((prop, index) => {
+      {properties.map((prop) => {
         const shown = applyOverride(prop);
         return (
           <PropertyRow
             key={prop.key}
             prop={shown}
             onChange={(nextProp) => {
-              handleChange(index, nextProp);
+              commit({ kind: "set", prop: nextProp });
             }}
             onDelete={() => {
-              handleDelete(index);
+              commit({ key: prop.key, kind: "remove" });
             }}
             onOverrideType={(type) => {
               setOverrides((prev) => ({ ...prev, [prop.key]: type }));

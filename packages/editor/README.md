@@ -114,6 +114,13 @@ src/
   publish/notify callbacks. Drivable without React.
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.
+- `live-editor.ts` — the path-keyed registry the shell reaches a mounted
+  editor through (the pin, comments, the Metadata tab's properties). A render
+  SUBSCRIBES — `useLiveEditor`, or `subscribeLiveEditors` for a snapshot of
+  the document — and never reads: the editor registers after the render that
+  asked for it, and the compiler memoizes a render-time read on its inputs,
+  so it never re-runs. `MarkdownEditor` announces every edit on the same
+  channel, because Slate's one `onChange` slot is Plate's.
 
 ## Testing
 

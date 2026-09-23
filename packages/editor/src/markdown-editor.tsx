@@ -4,7 +4,7 @@ import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
 import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
-import { registerLiveEditor } from "@repo/editor/live-editor";
+import { announceLiveEditorEdit, registerLiveEditor } from "@repo/editor/live-editor";
 import { clearNoteStats, collectNoteStats, publishNoteStats } from "@repo/editor/note-stats";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
@@ -158,6 +158,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
         if (editor.operations.every((op) => op.type === "set_selection")) {
           return;
         }
+        announceLiveEditorEdit();
         getScheduler().schedule();
       }}
     >
