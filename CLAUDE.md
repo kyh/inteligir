@@ -1471,7 +1471,13 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
 
 - **THE REACT COMPILER IS ON FOR ALL THREE APPS**: `compiler: true` on
   `@vitejs/plugin-react` in both vite configs and `reactCompiler: true` in
-  `apps/mobile/app.config.js`. The manual-memo sweep is a follow-up.
+  `apps/mobile/app.config.js`. The suites run what ships: the desktop's,
+  `@repo/editor`'s and `@repo/ui`'s DOM tests compile their sources the same
+  way (`vitest.config.ts` in each; test files excluded, because a fixture hook
+  minted in a factory is hoisted with no diagnostic), and a
+  `compiled-under-test` suite in each fails when the plugin goes. A node
+  suite, and the desktop's booted ones, cannot run compiled: the plugin skips
+  the ssr transform. The manual-memo sweep is a follow-up.
 
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override
   because the catalog bound only the manifests that spell it; `@types/node`
