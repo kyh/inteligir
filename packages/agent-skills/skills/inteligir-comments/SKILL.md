@@ -36,7 +36,8 @@ Markers inside a code fence are inert, like everything else in code.
 
 A note's comments live in `.inteligir/comments/<note-id>.json`, where
 `<note-id>` is the note's frontmatter `id` (`inteligir comment add` mints one
-into a note that has none). It is a JSON object keyed by comment id. A
+into a note that has none, and refuses a note whose `id` is not text, such as
+`id: 42`, rather than replace it). It is a JSON object keyed by comment id. A
 `<note>.md.comments.json` beside a note is the older spelling: the server folds
 it into the store the first time the note's comments are read, so never write
 one.

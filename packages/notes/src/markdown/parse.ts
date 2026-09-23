@@ -15,7 +15,11 @@ interface ParseFailure {
   line: number | null;
 }
 
-export type ParseResult = { ok: true; root: Root } | { ok: false; failure: ParseFailure };
+// `text` is what the positions index: the pill-pipe escape shifts columns, so a caller cutting
+// source by offset cuts this, not its own input.
+export type ParseResult =
+  | { ok: true; root: Root; text: string }
+  | { ok: false; failure: ParseFailure };
 
 // micromark/mdx errors are VFileMessage-shaped, but anything can escape a transform, so every
 // field is optional and a non-object throw decodes to no fields.
@@ -32,16 +36,18 @@ const THROWN_PARSE_ERROR = z
   .catch({});
 // oxlint-enable promise/prefer-await-to-then
 
+const processor = unified().use(remarkParse).use(MD_REMARK_PLUGINS).freeze();
+
 export const parseMdast = (md: string): ParseResult => {
-  const processor = unified().use(remarkParse).use(MD_REMARK_PLUGINS);
   try {
     // runSync is where the transformer plugins act, so a bare `parse` yields a different tree
     // (verbatim-spans wants that one). pill pipes in table cells are escaped ahead of micromark.
-    const tree = processor.runSync(processor.parse(escapePillPipesInTables(md)));
+    const text = escapePillPipesInTables(md);
+    const tree = processor.runSync(processor.parse(text));
     if (!isMdastRoot(tree)) {
       throw new Error("markdown transform returned a non-root node");
     }
-    return { ok: true, root: tree };
+    return { ok: true, root: tree, text };
   } catch (error) {
     const reported = THROWN_PARSE_ERROR.parse(error);
     return {

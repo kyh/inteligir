@@ -2,10 +2,74 @@ import { describe, expect, it } from "vitest";
 
 import {
   addFrontmatterAlias,
+  frontmatterYaml,
   pinnedFrontmatterYaml,
+  removeFrontmatterId,
+  replaceFrontmatterYaml,
   setFrontmatterPinned,
   splitFrontmatter,
+  withFrontmatterId,
 } from "@repo/notes/markdown/frontmatter";
+
+import { parseScan } from "../scan-parse";
+
+const NOTE_HEADERS = {
+  "a BOM": "\uFEFF---\ntitle: t\n---\nbody\n",
+  "a BOM and CRLF": "\uFEFF---\r\ntitle: t\r\n---\r\nbody\r\nmore\r\n",
+  CRLF: "---\r\ntitle: t\r\ntags:\r\n  - a\r\n---\r\nbody\r\n",
+  "an empty block": "---\n---\nbody\n",
+  "no block": "body\n",
+  "trailing-space fences": "---  \ntitle: t\n---\t\nbody\n",
+} satisfies Record<string, string>;
+
+const BARE_LF = /(?<!\r)\n/u;
+
+describe("the frontmatter block is the one the scan reads", () => {
+  it.each(Object.entries(NOTE_HEADERS))("%s: its yaml is the scan's yaml node", (_, src) => {
+    const [first] = parseScan(src).children;
+    expect(frontmatterYaml(src)).toBe(first?.type === "yaml" ? first.value : null);
+  });
+
+  it.each(Object.entries(NOTE_HEADERS))(
+    "%s: every rewriter keeps the body, the BOM and the line ending",
+    (_, src) => {
+      const { body } = splitFrontmatter(src);
+      const minted = withFrontmatterId(src, "new");
+      if (minted.kind !== "written") {
+        throw new Error(`expected a write, got ${minted.kind}`);
+      }
+      const rewrites = [
+        minted.content,
+        removeFrontmatterId(minted.content),
+        setFrontmatterPinned(src, true),
+        addFrontmatterAlias(src, "Alias"),
+      ];
+      for (const next of rewrites) {
+        if (next === null) {
+          throw new Error("a rewriter refused a readable block");
+        }
+        expect(splitFrontmatter(next).body).toBe(body);
+        expect(next.startsWith("\uFEFF")).toBe(src.startsWith("\uFEFF"));
+        expect(BARE_LF.test(next)).toBe(BARE_LF.test(src));
+      }
+    },
+  );
+});
+
+describe("replaceFrontmatterYaml", () => {
+  it("writes the yaml in the block's own line ending, whatever the yaml was joined with", () => {
+    expect(replaceFrontmatterYaml("---\r\na: 1\r\n---\r\nbody\r\n", "a: 1\nb: 2")).toBe(
+      "---\r\na: 1\r\nb: 2\r\n---\r\nbody\r\n",
+    );
+  });
+
+  it("drops the block for empty yaml and leaves a note without one as found", () => {
+    expect(replaceFrontmatterYaml("\uFEFF---\r\na: 1\r\n---\r\nbody\r\n", " ")).toBe(
+      "\uFEFFbody\r\n",
+    );
+    expect(replaceFrontmatterYaml("body\n", "")).toBe("body\n");
+  });
+});
 
 describe("splitFrontmatter", () => {
   it("returns empty properties + full body when there is no frontmatter", () => {
@@ -133,6 +197,15 @@ describe("setFrontmatterPinned", () => {
 
   it("refuses frontmatter it cannot read", () => {
     expect(setFrontmatterPinned("---\na: [unclosed\n---\nbody\n", true)).toBeNull();
+  });
+
+  it("unpins a CRLF note or a quoted key without leaving the key or a stray `\\r`", () => {
+    expect(setFrontmatterPinned("---\r\ntitle: t\r\npinned: true\r\n---\r\nbody\r\n", false)).toBe(
+      "---\r\ntitle: t\r\n---\r\nbody\r\n",
+    );
+    expect(setFrontmatterPinned('---\n"pinned": true\ntitle: t\n---\nbody\n', false)).toBe(
+      "---\ntitle: t\n---\nbody\n",
+    );
   });
 
   it("is the yaml-level edit the editor's frontmatter node runs", () => {

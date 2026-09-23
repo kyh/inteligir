@@ -70,6 +70,13 @@ describe("renaming a tag in one doc", () => {
     expect(renameTagsInDoc(src, "project", "work")).toBe(src);
   });
 
+  it("re-serializes a CRLF note's tags in CRLF, body byte-exact", () => {
+    const src = "---\r\ntitle: Plan\r\ntags:\r\n  - project\r\n---\r\n\r\nNo inline tag.\r\n";
+    expect(renameTagsInDoc(src, "project", "work")).toBe(
+      "---\r\ntitle: Plan\r\ntags:\r\n  - work\r\n---\r\n\r\nNo inline tag.\r\n",
+    );
+  });
+
   it("leaves invalid frontmatter alone and still rewrites the body", () => {
     const src = "---\ntags: [unclosed\n---\n\n#project here.\n";
     const out = renameTagsInDoc(src, "project", "work");

@@ -6,8 +6,8 @@
 import {
   frontmatterYaml,
   parseProperties,
+  replaceFrontmatterYaml,
   serializeProperties,
-  splitFrontmatter,
 } from "../markdown/frontmatter";
 import type { TypedProperty } from "../markdown/frontmatter";
 import { documentTagSpans } from "./link-extract";
@@ -68,7 +68,7 @@ const rewriteFrontmatterTags = (content: string, from: string, to: string): stri
   if (!changed) {
     return content;
   }
-  return `---\n${serializeProperties(properties, yaml)}\n---\n${splitFrontmatter(content).body}`;
+  return replaceFrontmatterYaml(content, serializeProperties(properties, yaml));
 };
 
 export const renameTagsInDoc = (content: string, from: string, to: string): string =>

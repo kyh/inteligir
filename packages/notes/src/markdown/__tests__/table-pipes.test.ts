@@ -71,6 +71,53 @@ describe("escapePillPipesInTables", () => {
     expect(escapePillPipesInTables(md)).toBe(md);
   });
 
+  it("leaves every region the grammar holds literally as written", () => {
+    const literal = [
+      "> ```\n> | {{a|b}} |\n> ```\n",
+      "- item\n\n    ```\n    | {{a|b}} |\n    ```\n",
+      "$$\n| {{a|b}} |\n$$\n",
+      "---\r\ntitle: '| {{a|b}} |'\r\n---\r\n\r\nbody\r\n",
+      "\uFEFF---\ntitle: '| {{a|b}} |'\n---\n",
+      '<Card title="| {{a|b}} |" />\n',
+    ];
+    for (const md of literal) {
+      expect(escapePillPipesInTables(md)).toBe(md);
+    }
+  });
+
+  it("still escapes a table cell beside a literal region, or nested in a quote or an element", () => {
+    const beside = "```\n| {{a|b}} |\n```\n\n| a | b |\n| - | - |\n| {{5|5}} | x |\n";
+    expect(escapePillPipesInTables(beside)).toBe(
+      "```\n| {{a|b}} |\n```\n\n| a | b |\n| - | - |\n| {{5\\|5}} | x |\n",
+    );
+    expect(escapePillPipesInTables("> | a | b |\n> | - | - |\n> | {{5|5}} | x |\n")).toBe(
+      "> | a | b |\n> | - | - |\n> | {{5\\|5}} | x |\n",
+    );
+    expect(
+      escapePillPipesInTables("<Foo>\n\n| a | b |\n| - | - |\n| {{5|5}} | x |\n\n</Foo>\n"),
+    ).toBe("<Foo>\n\n| a | b |\n| - | - |\n| {{5\\|5}} | x |\n\n</Foo>\n");
+  });
+
+  it("cuts at the source's own offsets past a BOM", () => {
+    expect(escapePillPipesInTables("\uFEFF{{a|b}}`c` | x\n")).toBe("\uFEFF{{a\\|b}}`c` | x\n");
+  });
+
+  it("rewrites nothing in a doc the grammar refuses", () => {
+    const refused = "| a | b |\n| - | - |\n| {{5|5}} | x |\n\n<x |\n";
+    expect(escapePillPipesInTables(refused)).toBe(refused);
+  });
+
+  it("hands back the escaped text the tree's offsets index", () => {
+    const parsed = parseMdast(`${RAW_PILL_TABLE}\n$$\nx\n$$\n`);
+    if (!parsed.ok) {
+      throw new Error(parsed.failure.message);
+    }
+    const math = parsed.root.children.find((node) => node.type === "math");
+    const start = math?.position?.start.offset;
+    const end = math?.position?.end.offset;
+    expect(parsed.text.slice(start, end)).toBe("$$\nx\n$$");
+  });
+
   it("raw pill in a table cell parses as ONE pill", () => {
     expect(formulasIn(RAW_PILL_TABLE)).toEqual([{ raw: "5|5" }]);
   });

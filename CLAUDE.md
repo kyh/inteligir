@@ -772,7 +772,9 @@ rename`.
   note's bytes and would need an account, and accountless installs make zero
   cloud requests. A comment on a note without an id mints one
   (`withFrontmatterId`, a line cut like the pin's) through a guarded note
-  write; a read mints nothing. The beside-the-note `<note>.comments.json` older
+  write; a read mints nothing. An `id` that is not text (a number, a date, a
+  list) is refused by name, never overwritten: it may be someone's identity
+  for the note. The beside-the-note `<note>.comments.json` older
   vaults and agents wrote is folded into the store on first touch and over the
   whole tree at boot (`comments-migration.ts`); an unparseable one is reported
   by its own name and left. A deleted note's store goes with it
