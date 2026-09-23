@@ -9,6 +9,9 @@
     // `@repo/desktop#package` puts the result inside the .app.
     "build": {
       "dependsOn": ["^build", "@repo/desktop#build"],
+      // The licence texts it stages sit at the repo root, in no workspace,
+      // so turbo hashes them only where they are named.
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tools/licenses/**"],
       "outputs": ["dist/**"]
     }
   }
