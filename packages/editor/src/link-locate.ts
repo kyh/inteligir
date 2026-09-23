@@ -7,12 +7,13 @@ import type { SlateEditor, TElement } from "platejs";
 
 import { WikiLinkBaseKit } from "@repo/editor/kits/wiki-link-kit";
 import { stringProp } from "@repo/editor/node-props";
+import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const WIKI_TYPES = new Set<string>(WikiLinkBaseKit.map((plugin) => plugin.key));
 
 // the written target of a link element, as the knowledge scan stores it: a wiki body's
-// target, or an md/image url without its anchor
+// target, or an md/image url read by the scan's own rule
 const writtenTarget = (editor: SlateEditor, element: TElement): string | null => {
   if (WIKI_TYPES.has(element.type)) {
     const body = stringProp(element, "body");
@@ -20,11 +21,7 @@ const writtenTarget = (editor: SlateEditor, element: TElement): string | null =>
   }
   if (element.type === editor.getType(KEYS.link) || element.type === editor.getType(KEYS.img)) {
     const url = stringProp(element, "url");
-    if (url === undefined) {
-      return null;
-    }
-    const hash = url.indexOf("#");
-    return hash === -1 ? url : url.slice(0, hash);
+    return url === undefined ? null : mdLinkTarget(url);
   }
   return null;
 };

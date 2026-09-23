@@ -775,6 +775,22 @@ rename`.
   at the next batch boundary and never rebuilds, since a rebuild would reopen
   the file dispose closed. `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
 
+- **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
+  RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the
+  scan indexes an md url: a scheme, `//host` or bare `#anchor` names no vault
+  path, the anchor is cut and the rest percent-decoded. The editor reads a
+  link's or an image's url through it and resolves the answer from the open
+  note with the index's own `buildResolver` (`resolveMdTarget` on the host's
+  `LinkResolver`, filled in `vault-provider.tsx`): beside the note, then from
+  the root. So an image a move re-based to `../assets/shot%201.png` still
+  loads, an image Problems calls missing is the one drawn missing, a Problems
+  row for a `%20` link lands (`link-locate.ts`), and a link's Open follows a
+  vault url in the app instead of handing the browser a path it cannot route.
+  An image the resolver misses falls back to its url as a root path, because a
+  pasted asset is on disk before the listing that would resolve it.
+  `useVaultLinkTarget` in `packages/editor/src/host.ts`,
+  `packages/editor/src/nodes/image-node.tsx` and `link-node.tsx`.
+
 ### Agents and threads
 
 - **A turn row's `sourceSeqEnd` names its own contributors**, not every

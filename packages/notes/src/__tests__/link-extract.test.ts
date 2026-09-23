@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { scanDoc } from "../knowledge/link-extract";
+import { mdLinkTarget, scanDoc } from "../knowledge/link-extract";
 import type { ExtractedLink } from "../knowledge/link-extract";
 import { scanTaskItems } from "../knowledge/task-ordinal";
 
@@ -158,6 +158,23 @@ describe("scanDoc — standard md links", () => {
   it("extracts a wiki link nested in an md link label", () => {
     const src = "[[inner]] and [label](outer.md)";
     expect(links(src).map((l) => l.target)).toEqual(["inner", "outer.md"]);
+  });
+
+  it("answers mdLinkTarget with the target the scan indexes the url under", () => {
+    const urls = [
+      "My%20Note.md#top",
+      "../../a/x%20y.png",
+      "bad%zz.md",
+      "note",
+      "https://example.com/x.md",
+      "mailto:a@b.c",
+      "//cdn.example.com/x.md",
+      "#heading",
+    ];
+    for (const url of urls) {
+      expect(mdLinkTarget(url), url).toBe(links(`[t](<${url}>)`).at(0)?.target ?? null);
+    }
+    expect(mdLinkTarget("My%20Note.md#top")).toBe("My Note.md");
   });
 });
 

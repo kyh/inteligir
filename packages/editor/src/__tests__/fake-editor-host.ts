@@ -3,7 +3,7 @@ import { createStore } from "zustand/vanilla";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 import { setEditorHostIo } from "@repo/editor/host-io";
-import type { VaultActions, WikiResolver } from "@repo/editor/host-io";
+import type { LinkResolver, ReadVaultAssetResult, VaultActions } from "@repo/editor/host-io";
 
 export interface HostCall {
   readonly action: keyof VaultActions;
@@ -12,6 +12,8 @@ export interface HostCall {
 
 export interface FakeEditorHostOptions {
   readonly resolveWikiTarget?: (target: string) => string | null;
+  readonly resolveMdTarget?: (target: string, fromPath: string) => string | null;
+  readonly readVaultAsset?: (path: string) => ReadVaultAssetResult;
   readonly wikiTargets?: readonly WikiTarget[];
   // a create the session refuses answers null, as the real one does after it has said why
   readonly refuseCreates?: boolean;
@@ -46,19 +48,21 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     renameEntry: record("renameEntry", Promise.resolve(true)),
   };
 
-  const wikiResolver = createStore<WikiResolver>()(() => ({
+  const linkResolver = createStore<LinkResolver>()(() => ({
+    resolveMdTarget: options.resolveMdTarget ?? (() => null),
     resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
   }));
 
   setEditorHostIo({
     actions,
     getBacklinks: async () => await Promise.resolve([]),
+    linkResolver,
     listWikiTargets: async () => await Promise.resolve([...(options.wikiTargets ?? [])]),
     onVaultChanged: () => () => {},
     readNoteFormulas: async () => await Promise.resolve(null),
-    readVaultAsset: async () => await Promise.resolve({ error: "no assets", ok: false }),
+    readVaultAsset: async ({ path }) =>
+      await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),
     readVaultFile: async ({ path }) => await Promise.reject(new Error(`ENOENT ${path}`)),
-    wikiResolver,
     writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
   });
 

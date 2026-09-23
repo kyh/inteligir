@@ -29,15 +29,19 @@ export interface VaultActions {
   flush: () => Promise<boolean>;
 }
 
-export interface WikiResolver {
-  /** Identity changes when the listing or aliases refresh, so chips re-render on that alone. */
+// The knowledge index's resolver over the listing, so a link the editor draws lands where the
+// index (and so Problems and a rename) says it does. Identity changes when the listing or aliases
+// refresh, so a link re-renders on that alone.
+export interface LinkResolver {
   resolveWikiTarget: (target: string) => string | null;
+  /** `target` is an md url as `mdLinkTarget` reads it; tried beside `fromPath`, then from the root. */
+  resolveMdTarget: (target: string, fromPath: string) => string | null;
 }
 
 // The read half only: the app owns the writer. A store rather than a field because the resolver
 // is rebuilt on every vault refresh while the actions never change, so only its readers re-render.
-export type WikiResolverStore = Pick<
-  StoreApi<WikiResolver>,
+export type LinkResolverStore = Pick<
+  StoreApi<LinkResolver>,
   "getState" | "getInitialState" | "subscribe"
 >;
 
@@ -60,7 +64,7 @@ export const vaultChangeTouches = (event: VaultChangedEvent, path: string): bool
 
 export interface EditorHostIo {
   actions: VaultActions;
-  wikiResolver: WikiResolverStore;
+  linkResolver: LinkResolverStore;
   readVaultFile: (payload: { path: string }) => Promise<string>;
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
   /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */

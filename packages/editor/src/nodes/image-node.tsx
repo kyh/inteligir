@@ -1,5 +1,7 @@
-// A vault-relative src is fetched through the host's asset route into an object URL; the media
-// type rides the Blob, so this file owns no extension table that could drift from the routes'.
+// A vault src is fetched through the host's asset route into an object URL; the media type rides
+// the Blob, so this file owns no extension table that could drift from the routes'. The src is
+// resolved as the knowledge index resolves it, so a moved note's re-based url still loads and an
+// image Problems calls missing is the one drawn missing.
 
 import { useEffect, useState } from "react";
 import { NodeApi } from "platejs";
@@ -10,6 +12,7 @@ import { ImageOff } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
+import { useVaultLinkTarget } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -17,7 +20,8 @@ const EXTERNAL_RE = /^https?:\/\//iu;
 
 type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
-const useVaultAsset = (path: string, external: boolean): VaultState => {
+// null: a src no vault path answers, which is drawn missing
+const useVaultAsset = (path: string | null): VaultState => {
   const [fetched, setFetched] = useState<VaultState>({ kind: "loading" });
   // re-key during the render that changes the path so no frame shows the previous file's object URL.
   const [fetchedPath, setFetchedPath] = useState(path);
@@ -27,7 +31,7 @@ const useVaultAsset = (path: string, external: boolean): VaultState => {
   }
 
   useEffect(() => {
-    if (external) {
+    if (path === null) {
       return;
     }
     const io = getEditorHostIo();
@@ -57,9 +61,9 @@ const useVaultAsset = (path: string, external: boolean): VaultState => {
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [path, external]);
+  }, [path]);
 
-  return external ? { kind: "ready", url: path } : fetched;
+  return path === null ? { kind: "error" } : fetched;
 };
 
 // alt text lives in the img node's `caption` children (Plate's markdown img rule).
@@ -115,7 +119,13 @@ export const ImageElement = (props: PlateElementProps) => {
   const selected = useSelected();
   const url = stringProp(props.element, "url") ?? "";
   const external = EXTERNAL_RE.test(url);
-  const state = useVaultAsset(url, external);
+  const linked = useVaultLinkTarget(url);
+  // a miss falls back to the url as a root path: a just-pasted asset is on disk before the
+  // listing that would resolve it
+  const vaultState = useVaultAsset(
+    external || linked === null ? null : (linked.path ?? linked.target),
+  );
+  const state: VaultState = external ? { kind: "ready", url } : vaultState;
   const alt = altText(props.element);
 
   return (
