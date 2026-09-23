@@ -1242,8 +1242,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   pages draw eight different row shapes (a heading's depth, a match's
   before/hit/after, a problem's detail) and a data array would be a second
   answer to what a row is. A row therefore does not answer for its own
-  position — the list reads document order through the same `syncRows` shape
-  `dropdown-menu.tsx` uses. The panel opens where a panel at its cap height
+  position — the list reads document order through `useRowOrder`, like the
+  dropdown and the rail. The panel opens where a panel at its cap height
   sits centered and KEEPS that top edge, so the field never moves as the rows
   filter down. The footer names Enter after the highlighted row, read off that
   row's own `data-command-action`, so nothing keeps a second copy of a label
@@ -1308,13 +1308,25 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   conditional row changes where its siblings sit without re-rendering them, so
   a row deriving its index from the DOM needs an effect with no dependency
   array — and a React rule suppression makes the compiler skip optimizing the
-  whole component. The popup keeps the set instead and reads document order
-  itself (`syncRows` in `packages/ui/src/components/dropdown-menu.tsx`, the
-  same shape `sidebar-menu.tsx` uses): a row registers its element and asks
-  only whether it is the active one. No `exhaustive-deps` or `rules-of-hooks`
-  suppression is left in the renderer or `@repo/ui` — those are the ones the
-  compiler bails on, and `react/rule-suppression` refuses a new one — so the
-  compiler optimizes both.
+  whole component. The list keeps the set instead and reads document order
+  itself, through the one registry the sidebar menu, the dropdown and the
+  palette share (`useRowOrder` in `packages/ui/src/hooks/use-row-order.ts`):
+  a row registers its element and asks only whether it is the lit one. A
+  registration only marks the set dirty, and one sync per commit reads the
+  order in the layout phase of the commit after, so a list of N rows mounts,
+  grows or empties in O(N); a sync per row re-registers every row for every
+  row, and mounts a thousand-row tree in tens of seconds. Not a microtask:
+  an update made outside the commit can render a frame late, and that frame
+  draws the pills at the old rects. A keyed reorder mounts no row, so a
+  MutationObserver on the list catches it and forces the resync with
+  `flushSync`, before paint, for the same reason. The lit row rides a store
+  the rows read through `useSyncExternalStore` (`useHighlighted`), so a hover
+  step re-renders the row it left and the row it reached, not the list.
+  `packages/ui/src/components/__tests__/row-registry.test.tsx` pins the
+  linear mount, the reorder and the two-row hover. No `exhaustive-deps` or
+  `rules-of-hooks` suppression is left in the renderer or `@repo/ui` — those
+  are the ones the compiler bails on, and `react/rule-suppression` refuses a
+  new one — so the compiler optimizes both.
 
 - **THE REACT COMPILER IS ON FOR ALL THREE APPS**: `compiler: true` on
   `@vitejs/plugin-react` in both vite configs and `reactCompiler: true` in
