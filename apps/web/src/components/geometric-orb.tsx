@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 
 import * as THREE from "three";
 
@@ -40,45 +40,62 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
   }
 }
 
-const HelixTube = ({ baseColor }: { baseColor: string }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  // useState as a create-once slot: these are disposable GPU resources, never set again
-  // oxlint-disable-next-line react/hook-use-state -- there is no setter to name
-  const [geometry] = useState(
-    () =>
-      new THREE.TubeGeometry(
-        new HelixCurve(),
-        TUBE_SEGMENTS,
-        HELIX_TUBE_RADIUS,
-        TUBE_RADIAL_SEGMENTS,
-        true,
-      ),
-  );
-  // seeded with the current color so the first frame is not a flash of white
-  // oxlint-disable-next-line react/hook-use-state -- there is no setter to name
-  const [material] = useState(() => new THREE.MeshBasicMaterial({ color: baseColor }));
-  const targetColor = useMemo(() => new THREE.Color(baseColor), [baseColor]);
+const HELIX = new HelixCurve();
 
-  useEffect(
-    () => () => {
-      geometry.dispose();
-      material.dispose();
-    },
-    [geometry, material],
-  );
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+const subscribeReducedMotion = (onChange: () => void) => {
+  const query = window.matchMedia(REDUCED_MOTION);
+  query.addEventListener("change", onChange);
+  return () => {
+    query.removeEventListener("change", onChange);
+  };
+};
+
+const prefersReducedMotion = () => window.matchMedia(REDUCED_MOTION).matches;
+
+const HelixTube = ({ baseColor, still }: { baseColor: string; still: boolean }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const painted = useRef(false);
+  const targetColor = useMemo(() => new THREE.Color(baseColor), [baseColor]);
+  const invalidate = useThree((state) => state.invalidate);
+
+  // a still canvas draws only when asked, one frame per ask, so it takes a theme switch at once rather than a tween
+  useEffect(() => {
+    if (still) {
+      materialRef.current?.color.copy(targetColor);
+      invalidate();
+    }
+  }, [invalidate, still, targetColor]);
 
   useFrame((_state, delta) => {
-    material.color.lerp(targetColor, 1 - Math.exp(-COLOR_LERP_SPEED * delta));
-    if (meshRef.current) {
+    // the first frame takes the color outright: a lerp would open on the material's default white
+    const step = painted.current ? 1 - Math.exp(-COLOR_LERP_SPEED * delta) : 1;
+    materialRef.current?.color.lerp(targetColor, step);
+    painted.current = true;
+    if (!still && meshRef.current) {
       meshRef.current.rotation.x += SPIN_RADIANS_PER_FRAME * delta * 60;
     }
   });
 
-  return <mesh ref={meshRef} geometry={geometry} material={material} />;
+  return (
+    <mesh ref={meshRef}>
+      <tubeGeometry args={[HELIX, TUBE_SEGMENTS, HELIX_TUBE_RADIUS, TUBE_RADIAL_SEGMENTS, true]} />
+      <meshBasicMaterial ref={materialRef} />
+    </mesh>
+  );
 };
 
-export const GeometricOrb = ({ baseColor = "#eeeeee" }: { baseColor?: string }) => (
-  <Canvas camera={{ fov: 65, position: [0, 0, CAMERA_Z] }} gl={{ alpha: true, antialias: true }}>
-    <HelixTube baseColor={baseColor} />
-  </Canvas>
-);
+export const GeometricOrb = ({ baseColor = "#eeeeee" }: { baseColor?: string }) => {
+  const still = useSyncExternalStore(subscribeReducedMotion, prefersReducedMotion);
+  return (
+    <Canvas
+      camera={{ fov: 65, position: [0, 0, CAMERA_Z] }}
+      frameloop={still ? "demand" : "always"}
+      gl={{ alpha: true, antialias: true }}
+    >
+      <HelixTube baseColor={baseColor} still={still} />
+    </Canvas>
+  );
+};
