@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { scanDoc } from "../knowledge/link-extract";
 import { computeRenameEdits } from "../knowledge/rename-links";
 
 const edits = (
@@ -9,7 +10,10 @@ const edits = (
   extraFiles: string[] = [],
 ): Map<string, string> => {
   const map = new Map(Object.entries(docs));
-  return computeRenameEdits(map, [...map.keys(), ...extraFiles], from, to);
+  const aliases = [...map].flatMap(([path, content]) =>
+    scanDoc(content).aliases.map((alias): readonly [string, string] => [alias, path]),
+  );
+  return computeRenameEdits(map, [...map.keys(), ...extraFiles], aliases, from, to);
 };
 
 describe("computeRenameEdits — wiki links", () => {
@@ -319,6 +323,21 @@ describe("computeRenameEdits — alias shadow protection", () => {
       "Retro.md",
     );
     expect(result.size).toBe(0);
+  });
+
+  it("reads the alias owner from the vault's aliases, not from the docs it rewrites", () => {
+    const result = computeRenameEdits(
+      new Map([
+        ["hub.md", "see [[Retro]]\n"],
+        ["misc.md", "# Misc\n"],
+      ]),
+      ["hub.md", "misc.md", "notes/owner.md"],
+      [["Retro", "notes/owner.md"]],
+      "misc.md",
+      "Retro.md",
+    );
+    expect(result.get("hub.md")).toBe("see [[notes/owner|Retro]]\n");
+    expect(result.size).toBe(1);
   });
 
   it("alias-ci links are protected too", () => {

@@ -58,6 +58,10 @@ export const renameNoteWithLinkRewrite = async (
   const fromPath = source.path;
 
   const linkedDocs = await knowledge.renameCandidates(fromPath, toPath);
+  const targets = await knowledge.wikiTargets();
+  const aliasEntries = targets.flatMap((target) =>
+    (target.aliases ?? []).map((alias): readonly [string, string] => [alias, target.path]),
+  );
   const candidates = linkedDocs.filter(isDocPath);
   const { docs, skipped } = await snapshotDocs(service, candidates);
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
@@ -73,7 +77,7 @@ export const renameNoteWithLinkRewrite = async (
     oldStem !== "" &&
     oldStem.toLowerCase() !== docStem(renamed.path).toLowerCase();
 
-  const edits = computeRenameEdits(docs, allFiles, fromPath, renamed.path);
+  const edits = computeRenameEdits(docs, allFiles, aliasEntries, fromPath, renamed.path);
   const rewritten: string[] = [];
   let aliasRecorded = false;
 
