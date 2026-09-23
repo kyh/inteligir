@@ -36,8 +36,11 @@ src/
     search-query.ts, search-excerpt.ts  # the ONE literal+stem query policy
                        # both engines run, and the excerpt both cut over the
                        # literal text (never FTS5's snippet())
+    search-columns.ts  # a doc's FTS row, stems included, computed apart from
+                       # the store so a host can stem where it projects
     projection-row.ts, rename-candidates.ts  # the stored projection's one
-                       # json column; which links a rename may rewrite
+                       # json column, and the schema any carrier of it is
+                       # parsed by; which links a rename may rewrite
     tag-index.ts, related-notes.ts, note-name.ts, doc-file.ts,
     vault-path.ts      # tags, related-notes scorer, name validation, doc
                        # test, posix path helpers

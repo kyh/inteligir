@@ -30,7 +30,8 @@ import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
 import { FoldersStore } from "./folders/folders-store";
 import { createKnowledgeRuntime } from "./knowledge/knowledge-runtime";
-import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
+import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowledge-runtime";
+import { createProjectionWorker } from "./knowledge/projector";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
 import type { AppServices } from "./orpc";
@@ -68,6 +69,8 @@ interface ComposeDriverDeps {
 }
 
 export interface ComposePorts {
+  // a suite runs the scan inline: a worker booted from source costs every compose seconds
+  knowledge?: Pick<KnowledgeRuntimeArgs, "projector">;
   openExternalUrl?: OpenExternalUrl;
   vault?: Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">;
 }
@@ -146,6 +149,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
 
   const knowledge = createKnowledgeRuntime({
     dataDir: config.dataDir,
+    projector: ports.knowledge?.projector ?? createProjectionWorker(),
     vault: vault.service,
     vaultRoot: config.vaultDir,
   });

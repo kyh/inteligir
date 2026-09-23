@@ -43,7 +43,7 @@ export class KnowledgeIndex {
     this.linkGraph.applyDoc(path, projection);
     this.searchIndex.set(path, {
       body: content,
-      // aliases ride the headings field as a ranking boost; sql-knowledge-store's fts insert must match
+      // aliases ride the headings field as a ranking boost; search-columns' fts row must match
       headings: [...projection.headings, ...projection.aliases],
       title: projection.title,
     });

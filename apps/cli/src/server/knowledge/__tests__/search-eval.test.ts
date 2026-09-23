@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import nodePath from "node:path";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import { projectDoc } from "@repo/notes/knowledge/projection";
+import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { planSearchQuery } from "@repo/notes/knowledge/search-query";
@@ -128,13 +129,14 @@ beforeAll(() => {
   store = createSqlKnowledgeStore(driver, "/vault");
   pure = new KnowledgeIndex();
   for (const [path, content] of Object.entries(EVAL_VAULT)) {
+    const projection = projectDoc(path, content);
     store.upsertDoc(
       {
         contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
         path,
-        projection: projectDoc(path, content),
+        projection,
       },
-      content,
+      docSearchColumns(projection, content),
     );
     pure.setDoc(path, content);
   }
@@ -177,13 +179,14 @@ const storeOf = (docs: Readonly<Record<string, string>>): SqlKnowledgeStore => {
     built.dispose();
   });
   for (const [path, content] of Object.entries(docs)) {
+    const projection = projectDoc(path, content);
     built.upsertDoc(
       {
         contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
         path,
-        projection: projectDoc(path, content),
+        projection,
       },
-      content,
+      docSearchColumns(projection, content),
     );
   }
   return built;

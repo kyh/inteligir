@@ -5,6 +5,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
+import { createProjectionWorker } from "../projector";
 import { identityLock } from "../../__tests__/identity-lock";
 
 const FILE_COUNT = 300;
@@ -27,7 +28,13 @@ describe("a 300-file vault", () => {
     }
 
     const service = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
-    const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
+    // the real worker: the one suite that runs a whole reconcile across batches through it
+    const knowledge = createKnowledgeRuntime({
+      dataDir,
+      projector: createProjectionWorker(),
+      vault: service,
+      vaultRoot: root,
+    });
     onTestFinished(async () => {
       await knowledge.dispose();
     });
@@ -49,5 +56,5 @@ describe("a 300-file vault", () => {
     const tags = await knowledge.tags();
     expect(tags).toHaveLength(10);
     expect(tags.every((tag) => tag.count === FILE_COUNT / 10)).toBe(true);
-  });
+  }, 60_000);
 });

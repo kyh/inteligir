@@ -55,6 +55,19 @@ const toStoredLink = (row: z.infer<typeof storedLinkRow>): StoredLink => {
   return link;
 };
 
+// whatever carried the row: the store's json column, or a structured clone from the thread that
+// projected it
+export const docProjectionSchema = storedProjectionRow.transform((row): DocProjection => ({
+  aliases: row.aliases,
+  headings: row.headings,
+  links: row.links.map(toStoredLink),
+  noteId: row.noteId,
+  pinned: row.pinned,
+  tags: row.tags,
+  tasks: row.tasks,
+  title: row.title,
+}));
+
 export const parseStoredProjection = (json: string): DocProjection => {
   let source: unknown;
   try {
@@ -62,18 +75,9 @@ export const parseStoredProjection = (json: string): DocProjection => {
   } catch {
     fail("is not valid json");
   }
-  const row = storedProjectionRow.safeParse(source);
+  const row = docProjectionSchema.safeParse(source);
   if (!row.success) {
     fail(z.prettifyError(row.error));
   }
-  return {
-    aliases: row.data.aliases,
-    headings: row.data.headings,
-    links: row.data.links.map(toStoredLink),
-    noteId: row.data.noteId,
-    pinned: row.data.pinned,
-    tags: row.data.tags,
-    tasks: row.data.tasks,
-    title: row.data.title,
-  };
+  return row.data;
 };

@@ -1,11 +1,8 @@
-// the entry walk duplicates vault/watcher/fork-channel.ts's on purpose: that file is vendored,
-// so house helpers stay out of it.
-
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { Worker } from "node:worker_threads";
 import { z } from "zod";
 import { messageOf } from "../error-message";
+import { resolveWorkerEntry } from "../worker-entry";
+import type { WorkerEntry } from "../worker-entry";
 import type {
   VoiceModelFiles,
   VoiceStreamCommand,
@@ -41,23 +38,13 @@ const UNREADABLE_FRAME = "The transcription worker sent a message this build can
 // second), so anything near this is a wedged runtime. the streaming session is not bounded by it.
 const WORKER_BUDGET_MS = 60_000;
 
-const resolveWorkerEntry = (): string => {
-  const moduleDir = import.meta.dirname;
-  // packaged: the .mjs sits beside the node bundle; dev: the .ts source.
-  const candidates = ["transcribe-worker.mjs", "transcribe-worker.ts"];
-  for (const candidate of candidates) {
-    const candidatePath = path.join(moduleDir, candidate);
-    if (existsSync(candidatePath)) {
-      return candidatePath;
-    }
-  }
-  throw new Error(
-    `Transcription worker entry not found in ${moduleDir} (looked for ${candidates.join(", ")})`,
-  );
-};
+const transcribeWorkerEntry = (): WorkerEntry =>
+  resolveWorkerEntry(import.meta.dirname, "transcribe-worker");
 
 export const runVoiceWorker = async (request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> => {
-  const worker = new Worker(resolveWorkerEntry(), {
+  const entry = transcribeWorkerEntry();
+  const worker = new Worker(entry.path, {
+    ...entry.options,
     // transferred, not copied: the parent has no use for the buffer once the worker holds it.
     transferList: request.kind === "transcribe" ? [request.pcm] : [],
     workerData: request,
@@ -159,7 +146,8 @@ export const spawnVoiceStreamWorker = (
     // workerData is any: the annotation is what turns a mistyped kind into a compile error
     // rather than a worker that refuses its own start.
     const init: VoiceStreamInit = { kind: "stream", model };
-    worker = new Worker(resolveWorkerEntry(), { workerData: init });
+    const entry = transcribeWorkerEntry();
+    worker = new Worker(entry.path, { ...entry.options, workerData: init });
   } catch (error) {
     // a missing worker bundle is a packaging fault, not a corrupt model.
     callbacks.onError(messageOf(error), false);

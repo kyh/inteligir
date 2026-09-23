@@ -60,12 +60,19 @@ await build({
   outfile: path.join(distDir, "parcel-watcher-child.mjs"),
 });
 
-// the transcriber is a worker thread, so it needs its own file beside the entry
+// the transcriber and the projector are worker threads, so each needs its own file beside the
+// entry (src/server/worker-entry.ts)
 await build({
   ...shared,
   entryPoints: [path.join(packageRoot, "src", "server", "voice", "transcribe-worker.ts")],
   external: ["sherpa-onnx-node"],
   outfile: path.join(distDir, "transcribe-worker.mjs"),
+});
+
+await build({
+  ...shared,
+  entryPoints: [path.join(packageRoot, "src", "server", "knowledge", "projection-worker.ts")],
+  outfile: path.join(distDir, "projection-worker.mjs"),
 });
 
 await cp(path.join(repoRoot, "packages", "db", "drizzle"), path.join(distDir, "drizzle"), {

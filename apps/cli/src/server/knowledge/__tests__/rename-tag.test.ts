@@ -9,6 +9,7 @@ import { createKnowledgeRuntime } from "../knowledge-runtime";
 import type { KnowledgeRuntime } from "../knowledge-runtime";
 import { renameTagAcrossVault } from "../rename-tag";
 import { identityLock } from "../../__tests__/identity-lock";
+import { createInlineProjector } from "./inline-projector";
 
 const boot = () => {
   const instanceDir = makeTempDir("inteligir-knowledge-rename-tag-");
@@ -24,7 +25,12 @@ const boot = () => {
       sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
     root,
   });
-  const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
+  const knowledge = createKnowledgeRuntime({
+    dataDir,
+    projector: createInlineProjector(),
+    vault: service,
+    vaultRoot: root,
+  });
   sink = knowledge;
   onTestFinished(async () => {
     await knowledge.dispose();
