@@ -11,6 +11,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import { rebaseParsedOffsets } from "./parsed-offsets";
 import { remarkWikiLink } from "./remark-wiki-link";
 
 const remarkPlainBlocks: Plugin = function remarkPlainBlocks(this: Processor): undefined {
@@ -25,4 +26,8 @@ const processor = unified()
   .use(remarkGfm)
   .use(remarkWikiLink);
 
-export const parseScan = (source: string): Root => processor.parse(source);
+export const parseScan = (source: string): Root => {
+  const tree = processor.parse(source);
+  rebaseParsedOffsets(tree, source);
+  return tree;
+};

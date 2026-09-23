@@ -354,6 +354,33 @@ describe("computeRenameEdits — alias shadow protection", () => {
   });
 });
 
+const bomFirstLine = (name: string, eol: string): string =>
+  [
+    `\uFEFF[[${name}]] opens the note, [[${name}|friendly]] and ![[${name}]] follow`,
+    `md [x](${name}.md) and ![](${name}.md), while <div>[[old]]</div> and \`[[old]]\` stay`,
+    "",
+    `[ref]: ${name}.md`,
+    "",
+  ].join(eol);
+
+const bomUnderFrontmatter = (name: string, eol: string): string =>
+  ["\uFEFF---", "title: Hub", "---", `See [[${name}]] and [x](${name}.md).`, ""].join(eol);
+
+describe("computeRenameEdits — a note that starts with a BOM", () => {
+  it.each([
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+  ])("%s: changes exactly the target bytes", (_, eol) => {
+    const result = edits(
+      { "a.md": bomFirstLine("old", eol), "b.md": bomUnderFrontmatter("old", eol), "old.md": "" },
+      "old.md",
+      "new.md",
+    );
+    expect(result.get("a.md")).toBe(bomFirstLine("new", eol));
+    expect(result.get("b.md")).toBe(bomUnderFrontmatter("new", eol));
+  });
+});
+
 describe("computeRenameEdits — no-ops", () => {
   it("returns nothing when no links point at the file", () => {
     expect(edits({ "hub.md": "# No links\n", "old.md": "" }, "old.md", "new.md").size).toBe(0);

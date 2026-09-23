@@ -57,12 +57,17 @@ src/
                        # can run it as a bare parse
     parse.ts           # the total parse the phone renders through; it answers
                        # the escaped text its offsets index
+    parsed-offsets.ts  # the one rebase every parse here runs: micromark
+                       # counts from past a leading BOM, so without it every
+                       # offset on a BOM note cuts one byte early
     mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
                        # node is, never discriminates structurally
     fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
                        # and ONE callout-payload grammar — the rule table, the
                        # scan and the mobile projection all read them
-    frontmatter.ts     # split/recombine (ONE `replaceFrontmatterYaml`, which
+    frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
+                       # CRLF aware), split/recombine (ONE
+                       # `replaceFrontmatterYaml`, which
                        # keeps a BOM and the note's line ending) + the
                        # typed-property ADT (YAML it cannot represent is
                        # preserved byte-exactly)

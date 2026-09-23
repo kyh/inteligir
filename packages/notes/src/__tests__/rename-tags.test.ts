@@ -77,6 +77,20 @@ describe("renaming a tag in one doc", () => {
     );
   });
 
+  it.each([
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+  ])("%s past a BOM: changes exactly the tag bytes", (_, eol) => {
+    const firstLine = (tag: string): string =>
+      [`\uFEFF#${tag} opens, #${tag}/alpha follows, \`#project\` and #projects stay`, ""].join(eol);
+    const underFrontmatter = (tag: string): string =>
+      ["\uFEFF---", "title: Plan", "tags:", `  - ${tag}`, "---", `Body #${tag}.`, ""].join(eol);
+    expect(renameTagsInDoc(firstLine("project"), "project", "work")).toBe(firstLine("work"));
+    expect(renameTagsInDoc(underFrontmatter("project"), "project", "work")).toBe(
+      underFrontmatter("work"),
+    );
+  });
+
   it("leaves invalid frontmatter alone and still rewrites the body", () => {
     const src = "---\ntags: [unclosed\n---\n\n#project here.\n";
     const out = renameTagsInDoc(src, "project", "work");

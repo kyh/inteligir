@@ -65,6 +65,14 @@ describe("notePreviewHead", () => {
     );
   });
 
+  it.each([
+    ["a BOM", "\uFEFF---\nid: abc\n---\nBody\n"],
+    ["CRLF", "---\r\nid: abc\r\n---\r\nBody\r\n"],
+    ["a BOM and CRLF", "\uFEFF---\r\nid: abc\r\n---\r\nBody\r\n"],
+  ])("drops the frontmatter of a note with %s", (_, md) => {
+    expect(notePreviewHead(md)).toBe("Body");
+  });
+
   it("caps at twenty lines", () => {
     const md = Array.from({ length: 40 }, (_, i) => `line ${String(i)}`).join("\n");
     const lines = notePreviewHead(md).split("\n");
