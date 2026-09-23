@@ -58,6 +58,7 @@ export interface WikiTarget {
   type: "doc" | "asset";
   aliases?: string[];
   pinned?: boolean;
+  id?: string;
 }
 
 interface DocRecord {
@@ -313,6 +314,9 @@ export class LinkGraphIndex {
       }
       if (record.pinned) {
         target.pinned = true;
+      }
+      if (record.noteId !== null) {
+        target.id = record.noteId;
       }
       docs.push(target);
     }

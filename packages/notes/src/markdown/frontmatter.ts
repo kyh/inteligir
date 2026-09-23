@@ -173,7 +173,7 @@ const withoutTopLevelKey = (lines: readonly string[], key: string): string[] => 
 
 // the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the comment
 // store is keyed by. Text only: a number or a list is not a name.
-export const noteIdOf = (parsed: ParsedProperties | null): string | null => {
+export const noteIdOfProperties = (parsed: ParsedProperties | null): string | null => {
   if (parsed === null || parsed.kind !== "valid") {
     return null;
   }
@@ -186,7 +186,7 @@ export const noteIdOf = (parsed: ParsedProperties | null): string | null => {
 };
 
 export const frontmatterId = (content: string): string | null =>
-  noteIdOf(parseProperties(frontmatterYaml(content) ?? ""));
+  noteIdOfProperties(parseProperties(frontmatterYaml(content) ?? ""));
 
 // uuid-shaped, the form the resolver's id tier already answers
 export const mintNoteId = (): string => globalThis.crypto.randomUUID();
@@ -215,7 +215,7 @@ export const withFrontmatterId = (content: string, id: string): FrontmatterIdVer
   if (parsed.kind === "invalid") {
     return { kind: "invalid" };
   }
-  const kept = noteIdOf(parsed);
+  const kept = noteIdOfProperties(parsed);
   if (kept !== null) {
     return { id: kept, kind: "unchanged" };
   }

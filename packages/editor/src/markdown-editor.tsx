@@ -67,7 +67,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
     lastValueProp.current = md;
     onChangeRef.current(md);
     publishStats();
-    // behind the settle, never per keystroke; a changed display re-enters this path as an ordinary edit.
+    // behind the settle, never per keystroke; a changed display re-enters this path, unrecorded by undo.
     scheduleFormulaRecompute(editor);
   }, [editor, publishStats]);
   useLayoutEffect(() => {

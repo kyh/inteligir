@@ -31,7 +31,7 @@ export interface VaultActions {
 
 export interface WikiResolver {
   /** Identity changes when the listing or aliases refresh, so chips re-render on that alone. */
-  resolveWikiTarget: (target: string) => string | null;
+  resolveWikiTarget: (target: string, alias?: string) => string | null;
 }
 
 // The read half only: the app owns the writer. A store rather than a field because the resolver

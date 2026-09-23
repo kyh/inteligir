@@ -7,7 +7,7 @@ import type { Nodes } from "mdast";
 
 import { parseCalloutPayload } from "../markdown/callout-payload";
 import { isCalloutLang } from "../markdown/fence-langs";
-import { noteIdOf, parseProperties, PINNED_KEY } from "../markdown/frontmatter";
+import { noteIdOfProperties, parseProperties, PINNED_KEY } from "../markdown/frontmatter";
 import type { ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
@@ -620,7 +620,7 @@ export const scanDoc = (source: string): DocScan => {
     aliases: frontmatterAliases(frontmatter),
     headings: [],
     links: [],
-    noteId: noteIdOf(frontmatter),
+    noteId: noteIdOfProperties(frontmatter),
     pinned: frontmatterPinned(frontmatter),
     tags: extractTags(tree, frontmatter),
     tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),

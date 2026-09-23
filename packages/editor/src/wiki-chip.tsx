@@ -54,7 +54,7 @@ const WikiChip = ({ body }: { body: string }) => {
   const parsed = parseWikiBody(body);
   const label = wikiChipLabel(body);
   // a pure-anchor link (`[[#sec]]`) points at the open note: nothing to resolve or create.
-  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);
+  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
 
   const readPreview = async (path: string): Promise<void> => {
     try {

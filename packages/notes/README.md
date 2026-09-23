@@ -74,7 +74,8 @@ src/
   comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
                        # marker ids, the sidecar schema
   formulas/            # {{source|display|meta}} pills: collection, expression
-                       # evaluation, the resolve graph and result formatting
+                       # evaluation, the resolve graph and the walk that loads
+                       # it across notes, and result formatting
   text/                # ONE Myers line diff under diff3 — the merge a 409'd
                        # write retries through
 ```

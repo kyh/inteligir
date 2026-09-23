@@ -305,7 +305,7 @@ const Transclusion = ({ body }: { body: string }) => {
   const hostPath = useOpenNote((s) => s.editor.path);
   const scope = useContext(TransclusionScopeContext);
   const parsed = parseWikiBody(body);
-  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);
+  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
   const content = useTargetContent(resolved);
 
   const effectiveScope: TransclusionScope = useMemo(

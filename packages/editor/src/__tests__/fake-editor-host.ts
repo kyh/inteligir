@@ -3,7 +3,7 @@ import { createStore } from "zustand/vanilla";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 import { setEditorHostIo } from "@repo/editor/host-io";
-import type { VaultActions, WikiResolver } from "@repo/editor/host-io";
+import type { EditorHostIo, VaultActions, WikiResolver } from "@repo/editor/host-io";
 
 export interface HostCall {
   readonly action: keyof VaultActions;
@@ -15,6 +15,7 @@ export interface FakeEditorHostOptions {
   readonly wikiTargets?: readonly WikiTarget[];
   // a create the session refuses answers null, as the real one does after it has said why
   readonly refuseCreates?: boolean;
+  readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
 }
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
@@ -55,7 +56,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     getBacklinks: async () => await Promise.resolve([]),
     listWikiTargets: async () => await Promise.resolve([...(options.wikiTargets ?? [])]),
     onVaultChanged: () => () => {},
-    readNoteFormulas: async () => await Promise.resolve(null),
+    readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async () => await Promise.resolve({ error: "no assets", ok: false }),
     readVaultFile: async ({ path }) => await Promise.reject(new Error(`ENOENT ${path}`)),
     wikiResolver,

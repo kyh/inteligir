@@ -7,6 +7,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { RenameResult } from "@repo/editor/note/vault-session";
 import { toast } from "@repo/ui/components/sonner";
 import { freeDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
+import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
 import type {
   VaultEntry,
@@ -24,6 +25,13 @@ export const readVaultTree = async (queryClient: QueryClient): Promise<VaultTree
   await queryClient.query({ ...orpc.vault.tree.queryOptions(), staleTime: 0 });
 
 export const useWikiTargets = () => useQuery(orpc.knowledge.wikiTargets.queryOptions());
+
+// The cached listing while nothing has invalidated it; after a vault change, the refetch that
+// change set off, joined rather than duplicated.
+export const readWikiTargets = async (
+  queryClient: QueryClient,
+): Promise<KnowledgeWikiTargetsResponse> =>
+  await queryClient.query(orpc.knowledge.wikiTargets.queryOptions());
 
 // the index's answer, not the open buffer's: every surface that shows a pin agrees on one source
 export const usePinnedPaths = (): ReadonlySet<string> => {
