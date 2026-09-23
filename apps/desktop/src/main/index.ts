@@ -1,4 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 import { z } from "zod";
 import path from "node:path";
 import { autoUpdater } from "electron-updater";
@@ -17,6 +18,8 @@ import {
 import type { MenuItemConstructorOptions } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
 import { socketCredentialFilter } from "./credential-scope";
+import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
+import type { ShellPathResolution } from "./login-shell-path";
 import {
   appWindowWebPreferences,
   classifyNavigation,
@@ -852,9 +855,32 @@ const quitAfterTeardown = async (owned: ServerProcess): Promise<void> => {
   }
 };
 
+// on main's own env, so every fork inherits it: the first boot's child and every vault switch's
+const applyShellPath = (resolution: ShellPathResolution): void => {
+  if (resolution.source === "inherited") {
+    return;
+  }
+  if (resolution.source === "fallback") {
+    console.warn(
+      `[desktop] could not read the login shell's PATH (${resolution.reason}); adding the usual install dirs instead`,
+    );
+  }
+  process.env.PATH = resolution.path;
+};
+
 const startApp = async (target: ServerTarget): Promise<void> => {
   try {
+    // asked while Electron readies, so the login shell's startup overlaps a wait the boot has anyway
+    const shellPath = resolveShellPath({
+      env: process.env,
+      homeDir: homedir(),
+      isDirectory,
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      run: runShell,
+    });
     await app.whenReady();
+    applyShellPath(await shellPath);
     await onAppReady(target);
   } catch (error) {
     console.error("[desktop] fatal startup error", error);
