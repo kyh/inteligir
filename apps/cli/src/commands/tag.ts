@@ -22,7 +22,6 @@ export const tagCommand = (deps: CliDeps) =>
           name: "notes",
         },
         run: async ({ args }) => {
-          const api = apiFor(deps);
           const offset =
             args.offset === undefined
               ? 0
@@ -37,6 +36,7 @@ export const tagCommand = (deps: CliDeps) =>
           if (args.offset !== undefined) {
             request.offset = offset;
           }
+          const api = apiFor(deps);
           const body = await api.knowledge.tagNotes(request);
           if (outputJson(args, body)) {
             return;
