@@ -6,7 +6,12 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
 import type { LocalContract } from "@repo/api/local";
-import { HEALTH_PATH, healthResponseSchema, RPC_PREFIX } from "@repo/api/local/routes";
+import {
+  browserHandoffUrl,
+  HEALTH_PATH,
+  healthResponseSchema,
+  RPC_PREFIX,
+} from "@repo/api/local/routes";
 import { hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
@@ -29,6 +34,8 @@ export type InstanceApi = ContractRouterClient<LocalContract>;
 export interface AppInstance extends TrackedProcess {
   api: InstanceApi;
   baseUrl: string;
+  // a browser holds no bearer: each open signs it in through a fresh single-use handoff.
+  browserUrl: (pathAndSearch: string) => Promise<string>;
   dataDir: string;
   vaultDir: string;
   port: number;
@@ -120,10 +127,16 @@ const attachInstance = (
     origin: `http://127.0.0.1:${String(port)}`,
     url: RPC_PREFIX,
   });
+  const api: InstanceApi = createORPCClient(link);
+  const baseUrl = `http://127.0.0.1:${String(port)}`;
   return {
     ...child,
-    api: createORPCClient(link),
-    baseUrl: `http://127.0.0.1:${String(port)}`,
+    api,
+    baseUrl,
+    browserUrl: async (pathAndSearch) => {
+      const { nonce } = await api.system.browserHandoff();
+      return browserHandoffUrl(`${baseUrl}${pathAndSearch}`, nonce);
+    },
     dataDir,
     port,
     vaultDir,

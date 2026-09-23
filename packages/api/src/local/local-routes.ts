@@ -31,3 +31,13 @@ export const workspaceSocketUrl = (httpOrigin: string): string =>
 
 export const voiceStreamUrl = (httpOrigin: string): string =>
   `${websocketOrigin(httpOrigin)}${VOICE_STREAM_PATH}`;
+
+// a browser holds no bearer, so it signs in by opening a document URL carrying a single-use
+// nonce: the server trades it for the session cookie and redirects to the same URL without it.
+export const BROWSER_HANDOFF_PARAM = "handoff";
+
+export const browserHandoffUrl = (url: string, nonce: string): string => {
+  const target = new URL(url);
+  target.searchParams.set(BROWSER_HANDOFF_PARAM, nonce);
+  return target.toString();
+};

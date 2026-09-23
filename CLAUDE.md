@@ -1007,12 +1007,23 @@ agents default`; unset falls back
 - **THE CREDENTIAL IS A FILE, NOT A CHALLENGE** (reversing the
   loopback-adoption-is-earned line). The server writes `<dataDir>/server.json`
   at 0600 and removes it on ordered shutdown; every caller reads it and sends
-  the bearer. No probing, no adoption ceremony, and the browser-origin guard
-  survives only where the credential is ambient: a cookie-authed request must
-  also prove same-origin because loopback "site" ignores the port. The bound is
-  the honest one: it proves the caller can read the data dir, not that it is
-  this code. One token, two carriers (header, and an HttpOnly SameSite=Strict
-  cookie). `apps/cli/src/server/server-file.ts` and `browser-request.ts`.
+  the bearer. No probing, no adoption ceremony. The bound is the honest one: it
+  proves the caller can read the data dir, not that it is this code. A BROWSER
+  CANNOT SEND A HEADER, so it holds its own per-boot secret in an HttpOnly
+  SameSite=Strict cookie, and nothing hands that out to a plain request: the
+  cookie is set only by trading a single-use, five-minute handoff nonce that a
+  holder of the bearer minted (`system.browserHandoff`; `serve --open`, the
+  link `serve` prints and the shell's Open in Browser) on a document URL
+  carrying `?handoff=`, which answers a 303 to the same URL without it. Each
+  carrier accepts only its own secret, and the cookie, being ambient, must also
+  prove same-origin because loopback "site" ignores the port. EVERY REQUEST
+  MUST NAME 127.0.0.1 OR localhost AS ITS HOST, refused with a 421 ahead of
+  every route, /health and the sockets included: a page that rebinds its own
+  hostname onto the port gets nothing. Residual: a cookie is port-agnostic, so
+  a server on another loopback port the browser visits receives it; that is why
+  it is not the bearer, never touches disk and dies with the boot.
+  `apps/cli/src/server/server-file.ts`, `browser-session.ts`,
+  `browser-request.ts` and the guard at the top of `app.ts`.
 
 - **Shutdown is ORDERED, per-step TIME-BOXED, and its exit code is the truth.**
   Writers stop, the vault flush runs, handles close; each step has its own

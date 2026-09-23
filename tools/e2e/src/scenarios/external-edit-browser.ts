@@ -31,7 +31,10 @@ export const externalEditBrowser: Scenario = {
 
       ctx.log(`opening ${app.baseUrl}/`);
       // deep link rather than listing order: the seeded Welcome note outranks "first doc".
-      await agentBrowser(["open", `${app.baseUrl}/?note=${encodeURIComponent(notePath)}`], 60_000);
+      await agentBrowser(
+        ["open", await app.browserUrl(`/?note=${encodeURIComponent(notePath)}`)],
+        60_000,
+      );
       await agentBrowser(["wait", EDITOR], 90_000);
       const opened = await agentBrowser(["get", "text", EDITOR]);
       expect(

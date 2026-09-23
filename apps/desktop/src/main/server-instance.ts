@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { browserHandoffUrl } from "@repo/api/local/routes";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import { resolveAppConfig } from "inteligir/server/config";
 import type { ResolveAppConfigArgs, VaultDirSource } from "inteligir/server/config";
@@ -114,6 +115,17 @@ export const verifyServer = async (
     return { claimed: status.dataDir, kind: "wrong-data-dir", origin: live.origin };
   }
   return { kind: "verified", live };
+};
+
+// a browser holds no bearer, so it signs in once through a single-use handoff the server mints.
+export const browserSignInUrl = async (server: LiveServer): Promise<string> => {
+  const client = createLocalClient({
+    origin: server.origin,
+    timeoutMs: PROBE_TIMEOUT_MS,
+    token: server.token,
+  });
+  const { nonce } = await client.system.browserHandoff();
+  return browserHandoffUrl(`${server.origin}/`, nonce);
 };
 
 export const describeServerVerdict = (verdict: ServerVerdict, dataDir: string): string => {

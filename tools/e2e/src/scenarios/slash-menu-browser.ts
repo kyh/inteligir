@@ -39,7 +39,7 @@ export const slashMenuBrowser: Scenario = {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
+      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
       await agentBrowser(["wait", EDITOR], 90_000);
 
       ctx.log("putting the caret at the end of the paragraph and opening a fresh block");

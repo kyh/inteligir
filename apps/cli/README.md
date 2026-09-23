@@ -39,6 +39,13 @@ Both answers come out of ONE file. On boot the server writes
 removes it on ordered shutdown. A client reads it and sends
 `Authorization: Bearer <token>`.
 
+A browser cannot send that header, and it never sees the bearer. The link
+`serve` prints (and opens, under `--open`) carries a single-use handoff that the
+server trades once for a session cookie of the browser's own, answering with the
+same URL minus the handoff; the desktop's Open in Browser mints a fresh one over
+`system.browserHandoff`. A plain GET sets no cookie, and a request naming any
+host but `127.0.0.1` or `localhost` is refused before it reaches a route.
+
 There is no probing. A derived dev port may have been probed upward at bind, so
 a client that dialled the derived value could reach a NEIGHBOURING checkout's
 server, and writing a note into someone else's vault is a silent, destructive
