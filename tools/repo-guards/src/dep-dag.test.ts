@@ -128,6 +128,16 @@ const PURITY_RULES = new Map<string, PurityRule>(
 // @repo/api is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
 
+// @repo/api/cloud may never break and @repo/api/local may break freely, so a workspace that ships
+// apart from the desktop bundle reaches the cloud entry alone; each row says why it ships apart.
+const CLOUD_ONLY_CLIENTS = new Map<string, string>([
+  ["@repo/web", "it serves the cloud wire and only the cloud wire"],
+  [
+    "@repo/mobile",
+    "a phone install may be months stale against the deployed Worker, while /local ships in the desktop bundle and may break freely",
+  ],
+]);
+
 const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, string[]> => {
   const edges = new Map<string, string[]>();
   for (const file of files) {
@@ -392,33 +402,39 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("the Cloudflare Worker reaches @repo/api's cloud entry and nothing else", () => {
-    const worker = workspaces().find((candidate) => candidate.name === "@repo/web");
-    if (worker === undefined) {
-      throw new Error("@repo/web is not a workspace");
-    }
-    const files = workspaceFiles(worker);
+  it("every cloud-only client reaches @repo/api's cloud entry and nothing else", () => {
     const violations: string[] = [];
-    for (const file of [...files.shipped, ...files.test]) {
-      for (const specifier of importsOf(file)) {
-        if (!specifier.startsWith("@repo/api/")) {
-          continue;
-        }
-        if (specifier.startsWith("@repo/api/cloud/")) {
-          continue;
-        }
+    for (const [name, why] of CLOUD_ONLY_CLIENTS) {
+      const client = workspaces().find((candidate) => candidate.name === name);
+      if (client === undefined) {
         violations.push(
-          `LOCAL CONTRACT IN THE WORKER  ${file} imports "${specifier}"\n` +
-            `  rule: apps/web serves the cloud wire and only the cloud wire — @repo/api/cloud/* is its half of the package`,
+          `CLOUD_ONLY_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
+            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
         );
+        continue;
+      }
+      const files = workspaceFiles(client);
+      for (const file of [...files.shipped, ...files.test]) {
+        for (const specifier of importsOf(file)) {
+          if (!specifier.startsWith("@repo/api/")) {
+            continue;
+          }
+          if (specifier.startsWith("@repo/api/cloud/")) {
+            continue;
+          }
+          violations.push(
+            `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
+              `  rule: ${name} reaches @repo/api/cloud/* alone — ${why}`,
+          );
+        }
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
   it("@repo/api's cloud entry never reaches into its local entry", () => {
-    // a file under src/cloud reaching src/local by relative path is invisible to the Worker pin
-    // above; the sanctioned crossing is the other direction (local reusing a cloud constant).
+    // a file under src/cloud reaching src/local by relative path is invisible to the cloud-only
+    // pin above; the sanctioned crossing is the other direction (local reusing a cloud constant).
     const api = workspaces().find((candidate) => candidate.name === "@repo/api");
     if (api === undefined) {
       throw new Error("@repo/api is not a workspace");

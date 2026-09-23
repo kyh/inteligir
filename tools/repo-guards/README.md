@@ -57,8 +57,9 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | and executed, never imported — `inteligir` → `@repo/agent-skills`); no    |
 |                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
 |                                | electron), `@repo/domain` declares only zod, no package imports an app,   |
-|                                | `@repo/web` reaches `@repo/api/cloud/*` and nothing else of the contract, |
-|                                | `src/cloud` never reaches `src/local` and a third bucket under            |
+|                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
+|                                | why it ships apart) reaches `@repo/api/cloud/*` and nothing else of the   |
+|                                | contract, `src/cloud` never reaches `src/local` and a third bucket under  |
 |                                | `packages/api/src` fails, and the Worker imports no package whose shipped |
 |                                | graph reaches `node:`.                                                    |
 | `dangling-references.test.ts`  | Every `@repo/*` name and every group-anchored path written in a tracked   |
@@ -118,13 +119,16 @@ worktree under `.claude` is never read as this commit's tree.
 | `script-naming.test.ts`        | A root script suffixed with a workspace directory drives that workspace;  |
 |                                | every `--filter` target is a workspace.                                   |
 | `catalog-spelling.test.ts`     | A dependency two or more manifests name is spelled `catalog:`; a          |
-|                                | deliberate split is a `DECLARED_SPLITS` row.                              |
+|                                | deliberate split is a `DECLARED_SPLITS` row with its reason.              |
 | `tailwind-source.test.ts`      | Every `@source "…"` glob's static base is a directory that exists         |
 |                                | relative to the stylesheet — Tailwind answers a missing base with an      |
 |                                | empty scan, no error.                                                     |
 | `wrangler-compat-date.test.ts` | `apps/web/wrangler.jsonc`'s `compatibility_date` is the OLDEST workerd    |
 |                                | date `pnpm-lock.yaml` resolves — a workerd cannot emulate a date it       |
 |                                | predates.                                                                 |
+| `durable-git-stub.test.ts`     | The header of `apps/web/src/worker/types/durable-git.d.ts` names the      |
+|                                | durable-git version `pnpm-lock.yaml` resolves — tsc checks the Worker     |
+|                                | against that hand-written stub and never reads the package it bundles.    |
 | `d1-unique-index.test.ts`      | The schema every `d1-http` drizzle config pushes declares no `.unique()`  |
 |                                | column modifier — drizzle-kit 1.0 plans it as a table recreate, and D1's  |
 |                                | DROP cascade-wipes the children. Uniques are named `uniqueIndex` rows.    |
@@ -133,9 +137,10 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | resolver probes exists — a renamed probe answers null, not an error.      |
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
-`ALLOWED_EXPORTS`, `NOT_DEMOED`, `dispatchedIn`, `elsewhere`, `ELSEWHERE`,
-`RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`, `DECLARED_WITHOUT_PRODUCER`,
-`DECLARED_ARTIFACT_EDGES` —
+`ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,
+`elsewhere`, `ELSEWHERE`, `RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`,
+`DECLARED_WITHOUT_PRODUCER`, `DECLARED_ARTIFACT_EDGES`, `DECLARED_SPLITS`,
+`DATA_FILES`, `DELIBERATE_NON_REFERENCES` —
 has a companion assertion that no row is STALE: a row whose subject is gone, or
 whose gap has closed, fails too. An allowance that outlives what it excused only
 ever loosens.

@@ -79,7 +79,9 @@ src/
   of `/cloud` — push, pull, claim, ack, the git remote.
 - **apps/mobile** consumes the read half alone: it pulls threads and produces
   captures, never pushes or claims, because the desktop runs the turns and
-  owns applying a capture to the vault.
+  owns applying a capture to the vault. It reaches nothing under `/local`
+  either, pinned by the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as
+  apps/web: a phone install may be months stale against the deployed Worker.
 - **apps/desktop** compiles against `/local` (plus `cloud/bytes`, once).
 
 ## Invariants

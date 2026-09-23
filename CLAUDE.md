@@ -140,7 +140,8 @@ packages/
                  because their compatibility obligations are OPPOSITE: /local's
                  ends ship in one bundle and may break freely, /cloud is a
                  deployed Worker answering installs that may be months stale and
-                 may never break. A dep-dag row pins apps/web to /cloud alone.
+                 may never break. A dep-dag table (`CLOUD_ONLY_CLIENTS`) pins
+                 apps/web and apps/mobile to /cloud alone.
                  src/ holds exactly those two buckets, and a dep-dag row refuses
                  a third: the cloud-never-reaches-local guard populates itself
                  from src/cloud, so a file outside both halves is one no guard

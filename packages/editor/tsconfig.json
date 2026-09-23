@@ -1,9 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // Same ES2023 floor-and-ceiling as @repo/ui, and for the same reason: this
-    // package is bundled into apps/web at Vite's `baseline-widely-available`
-    // target, which transforms syntax but never stdlib.
+    // ES2024, the desktop renderer's lib: that program is the one bundle this
+    // package ships in (Electron's Chromium, and the page `serve --open` hands
+    // a browser). Unlike @repo/ui, no apps/web or apps/mobile bundle reaches
+    // it; one that did would lower this to @repo/ui's ES2023.
     "lib": ["ES2024", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     // node: the roundtrip fixture matrix is read off disk by the markdown tests.
