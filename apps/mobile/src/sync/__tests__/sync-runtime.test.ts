@@ -52,7 +52,7 @@ const published = async (
   });
 
 describe("the sync runtime", () => {
-  it("is off until a credential is set, and makes no request while off", async () => {
+  it("is restoring until a credential is handed over, and makes no request meanwhile", async () => {
     const store = createMemorySyncStore();
     const cloud = createFakeCloud();
     const runtime = createSyncRuntime({
@@ -61,9 +61,12 @@ describe("the sync runtime", () => {
       pollIntervalMs: null,
       store,
     });
-    expect(runtime.get().state).toBe("signed-out");
+    expect(runtime.get()).toStrictEqual({ state: "restoring" });
     await runtime.syncNow();
     expect(cloud.pushes).toHaveLength(0);
+
+    runtime.setCredential(null);
+    expect(runtime.get()).toStrictEqual({ state: "signed-out" });
   });
 
   it("pulls the log, and neither pushes nor claims — both halves are the desktop's", async () => {
@@ -275,6 +278,63 @@ describe("the sync runtime", () => {
 
     const revoked = await published(runtime, (status) => status.state === "unauthorized");
     expect(revoked).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
+  });
+
+  it("ends the sign-in when a capture is refused as unauthorized", async () => {
+    const store = createMemorySyncStore();
+    const cloud = createFakeCloud();
+    cloud.captureResults.push({
+      failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
+      ok: false,
+    });
+    const runtime = createSyncRuntime({
+      cloudUrl: "https://cloud.test",
+      createClient: () => cloud.client,
+      pollIntervalMs: null,
+      store,
+    });
+    runtime.setCredential(CRED);
+
+    const result = await runtime.createCapture({ idempotencyKey: "k".repeat(16), text: "idea" });
+
+    expect(result.ok).toBe(false);
+    expect(runtime.get()).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
+  });
+
+  it("hands its diagnostics to the injected sink — a row this build cannot read is named", async () => {
+    const store = createMemorySyncStore();
+    const cloud = createFakeCloud();
+    cloud.pullResults.push(
+      ok({
+        events: [
+          {
+            createdAt: 0,
+            deviceId: OTHER,
+            deviceSeq: 0,
+            event: { type: "future/event" },
+            seq: 7,
+            threadId: "thr_x",
+          },
+        ],
+        hasMore: false,
+        lastSeq: 7,
+      }),
+    );
+    const debugged: string[] = [];
+    const runtime = createSyncRuntime({
+      cloudUrl: "https://cloud.test",
+      createClient: () => cloud.client,
+      onDebug: (message) => {
+        debugged.push(message);
+      },
+      pollIntervalMs: null,
+      store,
+    });
+    runtime.setCredential(CRED);
+
+    await runtime.syncNow();
+
+    expect(debugged).toEqual(["log row 7: not a thread event this build understands"]);
   });
 });
 

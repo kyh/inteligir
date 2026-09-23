@@ -9,7 +9,6 @@ import {
   readNoteComments,
   resolveWikiPath,
   useNotesTree,
-  useSyncStatus,
 } from "@/lib/app-runtime";
 import { MONO_FONT, SPACE, useTheme } from "@/lib/theme";
 import { CommentsSection } from "@/notes/comments-view";
@@ -80,7 +79,6 @@ const Comments = ({ comments }: { comments: CommentsRead }) => {
 const NoteScreen = () => {
   const theme = useTheme();
   const router = useRouter();
-  const status = useSyncStatus();
   const params = useLocalSearchParams<{ path: string[] }>();
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const [screen, setScreen] = useState<ScreenState>({ state: "loading" });
@@ -88,7 +86,6 @@ const NoteScreen = () => {
   // subscribed, not read once: a deep link can mount this screen before the tree lands,
   // and the subscription is what re-renders the embeds when it does.
   useNotesTree();
-  const signedIn = status.state === "signed-in";
 
   useEffect(() => {
     let cancelled = false;
@@ -132,7 +129,7 @@ const NoteScreen = () => {
     return resolved === null ? null : assetSource(resolved);
   }, []);
 
-  const title = signedIn && screen.state === "ready" ? screen.projection.title : "…";
+  const title = screen.state === "ready" ? screen.projection.title : "…";
 
   return (
     <SafeAreaView
@@ -141,16 +138,8 @@ const NoteScreen = () => {
     >
       <Stack.Screen options={{ title }} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
-        {signedIn ? (
-          <NoteBody screen={screen} onWikiLink={onWikiLink} resolveAsset={resolveAsset} />
-        ) : (
-          <Text style={[styles.status, { color: theme.mutedForeground }]}>
-            Sign in to read your notes.
-          </Text>
-        )}
-        {signedIn && screen.state === "ready" && comments !== null ? (
-          <Comments comments={comments} />
-        ) : null}
+        <NoteBody screen={screen} onWikiLink={onWikiLink} resolveAsset={resolveAsset} />
+        {screen.state === "ready" && comments !== null ? <Comments comments={comments} /> : null}
       </ScrollView>
     </SafeAreaView>
   );

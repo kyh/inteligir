@@ -4,9 +4,8 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
-import { refreshNotes, useNotesTree, useSyncStatus } from "@/lib/app-runtime";
+import { refreshNotes, useNotesTree } from "@/lib/app-runtime";
 import type { NotesTreeState } from "@/notes/notes-store";
-import type { SyncStatus } from "@/sync/sync-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
 const styles = StyleSheet.create({
@@ -36,10 +35,7 @@ const Empty = ({ text }: { text: string }) => {
   );
 };
 
-const emptyLabel = (status: SyncStatus, tree: NotesTreeState): string => {
-  if (status.state !== "signed-in") {
-    return "Sign in to read your notes.";
-  }
+const emptyLabel = (tree: NotesTreeState): string => {
   if (tree.state === "idle" || tree.state === "loading") {
     return "Loading your vault…";
   }
@@ -54,7 +50,6 @@ const emptyLabel = (status: SyncStatus, tree: NotesTreeState): string => {
 const NotesScreen = () => {
   const theme = useTheme();
   const router = useRouter();
-  const status = useSyncStatus();
   const tree = useNotesTree();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -64,13 +59,8 @@ const NotesScreen = () => {
     setRefreshing(false);
   }, []);
 
-  // gated on the credential too: a revoked credential leaves the tree "ready" with a listing this device
-  // may no longer read.
-  const docs =
-    status.state === "signed-in" && tree.state === "ready"
-      ? tree.entries.filter((entry) => isDocPath(entry.path))
-      : [];
-  const emptyText = emptyLabel(status, tree);
+  const docs = tree.state === "ready" ? tree.entries.filter((entry) => isDocPath(entry.path)) : [];
+  const emptyText = emptyLabel(tree);
 
   return (
     <SafeAreaView

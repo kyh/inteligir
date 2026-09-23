@@ -23,6 +23,8 @@ export interface LoginStoreArgs {
 
 export interface LoginStore extends ReadableStore<LoginState> {
   login: (request: LoginRequest) => Promise<void>;
+  // a Keychain that refuses outside a sign-in (the boot read, the sign-out delete) is shown here too
+  fail: (message: string) => void;
 }
 
 // the one store the screen reads: a refusal on the wire and a store that cannot write both
@@ -51,5 +53,12 @@ export const createLoginStore = (args: LoginStoreArgs): LoginStore => {
     }
   };
 
-  return { get: state.get, login, subscribe: state.subscribe };
+  return {
+    fail(message) {
+      state.set({ kind: "failed", message });
+    },
+    get: state.get,
+    login,
+    subscribe: state.subscribe,
+  };
 };
