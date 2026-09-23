@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   defaultRequest,
-  emptySearchSource,
   makeActions,
   renderWithQueries,
   stubKnowledgeFetch,
@@ -79,7 +78,6 @@ const mount = (exportPdf: (() => void) | null) => {
     onOpenChange: vi.fn<() => void>(),
     open: true,
     request: defaultRequest,
-    searchSource: emptySearchSource,
     threads: [],
   });
 };

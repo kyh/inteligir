@@ -44,7 +44,6 @@ import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
 import type { PaletteEntryPage, PaletteRequest } from "./palette/command-palette";
-import { createSearchSource, sortedNotePaths } from "./palette/search-source";
 import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
@@ -490,11 +489,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   const canSync = canSyncNow(statusQuery.data) && !syncInFlight;
 
   const treeEntries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
-  const sortedFilePaths = useMemo(() => sortedNotePaths(treeEntries), [treeEntries]);
-  const searchSource = useMemo(
-    () => createSearchSource(api, sortedFilePaths),
-    [api, sortedFilePaths],
-  );
 
   const paletteActions = useMemo(
     () => ({
@@ -724,7 +718,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               }}
               entries={treeEntries}
               threads={threads}
-              searchSource={searchSource}
               canSync={canSync}
               actions={paletteActions}
             />

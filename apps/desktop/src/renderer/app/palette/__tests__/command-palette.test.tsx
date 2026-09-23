@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { shortcutCaps } from "@repo/ui/components/command";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,10 +13,10 @@ import type {
   KnowledgeMatchesRequest,
   KnowledgeMatchesResponse,
   KnowledgeProblemsResponse,
+  KnowledgeSearchResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
+import { applyChangedMessage } from "../../workspace-context";
 import type { CommandPalette, PaletteActions } from "../command-palette";
-import { searchNotesByFilename } from "../note-search";
-import type { NoteSearchSource } from "../note-search";
 import {
   defaultRequest,
   makeActions,
@@ -32,10 +32,6 @@ const ENTRIES: VaultEntry[] = [
   { kind: "file", path: "Welcome.md" },
 ];
 
-const FILE_PATHS = ENTRIES.filter((entry) => entry.kind === "file").map((entry) => entry.path);
-
-const filenameSource: NoteSearchSource = async (query) => searchNotesByFilename(query, FILE_PATHS);
-
 type PaletteProps = React.ComponentProps<typeof CommandPalette>;
 
 type RenderOverrides = Partial<PaletteProps> & {
@@ -46,7 +42,7 @@ const renderPalette = ({ fakes, ...overrides }: RenderOverrides = {}) => {
   stubKnowledgeFetch(fakes ?? {});
   const actions = makeActions();
   const onOpenChange = vi.fn<PaletteProps["onOpenChange"]>();
-  renderWithQueries({
+  const props: PaletteProps = {
     actions,
     canSync: false,
     entries: ENTRIES,
@@ -54,11 +50,11 @@ const renderPalette = ({ fakes, ...overrides }: RenderOverrides = {}) => {
     onOpenChange,
     open: true,
     request: defaultRequest,
-    searchSource: filenameSource,
     threads: [],
     ...overrides,
-  });
-  return { actions, onOpenChange };
+  };
+  const { queryClient, rerender } = renderWithQueries(props);
+  return { actions, onOpenChange, props, queryClient, rerender };
 };
 
 // The footer names the row Enter would run, so a row's label is on screen twice. Every row
@@ -142,13 +138,12 @@ const EMPTY_FAMILY = { rows: [], total: 0 };
 
 const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search notes or commands…");
 
-const titledSource: NoteSearchSource = async () => [
-  { path: "notes/ideas.md", snippet: "…the big idea is…", title: "Big Ideas" },
-];
-
-const failingSource: NoteSearchSource = async () => {
-  throw new Error("index down");
-};
+const indexHit = (path: string, title = ""): KnowledgeSearchResponse["results"][number] => ({
+  path,
+  score: 1,
+  snippet: "",
+  title,
+});
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -177,11 +172,43 @@ afterEach(() => {
 });
 
 describe("note search", () => {
-  it("lists notes from the source and opens the picked one", async () => {
+  it("lists notes from the listing and opens the picked one", async () => {
     const { actions, onOpenChange } = renderPalette();
     fireEvent.click(await rows().findByText("Welcome.md"));
     expect(actions.openNote).toHaveBeenCalledWith("Welcome.md");
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("answers an empty box from the listing, asking the index nothing", async () => {
+    const asked: string[] = [];
+    renderPalette({
+      fakes: {
+        search: (request) => {
+          asked.push(request.q);
+          return { results: [] };
+        },
+      },
+    });
+    expect(await rows().findByText("Welcome.md")).toBeDefined();
+    expect(asked).toEqual([]);
+  });
+
+  it("lists only what the user wrote, never a dot-folder's notes", async () => {
+    renderPalette({ entries: [...ENTRIES, { kind: "file", path: ".github/x.md" }] });
+    expect(await rows().findByText("Welcome.md")).toBeDefined();
+    expect(rows().queryByText(".github/x.md")).toBeNull();
+  });
+
+  it("lists a note created between two opens", async () => {
+    const { props, rerender } = renderPalette();
+    expect(await rows().findByText("Welcome.md")).toBeDefined();
+    rerender({ ...props, open: false });
+    rerender({
+      ...props,
+      entries: [...ENTRIES, { kind: "file", path: "Fresh.md" }],
+      request: { ...defaultRequest, nonce: 2 },
+    });
+    expect(await rows().findByText("Fresh.md")).toBeDefined();
   });
 
   it("narrows the note list as the query types", async () => {
@@ -194,19 +221,63 @@ describe("note search", () => {
   });
 
   it("renders full-text hits with title and path, and their pick opens the path", async () => {
-    const { actions } = renderPalette({ searchSource: titledSource });
+    const { actions } = renderPalette({
+      fakes: { search: () => ({ results: [indexHit("notes/ideas.md", "Big Ideas")] }) },
+    });
     fireEvent.change(searchBox(), { target: { value: "big" } });
     fireEvent.click(await rows().findByText("Big Ideas"));
     expect(actions.openNote).toHaveBeenCalledWith("notes/ideas.md");
   });
 
-  it("debounces: a query superseded within the window never reaches the source", async () => {
+  it("re-reads the index's hits when the bus sweeps the vault", async () => {
+    let title = "Before";
+    const { queryClient } = renderPalette({
+      fakes: { search: () => ({ results: [indexHit("notes/ideas.md", title)] }) },
+    });
+    fireEvent.change(searchBox(), { target: { value: "idea" } });
+    expect(await rows().findByText("Before")).toBeDefined();
+    title = "After";
+    act(() => {
+      applyChangedMessage(queryClient, vi.fn(), vi.fn(), {
+        changes: ["files-changed"],
+        entity: "vault",
+        type: "changed",
+      });
+    });
+    expect(await rows().findByText("After")).toBeDefined();
+  });
+
+  it("falls back to the filenames when the index refuses", async () => {
+    renderPalette({
+      fakes: {
+        search: (request) => {
+          if (request.q === "big") {
+            return { results: [indexHit("notes/ideas.md", "Big Ideas")] };
+          }
+          throw new Error("index down");
+        },
+      },
+    });
+    fireEvent.change(searchBox(), { target: { value: "big" } });
+    expect(await rows().findByText("Big Ideas")).toBeDefined();
+    fireEvent.change(searchBox(), { target: { value: "ideas" } });
+    // the last answer stands in while the read is in flight, so only the refusal clears it
+    await waitFor(() => {
+      expect(rows().queryByText("Big Ideas")).toBeNull();
+    });
+    expect(rows().getByText("notes/ideas.md")).toBeDefined();
+  });
+
+  it("debounces: a query superseded within the window never reaches the index", async () => {
     const asked: string[] = [];
-    const source: NoteSearchSource = async (query) => {
-      asked.push(query);
-      return [{ path: `${query}.md` }];
-    };
-    renderPalette({ searchSource: source });
+    renderPalette({
+      fakes: {
+        search: (request) => {
+          asked.push(request.q);
+          return { results: [indexHit(`${request.q}.md`)] };
+        },
+      },
+    });
     fireEvent.change(searchBox(), { target: { value: "old" } });
     fireEvent.change(searchBox(), { target: { value: "new" } });
     expect(await rows().findByText("new.md")).toBeDefined();
@@ -216,16 +287,19 @@ describe("note search", () => {
   it("aborts an in-flight query and drops its answer when a newer one arrives", async () => {
     let slowSignal: AbortSignal | undefined;
     const slowReached = deferred<null>();
-    const slow = deferred<{ path: string }[]>();
-    const source: NoteSearchSource = async (query, signal) => {
-      if (query === "old") {
-        slowSignal = signal;
-        slowReached.resolve(null);
-        return await slow.promise;
-      }
-      return [{ path: "fresh.md" }];
-    };
-    renderPalette({ searchSource: source });
+    const slow = deferred<KnowledgeSearchResponse>();
+    renderPalette({
+      fakes: {
+        search: async (request, signal) => {
+          if (request.q === "old") {
+            slowSignal = signal;
+            slowReached.resolve(null);
+            return await slow.promise;
+          }
+          return { results: [indexHit("fresh.md")] };
+        },
+      },
+    });
     fireEvent.change(searchBox(), { target: { value: "old" } });
     // Only once the slow request is in flight does the newer query exercise
     // the abort rather than the debounce.
@@ -236,17 +310,9 @@ describe("note search", () => {
     await waitFor(() => {
       expect(slowSignal?.aborted).toBe(true);
     });
-    slow.resolve([{ path: "stale.md" }]);
+    slow.resolve({ results: [indexHit("stale.md")] });
     await waitFor(() => {
       expect(rows().queryByText("stale.md")).toBeNull();
-    });
-  });
-
-  it("shows an empty list when the source fails", async () => {
-    renderPalette({ searchSource: failingSource });
-    fireEvent.change(searchBox(), { target: { value: "anything" } });
-    await waitFor(() => {
-      expect(rows().queryByText("Welcome.md")).toBeNull();
     });
   });
 });
