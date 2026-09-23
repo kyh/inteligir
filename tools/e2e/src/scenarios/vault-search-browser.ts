@@ -29,6 +29,7 @@ const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 const ROWS_DEADLINE_MS = 20_000;
 const DISK_DEADLINE_MS = 30_000;
 const OPTION_COUNT = "String(document.querySelectorAll('[role=option]').length)";
+const NO_DIALOG = `document.querySelector('[data-slot="dialog-content"]') === null`;
 
 const waitForRows = async (expected: number, what: string): Promise<void> => {
   const deadline = Date.now() + ROWS_DEADLINE_MS;
@@ -44,6 +45,8 @@ const waitForRows = async (expected: number, what: string): Promise<void> => {
 
 // the palette is the one search surface: its root row opens the vault-wide scan
 const openSearch = async (): Promise<void> => {
+  // a palette that closed on a pick covers the note until its exit tween ends
+  await agentBrowser(["wait", "--fn", NO_DIALOG], 30_000);
   await agentBrowser(["click", EDITOR]);
   await agentBrowser(["press", PALETTE_CHORD]);
   await agentBrowser(["wait", PALETTE_INPUT], 30_000);
