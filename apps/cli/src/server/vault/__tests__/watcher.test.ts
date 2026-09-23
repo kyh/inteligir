@@ -4,6 +4,11 @@ import parcelWatcher from "@parcel/watcher";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createVaultWatcher } from "../watcher";
 import type { VaultWatcher } from "../watcher";
+import type {
+  ParcelWatcherBackend,
+  ParcelWatcherError,
+  ParcelWatcherEventBatch,
+} from "../watcher/parcel-backend";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 const PROBE_TIMEOUT_MS = 5000;
@@ -75,4 +80,65 @@ describe("the vault watcher over the real backend", () => {
       expect(errors).toEqual([]);
     },
   );
+});
+
+describe("the vault watcher's resubscribe backoff", () => {
+  it("doubles across failed establishes, and a delivered batch resets it", async () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const root = makeTempDir("inteligir-watch-backoff-", { realpath: true });
+    const listeners: ((error: ParcelWatcherError, events: ParcelWatcherEventBatch) => void)[] = [];
+    // the proxy's shape: a subscribe resolves at once, and a failed establish arrives later
+    // through the callback.
+    const backend: ParcelWatcherBackend = {
+      subscribe: async (_dir, listener) => {
+        listeners.push(listener);
+        return await Promise.resolve({
+          unsubscribe: async () => {
+            await Promise.resolve();
+          },
+        });
+      },
+    };
+    const batches: string[][] = [];
+    const watcher = createVaultWatcher({
+      backend,
+      onChanged: (paths) => {
+        batches.push([...paths]);
+      },
+      root,
+    });
+    onTestFinished(async () => {
+      await watcher.dispose();
+    });
+    watcher.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const latest = () => {
+      const listener = listeners.at(-1);
+      if (listener === undefined) {
+        throw new Error("the watcher never subscribed");
+      }
+      return listener;
+    };
+    const failThenResubscribeAfter = async (delayMs: number): Promise<void> => {
+      const subscribed = listeners.length;
+      latest()(new Error("establish failed"), []);
+      await vi.advanceTimersByTimeAsync(delayMs - 1);
+      expect(listeners).toHaveLength(subscribed);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(listeners).toHaveLength(subscribed + 1);
+    };
+
+    await failThenResubscribeAfter(500);
+    await failThenResubscribeAfter(1000);
+    await failThenResubscribeAfter(2000);
+
+    latest()(null, [{ path: path.join(root, "note.md"), type: "update" }]);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(batches).toEqual([["note.md"]]);
+    await failThenResubscribeAfter(500);
+  });
 });
