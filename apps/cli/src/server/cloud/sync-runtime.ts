@@ -124,6 +124,25 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     },
   });
 
+  // settles once every sign-out sent so far has, so a shutdown right after one still gives the
+  // slot back, within the cloud step's budget
+  let signOutsSettled: Promise<void> = Promise.resolve();
+
+  // never awaited by the caller: an unreachable cloud must not hold a sign-out open, and the row it
+  // leaves is the Devices page's to revoke. its own client, because closing the session aborts every
+  // request the session's client carries.
+  const signOutBestEffort = (credential: DeviceCredential): void => {
+    const client = createCloudClient({ ...endpoint(), credential: credential.credential });
+    const earlier = signOutsSettled;
+    signOutsSettled = (async () => {
+      const result = await client.signOut();
+      if (!result.ok) {
+        debug(`sign-out did not revoke this device: ${describeCloudFailure(result.failure)}`);
+      }
+      await earlier;
+    })();
+  };
+
   const sessionAlive = (sessionId: number): boolean => !disposed && session.fenced(sessionId);
 
   const live = (): boolean => !disposed && session.current().kind === "live";
@@ -363,6 +382,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       // teardown ran during the login round trip: write nothing after it.
       throw new Error("This app is shutting down; the credential was not kept.");
     }
+    const previous = session.current();
     // clean slate: the outbox and both positions describe an account this device
     // may have left. openSession ends the old session, which stops a running pass
     // from acking into the emptied queue.
@@ -370,6 +390,10 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     resetSyncState(args.db);
     writeDeviceCredential(args.dataDir, credential);
     openSession(credential);
+    // only once the new credential is kept: a failed write leaves the previous one this device's key
+    if (previous.kind === "live") {
+      signOutBestEffort(previous.credential);
+    }
     lastError = null;
     link.resetBackoff();
     cadence.armPoll();
@@ -392,14 +416,14 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       session.abort();
       // let a pass mid-flight finish so the outbox's ack and its push agree.
       const inflight = flight.inflight();
-      if (inflight === null) {
-        return;
+      if (inflight !== null) {
+        try {
+          await inflight;
+        } catch {
+          // the pass reported through onError; the teardown has nothing to add.
+        }
       }
-      try {
-        await inflight;
-      } catch {
-        // the pass reported through onError; the teardown has nothing to add.
-      }
+      await signOutsSettled;
     },
 
     enqueue(tx, events) {
@@ -431,6 +455,11 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     },
 
     logout() {
+      // an unauthorized credential is one the cloud already refused: nothing is left to revoke
+      const current = session.current();
+      if (current.kind === "live") {
+        signOutBestEffort(current.credential);
+      }
       session.close();
       haltTransport();
       clearDeviceCredential(args.dataDir);

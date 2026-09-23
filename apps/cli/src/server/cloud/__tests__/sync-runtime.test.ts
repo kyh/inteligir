@@ -1,5 +1,6 @@
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
+import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
@@ -12,6 +13,7 @@ import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-o
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import nodePath from "node:path";
+import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { CAPTURE_INBOX_PATH } from "../captures";
 import type { CaptureVault } from "../captures";
@@ -202,7 +204,7 @@ describe("sync is off until someone signs in", () => {
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
-  it("makes no request after a logout either", async () => {
+  it("makes no request after a logout either, past the one that revokes the device", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     await signIn(harness);
     append(harness, [message("thr_1", "before")]);
@@ -213,7 +215,11 @@ describe("sync is off until someone signs in", () => {
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
     append(harness, [message("thr_1", "after")]);
     await harness.runtime.syncNow();
-    expect(harness.cloud.requests).toHaveLength(requestsWhileSignedIn);
+    // settles the sign-out, which the logout itself never waits for.
+    await harness.runtime.dispose();
+    expect(harness.cloud.requests.slice(requestsWhileSignedIn)).toEqual([
+      `POST ${DEVICE_API_PATHS.signOut}`,
+    ]);
   });
 });
 
@@ -723,6 +729,92 @@ describe("dispose", () => {
 
     expect(cloud.requests.slice(requestsAtDispose)).toEqual([]);
     expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toBeUndefined();
+  });
+});
+
+// a logout never waits for its sign-out, so the cloud's side lands a beat later
+const activeDevicesSettle = async (cloud: FakeCloud, count: number): Promise<void> => {
+  await vi.waitFor(() => {
+    expect(cloud.activeDeviceCount()).toBe(count);
+  });
+};
+
+describe("signing out", () => {
+  it("gives the device's slot back, so sign-in cycles never meet the account's cap", async () => {
+    const cloud = new FakeCloud();
+    cloud.maxDevices = 20;
+    const harness = makeHarness({ cloud, pollIntervalMs: null });
+
+    for (let cycle = 0; cycle < 25; cycle += 1) {
+      const outcome = await loginAs(harness.runtime, `Laptop ${cycle}`);
+      expect(outcome.kind).toBe("logged-in");
+      harness.runtime.logout();
+      await activeDevicesSettle(cloud, 0);
+    }
+    expect(cloud.deviceCount()).toBe(25);
+  });
+
+  it("gives the previous sign-in's slot back when signing in again without signing out", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    await loginAs(harness.runtime, "Laptop again");
+
+    await activeDevicesSettle(harness.cloud, 1);
+    expect(harness.runtime.status()).toMatchObject({ deviceId: "dev_2", state: "signed-in" });
+  });
+
+  it("lands after the session it ended, and a shutdown waits for it", async () => {
+    const cloud = new FakeCloud();
+    const gate = gatedFetch(cloud, DEVICE_API_PATHS.signOut);
+    const harness = makeHarness({ cloud, fetch: gate.fetch, pollIntervalMs: null });
+    await signIn(harness);
+
+    gate.arm();
+    harness.runtime.logout();
+    await gate.reached;
+    let disposed = false;
+    const disposing = (async () => {
+      await harness.runtime.dispose();
+      disposed = true;
+    })();
+    await tick();
+    expect(disposed).toBe(false);
+
+    gate.release();
+    await disposing;
+    expect(cloud.activeDeviceCount()).toBe(0);
+  });
+
+  it("signs out here even when the cloud cannot hear it", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) => {
+        if (new URL(input).pathname === DEVICE_API_PATHS.signOut) {
+          throw new Error("network is down");
+        }
+        return await cloud.fetch(input, init);
+      },
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+
+    expect(harness.runtime.logout()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
+    expect(readDeviceCredential(harness.dataDir)).toBeNull();
+    await harness.runtime.dispose();
+    expect(cloud.activeDeviceCount()).toBe(1);
+  });
+
+  it("asks nothing of the cloud for a credential it already refused", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    harness.cloud.revoke(await signIn(harness));
+    await harness.runtime.syncNow();
+    expect(harness.runtime.status().state).toBe("unauthorized");
+    const requestsAtRefusal = harness.cloud.requests.length;
+
+    harness.runtime.logout();
+    await harness.runtime.dispose();
+    expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
   });
 });
 

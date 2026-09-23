@@ -1,4 +1,5 @@
-import type { CloudResult } from "@repo/api/cloud/client";
+import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
+import type { DeviceCredential, RevokeDeviceResponse } from "@repo/api/cloud/device/device-schema";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +22,11 @@ const UNREACHABLE: CloudResult<PullResponse> = {
 };
 
 const EMPTY_PAGE: CloudResult<PullResponse> = ok({ events: [], hasMore: false, lastSeq: 0 });
+
+const UNREACHABLE_SIGN_OUT: CloudResult<RevokeDeviceResponse> = {
+  failure: { kind: "unreachable", message: "offline" },
+  ok: false,
+};
 
 afterEach(() => {
   vi.useRealTimers();
@@ -269,5 +275,71 @@ describe("the sync runtime", () => {
 
     const revoked = await published(runtime, (status) => status.state === "unauthorized");
     expect(revoked).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
+  });
+});
+
+// one fake cloud answers every credential; this records which one each sign-out came from
+const recordingSignOuts = () => {
+  const cloud = createFakeCloud();
+  const signedOut: string[] = [];
+  const createClient = (credential: DeviceCredential): CloudClient => ({
+    ...cloud.client,
+    signOut: async () => {
+      signedOut.push(credential.deviceId);
+      return await cloud.client.signOut();
+    },
+  });
+  const runtime = createSyncRuntime({
+    cloudUrl: "https://cloud.test",
+    createClient,
+    pollIntervalMs: null,
+    store: createMemorySyncStore(),
+  });
+  return { cloud, runtime, signedOut };
+};
+
+describe("dropping a credential", () => {
+  const NEXT = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_next" };
+
+  it("signs it out, so the account's device slot comes back", () => {
+    const { runtime, signedOut } = recordingSignOuts();
+    runtime.setCredential(CRED);
+    expect(signedOut).toEqual([]);
+
+    runtime.setCredential(null);
+    expect(signedOut).toEqual([CRED.deviceId]);
+    expect(runtime.get()).toStrictEqual({ state: "signed-out" });
+  });
+
+  it("signs the previous one out when another replaces it, and never the one it keeps", () => {
+    const { runtime, signedOut } = recordingSignOuts();
+    runtime.setCredential(CRED);
+    runtime.setCredential(NEXT);
+    runtime.setCredential(NEXT);
+    expect(signedOut).toEqual([CRED.deviceId]);
+  });
+
+  it("signs out here even when the cloud cannot hear it", () => {
+    const cloud = createFakeCloud();
+    const runtime = createSyncRuntime({
+      cloudUrl: "https://cloud.test",
+      createClient: () => ({ ...cloud.client, signOut: async () => await UNREACHABLE_SIGN_OUT }),
+      pollIntervalMs: null,
+      store: createMemorySyncStore(),
+    });
+    runtime.setCredential(CRED);
+    runtime.setCredential(null);
+    expect(runtime.get()).toStrictEqual({ state: "signed-out" });
+  });
+
+  it("asks nothing of the cloud for a credential it already refused", async () => {
+    const { cloud, runtime, signedOut } = recordingSignOuts();
+    cloud.pullResults.push(UNAUTHORIZED);
+    runtime.setCredential(CRED);
+    await runtime.syncNow();
+    expect(runtime.get().state).toBe("unauthorized");
+
+    runtime.setCredential(null);
+    expect(signedOut).toEqual([]);
   });
 });

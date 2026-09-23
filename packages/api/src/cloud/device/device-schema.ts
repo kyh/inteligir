@@ -5,6 +5,7 @@ export const DEVICE_API_PATHS = {
   list: "/v1/device/list",
   login: "/v1/device/login",
   revoke: "/v1/device/revoke",
+  signOut: "/v1/device/sign-out",
 } as const;
 
 // the prefix routes a bearer to the device table without asking better auth, so a session
@@ -85,6 +86,7 @@ export const revokeDeviceRequestSchema = z
   .strict();
 export type RevokeDeviceRequest = z.infer<typeof revokeDeviceRequestSchema>;
 
+// also the sign-out's answer: that route is this revoke with the credential naming the device
 export const revokeDeviceResponseSchema = z
   .object({
     revoked: z.literal(true),

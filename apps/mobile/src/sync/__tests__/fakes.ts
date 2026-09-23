@@ -84,6 +84,7 @@ export const createFakeCloud = (): FakeCloud => {
         fake.pushes.push(request);
         return ok({ accepted: request.events.length, duplicates: 0, lastSeq: 0 });
       },
+      signOut: async () => ok({ revoked: true }),
       vaultAssetSource: (query) => ({
         headers: { authorization: "Bearer igd_fake" },
         uri: `https://cloud.test/v1/vault/asset?path=${query.path}&ref=${query.ref}`,

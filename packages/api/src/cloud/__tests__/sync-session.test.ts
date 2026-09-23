@@ -40,6 +40,7 @@ const fakeClient = (pull: CloudClient["pull"]): CloudClient => ({
   createCapture: async () => await unreachable(),
   pull,
   push: async () => await unreachable(),
+  signOut: async () => await unreachable(),
   vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
   vaultFile: async () => await unreachable(),
   vaultTree: async () => await unreachable(),

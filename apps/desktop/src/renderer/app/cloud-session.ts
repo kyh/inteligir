@@ -69,7 +69,7 @@ export const useCloudSession = (): CloudSession => {
         vaultStatus.state !== "no-remote" &&
         vaultStatus.remoteSource === "account";
       const confirmed = await confirm({
-        body: `This machine forgets its credential and everything queued for the cloud.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here. The device stays listed on your account until you revoke it there.`,
+        body: `This machine forgets its credential and everything queued for the cloud, and revokes itself on your account if it can reach it.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here.`,
         confirmLabel: "Sign out",
         destructive: true,
         title: "Stop syncing this device?",

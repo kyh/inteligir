@@ -17,6 +17,7 @@ import {
   openSocket,
   ORIGIN,
   loginDevice,
+  postSignOut,
   sessionHeaders,
   signUpUser,
   userIdOf,
@@ -328,6 +329,22 @@ describe("thread sync log", () => {
       headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       method: "POST",
     });
+
+    expect(await closed).toBe(SYNC_WS_REVOKED_CLOSE_CODE);
+  });
+
+  it("severs a signed-out device's live socket", async () => {
+    const { bearer } = await signUpUser("sync-sever-signout@example.test");
+    const leaving = await loginDevice(bearer, "Leaving Laptop");
+    const socket = await openSocket(leaving.credential, "desktop");
+    // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
+    const closed = new Promise<number>((resolve) => {
+      socket.socket.addEventListener("close", (close) => {
+        resolve(close.code);
+      });
+    });
+
+    await postSignOut(deviceHeaders(leaving.credential));
 
     expect(await closed).toBe(SYNC_WS_REVOKED_CLOSE_CODE);
   });

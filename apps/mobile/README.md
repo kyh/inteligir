@@ -98,7 +98,14 @@ Keychain adapter, which also activates the sync and notes runtimes. The
 password is held nowhere on the phone: it crosses the wire once and only the
 device credential remains, revocable from the account's Devices page. A
 refusal on the wire and a Keychain that cannot write both land in the one
-store the screen reads, so each is shown rather than dropped.
+store the screen reads, so each is shown rather than dropped; a credential the
+Keychain could not keep is signed out before the error shows.
+
+Signing out is the sync runtime dropping its credential
+(`sync/sync-runtime.ts`), and a live credential it drops is sent to
+`POST /v1/device/sign-out` first, on a client of its own, so the account's
+device slot comes back. The phone never waits on it: a sign-out the cloud
+never hears leaves the row active for the Devices page to revoke.
 
 ## Verified vs device-side
 

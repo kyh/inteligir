@@ -56,6 +56,7 @@ its own `tsconfig.json`.
 | `POST /v1/device/login`        | —       | Email + password in, the durable device credential out     |
 | `GET /v1/device/list`          | session | The device table (revoked rows included)                   |
 | `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
+| `POST /v1/device/sign-out`     | device  | The same revoke, for the device the credential names       |
 | `POST /v1/sync/push`           | device  | Outbox batch in — idempotent, conflict-aware               |
 | `GET /v1/sync/pull`            | device  | Page the merged log by global `seq`                        |
 | `GET /v1/sync/ws`              | device  | Invalidation socket (Bearer on the upgrade; hibernatable)  |
@@ -98,6 +99,15 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   nobody sees is a bearer nobody revokes. A wrong password and an unknown
   address answer one `invalid-credentials`, throttled
   per address; `/app/devices` is where a credential is revoked.
+- **A signing-out device revokes itself** (`POST /v1/device/sign-out`, the one
+  device route a device credential authenticates, since an app holds no
+  session). It is the dashboard's revoke — the row's `revoked_at`, the device's
+  limiter rows, its live sockets — so the account's twenty-device cap counts
+  only devices still signed in. It answers `{ revoked: true }` even when a
+  dashboard revoke lands mid-request, and `unauthorized` to a credential
+  already revoked. The CLI and the phone send it best-effort as they drop the
+  credential, and the login flow sends it for a credential its store could not
+  keep; a sign-out the cloud never hears leaves the row for `/app/devices`.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
   limiter on the auth routes, and the same table behind the invite gate's and
   the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The

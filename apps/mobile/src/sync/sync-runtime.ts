@@ -83,6 +83,19 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
   });
   const flight = createSingleFlight();
 
+  // never awaited: an unreachable cloud must not hold a sign-out open, and the row it leaves is the
+  // Devices page's to revoke. its own client, because closing the session aborts every request the
+  // session's client carries.
+  const signOutBestEffort = async (credential: DeviceCredential): Promise<void> => {
+    const client =
+      args.createClient?.(credential) ??
+      createCloudClient({ baseUrl: args.cloudUrl, credential: credential.credential });
+    const result = await client.signOut();
+    if (!result.ok) {
+      debug(`sign-out did not revoke this device: ${describeCloudFailure(result.failure)}`);
+    }
+  };
+
   const publish = (): void => {
     const current = session.current();
     switch (current.kind) {
@@ -195,6 +208,11 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       const current = session.current();
       if (next !== null && current.kind === "live" && sameCredential(next, current.credential)) {
         return;
+      }
+      // a credential this phone drops still holds one of the account's device slots; an
+      // unauthorized one is already refused, so nothing is left to revoke
+      if (current.kind === "live") {
+        void signOutBestEffort(current.credential);
       }
       clearTimer();
       // a different credential may be a different account; the cursor and log must not carry over.

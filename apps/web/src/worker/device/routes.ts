@@ -9,6 +9,7 @@ import type {
   RevokeDeviceResponse,
 } from "@repo/api/cloud/device/device-schema";
 import { and, eq, isNull } from "drizzle-orm";
+import { verifyDeviceCredential } from "./device-auth";
 import { loginDevice } from "./login";
 import type { LoginFailure } from "./login";
 import { createAuth } from "../auth/auth";
@@ -19,7 +20,8 @@ import { allowInWindow, callerRateKey, forgetDeviceBudgets } from "../rate-limit
 import type { RateWindow } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
-// session auth for everything except login, which IS the authentication: the local app holds no session
+// session auth for everything except login, which IS the authentication, and sign-out, which a
+// device asks with its own credential: the local app holds no session
 
 // a login route with no throttle is a password oracle; the window is per address because
 // nothing else about the caller is known yet
@@ -39,6 +41,34 @@ const sessionUserId = async (
 const LOGIN_FAILURE_MESSAGE: Record<LoginFailure, string> = {
   "device-limit": "This account has too many active devices — revoke one first.",
   "invalid-credentials": "Wrong email or password.",
+};
+
+// false when nothing matched: another account's device, or one already revoked
+const revokeDevice = async (
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  target: { deviceId: string; userId: string },
+): Promise<boolean> => {
+  const revoked = await db
+    .update(device)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(device.id, target.deviceId),
+        eq(device.userId, target.userId),
+        isNull(device.revokedAt),
+      ),
+    )
+    .returning()
+    .get();
+  if (revoked === undefined) {
+    return false;
+  }
+  // nothing else deletes a limiter row
+  await forgetDeviceBudgets(db, [target.deviceId]);
+  // the credential is already dead in D1; this closes the sockets it still holds, which no per-request check reaches
+  await severDeviceSockets(env, target.userId, target.deviceId);
+  return true;
 };
 
 export const handleDeviceRoutes = async (
@@ -62,6 +92,17 @@ export const handleDeviceRoutes = async (
       return refuse(result.failure, LOGIN_FAILURE_MESSAGE[result.failure]);
     }
     return jsonNoStore(result.response);
+  }
+
+  if (route === `POST ${DEVICE_API_PATHS.signOut}`) {
+    const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
+    if (verified === null) {
+      return refuse("unauthorized", "No valid device credential.");
+    }
+    // a dashboard revoke landing after the verify already did the rest: signed out either way
+    await revokeDevice(env, db, verified);
+    const response: RevokeDeviceResponse = { revoked: true };
+    return Response.json(response);
   }
 
   const userId = await sessionUserId(request, env, url.origin);
@@ -93,22 +134,10 @@ export const handleDeviceRoutes = async (
     if (!body.success) {
       return refuse("bad-request", "Send { deviceId }.");
     }
-    // scoped to the session's own userId; an already-revoked device matches nothing and answers not-found
-    const revoked = await db
-      .update(device)
-      .set({ revokedAt: new Date() })
-      .where(
-        and(eq(device.id, body.data.deviceId), eq(device.userId, userId), isNull(device.revokedAt)),
-      )
-      .returning()
-      .get();
-    if (revoked === undefined) {
+    // scoped to the session's own userId, so another account's device answers not-found
+    if (!(await revokeDevice(env, db, { deviceId: body.data.deviceId, userId }))) {
       return refuse("not-found", "No such active device.");
     }
-    // nothing else deletes a limiter row
-    await forgetDeviceBudgets(db, [body.data.deviceId]);
-    // the credential is already dead in D1; this closes the sockets it still holds, which no per-request check reaches
-    await severDeviceSockets(env, userId, body.data.deviceId);
     const response: RevokeDeviceResponse = { revoked: true };
     return Response.json(response);
   }

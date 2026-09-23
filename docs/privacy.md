@@ -113,6 +113,9 @@ delete.
 - A revoked device stops at the next request, and its live connection is closed
   as part of the revoke — but revocation cannot reach a response already in
   flight.
+- Signing out on a device revokes it the same way, but only if the cloud hears
+  the sign-out: a device that signs out offline forgets its credential while its
+  row stays active, until you revoke it from the dashboard.
 - `git push` to ANY remote is subject to that remote's own retention; the
   hosted vault repo is deleted with the account, a GitHub remote is governed
   by GitHub.

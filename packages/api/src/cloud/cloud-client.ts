@@ -20,8 +20,16 @@ import type {
 } from "./captures/captures-schema";
 import { cloudErrorSchema } from "./cloud-errors";
 import type { CloudErrorCode } from "./cloud-errors";
-import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "./device/device-schema";
-import type { DeviceLoginRequest, DeviceLoginResponse } from "./device/device-schema";
+import {
+  DEVICE_API_PATHS,
+  deviceLoginResponseSchema,
+  revokeDeviceResponseSchema,
+} from "./device/device-schema";
+import type {
+  DeviceLoginRequest,
+  DeviceLoginResponse,
+  RevokeDeviceResponse,
+} from "./device/device-schema";
 import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
 import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
 import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
@@ -69,12 +77,20 @@ const unreachable = (cause: unknown): CloudFailure => ({
   message: cause instanceof Error ? cause.message : String(cause),
 });
 
+const isTransientStatus = (status: number): boolean =>
+  status >= 500 || status === 408 || status === 429;
+
 const readFailure = async (response: Response): Promise<CloudFailure> => {
   const body: unknown = await response.json().catch(() => {
     /* empty */
   });
   const parsed = cloudErrorSchema.safeParse(body);
   if (!parsed.success) {
+    // every refusal the worker means rides the envelope, so a bare 5xx, 408 or 429 is a fault or
+    // an edge in front of it: retryable, and no verdict on the credential
+    if (isTransientStatus(response.status)) {
+      return { kind: "unreachable", message: `HTTP ${response.status} with no error body` };
+    }
     return {
       kind: "malformed",
       message: `The cloud answered HTTP ${response.status} with a body this build cannot read.`,
@@ -179,6 +195,9 @@ export interface CloudClient {
   claimCaptures: (limit: number) => Promise<CloudResult<ClaimCapturesResponse>>;
   ackCaptures: (request: AckCapturesRequest) => Promise<CloudResult<AckCapturesResponse>>;
   account: () => Promise<CloudResult<AccountResponse>>;
+  // revokes the device the credential names: forgetting a credential leaves its row holding one
+  // of the account's device slots
+  signOut: () => Promise<CloudResult<RevokeDeviceResponse>>;
   vaultTree: (query: VaultTreeQuery) => Promise<CloudResult<VaultTreeResponse>>;
   vaultFile: (query: VaultFileQuery) => Promise<CloudResult<VaultFileResponse>>;
   // synchronous: the answer is bytes an <img> fetches itself; here so the bearer has one spelling
@@ -238,6 +257,8 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
         pullResponseSchema,
       ),
     push: async (request) => await send(SYNC_API_PATHS.push, request, pushResponseSchema),
+    // the credential names the device, so the body carries nothing
+    signOut: async () => await send(DEVICE_API_PATHS.signOut, {}, revokeDeviceResponseSchema),
     vaultAssetSource: (query) => ({
       headers: { authorization },
       uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),

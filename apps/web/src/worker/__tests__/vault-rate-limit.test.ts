@@ -9,7 +9,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
-import { deviceHeaders, ORIGIN, loginDevice, sessionHeaders, signUpUser } from "./cloud-helpers";
+import {
+  deviceHeaders,
+  ORIGIN,
+  loginDevice,
+  postSignOut,
+  sessionHeaders,
+  signUpUser,
+} from "./cloud-helpers";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
@@ -88,5 +95,25 @@ describe("the hosted vault's per-device budgets", () => {
       headers: { authorization: "Bearer igd_not-a-real-credential" },
     });
     expect(unauthorized.status).toBe(401);
+  });
+});
+
+// outside the window above: a fourth sign-up there meets better auth's own sign-up throttle
+describe("a signed-out device's budgets", () => {
+  it("go with it, as a revoked device's do", async () => {
+    const { bearer } = await signUpUser("vault-budget-signout@example.test");
+    const device = await loginDevice(bearer, "Laptop");
+    const key = deviceRateKey("vaultRead", device.deviceId);
+    await spendBudget(key);
+
+    const signedOut = await postSignOut(deviceHeaders(device.credential));
+    expect(signedOut.status).toBe(200);
+
+    const rows = await createDb(env.DB)
+      .select()
+      .from(rateLimit)
+      .where(eq(rateLimit.key, key))
+      .all();
+    expect(rows).toEqual([]);
   });
 });
