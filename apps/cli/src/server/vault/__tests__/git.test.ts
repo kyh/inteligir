@@ -1,6 +1,6 @@
 import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { appendFile, chmod, mkdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -8,6 +8,7 @@ import type { VaultConflict, VaultStatusResponse } from "@repo/api/local/vault/v
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { beginAgentTurnWrites } from "../../agents/agent-commits";
+import { CAPTURE_INBOX_PATH } from "../../cloud/captures";
 import type { VaultRemoteSpec } from "../../cloud/vault-remote";
 import { ensureVaultRepo } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
@@ -244,6 +245,25 @@ describe("ensureVaultRepo", () => {
     expect(exclude.split("\n").filter((line) => line === `${VAULT_TMP_PREFIX}*`)).toHaveLength(1);
     await writeFile(path.join(root, `${VAULT_TMP_PREFIX}staged`), "mid-write\n", "utf-8");
     await expectCleanRepo(root);
+  });
+
+  it("marks the root capture inbox, and only it, merge=union, once however many boots", async () => {
+    const root = scratchDir("inteligir-git-inbox-attr-");
+    await ensureVaultRepo({ env, root });
+    await ensureVaultRepo({ env, root });
+
+    const line = `/${CAPTURE_INBOX_PATH} merge=union`;
+    const attributes = await readFile(await gitPath(gitIn(root), root, "info/attributes"), "utf-8");
+    expect(attributes.split("\n").filter((entry) => entry === line)).toHaveLength(1);
+    const nested = path.join("notes", CAPTURE_INBOX_PATH);
+    const { stdout } = await runGit(
+      root,
+      ["check-attr", "merge", "--", CAPTURE_INBOX_PATH, nested],
+      {
+        env,
+      },
+    );
+    expect(stdout).toBe(`${CAPTURE_INBOX_PATH}: merge: union\n${nested}: merge: unspecified\n`);
   });
 });
 
@@ -636,6 +656,29 @@ describe("sync", { timeout: 30_000 }, () => {
     expect(conflict.files).toEqual(["shared.md"]);
     await expectCleanRepo(b.root);
     expect(await readFile(path.join(b.root, "shared.md"), "utf-8")).toBe("from B\n");
+  });
+
+  it("keeps both devices' capture appends to the inbox instead of wedging on a conflict", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    const b = await makeEngine({ remoteUrl: remote });
+    await writeFile(path.join(a.root, CAPTURE_INBOX_PATH), "# Inbox\n\n- first\n", "utf-8");
+    await a.engine.commitNow();
+    expect(await syncState(a.engine)).toBe("clean");
+    expect(await syncState(b.engine)).toBe("clean");
+    expect(await syncState(a.engine)).toBe("clean");
+
+    await appendFile(path.join(a.root, CAPTURE_INBOX_PATH), "- captured on A\n", "utf-8");
+    await a.engine.commitNow();
+    await appendFile(path.join(b.root, CAPTURE_INBOX_PATH), "- captured on B\n", "utf-8");
+    await b.engine.commitNow();
+    expect(await syncState(a.engine)).toBe("clean");
+    expect(await syncState(b.engine)).toBe("clean");
+
+    const inbox = await readFile(path.join(b.root, CAPTURE_INBOX_PATH), "utf-8");
+    expect(inbox).toContain("- captured on A\n");
+    expect(inbox).toContain("- captured on B\n");
+    await expectCleanRepo(b.root);
   });
 });
 
@@ -1215,6 +1258,7 @@ describe("the bootstrap port", () => {
     expect(fake.calls.map((call) => call.args.slice(0, 2).join(" "))).toEqual([
       "clone --",
       "init -b",
+      "rev-parse --git-path",
       "rev-parse --git-path",
       "rev-parse --verify",
       "-c commit.gpgsign=false",

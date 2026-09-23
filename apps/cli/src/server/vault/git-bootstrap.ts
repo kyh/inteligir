@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
+import { CAPTURE_INBOX_PATH } from "../cloud/captures";
 import type { VaultRemoteSpec } from "../cloud/vault-remote";
 import {
   gitPath,
@@ -91,6 +92,16 @@ export const ensureVaultRepo = async (
     await git(["init", "-b", "main"]);
   }
   await ensureLocalInfoLine(git, args.root, "info/exclude", `${VAULT_TMP_PREFIX}*`);
+  // the app writes both sides: two desktops each append their captures to the end of one file,
+  // and a line merge of those appends wedges the rebase on a conflict nobody made. union keeps
+  // both; a bullet deleted upstream beside the other device's append comes back. anchored, so a
+  // nested Inbox.md merges like any note.
+  await ensureLocalInfoLine(
+    git,
+    args.root,
+    "info/attributes",
+    `/${CAPTURE_INBOX_PATH} merge=union`,
+  );
   if (created && cloned && remote?.source === "account" && remote.account.state === "known") {
     // so a later sign-in to a different account refuses rather than pushing these notes into it.
     await git(["config", ACCOUNT_MARKER_KEY, remote.account.id]);

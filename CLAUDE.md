@@ -608,6 +608,17 @@ to the END of its group.
   say `dirty` (`classifyNetworkFailure` in
   `apps/cli/src/server/vault/git-run.ts`).
 
+- **THE CAPTURE INBOX MERGES BY UNION.** Two signed-in desktops each append a
+  phone capture to the end of the root `Inbox.md` between syncs, and the
+  rebase that met both appends conflicted on a file the app wrote itself,
+  stopping that device's sync until someone ran git by hand. Every boot makes
+  sure `info/attributes` holds `/Inbox.md merge=union`: local like the exclude,
+  never a committed `.gitattributes`, because the vault's files are the
+  user's, and anchored, so a nested `Inbox.md` merges like any note. Residual:
+  a bullet one device deleted beside the other's append comes back.
+  `apps/cli/src/server/vault/git-bootstrap.ts`, over `CAPTURE_INBOX_PATH` in
+  `apps/cli/src/server/cloud/captures.ts`.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile
