@@ -123,6 +123,19 @@ try {
     }
   }
 
+  // derived from what the build emitted: the split bundle's chunk names are content hashes, so
+  // no fixed list could name them, and a `files` rule that dropped one would fail only the verb
+  // that loads it.
+  for (const name of await readdir(nodePath.join(packageRoot, "dist"))) {
+    if (!/\.m?js$/u.test(name)) {
+      continue;
+    }
+    const staged = nodePath.join(installRoot, "dist", name);
+    if (!existsSync(staged)) {
+      fail(`the packaged install carries no dist/${name} (${staged})`);
+    }
+  }
+
   // nothing reads the licence texts, so only this can notice them missing
   for (const name of await readdir(nodePath.join(repoRoot, "tools", "licenses"))) {
     const staged = nodePath.join(installRoot, "dist", "licenses", name);

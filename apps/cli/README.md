@@ -134,12 +134,18 @@ notes/a.md --contentt x` would silently read stdin and exit 0.
 
 ## What ships
 
-`dist/index.js` is the whole program, bundled by esbuild — every workspace
-package is inlined, because they export TypeScript source a published install
-cannot resolve. What stays external is what a bundler cannot swallow: the three
-NATIVE modules (`better-sqlite3`, `@parcel/watcher`, `sherpa-onnx-node`, all
-N-API prebuilds) and the two ACP adapters, which are resolved at runtime with
-`require.resolve` and spawned as children.
+`dist/index.js` and the `dist/chunk-*.js` beside it are the whole program,
+bundled by esbuild — every workspace package is inlined, because they export
+TypeScript source a published install cannot resolve. What stays external is
+what a bundler cannot swallow: the three NATIVE modules (`better-sqlite3`,
+`@parcel/watcher`, `sherpa-onnx-node`, all N-API prebuilds) and the two ACP
+adapters, which are resolved at runtime with `require.resolve` and spawned as
+children.
+
+The bundle is SPLIT at every dynamic import, so a client verb never parses the
+server `serve` loads. The chunks sit FLAT beside the entry: `src/paths.ts` and
+the two sibling lookups below resolve from whichever file they landed in, so
+every file in `dist/` has to answer them the same way.
 
 Two bundles cannot ride inside the entry and each says why beside itself: the
 vault watcher is a forked CHILD PROCESS and the transcriber is a WORKER THREAD,
@@ -157,8 +163,9 @@ migrate a dev database past what the running code carries. The UI stays
 staged-first, which is why the two resolvers read differently.
 
 `pnpm smoke:cli` proves all of it against a real `npm install` of the packed
-tarball: the layout, the execute bit, the licence texts, a boot, the three
-native modules, a graceful SIGTERM.
+tarball: the layout (every file the build emitted, chunks included), the
+execute bit, the licence texts, a boot, the three native modules, a graceful
+SIGTERM.
 
 The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in
