@@ -128,9 +128,15 @@ empty stdout when the server refuses.
 
 Both read the tree through `src/command-tree.ts`, which is shipped rather than
 test-only: `--help` resolves the deepest command through the same walk, and so
-does the gate that refuses a flag the command never declared. citty parses with
-node's `parseArgs` in NON-strict mode, so without that gate `vault write
-notes/a.md --contentt x` would silently read stdin and exit 0.
+does the gate that refuses what citty would drop — a flag the command never
+declared, long or short, and a word past its last positional. citty parses with
+node's `parseArgs` in NON-strict mode and binds positionals in order, so
+without that gate `vault write notes/a.md --contentt x` would silently read
+stdin and exit 0, and `search two words` would search for `two`. Only the words
+before `--` are counted: what follows is a leaf's own channel
+(`connectors add x -- npx -y srv`). The walk is exact only while no command
+with subcommands declares args, and the enforcement test holds every group to
+that.
 
 ## What ships
 

@@ -36,17 +36,19 @@ const describe = (status: CloudStatusResponse): string[] => {
   }
 };
 
+type PasswordSource = { kind: "argv"; password: string } | { kind: "stdin" } | { kind: "prompt" };
+
 // the password never rides argv when a terminal can take it unseen; `-` is the pipe's way in,
 // and --json is the agent path, which gets no prompt to wait on.
-const resolvePassword = async (args: {
+const passwordSource = (args: {
   password?: string | undefined;
   json?: boolean | undefined;
-}): Promise<string> => {
+}): PasswordSource => {
   if (args.password === "-") {
-    return await readPasswordFromStdin();
+    return { kind: "stdin" };
   }
   if (args.password !== undefined) {
-    return args.password;
+    return { kind: "argv", password: args.password };
   }
   if (args.json === true) {
     throw invalidUsage("--password is required under --json (pass `-` to read it from stdin)");
@@ -56,7 +58,22 @@ const resolvePassword = async (args: {
       "--password is required when stdin is not a terminal (pass `-` to read it from stdin)",
     );
   }
-  return await promptPassword("Password");
+  return { kind: "prompt" };
+};
+
+const readPassword = async (source: PasswordSource): Promise<string> => {
+  switch (source.kind) {
+    case "argv": {
+      return source.password;
+    }
+    case "stdin": {
+      return await readPasswordFromStdin();
+    }
+    case "prompt": {
+      return await promptPassword("Password");
+    }
+    // no default
+  }
 };
 
 export const cloudCommand = (deps: CliDeps) =>
@@ -87,9 +104,12 @@ export const cloudCommand = (deps: CliDeps) =>
             "Sign this machine in with your account's email and password; it gets its own device credential",
           name: "login",
         },
+        // a usage refusal needs no server, but the password is read only once one is resolved: typed or piped
+        // in for a server that is not there, it is spent for nothing.
         run: async ({ args }) => {
-          const password = await resolvePassword(args);
+          const source = passwordSource(args);
           const api = apiFor(deps);
+          const password = await readPassword(source);
           const input: CloudLoginRequest = { email: args.email, password };
           if (args.name !== undefined) {
             input.deviceName = args.name;

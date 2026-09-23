@@ -1,6 +1,7 @@
 // not citty's runMain: it answers every failure with process.exit(1), flattening the exit-code contract
 // (2 wait timeout, 3 unreachable). failures go to stderr only: a --json caller parses stdout.
 
+import { stripVTControlCharacters } from "node:util";
 import { ORPCError } from "@orpc/client";
 import { runCommand, defineCommand, renderUsage } from "citty";
 import type { CommandDef } from "citty";
@@ -12,7 +13,12 @@ import {
   invalidUsage,
   isUnreachable,
 } from "./cli-error";
-import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
+import {
+  argsOf,
+  assertKnownFlags,
+  assertPositionalArity,
+  resolveCommandPath,
+} from "./command-tree";
 import { agentsCommand } from "./commands/agents";
 import { connectorsCommand } from "./commands/connectors";
 import { foldersCommand } from "./commands/folders";
@@ -86,9 +92,14 @@ const hasBuiltinFlag = (rawArgs: readonly string[], flags: ReadonlySet<string>):
   return false;
 };
 
+// citty picks colour once, at import, from the environment alone, so a pipe gets escapes unless they are cut here.
+const forStream = (text: string, stream: NodeJS.WriteStream): string =>
+  stream.isTTY ? text : stripVTControlCharacters(text);
+
 const printHelp = async (program: CommandDef, rawArgs: readonly string[], deps: CliDeps) => {
   const { command, parent } = resolveCommandPath(program, rawArgs);
-  writeOut(`${await renderUsage(command, parent)}\n${describeContext(deps.env)}\n`);
+  const usage = await renderUsage(command, parent);
+  writeOut(forStream(`${usage}\n${describeContext(deps.env)}\n`, process.stdout));
 };
 
 interface Failure {
@@ -102,6 +113,7 @@ const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
   cause instanceof ORPCError;
 
 // citty's CLIError (missing argument, unknown command, bad enum) is not exported, so it is recognised by name.
+// its colour is stripped whatever the stream: a message is data, and a --json caller parses it.
 const asFailure = (cause: unknown): Failure => {
   if (cause instanceof CliExitError) {
     return { code: cause.code, exitCode: cause.exitCode, message: cause.message };
@@ -110,7 +122,7 @@ const asFailure = (cause: unknown): Failure => {
     return { code: cause.code, exitCode: EXIT_ERROR, message: cause.message };
   }
   if (cause instanceof Error && cause.name === "CLIError") {
-    const local = invalidUsage(cause.message);
+    const local = invalidUsage(stripVTControlCharacters(cause.message));
     return { code: local.code, exitCode: local.exitCode, message: local.message };
   }
   const message = getErrorMessage(cause);
@@ -141,8 +153,9 @@ export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<nu
     if (resolved.command.run !== undefined) {
       // the whole argv, not the post-name remainder: a flag typed before the subcommand name would slip past the gate.
       assertKnownFlags(rawArgs, argsOf(resolved.command));
+      assertPositionalArity(resolved.rest, argsOf(resolved.command));
     } else if (rawArgs.length === 0) {
-      process.stderr.write(`${await renderUsage(program)}\n`);
+      process.stderr.write(forStream(`${await renderUsage(program)}\n`, process.stderr));
       return EXIT_ERROR;
     }
     await runCommand(program, { rawArgs: [...rawArgs] });

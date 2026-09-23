@@ -2,7 +2,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { ORPCError } from "@orpc/client";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
-import { CliExitError, EXIT_WAIT_TIMEOUT, getErrorMessage, invalidUsage } from "../cli-error";
+import { parsePositiveNumber } from "../args";
+import { CliExitError, EXIT_WAIT_TIMEOUT, getErrorMessage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
@@ -10,6 +11,9 @@ import { formatThreadTimeline } from "./format-thread-timeline";
 
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
 const DEFAULT_WAIT_POLL_INTERVAL_MS = 300;
+// node fires a timer set past 2^31-1 ms (about 24.8 days) after 1 ms, so an unbounded wait would give up at once.
+const MAX_WAIT_TIMEOUT_SECONDS = 86_400;
+const MAX_WAIT_POLL_INTERVAL_MS = 60_000;
 
 type SendOutcome =
   | { kind: "started"; turnId: string }
@@ -19,14 +23,6 @@ const threadLine = (thread: Thread): string => {
   const archived = thread.archivedAt === null ? "" : "  (archived)";
   const title = thread.title === null ? "" : `  ${thread.title}`;
   return `${thread.id}  ${thread.status}${title}${archived}`;
-};
-
-const parsePositiveNumber = (rawValue: string, flag: string): number => {
-  const value = Number(rawValue);
-  if (!Number.isFinite(value) || value <= 0) {
-    throw invalidUsage(`${flag} must be a positive number (got "${rawValue}")`);
-  }
-  return value;
 };
 
 const describeSendOutcome = (outcome: SendOutcome): string => {
@@ -185,11 +181,11 @@ export const actionCommand = (deps: CliDeps) =>
         args: {
           id: { description: "The thread id", required: true, type: "positional" },
           "poll-interval": {
-            description: `Poll cadence in milliseconds (default ${DEFAULT_WAIT_POLL_INTERVAL_MS})`,
+            description: `Poll cadence in milliseconds (default ${DEFAULT_WAIT_POLL_INTERVAL_MS}, at most ${MAX_WAIT_POLL_INTERVAL_MS})`,
             type: "string",
           },
           timeout: {
-            description: `Give up after this long (default ${DEFAULT_WAIT_TIMEOUT_SECONDS})`,
+            description: `Give up after this many seconds (default ${DEFAULT_WAIT_TIMEOUT_SECONDS}, at most ${MAX_WAIT_TIMEOUT_SECONDS})`,
             type: "string",
           },
           ...jsonArg,
@@ -202,11 +198,13 @@ export const actionCommand = (deps: CliDeps) =>
           const timeoutSeconds =
             args.timeout === undefined
               ? DEFAULT_WAIT_TIMEOUT_SECONDS
-              : parsePositiveNumber(args.timeout, "--timeout");
+              : parsePositiveNumber(args.timeout, "--timeout", { max: MAX_WAIT_TIMEOUT_SECONDS });
           const pollIntervalMs =
             args["poll-interval"] === undefined
               ? DEFAULT_WAIT_POLL_INTERVAL_MS
-              : parsePositiveNumber(args["poll-interval"], "--poll-interval");
+              : parsePositiveNumber(args["poll-interval"], "--poll-interval", {
+                  max: MAX_WAIT_POLL_INTERVAL_MS,
+                });
           const api = apiFor(deps);
           const deadline = Date.now() + timeoutSeconds * 1000;
           const expire = (): CliExitError =>

@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import path from "node:path";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -12,6 +14,8 @@ import {
 } from "./fixture-server";
 import type { FixtureServer, FixtureState } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
+
+const BIN = path.resolve(import.meta.dirname, "..", "..", "bin", "inteligir");
 
 const boxedLines = (stdout: string): string[] =>
   stdout
@@ -623,6 +627,116 @@ describe("argv the CLI refuses", () => {
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("PATH");
   });
+
+  it("refuses a word past the last positional instead of dropping it", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["search", "a", "b", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "unexpected argument: b — quote a value that contains spaces",
+    });
+  });
+
+  it("refuses an unquoted body to vault write before reading stdin", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/p.md", "text", "--json"],
+      baseUrl: server.baseUrl,
+      stdin: new Uint8Array(),
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "unexpected argument: text — quote a value that contains spaces",
+    });
+    expect(state.vault.has("notes/p.md")).toBe(false);
+  });
+
+  it("names an undeclared short flag instead of reading it as a boolean", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["vault", "history", "notes/hello.md", "-n", "5", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "unknown option: -n",
+    });
+  });
+
+  it("counts only the words before `--`, which a leaf reads as its own", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["connectors", "add", "x", "--", "npx", "-y", "srv"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(0);
+    expect(state.connectors.servers.at(-1)).toEqual({
+      enabled: true,
+      name: "x",
+      transport: { args: ["-y", "srv"], command: "npx", kind: "stdio" },
+    });
+  });
+
+  it("hands a dash-led value to the flag that takes one", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/dash.md", "--content", "-x"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(0);
+    expect(state.vault.get("notes/dash.md")).toBe("-x");
+  });
+});
+
+describe("a leaf refuses bad usage before it resolves a server", () => {
+  it("tag notes checks its --limit first", async () => {
+    const result = await runCliForTest({
+      argv: ["tag", "notes", "project", "--limit", "0", "--json"],
+      baseUrl: null,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  });
+
+  it("vault attachments checks its location first", async () => {
+    const result = await runCliForTest({
+      argv: ["vault", "attachments", "nowhere", "--json"],
+      baseUrl: null,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  });
+
+  it("action wait refuses a timeout past what a node timer can hold", async () => {
+    const result = await runCliForTest({
+      argv: ["action", "wait", "thr_1", "--timeout", "86401", "--json"],
+      baseUrl: null,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: '--timeout must be a number above 0 and at most 86400 (got "86401")',
+    });
+  });
+
+  it("action wait refuses a poll interval over a minute", async () => {
+    const result = await runCliForTest({
+      argv: ["action", "wait", "thr_1", "--poll-interval", "60001", "--json"],
+      baseUrl: null,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  });
 });
 
 describe("vault write reads stdin as BYTES", () => {
@@ -664,6 +778,39 @@ describe("vault write reads stdin as BYTES", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("refuses anything over");
     expect(state.vault.has("notes/big.md")).toBe(false);
+  });
+
+  it("refuses a terminal rather than waiting on it", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/tty.md"],
+      baseUrl: server.baseUrl,
+      stdin: "terminal",
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("stdin is a terminal");
+    expect(state.vault.has("notes/tty.md")).toBe(false);
+  });
+
+  it("refuses an empty stdin rather than emptying the file", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+      stdin: new Uint8Array(),
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("stdin carried no content");
+    expect(state.vault.get("notes/hello.md")).toBe("# Hello\n\nBody.\n");
+
+    const emptied = await runCliForTest({
+      argv: ["vault", "write", "notes/hello.md", "--content", ""],
+      baseUrl: server.baseUrl,
+    });
+    expect(emptied.code).toBe(0);
+    expect(state.vault.get("notes/hello.md")).toBe("");
   });
 });
 
@@ -760,6 +907,16 @@ describe("cloud login", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("stdin carried no password");
   });
+
+  it("resolves the server before prompting, so no password is typed for nothing", async () => {
+    const result = await runCliForTest({
+      argv: ["cloud", "login", "--email", "owner@example.test"],
+      baseUrl: null,
+      stdin: "terminal",
+    });
+    expect(result.code).toBe(3);
+    expect(result.stderr).not.toContain("Password:");
+  });
 });
 
 describe("--json failures", () => {
@@ -786,8 +943,47 @@ describe("--json failures", () => {
     expect(result.code).toBe(1);
     expect(JSON.parse(result.stderr)).toEqual({
       error: "INVALID_USAGE",
-      message: '--timeout must be a positive number (got "nope")',
+      message: '--timeout must be a number above 0 and at most 86400 (got "nope")',
     });
+  });
+});
+
+// citty picks colour once, at import, and vitest's TEST turns it off, so only a fresh process without the
+// no-colour signals shows what a pipe would receive.
+describe("citty's colour stays out of what a pipe receives", () => {
+  const ESC = String.fromCodePoint(0x1b);
+  const NO_COLOUR_SIGNALS = new Set(["CI", "NO_COLOR", "TEST"]);
+  const runBin = (argv: string[]) =>
+    spawnSync(process.execPath, [BIN, ...argv], {
+      encoding: "utf-8",
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([name]) => !NO_COLOUR_SIGNALS.has(name)),
+        ),
+        TERM: "xterm-256color",
+      },
+      timeout: 60_000,
+    });
+
+  it("keeps the --json envelope free of escapes", () => {
+    const result = runBin(["vualt", "--json"]);
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "Unknown command vualt",
+    });
+  });
+
+  it("prints usage without escapes", () => {
+    const help = runBin(["search", "--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain("USAGE");
+    expect(help.stdout).not.toContain(ESC);
+
+    const bare = runBin([]);
+    expect(bare.status).toBe(1);
+    expect(bare.stderr).toContain("USAGE");
+    expect(bare.stderr).not.toContain(ESC);
   });
 });
 

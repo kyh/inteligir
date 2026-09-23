@@ -55,8 +55,16 @@ const renderVaultStatus = (status: VaultStatusResponse): string[] => {
 
 // `fatal` refuses invalid UTF-8 rather than substituting U+FFFD; `ignoreBOM` keeps a leading BOM as content.
 // the size bound is checked here too: the server's refusal arrives only after the whole body crossed the socket.
+// a terminal would park an agent's shell on a read nobody answers, and a closed stdin reads as nothing: emptying
+// a file is spelled out as `--content ''` rather than inferred from a pipe that carried nothing.
 const readContentFromStdin = async (): Promise<string> => {
+  if (process.stdin.isTTY) {
+    throw invalidUsage("no --content and stdin is a terminal; pipe the content or pass --content");
+  }
   const bytes = await buffer(process.stdin);
+  if (bytes.byteLength === 0) {
+    throw invalidUsage("stdin carried no content; pass --content '' to empty a file");
+  }
   if (bytes.byteLength > VAULT_MAX_CONTENT_LENGTH) {
     throw invalidUsage(
       `stdin is ${bytes.byteLength} bytes; the vault refuses anything over ${VAULT_MAX_CONTENT_LENGTH}`,
@@ -132,9 +140,8 @@ export const vaultCommand = (deps: CliDeps) =>
           name: "attachments",
         },
         run: async ({ args }) => {
-          const api = apiFor(deps);
           if (args.location === undefined) {
-            const body = await api.vault.prefs();
+            const body = await apiFor(deps).vault.prefs();
             if (outputJson(args, body)) {
               return;
             }
@@ -147,7 +154,7 @@ export const vaultCommand = (deps: CliDeps) =>
               `"${args.location}" is not a location — use ${ATTACHMENT_LOCATION_SPELLINGS}`,
             );
           }
-          const body = await api.vault.setPrefs({ attachments: location });
+          const body = await apiFor(deps).vault.setPrefs({ attachments: location });
           if (outputJson(args, body)) {
             return;
           }

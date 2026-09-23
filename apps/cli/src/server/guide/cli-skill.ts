@@ -14,6 +14,10 @@ knowledge index and an agent. The \`inteligir\` CLI drives the running app over
 its HTTP API. Every leaf command accepts \`--json\` for machine-readable
 output; without it the output is compact human text.
 
+Arguments are strict: a flag the command does not declare, and a word past its
+last argument, are refused rather than dropped. Quote an argument that holds
+spaces (\`inteligir search "two words"\`).
+
 ## Finding the server
 
 - \`INTELIGIR_DATA_DIR\` — WHICH instance (it is set inside agent shells). The
@@ -42,7 +46,8 @@ output; without it the output is compact human text.
 - \`inteligir vault read <path>\` — print a file's content.
 - \`inteligir vault write <path> [--content <text>]\` — write a file; without
   \`--content\` the content is read from stdin (UTF-8; bytes are preserved
-  exactly, and anything over 10 MiB is refused). Parent folders are created.
+  exactly, and anything over 10 MiB is refused). A terminal or an empty stdin
+  is refused: pass \`--content ''\` to empty a file. Parent folders are created.
 - \`inteligir vault rename <from> <to>\` — rename/move a note; wiki links into
   it are rewritten and the old name is recorded as an alias.
 - \`inteligir vault history <path> [--skip <n>] [--limit <n>]\` — the note's own
@@ -121,8 +126,8 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   (turns, commands, file changes, messages).
 - \`inteligir action wait <id>\` — block until the action settles. Exit code
   0 = idle, 1 = settled in error, 2 = timeout. \`--timeout <seconds>\` is a
-  real wall-clock bound (default 600) and \`--poll-interval <ms>\` sets the
-  poll cadence (default 300).
+  real wall-clock bound (default 600, at most 86400) and
+  \`--poll-interval <ms>\` sets the poll cadence (default 300, at most 60000).
 - \`inteligir action archive <id>\` — archive an action.
 
 The spawn-and-wait loop an agent should use:

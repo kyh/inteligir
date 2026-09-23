@@ -1,5 +1,6 @@
 import { Readable } from "node:stream";
 import { vi } from "vitest";
+import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
 import type { CliDeps } from "../context";
 import { FIXTURE_SERVER_TOKEN } from "./fixture-server";
 import { runCli } from "../program";
@@ -16,22 +17,38 @@ export interface CliRunResult {
 
 export interface RunArgs {
   argv: string[];
-  baseUrl: string;
+  // null is a data dir with no server.json: resolving the server throws before anything is dialed.
+  baseUrl: string | null;
   env?: Record<string, string>;
   homeDir?: string;
-  stdin?: Uint8Array;
+  // "terminal" is an interactive stdin that carries nothing.
+  stdin?: Uint8Array | "terminal";
 }
 
+const fakeStdin = (stdin: Uint8Array | "terminal"): Readable =>
+  stdin === "terminal"
+    ? Object.assign(Readable.from([]), { isTTY: true })
+    : Readable.from([Buffer.from(stdin)]);
+
 export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
+  const { baseUrl } = args;
   const deps: CliDeps = {
     env: { ...args.env },
     homeDir: args.homeDir,
-    resolveServer: () => ({
-      baseUrl: args.baseUrl,
-      dataDir: "/fixture/data",
-      token: FIXTURE_SERVER_TOKEN,
-      vaultDir: "/fixture/vault",
-    }),
+    resolveServer: () => {
+      if (baseUrl === null) {
+        throw new CliExitError("No inteligir server is running (fixture)", {
+          code: "SERVER_UNREACHABLE",
+          exitCode: EXIT_UNREACHABLE,
+        });
+      }
+      return {
+        baseUrl,
+        dataDir: "/fixture/data",
+        token: FIXTURE_SERVER_TOKEN,
+        vaultDir: "/fixture/vault",
+      };
+    },
   };
   let stdout = "";
   let stderr = "";
@@ -50,7 +67,7 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
   if (args.stdin !== undefined) {
     Object.defineProperty(process, "stdin", {
       configurable: true,
-      value: Readable.from([Buffer.from(args.stdin)]),
+      value: fakeStdin(args.stdin),
     });
   }
   try {
