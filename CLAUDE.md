@@ -1282,6 +1282,21 @@ agents default`; unset falls back
   `apps/mobile/src/sync/sync-runtime.ts`,
   `packages/api/src/cloud/device/login-flow.ts`.
 
+- **THE HOSTED TREE IS WALKED ONCE PER HEAD, and kept in ONE SLOT PER REPO.**
+  Every directory is a call into the repo cell a push also waits on, and the
+  phone pages the whole tree on every refresh. A tree read that resolved the
+  head walks the vault whole and keeps the listing in R2 at `listing/<repo>/`,
+  tagged with its commit, so every page pinned to that commit and every refresh
+  that finds the head unmoved is one bucket read. One slot, not a key per
+  commit, which would keep an object for every head any device ever listed
+  until the account died. A pinned read the slot does not hold (a newer head
+  took it) walks without filling, keeping only the page's `limit + 1` smallest
+  paths and skipping every directory that starts past the largest. A vault
+  past 50,000 entries is never kept: the fill holds the listing in memory. A
+  cache failure is a miss, never a refusal; account deletion purges the slot.
+  `apps/web/src/worker/vault/tree-walk.ts` (pure, over a `listTree` port) and
+  `tree-listing.ts`.
+
 ### Server process and the desktop shell
 
 - **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /

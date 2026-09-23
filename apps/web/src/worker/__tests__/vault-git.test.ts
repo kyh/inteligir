@@ -1,6 +1,8 @@
+import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
+import { treeListingPrefix } from "../vault/tree-listing";
 import {
   deviceHeaders,
   openSocket,
@@ -170,6 +172,14 @@ describe("account deletion's vault half", () => {
     expect(pushed.response.status).toBe(200);
     const userId = await userIdOf(bearer);
 
+    const listingPrefix = treeListingPrefix(`vault-${userId}`);
+    const listed = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(listed.status).toBe(200);
+    const kept = await env.PACK_CACHE.list({ prefix: listingPrefix });
+    expect(kept.objects).toHaveLength(1);
+
     const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
       body: JSON.stringify({ password }),
       headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
@@ -183,6 +193,8 @@ describe("account deletion's vault half", () => {
     expect(refused.status).toBe(401);
 
     expect(await env.REGISTRY.getByName("registry").get(`vault-${userId}`)).toBeNull();
+    const purged = await env.PACK_CACHE.list({ prefix: listingPrefix });
+    expect(purged.objects).toEqual([]);
 
     // read off the SQL: the wire refuses a revoked credential before it could prove the wipe
     const stub = env.REPO.getByName(`vault-${userId}`);
