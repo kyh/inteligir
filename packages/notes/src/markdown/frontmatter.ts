@@ -4,6 +4,7 @@ import { isMap, isScalar, parse as parseYaml, parseDocument } from "yaml";
 import { z } from "zod";
 
 import { splitLines } from "../knowledge/source-lines";
+import { BOM } from "./parsed-offsets";
 
 // yaml 1.2 core has no timestamp tag, so every value is json-shaped; `.nan`/`.inf` fail the
 // schema and read as unsupported.
@@ -17,8 +18,6 @@ export interface SplitDoc {
   properties: Properties;
   body: string;
 }
-
-const BOM = "\uFEFF";
 
 // remark-frontmatter's default `yaml` fence, read past the BOM micromark skips; the content group
 // is optional so an empty block matches. `eol` is the opener's terminator, which a rewrite keeps.
@@ -41,6 +40,10 @@ export const frontmatterYaml = (text: string): string | null => {
   }
   return match.groups?.yaml ?? "";
 };
+
+// the offset the block ends at, its BOM included: where a reader that withholds the header cuts.
+export const frontmatterEnd = (text: string): number | null =>
+  FRONTMATTER_RE.exec(text)?.[0].length ?? null;
 
 export const splitFrontmatter = (text: string): SplitDoc => {
   const match = FRONTMATTER_RE.exec(text);

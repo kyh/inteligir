@@ -4,6 +4,7 @@
 // verbatim, code, links, urls, frontmatter and comment markers are withheld, because a "mention"
 // there is not prose and a Link would rewrite something that is not a sentence.
 
+import { frontmatterEnd } from "../markdown/frontmatter";
 import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
 import type { VerbatimSpan } from "../markdown/verbatim-spans";
 import { docStem } from "./doc-file";
@@ -55,7 +56,6 @@ export const mentionNames = (path: string, aliases: readonly string[]): string[]
   return names;
 };
 
-const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u;
 const FENCE = /^(?:`{3,}|~{3,}|\$\$)/u;
 const INLINE_CODE = /`+[^`\n]*`+/gu;
 const WIKI_LINK = /!?\[\[[^\]]*\]\]/gu;
@@ -80,9 +80,9 @@ const INLINE_WITHHELD = [
 // still has code and math the scan must not call a sentence
 export const withheldSpans = (body: string): VerbatimSpan[] => {
   const spans = verbatimSpans(body);
-  const frontmatter = FRONTMATTER.exec(body);
-  if (frontmatter !== null) {
-    spans.push({ end: frontmatter[0].length, start: 0 });
+  const header = frontmatterEnd(body);
+  if (header !== null) {
+    spans.push({ end: header, start: 0 });
   }
   const parts = splitLinesKeepingTerminators(body);
   let offset = 0;

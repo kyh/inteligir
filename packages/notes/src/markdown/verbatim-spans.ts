@@ -9,6 +9,7 @@ import remarkParse from "remark-parse";
 import { unified } from "unified";
 
 import { MD_REMARK_PLUGINS } from "./md-plugins";
+import { rebaseParsedOffsets } from "./parsed-offsets";
 import { isOpaqueSource } from "./remark-opaque";
 
 export interface VerbatimSpan {
@@ -56,6 +57,7 @@ export const verbatimSpans = (source: string): VerbatimSpan[] => {
   } catch {
     return [];
   }
+  rebaseParsedOffsets(tree, source);
   const spans: VerbatimSpan[] = [];
   collect(tree, spans);
   return spans;
@@ -91,8 +93,6 @@ const collectLiteral = (node: Nodes, out: VerbatimSpan[]): void => {
   }
 };
 
-const BOM = "\uFEFF";
-
 // null when the editor's grammar refuses the doc: there is no map of it to trust.
 export const literalRanges = (source: string): VerbatimSpan[] | null => {
   let tree: Nodes;
@@ -101,11 +101,10 @@ export const literalRanges = (source: string): VerbatimSpan[] | null => {
   } catch {
     return null;
   }
+  rebaseParsedOffsets(tree, source);
   const ranges: VerbatimSpan[] = [];
   collectLiteral(tree, ranges);
-  // micromark drops a leading BOM before it counts, so its offsets fall one short of the source's.
-  const shift = source.startsWith(BOM) ? BOM.length : 0;
-  return ranges.map((range) => ({ end: range.end + shift, start: range.start + shift }));
+  return ranges;
 };
 
 export const insideVerbatim = (

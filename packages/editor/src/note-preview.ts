@@ -1,8 +1,9 @@
 // regex-level on purpose: a hover tooltip earns a cheap approximation, not a parse.
 
+import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
+
 const PREVIEW_MAX_LINES = 20;
 
-const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n?/u;
 const COMMENT_MARKER_RE = /%%i:[^%]*%%/gu;
 const WIKI_LINK_RE = /\[\[(?<inner>[^\]]*)\]\]/gu;
 const MD_LINK_RE = /!?\[(?<label>[^\]]*)\]\([^)]*\)/gu;
@@ -17,7 +18,7 @@ const wikiBodyLabel = (body: string): string => {
 };
 
 export const notePreviewHead = (markdown: string): string => {
-  const body = markdown.replace(FRONTMATTER_RE, "");
+  const { body } = splitFrontmatter(markdown);
   const lines: string[] = [];
   for (const raw of body.split("\n")) {
     if (lines.length >= PREVIEW_MAX_LINES) {

@@ -72,6 +72,7 @@ describe("finding plain mentions", () => {
       "",
     ].join("\n");
     expect(mentions({ "a.md": body }).total).toBe(0);
+    expect(mentions({ "a.md": `\uFEFF${body}` }).total).toBe(0);
     expect(mentions({ "a.md": `${body}Then the roadmap in prose.\n` }).mentions[0]).toEqual(
       expect.objectContaining({ count: 1, line: 10, text: "roadmap" }),
     );
