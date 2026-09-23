@@ -53,9 +53,10 @@ both **in memory**. This is correct, not degraded: a cold launch re-pulls the
 account log from cursor 0 and re-applies it idempotently (own rows skipped by
 device id, every row deduped on its `(deviceId, deviceSeq)` origin), rebuilding
 the readable state. Persisting the cursor beside an in-memory log would claim
-rows the log never saw. There is no outbox and no capture ledger: the phone
-appends nothing to the log and claims nothing from the inbox, so neither has
-anything to hold.
+rows the log never saw. It is also why the phone keeps no skipped-row marker:
+an app update is a relaunch, which re-reads every row the old build skipped.
+There is no outbox and no capture ledger: the phone appends nothing to the log
+and claims nothing from the inbox, so neither has anything to hold.
 
 The **device credential** is durable in `expo-secure-store` (the Keychain /
 Keystore), never AsyncStorage — it is a bearer secret and the sync switch,

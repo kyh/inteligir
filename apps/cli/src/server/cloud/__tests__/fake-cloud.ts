@@ -34,6 +34,8 @@ type RequestBody = z.infer<ReturnType<typeof z.json>>;
 
 const parseJson = (text: string): RequestBody => z.json().parse(JSON.parse(text));
 
+const typedEventSchema = z.object({ type: z.string() }).catchall(z.json());
+
 type AckCaptureResult = AckCapturesResponse["results"][number];
 
 const refuse = (code: CloudErrorCode, message: string, deviceSeq?: number): Response =>
@@ -78,6 +80,8 @@ export class FakeCloud {
   maxDevices = Number.POSITIVE_INFINITY;
   /** the login window is shut: every login answers rate-limited. */
   loginWindowShut = false;
+  /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
+  readonly unreadableTypes = new Set<string>();
 
   revoke(deviceId: string): void {
     for (const device of this.devices.values()) {
@@ -264,12 +268,21 @@ export class FakeCloud {
       createdAt: row.createdAt,
       deviceId: row.deviceId,
       deviceSeq: row.deviceSeq,
-      event: parseJson(row.body),
+      event: this.served(row.body),
       seq: row.seq,
       threadId: row.threadId,
     }));
     const response: PullResponse = { events, hasMore, lastSeq: this.nextSeq };
     return Response.json(response);
+  }
+
+  private served(body: string): RequestBody {
+    const event = parseJson(body);
+    const typed = typedEventSchema.safeParse(event);
+    if (!typed.success || !this.unreadableTypes.has(typed.data.type)) {
+      return event;
+    }
+    return { ...typed.data, type: `${typed.data.type}@newer` };
   }
 
   private claim(body: RequestBody): Response {

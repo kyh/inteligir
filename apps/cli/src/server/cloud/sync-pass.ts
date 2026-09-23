@@ -9,6 +9,7 @@ import { SYNC_OUTBOX_CODES } from "@repo/api/cloud/errors";
 import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import { pullPages } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
+import { writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { MissingTurnStartedError } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
@@ -18,6 +19,7 @@ import {
   pruneAppliedCaptures,
   readSyncState,
   recordAppliedCaptures,
+  recordSkippedRow,
   touchSyncedAt,
   unappliedCaptureIds,
   writeSyncCursor,
@@ -51,6 +53,8 @@ export interface PassContext {
 
 export interface SyncPassDeps {
   db: DbConnection;
+  /** the running build, recorded beside a row it could not read so a different one pulls it again. */
+  build: string;
   vault: CaptureVault;
   debug: (message: string) => void;
   /** late-bound: the thread service is built after the runtime. */
@@ -147,6 +151,16 @@ const applyStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply
   }
 };
 
+const skipStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "skip" }>): void => {
+  const { firstUnparsed } = step;
+  writeTransaction(deps.db, (tx) => {
+    writeSyncCursor(tx, step.cursor);
+    if (firstUnparsed !== null) {
+      recordSkippedRow(tx, { build: deps.build, seq: firstUnparsed });
+    }
+  });
+};
+
 const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> =>
   await pullPages({
     applyPlan: (steps) => {
@@ -154,7 +168,7 @@ const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<S
         if (step.kind === "apply") {
           applyStep(deps, step);
         } else {
-          writeSyncCursor(deps.db, step.cursor);
+          skipStep(deps, step);
         }
       }
     },

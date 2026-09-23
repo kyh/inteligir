@@ -14,7 +14,9 @@ export interface PlannedLogRow {
 
 export type LogPlanStep =
   | { kind: "apply"; threadId: string; rows: PlannedLogRow[] }
-  | { kind: "skip"; cursor: number };
+  // firstUnparsed: the lowest row in the run this build's grammar refused, which a client that
+  // keeps its cursor records so a later build can pull it again. never one of this device's own.
+  | { kind: "skip"; cursor: number; firstUnparsed: number | null };
 
 export interface LogPlan {
   steps: LogPlanStep[];
@@ -38,10 +40,12 @@ export const planPage = (
       skipped.push(`log row ${row.seq}: not a thread event this build understands`);
     }
     if (parsed === null || !parsed.success) {
+      const unparsed = parsed === null ? null : row.seq;
       if (last?.kind === "skip") {
         last.cursor = row.seq;
+        last.firstUnparsed ??= unparsed;
       } else {
-        steps.push({ cursor: row.seq, kind: "skip" });
+        steps.push({ cursor: row.seq, firstUnparsed: unparsed, kind: "skip" });
       }
       continue;
     }

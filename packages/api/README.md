@@ -99,7 +99,9 @@ src/
   to "did this row move the cursor?", and a mis-set cursor is a duplicated
   conversation. The same reason keeps the session fence, the login flow and
   the single-flight pass here rather than in each client: a security
-  discipline with two spellings is two to audit.
+  discipline with two spellings is two to audit. A skip step names the lowest
+  foreign row it moves past unread (`firstUnparsed`), so a client that keeps
+  its cursor can pull that row again under a build that reads it.
 - **The cloud client never throws a refusal.** `CloudResult` carries
   `refused` (a code the contract names), `unreachable` (no verdict on the
   credential) or `malformed` (a body this build cannot read); an

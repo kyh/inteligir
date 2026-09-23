@@ -45,7 +45,8 @@ src/
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
-                      # cursor, the applied-capture ledger, the own device ids
+                      # cursor and its skipped-row marker, the applied-capture
+                      # ledger, the own device ids
   __tests__/          # real files under a temp dir; schema-agreement.test.ts is
                       # the migration↔schema pin (reading sqlite_master through
                       # json-source.ts), legacy-migrations-table.test.ts the
@@ -128,8 +129,17 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   clears the outbox, both positions and the capture ledger in one transaction,
   and keeps `sync_own_devices`: the log still holds rows under every id this
   install signed in as, and the install holds those events locally with a
-  null origin, which `events_origin_idx` cannot match. A pull skips a row under any
-  of those ids; forgetting one doubles everything written under it.
+  null origin, which `events_origin_idx` cannot match. A pull skips a row under
+  any of those ids; forgetting one doubles everything written under it.
+- **A pulled row this build cannot read is pulled again by the next build.**
+  The planner moves the cursor past it, so `recordSkippedRow` writes the
+  lowest such row and the running build into `sync_state` in the transaction
+  that moves the cursor, and `takeRewindIfBuildChanged` puts the cursor back to
+  just before it when a different build opens the session, clearing the
+  marker. The replay lands nothing twice: a foreign row dedupes on its origin
+  and the planner skips this install's own. The build is the CLI's version,
+  not `meta.schema_version`, which counts migrations, and a new event type
+  ships without one. A sign-out clears the marker with the positions.
 - **The lifecycle CAS names the turn.**
   `applyThreadLifecycleEventInTransaction` evaluates `@repo/domain`'s
   transition table, then updates only where status AND `active_turn_id` still
@@ -149,8 +159,8 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 
 ## Seams
 
-- `DbNotifier` (`@repo/domain/notifier`) — the announcement port every writer
-  takes. The server binds the `/ws` bus; `noopNotifier` is the test's.
+- `DbNotifier` (`@repo/domain/notifier`) — the announcement port every
+  standalone writer takes. The server binds the `/ws` bus; `noopNotifier` is the test's.
 - `DbTransaction` and the `*InTransaction` variants — how the server composes
   append, lifecycle projection, queue touch and outbox enqueue into ONE
   immediate transaction (`apps/cli/src/server/threads/service.ts`). An append,
@@ -167,12 +177,13 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 (`__tests__/open-temp-db.ts`, disposed with the test). Pinned: boot migrates
 and bumps the version, upgrades a POPULATED v2 file in place with its child
 rows and foreign keys intact, refuses a newer build's file, opens with WAL and
-`synchronous=NORMAL`, hands a deleted row's pages back on close; contiguous
-sequences under interleaved writers, the turn/started gate, the scope CHECK at
-the database, a 20-event burst prepares two SELECTs and one INSERT, a stored
-row the grammar refuses left out and reported; the lifecycle happy path and
-its typed no-ops, a folder rebind a write refuses partway moving nothing,
-`listThreads` answered from its partial indexes with no temp b-tree; FIFO
-claims across connections and same-millisecond bursts; interaction
-idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so it carries
-its own 30s budget.
+`synchronous=NORMAL`, hands a deleted row's pages back on close; the
+skipped-row marker keeps the lowest row and rewinds once per build change;
+contiguous sequences under interleaved writers, the turn/started gate, the
+scope CHECK at the database, a 20-event burst prepares two SELECTs and one
+INSERT, a stored row the grammar refuses left out and reported; the lifecycle
+happy path and its typed no-ops, a folder rebind a write refuses partway
+moving nothing, `listThreads` answered from its partial indexes with no temp
+b-tree; FIFO claims across connections and same-millisecond bursts;
+interaction idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so
+it carries its own 30s budget.
