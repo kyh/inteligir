@@ -3,7 +3,6 @@ import type { Code, List, Paragraph, PhrasingContent, Root, RootContent } from "
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 import { parseMdast } from "@repo/notes/markdown/parse";
-import { escapePillPipesInTables } from "@repo/notes/markdown/table-pipes";
 import { parseWikiBodyRange } from "@repo/notes/markdown/remark-wiki-link";
 import { isCalloutLang, RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import { docStem } from "@repo/notes/knowledge/doc-file";
@@ -176,9 +175,7 @@ const projectParsed = (source: string, root: Root): NoteBlock[] => {
     if (!parsed.ok) {
       return [{ kind: "raw", text: body }];
     }
-    // the parser positioned nodes against the pipe-escaped text, so raw slices must cut the same
-    // bytes.
-    return projectParsed(escapePillPipesInTables(body), parsed.root);
+    return projectParsed(parsed.text, parsed.root);
   };
 
   const projectParagraph = (node: Paragraph, blocks: NoteBlock[]): void => {
@@ -315,5 +312,5 @@ export const projectNote = (path: string, content: string): NoteProjection => {
   if (!parsed.ok) {
     return { kind: "raw", reason: parsed.failure.message, text: content, title };
   }
-  return { blocks: projectParsed(escapePillPipesInTables(body), parsed.root), kind: "note", title };
+  return { blocks: projectParsed(parsed.text, parsed.root), kind: "note", title };
 };
