@@ -1,6 +1,7 @@
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
 import type { OpenExternalUrl } from "./server/cloud/browser-opener";
+import { PROD_DATA_DIR_NAME, runtimeModeOf } from "./server/config";
 import { resolveCheckoutRoot } from "./server/dev-instance";
 import { createLocalClient } from "./server/local-client";
 import { DATA_DIR_ENV_VAR, resolveServer } from "./server-discovery";
@@ -55,13 +56,19 @@ export const contextThreadId = (env: NodeJS.ProcessEnv): string | undefined => {
 // the thread id is the only signal: the runtime injects it into agent shells and nowhere else.
 export const isAgentShell = (env: NodeJS.ProcessEnv): boolean => contextThreadId(env) !== undefined;
 
+// a label, not the resolved dir: resolving reads config.json, and --help touches no state.
+const derivedDataDirLabel = (env: NodeJS.ProcessEnv): string =>
+  runtimeModeOf(env) === "prod"
+    ? `(unset — derived under ~/${PROD_DATA_DIR_NAME})`
+    : "(unset — derived from this checkout)";
+
 export const describeContext = (env: NodeJS.ProcessEnv): string => {
   const dataDir = env[DATA_DIR_ENV_VAR]?.trim();
   const threadId = contextThreadId(env);
   return [
     "",
     "Environment:",
-    `  ${DATA_DIR_ENV_VAR}: ${dataDir !== undefined && dataDir.length > 0 ? dataDir : "(unset — derived from this checkout)"}`,
+    `  ${DATA_DIR_ENV_VAR}: ${dataDir !== undefined && dataDir.length > 0 ? dataDir : derivedDataDirLabel(env)}`,
     `  ${THREAD_ID_ENV_VAR}:  ${threadId ?? "(unset)"}`,
     "",
     "Run `inteligir guide` for the agent manual.",

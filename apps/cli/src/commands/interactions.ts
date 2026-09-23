@@ -5,6 +5,7 @@ import { CliExitError, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
+import { describeInteraction } from "./describe-interaction";
 
 // a null payload is not a refusal: the host answers 400 itself, and refusing here would strand a grammar the server accepts.
 const assertResolutionValid = (interaction: PendingInteraction, resolution: string): void => {
@@ -80,7 +81,7 @@ export const interactionsCommand = (deps: CliDeps) =>
           if (outputJson(args, body)) {
             return;
           }
-          writeLines(body.interactions.map((row) => `${row.id}  ${row.threadId}  ${row.status}`));
+          writeLines(body.interactions.flatMap(describeInteraction));
         },
       }),
     },

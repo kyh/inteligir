@@ -40,7 +40,7 @@ export const promptPassword = async (label: string): Promise<string> => {
       }
       if (char === CTRL_C || char === CTRL_D) {
         finish(onData, {
-          cause: new CliExitError("Interrupted", { code: "INTERRUPTED", exitCode: 130 }),
+          cause: new CliExitError("Interrupted", { code: "INTERRUPTED" }),
         });
         return;
       }
@@ -56,11 +56,11 @@ export const promptPassword = async (label: string): Promise<string> => {
 };
 
 // one line, its own newline stripped: `printf 'pw\\n' | inteligir cloud login --password -`
-export const readPasswordFromStdin = async (): Promise<string> => {
+export const readSecretFromStdin = async (label: string): Promise<string> => {
   const text = new TextDecoder("utf-8", { fatal: true }).decode(await buffer(process.stdin));
-  const password = text.replace(/\r?\n$/u, "");
-  if (password.length === 0) {
-    throw invalidUsage("stdin carried no password");
+  const secret = text.replace(/\r?\n$/u, "");
+  if (secret.length === 0) {
+    throw invalidUsage(`stdin carried no ${label}`);
   }
-  return password;
+  return secret;
 };

@@ -1,9 +1,11 @@
 import { buffer } from "node:stream/consumers";
 import { isDefinedError, safe } from "@orpc/client";
 import {
+  VAULT_HISTORY_DEFAULT_LIMIT,
   VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
   contentHashHex,
+  contentHashSchema,
 } from "@repo/api/local/vault/vault-schema";
 import type {
   VaultHistoryRequest,
@@ -19,7 +21,7 @@ import {
 import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
-import { invalidUsage } from "../cli-error";
+import { CliExitError, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
@@ -84,6 +86,27 @@ const assertContentWithinBound = (content: string): void => {
       `--content is ${byteLength} bytes; the vault refuses anything over ${VAULT_MAX_CONTENT_LENGTH}`,
     );
   }
+};
+
+// the contract's two guards, refused here as the schema would refuse them, before stdin is read.
+const writeGuard = (args: {
+  "expected-hash"?: string | undefined;
+  "if-absent"?: boolean | undefined;
+}): Pick<VaultWriteRequest, "expectedHash" | "ifAbsent"> => {
+  const expectedHash = args["expected-hash"];
+  const ifAbsent = args["if-absent"] === true;
+  if (expectedHash === undefined) {
+    return ifAbsent ? { ifAbsent: true } : {};
+  }
+  if (ifAbsent) {
+    throw invalidUsage("--if-absent and --expected-hash cannot both guard one write");
+  }
+  if (!contentHashSchema.safeParse(expectedHash).success) {
+    throw invalidUsage(
+      `--expected-hash takes the 64 lowercase hex characters \`vault read --json\` answers as hash (got "${expectedHash}")`,
+    );
+  }
+  return { expectedHash };
 };
 
 interface VaultSelection {
@@ -204,7 +227,10 @@ export const vaultCommand = (deps: CliDeps) =>
 
       history: defineCommand({
         args: {
-          limit: { description: "How many revisions to answer", type: "string" },
+          limit: {
+            description: `How many revisions to answer (1–${VAULT_HISTORY_MAX_LIMIT}, default ${VAULT_HISTORY_DEFAULT_LIMIT})`,
+            type: "string",
+          },
           path: { description: "The vault-relative path", required: true, type: "positional" },
           skip: { description: "Skip this many revisions", type: "string" },
           ...jsonArg,
@@ -257,9 +283,16 @@ export const vaultCommand = (deps: CliDeps) =>
         run: async ({ args }) => {
           const api = apiFor(deps);
           const tree = await api.vault.tree();
-          const prefix = args.dir?.replace(/\/+$/u, "");
+          const prefix = args.dir?.replace(/\/+$/u, "") ?? "";
+          // a mistyped folder would otherwise list nothing, which reads as an empty folder.
+          if (
+            prefix.length > 0 &&
+            !tree.entries.some((entry) => entry.kind === "dir" && entry.path === prefix)
+          ) {
+            throw new CliExitError(`No folder ${prefix} in the vault`, { code: "NOT_FOUND" });
+          }
           const entries =
-            prefix === undefined || prefix.length === 0
+            prefix.length === 0
               ? tree.entries
               : tree.entries.filter(
                   (entry) => entry.path === prefix || entry.path.startsWith(`${prefix}/`),
@@ -326,7 +359,8 @@ export const vaultCommand = (deps: CliDeps) =>
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.vault.read({ path: args.path });
-          if (outputJson(args, body)) {
+          // the base a guarded `vault write --expected-hash` carries back.
+          if (outputJson(args, { ...body, hash: await contentHashHex(body.content) })) {
             return;
           }
           writeOut(body.content);
@@ -462,6 +496,15 @@ export const vaultCommand = (deps: CliDeps) =>
             description: "The content to write; omitted means read stdin",
             type: "string",
           },
+          "expected-hash": {
+            description:
+              "Write only if the file still hashes to this (the hash `vault read --json` answers)",
+            type: "string",
+          },
+          "if-absent": {
+            description: "Create only: refuse if something is already at the path",
+            type: "boolean",
+          },
           path: { description: "The vault-relative path", required: true, type: "positional" },
           ...jsonArg,
         },
@@ -470,6 +513,7 @@ export const vaultCommand = (deps: CliDeps) =>
           name: "write",
         },
         run: async ({ args }) => {
+          const guard = writeGuard(args);
           let content: string;
           if (args.content === undefined) {
             content = await readContentFromStdin();
@@ -478,7 +522,7 @@ export const vaultCommand = (deps: CliDeps) =>
             ({ content } = args);
           }
           const api = apiFor(deps);
-          const body = await api.vault.write({ content, path: args.path });
+          const body = await api.vault.write({ content, path: args.path, ...guard });
           if (outputJson(args, body)) {
             return;
           }

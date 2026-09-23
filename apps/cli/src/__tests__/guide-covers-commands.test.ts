@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { CLI_SKILL_MD } from "../server/guide/cli-skill";
 import { describe, expect, it } from "vitest";
+import { CLI_FAILURE_EXIT_CODES } from "../cli-error";
 import { argsOf, collectLeafCommands, declaredFlags } from "../command-tree";
 import { testProgram } from "./command-tree";
 
@@ -71,6 +72,14 @@ describe("the served guide covers the command surface", () => {
       (flag) => !accepted.has(flag),
     );
     expect(invented).toEqual([]);
+  });
+
+  // a --json caller branches on the class, and a shell on the exit code: each has to be written down.
+  it("names every failure class the CLI raises, with the exit code it carries", () => {
+    const unnamed = Object.entries(CLI_FAILURE_EXIT_CODES)
+      .map(([code, exitCode]) => `\`${code}\` (${exitCode})`)
+      .filter((row) => !CLI_SKILL_MD.includes(row));
+    expect(unnamed).toEqual([]);
   });
 });
 

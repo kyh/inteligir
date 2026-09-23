@@ -2,13 +2,15 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { browserHandoffUrl } from "@repo/api/local/routes";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
-import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
+import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/api/local/vault/vault-schema";
+import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import {
   FIXTURE_HANDOFF_NONCE,
   FIXTURE_REVISION_SHA,
   makeFixtureState,
+  makeInteraction,
   makeRevision,
   makeThread,
   serveFixture,
@@ -123,6 +125,20 @@ const SHOW_TIMELINE: ThreadTimeline = {
   tokenUsage: null,
 };
 
+const COMMAND_APPROVAL: ApprovalPendingInteractionPayload = {
+  availableDecisions: ["allow_once", "allow_for_session"],
+  kind: "approval",
+  reason: "installs the dependencies",
+  subject: { command: "npm install", cwd: "/fixture/vault", itemId: "cmd_1", kind: "command" },
+};
+
+const FILE_APPROVAL: ApprovalPendingInteractionPayload = {
+  availableDecisions: ["allow_once", "deny"],
+  kind: "approval",
+  reason: null,
+  subject: { itemId: "file_1", kind: "file_change", writeScope: null },
+};
+
 describe("vault commands", () => {
   it("lists the tree, dirs marked, and filters by dir", async () => {
     const server = await boot(seededState());
@@ -135,6 +151,106 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(scoped.stdout).toBe("notes/\nnotes/hello.md\n");
+  });
+
+  it("refuses a folder that is not there rather than listing it as empty", async () => {
+    const server = await boot(seededState());
+    for (const dir of ["nots", "notes/hello.md"]) {
+      const result = await runCliForTest({
+        argv: ["vault", "list", dir, "--json"],
+        baseUrl: server.baseUrl,
+      });
+      expect(result.code).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(JSON.parse(result.stderr)).toEqual({
+        error: "NOT_FOUND",
+        message: `No folder ${dir} in the vault`,
+      });
+    }
+  });
+
+  it("answers the hash of what it read under --json, the base a guarded write carries", async () => {
+    const server = await boot(seededState());
+    const read = await runCliForTest({
+      argv: ["vault", "read", "notes/hello.md", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(read.stdout)).toEqual({
+      content: "# Hello\n\nBody.\n",
+      hash: await contentHashHex("# Hello\n\nBody.\n"),
+      path: "notes/hello.md",
+    });
+  });
+
+  it("writes over the bytes it read with --expected-hash, and refuses a file that moved", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const base = await contentHashHex("# Hello\n\nBody.\n");
+    const guarded = await runCliForTest({
+      argv: [
+        "vault",
+        "write",
+        "notes/hello.md",
+        "--content",
+        "# Edited\n",
+        "--expected-hash",
+        base,
+      ],
+      baseUrl: server.baseUrl,
+    });
+    expect(guarded.code).toBe(0);
+    expect(state.vault.get("notes/hello.md")).toBe("# Edited\n");
+
+    const stale = await runCliForTest({
+      argv: [
+        "vault",
+        "write",
+        "notes/hello.md",
+        "--content",
+        "# Again\n",
+        "--expected-hash",
+        base,
+        "--json",
+      ],
+      baseUrl: server.baseUrl,
+    });
+    expect(stale.code).toBe(1);
+    expect(stale.stdout).toBe("");
+    expect(JSON.parse(stale.stderr)).toEqual({
+      error: "CAS_MISMATCH",
+      message: "notes/hello.md changed since the base this write was derived from",
+    });
+    expect(state.vault.get("notes/hello.md")).toBe("# Edited\n");
+  });
+
+  it("creates with --if-absent, and refuses a path something already holds", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const created = await runCliForTest({
+      argv: ["vault", "write", "notes/fresh.md", "--content", "# Fresh\n", "--if-absent"],
+      baseUrl: server.baseUrl,
+    });
+    expect(created.code).toBe(0);
+    expect(state.vault.get("notes/fresh.md")).toBe("# Fresh\n");
+
+    const taken = await runCliForTest({
+      argv: [
+        "vault",
+        "write",
+        "notes/hello.md",
+        "--content",
+        "# Clobber\n",
+        "--if-absent",
+        "--json",
+      ],
+      baseUrl: server.baseUrl,
+    });
+    expect(taken.code).toBe(1);
+    expect(JSON.parse(taken.stderr)).toEqual({
+      error: "ALREADY_EXISTS",
+      message: "A file already exists at notes/hello.md",
+    });
+    expect(state.vault.get("notes/hello.md")).toBe("# Hello\n\nBody.\n");
   });
 
   it("reads a file byte-exactly and errors 1 on a miss", async () => {
@@ -338,6 +454,19 @@ describe("connectors", () => {
           name: "context7",
           transport: { hasAuth: true, kind: "http", url: "https://mcp.context7.com/mcp" },
         },
+        {
+          enabled: true,
+          name: "linear",
+          transport: {
+            authorizationEndpoint: "https://linear.app/oauth/authorize",
+            clientId: "inteligir",
+            kind: "oauth",
+            scopes: ["read"],
+            status: "needs-reauth",
+            tokenEndpoint: "https://api.linear.app/oauth/token",
+            url: "https://mcp.linear.app/mcp",
+          },
+        },
       ],
     };
     const server = await boot(state);
@@ -346,8 +475,38 @@ describe("connectors", () => {
 
     expect(listed.stdout).toBe(
       "files  npx -y server-files  [enabled]\n" +
-        "context7  https://mcp.context7.com/mcp  [disabled authenticated]\n",
+        "context7  https://mcp.context7.com/mcp  [disabled authenticated]\n" +
+        "linear  https://mcp.linear.app/mcp  [enabled needs-reauth]\n",
     );
+  });
+
+  it("reads a header's value from stdin under NAME=-, so the key never rides argv", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const added = await runCliForTest({
+      argv: [
+        "connectors",
+        "add",
+        "exa",
+        "--url",
+        "https://mcp.exa.ai/mcp",
+        "--header",
+        "x-api-key=-",
+      ],
+      baseUrl: server.baseUrl,
+      stdin: new TextEncoder().encode("sk-piped\n"),
+    });
+    expect(added.code).toBe(0);
+    expect(state.connectorHeaders.get("exa")).toEqual({ "x-api-key": "sk-piped" });
+
+    const empty = await runCliForTest({
+      argv: ["connectors", "add", "exa2", "--url", "https://mcp.exa.ai/mcp", "--header", "k=-"],
+      baseUrl: server.baseUrl,
+      stdin: new TextEncoder().encode("\n"),
+    });
+    expect(empty.code).toBe(1);
+    expect(empty.stderr).toContain("stdin carried no header value");
+    expect(state.connectors.servers.map((row) => row.name)).toEqual(["exa"]);
   });
 
   it("adds and removes through the registry routes", async () => {
@@ -419,6 +578,32 @@ describe("action commands", () => {
     );
   });
 
+  it("shows what a pending approval would allow", async () => {
+    const state = seededState();
+    state.threads.push({
+      pendingInteractions: [
+        makeInteraction({ id: "int_cmd", payload: COMMAND_APPROVAL, threadId: "thr_1" }),
+      ],
+      thread: makeThread({ id: "thr_1", status: "active" }),
+      timeline: EMPTY_TIMELINE,
+    });
+    const server = await boot(state);
+    const show = await runCliForTest({
+      argv: ["action", "show", "thr_1"],
+      baseUrl: server.baseUrl,
+    });
+    expect(show.stdout).toBe(
+      [
+        "Thread thr_1 — active",
+        "Pending interactions:",
+        "  int_cmd  thr_1  pending",
+        "    $ npm install (in /fixture/vault) — installs the dependencies",
+        "    answer: allow_once, allow_for_session, deny",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("creates a thread and sends the first turn", async () => {
     const state = seededState();
     const server = await boot(state);
@@ -484,7 +669,7 @@ describe("interactions commands", () => {
       argv: ["interactions", "list"],
       baseUrl: server.baseUrl,
     });
-    expect(list.stdout).toBe("int_1  thr_1  pending\n");
+    expect(list.stdout).toBe("int_1  thr_1  pending\n  (no details)\n");
 
     const answer = await runCliForTest({
       argv: ["interactions", "answer", "int_1", "allow_once"],
@@ -492,6 +677,34 @@ describe("interactions commands", () => {
     });
     expect(answer.code).toBe(0);
     expect(answer.stdout).toBe("✔ Interaction int_1 resolved\n");
+  });
+
+  it("says what each approval would allow, and the answers it takes, before anyone answers", async () => {
+    const state = seededState();
+    state.threads.push({
+      pendingInteractions: [
+        makeInteraction({ id: "int_cmd", payload: COMMAND_APPROVAL, threadId: "thr_1" }),
+        makeInteraction({ id: "int_file", payload: FILE_APPROVAL, threadId: "thr_1" }),
+      ],
+      thread: makeThread({ id: "thr_1", status: "active" }),
+      timeline: EMPTY_TIMELINE,
+    });
+    const server = await boot(state);
+    const list = await runCliForTest({
+      argv: ["interactions", "list"],
+      baseUrl: server.baseUrl,
+    });
+    expect(list.stdout).toBe(
+      [
+        "int_cmd  thr_1  pending",
+        "  $ npm install (in /fixture/vault) — installs the dependencies",
+        "  answer: allow_once, allow_for_session, deny",
+        "int_file  thr_1  pending",
+        "  write unscoped",
+        "  answer: allow_once, deny",
+        "",
+      ].join("\n"),
+    );
   });
 });
 
@@ -531,6 +744,19 @@ describe("status, guide and help", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("INTELIGIR_DATA_DIR");
     expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
+  });
+
+  it("names where an unset data dir derives from, installed or in a checkout", async () => {
+    const server = await boot(seededState());
+    const installed = await runCliForTest({
+      argv: ["--help"],
+      baseUrl: server.baseUrl,
+      env: { NODE_ENV: "production" },
+    });
+    expect(installed.stdout).toContain("INTELIGIR_DATA_DIR: (unset — derived under ~/.inteligir)");
+
+    const checkout = await runCliForTest({ argv: ["--help"], baseUrl: server.baseUrl });
+    expect(checkout.stdout).toContain("INTELIGIR_DATA_DIR: (unset — derived from this checkout)");
   });
 });
 
@@ -759,6 +985,29 @@ describe("a leaf refuses bad usage before it resolves a server", () => {
   it("tag notes checks its --limit first", async () => {
     const result = await runCliForTest({
       argv: ["tag", "notes", "project", "--limit", "0", "--json"],
+      baseUrl: null,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  });
+
+  it("vault write checks its guard first: a malformed hash, and both guards at once", async () => {
+    for (const guard of [
+      ["--expected-hash", "ABC123"],
+      ["--if-absent", "--expected-hash", "0".repeat(64)],
+    ]) {
+      const result = await runCliForTest({
+        argv: ["vault", "write", "notes/x.md", "--content", "x", ...guard, "--json"],
+        baseUrl: null,
+      });
+      expect(result.code).toBe(1);
+      expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+    }
+  });
+
+  it("connectors add checks a stdio server carries no --header first", async () => {
+    const result = await runCliForTest({
+      argv: ["connectors", "add", "x", "--header", "k=v", "--json", "--", "npx", "srv"],
       baseUrl: null,
     });
     expect(result.code).toBe(1);

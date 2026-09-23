@@ -1,6 +1,6 @@
 import { Readable } from "node:stream";
 import { vi } from "vitest";
-import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
+import { CliExitError } from "../cli-error";
 import type { CliDeps } from "../context";
 import type { OpenExternalUrl } from "../server/cloud/browser-opener";
 import { FIXTURE_SERVER_TOKEN } from "./fixture-server";
@@ -42,7 +42,6 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
       if (baseUrl === null) {
         throw new CliExitError("No inteligir server is running (fixture)", {
           code: "SERVER_UNREACHABLE",
-          exitCode: EXIT_UNREACHABLE,
         });
       }
       return {

@@ -101,6 +101,9 @@ describe("resolveServer", () => {
     expect(failure.code).toBe("SERVER_UNREACHABLE");
     expect(failure.message).toContain(dataDir);
     expect(failure.message).toContain(DATA_DIR_ENV_VAR);
+    // the remedy is the published binary's own verb: an installed user has no checkout to run pnpm in.
+    expect(failure.message).toContain("inteligir serve");
+    expect(failure.message).not.toContain("pnpm");
   });
 
   it("treats a row it cannot parse as no server at all", () => {

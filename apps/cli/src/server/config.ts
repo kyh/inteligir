@@ -368,9 +368,12 @@ const resolveCloudUrl = (
     ? DEFAULT_CLOUD_URL
     : parseCloudUrlValue("config.json cloudUrl", managed.cloudUrl));
 
+export const runtimeModeOf = (env: NodeJS.ProcessEnv): RuntimeMode =>
+  env.NODE_ENV === "production" ? "prod" : "dev";
+
 export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
   const homeDir = args.homeDir ?? homedir();
-  const mode: RuntimeMode = args.env.NODE_ENV === "production" ? "prod" : "dev";
+  const mode = runtimeModeOf(args.env);
 
   const devInstanceDir = path.join(
     homeDir,
