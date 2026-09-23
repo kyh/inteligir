@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import {
@@ -14,13 +15,27 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route as rootRoute } from "../../routes/__root";
+import { client } from "../api";
+import { observeRpcStatus } from "../signed-out-state";
 import { InertSocket } from "./inert-socket";
 import { rendererSources } from "./renderer-sources";
 
 const CONFIRM_TITLE = "Stop syncing this device?";
 const REFUSAL = "Could not sign this device out.";
+const CALL_REFUSED = "Could not reach the server.";
 
 let answered: boolean | null = null;
+let settledCalls = 0;
+
+const callServer = async (): Promise<void> => {
+  try {
+    await client.system.status();
+  } catch {
+    toast.error(CALL_REFUSED);
+  } finally {
+    settledCalls += 1;
+  }
+};
 
 const SettingsStandIn = () => (
   <div>
@@ -41,6 +56,14 @@ const SettingsStandIn = () => (
       }}
     >
       Refuse
+    </button>
+    <button
+      type="button"
+      onClick={() => {
+        void callServer();
+      }}
+    >
+      Call
     </button>
   </div>
 );
@@ -65,13 +88,26 @@ const mountAtSettings = () => {
 
 beforeEach(() => {
   answered = null;
+  settledCalls = 0;
   vi.stubGlobal("WebSocket", InertSocket);
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  observeRpcStatus(200);
 });
+
+// what the server's http gate answers a page whose credential it no longer accepts, and an ordinary answer.
+const serverAnswering = (status: 200 | 401) =>
+  vi.fn(async () =>
+    status === 401
+      ? new Response("This request carried no valid inteligir device token", { status })
+      : Response.json({ json: {}, meta: [] }, { status }),
+  );
+
+// sonner paints a published toast on a later task, so an absent one is only absent after a wait.
+const TOAST_PAINT_MS = 100;
 
 describe("the window-level hosts", () => {
   it("open the confirm dialog from a non-index route, and settle its promise", async () => {
@@ -89,6 +125,30 @@ describe("the window-level hosts", () => {
   it("paint a toast on a non-index route", async () => {
     mountAtSettings();
     fireEvent.click(await screen.findByText("Refuse"));
+    expect(await screen.findByText(REFUSAL)).toBeDefined();
+  });
+
+  it("show one signed-out notice in place of a toast per refused call, until the server answers", async () => {
+    vi.stubGlobal("fetch", serverAnswering(401));
+    mountAtSettings();
+    const call = await screen.findByText("Call");
+    fireEvent.click(call);
+    fireEvent.click(call);
+
+    const notice = await screen.findByRole("alertdialog");
+    expect(notice.textContent).toContain("inteligir open");
+    await waitFor(() => {
+      expect(settledCalls).toBe(2);
+    });
+    await delay(TOAST_PAINT_MS);
+    expect(screen.queryByText(CALL_REFUSED)).toBeNull();
+
+    vi.stubGlobal("fetch", serverAnswering(200));
+    fireEvent.click(call);
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    fireEvent.click(screen.getByText("Refuse"));
     expect(await screen.findByText(REFUSAL)).toBeDefined();
   });
 

@@ -2,13 +2,14 @@
 // `knowledge`, swept whole: a link into a note lives in another note's bytes, so no
 // path-scoped invalidation is expressible.
 
-import { createORPCClient, onError } from "@orpc/client";
+import { createORPCClient, onError, onSuccess } from "@orpc/client";
 
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
+import { observeRpcStatus } from "./signed-out-state";
 
 export { isDefinedError, safe } from "@orpc/client";
 
@@ -16,6 +17,13 @@ const isAbort = (cause: unknown): boolean => cause instanceof Error && cause.nam
 
 // no `headers` thunk: the bearer is attached in main under `inteligir://app`, and by the same-origin cookie over plain HTTP.
 const link = new RPCLink({
+  // the raw status, below the codec: a 401 is the http gate's plain-text refusal, which the codec
+  // only sees as a malformed body.
+  fetchInterceptors: [
+    onSuccess((response: Response) => {
+      observeRpcStatus(response.status);
+    }),
+  ],
   interceptors: [
     onError((cause: unknown) => {
       // react-query aborts a fetch when its last observer unmounts; logging that fails the e2e suite's clean-console assertion.
