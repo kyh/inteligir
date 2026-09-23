@@ -21,13 +21,18 @@ export interface LogPlan {
   skipped: readonly string[];
 }
 
-export const planPage = (rows: readonly SyncEventRow[], deviceId: string): LogPlan => {
+// every id the client has signed in as, not only the current one: signing in again mints a new
+// id, and the replayed log still carries the rows written under the old ones.
+export const planPage = (
+  rows: readonly SyncEventRow[],
+  ownDeviceIds: ReadonlySet<string>,
+): LogPlan => {
   const steps: LogPlanStep[] = [];
   const skipped: string[] = [];
   for (const row of rows) {
     const last = steps.at(-1);
-    // this device already holds its own rows; re-appending would double them
-    const mine = row.deviceId === deviceId;
+    // this client already holds its own rows; re-appending would double them
+    const mine = ownDeviceIds.has(row.deviceId);
     const parsed = mine ? null : threadEventSchema.safeParse(row.event);
     if (parsed !== null && !parsed.success) {
       skipped.push(`log row ${row.seq}: not a thread event this build understands`);

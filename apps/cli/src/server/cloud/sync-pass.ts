@@ -42,7 +42,7 @@ export interface SyncedEventSink {
 export interface PassContext {
   sessionId: number;
   client: CloudClient;
-  deviceId: string;
+  ownDeviceIds: ReadonlySet<string>;
 }
 
 export interface SyncPassDeps {
@@ -141,7 +141,6 @@ const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<b
       }
     },
     client: context.client,
-    deviceId: context.deviceId,
     fenced: () => deps.fenced(context),
     onPage: () => {
       deps.setLastError(null);
@@ -149,6 +148,7 @@ const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<b
     onSkipped: (message) => {
       deps.debug(message);
     },
+    ownDeviceIds: context.ownDeviceIds,
     readCursor: () => readSyncState(deps.db).cursor,
     recordFailure: (failure) => deps.recordFailure(failure),
   });

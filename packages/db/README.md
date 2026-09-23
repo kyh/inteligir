@@ -27,7 +27,8 @@ src/
                       # BEGIN IMMEDIATE; closeConnection, which checkpoints the -wal
   schema.ts           # the tables: meta, threads, events, queued_thread_messages,
                       # pending_interactions, sync_outbox, sync_state,
-                      # sync_applied_captures — each constraint says why beside itself
+                      # sync_applied_captures, sync_own_devices — each constraint
+                      # says why beside itself
   migrate.ts          # runMigrations: drizzle's migrator over drizzle/, foreign keys
                       # OFF around it and foreign_key_check after; returns the
                       # migration-folder count, which IS the schema version
@@ -43,7 +44,7 @@ src/
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
-                      # cursor, the applied-capture ledger
+                      # cursor, the applied-capture ledger, the own device ids
   __tests__/          # real files under a temp dir; schema-agreement.test.ts is
                       # the migration↔schema pin, legacy-migrations-table.test.ts
                       # the pre-1.0 __drizzle_migrations upgrade
@@ -111,6 +112,12 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   pushed batch's own high-water, so an enqueue that landed mid-push survives.
   The row the contract refuses is left out of the push but stays inside that
   high-water, in `apps/cli/src/server/cloud/outbox.ts`, which reads this queue.
+- **A sign-out forgets the positions, never the device ids.** `resetSyncState`
+  clears the outbox, both positions and the capture ledger, and keeps
+  `sync_own_devices`: the log still holds rows under every id this install
+  signed in as, and the install holds those events locally with a null
+  origin, which `events_origin_idx` cannot match. A pull skips a row under any
+  of those ids; forgetting one doubles everything written under it.
 - **The lifecycle CAS names the turn.** `applyThreadLifecycleEvent` evaluates
   `@repo/domain`'s transition table, then updates only where status AND
   `active_turn_id` still match, so a settle validated against turn A cannot
