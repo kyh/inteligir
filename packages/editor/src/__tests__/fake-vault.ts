@@ -13,7 +13,6 @@ export class FakeVault implements VaultIO {
   manualWrite = false;
   pendingReads: PromiseWithResolvers<string>[] = [];
   pendingWrites: PromiseWithResolvers<void>[] = [];
-  removeOutcome: DeleteVaultEntryResult = { outcome: "removed" };
   landAs: ((sent: string) => string) | null = null;
 
   read = async (path: string): Promise<string> => {
@@ -53,9 +52,9 @@ export class FakeVault implements VaultIO {
 
   remove = async (path: string): Promise<DeleteVaultEntryResult> => {
     this.removes += 1;
-    if (this.removeOutcome.outcome !== "held") {
-      this.files.delete(path);
-    }
-    return await Promise.resolve(this.removeOutcome);
+    const outcome: DeleteVaultEntryResult = this.files.delete(path)
+      ? { outcome: "removed" }
+      : { outcome: "absent" };
+    return await Promise.resolve(outcome);
   };
 }

@@ -1,13 +1,8 @@
 // Construction is inert: nothing subscribes, schedules or fetches until `start()`,
 // so React 19's double-invoked initializer can build one and discard it.
 
-import { heldDeletionMessage, vaultChangeTouches } from "@repo/editor/host-io";
-import type {
-  DeleteVaultEntryResult,
-  VaultActions,
-  VaultChangedEvent,
-  VaultEntry,
-} from "@repo/editor/host-io";
+import { vaultChangeTouches } from "@repo/editor/host-io";
+import type { VaultActions, VaultChangedEvent, VaultEntry } from "@repo/editor/host-io";
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import type { NoteRuntime } from "@repo/editor/note/note-runtime";
@@ -16,28 +11,22 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
 export interface WorkspaceBoot {
-  readonly root: string;
   readonly entries: VaultEntry[];
   readonly openNote: { readonly path: string; readonly content: string } | null;
 }
 
 export type RenameResult = { ok: true } | { ok: false; error: string };
 
-export type NoticeLevel = "error" | "warning";
-
 export interface VaultSessionPorts {
   boot: () => Promise<WorkspaceBoot>;
   list: () => Promise<VaultEntry[]>;
-  refresh: () => Promise<void>;
   exists: (path: string) => Promise<boolean>;
   rename: (from: string, to: string) => Promise<RenameResult>;
   note: VaultIO;
   publishListing: (entries: VaultEntry[]) => void;
-  publishRoot: (root: string) => void;
   publishOpenPath: (path: string | null, change: OpenPathChange) => void;
   publishEditor: (state: VaultEditorState) => void;
-  showEditor: () => void;
-  notify: (level: NoticeLevel, message: string) => void;
+  notify: (message: string) => void;
 }
 
 export interface VaultSession {
@@ -64,21 +53,8 @@ const validNotePath = (
   return { ok: true, path: dir === "" ? verdict.name : `${dir}/${verdict.name}` };
 };
 
-const movesTheListing = (event: VaultChangedEvent, entries: readonly VaultEntry[]): boolean => {
-  const { changed } = event;
-  if (changed === null) {
-    return true;
-  }
-  if (changed.removed.length > 0) {
-    return true;
-  }
-  const known = new Set(entries.map((entry) => entry.path));
-  return changed.upserted.some((path) => !known.has(path));
-};
-
 export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
   let running = false;
-  let root = "";
   let entries: VaultEntry[] = [];
   let openPath: string | null = null;
   let runtime: NoteRuntime | null = null;
@@ -115,7 +91,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     if (runtime?.path === path) {
       return runtime;
     }
-    const created = createNoteRuntime(path, root, ports.note, { onVanished: dropNote }, initial);
+    const created = createNoteRuntime(path, ports.note, { onVanished: dropNote }, initial);
     runtime = created;
     // subscribe before the first publish so no emission slips between snapshot and subscription.
     const publish = (): void => {
@@ -136,12 +112,11 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
 
   const openFile = (path: string): void => {
     void (async () => {
-      ports.showEditor();
       if (openPath === path) {
         return;
       }
       if (!(await flush())) {
-        ports.notify("error", "Couldn't save the current file — resolve that before switching.");
+        ports.notify("Couldn't save the current file — resolve that before switching.");
         return;
       }
       disposeRuntime();
@@ -203,7 +178,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     }
     const verdict = validNotePath(withDefaultExtension(trimmed));
     if (!verdict.ok) {
-      ports.notify("error", verdict.message);
+      ports.notify(verdict.message);
       return null;
     }
     const { path } = verdict;
@@ -217,7 +192,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
       .then(() => true)
       .catch(() => false);
     if (!created) {
-      ports.notify("error", `Couldn't create ${path}.`);
+      ports.notify(`Couldn't create ${path}.`);
       return null;
     }
     refreshList();
@@ -239,7 +214,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     const wasOpen = openPath === from;
     // flush first so an in-flight write of `from` can't recreate it post-move.
     if (wasOpen && !(await flush())) {
-      ports.notify("error", "Couldn't save the file — resolve that before renaming.");
+      ports.notify("Couldn't save the file — resolve that before renaming.");
       return false;
     }
     // dispose before the call: the rename's own broadcast otherwise reaches a controller still
@@ -249,7 +224,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     }
     const result = await ports.rename(from, dest).catch(() => null);
     if (result === null || !result.ok) {
-      ports.notify("error", result?.ok === false ? result.error : "Couldn't rename the file.");
+      ports.notify(result?.ok === false ? result.error : "Couldn't rename the file.");
       // the file never moved: re-attach a controller to the still-open note.
       if (wasOpen && openPath === from) {
         ensureRuntime(from);
@@ -264,55 +239,26 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return true;
   };
 
-  // a held delete is neither failure nor success: the file is still there on purpose.
-  const reportDeletion = (path: string, outcome: DeleteVaultEntryResult | null): void => {
-    if (outcome === null) {
-      ports.notify("error", `Couldn't delete ${path}.`);
-    } else if (outcome.outcome === "held") {
-      ports.notify("warning", heldDeletionMessage(outcome.held));
-    }
-  };
-
   const deleteEntry = async (path: string): Promise<void> => {
     const open = runtime?.path === path ? runtime : null;
-    // a held delete leaves the note open over the file that is still there.
+    // null is a delete that threw: the file's fate is unknown, so the note stays open over it.
     const outcome =
       open === null ? await ports.note.remove(path).catch(() => null) : await open.remove();
-    if (open !== null && outcome !== null && outcome.outcome !== "held") {
+    if (outcome === null) {
+      ports.notify(`Couldn't delete ${path}.`);
+    } else if (open !== null) {
       dropNote(path);
     }
-    reportDeletion(path, outcome);
     refreshList();
   };
 
-  const refreshVault = (): void => {
-    void (async () => {
-      try {
-        await ports.refresh();
-      } catch {
-        /* empty */
-      }
-    })();
-  };
-
   const handleVaultChanged = (event: VaultChangedEvent): void => {
-    const nextRoot = event.root;
-    const switched = root !== "" && nextRoot !== root;
-    root = nextRoot;
-    ports.publishRoot(nextRoot);
-    if (switched) {
-      // the open note's path belongs to the vault that just went away.
-      disposeRuntime();
-      applyOpenPath(null);
-      refreshList();
-      return;
-    }
-    runtime?.controller.setRoot(nextRoot);
     if (openPath !== null && vaultChangeTouches(event, openPath)) {
-      runtime?.controller.externalChange(nextRoot);
+      runtime?.controller.externalChange();
     }
-    // a content-only write moves no row; re-listing would cost a round trip per autosave.
-    if (movesTheListing(event, entries)) {
+    // a content write moves no row, so an autosave costs no walk; a files event always re-lists,
+    // since a path it names may have left the vault as easily as joined it.
+    if (event.kind === "files") {
       refreshList();
     }
   };
@@ -325,7 +271,6 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
       editNote,
       flush,
       openFile,
-      refreshVault,
       registerNoteSerializeFlush,
       renameEntry,
     },
@@ -339,9 +284,6 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
         if (!running) {
           return;
         }
-        ({ root } = boot);
-        ports.publishRoot(boot.root);
-        runtime?.controller.setRoot(boot.root);
         ({ entries } = boot);
         ports.publishListing(boot.entries);
         // a click or deep link can beat the boot; never open over a note already open.

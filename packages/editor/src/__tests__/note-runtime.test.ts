@@ -26,7 +26,7 @@ describe("createNoteRuntime", () => {
   it("debounces autosave: rapid edits coalesce into one write with the final bytes", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     runtime.edit("v1");
@@ -43,7 +43,7 @@ describe("createNoteRuntime", () => {
   it("edit with identical bytes is a no-op: not dirty, no scheduled write", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "same");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     runtime.edit("same");
@@ -57,7 +57,7 @@ describe("createNoteRuntime", () => {
   it("flush() mid-debounce writes immediately, clears the timer, and no second write fires", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     runtime.edit("v1");
@@ -77,7 +77,7 @@ describe("createNoteRuntime", () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
     const vanished: string[] = [];
-    const runtime = createNoteRuntime("a.md", "root", io, {
+    const runtime = createNoteRuntime("a.md", io, {
       onVanished: (p) => {
         vanished.push(p);
       },
@@ -87,7 +87,7 @@ describe("createNoteRuntime", () => {
     expect(vanished).toEqual([]);
 
     io.files.delete("a.md");
-    runtime.controller.externalChange("root");
+    runtime.controller.externalChange();
     await settle();
     expect(vanished).toEqual(["a.md"]);
   });
@@ -96,7 +96,7 @@ describe("createNoteRuntime", () => {
     const io = new FakeVault();
     io.hangReads = true;
     const vanished: string[] = [];
-    const runtime = createNoteRuntime("a.md", "root", io, {
+    const runtime = createNoteRuntime("a.md", io, {
       onVanished: (p) => {
         vanished.push(p);
       },
@@ -104,7 +104,7 @@ describe("createNoteRuntime", () => {
     await settle();
     expect(runtime.controller.getState().path).toBe(null);
 
-    runtime.controller.externalChange("other-root");
+    runtime.controller.externalChange();
     await settle();
     expect(vanished).toEqual([]);
   });
@@ -112,7 +112,7 @@ describe("createNoteRuntime", () => {
   it("dispose() clears a pending debounce timer — no write lands afterward", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     runtime.edit("v1");
@@ -128,7 +128,7 @@ describe("createNoteRuntime", () => {
   it("registerPreFlush: the hook runs at the top of flush(), and bytes it drains in land in the write", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     runtime.registerPreFlush(() => {
@@ -144,7 +144,7 @@ describe("createNoteRuntime", () => {
   it("registerPreFlush: the hook runs before remove()", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     const order: string[] = [];
@@ -164,20 +164,20 @@ describe("createNoteRuntime", () => {
   it("registerPreFlush: the controller drains it before taking bytes from disk, until dispose", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     let runs = 0;
     runtime.registerPreFlush(() => {
       runs += 1;
     });
-    runtime.controller.externalChange("root");
+    runtime.controller.externalChange();
     await settle();
     const drained = runs;
     expect(drained).toBeGreaterThan(0);
 
     runtime.dispose();
-    runtime.controller.externalChange("root");
+    runtime.controller.externalChange();
     await settle();
     expect(runs).toBe(drained);
   });
@@ -185,7 +185,7 @@ describe("createNoteRuntime", () => {
   it("registerPreFlush: last registration wins, and null clears it", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     let firstRuns = 0;
@@ -208,7 +208,7 @@ describe("createNoteRuntime", () => {
   it("remove() deletes the file and clears a pending debounce timer", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
-    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    const runtime = createNoteRuntime("a.md", io, { onVanished: () => {} });
     await settle();
 
     runtime.edit("v1");
@@ -221,26 +221,5 @@ describe("createNoteRuntime", () => {
 
     await runDebounce();
     expect(io.writes).toBe(0);
-  });
-
-  it("hands a held delete back to the caller instead of closing the note", async () => {
-    const io = new FakeVault();
-    io.files.set("a.md", "v0");
-    io.removeOutcome = {
-      held: { deletions: 40, limit: 25, liveCount: 100, sample: ["a.md"], windowMs: 600_000 },
-      outcome: "held",
-    };
-    const vanished: string[] = [];
-    const runtime = createNoteRuntime("a.md", "root", io, {
-      onVanished: (path) => {
-        vanished.push(path);
-      },
-    });
-    await settle();
-
-    expect(await runtime.remove()).toMatchObject({ outcome: "held" });
-    await settle();
-    expect(vanished).toEqual([]);
-    expect(runtime.controller.getState().path).toBe("a.md");
   });
 });

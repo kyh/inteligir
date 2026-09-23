@@ -3,6 +3,8 @@
 
 import { useCallback } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
+import type { RenameResult } from "@repo/editor/note/vault-session";
 import { toast } from "@repo/ui/components/sonner";
 import { freeDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
@@ -14,6 +16,12 @@ import type {
 import { orpc, refusalMessage } from "./api";
 
 export const useVaultTree = () => useQuery(orpc.vault.tree.queryOptions());
+
+// The note session's read of the query the rail observes, so one change costs one walk: it joins
+// a refetch already in flight, and otherwise walks afresh, because the session re-lists right
+// after its own create, rename or delete, before the frame that invalidates the tree arrives.
+export const readVaultTree = async (queryClient: QueryClient): Promise<VaultTreeResponse> =>
+  await queryClient.query({ ...orpc.vault.tree.queryOptions(), staleTime: 0 });
 
 export const useWikiTargets = () => useQuery(orpc.knowledge.wikiTargets.queryOptions());
 
@@ -230,8 +238,6 @@ export const useSyncNow = (): SyncNowHandle => {
   return { inFlight, syncNow };
 };
 
-export type RenameOutcome = { ok: true } | { ok: false; message: string };
-
 export interface RenameVaultApi {
   vault: {
     rename: (input: { from: string; to: string }) => Promise<{ path: string; rewritten: string[] }>;
@@ -242,15 +248,12 @@ export const renameVaultEntry = async (
   api: RenameVaultApi,
   from: string,
   to: string,
-): Promise<RenameOutcome> => {
+): Promise<RenameResult> => {
   try {
     await api.vault.rename({ from, to });
     return { ok: true };
   } catch (error) {
-    return {
-      message: refusalMessage(error, `Could not rename ${from}.`),
-      ok: false,
-    };
+    return { error: refusalMessage(error, `Could not rename ${from}.`), ok: false };
   }
 };
 

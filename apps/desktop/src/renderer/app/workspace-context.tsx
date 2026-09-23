@@ -2,6 +2,7 @@ import { partialMatchKey, QueryClient, QueryClientProvider } from "@tanstack/rea
 import type { QueryKey } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
+import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { COMMENTS_STORE_DIR } from "@repo/notes/comments/sidecar-schema";
 import { ThemeProvider, useTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
@@ -17,11 +18,10 @@ import { socketOrigin } from "./socket-origin";
 import { browserInvalidationSocket, InvalidationClient } from "./invalidation-client";
 import { readTheme, writeTheme } from "./prefs";
 
-// null: an unnamed vault change — the watcher could not attribute a path.
-type DocListener = (docId: string | null) => void;
+type VaultChangeListener = (event: VaultChangedEvent) => void;
 
-interface DocEvents {
-  subscribe: (listener: DocListener) => () => void;
+interface VaultChanges {
+  subscribe: (listener: VaultChangeListener) => () => void;
 }
 
 // An undefined `id` is a synthetic sweep: any thread may have changed.
@@ -33,7 +33,7 @@ interface ThreadEvents {
 
 export interface WorkspaceRuntime {
   api: typeof client;
-  docEvents: DocEvents;
+  vaultChanges: VaultChanges;
   threadEvents: ThreadEvents;
 }
 
@@ -148,7 +148,27 @@ export class ChangeBatch {
     }
   }
 
-  apply(queryClient: QueryClient, notifyDoc: DocListener, notifyThread: ThreadListener): void {
+  // One files event however many paths moved, so the note session re-lists once per flush; a doc
+  // whose content changed in the same flush rides it, so the open note reloads once.
+  private vaultChangedEvents(): VaultChangedEvent[] {
+    if (!this.vaultKinds.has("files-changed")) {
+      return [...this.contentChanged.keys()].map((path): VaultChangedEvent => ({
+        kind: "content",
+        path,
+      }));
+    }
+    const paths =
+      this.movedPaths === null
+        ? null
+        : [...new Set([...this.movedPaths, ...this.contentChanged.keys()])];
+    return [{ kind: "files", paths }];
+  }
+
+  apply(
+    queryClient: QueryClient,
+    emitVaultChange: VaultChangeListener,
+    notifyThread: ThreadListener,
+  ): void {
     if (this.vaultKinds.has("files-changed")) {
       void queryClient.invalidateQueries({ queryKey: orpc.vault.tree.key() });
       void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
@@ -178,12 +198,8 @@ export class ChangeBatch {
         touchModified(tree, this.contentChanged),
       );
     }
-    if (this.movedPaths === null) {
-      notifyDoc(null);
-    } else {
-      for (const path of new Set([...this.movedPaths, ...this.contentChanged.keys()])) {
-        notifyDoc(path);
-      }
+    for (const event of this.vaultChangedEvents()) {
+      emitVaultChange(event);
     }
 
     if ([...this.threads.values()].some((kinds) => movesAny(MOVES_THE_LIST, kinds))) {
@@ -217,6 +233,8 @@ const BUS_SWEPT_FAMILIES: readonly QueryKey[] = [
   orpc.threads.key(),
 ];
 
+const EVERY_FILE: VaultChangedEvent = { kind: "files", paths: null };
+
 // The whole vocabulary, not a list: a list claims which kinds a gap can hide.
 const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
   changes: THREAD_CHANGE_KINDS,
@@ -227,13 +245,13 @@ const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
 // System status is swept too: a dropped socket most likely means the server restarted.
 export const sweepAfterReconnect = (
   queryClient: QueryClient,
-  notifyDoc: DocListener,
+  emitVaultChange: VaultChangeListener,
   notifyThread: ThreadListener,
 ): void => {
   for (const queryKey of [...BUS_SWEPT_FAMILIES, orpc.system.status.key()]) {
     void queryClient.invalidateQueries({ queryKey });
   }
-  notifyDoc(null);
+  emitVaultChange(EVERY_FILE);
   notifyThread(THREAD_RECONNECT_SWEEP);
 };
 
@@ -261,17 +279,17 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [runtime] = useState(() => {
     const queryClient = createWorkspaceQueryClient();
-    const docListeners = new Set<DocListener>();
-    const notifyDoc = (docId: string | null): void => {
-      for (const listener of docListeners) {
-        listener(docId);
+    const vaultChangeListeners = new Set<VaultChangeListener>();
+    const emitVaultChange: VaultChangeListener = (event) => {
+      for (const listener of vaultChangeListeners) {
+        listener(event);
       }
     };
-    const docEvents: DocEvents = {
+    const vaultChanges: VaultChanges = {
       subscribe(listener) {
-        docListeners.add(listener);
+        vaultChangeListeners.add(listener);
         return () => {
-          docListeners.delete(listener);
+          vaultChangeListeners.delete(listener);
         };
       },
     };
@@ -291,10 +309,10 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
     };
     const contextValue: WorkspaceRuntime = {
       api: client,
-      docEvents,
       threadEvents,
+      vaultChanges,
     };
-    return { contextValue, notifyDoc, notifyThread, queryClient };
+    return { contextValue, emitVaultChange, notifyThread, queryClient };
   });
 
   // Constructed inside the effect: dispose() is permanent, so a client held in
@@ -308,7 +326,7 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
       frame = null;
       const due = batch;
       batch = null;
-      due?.apply(runtime.queryClient, runtime.notifyDoc, runtime.notifyThread);
+      due?.apply(runtime.queryClient, runtime.emitVaultChange, runtime.notifyThread);
     };
     const invalidation = new InvalidationClient({
       createSocket: () => browserInvalidationSocket(workspaceSocketUrl(socketOrigin())),
@@ -320,7 +338,7 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
         batch.add(message);
       },
       onReconnected: () => {
-        sweepAfterReconnect(runtime.queryClient, runtime.notifyDoc, runtime.notifyThread);
+        sweepAfterReconnect(runtime.queryClient, runtime.emitVaultChange, runtime.notifyThread);
       },
     });
     invalidation.start();

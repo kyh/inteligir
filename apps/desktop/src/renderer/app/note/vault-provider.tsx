@@ -1,13 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { setEditorHostIo } from "@repo/editor/host-io";
-import type {
-  EditorHostIo,
-  VaultActions,
-  VaultChangedEvent,
-  VaultEntry,
-  WikiResolver,
-} from "@repo/editor/host-io";
-import { createDebouncer } from "@repo/editor/lib/debounce";
-import { useWikiTargets } from "../vault-hooks";
+import type { EditorHostIo, VaultActions, VaultEntry, WikiResolver } from "@repo/editor/host-io";
+import { readVaultTree, renameVaultEntry, useWikiTargets } from "../vault-hooks";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
@@ -29,13 +24,11 @@ import type { ReactNode, RefObject } from "react";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
-import { refusalMessage, safe } from "../api";
+import { safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
 import { useWorkspace } from "../workspace-context";
 import type { WorkspaceRuntime } from "../workspace-context";
 import { createGuardedVaultIo } from "./guarded-vault-io";
-
-const FOCUS_REFRESH_DEBOUNCE_MS = 400;
 
 const noOpenPathMirror = (): void => {
   /* empty */
@@ -77,7 +70,6 @@ export interface VaultProviderProps {
 interface VaultPort {
   readonly session: VaultSession;
   readonly wikiResolver: StoreApi<WikiResolver>;
-  root: () => string;
   entries: () => readonly VaultEntry[];
   wikiTargets: () => WikiTargets;
   setWikiTargets: (next: WikiTargets) => void;
@@ -87,11 +79,11 @@ interface VaultPort {
 interface VaultPortInputs {
   api: Api;
   bootPath: string | null;
+  queryClient: QueryClient;
   store: OpenNoteStore;
 }
 
-const createVaultPort = ({ api, bootPath, store }: VaultPortInputs): VaultPort => {
-  let root = "";
+const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs): VaultPort => {
   let entries: readonly VaultEntry[] = [];
   let wikiTargets: WikiTargets = [];
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
@@ -113,8 +105,7 @@ const createVaultPort = ({ api, bootPath, store }: VaultPortInputs): VaultPort =
   const io = createGuardedVaultIo(api);
   const session = createVaultSession({
     boot: async (): Promise<WorkspaceBoot> => {
-      const tree = await api.vault.tree();
-      const flat = listingEntries(tree);
+      const flat = listingEntries(await readVaultTree(queryClient));
       const known = (path: string | null): path is string =>
         path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
       // Welcome.md ahead of listing order, which lands on "Getting Started" first.
@@ -129,7 +120,7 @@ const createVaultPort = ({ api, bootPath, store }: VaultPortInputs): VaultPort =
           openNote = { content, path: target };
         }
       }
-      return { entries: flat, openNote, root: tree.root };
+      return { entries: flat, openNote };
     },
     // Any refusal reads as absent: the caller's next step is a write, which
     // reports its own failure.
@@ -137,14 +128,10 @@ const createVaultPort = ({ api, bootPath, store }: VaultPortInputs): VaultPort =
       const { error } = await safe(api.vault.read({ path }));
       return error === null;
     },
-    list: async () => listingEntries(await api.vault.tree()),
+    list: async () => listingEntries(await readVaultTree(queryClient)),
     note: io,
-    notify: (level, message) => {
-      if (level === "error") {
-        toast.error(message);
-      } else {
-        toast.warning(message);
-      }
+    notify: (message) => {
+      toast.error(message);
     },
     publishEditor: store.publishEditor,
     publishListing: (next) => {
@@ -156,29 +143,11 @@ const createVaultPort = ({ api, bootPath, store }: VaultPortInputs): VaultPort =
       writeLastOpenNote(path);
       mirrorOpenPath(path);
     },
-    publishRoot: (next) => {
-      root = next;
-    },
-    // A refresh is a re-list; there is no host re-announce.
-    // oxlint-disable-next-line no-empty-function -- the port must answer; there is nothing to do
-    refresh: async () => {},
-    rename: async (from, to) => {
-      try {
-        await api.vault.rename({ from, to });
-        return { ok: true };
-      } catch (error) {
-        return { error: refusalMessage(error, `Could not rename ${from}.`), ok: false };
-      }
-    },
-    // The editor column is always up in this shell.
-    showEditor: () => {
-      /* empty */
-    },
+    rename: async (from, to) => await renameVaultEntry(api, from, to),
   });
 
   return {
     entries: () => entries,
-    root: () => root,
     session,
     setOnOpenPath: (next) => {
       mirrorOpenPath = next;
@@ -202,7 +171,8 @@ export const VaultProvider = ({
   // Captured once: a later navigation must not re-run the boot preference.
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [bootPath] = useState(initialPath);
-  const { api, docEvents } = useWorkspace();
+  const { api, vaultChanges } = useWorkspace();
+  const queryClient = useQueryClient();
 
   const formulaScanRef = useRef<Promise<
     Map<string, { path: string; formulas: CollectedFormula[] }>
@@ -215,8 +185,8 @@ export const VaultProvider = ({
   );
 
   const port = useMemo<VaultPort>(
-    () => createVaultPort({ api, bootPath, store }),
-    [api, bootPath, store],
+    () => createVaultPort({ api, bootPath, queryClient, store }),
+    [api, bootPath, queryClient, store],
   );
   const { session } = port;
 
@@ -254,8 +224,6 @@ export const VaultProvider = ({
           return row;
         });
       },
-      // Nothing mounted asks for outgoing links; they are on screen in the document.
-      getForwardLinks: () => Promise.resolve([]),
       listWikiTargets: () =>
         Promise.resolve(
           // exactOptionalPropertyTypes: drop the explicit-undefined members.
@@ -264,18 +232,7 @@ export const VaultProvider = ({
             return pinned === undefined ? withAliases : Object.assign(withAliases, { pinned });
           }),
         ),
-      onKnowledgeUpdated: (listener) =>
-        docEvents.subscribe(() => {
-          listener();
-        }),
-      onVaultChanged: (listener) =>
-        docEvents.subscribe((docId) => {
-          const event: VaultChangedEvent = {
-            changed: docId === null ? null : { removed: [], upserted: [docId] },
-            root: port.root(),
-          };
-          listener(event);
-        }),
+      onVaultChanged: (listener) => vaultChanges.subscribe(listener),
       readNoteFormulas: async ({ noteId }) => {
         let scan = formulaScanRef.current;
         if (scan === null) {
@@ -321,7 +278,7 @@ export const VaultProvider = ({
       },
     };
     setEditorHostIo(io);
-  }, [api, docEvents, port, session, store]);
+  }, [api, vaultChanges, port, session, store]);
 
   useEffect(() => {
     void session.start();
@@ -332,31 +289,12 @@ export const VaultProvider = ({
 
   useEffect(
     () =>
-      docEvents.subscribe((docId) => {
+      vaultChanges.subscribe((event) => {
         formulaScanRef.current = null;
-        session.handleVaultChanged({
-          changed: docId === null ? null : { removed: [], upserted: [docId] },
-          root: port.root(),
-        });
+        session.handleVaultChanged(event);
       }),
-    [docEvents, port, session],
+    [vaultChanges, session],
   );
-
-  // A socket that dropped while the agent wrote comes back to a listing
-  // nobody re-announced.
-  useEffect(() => {
-    const refresh = createDebouncer(() => {
-      session.handleVaultChanged({ changed: null, root: port.root() });
-    }, FOCUS_REFRESH_DEBOUNCE_MS);
-    const onFocus = (): void => {
-      refresh.schedule();
-    };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      refresh.cancel();
-    };
-  }, [port, session]);
 
   // No unload/pagehide flush: a `keepalive` write is best-effort, and a tab
   // closed mid-debounce losing that window is the accepted trade.
