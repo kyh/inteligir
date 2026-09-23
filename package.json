@@ -28,9 +28,9 @@
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
     "knip": "^6.37.0",
-    "oxfmt": "^0.68.0",
-    "oxlint": "^1.83.0",
-    "turbo": "^2.11.1",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
+    "turbo": "^2.11.2",
     "typescript": "catalog:",
     "ultracite": "^7.12.0"
   },

@@ -412,16 +412,16 @@ describe("sync", { timeout: 30_000 }, () => {
   });
 });
 
-describe("runGit", () => {
-  const gitEnvValue = async (root: string, name: string): Promise<string> => {
-    const { stdout } = await runGit(
-      root,
-      ["-c", `alias.dumpenv=!printenv ${name} || true`, "dumpenv"],
-      { env },
-    );
-    return stdout.trim();
-  };
+const gitEnvValue = async (root: string, name: string): Promise<string> => {
+  const { stdout } = await runGit(
+    root,
+    ["-c", `alias.dumpenv=!printenv ${name} || true`, "dumpenv"],
+    { env },
+  );
+  return stdout.trim();
+};
 
+describe("runGit", () => {
   it("never lets git ask this process a question", async () => {
     // a git prompt blocks under the repo lock, stalling every vault write until the timeout.
     const root = scratchDir("inteligir-git-env-");

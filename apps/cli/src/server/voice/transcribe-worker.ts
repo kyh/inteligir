@@ -166,12 +166,13 @@ const runOneShot = async (request: VoiceWorkerRequest): Promise<VoiceWorkerRespo
   }
 };
 
+const emit = (event: VoiceStreamEvent): void => {
+  post(event);
+};
+
 // the native calls are synchronous and the handler never awaits after the load, so commands
 // cannot overlap.
 const runStream = async (model: VoiceModelFiles): Promise<void> => {
-  const emit = (event: VoiceStreamEvent): void => {
-    post(event);
-  };
   let recognizer: SherpaRecognizer;
   let stream: SherpaStream;
   try {

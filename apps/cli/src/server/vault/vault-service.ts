@@ -174,6 +174,14 @@ const readOrNotFound = async <T>(relPath: string, read: () => Promise<T>): Promi
   }
 };
 
+const lstatRefusingSymlink = async (absPath: string, relPath: string) => {
+  const stats = await lstat(absPath).catch(() => null);
+  if (stats?.isSymbolicLink() === true) {
+    throw symlinkRefusal(relPath);
+  }
+  return stats;
+};
+
 export const createVaultService = (args: VaultServiceArgs): VaultService => {
   // realpath, not resolve: the root may be spelled through a symlink (macos /var → /private/var).
   const rootReal = realpathSync(path.resolve(args.root));
@@ -190,14 +198,6 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     if (!pathContains(rootReal, real)) {
       throw new VaultPathError("path escapes the vault root through a symlinked folder");
     }
-  };
-
-  const lstatRefusingSymlink = async (absPath: string, relPath: string) => {
-    const stats = await lstat(absPath).catch(() => null);
-    if (stats?.isSymbolicLink() === true) {
-      throw symlinkRefusal(relPath);
-    }
-    return stats;
   };
 
   // files-changed makes every client re-walk the vault, so only a mutation that moved a row says it.

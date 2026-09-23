@@ -120,6 +120,9 @@ const keyOf = (notePath: string, id: string): string => {
   return id;
 };
 
+const answer = (notePath: string, note: NoteRead, sidecar: CommentSidecar): CommentsResponse =>
+  toResponse(notePath, foldThreads(sidecar, markerRootIds(note.content)));
+
 export const createCommentsService = (vault: VaultService, now: CommentsClock): CommentsService => {
   const readNote = async (notePath: string): Promise<NoteRead> => {
     const { content } = await vault.read(notePath);
@@ -234,9 +237,6 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
 
   const open = async (notePath: string): Promise<NoteRead> =>
     await foldLegacy(notePath, await readNote(notePath));
-
-  const answer = (notePath: string, note: NoteRead, sidecar: CommentSidecar): CommentsResponse =>
-    toResponse(notePath, foldThreads(sidecar, markerRootIds(note.content)));
 
   // reply, resolve and remove act on a thread that exists, so a note with no id has none of them
   const keyOfOpen = async (notePath: string): Promise<{ note: NoteRead; key: string }> => {

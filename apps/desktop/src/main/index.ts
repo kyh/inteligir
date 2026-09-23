@@ -226,6 +226,17 @@ const prepareWindowSession = (target: ServerTarget, server: LiveServer): void =>
   });
 };
 
+const guardNavigation = (event: Electron.Event, url: string): void => {
+  const verdict = classifyNavigation(url, APP_ORIGIN);
+  if (verdict === "allow") {
+    return;
+  }
+  event.preventDefault();
+  if (verdict === "block-and-open-external") {
+    openExternalFromPage(url);
+  }
+};
+
 const createWindow = (target: ServerTarget): BrowserWindow => {
   const partition = sessionPartition(target.dataDir);
   const window = new BrowserWindow({
@@ -253,16 +264,6 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
     return { action: "deny" };
   });
 
-  const guardNavigation = (event: Electron.Event, url: string): void => {
-    const verdict = classifyNavigation(url, APP_ORIGIN);
-    if (verdict === "allow") {
-      return;
-    }
-    event.preventDefault();
-    if (verdict === "block-and-open-external") {
-      openExternalFromPage(url);
-    }
-  };
   window.webContents.on("will-navigate", guardNavigation);
   window.webContents.on("will-redirect", guardNavigation);
 
@@ -335,21 +336,22 @@ const handleFromMainWindow = <TFrame, TAnswer>(
 // a channel carrying no frame
 const noFrame = z.undefined();
 
+const resolveRequestedEntry = (request: PathActionRequest) =>
+  resolveVaultEntry({
+    path: request.path,
+    realpath: realpathSync,
+    vaultDir: requireTarget().vaultDir,
+  });
+
 // the page names an entry vault-relative; main resolves it against the vault of the moment
 // and hands the OS nothing the vault does not physically contain. registered once per
 // launch: a second `handle` on a channel throws, so the handlers read the current vault
 const configurePathActionsIpc = (): void => {
-  const resolve = (request: PathActionRequest) =>
-    resolveVaultEntry({
-      path: request.path,
-      realpath: realpathSync,
-      vaultDir: requireTarget().vaultDir,
-    });
   handleFromMainWindow(
     IPC_CHANNELS.REVEAL_PATH,
     pathActionRequestSchema,
     (frame): PathActionResult => {
-      const verdict = resolve(frame);
+      const verdict = resolveRequestedEntry(frame);
       if (!verdict.ok) {
         return verdict;
       }
@@ -361,7 +363,7 @@ const configurePathActionsIpc = (): void => {
     IPC_CHANNELS.OPEN_PATH,
     pathActionRequestSchema,
     async (frame): Promise<PathActionResult> => {
-      const verdict = resolve(frame);
+      const verdict = resolveRequestedEntry(frame);
       if (!verdict.ok) {
         return verdict;
       }

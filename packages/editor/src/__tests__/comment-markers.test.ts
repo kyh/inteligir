@@ -54,18 +54,18 @@ describe("comment markers", () => {
   });
 });
 
-describe("comment range pairing", () => {
-  const scanFirstBlock = (md: string) => {
-    const editor = editorWith(md);
-    const [block] = editor.children;
-    if (block === undefined || !("children" in block)) {
-      throw new Error("no block");
-    }
-    const element: TElement = block;
-    expect(holdsCommentMarkers(element)).toBe(true);
-    return scanBlockComments(editor, [element, [0]]);
-  };
+const scanFirstBlock = (md: string) => {
+  const editor = editorWith(md);
+  const [block] = editor.children;
+  if (block === undefined || !("children" in block)) {
+    throw new Error("no block");
+  }
+  const element: TElement = block;
+  expect(holdsCommentMarkers(element)).toBe(true);
+  return scanBlockComments(editor, [element, [0]]);
+};
 
+describe("comment range pairing", () => {
   it("pairs a range and reads its ids", () => {
     const scan = scanFirstBlock("x %%i:c1:start%%mid%%i:c1:end%% y\n");
     expect(scan.unpairedIds).toEqual([]);

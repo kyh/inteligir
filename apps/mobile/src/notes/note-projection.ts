@@ -170,17 +170,6 @@ const projectParsed = (source: string, root: Root): NoteBlock[] => {
     return spans;
   };
 
-  // a callout body is its own document; the parse is re-entered, not the projection
-  const projectNested = (body: string): NoteBlock[] => {
-    const parsed = parseMdast(body);
-    if (!parsed.ok) {
-      return [{ kind: "raw", text: body }];
-    }
-    // the parser positioned nodes against the pipe-escaped text, so raw slices must cut the same
-    // bytes.
-    return projectParsed(escapePillPipesInTables(body), parsed.root);
-  };
-
   const projectParagraph = (node: Paragraph, blocks: NoteBlock[]): void => {
     const spans = flattenInline(node.children);
     // a paragraph that is only embeds promotes to image blocks: an image inside a Text run
@@ -210,8 +199,14 @@ const projectParsed = (source: string, root: Root): NoteBlock[] => {
     if (isCalloutLang(node.lang)) {
       const payload = parseCalloutPayload(node.value);
       if (payload !== null) {
+        // a callout body is its own document; the parse is re-entered, not the projection
+        const nested = parseMdast(payload.body);
         blocks.push({
-          blocks: projectNested(payload.body),
+          // the parser positioned nodes against the pipe-escaped text, so raw slices must cut
+          // the same bytes.
+          blocks: nested.ok
+            ? projectParsed(escapePillPipesInTables(payload.body), nested.root)
+            : [{ kind: "raw", text: payload.body }],
           kind: "callout",
           label: payload.level === undefined ? payload.kind : `${payload.kind} · ${payload.level}`,
         });

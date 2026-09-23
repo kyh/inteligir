@@ -338,6 +338,14 @@ describe("the notes store over a durable cache", () => {
   });
 });
 
+const signedInStore = async (extra: Record<string, string>) => {
+  const cloud = fakeCloud(extra);
+  const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
+  store.setCredential(restored(CREDENTIAL));
+  await store.refresh();
+  return { cloud, store };
+};
+
 describe("a note's comments on the phone", () => {
   const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
   const NOTE = `---\nid: ${NOTE_ID}\n---\nThe %%i:c1:start%%plan%%i:c1:end%% holds.\n`;
@@ -345,14 +353,6 @@ describe("a note's comments on the phone", () => {
     c1: { createdAt: 1, source: "user", text: "Does it?", updatedAt: 1 },
     "c1-r1": { createdAt: 2, parentId: "c1", source: "agent", text: "It does.", updatedAt: 2 },
   });
-
-  const signedInStore = async (extra: Record<string, string>) => {
-    const cloud = fakeCloud(extra);
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(restored(CREDENTIAL));
-    await store.refresh();
-    return { cloud, store };
-  };
 
   it("folds the store at the note's id against the note's own markers", async () => {
     const { store } = await signedInStore({
