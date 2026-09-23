@@ -133,6 +133,27 @@ const safeDecode = (urlPath: string): string => {
   }
 };
 
+interface MdUrl {
+  /** the path as written, before any `#` */
+  written: string;
+  target: string;
+  anchor: string;
+}
+
+const parseMdUrl = (url: string): MdUrl | null => {
+  if (url === "" || url.startsWith("#") || url.startsWith("//") || SCHEME.test(url)) {
+    return null;
+  }
+  const hash = url.indexOf("#");
+  const written = hash === -1 ? url : url.slice(0, hash);
+  const anchor = hash === -1 ? "" : url.slice(hash + 1);
+  return { anchor, target: safeDecode(written), written };
+};
+
+// the target the scan indexes an md url under, so the editor locates and resolves the link
+// the index reports; null for an external or same-note url
+export const mdLinkTarget = (url: string): string | null => parseMdUrl(url)?.target ?? null;
+
 // character references stay undecoded; such a destination fails verification and is never rewritten
 const decodeMdEscapes = (raw: string): string =>
   raw.replaceAll(/\\(?<escaped>[!-/:-@[-`{-~])/gu, "$<escaped>");
@@ -306,21 +327,16 @@ const mdToLink = (
   dest: Span | null,
   verbatim: readonly VerbatimSpan[],
 ): ExtractedLink | null => {
-  if (url === "" || url.startsWith("#") || url.startsWith("//") || SCHEME.test(url)) {
+  const parsed = parseMdUrl(url);
+  if (parsed === null) {
     return null;
   }
-  const hash = url.indexOf("#");
-  const urlPath = hash === -1 ? url : url.slice(0, hash);
-  const anchor = hash === -1 ? "" : url.slice(hash + 1);
-  if (urlPath === "") {
-    return null;
-  }
-  const target = safeDecode(urlPath);
+  const { anchor, target, written } = parsed;
   let targetSpan: Span | undefined;
   if (dest) {
     const pathSpan = splitRawFragment(source, dest);
     if (
-      decodeMdEscapes(source.slice(pathSpan.start, pathSpan.end)) === urlPath &&
+      decodeMdEscapes(source.slice(pathSpan.start, pathSpan.end)) === written &&
       !insideVerbatim(verbatim, pathSpan.start, pathSpan.end)
     ) {
       targetSpan = pathSpan;

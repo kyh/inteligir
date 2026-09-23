@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { setEditorHostIo } from "@repo/editor/host-io";
-import type { EditorHostIo, VaultActions, VaultEntry, WikiResolver } from "@repo/editor/host-io";
+import type { EditorHostIo, LinkResolver, VaultActions, VaultEntry } from "@repo/editor/host-io";
 import { readVaultTree, renameVaultEntry, useWikiTargets } from "../vault-hooks";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
@@ -34,7 +34,7 @@ const noOpenPathMirror = (): void => {
   /* empty */
 };
 
-const NO_RESOLVER: WikiResolver = { resolveWikiTarget: () => null };
+const NO_RESOLVER: LinkResolver = { resolveMdTarget: () => null, resolveWikiTarget: () => null };
 
 type Api = WorkspaceRuntime["api"];
 type WikiTargets = KnowledgeWikiTargetsResponse["targets"];
@@ -69,7 +69,7 @@ export interface VaultProviderProps {
 // render, and a ref read by a function render calls is a ref read in render.
 interface VaultPort {
   readonly session: VaultSession;
-  readonly wikiResolver: StoreApi<WikiResolver>;
+  readonly linkResolver: StoreApi<LinkResolver>;
   entries: () => readonly VaultEntry[];
   wikiTargets: () => WikiTargets;
   setWikiTargets: (next: WikiTargets) => void;
@@ -87,8 +87,8 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
   let entries: readonly VaultEntry[] = [];
   let wikiTargets: WikiTargets = [];
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
-  const wikiResolver = createStore<WikiResolver>()(() => NO_RESOLVER);
-  // Rebuilt whole from either input: the resolver's identity is what tells a chip to re-render.
+  const linkResolver = createStore<LinkResolver>()(() => NO_RESOLVER);
+  // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
   const rebuildResolver = (): void => {
     const aliasEntries: (readonly [string, string])[] = [];
     for (const target of wikiTargets) {
@@ -100,7 +100,10 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
       entries.map((entry) => entry.path),
       aliasEntries,
     );
-    wikiResolver.setState({ resolveWikiTarget: (target) => resolver.resolveWiki(target) });
+    linkResolver.setState({
+      resolveMdTarget: (target, fromPath) => resolver.resolveMd(target, fromPath),
+      resolveWikiTarget: (target) => resolver.resolveWiki(target),
+    });
   };
   const io = createGuardedVaultIo(api);
   const session = createVaultSession({
@@ -148,6 +151,7 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
 
   return {
     entries: () => entries,
+    linkResolver,
     session,
     setOnOpenPath: (next) => {
       mirrorOpenPath = next;
@@ -156,7 +160,6 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
       wikiTargets = next;
       rebuildResolver();
     },
-    wikiResolver,
     wikiTargets: () => wikiTargets,
   };
 };
@@ -224,6 +227,7 @@ export const VaultProvider = ({
           return row;
         });
       },
+      linkResolver: port.linkResolver,
       listWikiTargets: () =>
         Promise.resolve(
           // exactOptionalPropertyTypes: drop the explicit-undefined members.
@@ -268,7 +272,6 @@ export const VaultProvider = ({
         return { bytes: await response.blob(), ok: true };
       },
       readVaultFile: async ({ path }) => await readFile(api, path),
-      wikiResolver: port.wikiResolver,
       // the choice is read per paste, not cached: the CLI can change it between two pastes.
       writeVaultAsset: async ({ baseName, file }) => {
         const { attachments } = await api.vault.prefs();

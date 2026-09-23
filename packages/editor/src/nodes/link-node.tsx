@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { unwrapLink } from "@platejs/link";
-import { ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
+import { ArrowRightIcon, ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
 import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
@@ -8,6 +8,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
+import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
 import { stringProp } from "@repo/editor/node-props";
 
 const PopoverButton = ({
@@ -40,6 +41,11 @@ export const LinkElement = (props: PlateElementProps) => {
   const [draft, setDraft] = useState("");
 
   const url = stringProp(element, "url") ?? "";
+  // a vault url opens in the app, and one the listing does not hold offers no Open: the
+  // browser has no route to a vault path
+  const linked = useVaultLinkTarget(url);
+  const vaultPath = linked?.path ?? null;
+  const { openFile } = useVaultActions();
 
   const close = () => {
     setOpen(false);
@@ -130,14 +136,27 @@ export const LinkElement = (props: PlateElementProps) => {
               >
                 {url}
               </span>
-              <PopoverButton
-                title="Open link"
-                onClick={() => {
-                  window.open(url, "_blank");
-                }}
-              >
-                <ExternalLinkIcon />
-              </PopoverButton>
+              {linked === null && (
+                <PopoverButton
+                  title="Open link"
+                  onClick={() => {
+                    window.open(url, "_blank");
+                  }}
+                >
+                  <ExternalLinkIcon />
+                </PopoverButton>
+              )}
+              {vaultPath !== null && (
+                <PopoverButton
+                  title="Open link"
+                  onClick={() => {
+                    close();
+                    openFile(vaultPath);
+                  }}
+                >
+                  <ArrowRightIcon />
+                </PopoverButton>
+              )}
               <PopoverButton
                 title="Edit link"
                 onClick={() => {

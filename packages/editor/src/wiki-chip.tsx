@@ -9,7 +9,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/componen
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/cn";
 
-import { useVaultActions, useWikiResolver } from "@repo/editor/host";
+import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { docStem } from "@repo/notes/knowledge/doc-file";
@@ -42,7 +42,7 @@ const PreviewBody = ({ text }: { text: string | null }) => {
 };
 
 const WikiChip = ({ body }: { body: string }) => {
-  const { resolveWikiTarget } = useWikiResolver();
+  const { resolveWikiTarget } = useLinkResolver();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);

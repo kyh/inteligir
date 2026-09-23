@@ -24,7 +24,7 @@ import type { FilterFn } from "@repo/editor/inline-combobox";
 import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 import { composeWikiBody, wikiBodyForPath } from "@repo/editor/wiki-target";
-import { useVaultActions, useWikiResolver } from "@repo/editor/host";
+import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
@@ -47,7 +47,7 @@ const wikiFilter: FilterFn = (item, search) => {
 
 const WikiInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
-  const { resolveWikiTarget } = useWikiResolver();
+  const { resolveWikiTarget } = useLinkResolver();
   const { createFileAt } = useVaultActions();
   const [value, setValue] = useState("");
   const [targets, setTargets] = useState<WikiTarget[]>([]);
