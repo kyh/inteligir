@@ -251,7 +251,7 @@ to the END of its group.
 - [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
 - [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
 - [Desktop workspace surfaces](#desktop-workspace-surfaces) — 6
-- [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
+- [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 10
 
 ### Editor and dialect
 
@@ -1225,6 +1225,19 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   web shares — cannot be listed without freezing web too: after a sweep, revert
   the `expo:` catalog rows by hand, then `npx expo install --check` in
   `apps/mobile`. An SDK upgrade moves all of them together.
+
+- **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit
+  replays the output with no error, and the e2e suite and `package:*` test and
+  ship what it replays. Another workspace's files enter a key only through a
+  `^` edge, so every cached task of a workspace with dependencies carries one
+  (`tools/repo-guards/src/turbo-cache-keys.test.ts`); the desktop build takes
+  `^topo`, the transit node, since `^build` would cycle through the CLI build
+  that stages its renderer (`apps/desktop/turbo.json`). A file in no
+  workspace is a named input (the licence texts on `apps/cli/turbo.json`), a
+  file a later command follows is a named output (the web build's
+  `.wrangler/deploy/**`, `apps/web/turbo.json`), and `NODE_ENV` is hashed
+  `globalEnv`, not a passthrough: vite emits React's dev build under
+  `development`, and the dev shell hands that value to every agent shell.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
