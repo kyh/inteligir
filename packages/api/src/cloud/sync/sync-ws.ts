@@ -14,6 +14,10 @@ export type DevicePlatform = z.infer<typeof devicePlatformSchema>;
 export const SYNC_WS_KEEPALIVE_PING = "ping";
 export const SYNC_WS_KEEPALIVE_PONG = "pong";
 
+// rfc 6455 policy violation: the cloud closes a revoked device's sockets with it. a hint, never
+// the verdict: the client answers it with an http pass, and that pass's refusal is what ends it.
+export const SYNC_WS_REVOKED_CLOSE_CODE = 1008;
+
 // sync and vault are not sent to the pushing device's own sockets; dispatch goes only to
 // desktop-platform sockets. every frame is bare: the pull carries the state.
 export const syncPingSchema = z.discriminatedUnion("type", [

@@ -1,8 +1,12 @@
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
+import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
+import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { closeConnection, createConnection, writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
+import { MissingTurnStartedError } from "@repo/db/events";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -72,6 +76,8 @@ interface Harness {
   applied: { threadId: string; events: readonly ThreadEvent[]; cursor: number }[];
   socketOpens: OpenCloudSocketArgs[];
   vaultPings: () => number;
+  /** the status as each onStatusChanged found it. */
+  statusNotices: CloudStatusResponse[];
 }
 
 const makeHarness = (
@@ -94,6 +100,10 @@ const makeHarness = (
   const applied: Harness["applied"] = [];
   const socketOpens: OpenCloudSocketArgs[] = [];
   let vaultPings = 0;
+  const statusNotices: CloudStatusResponse[] = [];
+  // null before the constructor returns (a stored credential opens its session inside it) and
+  // after the teardown closes the db status() reads.
+  let asked: CloudRuntime | null = null;
   const sink: SyncedEventSink = {
     applySyncedEvents: (args) => {
       applied.push({
@@ -120,14 +130,21 @@ const makeHarness = (
     dataDir,
     db,
     onDebug: () => {},
+    onStatusChanged: () => {
+      if (asked !== null) {
+        statusNotices.push(asked.status());
+      }
+    },
     onVaultPing: () => {
       vaultPings += 1;
     },
     transport,
     vault,
   });
+  asked = runtime;
   runtime.attach(sink);
   onTestFinished(() => {
+    asked = null;
     void runtime.dispose();
     closeConnection(db);
   });
@@ -138,6 +155,7 @@ const makeHarness = (
     db,
     runtime,
     socketOpens,
+    statusNotices,
     vault,
     vaultPings: () => vaultPings,
   };
@@ -400,11 +418,154 @@ describe("the invalidation socket", () => {
       throw new Error("expected a socket dial");
     }
 
-    // 1008: the cloud severing a revoked device.
     harness.cloud.revoke(deviceId);
-    dial.onClose(1008);
+    dial.onClose(SYNC_WS_REVOKED_CLOSE_CODE);
     await harness.runtime.syncNow();
     expect(harness.runtime.status().state).toBe("unauthorized");
+  });
+
+  it("catches up once it opens: a ping sent while it was down reached nothing", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    const [dial] = harness.socketOpens;
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
+    const quiet = harness.cloud.requests.length;
+
+    dial.onOpen();
+
+    await vi.waitFor(() => {
+      expect(harness.cloud.requests.length).toBeGreaterThan(quiet);
+    });
+    // joins the requested pass, so the teardown does not close the db under it.
+    await harness.runtime.syncNow();
+    expect(harness.statusNotices).toContainEqual(expect.objectContaining({ connected: true }));
+  });
+});
+
+describe("the status bus", () => {
+  it("announces a sign-in, the end of every pass and a revocation, so nothing polls", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    const deviceId = await signIn(harness);
+    expect(harness.statusNotices.at(-1)).toMatchObject({ deviceId, state: "signed-in" });
+
+    harness.statusNotices.length = 0;
+    append(harness, [message("thr_1", "pushed by the next pass")]);
+    await harness.runtime.syncNow();
+    expect(harness.statusNotices.at(-1)).toMatchObject({ pending: 0, state: "signed-in" });
+
+    harness.cloud.revoke(deviceId);
+    await harness.runtime.syncNow();
+    expect(harness.statusNotices).toContainEqual(
+      expect.objectContaining({ state: "unauthorized" }),
+    );
+  });
+});
+
+describe("a pass that did not reach the cloud", () => {
+  it("leaves lastSyncedAt where the last whole pass put it, and says why", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    const cloud = new FakeCloud();
+    let offline = false;
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) => {
+        if (offline && new URL(input).pathname === SYNC_API_PATHS.pull) {
+          throw new Error("network is down");
+        }
+        return await cloud.fetch(input, init);
+      },
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+    expect(harness.runtime.status()).toMatchObject({ lastError: null, lastSyncedAt: 1_000_000 });
+
+    offline = true;
+    vi.setSystemTime(2_000_000);
+    const after = await harness.runtime.syncNow();
+
+    expect(after).toMatchObject({ lastSyncedAt: 1_000_000, state: "signed-in" });
+    expect(after.state === "signed-in" ? after.lastError : null).toMatch(/network is down/u);
+  });
+});
+
+// pages of one row, so three passes' worth of pages is a few dozen rows rather than fifteen thousand.
+const onePerPage =
+  (cloud: FakeCloud, onPull: () => void = () => {}): CloudFetch =>
+  async (input, init) => {
+    const url = new URL(input);
+    if (url.pathname === SYNC_API_PATHS.pull) {
+      url.searchParams.set("limit", "1");
+      onPull();
+    }
+    return await cloud.fetch(url.toString(), init);
+  };
+
+const BACKLOG = 3 * MAX_PULL_PAGES_PER_PASS;
+
+const writeBacklog = async (cloud: FakeCloud): Promise<void> => {
+  const writer = makeHarness({ cloud, pollIntervalMs: null });
+  await signIn(writer);
+  append(
+    writer,
+    Array.from({ length: BACKLOG }, (_, index) => message("thr_backlog", `row ${index}`)),
+  );
+  await writer.runtime.syncNow();
+  expect(cloud.logSize()).toBe(BACKLOG);
+};
+
+describe("a backlog past one pass's cap", () => {
+  it("is applied whole by one sync, and only its last pass is stamped synced", async () => {
+    const cloud = new FakeCloud();
+    await writeBacklog(cloud);
+    const stampsAtPull: (number | null)[] = [];
+    let reader: Harness | null = null;
+    reader = makeHarness({
+      cloud,
+      fetch: onePerPage(cloud, () => {
+        if (reader !== null) {
+          stampsAtPull.push(readSyncState(reader.db).lastSyncedAt);
+        }
+      }),
+      pollIntervalMs: null,
+    });
+
+    // the login's pass is the one sync: it starts from an empty cursor with the whole log ahead.
+    await loginAs(reader.runtime, "Reader");
+
+    expect(readSyncState(reader.db).cursor).toBe(BACKLOG);
+    expect(reader.applied.flatMap((entry) => entry.events)).toHaveLength(BACKLOG);
+    // three capped passes of one-row pages, back to back.
+    expect(stampsAtPull).toHaveLength(BACKLOG);
+    expect(stampsAtPull.filter((stamp) => stamp !== null)).toEqual([]);
+    expect(readSyncState(reader.db).lastSyncedAt).not.toBeNull();
+  });
+
+  it("holds a teardown for the pass it lands in, not for the backlog behind it", async () => {
+    const cloud = new FakeCloud();
+    await writeBacklog(cloud);
+    let pulls = 0;
+    let runtime: CloudRuntime | null = null;
+    const reader = makeHarness({
+      cloud,
+      fetch: onePerPage(cloud, () => {
+        pulls += 1;
+        // the first page of the second pass.
+        if (pulls === MAX_PULL_PAGES_PER_PASS + 1) {
+          void runtime?.dispose();
+        }
+      }),
+      pollIntervalMs: null,
+    });
+    ({ runtime } = reader);
+
+    // resolves once the flight settles, which is the wait a teardown has.
+    await loginAs(reader.runtime, "Reader");
+
+    expect(pulls).toBe(MAX_PULL_PAGES_PER_PASS + 1);
+    expect(readSyncState(reader.db).cursor).toBe(MAX_PULL_PAGES_PER_PASS);
   });
 });
 
@@ -607,7 +768,11 @@ describe("applying the account's log", () => {
         }
         const [only] = args.rows;
         if (only?.event.type === "client/turn/requested" && only.event.text === "two") {
-          throw new Error("this row is refused");
+          throw new MissingTurnStartedError({
+            eventType: only.event.type,
+            threadId: args.threadId,
+            turnId: "turn_never_started",
+          });
         }
         cursors.push(args.cursor);
         writeSyncCursor(harness.db, args.cursor);
@@ -617,6 +782,35 @@ describe("applying the account's log", () => {
 
     expect(cursors).toEqual([1, 3]);
     expect(readSyncState(harness.db).cursor).toBe(3);
+  });
+
+  it("never moves past a row for a fault the log did not refuse: the pass fails and says so", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({ cloud, pollIntervalMs: null });
+    const writer = makeHarness({ cloud, pollIntervalMs: null });
+    await signIn(writer);
+    append(writer, [message("thr_1", "one"), message("thr_1", "two"), message("thr_1", "three")]);
+    await writer.runtime.syncNow();
+
+    harness.runtime.attach({
+      applySyncedEvents: (args) => {
+        const [only] = args.rows;
+        if (
+          args.rows.length > 1 ||
+          (only?.event.type === "client/turn/requested" && only.event.text === "two")
+        ) {
+          throw new Error("the disk is full");
+        }
+        writeSyncCursor(harness.db, args.cursor);
+      },
+    });
+    await loginAs(harness.runtime, "Reader");
+
+    expect(readSyncState(harness.db).cursor).toBe(1);
+    expect(harness.runtime.status()).toMatchObject({
+      lastError: "the disk is full",
+      lastSyncedAt: null,
+    });
   });
 
   it("skips this device's own rows and settles the cursor on the rest", async () => {

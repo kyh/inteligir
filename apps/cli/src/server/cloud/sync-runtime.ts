@@ -14,6 +14,7 @@ import type {
 import { loginDevice } from "@repo/api/cloud/device/login-flow";
 import type { LoginOutcome as DeviceLoginOutcome } from "@repo/api/cloud/device/login-flow";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   countSyncOutbox,
@@ -55,6 +56,9 @@ export interface CloudRuntimeArgs {
   transport?: CloudTransport;
   /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
   onVaultPing?: () => void;
+  /** what status() answers moved: a sign-in or out, a revocation, the identity, the socket, a
+   *  pass's end. never per enqueue: the queued count rides the drain pass that follows it. */
+  onStatusChanged?: () => void;
   onDebug?: (message: string) => void;
 }
 
@@ -90,6 +94,10 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   let accountEmail: string | null = null;
   // keyed by session: joining the previous login's fetch answers about an account this device left.
   let learningIdentity: { sessionId: number; pass: Promise<void> } | null = null;
+
+  const notifyStatus = (): void => {
+    args.onStatusChanged?.();
+  };
 
   const endpoint = (): CloudEndpoint => {
     const target: CloudEndpoint = { baseUrl: args.cloudUrl };
@@ -141,6 +149,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
           return;
         }
         accountEmail = result.ok ? result.value.email : null;
+        notifyStatus();
         if (result.ok && credential.userId !== result.value.id) {
           const updated = { ...credential, userId: result.value.id };
           writeDeviceCredential(args.dataDir, updated);
@@ -171,6 +180,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     accountEmail = null;
     recordOwnDevice(args.db, credential.deviceId);
     session.open(credential);
+    notifyStatus();
     void learnAccountIdentityBestEffort();
   };
 
@@ -203,6 +213,13 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       }
       requestPass?.();
     },
+    onConnectionChanged: (connected) => {
+      notifyStatus();
+      // a ping sent while this socket was not up reached nothing; the pull carries what it announced.
+      if (connected) {
+        requestPass?.();
+      }
+    },
     onSevered: () => {
       // a hint; only an http refusal is authoritative.
       requestPass?.();
@@ -234,6 +251,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     const outcome = session.recordFailure(failure);
     if (outcome === "ended") {
       haltTransport();
+      notifyStatus();
     } else {
       debug(lastError);
     }
@@ -252,10 +270,10 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     vault: args.vault,
   };
 
-  const runPass = async (): Promise<void> => {
+  const runPass = async (): Promise<SyncOutcome> => {
     const current = session.current();
     if (current.kind !== "live" || disposed) {
-      return;
+      return "fenced";
     }
     // captured once; every step re-checks it rather than re-reading the session.
     const context: PassContext = {
@@ -267,10 +285,12 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       // a no-op once learned; the poll is the retry cadence for this one fetch.
       await learnAccountIdentity();
       if (!fenced(context)) {
-        return;
+        return "fenced";
       }
     }
-    await runSyncPass(passDeps, context);
+    const outcome = await runSyncPass(passDeps, context);
+    notifyStatus();
+    return outcome;
   };
 
   const status = (): CloudStatusResponse => {
@@ -316,6 +336,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       onError: (message) => {
         lastError = message;
         debug(`sync pass failed: ${message}`);
+        notifyStatus();
       },
       pass: runPass,
       repeat: live,
@@ -406,6 +427,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       resetSyncState(args.db);
       lastError = null;
       link.resetBackoff();
+      notifyStatus();
       return status();
     },
 

@@ -6,7 +6,7 @@ import {
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/api/cloud/sync/sync-schema";
 import type { PushRequest, ThreadMetaInput } from "@repo/api/cloud/sync/sync-schema";
-import { devicePlatformSchema } from "@repo/api/cloud/sync/sync-ws";
+import { devicePlatformSchema, SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -329,7 +329,7 @@ describe("thread sync log", () => {
       method: "POST",
     });
 
-    expect(await closed).toBe(1008);
+    expect(await closed).toBe(SYNC_WS_REVOKED_CLOSE_CODE);
   });
 
   it("refuses the socket without a device credential", async () => {

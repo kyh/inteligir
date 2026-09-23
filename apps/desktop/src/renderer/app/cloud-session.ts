@@ -9,9 +9,6 @@ import { useState } from "react";
 import { orpc, refusalMessage } from "./api";
 import { useVaultStatus } from "./vault-hooks";
 
-// Nothing on the ws bus announces a sync pass, so the status polls while a consumer is mounted.
-const STATUS_POLL_MS = 5000;
-
 const failed = (cause: Error, fallback: string): void => {
   toast.error(refusalMessage(cause, fallback));
 };
@@ -30,11 +27,7 @@ export interface CloudSession {
 export const useCloudSession = (): CloudSession => {
   const queryClient = useQueryClient();
   const { data: vaultStatus } = useVaultStatus();
-  const statusQuery = useQuery({
-    ...orpc.cloud.status.queryOptions(),
-    refetchInterval: STATUS_POLL_MS,
-    staleTime: 0,
-  });
+  const statusQuery = useQuery(orpc.cloud.status.queryOptions());
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const applyStatus = (next: CloudStatusResponse): void => {

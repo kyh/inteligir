@@ -181,6 +181,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     cloudUrl: config.cloudUrl,
     dataDir: config.dataDir,
     db,
+    // the rail's one sync row reads the vault's git sync and this runtime together, so both ride one kind.
+    onStatusChanged: () => {
+      bus.notifyVault(["sync-status-changed"]);
+    },
     // the rebase's own files-changed notification carries the applied changes to the renderer.
     onVaultPing: () => {
       void vault.syncNow();

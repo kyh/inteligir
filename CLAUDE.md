@@ -1017,6 +1017,29 @@ agents default`; unset falls back
   `drizzle-kit push --explain` against a 0.31-shaped database reports no
   changes; refuse any plan that recreates a table.
 
+- **A SYNC PASS IS CAPPED, A CAPPED PASS IS FOLLOWED AT ONCE, AND "SYNCED"
+  MEANS EVERY STEP REACHED THE CLOUD AND LEFT NOTHING.** Each step answers
+  where it stopped (`SyncOutcome` in `@repo/api/cloud/sync/sync-session`):
+  caught up, `more` behind its per-pass cap (25 pull pages, 25 push batches, a
+  full capture claim), `failed` on a retryable refusal or an unreachable cloud,
+  or `fenced` when its session ended. The cap stays because a teardown waits
+  out the pass in flight; on `more` the single flight runs the next pass at
+  once, reading `repeat()` between them, so a backlog drains in one sync
+  rather than one pass per poll and a dispose still waits out at most one pass.
+  A failed step does not stop the rest, but only a pass whose every step
+  caught up stamps `lastSyncedAt` (the phone's too), so an offline pass never
+  reads as synced. A row the log refuses (`MissingTurnStartedError`,
+  `ThreadEventThreadIdMismatchError`) is skipped past; any other throw fails
+  the pass with the cursor where the last commit left it and lands in
+  `lastError`, because moving past it would lose the row for good. The status
+  reaches the renderer on the bus's `sync-status-changed` kind, fired at a
+  sign-in or out, a revocation, the learned identity, the socket and every
+  pass's end, never per enqueue, so nothing polls it. The socket drops itself
+  after two keepalive intervals of silence, since a half-open connection
+  neither answers nor closes, and every open runs a pass, since a ping sent
+  while it was down reached nothing. `apps/cli/src/server/cloud/sync-pass.ts`,
+  `sync-runtime.ts` and `cloud-socket.ts`.
+
 ### Server process and the desktop shell
 
 - **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /

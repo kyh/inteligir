@@ -269,7 +269,8 @@ export interface OpenCloudSocketArgs {
   platform: DevicePlatform;
   onOpen: () => void;
   onPing: (ping: SyncPing) => void;
-  // called once even if the socket never opened; 1008 is a revoked device, never reconnect through it
+  // called once even if the socket never opened. SYNC_WS_REVOKED_CLOSE_CODE is a hint that runs
+  // an http pass; the pass's terminal refusal is what halts the transport.
   onClose: (code: number) => void;
 }
 

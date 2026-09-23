@@ -1,6 +1,7 @@
 import type { CloudResult } from "@repo/api/cloud/client";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
-import { describe, expect, it } from "vitest";
+import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemorySyncStore } from "../memory-sync-store";
 import { createSyncRuntime } from "../sync-runtime";
 import type { SyncRuntime, SyncStatus } from "../sync-runtime";
@@ -14,7 +15,16 @@ const UNAUTHORIZED: CloudResult<PullResponse> = {
   ok: false,
 };
 
+const UNREACHABLE: CloudResult<PullResponse> = {
+  failure: { kind: "unreachable", message: "offline" },
+  ok: false,
+};
+
 const EMPTY_PAGE: CloudResult<PullResponse> = ok({ events: [], hasMore: false, lastSeq: 0 });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const published = async (
   runtime: SyncRuntime,
@@ -175,6 +185,73 @@ describe("the sync runtime", () => {
     expect(store.snapshotThread("thr_x")?.events).toHaveLength(1);
 
     runtime.setCredential(null);
+  });
+
+  it("drains a backlog past one pass's cap in one sync, and says synced only at its end", async () => {
+    const store = createMemorySyncStore();
+    const cloud = createFakeCloud();
+    const pages = MAX_PULL_PAGES_PER_PASS + 5;
+    for (let seq = 1; seq <= pages; seq += 1) {
+      cloud.pullResults.push(
+        ok({
+          events: [
+            logRow({ deviceId: OTHER, deviceSeq: seq, event: userRequest("thr_x", `${seq}`), seq }),
+          ],
+          hasMore: seq < pages,
+          lastSeq: pages,
+        }),
+      );
+    }
+    const runtime = createSyncRuntime({
+      cloudUrl: "https://cloud.test",
+      createClient: () => cloud.client,
+      pollIntervalMs: null,
+      store,
+    });
+    runtime.setCredential(CRED);
+    const seen: SyncStatus[] = [];
+    const unsubscribe = runtime.subscribe(() => {
+      seen.push(runtime.get());
+    });
+
+    await runtime.syncNow();
+    unsubscribe();
+
+    expect(store.readCursor()).toBe(pages);
+    const catchingUp = seen.filter(
+      (status) => status.state === "signed-in" && status.cursor < pages,
+    );
+    expect(catchingUp.length).toBeGreaterThan(MAX_PULL_PAGES_PER_PASS);
+    expect(catchingUp).not.toContainEqual(
+      expect.objectContaining({ lastSyncedAt: expect.any(Number) }),
+    );
+    expect(runtime.get()).toMatchObject({ cursor: pages, lastSyncedAt: expect.any(Number) });
+  });
+
+  it("does not call an unreachable pull synced", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    const store = createMemorySyncStore();
+    const cloud = createFakeCloud();
+    cloud.pullResults.push(EMPTY_PAGE, UNREACHABLE);
+    const runtime = createSyncRuntime({
+      cloudUrl: "https://cloud.test",
+      createClient: () => cloud.client,
+      pollIntervalMs: null,
+      store,
+    });
+    runtime.setCredential(CRED);
+    await runtime.syncNow();
+    expect(runtime.get()).toMatchObject({ lastSyncedAt: 1_000_000 });
+
+    vi.setSystemTime(2_000_000);
+    await runtime.syncNow();
+
+    expect(runtime.get()).toMatchObject({
+      lastError: expect.stringContaining("offline"),
+      lastSyncedAt: 1_000_000,
+      state: "signed-in",
+    });
   });
 
   it("lands a revocation on the next poll pass — unauthorized, with no pull-to-refresh", async () => {

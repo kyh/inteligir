@@ -97,6 +97,11 @@ export const createSyncSession = <TCredential>(
   };
 };
 
+// where one step of a pass stopped. only "caught-up" lets a pass report synced: "more" is a
+// per-pass cap reached with work behind it, "failed" a retryable refusal or an unreachable cloud
+// the pass carries on past, and "fenced" a session that ended under it, which stops the pass.
+export type SyncOutcome = "caught-up" | "more" | "failed" | "fenced";
+
 // bounds one pass's pull so a backlog cannot hold a teardown open.
 export const MAX_PULL_PAGES_PER_PASS = 25;
 
@@ -114,20 +119,20 @@ export interface PullPagesArgs {
   onSkipped?: (message: string) => void;
 }
 
-export const pullPages = async (args: PullPagesArgs): Promise<boolean> => {
+export const pullPages = async (args: PullPagesArgs): Promise<SyncOutcome> => {
   for (let page = 0; page < MAX_PULL_PAGES_PER_PASS; page += 1) {
     if (!args.fenced()) {
-      return false;
+      return "fenced";
     }
     const result = await args.client.pull({
       afterSeq: args.readCursor(),
       limit: PULL_DEFAULT_LIMIT,
     });
     if (!args.fenced()) {
-      return false;
+      return "fenced";
     }
     if (!result.ok) {
-      return args.recordFailure(result.failure) === "continue";
+      return args.recordFailure(result.failure) === "continue" ? "failed" : "fenced";
     }
     const plan = planPage(result.value.events, args.ownDeviceIds);
     for (const message of plan.skipped) {
@@ -135,15 +140,19 @@ export const pullPages = async (args: PullPagesArgs): Promise<boolean> => {
     }
     args.applyPlan(plan.steps);
     args.onPage?.();
-    if (!result.value.hasMore) {
-      return true;
+    // an empty page moves no cursor, so asking again asks the same question: "more" must mean
+    // progress, or a pass that follows itself at once would never stop.
+    if (!result.value.hasMore || result.value.events.length === 0) {
+      return "caught-up";
     }
   }
-  return true;
+  return "more";
 };
 
 export interface SingleFlightRunArgs {
-  pass: () => Promise<void>;
+  // "more" runs the next pass at once rather than leaving the backlog to the poll. each pass
+  // stays capped and repeat() is read between them, so a teardown still waits out at most one.
+  pass: () => Promise<SyncOutcome>;
   repeat: () => boolean;
   onError: (message: string) => void;
 }
@@ -174,9 +183,9 @@ export const createSingleFlight = (): SingleFlight => {
         try {
           for (;;) {
             dirty = false;
-            await args.pass();
+            const outcome = await args.pass();
             // read after the await: the session may have ended while the pass ran.
-            if (!dirty || !args.repeat()) {
+            if ((!dirty && outcome !== "more") || !args.repeat()) {
               break;
             }
           }
