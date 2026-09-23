@@ -147,10 +147,13 @@ const relinkText = (
   return null;
 };
 
-// `docs` is keyed by pre-rename path; the result holds changed docs only, keyed by post-rename path
+// `docs` and `aliasEntries` are keyed by pre-rename path; the result holds changed docs only,
+// keyed by post-rename path. The aliases are the whole vault's, never derived from `docs`:
+// those are the rewrite candidates, and an alias owner that links nowhere is never one.
 export const computeRenameEdits = (
   docs: ReadonlyMap<string, string>,
   allFiles: Iterable<string>,
+  aliasEntries: Iterable<readonly [alias: string, path: string]>,
   from: string,
   to: string,
 ): Map<string, string> => {
@@ -163,18 +166,6 @@ export const computeRenameEdits = (
 
   const files = [...new Set([...allFiles].map(normalizePath))];
   const postFiles = files.map((p) => (p === fromPath ? toPath : p));
-
-  const scans = new Map<string, ReturnType<typeof scanDoc>>();
-  for (const [docPath, content] of docs) {
-    scans.set(docPath, scanDoc(content));
-  }
-  const aliasEntries: (readonly [string, string])[] = [];
-  for (const [docPath, scan] of scans) {
-    const owner = normalizePath(docPath);
-    for (const alias of scan.aliases) {
-      aliasEntries.push([alias, owner]);
-    }
-  }
 
   const ctx: RenameContext = {
     // alias-shadow detection only; the retarget branch must stay path-only
@@ -193,7 +184,7 @@ export const computeRenameEdits = (
     const postDocPath = path === fromPath ? toPath : path;
     const replacements: { span: Span; text: string }[] = [];
 
-    for (const link of scans.get(docPath)?.links ?? []) {
+    for (const link of scanDoc(content).links) {
       if (!link.targetSpan) {
         continue;
       }

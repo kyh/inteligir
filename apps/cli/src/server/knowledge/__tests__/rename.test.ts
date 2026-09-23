@@ -95,6 +95,29 @@ describe("rename with link rewrite", () => {
     expect(backlinks.map((entry) => entry.sourcePath)).toEqual(["s.md"]);
   });
 
+  it("qualifies a link whose alias the rename steals, though the alias owner is no candidate", async () => {
+    const { root, service, knowledge } = boot();
+    await service.write("notes/owner.md", "---\naliases: [Retro]\n---\n# Owner\n");
+    await service.write("hub.md", "see [[Retro]]\n");
+    await service.write("misc.md", "# Misc\n");
+    await knowledge.settle();
+
+    const candidates = await knowledge.renameCandidates("misc.md", "Retro.md");
+    expect(candidates.toSorted()).toEqual(["hub.md", "misc.md"]);
+
+    const result = await renameNoteWithLinkRewrite({
+      from: "misc.md",
+      knowledge,
+      rebindThreads: noRebind,
+      service,
+      to: "Retro.md",
+    });
+    expect(result.rewritten).toEqual(["hub.md"]);
+    expect(readFileSync(path.join(root, "hub.md"), "utf-8")).toBe("see [[notes/owner|Retro]]\n");
+    const backlinks = await knowledge.backlinks("notes/owner.md");
+    expect(backlinks.map((entry) => entry.sourcePath)).toEqual(["hub.md"]);
+  });
+
   it("passes a directory rename straight through", async () => {
     const { root, service, knowledge } = boot();
     await service.write("dir/inner.md", "# Inner\n");
