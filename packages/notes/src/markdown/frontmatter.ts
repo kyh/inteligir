@@ -3,6 +3,8 @@
 import { isMap, isScalar, parse as parseYaml, parseDocument } from "yaml";
 import { z } from "zod";
 
+import { splitLines } from "../knowledge/source-lines";
+
 // yaml 1.2 core has no timestamp tag, so every value is json-shaped; `.nan`/`.inf` fail the
 // schema and read as unsupported.
 const yamlValue = z.json();
@@ -16,8 +18,12 @@ export interface SplitDoc {
   body: string;
 }
 
-// remark-frontmatter's default `yaml` fence; the content group is optional so an empty block matches.
-const FRONTMATTER_RE = /^---[ \t]*\r?\n(?:(?<yaml>[\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/u;
+const BOM = "\uFEFF";
+
+// remark-frontmatter's default `yaml` fence, read past the BOM micromark skips; the content group
+// is optional so an empty block matches. `eol` is the opener's terminator, which a rewrite keeps.
+const FRONTMATTER_RE =
+  /^\uFEFF?---[ \t]*(?<eol>\r?\n)(?:(?<yaml>[\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/u;
 
 const parseYamlRecord = (source: string): Properties => {
   try {
@@ -43,6 +49,20 @@ export const splitFrontmatter = (text: string): SplitDoc => {
   }
   const body = text.slice(match[0].length);
   return { body, properties: parseYamlRecord(match.groups?.yaml ?? "") };
+};
+
+// The one recomposition every key edit runs: the BOM and the note's line ending survive, the
+// body is sliced rather than re-read, and yaml with nothing in it drops the block. A note with
+// no block yet takes the ending of its first line.
+export const replaceFrontmatterYaml = (content: string, yaml: string): string => {
+  const match = FRONTMATTER_RE.exec(content);
+  const bom = content.startsWith(BOM) ? BOM : "";
+  const body = match ? content.slice(match[0].length) : content.slice(bom.length);
+  if (yaml.trim() === "") {
+    return bom + body;
+  }
+  const eol = match?.groups?.eol ?? /\r?\n/u.exec(content)?.[0] ?? "\n";
+  return `${bom}---${eol}${splitLines(yaml).join(eol)}${eol}---${eol}${body}`;
 };
 
 // yaml 1.2 core schema: `true`/`false` are the only booleans (yes/no/on/off stay text) and
@@ -128,9 +148,10 @@ export const parseProperties = (yamlText: string): ParsedProperties => {
 
 // A line cut, not a re-serialization: serializeProperties restyles what it re-emits (a flow
 // list's spacing), and a key edit must leave the other keys byte-exact. The key's own lines are
-// its `key:` line and the indented or `- ` lines that continue a block value under it.
+// its `key:` line and the indented or `- ` lines that continue a block value under it. The key
+// may be quoted: the parse reads `"id":` as `id` too.
 const withoutTopLevelKey = (lines: readonly string[], key: string): string[] => {
-  const keyLine = new RegExp(`^${key}[ \\t]*:`, "u");
+  const keyLine = new RegExp(`^(?:${key}|"${key}"|'${key}')[ \\t]*:`, "u");
   const kept: string[] = [];
   let inValue = false;
   for (const line of lines) {
@@ -167,40 +188,57 @@ export const frontmatterId = (content: string): string | null =>
 // uuid-shaped, the form the resolver's id tier already answers
 export const mintNoteId = (): string => globalThis.crypto.randomUUID();
 
-// A line cut like the pin's: `id:` goes first, an empty `id:` is replaced, a note that has one
-// keeps it. null: the frontmatter is not valid YAML, and nothing here may rewrite bytes it
-// cannot read.
-export const withFrontmatterId = (content: string, id: string): string | null => {
+// `invalid`: the frontmatter is not valid YAML, and nothing here may rewrite bytes it cannot
+// read. `foreign-id`: the note carries an `id` that is not text (a number, a date, a list);
+// someone may resolve by it, so it is reported rather than overwritten. `value` is how it reads.
+export type FrontmatterIdVerdict =
+  | { kind: "unchanged"; id: string }
+  | { kind: "written"; content: string }
+  | { kind: "invalid" }
+  | { kind: "foreign-id"; value: string };
+
+// YAML 1.2 core's null spellings: `id:` and `id: ~` hold nothing a minted id could displace
+const YAML_NULL_RE = /^(?:~|null|Null|NULL)?$/u;
+
+const holdsNoValue = (prop: TypedProperty): boolean =>
+  (prop.type === "text" && prop.value.trim() === "") ||
+  (prop.type === "unsupported" && YAML_NULL_RE.test(prop.rawYaml.trim()));
+
+// A line cut like the pin's: `id:` goes first, an empty one is replaced, a note that has one
+// keeps it.
+export const withFrontmatterId = (content: string, id: string): FrontmatterIdVerdict => {
   const yaml = frontmatterYaml(content);
   const parsed = parseProperties(yaml ?? "");
   if (parsed.kind === "invalid") {
-    return null;
+    return { kind: "invalid" };
   }
-  if (noteIdOf(parsed) !== null) {
-    return content;
+  const kept = noteIdOf(parsed);
+  if (kept !== null) {
+    return { id: kept, kind: "unchanged" };
   }
-  const lines = yaml === null || yaml === "" ? [] : yaml.split("\n");
+  const existing =
+    parsed.kind === "valid" ? parsed.properties.find((p) => p.key === "id") : undefined;
+  if (existing !== undefined && !holdsNoValue(existing)) {
+    return {
+      kind: "foreign-id",
+      value: existing.type === "unsupported" ? existing.rawYaml : JSON.stringify(existing.value),
+    };
+  }
+  const lines = yaml === null || yaml === "" ? [] : splitLines(yaml);
   const next = [`id: ${id}`, ...withoutTopLevelKey(lines, "id")];
-  return `---\n${next.join("\n")}\n---\n${splitFrontmatter(content).body}`;
+  return { content: replaceFrontmatterYaml(content, next.join("\n")), kind: "written" };
 };
 
 // a note minted from a template must not inherit the template's identity: two notes with one
 // `id:` make the `[[Title|uuid]]` tier ambiguous.
 export const removeFrontmatterId = (content: string): string => {
-  const match = FRONTMATTER_RE.exec(content);
-  if (!match) {
+  const yaml = frontmatterYaml(content);
+  if (yaml === null) {
     return content;
   }
-  const lines = (match.groups?.yaml ?? "").split("\n");
+  const lines = splitLines(yaml);
   const kept = withoutTopLevelKey(lines, "id");
-  if (kept.length === lines.length) {
-    return content;
-  }
-  const body = content.slice(match[0].length);
-  if (kept.every((line) => line.trim() === "")) {
-    return body;
-  }
-  return `---\n${kept.join("\n")}\n---\n${body}`;
+  return kept.length === lines.length ? content : replaceFrontmatterYaml(content, kept.join("\n"));
 };
 
 const typedValue = (prop: TypedProperty) => (prop.type === "unsupported" ? undefined : prop.value);
@@ -276,9 +314,7 @@ export const addFrontmatterAlias = (content: string, alias: string): string | nu
             ? { key: p.key, type: "tags", value: [...p.value, trimmed] }
             : p,
         );
-  const nextYaml = serializeProperties(nextProps, yaml ?? "");
-  const { body } = splitFrontmatter(content);
-  return `---\n${nextYaml}\n---\n${body}`;
+  return replaceFrontmatterYaml(content, serializeProperties(nextProps, yaml ?? ""));
 };
 
 export const PINNED_KEY = "pinned";
@@ -301,7 +337,7 @@ export const pinnedFrontmatterYaml = (yaml: string | null, pinned: boolean): Pin
   if (isPinned === pinned) {
     return { kind: "unchanged" };
   }
-  const lines = yaml === null || yaml === "" ? [] : yaml.split("\n");
+  const lines = yaml === null || yaml === "" ? [] : splitLines(yaml);
   const kept = withoutTopLevelKey(lines, PINNED_KEY);
   const next = pinned ? [...kept, `${PINNED_KEY}: true`] : kept;
   return { kind: "changed", yaml: next.every((line) => line.trim() === "") ? "" : next.join("\n") };
@@ -316,8 +352,7 @@ export const setFrontmatterPinned = (content: string, pinned: boolean): string |
   if (verdict.kind === "unchanged") {
     return content;
   }
-  const { body } = splitFrontmatter(content);
-  return verdict.yaml === "" ? body : `---\n${verdict.yaml}\n---\n${body}`;
+  return replaceFrontmatterYaml(content, verdict.yaml);
 };
 
 export const typeNewProperty = (key: string, rawValue: string): TypedProperty => {

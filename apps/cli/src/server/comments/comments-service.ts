@@ -135,13 +135,21 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
         return keyOf(notePath, current.id);
       }
       const id = mintNoteId();
-      const next = withFrontmatterId(current.content, id);
-      if (next === null) {
+      const verdict = withFrontmatterId(current.content, id);
+      if (verdict.kind === "unchanged") {
+        return keyOf(notePath, verdict.id);
+      }
+      if (verdict.kind === "invalid") {
         throw new CommentRefusedError(
           `${notePath}: the frontmatter is not valid YAML, so no id can be written into it`,
         );
       }
-      const result = await vault.writeIfUnchanged(notePath, current.content, next);
+      if (verdict.kind === "foreign-id") {
+        throw new CommentRefusedError(
+          `${notePath}: its frontmatter id ${verdict.value} is not text, and a minted id would replace it`,
+        );
+      }
+      const result = await vault.writeIfUnchanged(notePath, current.content, verdict.content);
       if (result.applied) {
         return id;
       }

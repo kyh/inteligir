@@ -62,8 +62,10 @@ src/
     fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
                        # and ONE callout-payload grammar — the rule table, the
                        # scan and the mobile projection all read them
-    frontmatter.ts     # split/recombine + the typed-property ADT (YAML it
-                       # cannot represent is preserved byte-exactly)
+    frontmatter.ts     # split/recombine (ONE `replaceFrontmatterYaml`, which
+                       # keeps a BOM and the note's line ending) + the
+                       # typed-property ADT (YAML it cannot represent is
+                       # preserved byte-exactly)
   comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
                        # marker ids, the sidecar schema
   formulas/            # {{source|display|meta}} pills: collection, expression
