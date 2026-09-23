@@ -26,6 +26,7 @@
     "./find-bar": "./src/find-bar.tsx",
     "./formula-autocomplete": "./src/formula-autocomplete.tsx",
     "./formula-input-key": "./src/formula-input-key.ts",
+    "./formula-insert": "./src/formula-insert.ts",
     "./formulas/formula-edit": "./src/formulas/formula-edit.tsx",
     "./formulas/formula-entry": "./src/formulas/formula-entry.ts",
     "./formulas/formula-recompute": "./src/formulas/formula-recompute.ts",

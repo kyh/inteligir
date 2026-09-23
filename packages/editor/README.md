@@ -61,6 +61,7 @@ src/
                        # the in-document affordances — every surface a node can
                        # be inserted from, and the transforms behind them
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
+  formula-*.ts(x)      # the `{{` picker and its insertion
   agent-request.ts, search-request.ts
                        # one-shot stores the app adopts ("Ask agent", a `#tag`
                        # search), so the editor never imports the shell
