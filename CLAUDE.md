@@ -457,9 +457,14 @@ to the END of its group.
   under the repo lock; a mismatch answers 409 with the current content and the
   client diff3-merges and retries. Creation uses `ifAbsent`. Without it an agent
   write landing between a read and a save is silently overwritten. diff3 rather
-  than active-user-wins, which discards concurrent body edits wholesale.
-  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts` and
-  `@repo/notes/text/diff3`.
+  than active-user-wins, which discards concurrent body edits wholesale. A write
+  ANSWERS THE BYTES THAT LANDED and the open buffer takes them, an edit made
+  meanwhile rebased on top: once the merge is the base, a buffer kept over it
+  passes the next save's CAS without the external edit. A reload is the same
+  hazard, so it drains the editor's serialize debounce before and after its
+  read and rebases an edit made during it rather than skipping the bytes it
+  read. `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`,
+  `packages/editor/src/vault-editor.ts` and `@repo/notes/text/diff3`.
 
 - **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends `ifAbsent` and
   no hash; hashing bytes not yet on disk is a refusal every time. A guarded

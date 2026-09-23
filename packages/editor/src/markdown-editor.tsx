@@ -92,8 +92,9 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
     return created;
   }, []);
 
-  // Flush first: an in-debounce keystroke must reach the controller before the external
-  // content overwrites the surface and resets `seeded`.
+  // Flush first, never cancel: the controller drained this debounce before taking bytes from
+  // disk, so anything still pending was typed since, and it must reach the controller before
+  // the new content overwrites the surface and resets `seeded`.
   useEffect(() => {
     if (value === lastValueProp.current) {
       return;
