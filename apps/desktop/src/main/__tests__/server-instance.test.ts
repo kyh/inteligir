@@ -9,7 +9,6 @@ import {
   describeServerVerdict,
   planServerStart,
   resolveServerTarget,
-  serverOrigin,
   verifyServer,
   serverEntryPath,
   serverPackageDir,
@@ -164,12 +163,6 @@ const silentServer: ProbeStatus = async () => {
   await Promise.resolve();
   return null;
 };
-
-describe("serverOrigin", () => {
-  it("is loopback by address, never by name", () => {
-    expect(serverOrigin(4664)).toBe("http://127.0.0.1:4664");
-  });
-});
 
 describe("verifyServer", () => {
   it("verifies a responder that holds this data dir's token and names it back", async () => {

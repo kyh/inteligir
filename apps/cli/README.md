@@ -36,8 +36,11 @@ following — the directory holding the link has no `dist/` beside it.
 
 Both answers come out of ONE file. On boot the server writes
 `<dataDir>/server.json` at `0600` — `{ port, token, vaultDir, pid }` — and
-removes it on ordered shutdown. A client reads it and sends
-`Authorization: Bearer <token>`.
+removes it on ordered shutdown, if the row is still its own. A client reads it
+and sends `Authorization: Bearer <token>`. Which process may serve a data dir at
+all is a different file: `serve` holds `<dataDir>/serve.lock` from before it
+composes until after its db closes, so a second boot is refused even while the
+first has not published its row yet.
 
 A browser cannot send that header, and it never sees the bearer. The link
 `serve` prints (and opens, under `--open`) carries a single-use handoff that the

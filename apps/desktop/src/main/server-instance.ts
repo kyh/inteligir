@@ -8,10 +8,7 @@ import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { resolveVaultCandidate } from "inteligir/server/vault-switch";
 import { toErrorMessage } from "../types";
 import { createLocalClient } from "inteligir/server/local-client";
-import { readServerFile } from "inteligir/server/server-file";
-
-// never `localhost`: it resolves to ::1 or 127.0.0.1 per machine, and those are different origins to the pin.
-export const serverOrigin = (port: number): string => `http://127.0.0.1:${port}`;
+import { loopbackOrigin, readServerFile } from "inteligir/server/server-file";
 
 export interface ServerTarget {
   dataDir: string;
@@ -106,7 +103,7 @@ export const verifyServer = async (
   if (file === null) {
     return { kind: "no-server" };
   }
-  const live: LiveServer = { origin: serverOrigin(file.port), token: file.token };
+  const live: LiveServer = { origin: loopbackOrigin(file.port), token: file.token };
   const status = await probeStatus(live);
   if (status === null) {
     return { kind: "unreachable", origin: live.origin };

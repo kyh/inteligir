@@ -1,6 +1,8 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-const LOCAL_HOSTS = ["127.0.0.1", "localhost"] as const;
+import { LOOPBACK_HOST } from "./server-file";
+
+const LOCAL_HOSTS = [LOOPBACK_HOST, "localhost"] as const;
 
 // a foreign hostname answers null: the server binds 127.0.0.1 only, and honoring
 // one would let a DNS-rebinding page mint a matching Origin/Host pair. this

@@ -4,7 +4,7 @@
 
 import { resolveAppConfig } from "./server/config";
 import type { ResolveAppConfigArgs } from "./server/config";
-import { readServerFile } from "./server/server-file";
+import { loopbackOrigin, readServerFile } from "./server/server-file";
 import { CliExitError, EXIT_UNREACHABLE } from "./cli-error";
 
 export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
@@ -45,7 +45,7 @@ export const resolveServer = (args: ResolveServerArgs): ResolvedServer => {
     );
   }
   return {
-    baseUrl: `http://127.0.0.1:${String(server.port)}`,
+    baseUrl: loopbackOrigin(server.port),
     dataDir,
     token: server.token,
     vaultDir: server.vaultDir,

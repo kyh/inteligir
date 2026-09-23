@@ -4,7 +4,7 @@ import path from "node:path";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
+import { authorizationHeader, loopbackOrigin, readServerFile } from "inteligir/server/server-file";
 import type { LocalContract } from "@repo/api/local";
 import {
   browserHandoffUrl,
@@ -117,6 +117,7 @@ const attachInstance = (
   vaultDir: string,
   port: number,
 ): AppInstance => {
+  const baseUrl = loopbackOrigin(port);
   // read per call, not captured once: server.json is written after listen and this client is built
   // before the health wait.
   const link = new RPCLink({
@@ -124,11 +125,10 @@ const attachInstance = (
       const server = readServerFile(dataDir);
       return server === null ? {} : { authorization: authorizationHeader(server.token) };
     },
-    origin: `http://127.0.0.1:${String(port)}`,
+    origin: baseUrl,
     url: RPC_PREFIX,
   });
   const api: InstanceApi = createORPCClient(link);
-  const baseUrl = `http://127.0.0.1:${String(port)}`;
   return {
     ...child,
     api,

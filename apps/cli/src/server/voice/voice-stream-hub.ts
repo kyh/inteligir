@@ -1,9 +1,6 @@
-// a dictation socket is hijacked off the http server on upgrade, so server.close() never
-// completes while one is open and closeAllConnections() does not touch it. closeAllClients only
-// sends the going-away frame and keeps the connection registered: a synchronous forget there
-// empties the set before terminateAllClients can reach a stuck socket.
+// the listener's teardown closes a dictation socket like any other upgraded one, and its onClose
+// disposes the session; the hub owns only the cap.
 
-import type { UpgradedSockets } from "../listen";
 import { VoiceStreamConnection } from "./voice-stream-connection";
 import type { VoiceStreamSocket } from "./voice-stream-connection";
 import type { VoiceService } from "./voice-service";
@@ -11,7 +8,7 @@ import type { VoiceService } from "./voice-service";
 // one live mic plus headroom for a stale session still tearing down; each session is ~106 MB.
 export const MAX_CONCURRENT_STREAM_SESSIONS = 3;
 
-export class VoiceStreamHub implements UpgradedSockets {
+export class VoiceStreamHub {
   readonly #voice: VoiceService;
   readonly #connections = new Set<VoiceStreamConnection>();
 
@@ -47,17 +44,5 @@ export class VoiceStreamHub implements UpgradedSockets {
     });
     connection.bind(session);
     return connection;
-  }
-
-  closeAllClients(): void {
-    for (const connection of this.#connections) {
-      connection.goAway();
-    }
-  }
-
-  terminateAllClients(): void {
-    for (const connection of this.#connections) {
-      connection.terminate();
-    }
   }
 }

@@ -26,7 +26,7 @@ import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
 import { resolveAppConfig, writeManagedVaultDir } from "../server/config";
 import type { ResolveAppConfigArgs } from "../server/config";
 import { resolveCheckoutRoot } from "../server/dev-instance";
-import { readServerFile } from "../server/server-file";
+import { loopbackOrigin, readServerFile } from "../server/server-file";
 import {
   planVaultSelection,
   resolveVaultCandidate,
@@ -109,7 +109,7 @@ const selectVault = (deps: CliDeps, rawDir: string): VaultSelection => {
   return {
     dataDir: candidate.dataDir,
     previousVaultDir: current.vaultDir,
-    running: server === null ? null : { baseUrl: `http://127.0.0.1:${String(server.port)}` },
+    running: server === null ? null : { baseUrl: loopbackOrigin(server.port) },
     vaultDir: candidate.vaultDir,
   };
 };

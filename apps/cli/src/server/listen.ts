@@ -40,18 +40,26 @@ const listenOnce = async (
   return { port: bound.success ? bound.data.port : port, server };
 };
 
-export interface UpgradedSockets {
-  closeAllClients: () => void;
-  terminateAllClients: () => void;
+// the slice of a `ws` socket the listener's teardown drives.
+export interface UpgradedSocket {
+  close: (code: number, reason: string) => void;
+  terminate: () => void;
 }
+
+// rfc 6455 going away, so the page can tell a deliberate stop from a dropped connection.
+const GOING_AWAY_CLOSE_CODE = 1001;
 
 // generous enough for a laptop waking up, far short of the step's own budget.
 const SOCKET_DRAIN_MS = 1500;
 
 // an upgraded socket is detached from the http server's connection tracking:
 // server.close() never fires while one is open and closeAllConnections() does
-// not touch it, so the websockets are closed by name first.
-export const closeServer = async (server: ServerType, sockets: UpgradedSockets): Promise<void> => {
+// not touch it, so the websockets are closed by name first. the set is read at
+// each pass: a socket that answered its close frame has left it by the second.
+export const closeServer = async (
+  server: ServerType,
+  sockets: ReadonlySet<UpgradedSocket>,
+): Promise<void> => {
   let closed = false;
   const finished = (async () => {
     await once(server, "close");
@@ -59,7 +67,9 @@ export const closeServer = async (server: ServerType, sockets: UpgradedSockets):
   })();
   server.close();
 
-  sockets.closeAllClients();
+  for (const socket of sockets) {
+    socket.close(GOING_AWAY_CLOSE_CODE, "server-shutting-down");
+  }
   if ("closeAllConnections" in server) {
     server.closeAllConnections();
   }
@@ -68,7 +78,9 @@ export const closeServer = async (server: ServerType, sockets: UpgradedSockets):
   if (closed) {
     return;
   }
-  sockets.terminateAllClients();
+  for (const socket of sockets) {
+    socket.terminate();
+  }
   await Promise.race([finished, delay(SOCKET_DRAIN_MS, undefined, { ref: false })]);
   if (!closed) {
     // a listener this process could not close is a port the next boot will not get.
