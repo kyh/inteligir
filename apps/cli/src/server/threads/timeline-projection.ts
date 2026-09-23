@@ -14,6 +14,9 @@ const RESIDENT_PROJECTIONS = 4;
 
 interface ThreadLog {
   events: StoredThreadEvent[];
+  // the last row read, whether or not this build could parse it: a row it cannot is reported
+  // once, not re-read by every refresh.
+  readThrough: number;
   // keyed by the projection's own maxSequence.
   projections: Map<number, ThreadTimeline>;
 }
@@ -80,22 +83,30 @@ export class ThreadTimelineProjector {
   private refresh(threadId: string): ThreadLog {
     const existing = this.logs.get(threadId);
     if (existing === undefined) {
-      const log: ThreadLog = {
-        events: listStoredThreadEvents(this.db, { threadId }),
-        projections: new Map(),
-      };
+      const log: ThreadLog = { events: [], projections: new Map(), readThrough: 0 };
+      this.readInto(threadId, log);
       this.logs.set(threadId, log);
       evict(this.logs, RESIDENT_THREADS);
       return log;
     }
     this.logs.delete(threadId);
     this.logs.set(threadId, existing);
-    const afterSequence = existing.events.at(-1)?.sequence;
-    if (afterSequence === undefined) {
-      existing.events.push(...listStoredThreadEvents(this.db, { threadId }));
-    } else {
-      existing.events.push(...listStoredThreadEvents(this.db, { afterSequence, threadId }));
-    }
+    this.readInto(threadId, existing);
     return existing;
+  }
+
+  private readInto(threadId: string, log: ThreadLog): void {
+    const read = listStoredThreadEvents(this.db, {
+      afterSequence: log.readThrough,
+      onSkipped: (row) => {
+        log.readThrough = Math.max(log.readThrough, row.sequence);
+        console.warn(
+          `thread ${threadId}: event ${row.sequence} (${row.type}) is not one this build can read; its timeline leaves it out`,
+        );
+      },
+      threadId,
+    });
+    log.events.push(...read);
+    log.readThrough = Math.max(log.readThrough, read.at(-1)?.sequence ?? 0);
   }
 }

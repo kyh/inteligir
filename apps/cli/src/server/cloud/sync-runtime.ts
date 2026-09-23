@@ -22,6 +22,7 @@ import {
   readSyncState,
   recordOwnDevice,
   resetSyncState,
+  takeRewindIfBuildChanged,
 } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
@@ -52,6 +53,8 @@ export interface CloudRuntimeArgs {
   db: DbConnection;
   dataDir: string;
   cloudUrl: string;
+  /** the running build's version: a log row one build could not read is pulled again by the next. */
+  build: string;
   vault: CaptureVault;
   transport?: CloudTransport;
   /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
@@ -179,6 +182,12 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   const openSession = (credential: DeviceCredential): void => {
     accountEmail = null;
     recordOwnDevice(args.db, credential.deviceId);
+    const replayFrom = takeRewindIfBuildChanged(args.db, args.build);
+    if (replayFrom !== null) {
+      debug(
+        `a different build is running: pulling again from log row ${replayFrom}, which the last one could not read`,
+      );
+    }
     session.open(credential);
     notifyStatus();
     void learnAccountIdentityBestEffort();
@@ -259,6 +268,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   };
 
   const passDeps: SyncPassDeps = {
+    build: args.build,
     db: args.db,
     debug,
     fenced,

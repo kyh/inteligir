@@ -11,7 +11,7 @@ import type * as BuildThreadTimeline from "@repo/api/local/build-thread-timeline
 import type * as DbEvents from "@repo/db/events";
 import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ThreadService } from "../service";
 import { unavailableTurnDriver } from "../turn-driver";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -162,5 +162,34 @@ describe("a frame during a streaming turn", () => {
       throw new Error("expected a full timeline");
     }
     expect(applied).toEqual(rebuilt.timeline);
+  });
+});
+
+describe("a stored row this build cannot read", () => {
+  it("costs that row, never the thread's timeline, and is reported once", () => {
+    const { db, service } = openService();
+    const { threadId } = streamingThread(service);
+    // what a newer build sharing the data dir leaves at the log's tail.
+    db.$client
+      .prepare(
+        `INSERT INTO events (id, thread_id, scope_kind, turn_id, sequence, type, data, created_at)
+         VALUES ('evt_newer', ?, 'thread', NULL, 3, 'item/fromANewerBuild', '{}', 0)`,
+      )
+      .run(threadId);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => {
+      warn.mockRestore();
+    });
+
+    const first = service.timeline({ threadId });
+    const again = service.timeline({ threadId });
+
+    if (first?.kind !== "full" || again?.kind !== "full") {
+      throw new Error("expected a full timeline");
+    }
+    expect(first.timeline.maxSequence).toBe(2);
+    expect(again.timeline).toEqual(first.timeline);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(reads.rows).toBe(2);
   });
 });

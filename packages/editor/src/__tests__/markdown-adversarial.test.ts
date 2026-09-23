@@ -353,7 +353,7 @@ const CORPUS = {
   "nbsp-list-marker": "- item\n",
   "nbsp-only": " ",
   "no-trailing-newline": "# Hi",
-  "nul-byte": "a b\n",
+  "nul-byte": "a\u0000b\n",
   "ordered-padded": "003. a\n",
   "ordered-paren-marker": "1) a\n",
   "ordered-start-zero": "0. a\n",

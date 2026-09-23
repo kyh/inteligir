@@ -40,7 +40,17 @@ type SyncWork<T> = (tx: DbTransaction) => T extends Promise<any> ? never : T;
 export const writeTransaction = <T>(db: DbConnection, work: SyncWork<T>): T =>
   db.transaction(work, { behavior: "immediate" });
 
-// WAL leaves a `-wal` sidecar that only a clean close checkpoints away.
+// WAL leaves a `-wal` sidecar that only a clean close checkpoints away. auto_vacuum=INCREMENTAL
+// only marks a deleted row's pages free; incremental_vacuum is what hands them back to the disk.
 export const closeConnection = (db: DbConnection): void => {
-  db.$client.close();
+  const sqlite = db.$client;
+  if (!sqlite.open) {
+    return;
+  }
+  try {
+    sqlite.pragma("incremental_vacuum");
+  } catch {
+    // best effort: a file another writer holds keeps its free pages until the next close.
+  }
+  sqlite.close();
 };

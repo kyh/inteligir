@@ -1,4 +1,5 @@
 import { asc, count, eq, inArray, lt, lte, sql } from "drizzle-orm";
+import { writeTransaction } from "./connection";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createSyncOutboxId } from "./ids";
 import { syncAppliedCaptures, syncOutbox, syncOwnDevices, syncState } from "./schema";
@@ -91,6 +92,53 @@ export const writeSyncCursor = (db: SyncWriteConnection, cursor: number): void =
   db.update(syncState).set({ cursor }).where(eq(syncState.id, SYNC_STATE_ID)).run();
 };
 
+export interface SkippedLogRow {
+  seq: number;
+  build: string;
+}
+
+// in the transaction that moves the cursor past the row: apart, a crash between the two loses the
+// row for good. the lowest is kept, because a rewind replays from it.
+export const recordSkippedRow = (tx: DbTransaction, row: SkippedLogRow): void => {
+  ensureSyncStateRow(tx);
+  tx.update(syncState)
+    .set({
+      skippedByBuild: row.build,
+      skippedFromSeq: sql`min(coalesce(${syncState.skippedFromSeq}, ${row.seq}), ${row.seq})`,
+    })
+    .where(eq(syncState.id, SYNC_STATE_ID))
+    .run();
+};
+
+// a build other than the one that skipped may read the row now, so the cursor goes back to just
+// before it and the marker clears; a build that still cannot read it records it again. the replay
+// lands nothing twice: a foreign row dedupes on its origin, and the planner skips this install's
+// own. answers the row the pull restarts from, or null when nothing moved.
+export const takeRewindIfBuildChanged = (db: DbConnection, build: string): number | null =>
+  writeTransaction(db, (tx) => {
+    const row = tx
+      .select({
+        cursor: syncState.cursor,
+        skippedByBuild: syncState.skippedByBuild,
+        skippedFromSeq: syncState.skippedFromSeq,
+      })
+      .from(syncState)
+      .where(eq(syncState.id, SYNC_STATE_ID))
+      .get();
+    if (row === undefined || row.skippedFromSeq === null || row.skippedByBuild === build) {
+      return null;
+    }
+    tx.update(syncState)
+      .set({
+        cursor: Math.min(row.cursor, row.skippedFromSeq - 1),
+        skippedByBuild: null,
+        skippedFromSeq: null,
+      })
+      .where(eq(syncState.id, SYNC_STATE_ID))
+      .run();
+    return row.skippedFromSeq;
+  });
+
 // separate from the cursor: a device with nothing to pull is up to date, not stale.
 export const touchSyncedAt = (db: DbConnection, at: number): void => {
   ensureSyncStateRow(db);
@@ -98,11 +146,14 @@ export const touchSyncedAt = (db: DbConnection, at: number): void => {
 };
 
 // on logout: a cursor carried into a second account would skip that account's log from its
-// first row. sync_own_devices is kept: the log still holds rows under those ids.
+// first row. one transaction, so a crash cannot keep one account's queue beside the next one's
+// positions. sync_own_devices is kept: the log still holds rows under those ids.
 export const resetSyncState = (db: DbConnection): void => {
-  db.delete(syncOutbox).run();
-  db.delete(syncAppliedCaptures).run();
-  db.delete(syncState).run();
+  writeTransaction(db, (tx) => {
+    tx.delete(syncOutbox).run();
+    tx.delete(syncAppliedCaptures).run();
+    tx.delete(syncState).run();
+  });
 };
 
 export const recordOwnDevice = (db: DbConnection, deviceId: string): void => {

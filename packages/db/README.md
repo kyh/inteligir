@@ -2,8 +2,9 @@
 
 The local SQLite database: drizzle over better-sqlite3, the committed SQL
 migrations applied on boot, and the row-level writers for threads, events,
-queued messages, pending interactions and the sync outbox. Every write
-announces through `@repo/domain`'s `DbNotifier`.
+queued messages, pending interactions and the sync outbox. A standalone write
+announces through `@repo/domain`'s `DbNotifier`; a write composed into the
+server's transaction is announced by its composer after the commit.
 
 ## Why it exists
 
@@ -24,7 +25,8 @@ rows. The events, threads, queue and interaction writers are vendored from bb
 src/
   connection.ts       # createConnection (WAL, synchronous=NORMAL, foreign_keys, a
                       # 5s busy_timeout); writeTransaction — the ONE spelling of
-                      # BEGIN IMMEDIATE; closeConnection, which checkpoints the -wal
+                      # BEGIN IMMEDIATE; closeConnection, which hands free pages
+                      # back and checkpoints the -wal
   schema.ts           # the tables: meta, threads, events, queued_thread_messages,
                       # pending_interactions, sync_outbox, sync_state,
                       # sync_applied_captures, sync_own_devices — each constraint
@@ -32,22 +34,23 @@ src/
   migrate.ts          # runMigrations: drizzle's migrator over drizzle/, foreign keys
                       # OFF around it and foreign_key_check after; returns the
                       # migration-folder count, which IS the schema version
-  json-source.ts      # the json narrowing schema-agreement.test.ts reads sqlite_master through
   meta.ts             # getSchemaVersion — refuses a file a NEWER build upgraded
   ids.ts              # createPrefixedId + the minters (thr_, evt_, turn_, qmsg_,
                       # pint_, obx_) over a 32-letter alphabet minus the look-alikes
   events.ts           # the append-only log: contiguous per-thread sequence, the
                       # turn/started gate, synced-origin dedupe, one prepared insert
-  threads.ts          # thread rows, the lifecycle CAS, origin rebinding on rename,
-                      # setThreadProviderSession
+  threads.ts          # thread rows, the lifecycle CAS, origin rebinding on rename (one
+                      # transaction per rename), setThreadProviderSession
   queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
-                      # cursor, the applied-capture ledger, the own device ids
+                      # cursor and its skipped-row marker, the applied-capture
+                      # ledger, the own device ids
   __tests__/          # real files under a temp dir; schema-agreement.test.ts is
-                      # the migration↔schema pin, legacy-migrations-table.test.ts
-                      # the pre-1.0 __drizzle_migrations upgrade
+                      # the migration↔schema pin (reading sqlite_master through
+                      # json-source.ts), legacy-migrations-table.test.ts the
+                      # pre-1.0 __drizzle_migrations upgrade
 drizzle/              # the committed SQL migrations, one folder per generation:
                       # <yyyymmddhhmmss>_<name>/migration.sql + drizzle-kit's snapshot.json
 drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
@@ -58,12 +61,15 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 - **WAL + `synchronous=NORMAL`, on purpose.** No fsync per commit; a power
   loss can drop the last transactions and cannot corrupt the file. Pinned by
   `db.test.ts`. `auto_vacuum=INCREMENTAL` takes effect only on a brand-new
-  file; an existing one converts on its next full VACUUM.
+  file; an existing one converts on its next full VACUUM. It only marks a
+  deleted row's pages free: `closeConnection` runs `incremental_vacuum` before
+  the close to hand them back, best effort, so a crash or a file another writer
+  holds leaves them for the next clean close.
 - **`writeTransaction` is the ONE spelling of `BEGIN IMMEDIATE`** (repo
   Decisions). The write lock is taken up front, so a read-then-write can never
-  hit `SQLITE_BUSY` upgrading midway; `appendEvents` reads its high-water and
-  inserts under it, which is what makes the unique index a backstop rather
-  than the mechanism.
+  hit `SQLITE_BUSY` upgrading midway; `appendEventsInTransaction` reads its
+  high-water and inserts under the caller's, which is what makes the unique
+  index a backstop rather than the mechanism.
 - **Migrations are committed SQL, applied on boot, and every generation bumps
   `meta.schema_version` to its own index.** The migration-folder count IS the
   version: `getSchemaVersion` refuses a file above it, because an older build
@@ -102,6 +108,13 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   names another account's row. SQLite treats nulls as distinct there, so
   locally written rows coexist. `appendSyncedEventsInTransaction` answers the
   rows that LANDED, not a count, so lifecycle projects over what landed.
+- **A stored row this build cannot read costs that row, never the thread.** No
+  CHECK constrains `events.type` and a new event type ships without a
+  migration, so a newer build sharing the data dir can leave a row this
+  grammar refuses. `listStoredThreadEvents` leaves it out and reports it
+  through `onSkipped`; the timeline projector
+  (`apps/cli/src/server/threads/timeline-projection.ts`) warns once and reads
+  past it.
 - **The outbox stores the bytes it will send, once, at enqueue.** The log
   calls a position replayed with a different body `sync-conflict`, so
   re-serializing at push time is not a retry. `device_seq` is its own counter
@@ -113,32 +126,48 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   The row the contract refuses is left out of the push but stays inside that
   high-water, in `apps/cli/src/server/cloud/outbox.ts`, which reads this queue.
 - **A sign-out forgets the positions, never the device ids.** `resetSyncState`
-  clears the outbox, both positions and the capture ledger, and keeps
-  `sync_own_devices`: the log still holds rows under every id this install
-  signed in as, and the install holds those events locally with a null
-  origin, which `events_origin_idx` cannot match. A pull skips a row under any
-  of those ids; forgetting one doubles everything written under it.
-- **The lifecycle CAS names the turn.** `applyThreadLifecycleEvent` evaluates
-  `@repo/domain`'s transition table, then updates only where status AND
-  `active_turn_id` still match, so a settle validated against turn A cannot
-  land after turn B bound. The loser is a typed `cas-conflict`, never a throw.
-- **Notifications follow the write, never precede it.** Every writer takes a
-  `DbNotifier` and announces after its own statement runs; a caller composing
-  several writes in one transaction passes a `NotificationBuffer` and flushes
-  after commit, so a subscriber never sees rolled-back state.
-  `setThreadProviderSession` announces nothing on purpose: the provider
-  session is runtime plumbing, not a fact a client renders.
+  clears the outbox, both positions and the capture ledger in one transaction,
+  and keeps `sync_own_devices`: the log still holds rows under every id this
+  install signed in as, and the install holds those events locally with a
+  null origin, which `events_origin_idx` cannot match. A pull skips a row under
+  any of those ids; forgetting one doubles everything written under it.
+- **A pulled row this build cannot read is pulled again by the next build.**
+  The planner moves the cursor past it, so `recordSkippedRow` writes the
+  lowest such row and the running build into `sync_state` in the transaction
+  that moves the cursor, and `takeRewindIfBuildChanged` puts the cursor back to
+  just before it when a different build opens the session, clearing the
+  marker. The replay lands nothing twice: a foreign row dedupes on its origin
+  and the planner skips this install's own. The build is the CLI's version,
+  not `meta.schema_version`, which counts migrations, and a new event type
+  ships without one. A sign-out clears the marker with the positions.
+- **The lifecycle CAS names the turn.**
+  `applyThreadLifecycleEventInTransaction` evaluates `@repo/domain`'s
+  transition table, then updates only where status AND `active_turn_id` still
+  match, so a settle validated against turn A cannot land after turn B bound.
+  The loser is a typed `cas-conflict`, never a throw.
+- **Notifications follow the commit, never precede it.** A standalone writer
+  takes a `DbNotifier` and announces after its own write commits;
+  `rebindThreadOrigins` moves a folder's threads in one transaction and
+  announces each after it. An `*InTransaction` writer announces nothing: the
+  server composes it into one immediate transaction and its
+  `NotificationBuffer` announces after the commit, so a subscriber never sees
+  rolled-back state. `setThreadProviderSession` announces nothing on purpose:
+  the provider session is runtime plumbing, not a fact a client renders.
 - **A claim has no TTL, so boot releases them all.** One server owns a data
   dir, so no claim can be live at boot; `releaseAllQueuedMessageClaims` runs
   in `ThreadService.boot()` (`apps/cli/src/server/threads/service.ts`).
 
 ## Seams
 
-- `DbNotifier` (`@repo/domain/notifier`) — the announcement port every writer
-  takes. The server binds the `/ws` bus; `noopNotifier` is the test's.
+- `DbNotifier` (`@repo/domain/notifier`) — the announcement port every
+  standalone writer takes. The server binds the `/ws` bus; `noopNotifier` is the test's.
 - `DbTransaction` and the `*InTransaction` variants — how the server composes
   append, lifecycle projection, queue touch and outbox enqueue into ONE
-  immediate transaction (`apps/cli/src/server/threads/service.ts`).
+  immediate transaction (`apps/cli/src/server/threads/service.ts`). An append,
+  a lifecycle move, an enqueue, a claim and a claimed delete have no standalone
+  twin: one would be an append that skips the lifecycle projection and the
+  outbox, and a second spelling of `BEGIN IMMEDIATE`. Tests run them through
+  `writeTransaction` as the server does.
 - `runMigrations(db, folder?)` — the staged-content seam the packaged CLI
   drives.
 
@@ -148,10 +177,13 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 (`__tests__/open-temp-db.ts`, disposed with the test). Pinned: boot migrates
 and bumps the version, upgrades a POPULATED v2 file in place with its child
 rows and foreign keys intact, refuses a newer build's file, opens with WAL and
-`synchronous=NORMAL`; contiguous sequences under interleaved writers, the
-turn/started gate, the scope CHECK at the database, a 20-event burst prepares
-two SELECTs and one INSERT; the lifecycle happy path and its typed no-ops,
-`listThreads` answered from its partial indexes with no temp b-tree; FIFO
-claims across connections and same-millisecond bursts; interaction
-idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so it carries
-its own 30s budget.
+`synchronous=NORMAL`, hands a deleted row's pages back on close; the
+skipped-row marker keeps the lowest row and rewinds once per build change;
+contiguous sequences under interleaved writers, the turn/started gate, the
+scope CHECK at the database, a 20-event burst prepares two SELECTs and one
+INSERT, a stored row the grammar refuses left out and reported; the lifecycle
+happy path and its typed no-ops, a folder rebind a write refuses partway
+moving nothing, `listThreads` answered from its partial indexes with no temp
+b-tree; FIFO claims across connections and same-millisecond bursts;
+interaction idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so
+it carries its own 30s budget.

@@ -73,7 +73,6 @@ export const events = sqliteTable(
     // sqlite treats nulls as distinct in a unique index, so locally-written rows (both null)
     // coexist.
     uniqueIndex("events_origin_idx").on(table.originDeviceId, table.originDeviceSeq),
-    index("events_thread_type_sequence_idx").on(table.threadId, table.type, table.sequence),
     index("events_thread_turn_type_item_sequence_idx").on(
       table.threadId,
       table.turnId,
@@ -161,6 +160,11 @@ export const syncState = sqliteTable(
     lastDeviceSeq: integer("last_device_seq").notNull().default(0),
     cursor: integer("cursor").notNull().default(0),
     lastSyncedAt: integer("last_synced_at"),
+    // the lowest log row a pull moved past without being able to read it, and the build that
+    // could not: a different build rewinds the cursor to pull it again. no CHECK pairs them, for
+    // the reason on threads.provider_id.
+    skippedFromSeq: integer("skipped_from_seq"),
+    skippedByBuild: text("skipped_by_build"),
   },
   (table) => [check("sync_state_singleton_check", sql`${table.id} = 1`)],
 );

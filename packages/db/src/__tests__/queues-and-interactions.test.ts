@@ -1,4 +1,5 @@
-import { createConnection } from "../connection";
+import { createConnection, writeTransaction } from "../connection";
+import type { DbConnection } from "../connection";
 import { describe, expect, it } from "vitest";
 import { noopNotifier } from "@repo/domain/notifier";
 import {
@@ -7,52 +8,68 @@ import {
   resolvePendingInteraction,
 } from "../pending-interactions";
 import {
-  claimNextQueuedThreadMessage,
-  createQueuedThreadMessage,
-  deleteClaimedQueuedThreadMessage,
+  claimNextQueuedThreadMessageInTransaction,
+  createQueuedThreadMessageInTransaction,
+  deleteClaimedQueuedThreadMessageInTransaction,
   listQueuedThreadMessages,
   releaseQueuedMessageClaim,
 } from "../queued-messages";
+import type {
+  ClaimedQueuedThreadMessageKey,
+  ClaimedQueuedThreadMessageRow,
+  CreateQueuedThreadMessageInput,
+  QueuedThreadMessageRow,
+} from "../queued-messages";
 import { createThread } from "../threads";
 import { openTempDb } from "./open-temp-db";
+
+// each in the transaction the server composes it in.
+const enqueue = (db: DbConnection, input: CreateQueuedThreadMessageInput): QueuedThreadMessageRow =>
+  writeTransaction(db, (tx) => createQueuedThreadMessageInTransaction(tx, input));
+
+const claimNext = (db: DbConnection, threadId: string): ClaimedQueuedThreadMessageRow | null =>
+  writeTransaction(db, (tx) => claimNextQueuedThreadMessageInTransaction(tx, threadId));
+
+const deleteClaimed = (db: DbConnection, key: ClaimedQueuedThreadMessageKey): boolean =>
+  writeTransaction(db, (tx) => deleteClaimedQueuedThreadMessageInTransaction(tx, key));
 
 describe("queued thread messages", () => {
   it("claims in arrival order, one holder per message", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
-    const first = createQueuedThreadMessage(db, noopNotifier, {
+    const first = enqueue(db, {
       text: "first",
       threadId: thread.id,
     });
-    createQueuedThreadMessage(db, noopNotifier, { text: "second", threadId: thread.id });
+    enqueue(db, { text: "second", threadId: thread.id });
 
-    const claimed = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
+    const claimed = claimNext(db, thread.id);
     expect(claimed?.id).toBe(first.id);
     expect(claimed?.claimToken).toBeTruthy();
     expect(listQueuedThreadMessages(db, thread.id).map((row) => row.text)).toEqual(["second"]);
 
-    const next = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
+    const next = claimNext(db, thread.id);
     expect(next?.text).toBe("second");
-    expect(claimNextQueuedThreadMessage(db, noopNotifier, thread.id)).toBeNull();
+    expect(claimNext(db, thread.id)).toBeNull();
   });
 
   it("never hands one message to two claimants across separate connections", () => {
     const db = openTempDb();
     const rival = createConnection(db.$client.name);
     const thread = createThread(db, noopNotifier, {});
-    createQueuedThreadMessage(db, noopNotifier, { text: "one", threadId: thread.id });
-    createQueuedThreadMessage(db, noopNotifier, { text: "two", threadId: thread.id });
+    enqueue(db, { text: "one", threadId: thread.id });
+    enqueue(db, { text: "two", threadId: thread.id });
 
-    const first = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
-    const second = claimNextQueuedThreadMessage(rival, noopNotifier, thread.id);
+    const first = claimNext(db, thread.id);
+    const second = claimNext(rival, thread.id);
     expect(first?.text).toBe("one");
     expect(second?.text).toBe("two");
-    expect(claimNextQueuedThreadMessage(rival, noopNotifier, thread.id)).toBeNull();
+    expect(claimNext(rival, thread.id)).toBeNull();
     if (!first) {
       throw new Error("expected a claim");
     }
     expect(
-      deleteClaimedQueuedThreadMessage(rival, noopNotifier, {
+      deleteClaimed(rival, {
         claimToken: "claim_forged",
         id: first.id,
       }),
@@ -64,12 +81,12 @@ describe("queued thread messages", () => {
     const thread = createThread(db, noopNotifier, {});
     const texts = Array.from({ length: 20 }, (_, index) => `message-${index}`);
     for (const text of texts) {
-      createQueuedThreadMessage(db, noopNotifier, { text, threadId: thread.id });
+      enqueue(db, { text, threadId: thread.id });
     }
     expect(listQueuedThreadMessages(db, thread.id).map((row) => row.text)).toEqual(texts);
     const drained: string[] = [];
     for (;;) {
-      const claimed = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
+      const claimed = claimNext(db, thread.id);
       if (!claimed) {
         break;
       }
@@ -81,14 +98,14 @@ describe("queued thread messages", () => {
   it("release puts a claim back; delete needs the claim token", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
-    createQueuedThreadMessage(db, noopNotifier, { text: "only", threadId: thread.id });
+    enqueue(db, { text: "only", threadId: thread.id });
 
-    const claimed = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
+    const claimed = claimNext(db, thread.id);
     if (!claimed) {
       throw new Error("expected a claim");
     }
     expect(
-      deleteClaimedQueuedThreadMessage(db, noopNotifier, {
+      deleteClaimed(db, {
         claimToken: "claim_wrong",
         id: claimed.id,
       }),
@@ -97,12 +114,12 @@ describe("queued thread messages", () => {
     expect(releaseQueuedMessageClaim(db, noopNotifier, claimed)).toBe(true);
     expect(listQueuedThreadMessages(db, thread.id)).toHaveLength(1);
 
-    const reclaimed = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
+    const reclaimed = claimNext(db, thread.id);
     if (!reclaimed) {
       throw new Error("expected a reclaim");
     }
     expect(reclaimed.claimToken).not.toBe(claimed.claimToken);
-    expect(deleteClaimedQueuedThreadMessage(db, noopNotifier, reclaimed)).toBe(true);
+    expect(deleteClaimed(db, reclaimed)).toBe(true);
     expect(listQueuedThreadMessages(db, thread.id)).toHaveLength(0);
   });
 });

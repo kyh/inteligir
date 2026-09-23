@@ -183,6 +183,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
 
   // before the thread service, which takes the outbox hook at construction; attach() closes the other direction.
   const cloudArgs: CloudRuntimeArgs = {
+    build: args.version,
     cloudUrl: config.cloudUrl,
     dataDir: config.dataDir,
     db,

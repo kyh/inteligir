@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -152,6 +153,29 @@ const walk = (dir: string, matches: RegExp, out: string[]): void => {
       out.push(path.relative(REPO_ROOT, full));
     }
   }
+};
+
+let cachedTracked: string[] | undefined;
+
+// git's index, not a directory walk, for a guard judging what the repo commits: build output and
+// ignored sidecars are not in it.
+export const trackedFiles = (): string[] => {
+  if (cachedTracked !== undefined) {
+    return cachedTracked;
+  }
+  cachedTracked = execFileSync("git", ["ls-files", "-z"], {
+    cwd: REPO_ROOT,
+    encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split("\0")
+    .filter(
+      (file) =>
+        file.length > 0 &&
+        // the index still lists a file deleted in the working tree.
+        fs.existsSync(path.join(REPO_ROOT, file)),
+    );
+  return cachedTracked;
 };
 
 export const isTestFile = (relativePath: string): boolean =>

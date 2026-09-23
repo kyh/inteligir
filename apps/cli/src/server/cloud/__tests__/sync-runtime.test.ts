@@ -126,6 +126,7 @@ const makeHarness = (
     transport.pollIntervalMs = options.pollIntervalMs;
   }
   const runtime = createCloudRuntime({
+    build: "0.0.0-test",
     cloudUrl: CLOUD_URL,
     dataDir,
     db,

@@ -1148,6 +1148,23 @@ agents default`; unset falls back
   while it was down reached nothing. `apps/cli/src/server/cloud/sync-pass.ts`,
   `sync-runtime.ts` and `cloud-socket.ts`.
 
+- **A PULLED ROW THIS BUILD CANNOT READ IS PULLED AGAIN BY THE NEXT BUILD.** The
+  planner moves the cursor past a foreign row its grammar refuses, because the
+  rows behind it must still land, and without a way back a newer device's
+  event type would be gone from this one for good. The skip step names the
+  lowest such row (`firstUnparsed`), the pass records it with the running
+  build, the CLI's version, in the transaction that moves the cursor, and a
+  session opened under a different build puts the cursor back to just before
+  it and clears the marker (`takeRewindIfBuildChanged` in
+  `packages/db/src/sync-outbox.ts`, from `openSession` in
+  `apps/cli/src/server/cloud/sync-runtime.ts`); a build that still cannot read
+  it records it again. The replay needs no dedupe of its own: a foreign row
+  lands once on its origin index and the planner skips this install's own.
+  Rejected: `meta.schema_version` as the trigger, which counts migrations
+  while a new event type ships without one, and a table of the raw skipped
+  rows, a second store beside the log. The phone keeps no marker: its sync
+  store is in memory, so every launch replays from 0.
+
 ### Server process and the desktop shell
 
 - **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /

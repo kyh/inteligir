@@ -2,11 +2,13 @@ import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import { ThreadService } from "../../threads/service";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
+import { createCloudRuntime } from "../sync-runtime";
+import type { CloudRuntime } from "../sync-runtime";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
 // pollIntervalMs: null — the test triggers every pass itself.
@@ -45,6 +47,38 @@ const eventOrder = (install: BootedTestApp, threadId: string): string[] =>
 
 const eventSet = (install: BootedTestApp, threadId: string): string[] =>
   eventOrder(install, threadId).toSorted();
+
+// the cloud half of a restart on the same data dir under `build`: the running runtime stops, and
+// a new one boots over the same db and credential with its own ingest.
+const rebootCloud = async (
+  install: BootedTestApp,
+  running: CloudRuntime,
+  cloud: FakeCloud,
+  build: string,
+): Promise<CloudRuntime> => {
+  await running.dispose();
+  const runtime = createCloudRuntime({
+    build,
+    cloudUrl: install.config.cloudUrl,
+    dataDir: install.dataDir,
+    db: install.db,
+    onDebug: () => {},
+    transport: { fetch: cloud.fetch, pollIntervalMs: null },
+    vault: install.vault.service,
+  });
+  runtime.attach(
+    new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db: install.db,
+      notifier: new NotificationBuffer(),
+      sync: runtime,
+    }),
+  );
+  onTestFinished(async () => {
+    await runtime.dispose();
+  });
+  return runtime;
+};
 
 const writerBlock = (order: readonly string[], text: string): string[] => {
   const start = order.indexOf(`client/turn/requested ${text}`);
@@ -330,5 +364,38 @@ describe("two installs against one account", () => {
       .map((event) => event.text);
     expect(texts).toContain("from A");
     expect(texts).toContain("from B");
+  });
+
+  it("pulls a row an older build skipped once a build that reads it boots, and lands it once", async () => {
+    const cloud = new FakeCloud();
+    const a = await bootInstall(cloud);
+    const b = await bootInstall(cloud);
+    await login(a, "A");
+    await login(b, "B");
+
+    const { thread } = await a.client.threads.create({ title: "Newer grammar" });
+    await a.client.threads.send({ text: "hello", threadId: thread.id });
+    await syncNow(a);
+    const written = eventSet(a, thread.id);
+
+    // B's build predates the type, so the planner moves B's cursor past the row.
+    cloud.unreadableTypes.add("item/completed");
+    await syncNow(b);
+    const held = eventSet(b, thread.id);
+    expect(written.filter((event) => !held.includes(event))).toEqual([
+      "item/completed Echo: hello",
+    ]);
+
+    // the grammar that reads it ships; the build B already ran does not look back.
+    cloud.unreadableTypes.clear();
+    const sameBuild = await rebootCloud(b, b.composed.context.cloud, cloud, "0.1.0-test");
+    await sameBuild.syncNow();
+    expect(eventSet(b, thread.id)).toEqual(held);
+
+    const nextBuild = await rebootCloud(b, sameBuild, cloud, "0.2.0-test");
+    await nextBuild.syncNow();
+    expect(eventSet(b, thread.id)).toEqual(written);
+    await nextBuild.syncNow();
+    expect(eventSet(b, thread.id)).toEqual(written);
   });
 });
