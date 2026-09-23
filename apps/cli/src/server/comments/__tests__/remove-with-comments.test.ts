@@ -5,6 +5,7 @@ import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { identityLock } from "../../__tests__/identity-lock";
 import { makeTempDir } from "../../__tests__/temp-dir";
+import { createInlineProjector } from "../../knowledge/__tests__/inline-projector";
 import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import type { KnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import { createVaultService } from "../../vault/vault-service";
@@ -25,10 +26,16 @@ const boot = () => {
   const service = createVaultService({
     lock: identityLock,
     notifier: noopNotifier,
-    onMutated: (paths) => sink?.noteVaultChange({ kind: "paths", paths }),
+    onMutated: (mutations) =>
+      sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
     root,
   });
-  const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
+  const knowledge = createKnowledgeRuntime({
+    dataDir,
+    projector: createInlineProjector(),
+    vault: service,
+    vaultRoot: root,
+  });
   sink = knowledge;
   onTestFinished(async () => {
     await knowledge.dispose();
