@@ -47,7 +47,8 @@ apps/
                  unconditionally, permissions denied except origin-scoped
                  media. utilityProcess forks `inteligir serve`; a server
                  already listening is ADOPTED once it answers this instance's
-                 token, and only a child the shell started is killed on quit.
+                 token at the bundled version, and only a child the shell
+                 started is killed on quit.
                  A vault switch (`main/vaults.ts` over the CLI's shared plan)
                  stops that child, rewrites the root config.json's `vaultDir`
                  and boots a new one on the new vault's own data dir.
@@ -1233,8 +1234,14 @@ agents default`; unset falls back
   child so the compositor never shares an event loop with better-sqlite3, a
   watcher fork and `git`; `utilityProcess` supervises, with readiness, the
   SIGKILL behind a grace and the deliberate absence of a restart in
-  `apps/desktop/src/main/server-process.ts`. The shell adopts a listening server
-  and only kills the child it started.
+  `apps/desktop/src/main/server-process.ts`, where every wait ends on the
+  child's exit event rather than a poll. The shell adopts a listening server
+  and only kills the child it started. Whether `server.json`'s owner still
+  serves has ONE reading, `apps/cli/src/server/server-probe.ts`, which the
+  boot's guard and the shell's adoption both project: a silent owner is live
+  to both, so the shell refuses to start rather than spawn a child that
+  owner's lock refuses, and it refuses a server of another version too,
+  because `/local`'s two ends may break freely only while they ship together.
 
 - **ONE COMPOSITION ROOT.** `apps/cli/src/server/compose.ts` builds every
   service in boot order and returns `{ context, teardown }`; `createApp` is

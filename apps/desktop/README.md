@@ -93,13 +93,23 @@ shutdown listens for: it flushes the vault's pending git commit and closes the
 database. `kill()` sends it on POSIX, and the grace behind it is DERIVED from
 the server's own `SHUTDOWN_TIMEOUT_MS` rather than written down twice — a shell
 that kills early lands SIGKILL on the commit the ordering exists to protect.
+The wait ends on the child's `exit` event, not a poll, so a quick teardown
+costs a quit, a vault switch or an install nothing extra; after a SIGKILL the
+shell still waits for that exit before the next child may claim the data dir.
 
 **A running server is ADOPTED, not fought.** The shell verifies the responder by
 calling `system.status` with the token from the data dir it resolved, and
 adopting requires that call to succeed AND the responder to name that same data
-dir. A port squatter has no token; a neighbouring checkout names another dir.
-Quitting leaves an adopted server running — the shell only kills the child it
-started.
+dir AND to run the version bundled in this app — the renderer and the server
+speak `/local`, whose two ends are free to break together. A port squatter has
+no token; a neighbouring checkout names another dir. Quitting leaves an adopted
+server running — the shell only kills the child it started.
+
+The judgement is the CLI's own (`inteligir/server/server-probe`), the reading
+`serve`'s guard runs before it boots. So a server whose pid is alive but which
+does not answer in time is **silent**, live to both: the shell says so in a
+dialog instead of spawning a child that server's lock would refuse. A server of
+another version is refused the same way, naming both versions and its origin.
 
 ## One config resolution
 

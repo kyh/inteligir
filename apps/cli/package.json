@@ -40,6 +40,7 @@
     "./server/local-client": "./src/server/local-client.ts",
     "./server/path-containment": "./src/server/path-containment.ts",
     "./server/server-file": "./src/server/server-file.ts",
+    "./server/server-probe": "./src/server/server-probe.ts",
     "./server/shutdown": "./src/server/shutdown.ts",
     "./server/staged-write": "./src/server/staged-write.ts",
     "./server/vault-switch": "./src/server/vault-switch.ts",
