@@ -99,6 +99,9 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
               scheduleResubscribe(start);
               return;
             }
+            // the first proof the watch is live: the proxy resolves a subscribe at once and
+            // reports a failed establish later, through this callback.
+            retryAttempt = 0;
             for (const event of events) {
               const rel = toVaultRelativePath(event.path);
               if (rel !== null) {
@@ -127,7 +130,6 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
         }
         return;
       }
-      retryAttempt = 0;
       subscription = established;
     })();
   };

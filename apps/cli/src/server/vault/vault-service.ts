@@ -30,6 +30,8 @@ import {
 import type { VaultEntry, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { errnoCode } from "../errno";
 import { pathContains, relativeUnder } from "../path-containment";
+import { ABSENT_ENTRY, entryFingerprintAt, fingerprintOf } from "./vault-changes";
+import type { EntryFingerprint, VaultMutation } from "./vault-changes";
 import { resolveVaultPath } from "./vault-paths";
 
 // VAULT_REFUSALS is total over this union, so a code added here without a wire class fails to
@@ -115,7 +117,7 @@ export interface VaultServiceArgs {
   notifier: DbNotifier;
   // required, not defaulted: a forgotten arg silently dropped the serialization the cas guard needs.
   lock: <T>(work: () => Promise<T>) => Promise<T>;
-  onMutated?: (paths: readonly string[]) => void;
+  onMutated?: (mutations: readonly VaultMutation[]) => void;
 }
 
 type ConditionalWriteResult =
@@ -201,9 +203,12 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
   };
 
   // files-changed makes every client re-walk the vault, so only a mutation that moved a row says it.
-  const announceMutation = (paths: readonly string[]): void => {
-    args.notifier.notifyVault(["files-changed"], paths);
-    args.onMutated?.(paths);
+  const announceMutation = (mutations: readonly VaultMutation[]): void => {
+    args.notifier.notifyVault(
+      ["files-changed"],
+      mutations.map((mutation) => mutation.path),
+    );
+    args.onMutated?.(mutations);
   };
 
   // a content-only write says content-changed alone: saying files-changed too costs the open
@@ -226,12 +231,16 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       path.dirname(absPath),
       `${VAULT_TMP_PREFIX}${randomBytes(8).toString("hex")}`,
     );
+    let fingerprint: EntryFingerprint;
     try {
       const handle = await open(tmpPath, "w");
       try {
         // the encoding only applies to a string; node ignores it for bytes.
         await handle.writeFile(content, "utf-8");
         await handle.sync();
+        // read off the handle, not an lstat after the rename: the rename keeps all three
+        // fields, and an lstat could already see a foreign write that landed behind this one.
+        fingerprint = fingerprintOf(await handle.stat());
       } finally {
         await handle.close();
       }
@@ -247,7 +256,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     if (created) {
       args.notifier.notifyVault(["files-changed"], [relPath]);
     }
-    args.onMutated?.([relPath]);
+    args.onMutated?.([{ fingerprint, path: relPath }]);
   };
 
   const resolveAsset = async (requestedPath: string) => {
@@ -284,7 +293,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           }
           throw error;
         }
-        announceMutation([relPath]);
+        announceMutation([{ fingerprint: await entryFingerprintAt(absPath), path: relPath }]);
         return { path: relPath };
       });
     },
@@ -348,7 +357,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         }
         await rm(absPath, { recursive: true });
         await fsyncDirBestEffort(path.dirname(absPath));
-        announceMutation([relPath]);
+        announceMutation([{ fingerprint: ABSENT_ENTRY, path: relPath }]);
       });
     },
 
@@ -369,7 +378,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         }
         await rm(absPath);
         await fsyncDirBestEffort(path.dirname(absPath));
-        announceMutation([relPath]);
+        announceMutation([{ fingerprint: ABSENT_ENTRY, path: relPath }]);
         return { applied: true, path: relPath };
       });
     },
@@ -416,7 +425,12 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         if (path.dirname(source.absPath) !== path.dirname(target.absPath)) {
           await fsyncDirBestEffort(path.dirname(source.absPath));
         }
-        announceMutation([source.relPath, target.relPath]);
+        const moved = await entryFingerprintAt(target.absPath);
+        announceMutation([
+          // a case-only retitle leaves the old spelling answering for the same entry.
+          { fingerprint: sameEntry ? moved : ABSENT_ENTRY, path: source.relPath },
+          { fingerprint: moved, path: target.relPath },
+        ]);
         return { path: target.relPath };
       });
     },

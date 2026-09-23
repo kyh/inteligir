@@ -16,13 +16,13 @@ import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
 import { classifyNetworkFailure, GitError, gitPath, runGit } from "../git-run";
 import type { RunGitCommand } from "../git-run";
+import type { VaultFilesChange } from "../vault-changes";
 import { createVaultRuntime } from "../vault-runtime";
-import type { VaultFilesChange } from "../vault-runtime";
 import { createVaultService } from "../vault-service";
-import type { ParcelWatcherBackend, ParcelWatcherEventBatch } from "../watcher/parcel-backend";
 import { boundAddressSchema } from "../../__tests__/bound-address";
 import { hermeticGitEnv } from "./git-test-env";
 import { createNotifierRecorder } from "./notifier-recorder";
+import { scriptedWatcher } from "./scripted-watcher";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 const env = hermeticGitEnv();
@@ -54,16 +54,16 @@ const makeEngine = async (args: {
   root: string;
   engine: GitEngine;
   statusChanges: () => number;
-  filesChanges: () => number;
+  filesChanges: () => VaultFilesChange[];
 }> => {
   const root = args.root ?? scratchDir("inteligir-git-vault-");
   await ensureVaultRepo({ env, root });
   let statusChanges = 0;
-  let filesChanges = 0;
+  const filesChanges: VaultFilesChange[] = [];
   const engineArgs: GitEngineArgs = {
     env: { ...env, ...args.env },
-    onFilesChanged: () => {
-      filesChanges += 1;
+    onFilesChanged: (change) => {
+      filesChanges.push(change);
     },
     onStatusChanged: () => {
       statusChanges += 1;
@@ -78,7 +78,7 @@ const makeEngine = async (args: {
   });
   return {
     engine,
-    filesChanges: () => filesChanges,
+    filesChanges: () => [...filesChanges],
     root,
     statusChanges: () => statusChanges,
   };
@@ -575,7 +575,7 @@ describe("sync", { timeout: 30_000 }, () => {
 
     expectConflict(await b.engine.syncNow());
     expect(await mtimeOf(shared)).toBe(UNTOUCHED.getTime());
-    expect(b.filesChanges()).toBe(filesChanges);
+    expect(b.filesChanges()).toEqual(filesChanges);
   });
 
   it("replays a recorded conflict once the remote moves", async () => {
@@ -747,28 +747,6 @@ const makeGatedService = async (service: "upload-pack" | "receive-pack") => {
   };
 };
 
-const scriptedWatcher = () => {
-  let deliver: ((events: ParcelWatcherEventBatch) => void) | null = null;
-  const backend: ParcelWatcherBackend = {
-    subscribe: async (_dir, listener) => {
-      deliver = (events) => {
-        listener(null, events);
-      };
-      return await Promise.resolve({
-        unsubscribe: async () => {
-          await Promise.resolve();
-        },
-      });
-    },
-  };
-  return {
-    backend,
-    emit: (absolutePath: string) => {
-      deliver?.([{ path: absolutePath, type: "update" }]);
-    },
-  };
-};
-
 // far under any network limit, far over a file write.
 const LOCAL_STEP_MS = 5000;
 // past the watcher's debounce, so an echo reaches the runtime before the pass ends.
@@ -901,6 +879,61 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     }
     await expect(pass).resolves.toMatchObject({ state: "offline" });
     expect(changes).toEqual([{ kind: "paths", paths: ["saved.md"] }]);
+  });
+});
+
+describe("a pass that pulls", { timeout: 30_000 }, () => {
+  it("names the paths a rebase rewrote, and none of this device's own", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    const b = await makeEngine({ remoteUrl: remote });
+    await a.engine.syncNow();
+    await b.engine.syncNow();
+
+    await mkdir(path.join(a.root, "notes"));
+    await writeFile(path.join(a.root, "one.md"), "from A\n", "utf-8");
+    await writeFile(path.join(a.root, "notes", "two words.md"), "from A\n", "utf-8");
+    await a.engine.commitNow();
+    await a.engine.syncNow();
+    // B's own commit makes the pass a replay rather than a fast-forward.
+    await writeFile(path.join(b.root, "own.md"), "from B\n", "utf-8");
+    await b.engine.commitNow();
+
+    const before = b.filesChanges().length;
+    expect(await syncState(b.engine)).toBe("clean");
+    expect(b.filesChanges().slice(before)).toEqual([
+      { kind: "paths", paths: ["notes/two words.md", "one.md"] },
+    ]);
+  });
+
+  it("hands the index those paths, never a whole-vault reconcile", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    expect(await syncState(a.engine)).toBe("clean");
+    const changes: VaultFilesChange[] = [];
+    const runtime = await createVaultRuntime({
+      dataDir: scratchDir("inteligir-git-pull-data-"),
+      gitEnv: env,
+      notifier: createNotifierRecorder(),
+      onFilesChanged: (change) => {
+        changes.push(change);
+      },
+      remote: () => ({ source: "explicit", url: remote }),
+      syncIntervalMs: null,
+      vaultDir: path.join(scratchDir("inteligir-git-pull-vault-"), "vault"),
+      watcherBackend: scriptedWatcher().backend,
+    });
+    onTestFinished(async () => {
+      await runtime.dispose();
+    });
+
+    await writeFile(path.join(a.root, "one.md"), "from A\n", "utf-8");
+    await writeFile(path.join(a.root, "two.md"), "from A\n", "utf-8");
+    await a.engine.commitNow();
+    await a.engine.syncNow();
+
+    await expect(runtime.syncNow()).resolves.toMatchObject({ state: "clean" });
+    expect(changes).toEqual([{ kind: "paths", paths: ["one.md", "two.md"] }]);
   });
 });
 
