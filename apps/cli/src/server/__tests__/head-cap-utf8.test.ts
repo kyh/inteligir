@@ -22,4 +22,9 @@ describe("headCapUtf8", () => {
     expect(cut).toBe(`a${emoji.repeat(499)}`);
     expect(utf8Length(cut)).toBeLessThanOrEqual(budget);
   });
+
+  it("keeps a U+FFFD the text really holds when it ends exactly at the cut", () => {
+    // one ASCII byte then the three-byte replacement character: the budget ends on its last byte.
+    expect(headCapUtf8("a�bcd", 4)).toBe("a�");
+  });
 });

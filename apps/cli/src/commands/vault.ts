@@ -26,6 +26,7 @@ import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
 import { resolveAppConfig, writeManagedVaultDir } from "../server/config";
 import type { ResolveAppConfigArgs } from "../server/config";
 import { resolveCheckoutRoot } from "../server/dev-instance";
+import { messageOf } from "../server/error-message";
 import { loopbackOrigin, readServerFile } from "../server/server-file";
 import {
   planVaultSelection,
@@ -106,7 +107,7 @@ const selectVault = (deps: CliDeps, rawDir: string): VaultSelection => {
   try {
     candidate = resolveVaultCandidate(configArgs, rawDir);
   } catch (error) {
-    throw invalidUsage(error instanceof Error ? error.message : String(error));
+    throw invalidUsage(messageOf(error));
   }
   const plan = planVaultSelection(current, candidate.vaultDir);
   if (plan.kind === "refused") {

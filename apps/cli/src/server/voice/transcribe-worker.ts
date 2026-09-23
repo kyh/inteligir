@@ -30,6 +30,8 @@ const post = (reply: VoiceWorkerResponse | VoiceStreamEvent): void => {
   port?.postMessage(reply);
 };
 
+// a copy, not ../error-message: under the test runner this file is its own worker entry on
+// node's type stripping, which resolves no extensionless relative import.
 const message = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
