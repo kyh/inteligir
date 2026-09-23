@@ -43,10 +43,11 @@ const vaultPathSchema = z.string().superRefine((value, ctx) => {
   }
 });
 
+// the query schemas parse a URL's search params whole, where every value arrives as a string
 export const vaultTreeQuerySchema = z
   .object({
     after: vaultPathSchema.optional(),
-    limit: z.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
+    limit: z.coerce.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
     ref: commitShaSchema.optional(),
   })
   .strict();

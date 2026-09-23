@@ -77,7 +77,8 @@ account row itself goes:
 1. **Every device row you own** is deleted from D1. This is first
    on purpose: while a device row lives its credential still works, so any
    later step could be undone by a request that arrives a moment after it.
-2. **Your hosted vault repo** — created once a signed-in device first pushes. A
+2. **Your hosted vault repo** — created once a signed-in device first pushes —
+   with the listing of its file names and sizes kept for your phone's reads. A
    never-pushed account wipes empty tables, so the step is idempotent either
    way.
 3. **Your thread-sync Durable Object** is purged whole: every thread event,

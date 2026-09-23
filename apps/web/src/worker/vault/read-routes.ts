@@ -1,6 +1,5 @@
 import {
   assetMediaType,
-  isIgnoredEntryName,
   VAULT_API_PATHS,
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
@@ -9,16 +8,24 @@ import {
   vaultFileQuerySchema,
   vaultTreeQuerySchema,
 } from "@repo/api/cloud/vault/vault-schema";
-import type { VaultFileResponse, VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
-import type { RepoCell, TreeResult } from "durable-git";
+import type { VaultFileResponse } from "@repo/api/cloud/vault/vault-schema";
+import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import { allowInWindow, deviceRateKey } from "../rate-limit";
 import type { RateWindow } from "../rate-limit";
 import { vaultRegistry, vaultRepoName } from "./git-remote";
+import { treeListingSlot } from "./tree-listing";
+import type { TreeListingSlot } from "./tree-listing";
+import { pageTree, walkTree } from "./tree-walk";
+import type { TreeWalkRefusal } from "./tree-walk";
 
 const MAX_TREE_DIRS = 10_000;
+
+// the walk that fills the listing slot holds the whole listing in memory, so a vault past this
+// many entries is walked page by page and never kept.
+const MAX_KEPT_LISTING = 50_000;
 
 // the legitimate burst is one note's embeds, which the format does not bound; this breaks a runaway
 // loop, and a note past it sees its tail answered 429.
@@ -39,127 +46,57 @@ const resolveCommit = async (
 // segment.
 const encodeGitPath = (path: string): string => path.split("/").map(encodeURIComponent).join("/");
 
-// list only what the file route answers: git allows any byte but NUL and `/` in a name, and one
-// pushed `a\b.md` would otherwise fail the phone's parse of the whole listing.
-const servable = (path: string): boolean => vaultFileQuerySchema.safeParse({ path }).success;
+const refuseWalk = (refusal: TreeWalkRefusal): Response =>
+  refusal === "missing"
+    ? refuse("not-found", "This vault has no content at that revision.")
+    : refuse("internal", `Vault tree exceeds ${String(MAX_TREE_DIRS)} directories.`);
 
-const byPath = (a: { path: string }, b: { path: string }): number => {
-  if (a.path < b.path) {
-    return -1;
-  }
-  return a.path > b.path ? 1 : 0;
-};
-
-// every path under dir starts with dir + "/", so a cursor past that prefix and not inside it is
-// past the subtree.
-const subtreeReaches = (dir: string, after: string | undefined): boolean => {
-  if (after === undefined) {
-    return true;
-  }
-  const prefix = `${dir}/`;
-  return after < prefix || after.startsWith(prefix);
-};
-
-interface TreeLevel {
-  dirs: string[];
-  files: VaultTreeResponse["entries"][number][];
-}
-
-// one BFS level: the subdirectories still worth visiting, and the blobs past the cursor. null when
-// a listing came back missing, which means the revision no longer carries that tree.
-const readLevel = (
-  trees: (TreeResult | null)[],
-  frontier: string[],
-  after: string | undefined,
-): TreeLevel | null => {
-  const dirs: string[] = [];
-  const files: VaultTreeResponse["entries"][number][] = [];
-  for (const [index, tree] of trees.entries()) {
-    const dir = frontier[index];
-    if (tree === null || dir === undefined) {
-      return null;
-    }
-    for (const entry of tree.entries) {
-      if (isIgnoredEntryName(entry.name)) {
-        continue;
-      }
-      const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
-      if (!servable(path)) {
-        continue;
-      }
-      if (entry.type === "tree") {
-        if (subtreeReaches(path, after)) {
-          dirs.push(path);
-        }
-      } else if (entry.type === "blob" && (after === undefined || path > after)) {
-        files.push({ path, size: entry.size ?? 0 });
-      }
-    }
-  }
-  return { dirs, files };
-};
-
-const answerTree = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> => {
-  const limitRaw = url.searchParams.get("limit");
-  const query = vaultTreeQuerySchema.safeParse({
-    after: url.searchParams.get("after") ?? undefined,
-    limit: limitRaw === null ? undefined : Number(limitRaw),
-    ref: url.searchParams.get("ref") ?? undefined,
-  });
+const answerTree = async (
+  stub: DurableObjectStub<RepoCell>,
+  slot: TreeListingSlot,
+  url: URL,
+): Promise<Response> => {
+  const query = vaultTreeQuerySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!query.success) {
     return refuse("bad-request", "Send ?ref=<sha>&after=<path>&limit=<1..500>, each optional.");
   }
-  const { after } = query.data;
+  const { after, ref } = query.data;
+  const limit = query.data.limit ?? VAULT_TREE_MAX_ENTRIES;
 
-  const commit = await resolveCommit(stub, query.data.ref);
+  const commit = await resolveCommit(stub, ref);
   if (commit === null) {
     return refuse("not-found", "This vault has no content at that revision.");
   }
 
-  // one round of concurrent cell calls per BFS level, and only the limit + 1 smallest paths survive
-  // a level, so a wide vault never materializes a full listing.
-  const limit = query.data.limit ?? VAULT_TREE_MAX_ENTRIES;
-  let files: VaultTreeResponse["entries"][number][] = [];
-  let frontier = [""];
-  let visited = 0;
-  while (frontier.length > 0) {
-    visited += frontier.length;
-    if (visited > MAX_TREE_DIRS) {
-      return refuse("internal", `Vault tree exceeds ${String(MAX_TREE_DIRS)} directories.`);
-    }
-    const trees = await Promise.all(
-      frontier.map(async (dir) => await stub.listTree(commit, encodeGitPath(dir))),
-    );
-    const level = readLevel(trees, frontier, after);
-    if (level === null) {
-      return refuse("not-found", "This vault has no content at that revision.");
-    }
-    for (const file of level.files) {
-      files.push(file);
-    }
-    if (files.length > limit + 1) {
-      files.sort(byPath);
-      files = files.slice(0, limit + 1);
-    }
-    frontier = level.dirs;
+  const kept = await slot.read(commit);
+  if (kept !== null) {
+    return Response.json(pageTree(commit, kept, after, limit));
   }
-  files.sort(byPath);
 
-  const page = files.slice(0, limit);
-  const last = page.at(-1);
-  const response: VaultTreeResponse = {
-    commit,
-    entries: page,
-    next: files.length > page.length && last !== undefined ? last.path : null,
-  };
-  return Response.json(response);
+  const listTree = async (dir: string) => await stub.listTree(commit, encodeGitPath(dir));
+  // a read that resolved the head starts a paging, so it walks the vault whole and keeps it. A
+  // pinned miss does not fill: a newer head took the slot, and taking it back would make every
+  // device paging that head walk.
+  if (ref === undefined) {
+    const whole = await walkTree({ keep: MAX_KEPT_LISTING + 1, listTree, maxDirs: MAX_TREE_DIRS });
+    if (!whole.ok) {
+      return refuseWalk(whole.refusal);
+    }
+    if (whole.files.length <= MAX_KEPT_LISTING) {
+      await slot.write(commit, whole.files);
+      return Response.json(pageTree(commit, whole.files, after, limit));
+    }
+  }
+
+  const walked = await walkTree({ after, keep: limit + 1, listTree, maxDirs: MAX_TREE_DIRS });
+  if (!walked.ok) {
+    return refuseWalk(walked.refusal);
+  }
+  return Response.json(pageTree(commit, walked.files, after, limit));
 };
 
 const answerFile = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> => {
-  const query = vaultFileQuerySchema.safeParse({
-    path: url.searchParams.get("path") ?? undefined,
-    ref: url.searchParams.get("ref") ?? undefined,
-  });
+  const query = vaultFileQuerySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!query.success) {
     return refuse("bad-request", "Send ?path=<vault-relative path>&ref=<sha, optional>.");
   }
@@ -203,10 +140,7 @@ const ASSET_HEADERS = {
 };
 
 const answerAsset = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> => {
-  const query = vaultAssetQuerySchema.safeParse({
-    path: url.searchParams.get("path") ?? undefined,
-    ref: url.searchParams.get("ref") ?? undefined,
-  });
+  const query = vaultAssetQuerySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!query.success) {
     return refuse("bad-request", "Send ?path=<vault-relative path>&ref=<sha> — both required.");
   }
@@ -290,7 +224,7 @@ export const handleVaultReadRoutes = async (
   const stub = env.REPO.getByName(repo);
 
   if (url.pathname === VAULT_API_PATHS.tree) {
-    return await answerTree(stub, url);
+    return await answerTree(stub, treeListingSlot(env.PACK_CACHE, repo), url);
   }
   if (url.pathname === VAULT_API_PATHS.file) {
     return await answerFile(stub, url);

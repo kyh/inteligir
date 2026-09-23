@@ -28,6 +28,7 @@ import {
   vaultTreeQuerySchema,
   vaultTreeResponseSchema,
 } from "../vault/vault-schema";
+import type { VaultAssetQuery, VaultFileQuery, VaultTreeQuery } from "../vault/vault-schema";
 
 describe("error envelope", () => {
   it("round-trips through its own schema", () => {
@@ -221,6 +222,14 @@ describe("ws ping frames", () => {
   });
 });
 
+// the vault routes' own decode: the search params whole, then the row's schema
+const paramsOf = (uri: string | undefined): Record<string, string> => {
+  if (uri === undefined) {
+    throw new Error("the client sent no request");
+  }
+  return Object.fromEntries(new URL(uri).searchParams);
+};
+
 describe("vault read rows", () => {
   const COMMIT = "a".repeat(40);
 
@@ -267,6 +276,44 @@ describe("vault read rows", () => {
     expect(vaultAssetQuerySchema.safeParse({ extra: 1, path: "a.png", ref: COMMIT }).success).toBe(
       false,
     );
+  });
+
+  it("decodes each query from the search params exactly as the client wrote it", async () => {
+    const sent: string[] = [];
+    const client = createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: `igd_${"a".repeat(64)}`,
+      fetch: async (input) => {
+        sent.push(input);
+        return new Response(null, { status: 404 });
+      },
+    });
+    const trees: VaultTreeQuery[] = [
+      {},
+      { limit: 7 },
+      { after: "notes/α β&c=d+e.md", limit: 500, ref: COMMIT },
+    ];
+    for (const query of trees) {
+      await client.vaultTree(query);
+      expect(vaultTreeQuerySchema.parse(paramsOf(sent.pop()))).toEqual(query);
+    }
+
+    const files: VaultFileQuery[] = [{ path: "100%done.md" }, { path: "a b/c?.md", ref: COMMIT }];
+    for (const query of files) {
+      await client.vaultFile(query);
+      expect(vaultFileQuerySchema.parse(paramsOf(sent.pop()))).toEqual(query);
+    }
+
+    const asset: VaultAssetQuery = { path: "media/α β#1.png", ref: COMMIT };
+    expect(vaultAssetQuerySchema.parse(paramsOf(client.vaultAssetSource(asset).uri))).toEqual(
+      asset,
+    );
+  });
+
+  it("refuses a tree limit that is not a whole number in range", () => {
+    for (const limit of ["", "0", "501", "1.5", "ten"]) {
+      expect(vaultTreeQuerySchema.safeParse({ limit }).success).toBe(false);
+    }
   });
 
   it("composes an asset source through the client — bearer in a header, never the URL", () => {
