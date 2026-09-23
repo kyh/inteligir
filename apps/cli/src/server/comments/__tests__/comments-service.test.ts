@@ -158,6 +158,17 @@ describe("comments service", () => {
     );
   });
 
+  it("refuses rather than overwrites an id that is not text, naming it", async () => {
+    const { root, comments } = boot();
+    const numbered = "---\nid: 42\n---\nnote\n";
+    writeFileSync(nodePath.join(root, "plan.md"), numbered);
+    await expect(comments.add({ id: "c1", path: "plan.md", text: "x" })).rejects.toThrow(
+      /frontmatter id 42 is not text/u,
+    );
+    expect(readFileSync(nodePath.join(root, "plan.md"), "utf-8")).toBe(numbered);
+    expect(existsSync(nodePath.join(root, ".inteligir"))).toBe(false);
+  });
+
   it("comments follow the note through a rename", async () => {
     const { root, vault, comments } = boot();
     writeFileSync(nodePath.join(root, "plan.md"), "%%i:c1:start%%x%%i:c1:end%%\n");

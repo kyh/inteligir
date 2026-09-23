@@ -8,6 +8,7 @@ import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
+import { CALLER_IP_HEADER } from "../rate-limit";
 import { purgeThreadSync } from "../sync/routes";
 import { sendResetEmail } from "./reset-email";
 
@@ -32,6 +33,11 @@ const forgetInviteRedeemer = async (env: Env, email: string): Promise<void> => {
 
 const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
   betterAuth({
+    advanced: {
+      // the default reads x-forwarded-for and, finding more than one hop there, keys every such
+      // caller into one bucket per path
+      ipAddress: { ipAddressHeaders: [CALLER_IP_HEADER] },
+    },
     baseURL,
     database: drizzleAdapter(createDb(env.DB), { provider: "sqlite" }),
     emailAndPassword: {
@@ -48,6 +54,9 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
     plugins: [bearer()],
     // D1 storage: the default in-memory store is per isolate, so the limit multiplies across isolates and resets on recycle
     rateLimit: {
+      // a session read proves nothing about a password, and every route guard and hover preload
+      // spends one, so a limit here throttles browsing rather than guessing
+      customRules: { "/get-session": false },
       // off in tests: the in-process Worker shares one IP, so a multi-user suite trips it
       enabled: env.RATE_LIMIT_DISABLED !== "true",
       max: 10,

@@ -9,7 +9,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { orpc } from "../api";
 import { relativeTimeLabel } from "../relative-time";
@@ -17,6 +17,12 @@ import { useNoteComments } from "./comment-hooks";
 import { ReadRefusal } from "./read-refusal";
 
 const SOURCE_LABELS = { agent: "Agent", external: "External", user: "Me" } as const;
+
+// the nonce tells two clicks on the same range apart, so the second one scrolls again
+export interface CommentFocus {
+  ids: readonly string[];
+  nonce: number;
+}
 
 const sourceLabel = (entry: CommentEntryWire): string =>
   entry.source === undefined ? "—" : SOURCE_LABELS[entry.source];
@@ -45,17 +51,25 @@ const CommentRow = ({
 const ThreadCard = ({
   docPath,
   thread,
-  focused,
+  focusNonce,
   onDone,
   asOfMs,
 }: {
   docPath: string;
   thread: CommentThreadWire;
-  focused: boolean;
+  // the nonce of the focus naming this card, null while none does
+  focusNonce: number | null;
   onDone: () => void;
   asOfMs: number;
 }) => {
   const [draft, setDraft] = useState("");
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (focusNonce !== null) {
+      cardRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [focusNonce]);
 
   const jump = (): void => {
     const editor = getLiveEditor(docPath);
@@ -114,10 +128,11 @@ const ThreadCard = ({
 
   return (
     <div
+      ref={cardRef}
       className={cn(
         "mb-2 rounded-lg border border-line bg-surface-raised",
         thread.resolved && "opacity-70",
-        focused && "ring-2 ring-amber-400/60",
+        focusNonce !== null && "ring-2 ring-amber-400/60",
       )}
     >
       <button type="button" className="w-full text-left" onClick={jump}>
@@ -191,14 +206,19 @@ const ThreadCard = ({
 
 export const CommentsTab = ({
   docPath,
-  focusIds,
+  focus,
 }: {
   docPath: string | null;
-  focusIds: readonly string[];
+  focus: CommentFocus | null;
 }) => {
   const queryClient = useQueryClient();
   const query = useNoteComments(docPath);
-  const [showResolved, setShowResolved] = useState(false);
+  // stamped with the focus it was made under: a newer focus on a resolved thread shows the
+  // resolved list again, while Hide still hides it under the focus that opened it
+  const [resolvedToggle, setResolvedToggle] = useState<{
+    shown: boolean;
+    underNonce: number | null;
+  }>({ shown: false, underNonce: null });
 
   if (docPath === null) {
     return <p className="p-3 text-subtitle text-muted-foreground">No note open.</p>;
@@ -217,6 +237,13 @@ export const CommentsTab = ({
 
   const open = data.threads.filter((thread) => !thread.resolved);
   const resolved = data.threads.filter((thread) => thread.resolved);
+  const focusNonceFor = (thread: CommentThreadWire): number | null =>
+    focus !== null && focus.ids.includes(thread.rootId) ? focus.nonce : null;
+  const focusNonce = focus?.nonce ?? null;
+  const showResolved =
+    resolvedToggle.shown ||
+    (resolvedToggle.underNonce !== focusNonce &&
+      resolved.some((thread) => focusNonceFor(thread) !== null));
   // not `Date.now()`: reading the clock during render is impure, and every verb re-reads the sidecar anyway.
   const asOfMs = query.dataUpdatedAt;
 
@@ -232,7 +259,7 @@ export const CommentsTab = ({
           key={thread.rootId}
           docPath={docPath}
           thread={thread}
-          focused={focusIds.includes(thread.rootId)}
+          focusNonce={focusNonceFor(thread)}
           onDone={refresh}
           asOfMs={asOfMs}
         />
@@ -243,7 +270,7 @@ export const CommentsTab = ({
           size="compact"
           className="mb-1 self-start"
           onClick={() => {
-            setShowResolved((current) => !current);
+            setResolvedToggle({ shown: !showResolved, underNonce: focusNonce });
           }}
         >
           {showResolved ? "Hide" : "Show"} resolved ({resolved.length})
@@ -255,7 +282,7 @@ export const CommentsTab = ({
               key={thread.rootId}
               docPath={docPath}
               thread={thread}
-              focused={focusIds.includes(thread.rootId)}
+              focusNonce={focusNonceFor(thread)}
               onDone={refresh}
               asOfMs={asOfMs}
             />

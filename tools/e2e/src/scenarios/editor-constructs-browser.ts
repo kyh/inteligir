@@ -70,7 +70,7 @@ export const editorConstructsBrowser: Scenario = {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
+      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
       await agentBrowser(["wait", EDITOR], 90_000);
       await agentBrowser(["wait", `${EDITOR} table`], 30_000);
 

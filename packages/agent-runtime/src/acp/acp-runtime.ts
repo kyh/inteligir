@@ -41,6 +41,7 @@ import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { requireHarness } from "./harness-registry.js";
 import type { HarnessDefinition } from "./harness-registry.js";
+import { acpCall, describeProviderError } from "./provider-error.js";
 
 const SESSION_SHUTDOWN_GRACE_MS = 1000;
 
@@ -294,10 +295,12 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     });
     sessions.set(threadId, session);
     try {
-      const initialized = await connection.initialize({
-        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
-        protocolVersion: PROTOCOL_VERSION,
-      });
+      const initialized = await acpCall(
+        connection.initialize({
+          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
+          protocolVersion: PROTOCOL_VERSION,
+        }),
+      );
       session.agentCapabilities = initialized.agentCapabilities;
     } catch (error) {
       await destroySession(session);
@@ -327,6 +330,24 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         url: row.url,
       };
     });
+  };
+
+  // a refused session/new leaves no session to prompt, so the child goes with it and the next send
+  // opens afresh: after a sign-in, the retry must reach a new adapter.
+  const openProviderSession = async (session: AcpSession): Promise<string> => {
+    try {
+      const response = await acpCall(
+        session.connection.newSession({
+          cwd: options.workspacePath,
+          mcpServers: await sessionMcpServers(),
+        }),
+      );
+      session.providerThreadId = response.sessionId;
+      return response.sessionId;
+    } catch (error) {
+      await destroySession(session);
+      throw error;
+    }
   };
 
   const runtime: AgentRuntime = {
@@ -367,26 +388,23 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         session.agentCapabilities?.loadSession === true;
       if (wantsLoad && args.providerThreadId !== undefined) {
         try {
-          await session.connection.loadSession({
-            cwd: options.workspacePath,
-            mcpServers: await sessionMcpServers(),
-            sessionId: args.providerThreadId,
-          });
+          await acpCall(
+            session.connection.loadSession({
+              cwd: options.workspacePath,
+              mcpServers: await sessionMcpServers(),
+              sessionId: args.providerThreadId,
+            }),
+          );
           session.providerThreadId = args.providerThreadId;
           return { providerThreadId: args.providerThreadId };
         } catch (error) {
           options.onStderr?.(
-            `session/load failed for thread "${args.threadId}" (${error instanceof Error ? error.message : String(error)}); starting fresh`,
+            `session/load failed for thread "${args.threadId}" (${describeProviderError(error, session.harness)}); starting fresh`,
             args.threadId,
           );
         }
       }
-      const response = await session.connection.newSession({
-        cwd: options.workspacePath,
-        mcpServers: await sessionMcpServers(),
-      });
-      session.providerThreadId = response.sessionId;
-      return { providerThreadId: response.sessionId };
+      return { providerThreadId: await openProviderSession(session) };
     },
 
     async runTurn(args: RunTurnArgs): Promise<void> {
@@ -407,10 +425,12 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       emit(mapper.started());
       void (async () => {
         try {
-          const response = await session.connection.prompt({
-            prompt: promptBlocks(args.input),
-            sessionId: session.providerThreadId ?? "",
-          });
+          const response = await acpCall(
+            session.connection.prompt({
+              prompt: promptBlocks(args.input),
+              sessionId: session.providerThreadId ?? "",
+            }),
+          );
           if (session.activeMapper !== mapper) {
             return;
           }
@@ -423,7 +443,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
           }
           session.activeMapper = null;
           session.idleSinceMs = Date.now();
-          emit(mapper.failed(error instanceof Error ? error.message : String(error)));
+          emit(mapper.failed(describeProviderError(error, session.harness)));
         }
       })();
       // resolve once the prompt is on the wire, not when it settles: the send must return while the
@@ -442,12 +462,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
 
     async startThread(args: StartThreadArgs): Promise<StartThreadResult> {
       const session = await openSession(args.threadId, args.providerId);
-      const response = await session.connection.newSession({
-        cwd: options.workspacePath,
-        mcpServers: await sessionMcpServers(),
-      });
-      session.providerThreadId = response.sessionId;
-      return { providerThreadId: response.sessionId };
+      return { providerThreadId: await openProviderSession(session) };
     },
   };
 

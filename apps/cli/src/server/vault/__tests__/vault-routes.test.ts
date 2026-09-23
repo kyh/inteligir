@@ -290,9 +290,9 @@ describe("the vault routes", () => {
   });
 
   it("refuses an asset request that carries no device token", async () => {
-    const { composed, vaultDir } = await bootTestApp();
+    const { bareRequest, vaultDir } = await bootTestApp();
     await writeFile(path.join(vaultDir, "picture.png"), "not really a png", "utf-8");
-    const anonymous = await composed.app.request(`${VAULT_ASSET_PATH}?path=picture.png`);
+    const anonymous = await bareRequest(`${VAULT_ASSET_PATH}?path=picture.png`);
     expect(anonymous.status).toBe(401);
   });
 

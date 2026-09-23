@@ -25,13 +25,17 @@ const VERBATIM_OPENER = /[<{$]/u;
 const isVerbatim = (node: Nodes): boolean =>
   node.type === "math" || node.type === "inlineMath" || isOpaqueSource(node);
 
+const pushSpan = (node: Pick<Nodes, "position">, out: VerbatimSpan[]): void => {
+  const start = node.position?.start.offset;
+  const end = node.position?.end.offset;
+  if (start !== undefined && end !== undefined) {
+    out.push({ end, start });
+  }
+};
+
 const collect = (node: Nodes, out: VerbatimSpan[]): void => {
   if (isVerbatim(node)) {
-    const start = node.position?.start.offset;
-    const end = node.position?.end.offset;
-    if (start !== undefined && end !== undefined) {
-      out.push({ end, start });
-    }
+    pushSpan(node, out);
     return;
   }
   if ("children" in node) {
@@ -55,6 +59,53 @@ export const verbatimSpans = (source: string): VerbatimSpan[] => {
   const spans: VerbatimSpan[] = [];
   collect(tree, spans);
   return spans;
+};
+
+// bytes the grammar holds as a literal string, which the table-pipe pre-pass must leave as
+// written. a jsx element is not one: its children are markdown, where the escape is what keeps a
+// pill in one cell. each of its attributes is.
+const isLiteral = (node: Nodes): boolean =>
+  node.type === "code" ||
+  node.type === "inlineCode" ||
+  node.type === "math" ||
+  node.type === "inlineMath" ||
+  node.type === "yaml" ||
+  node.type === "html" ||
+  node.type === "mdxFlowExpression" ||
+  node.type === "mdxTextExpression";
+
+const collectLiteral = (node: Nodes, out: VerbatimSpan[]): void => {
+  if (isLiteral(node)) {
+    pushSpan(node, out);
+    return;
+  }
+  if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
+    for (const attribute of node.attributes) {
+      pushSpan(attribute, out);
+    }
+  }
+  if ("children" in node) {
+    for (const child of node.children) {
+      collectLiteral(child, out);
+    }
+  }
+};
+
+const BOM = "\uFEFF";
+
+// null when the editor's grammar refuses the doc: there is no map of it to trust.
+export const literalRanges = (source: string): VerbatimSpan[] | null => {
+  let tree: Nodes;
+  try {
+    tree = processor.parse(source);
+  } catch {
+    return null;
+  }
+  const ranges: VerbatimSpan[] = [];
+  collectLiteral(tree, ranges);
+  // micromark drops a leading BOM before it counts, so its offsets fall one short of the source's.
+  const shift = source.startsWith(BOM) ? BOM.length : 0;
+  return ranges.map((range) => ({ end: range.end + shift, start: range.start + shift }));
 };
 
 export const insideVerbatim = (

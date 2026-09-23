@@ -7,6 +7,8 @@ import type { Node, PhrasingContent, Root } from "mdast";
 import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
+import { splitLinesKeepingTerminators } from "../knowledge/source-lines";
+
 type RootChild = Root["children"][number];
 type PanelContent = Exclude<RootChild, { type: "yaml" | "tabGroup" | "tabPanel" }>;
 
@@ -85,17 +87,21 @@ const splitParagraph = (children: PhrasingContent[]): Segment[] => {
       atLineStart = child.type === "break";
       continue;
     }
-    const lines = child.value.split("\n");
-    for (const [lineIndex, line] of lines.entries()) {
-      const startsLine = lineIndex > 0 || atLineStart;
-      const endsAtNewline = lineIndex < lines.length - 1;
-      const endsParagraph = lineIndex === lines.length - 1 && index === children.length - 1;
+    // a CRLF note's `\r` belongs to the terminator: it must neither hide a marker nor stay
+    // behind on the line a marker follows.
+    const parts = splitLinesKeepingTerminators(child.value);
+    const last = parts.length - 1;
+    for (let at = 0; at <= last; at += 2) {
+      const line = parts[at] ?? "";
+      const startsLine = at > 0 || atLineStart;
+      const endsAtNewline = at < last;
+      const endsParagraph = at === last && index === children.length - 1;
       const marker =
         startsLine && (endsAtNewline || endsParagraph) && line !== "" ? markerFor(line) : null;
       if (marker === null) {
-        // restore the newline the split consumed, only between kept lines.
-        if (lineIndex > 0 && current.length > 0) {
-          pushText("\n");
+        // restore the terminator the split consumed, only between kept lines.
+        if (at > 0 && current.length > 0) {
+          pushText(parts[at - 1] ?? "\n");
         }
         pushText(line);
       } else {
@@ -103,7 +109,7 @@ const splitParagraph = (children: PhrasingContent[]): Segment[] => {
         segments.push(marker);
       }
     }
-    atLineStart = child.value.endsWith("\n");
+    atLineStart = last > 0 && parts[last] === "";
   }
   flush();
   return segments;

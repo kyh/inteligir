@@ -175,6 +175,28 @@ describe("two installs against one account", () => {
     expect(detail.thread.status).toBe("idle");
   });
 
+  it("adds nothing when the writer itself signs in again and pulls back its own rows", async () => {
+    const cloud = new FakeCloud();
+    const a = await bootInstall(cloud);
+    await login(a, "A");
+
+    const { thread } = await a.client.threads.create({ title: "Written here" });
+    await a.client.threads.send({
+      text: "before signing out",
+      threadId: thread.id,
+    });
+    await syncNow(a);
+    const before = eventOrder(a, thread.id);
+    expect(before.length).toBeGreaterThan(3);
+
+    await a.client.cloud.logout();
+    await login(a, "A again");
+    await syncNow(a);
+    await syncNow(a);
+
+    expect(eventOrder(a, thread.id)).toEqual(before);
+  });
+
   it("leaves a turn running on another device alone across a reboot", async () => {
     const cloud = new FakeCloud();
     // manual: emits turn/started and nothing after, so the turn stays open.

@@ -91,6 +91,12 @@ worktree under `.claude` is never read as this commit's tree.
 | `turbo-passthrough.test.ts`    | Every workspace whose shipped source calls `resolveAppConfig` has a       |
 |                                | `turbo.json` whose config-running tasks name exactly `ENV_VAR_NAMES` from |
 |                                | `inteligir/server/config` — strict env mode strips the rest silently.     |
+| `turbo-cache-keys.test.ts`     | Every cached turbo task a workspace with workspace dependencies runs      |
+|                                | carries a `^` edge in its effective `dependsOn` (the root's, the          |
+|                                | override, or both through `$TURBO_EXTENDS$`) — turbo hashes another       |
+|                                | workspace's files into a key only through one, so without it an edit to   |
+|                                | a bundled package replays stale output. `^topo` is the edge where `^self` |
+|                                | would cycle; a `WITHOUT_DEPENDENCY_EDGE` row carries its reason.          |
 | `ui-orphan-exports.test.ts`    | PER EXPORT under `@repo/ui`'s wildcard-exported roots: a consumer outside |
 |                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
 |                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |
@@ -128,7 +134,8 @@ worktree under `.claude` is never read as this commit's tree.
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
 `ALLOWED_EXPORTS`, `NOT_DEMOED`, `dispatchedIn`, `elsewhere`, `ELSEWHERE`,
-`RUNS_OUTSIDE_TURBO`, `DECLARED_WITHOUT_PRODUCER`, `DECLARED_ARTIFACT_EDGES` —
+`RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`, `DECLARED_WITHOUT_PRODUCER`,
+`DECLARED_ARTIFACT_EDGES` —
 has a companion assertion that no row is STALE: a row whose subject is gone, or
 whose gap has closed, fails too. An allowance that outlives what it excused only
 ever loosens.

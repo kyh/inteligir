@@ -61,8 +61,8 @@ export const beginAgentTurnWrites = (args: AgentTurnWritesArgs): AgentTurnWrites
   const writeSet = new Set<string>();
   let finished = false;
 
-  // a no-op behind the repo lock resolves only after any in-flight sync pass (which holds it for its whole run);
-  // the hold above stops the next one from starting.
+  // a no-op behind the repo lock waits out a locked step of an in-flight pass, its rebase included; a pass still
+  // fetching meets the hold above before its rebase and ends there, and the hold stops the next one from starting.
   const settled = args.git.runExclusive(async () => {
     /* empty */
   });

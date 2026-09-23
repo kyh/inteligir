@@ -138,6 +138,20 @@ describe("projectNote", () => {
     expect(blocks).toEqual([{ kind: "code", lang: "ts", text: "const a = 1;" }]);
   });
 
+  it("cuts raw blocks from the text the parse positioned, past a pill's escaped pipe", () => {
+    const table = "| a | b |\n| - | - |\n| {{a|b}} | x |\n";
+    const expected: NoteBlock[] = [
+      { kind: "raw", text: "| a | b |\n| - | - |\n| {{a\\|b}} | x |" },
+      { kind: "raw", text: "$$\nx\n$$" },
+    ];
+    expect(noteBlocks(`${table}\n$$\nx\n$$\n`)).toEqual(expected);
+    const [callout] = noteBlocks(`\`\`\`inteligir-callout\nnote\n${table}\n$$\nx\n$$\n\`\`\`\n`);
+    if (callout?.kind !== "callout") {
+      throw new Error("expected a callout");
+    }
+    expect(callout.blocks).toEqual(expected);
+  });
+
   it("opens a file the parse refuses RAW, byte-for-byte, with the reason", () => {
     const source = "# fine until\n\n<a></b>\n";
     const projection = projectNote("notes/broken.md", source);

@@ -46,21 +46,26 @@ src/
                        # disabling codeIndented/htmlFlow is what keeps its task
                        # count equal to the set the editor draws
     verbatim-spans.ts  # the ranges the EDITOR holds verbatim (opaque nodes,
-                       # math) — what keeps rename byte-surgery out of them
+                       # math) — what keeps rename byte-surgery out of them —
+                       # and the literal ranges (code, math, frontmatter, jsx
+                       # attributes) table-pipes' escape must not touch
     remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways
     remark-inline-constructs.ts, remark-opaque.ts, remark-tabs.ts,
     remark-mdx-agnostic.ts, table-pipes.ts, line-scan.ts
                        # the rest of the dialect's own remark plugins
     md-plugins.ts      # the EDITOR's plugin list, owned here so verbatim-spans
                        # can run it as a bare parse
-    parse.ts           # the total parse the phone renders through
+    parse.ts           # the total parse the phone renders through; it answers
+                       # the escaped text its offsets index
     mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
                        # node is, never discriminates structurally
     fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
                        # and ONE callout-payload grammar — the rule table, the
                        # scan and the mobile projection all read them
-    frontmatter.ts     # split/recombine + the typed-property ADT (YAML it
-                       # cannot represent is preserved byte-exactly)
+    frontmatter.ts     # split/recombine (ONE `replaceFrontmatterYaml`, which
+                       # keeps a BOM and the note's line ending) + the
+                       # typed-property ADT (YAML it cannot represent is
+                       # preserved byte-exactly)
   comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
                        # marker ids, the sidecar schema
   formulas/            # {{source|display|meta}} pills: collection, expression

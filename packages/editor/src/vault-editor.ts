@@ -3,10 +3,12 @@
 // cannot give.
 
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
+import { diff3 } from "@repo/notes/text/diff3";
 
 export interface VaultIO {
   read: (path: string) => Promise<string>;
-  write: (path: string, content: string) => Promise<void>;
+  // answers the bytes that landed: a host that merges in a concurrent change lands more than it was sent.
+  write: (path: string, content: string) => Promise<string>;
   // refuses an existing path.
   create: (path: string, content: string) => Promise<void>;
   // answers the outcome: the host can hold a delete, and closing the note anyway would report
@@ -24,6 +26,22 @@ export interface VaultEditorState {
 
 const EMPTY: VaultEditorState = { content: "", dirty: false, path: null, root: "", saving: false };
 
+const drainNothing = (): void => {
+  /* no surface holds edits back */
+};
+
+// `landed` replaced `from` as the bytes the IO writes against, so the buffer's edits since `from`
+// move onto it: kept over `from`, the next save would erase whatever else `landed` carries.
+const rebase = (from: string, buffer: string, landed: string): string => {
+  if (buffer === from) {
+    return landed;
+  }
+  if (landed === from) {
+    return buffer;
+  }
+  return diff3(from, buffer, landed).merged;
+};
+
 export class VaultEditorController {
   private st: VaultEditorState = EMPTY;
   // only the latest read applies, so a slow read can't land over a newer one.
@@ -31,9 +49,13 @@ export class VaultEditorController {
   private writing: Promise<void> | null = null;
   private readonly subs = new Set<() => void>();
   private readonly io: VaultIO;
+  // hands over edits a surface still holds back (the rich editor's serialize debounce) before
+  // bytes from disk replace the buffer, so they are rebased rather than replayed over those bytes.
+  private readonly drain: () => void;
 
-  constructor(io: VaultIO) {
+  constructor(io: VaultIO, drain: () => void = drainNothing) {
     this.io = io;
+    this.drain = drain;
   }
 
   // bound so they can be passed straight to useSyncExternalStore.
@@ -114,19 +136,25 @@ export class VaultEditorController {
   }
 
   private async writeSnapshot(path: string, snapshot: string): Promise<void> {
+    let landed: string;
     try {
-      await this.io.write(path, snapshot);
+      landed = await this.io.write(path, snapshot);
     } catch {
       // leave dirty set so a later flush retries
       this.emit({ saving: false });
       return;
     }
-    if (this.st.path === path && this.st.content === snapshot) {
-      this.emit({ dirty: false, saving: false });
+    if (this.st.path !== path) {
+      // a file switch landed mid-write — stay dirty
+      this.emit({ saving: false });
       return;
     }
-    // a newer edit or a file switch landed mid-write — stay dirty
-    this.emit({ saving: false });
+    if (landed !== snapshot) {
+      this.drain();
+    }
+    // a newer edit made mid-write stays dirty, on top of what landed
+    const content = rebase(snapshot, this.st.content, landed);
+    this.emit({ content, dirty: content !== landed, saving: false });
   }
 
   async flush(): Promise<void> {
@@ -175,8 +203,10 @@ export class VaultEditorController {
     return outcome;
   }
 
+  // a buffer dirty before the read is left to its save, whose CAS merges the external bytes in.
   private async reloadOpen(): Promise<void> {
-    const { path } = this.st;
+    this.drain();
+    const { path, content: before } = this.st;
     if (path === null || this.st.dirty || this.writing) {
       return;
     }
@@ -184,12 +214,14 @@ export class VaultEditorController {
     const seq = this.readSeq;
     try {
       const text = await this.io.read(path);
-      if (this.readSeq !== seq) {
+      if (this.readSeq !== seq || this.st.path !== path || this.writing !== null) {
         return;
       }
-      if (this.st.path === path && !this.st.dirty && this.writing === null) {
-        this.emit({ content: text });
-      }
+      // the read moved the IO's base to `text`: an edit made while it was in flight is rebased,
+      // because left alone the next save would pass the CAS and erase the external bytes.
+      this.drain();
+      const content = rebase(before, this.st.content, text);
+      this.emit({ content, dirty: content !== text });
     } catch {
       if (this.readSeq !== seq) {
         return;

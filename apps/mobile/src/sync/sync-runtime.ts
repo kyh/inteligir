@@ -131,13 +131,14 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
         applyPlan(args.store, steps);
       },
       client: current.client,
-      deviceId: current.credential.deviceId,
       fenced: () => session.fenced(sessionId),
       onPage: () => {
         lastError = null;
         publish();
       },
       onSkipped: debug,
+      // the phone never pushes, so no earlier sign-in of its own can be in the log.
+      ownDeviceIds: new Set([current.credential.deviceId]),
       readCursor: () => args.store.readCursor(),
       recordFailure,
     });

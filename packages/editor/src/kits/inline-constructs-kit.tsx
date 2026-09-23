@@ -4,14 +4,13 @@ import type { SlateEditor, TElement } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { cn } from "@repo/ui/lib/cn";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
-import { formulaPropsFromEntry, formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
+import { formulaNodeFromTyped } from "@repo/editor/formulas/formula-entry";
 
 const formulaPillBasePlugin = createSlatePlugin({
   key: "formulaPill",
@@ -77,7 +76,6 @@ const CommentMarkerElement = (props: PlateElementProps) => (
   </PlateElement>
 );
 
-// A body with pipes is the persisted grammar and completes verbatim; a pipeless body runs the entry grammar.
 const FORMULA_COMPLETION_RE = /\{\{(?<body>[^{}\n]+)\}$/u;
 
 const completeFormulaPill = (editor: SlateEditor): boolean => {
@@ -101,10 +99,8 @@ const completeFormulaPill = (editor: SlateEditor): boolean => {
   if (body === undefined || body === "") {
     return false;
   }
-  const props = body.includes("|")
-    ? { ...parseFormulaRaw(body), raw: body }
-    : formulaPropsFromEntry(body);
-  if (props === null) {
+  const pill = formulaNodeFromTyped(body);
+  if (pill === null) {
     return false;
   }
   editor.tf.withoutNormalizing(() => {
@@ -115,15 +111,7 @@ const completeFormulaPill = (editor: SlateEditor): boolean => {
       },
     });
   });
-  insertVoidAndEscape(
-    editor,
-    formulaNodeFrom({
-      display: props.display,
-      meta: "meta" in props ? (props.meta ?? "") : "",
-      raw: props.raw,
-      source: props.source,
-    }),
-  );
+  insertVoidAndEscape(editor, pill);
   return true;
 };
 

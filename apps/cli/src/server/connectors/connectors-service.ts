@@ -116,65 +116,63 @@ const toStoredTransport = (
   return next;
 };
 
-export const createConnectorsService = (store: ConnectorsStore): ConnectorsService => {
-  const requireRow = (servers: StoredConnector[], name: string): StoredConnector => {
-    const row = servers.find((candidate) => candidate.name === name);
-    if (row === undefined) {
-      throw new ConnectorConflictError("not-found", `No connector named "${name}" is configured`);
-    }
-    return row;
-  };
-
-  return {
-    add(request: ConnectorAddRequest): ConnectorView[] {
-      const servers = store.read();
-      if (servers.some((row) => row.name === request.name)) {
-        throw new ConnectorConflictError(
-          "already-exists",
-          `A connector named "${request.name}" already exists — remove it first, or pick another name`,
-        );
-      }
-      servers.push({
-        enabled: true,
-        name: request.name,
-        transport: toStoredTransport(request.transport),
-      });
-      store.write(servers);
-      return servers.map(toView);
-    },
-
-    enabledForSessions(): SessionMcpServer[] {
-      return store
-        .read()
-        .filter((row) => row.enabled)
-        .map((row) => ({ name: row.name, transport: row.transport }));
-    },
-
-    list(): ConnectorView[] {
-      return store.read().map(toView);
-    },
-
-    remove(name: string): ConnectorView[] {
-      const servers = store.read();
-      requireRow(servers, name);
-      const remaining = servers.filter((row) => row.name !== name);
-      store.write(remaining);
-      return remaining.map(toView);
-    },
-
-    toggle(name: string, enabled: boolean): ConnectorView[] {
-      const servers = store.read();
-      requireRow(servers, name).enabled = enabled;
-      store.write(servers);
-      return servers.map(toView);
-    },
-
-    update(request: ConnectorUpdate): ConnectorView[] {
-      const servers = store.read();
-      const row = requireRow(servers, request.name);
-      row.transport = toStoredTransport(request.transport, row.transport);
-      store.write(servers);
-      return servers.map(toView);
-    },
-  };
+const requireRow = (servers: StoredConnector[], name: string): StoredConnector => {
+  const row = servers.find((candidate) => candidate.name === name);
+  if (row === undefined) {
+    throw new ConnectorConflictError("not-found", `No connector named "${name}" is configured`);
+  }
+  return row;
 };
+
+export const createConnectorsService = (store: ConnectorsStore): ConnectorsService => ({
+  add(request: ConnectorAddRequest): ConnectorView[] {
+    const servers = store.read();
+    if (servers.some((row) => row.name === request.name)) {
+      throw new ConnectorConflictError(
+        "already-exists",
+        `A connector named "${request.name}" already exists — remove it first, or pick another name`,
+      );
+    }
+    servers.push({
+      enabled: true,
+      name: request.name,
+      transport: toStoredTransport(request.transport),
+    });
+    store.write(servers);
+    return servers.map(toView);
+  },
+
+  enabledForSessions(): SessionMcpServer[] {
+    return store
+      .read()
+      .filter((row) => row.enabled)
+      .map((row) => ({ name: row.name, transport: row.transport }));
+  },
+
+  list(): ConnectorView[] {
+    return store.read().map(toView);
+  },
+
+  remove(name: string): ConnectorView[] {
+    const servers = store.read();
+    requireRow(servers, name);
+    const remaining = servers.filter((row) => row.name !== name);
+    store.write(remaining);
+    return remaining.map(toView);
+  },
+
+  toggle(name: string, enabled: boolean): ConnectorView[] {
+    const servers = store.read();
+    requireRow(servers, name).enabled = enabled;
+    store.write(servers);
+    return servers.map(toView);
+  },
+
+  update(request: ConnectorUpdate): ConnectorView[] {
+    const servers = store.read();
+    const row = requireRow(servers, request.name);
+    row.transport = toStoredTransport(request.transport, row.transport);
+    store.write(servers);
+    return servers.map(toView);
+  },
+});

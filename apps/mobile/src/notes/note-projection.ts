@@ -3,7 +3,6 @@ import type { Code, List, Paragraph, PhrasingContent, Root, RootContent } from "
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 import { parseMdast } from "@repo/notes/markdown/parse";
-import { escapePillPipesInTables } from "@repo/notes/markdown/table-pipes";
 import { parseWikiBodyRange } from "@repo/notes/markdown/remark-wiki-link";
 import { isCalloutLang, RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import { docStem } from "@repo/notes/knowledge/doc-file";
@@ -170,17 +169,6 @@ const projectParsed = (source: string, root: Root): NoteBlock[] => {
     return spans;
   };
 
-  // a callout body is its own document; the parse is re-entered, not the projection
-  const projectNested = (body: string): NoteBlock[] => {
-    const parsed = parseMdast(body);
-    if (!parsed.ok) {
-      return [{ kind: "raw", text: body }];
-    }
-    // the parser positioned nodes against the pipe-escaped text, so raw slices must cut the same
-    // bytes.
-    return projectParsed(escapePillPipesInTables(body), parsed.root);
-  };
-
   const projectParagraph = (node: Paragraph, blocks: NoteBlock[]): void => {
     const spans = flattenInline(node.children);
     // a paragraph that is only embeds promotes to image blocks: an image inside a Text run
@@ -210,8 +198,12 @@ const projectParsed = (source: string, root: Root): NoteBlock[] => {
     if (isCalloutLang(node.lang)) {
       const payload = parseCalloutPayload(node.value);
       if (payload !== null) {
+        // a callout body is its own document; the parse is re-entered, not the projection
+        const nested = parseMdast(payload.body);
         blocks.push({
-          blocks: projectNested(payload.body),
+          blocks: nested.ok
+            ? projectParsed(nested.text, nested.root)
+            : [{ kind: "raw", text: payload.body }],
           kind: "callout",
           label: payload.level === undefined ? payload.kind : `${payload.kind} · ${payload.level}`,
         });
@@ -315,5 +307,5 @@ export const projectNote = (path: string, content: string): NoteProjection => {
   if (!parsed.ok) {
     return { kind: "raw", reason: parsed.failure.message, text: content, title };
   }
-  return { blocks: projectParsed(escapePillPipesInTables(body), parsed.root), kind: "note", title };
+  return { blocks: projectParsed(parsed.text, parsed.root), kind: "note", title };
 };

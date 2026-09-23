@@ -44,6 +44,13 @@ const open = async (homeDir: string, dir: string, env: Record<string, string> = 
     homeDir,
   });
 
+const refused = async (homeDir: string, dir: string, env: Record<string, string> = {}) => {
+  const result = await open(homeDir, dir, env);
+  expect(result.code).not.toBe(0);
+  expect(result.stdout).toBe("");
+  return envelopeSchema.parse(JSON.parse(result.stderr));
+};
+
 describe("inteligir vault open", () => {
   it("selects the vault the next serve boots on, and names its own data dir", async () => {
     const { homeDir, rootDataDir, defaultVaultDir } = scratch();
@@ -102,13 +109,6 @@ describe("inteligir vault open", () => {
   });
 
   describe("refuses, non-zero and with the JSON envelope, and writes nothing", () => {
-    const refused = async (homeDir: string, dir: string, env: Record<string, string> = {}) => {
-      const result = await open(homeDir, dir, env);
-      expect(result.code).not.toBe(0);
-      expect(result.stdout).toBe("");
-      return envelopeSchema.parse(JSON.parse(result.stderr));
-    };
-
     it("a folder inside the root data dir, with the config's own message", async () => {
       const { homeDir, rootDataDir } = scratch();
       const envelope = await refused(homeDir, path.join(rootDataDir, "notes"));

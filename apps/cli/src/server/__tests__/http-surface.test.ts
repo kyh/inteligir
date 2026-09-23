@@ -49,6 +49,10 @@ const DECLARED_BUNDLE_ROUTES = new Map<string, string>(
   ]),
 );
 
+// middleware on every path that answers only to refuse, so it is no surface of its own. its whole
+// claim is that it runs before any route, and hono runs handlers in registration order.
+const HOST_GUARD = key("ALL", "/*");
+
 const stagedBundle = (): string => {
   const clientDir = makeTempDir("inteligir-http-surface-");
   mkdirSync(nodePath.join(clientDir, "assets"), { recursive: true });
@@ -106,13 +110,22 @@ describe.each([
       if (route.method !== "ALL" || route.path === `${RPC_PREFIX}/*`) {
         continue;
       }
-      if (nonAllPaths.has(route.path)) {
+      if (nonAllPaths.has(route.path) || key(route.method, route.path) === HOST_GUARD) {
         continue;
       }
       violations.push(
         `REACHABLE ALL ROUTE  ALL ${route.path}\n` +
           `  rule: an ALL registration is dropped as middleware only when a non-ALL route on the same path proves it guards something; this one guards nothing declared\n` +
           `  fix: declare it as a real route, or make it a procedure — an untyped ALL surface is exactly what this guard exists to catch`,
+      );
+    }
+
+    const [first] = composed.app.routes;
+    if (first === undefined || key(first.method, first.path) !== HOST_GUARD) {
+      violations.push(
+        `UNGUARDED SURFACE  the first registration is ${first === undefined ? "nothing" : key(first.method, first.path)}\n` +
+          `  rule: a request naming any host but 127.0.0.1 or localhost is refused before a route runs\n` +
+          `  fix: register the host guard in app.ts ahead of every route`,
       );
     }
 

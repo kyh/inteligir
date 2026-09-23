@@ -15,7 +15,13 @@ import { loginDevice } from "@repo/api/cloud/device/login-flow";
 import type { LoginOutcome as DeviceLoginOutcome } from "@repo/api/cloud/device/login-flow";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
-import { countSyncOutbox, readSyncState, resetSyncState } from "@repo/db/sync-outbox";
+import {
+  countSyncOutbox,
+  ownDeviceIds,
+  readSyncState,
+  recordOwnDevice,
+  resetSyncState,
+} from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { CaptureVault } from "./captures";
@@ -159,8 +165,11 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     }
   };
 
+  // at boot as well as at sign-in: a database migrated under a live credential never saw that
+  // sign-in happen, and a pull under it would re-apply everything this install pushed.
   const openSession = (credential: DeviceCredential): void => {
     accountEmail = null;
+    recordOwnDevice(args.db, credential.deviceId);
     session.open(credential);
     void learnAccountIdentityBestEffort();
   };
@@ -251,7 +260,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     // captured once; every step re-checks it rather than re-reading the session.
     const context: PassContext = {
       client: current.client,
-      deviceId: current.credential.deviceId,
+      ownDeviceIds: ownDeviceIds(args.db),
       sessionId: current.id,
     };
     if (current.credential.userId === undefined) {

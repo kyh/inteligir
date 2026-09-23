@@ -35,3 +35,6 @@ export const systemStatusResponseSchema = z
   })
   .strict();
 export type SystemStatusResponse = z.infer<typeof systemStatusResponseSchema>;
+
+export const browserHandoffResponseSchema = z.object({ nonce: z.string().min(1) }).strict();
+export type BrowserHandoffResponse = z.infer<typeof browserHandoffResponseSchema>;

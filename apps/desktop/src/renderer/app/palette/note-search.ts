@@ -1,14 +1,22 @@
+import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
+import { visibleEntries } from "../vault-hooks";
 
+// `title` is null when there is none to show, so the row falls back to the path
 export interface NoteSearchHit {
   path: string;
-  title?: string;
-  snippet?: string;
+  title: string | null;
 }
 
-export type NoteSearchSource = (query: string, signal: AbortSignal) => Promise<NoteSearchHit[]>;
-
 export const NOTE_SEARCH_LIMIT = 12;
+
+// the notes the rail lists, so a dot-folder's docs are no more reachable here than there
+export const listedNotePaths = (entries: readonly VaultEntry[]): string[] =>
+  visibleEntries(entries)
+    .filter((entry) => entry.kind === "file" && isDocPath(entry.path))
+    .map((entry) => entry.path);
 
 const isSubsequence = (query: string, text: string): boolean => {
   let at = 0;
@@ -27,10 +35,15 @@ export const searchNotesByFilename = (
   query: string,
   filePaths: readonly string[],
 ): NoteSearchHit[] => {
+  // a tag filter is the index's question alone: fuzzy-matched as a path, "tag:plans" would
+  // reach `notes/tagging.md` as a subsequence
+  if (parseSearchQuery(query).tag !== "") {
+    return [];
+  }
   const needle = query.trim().toLowerCase();
   const sorted = filePaths.toSorted();
   if (needle === "") {
-    return sorted.slice(0, NOTE_SEARCH_LIMIT).map((path) => ({ path }));
+    return sorted.slice(0, NOTE_SEARCH_LIMIT).map((path) => ({ path, title: null }));
   }
   const tiers: string[][] = [[], [], [], []];
   for (const path of sorted) {
@@ -49,5 +62,5 @@ export const searchNotesByFilename = (
   return tiers
     .flat()
     .slice(0, NOTE_SEARCH_LIMIT)
-    .map((path) => ({ path }));
+    .map((path) => ({ path, title: null }));
 };

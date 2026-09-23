@@ -1,8 +1,9 @@
 // cookie-authed requests only: on loopback "site" ignores the port, so a page on
 // any other 127.0.0.1 port is same-site and its no-cors POST carries this
 // server's cookie. sec-fetch-site is the signal; without it, origin must match
-// the host that answered. the bearer needs none of this — only a reader of the
-// data dir holds it.
+// the host that answered. same-origin is enough only because app.ts's host guard
+// has already refused a page that rebound its own name onto this port. the bearer
+// needs none of this — only a reader of the data dir holds it.
 
 export interface BrowserRequestHeaders {
   secFetchSite: string | undefined;

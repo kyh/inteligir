@@ -13,7 +13,12 @@ const status = base.system.status.handler(({ context }) => ({
 
 const guide = base.system.guide.handler(() => ({ markdown: CLI_SKILL_MD }));
 
+const browserHandoff = base.system.browserHandoff.handler(({ context }) => ({
+  nonce: context.browserSession.mintHandoff(),
+}));
+
 export const systemRouter = {
+  browserHandoff,
   guide,
   status,
 };

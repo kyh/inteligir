@@ -8,7 +8,6 @@ import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   defaultRequest,
-  emptySearchSource,
   makeActions,
   renderWithQueries,
   stubKnowledgeFetch,
@@ -55,7 +54,6 @@ describe("the palette renders that answer and no other", () => {
       onOpenChange: vi.fn<() => void>(),
       open: true,
       request: defaultRequest,
-      searchSource: emptySearchSource,
       threads: [subject],
     });
     fireEvent.click(screen.getByText("Actions"));

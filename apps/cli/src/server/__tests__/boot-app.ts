@@ -33,6 +33,9 @@ export { makeTempDir } from "./temp-dir";
 
 export const TEST_SERVER_TOKEN = "test-server-token";
 
+// an in-process Request carries no Host until one is set, and the host guard refuses one naming none.
+export const TEST_HOST = "127.0.0.1:4664";
+
 export interface BootTestAppOptions {
   agent?: AgentStatus;
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
@@ -52,7 +55,10 @@ export interface BootedTestApp {
   composed: ComposedRuntime & ReturnType<typeof createApp>;
   bus: WsBus;
   client: RouterClient<typeof localRouter>;
+  // from the loopback host, carrying the bearer.
   request: (input: string, init?: RequestInit) => Promise<Response>;
+  // from the loopback host, carrying whatever credential `init` does.
+  bareRequest: (input: string, init?: RequestInit) => Promise<Response>;
   config: AppConfig;
   db: DbConnection;
   vault: VaultRuntime;
@@ -136,7 +142,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   const wired = createApp({
     bus: runtime.bus,
     clientDir: options.clientDir ?? null,
-    configuredPort: config.port,
     context: runtime.context,
     serverToken: TEST_SERVER_TOKEN,
     voiceStreamHub: runtime.voiceStreamHub,
@@ -149,12 +154,20 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
       requestHost: undefined,
     },
   });
+  const bareRequest = async (input: string, init?: RequestInit): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+    if (!headers.has("host")) {
+      headers.set("host", TEST_HOST);
+    }
+    return await composed.app.request(input, { ...init, headers });
+  };
   const request = async (input: string, init?: RequestInit): Promise<Response> => {
     const headers = new Headers(init?.headers);
     headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
-    return await composed.app.request(input, { ...init, headers });
+    return await bareRequest(input, { ...init, headers });
   };
   return {
+    bareRequest,
     bus: runtime.bus,
     client,
     composed,

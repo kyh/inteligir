@@ -3,6 +3,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
+import type { AppInstance } from "../harness/instance";
 import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("smoke");
@@ -23,8 +24,8 @@ const pageIsMounted = (bodyText: string): boolean =>
 
 // here, not a unit test: `pnpm verify` runs tests before the build, so a unit test over dist/ reads
 // the previous build.
-const assertDocumentPolicy = async (baseUrl: string): Promise<void> => {
-  const response = await fetch(`${baseUrl}/`, { headers: { accept: "text/html" } });
+const assertDocumentPolicy = async (app: AppInstance): Promise<void> => {
+  const response = await fetch(`${app.baseUrl}/`, { headers: { accept: "text/html" } });
   expect(response.ok, `GET / answered ${response.status}`);
   const policy = response.headers.get("content-security-policy") ?? "";
   expect(policy.length > 0, "the served document carries no content-security-policy");
@@ -44,11 +45,19 @@ const assertDocumentPolicy = async (baseUrl: string): Promise<void> => {
     `the built document carries inline scripts this policy refuses:\n${inline.join("\n")}`,
   );
 
-  // the browser is the one client that cannot set a header for itself.
-  const cookie = response.headers.get("set-cookie") ?? "";
+  // a plain GET is anything on this machine; only a handoff a holder of the bearer minted signs a
+  // browser in.
+  const leaked = response.headers.get("set-cookie");
+  expect(leaked === null, `a plain GET / handed out a session cookie: ${String(leaked)}`);
+  const handoff = await fetch(await app.browserUrl("/"), { redirect: "manual" });
+  expect(
+    handoff.status === 303 && handoff.headers.get("location") === `${app.baseUrl}/`,
+    `the handoff answered ${handoff.status} to ${String(handoff.headers.get("location"))}`,
+  );
+  const cookie = handoff.headers.get("set-cookie") ?? "";
   expect(
     cookie.includes("HttpOnly") && cookie.includes("SameSite=Strict"),
-    `the document did not hand the browser its device token: ${cookie}`,
+    `the handoff did not hand the browser its session cookie: ${cookie}`,
   );
 };
 
@@ -60,12 +69,12 @@ export const browserSmoke: Scenario = {
     const app = await ctx.boot({ name: "solo" });
     try {
       ctx.log("asserting the served document carries the real policy");
-      await assertDocumentPolicy(app.baseUrl);
+      await assertDocumentPolicy(app);
 
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
+      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
 
       ctx.log("waiting for the SPA to mount");
       await agentBrowser(["wait", '[data-slot="sidebar-wrapper"]'], 90_000);

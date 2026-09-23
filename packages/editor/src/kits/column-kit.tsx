@@ -47,32 +47,26 @@ const withStableColumns: OverrideEditor<ColumnConfig> = ({
       normalizeNode(entry);
     },
     selectAll: () => {
-      const apply = (): boolean | undefined => {
-        const at = editor.selection;
-        if (!at) {
-          return;
-        }
-        const column = editor.api.above({ match: { type } });
-        if (!column) {
-          return;
-        }
-        let [, targetPath] = column;
-        if (
-          editor.api.isStart(editor.api.start(at), targetPath) &&
-          editor.api.isEnd(editor.api.end(at), targetPath)
-        ) {
-          targetPath = PathApi.parent(targetPath);
-        }
-        if (targetPath.length === 0) {
-          return;
-        }
-        editor.tf.select(targetPath);
-        return true;
-      };
-      if (apply() === true) {
-        return true;
+      const at = editor.selection;
+      if (!at) {
+        return selectAll();
       }
-      return selectAll();
+      const column = editor.api.above({ match: { type } });
+      if (!column) {
+        return selectAll();
+      }
+      let [, targetPath] = column;
+      if (
+        editor.api.isStart(editor.api.start(at), targetPath) &&
+        editor.api.isEnd(editor.api.end(at), targetPath)
+      ) {
+        targetPath = PathApi.parent(targetPath);
+      }
+      if (targetPath.length === 0) {
+        return selectAll();
+      }
+      editor.tf.select(targetPath);
+      return true;
     },
   },
 });

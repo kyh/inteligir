@@ -34,6 +34,7 @@ import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 import { NoteFacts } from "./note-facts";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
+import type { CommentFocus } from "./comments-tab";
 import { HistoryTab } from "./history-tab";
 import { TimelineRowView } from "./timeline-rows";
 import { usePinnedPaths } from "../vault-hooks";
@@ -60,8 +61,7 @@ export interface ActionsPanelProps {
   docPath: string | null;
   tab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
-  // the nonce distinguishes two clicks on the same range.
-  commentFocus: { ids: readonly string[]; nonce: number } | null;
+  commentFocus: CommentFocus | null;
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
@@ -365,7 +365,7 @@ export const ActionsPanel = ({
         </TabsList>
       </div>
       <TabsContent value="comments">
-        <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
+        <CommentsTab docPath={docPath} focus={commentFocus} />
       </TabsContent>
       <TabsContent value="history">
         <HistoryTab key={docPath} docPath={docPath} />
@@ -414,6 +414,7 @@ export const ActionsPanel = ({
           </div>
         ) : (
           <ActionDetail
+            key={selectedThreadId}
             threadId={selectedThreadId}
             onBack={() => {
               onSelectThread(null);

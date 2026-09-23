@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // The Cloudflare plugin also writes `.wrangler/deploy/config.json`, the
+      // redirect `wrangler deploy` and `vite preview` follow to the built
+      // worker. A cache hit that restored dist/ alone would leave them on
+      // wrangler.jsonc, whose `main` is the TypeScript source.
+      "outputs": ["dist/**", ".wrangler/deploy/**"]
+    }
+  }
+}

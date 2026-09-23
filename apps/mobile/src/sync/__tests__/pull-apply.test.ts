@@ -6,6 +6,7 @@ import { agentMessage, logRow, userRequest } from "./fakes";
 
 const SELF = "dev_self";
 const OTHER = "dev_other";
+const OWN = new Set([SELF]);
 
 describe("pull-apply by global seq", () => {
   it("applies another device's rows, moves the cursor, and merges a thread's run", () => {
@@ -19,7 +20,7 @@ describe("pull-apply by global seq", () => {
         seq: 2,
       }),
     ];
-    const plan = planPage(rows, SELF);
+    const plan = planPage(rows, OWN);
     expect(plan.steps).toHaveLength(1);
     applyPlan(store, plan.steps);
 
@@ -39,8 +40,8 @@ describe("pull-apply by global seq", () => {
         seq: 6,
       }),
     ];
-    applyPlan(store, planPage(rows, SELF).steps);
-    applyPlan(store, planPage(rows, SELF).steps);
+    applyPlan(store, planPage(rows, OWN).steps);
+    applyPlan(store, planPage(rows, OWN).steps);
 
     expect(store.snapshotThread("thr_1")?.events).toHaveLength(2);
     expect(store.readCursor()).toBe(6);
@@ -57,10 +58,24 @@ describe("pull-apply by global seq", () => {
         seq: 11,
       }),
     ];
-    applyPlan(store, planPage(rows, SELF).steps);
+    applyPlan(store, planPage(rows, OWN).steps);
 
     expect(store.snapshotThread("thr_1")?.events).toHaveLength(1);
     expect(store.readCursor()).toBe(11);
+  });
+
+  it("skips rows under every id the client has signed in as, not only the current one", () => {
+    const store = createMemorySyncStore();
+    const EARLIER = "dev_self_earlier";
+    const rows = [
+      logRow({ deviceId: EARLIER, deviceSeq: 0, event: userRequest("thr_1", "old me"), seq: 30 }),
+      logRow({ deviceId: SELF, deviceSeq: 0, event: userRequest("thr_1", "me"), seq: 31 }),
+      logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "them"), seq: 32 }),
+    ];
+    applyPlan(store, planPage(rows, new Set([EARLIER, SELF])).steps);
+
+    expect(store.snapshotThread("thr_1")?.events).toHaveLength(1);
+    expect(store.readCursor()).toBe(32);
   });
 
   it("reports and skips a row in a grammar this build does not understand", () => {
@@ -73,7 +88,7 @@ describe("pull-apply by global seq", () => {
       seq: 20,
       threadId: "thr_1",
     };
-    const plan = planPage([bad], SELF);
+    const plan = planPage([bad], OWN);
     expect(plan.skipped).toHaveLength(1);
     applyPlan(store, plan.steps);
     expect(store.snapshotThread("thr_1")).toBeNull();

@@ -1,4 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 import { z } from "zod";
 import path from "node:path";
 import { autoUpdater } from "electron-updater";
@@ -17,6 +18,8 @@ import {
 import type { MenuItemConstructorOptions } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
 import { socketCredentialFilter } from "./credential-scope";
+import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
+import type { ShellPathResolution } from "./login-shell-path";
 import {
   appWindowWebPreferences,
   classifyNavigation,
@@ -33,6 +36,7 @@ import { createUpdates } from "./updates";
 import type { UpdaterPort, Updates } from "./updates";
 import { resolveVaultEntry } from "./vault-entry";
 import {
+  browserSignInUrl,
   describeServerVerdict,
   planServerStart,
   resolveServerTarget,
@@ -226,6 +230,17 @@ const prepareWindowSession = (target: ServerTarget, server: LiveServer): void =>
   });
 };
 
+const guardNavigation = (event: Electron.Event, url: string): void => {
+  const verdict = classifyNavigation(url, APP_ORIGIN);
+  if (verdict === "allow") {
+    return;
+  }
+  event.preventDefault();
+  if (verdict === "block-and-open-external") {
+    openExternalFromPage(url);
+  }
+};
+
 const createWindow = (target: ServerTarget): BrowserWindow => {
   const partition = sessionPartition(target.dataDir);
   const window = new BrowserWindow({
@@ -253,16 +268,6 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
     return { action: "deny" };
   });
 
-  const guardNavigation = (event: Electron.Event, url: string): void => {
-    const verdict = classifyNavigation(url, APP_ORIGIN);
-    if (verdict === "allow") {
-      return;
-    }
-    event.preventDefault();
-    if (verdict === "block-and-open-external") {
-      openExternalFromPage(url);
-    }
-  };
   window.webContents.on("will-navigate", guardNavigation);
   window.webContents.on("will-redirect", guardNavigation);
 
@@ -335,21 +340,22 @@ const handleFromMainWindow = <TFrame, TAnswer>(
 // a channel carrying no frame
 const noFrame = z.undefined();
 
+const resolveRequestedEntry = (request: PathActionRequest) =>
+  resolveVaultEntry({
+    path: request.path,
+    realpath: realpathSync,
+    vaultDir: requireTarget().vaultDir,
+  });
+
 // the page names an entry vault-relative; main resolves it against the vault of the moment
 // and hands the OS nothing the vault does not physically contain. registered once per
 // launch: a second `handle` on a channel throws, so the handlers read the current vault
 const configurePathActionsIpc = (): void => {
-  const resolve = (request: PathActionRequest) =>
-    resolveVaultEntry({
-      path: request.path,
-      realpath: realpathSync,
-      vaultDir: requireTarget().vaultDir,
-    });
   handleFromMainWindow(
     IPC_CHANNELS.REVEAL_PATH,
     pathActionRequestSchema,
     (frame): PathActionResult => {
-      const verdict = resolve(frame);
+      const verdict = resolveRequestedEntry(frame);
       if (!verdict.ok) {
         return verdict;
       }
@@ -361,7 +367,7 @@ const configurePathActionsIpc = (): void => {
     IPC_CHANNELS.OPEN_PATH,
     pathActionRequestSchema,
     async (frame): Promise<PathActionResult> => {
-      const verdict = resolve(frame);
+      const verdict = resolveRequestedEntry(frame);
       if (!verdict.ok) {
         return verdict;
       }
@@ -669,6 +675,18 @@ const switchVaultFromMenu = async (vaultDir: string): Promise<void> => {
   }
 };
 
+const openInBrowserFromMenu = async (): Promise<void> => {
+  const server = live;
+  if (server === null) {
+    return;
+  }
+  try {
+    await shell.openExternal(await browserSignInUrl(server));
+  } catch (error) {
+    dialog.showErrorBox("Could not open Inteligir in the browser", toErrorMessage(error));
+  }
+};
+
 const pickAndSwitchFromMenu = async (): Promise<void> => {
   const picked = await pickVaultDir();
   if (picked !== null) {
@@ -764,9 +782,7 @@ const configureApplicationMenu = (): void => {
       submenu: [
         {
           click: () => {
-            if (live !== null) {
-              void shell.openExternal(`${live.origin}/`);
-            }
+            void openInBrowserFromMenu();
           },
           label: "Open in Browser",
         },
@@ -852,9 +868,32 @@ const quitAfterTeardown = async (owned: ServerProcess): Promise<void> => {
   }
 };
 
+// on main's own env, so every fork inherits it: the first boot's child and every vault switch's
+const applyShellPath = (resolution: ShellPathResolution): void => {
+  if (resolution.source === "inherited") {
+    return;
+  }
+  if (resolution.source === "fallback") {
+    console.warn(
+      `[desktop] could not read the login shell's PATH (${resolution.reason}); adding the usual install dirs instead`,
+    );
+  }
+  process.env.PATH = resolution.path;
+};
+
 const startApp = async (target: ServerTarget): Promise<void> => {
   try {
+    // asked while Electron readies, so the login shell's startup overlaps a wait the boot has anyway
+    const shellPath = resolveShellPath({
+      env: process.env,
+      homeDir: homedir(),
+      isDirectory,
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      run: runShell,
+    });
     await app.whenReady();
+    applyShellPath(await shellPath);
     await onAppReady(target);
   } catch (error) {
     console.error("[desktop] fatal startup error", error);

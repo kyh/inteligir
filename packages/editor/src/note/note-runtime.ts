@@ -20,13 +20,15 @@ export const createNoteRuntime = (
   cb: NoteRuntimeCallbacks,
   initial?: string,
 ) => {
-  const controller = new VaultEditorController(io);
+  let preFlush: (() => void) | null = null;
+  const controller = new VaultEditorController(io, () => {
+    preFlush?.();
+  });
   controller.setRoot(root);
 
   const autosave = createDebouncer(() => {
     void controller.flush();
   }, AUTOSAVE_DEBOUNCE_MS);
-  let preFlush: (() => void) | null = null;
   // gates the vanish watcher so the initial path:null state doesn't close the note.
   let opened = false;
   // a still-pending open() resolving after dispose must not drop a runtime the
@@ -55,6 +57,8 @@ export const createNoteRuntime = (
     controller,
     dispose(): void {
       disposed = true;
+      // a write still in flight must not drain a surface this runtime no longer owns.
+      preFlush = null;
       autosave.cancel();
       unsubscribe();
     },
@@ -74,8 +78,9 @@ export const createNoteRuntime = (
     },
     // not the controller's path, which is null until the first load.
     path,
-    // runs at the top of flush() and remove(); the rich editor drains its serialize debounce
-    // here so a pending keystroke persists. last registration wins.
+    // runs at the top of flush() and remove(), and before the controller takes bytes from disk;
+    // the rich editor drains its serialize debounce here so a pending keystroke persists. last
+    // registration wins.
     registerPreFlush(fn: (() => void) | null): void {
       preFlush = fn;
     },

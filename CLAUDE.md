@@ -39,7 +39,8 @@ apps/
                  Router file routes over @repo/api/local; `app/workspace.tsx`
                  owns the note, the rail, the palette and the panel; `app/note/`
                  the guarded writes; `app/palette/` the ⌘P pages; `app/sidebar/`
-                 the rail's recents | tree | tags views). The whole
+                 the rail's Recent | Files | Deleted views, a tag being a
+                 scope on Recent). The whole
                  security surface is the ORIGIN PIN (src/main/origin-pin.ts,
                  pure + unit-tested): one origin, top-level navigation away
                  goes to the system browser, window.open denied
@@ -55,12 +56,16 @@ apps/
                  the vault, the knowledge index, the agent runtime, the oRPC
                  handler at /rpc, the /ws invalidation bus and the db, built
                  by the ONE composition root (`compose.ts`); every
-                 other verb is a citty leaf that is a CLIENT of a running one,
+                 other verb but `vault open` (which writes config.json's
+                 `vaultDir` and dials no server) is a citty leaf that is a
+                 CLIENT of a running one,
                  with consola for the human path (raw writes for anything
                  verbatim — consola rewrites `backtick` spans). Every leaf
                  takes --json and is EXECUTED by the fitness test against the
-                 refusal path. src/server/cloud/ is the sync CLIENT (issue
-                 #572): the credential at rest, the frozen-body outbox, the
+                 refusal path, except the rows in `EXCLUDED_COMMANDS`
+                 (`apps/cli/src/__tests__/json-flag-enforcement.test.ts`),
+                 each with its reason. src/server/cloud/ is the sync
+                 CLIENT (issue #572): the credential at rest, the frozen-body outbox, the
                  pull/apply loop and the local cloud procedures Settings and
                  `inteligir cloud` drive. src/server/voice/ is dictation (issue
                  #578): the pinned model cache under ~/.inteligir/models/, and
@@ -125,7 +130,8 @@ packages/
                  row move the cursor?", and a mis-set cursor is a duplicated
                  conversation — and, for the same reason, the CLIENT RUNTIME
                  CORE both consumers run (the byte primitives, the approval
-                 slot, the login flow, the sync session; #639 below).
+                 slot, the login flow, the sync session; see "`@repo/api/cloud`
+                 IS THE CLIENT RUNTIME CORE" under Cloud, sync and accounts).
                  apps/web SERVES every row; the CLI's sync client
                  consumes all of them; apps/mobile consumes the read half alone
                  — it pulls threads and produces captures, and never pushes or
@@ -164,8 +170,11 @@ packages/
                  runtime (vault-session/note-runtime/open-note-store) the app
                  drives through two seams, plus the note-level verbs the shell
                  reaches by path (find bar, headings, extract, insert template,
-                 note stats, link locate) and the one action registry a deep
-                 node uses to ask the shell for something (`agent-request`):
+                 note stats, link locate) and the action registry a deep
+                 node uses to ask the shell for something (`agent-request`;
+                 the comment surface keeps its own, `CommentActions` in
+                 `comments/comment-store.ts`, beside that store's per-note
+                 meta and pending create):
                  `VaultSessionPorts`
                  (note/vault-session.ts) and the `EditorHostIo` singleton
                  (host-io.ts), which host.ts opens to React.
@@ -243,15 +252,15 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
 The list is grouped by the part of the system a decision governs; append a new bullet
 to the END of its group.
 
-- [Editor and dialect](#editor-and-dialect) — 12
-- [Vault: writes, git and containment](#vault-writes-git-and-containment) — 13
-- [Knowledge: index, search and links](#knowledge-index-search-and-links) — 12
-- [Agents and threads](#agents-and-threads) — 11
-- [Dictation](#dictation) — 6
-- [Cloud, sync and accounts](#cloud-sync-and-accounts) — 18
-- [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
-- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 6
-- [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
+- [Editor and dialect](#editor-and-dialect)
+- [Vault: writes, git and containment](#vault-writes-git-and-containment)
+- [Knowledge: index, search and links](#knowledge-index-search-and-links)
+- [Agents and threads](#agents-and-threads)
+- [Dictation](#dictation)
+- [Cloud, sync and accounts](#cloud-sync-and-accounts)
+- [Server process and the desktop shell](#server-process-and-the-desktop-shell)
+- [Desktop workspace surfaces](#desktop-workspace-surfaces)
+- [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling)
 
 ### Editor and dialect
 
@@ -316,6 +325,14 @@ to the END of its group.
   column's corner. The wiki-link preview is the HoverCard (Base UI's
   PreviewCard): the pointer can move into it, the text selects, the title
   opens the note; Popover has no hover mode (`packages/editor/src/wiki-chip.tsx`).
+  The selection toolbar (`packages/editor/src/selection-toolbar.tsx`) is the
+  one popup that is not a primitive: it is Plate's `@platejs/floating` toolbar,
+  anchored to the selection rect and kept there by floating-ui's `autoUpdate`,
+  the engine under the Positioner. It has no open/dismiss lifecycle — it shows
+  while the selection is expanded and focused — so a Popover would still need
+  that selection-driven `open` and the `frozen` hold while a menu or the link
+  input takes focus; the `ignore-click-outside/toolbar` class on its portaled
+  menus is the one seam between the two.
 
 - **THE EDITOR COLUMN SHOWS ONE NOTE.** No second pane and no pane vocabulary:
   one `OpenNoteStore`, and every surface reads the open note. Registries keyed
@@ -352,10 +369,11 @@ to the END of its group.
   The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`.
   No accent axis: nothing in Plate consumes a hue.
 
-- **THE PLATE SLASH MENU AND BOTTOM TOOLBAR ARE THE INSERTION SURFACES.** Slash
-  items are grouped data in `packages/editor/src/slash-menu.tsx`; the toolbar is
-  selection-stateless. Every insertable row's markdown must re-parse to a
-  modeled construct; the kit-parity vocabulary pins the set. Legacy
+- **THE PLATE SLASH MENU IS THE INSERTION SURFACE.** Slash items are grouped
+  data (`GROUPS` in `packages/editor/src/slash-menu.tsx`). Every insertable
+  row's markdown must re-parse to a modeled construct
+  (`packages/editor/src/__tests__/slash-rows.test.ts`, which names each row not
+  yet its own fixpoint); the kit-parity vocabulary pins the set. Legacy
   `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
   preserved; nothing writes new ones.
 
@@ -425,8 +443,10 @@ to the END of its group.
 ### Vault: writes, git and containment
 
 - **The auto-commit stages what the window's writers named.** A scheduler that
-  names no paths makes the flush unscoped, which only the boot sweep and the
-  post-sync drain do; a change nobody announced waits for a whole-tree caller.
+  names no paths makes the flush unscoped (the boot sweep, the post-sync drain),
+  and so does a window naming more than `MAX_SCOPED_COMMIT_PATHS` paths or the
+  flush after a failed one; otherwise a change nobody announced waits for a
+  whole-tree caller.
   Unscoped `add -A` survives for a large vault's first commit, where a pathspec
   would exceed ARG_MAX (`apps/cli/src/server/vault/git-engine.ts`).
 
@@ -437,8 +457,10 @@ to the END of its group.
   CAS, the re-index, the `/ws` notification and the open buffer's convergence.
   There is no `vault.restore` procedure (a second server write path is a second
   CAS), so both clients run the same composition: checkpoint with
-  `vault.commitNow`, then write with the base the diff was computed from, never a
-  fresh read. A restore's CAS refusal is reported, not diff3-merged: the user
+  `vault.commitNow`, then a guarded write. The desktop's base is the bytes its
+  diff was computed from, never a fresh read; the CLI, which shows no diff,
+  reads its base after the checkpoint, or writes `ifAbsent` when the note is
+  gone. A restore's CAS refusal is reported, not diff3-merged: the user
   named exact bytes. Reading the log is off the repo lock. The git flags and the
   parse are `apps/cli/src/server/vault/git-history.ts`; the composition is
   `apps/desktop/src/renderer/app/actions/history-tab.tsx` and `vault restore` in
@@ -457,9 +479,14 @@ to the END of its group.
   under the repo lock; a mismatch answers 409 with the current content and the
   client diff3-merges and retries. Creation uses `ifAbsent`. Without it an agent
   write landing between a read and a save is silently overwritten. diff3 rather
-  than active-user-wins, which discards concurrent body edits wholesale.
-  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts` and
-  `@repo/notes/text/diff3`.
+  than active-user-wins, which discards concurrent body edits wholesale. A write
+  ANSWERS THE BYTES THAT LANDED and the open buffer takes them, an edit made
+  meanwhile rebased on top: once the merge is the base, a buffer kept over it
+  passes the next save's CAS without the external edit. A reload is the same
+  hazard, so it drains the editor's serialize debounce before and after its
+  read and rebases an edit made during it rather than skipping the bytes it
+  read. `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`,
+  `packages/editor/src/vault-editor.ts` and `@repo/notes/text/diff3`.
 
 - **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends `ifAbsent` and
   no hash; hashing bytes not yet on disk is a refusal every time. A guarded
@@ -489,8 +516,9 @@ to the END of its group.
   The tree's drop target and the palette's "Move note to folder…" page both ask
   `planMove` (`apps/desktop/src/renderer/app/sidebar/tree-ops.ts`) and refuse for
   the same three reasons: itself, its own descendant, the folder it is already
-  in. A drop on a note row means that note's folder; a drop on the empty area
-  means the listing's scope, never the vault root. The drag's source is
+  in. A drop on a note row means that note's folder; a drop on the tree's empty
+  area means the vault root, since the tree is the whole vault. The drag's
+  source is
   component state, not `dataTransfer`, so a file dragged in from the desktop
   has no source here and is ignored. No second write path: the move rides
   `vault.rename`, which rewrites links, and the open note follows through
@@ -511,15 +539,14 @@ to the END of its group.
 - **THE OS SEES A VAULT ENTRY THROUGH MAIN ALONE, and main checks physically.**
   Reveal in Finder and Open with default app ride `desktop:reveal-path` /
   `desktop:open-path`: the page sends a vault-relative path, main parses it
-  with the vault grammar, joins it under the vault it launched with, realpaths
+  with the vault grammar, joins it under the current vault (main's target,
+  re-read per request so a switch moves it), realpaths
   both sides and asks `pathContains` (`inteligir/server/path-containment`), so
   a `..`, an absolute path or a symlink planted in the vault reaches no
   `shell.*` call (`apps/desktop/src/main/vault-entry.ts`, tested). A browser
   tab has no bridge and draws no row. Copy path and Copy absolute path need
   no main: the listing already carries the root. The tree sorts folders first
-  either way and files by name or newest-first (`prefs.ts`, persisted); the
-  filter withholds rows that neither match nor hold a match and opens every
-  kept folder, without touching the fold state it restores when cleared.
+  either way and files by name or newest-first (`prefs.ts`, persisted).
 
 - **A SECOND VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
   SESSION AND A NEW WINDOW.** The default vault keeps the root data dir every
@@ -545,6 +572,22 @@ to the END of its group.
   `apps/desktop/src/main/vaults.ts` (the shell's policy over it),
   `main/index.ts` (`switchVault`), `apps/desktop/src/vaults-state.ts`.
 
+- **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fence and
+  the pre-fetch commit are one locked step, the commit and rebase a second,
+  the account marker a third; the fetch and the push run between them
+  unlocked. Held across the network, the lock made every save and every turn
+  start wait out a dropped connection's timeout. The price is that the world
+  moves during the fetch, so the rebase step re-checks first: a turn that took
+  its hold, or a dispose that ran the final flush, ends the pass there, and a
+  save that landed is committed before the rebase would refuse it. Saves now
+  land mid-pass, so the runtime strips their watcher echoes before asking
+  whether a pass is running. A recorded conflict keeps the two tips it was met
+  between, and a pass where neither moved skips the rebase rather than
+  rewriting the conflicted files every minute. Network git gives up early too:
+  under 1KB/s for 30s, or an ssh connect past 20s
+  (`apps/cli/src/server/vault/git-run.ts`). The split is
+  `apps/cli/src/server/vault/git-engine.ts`.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile
@@ -553,13 +596,16 @@ to the END of its group.
   missed re-create.
 
 - **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
-  then the scorer's rows with their reasons, no dedup between the halves
+  then the scorer's rows with their reasons, then unlinked mentions with a Link
+  action, no dedup between the families
   (`apps/desktop/src/renderer/app/actions/related-section.tsx`). Outgoing links
   stay absent (they are on screen as wiki-links); no graph view; the route stays
-  search-shaped (a `limit`, no `total`); suggestions are fetched only while the
-  section is unfolded; refresh rides the existing `files-changed` and
-  `content-changed` kinds, which sweep the `knowledgeRoot` family whole because
-  a link into a note lives in another note's bytes.
+  search-shaped (a `limit`, no `total`); suggestions and mentions are fetched
+  only while the section is unfolded; refresh rides the existing `files-changed`
+  and `content-changed` kinds, which sweep `orpc.knowledge.key()` whole because
+  a link into a note lives in another note's bytes, except that
+  `content-changed` skips `knowledge.unlinkedMentions`, a vault-wide prose scan
+  (`app/workspace-context.tsx`).
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Literal
   and stem columns at equal bm25 weight; `@repo/notes/knowledge/search-query`
@@ -600,14 +646,15 @@ to the END of its group.
   LINK RENAME'S SURGERY.** There is no tag browser in the app: `knowledge.tags`
   answers `inteligir tags` alone. A `#tag` chip asks the shell through the
   editor host registry's `showTag` (`packages/editor/src/agent-request.ts`,
-  the one channel from a node to the shell), never the palette, and the rail
+  a node's channel to the shell beside the comment surface's own
+  `CommentActions`), never the palette, and the rail
   answers with the Recent view scoped to that tag: the scope row (the count,
-  `listed of total` while cut, Rename), the tag's paged listing, and the
-  rail's search over it. The selected tag is the workspace's state like the
-  folder, and everything only the scope holds (the rename dialog, the paged
+  `listed of total` while cut, Rename) and the tag's paged listing. The
+  selected tag is the workspace's state, like the rail's view, and everything
+  only the scope holds (the rename dialog, the paged
   query) is `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`, mounted
   only while a tag is selected. A Tags tab was built and removed by owner
-  decision: the rail switches between Recent and Files and nothing else.
+  decision: the rail's views are Recent, Files and Deleted.
   `knowledge.renameTag` moves a tag and everything nested under it, matched
   case-insensitively because the index is: inline spans are the scan's own,
   verified against the raw bytes and withheld inside verbatim ranges
@@ -623,7 +670,8 @@ rename`.
 
 - **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
   rewrites exactly what the rows showed.** FTS5 cannot say where inside a line
-  a hit sits, so `knowledge.matches` (⌘⇧F, `inteligir matches`) scans doc
+  a hit sits, so `knowledge.matches` (the palette's "Search across the vault…"
+  page, `inteligir matches`) scans doc
   bodies with ONE matcher, `@repo/notes/knowledge/text-matches`, that the
   listing and the rewrite both run; the store only pre-narrows by an ascii
   substring (`docTexts`), because LIKE folds ascii case alone. A replace across
@@ -634,9 +682,9 @@ rename`.
   every note and honours a cancel between notes, never inside one, and the
   summary counts what a stop left untouched; the palette stays open on the run
   so it can show the count and offer the cancel. The jump lands by ordinal among
-  the note's matches, because a markdown column is not a Slate offset. ⌘⇧F is
-  the one shifted row in `global-shortcuts.ts`; a row claims shift explicitly
-  so ⌘⇧K stays the editor's.
+  the note's matches, because a markdown column is not a Slate offset. ⌘⇧O (Go
+  to heading) is the one shifted row in `global-shortcuts.ts`; a row claims
+  shift explicitly, so an unshifted row never fires on a shifted chord.
 
 - **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
   bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
@@ -675,8 +723,8 @@ rename`.
   a hundred with no sign of a cut. The family is one predicate,
   `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`), which the rename's
   candidate list runs too. The rail re-reads one growing page rather than
-  stitching pages, because the list it draws is filtered by the folder scope
-  and sorted by recency after the fact, and says `listed of total` while cut.
+  stitching pages, because the list it draws is sorted by recency after the
+  fact, and says `listed of total` while cut.
   `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`.
 
 ### Agents and threads
@@ -724,7 +772,9 @@ rename`.
   note's bytes and would need an account, and accountless installs make zero
   cloud requests. A comment on a note without an id mints one
   (`withFrontmatterId`, a line cut like the pin's) through a guarded note
-  write; a read mints nothing. The beside-the-note `<note>.comments.json` older
+  write; a read mints nothing. An `id` that is not text (a number, a date, a
+  list) is refused by name, never overwritten: it may be someone's identity
+  for the note. The beside-the-note `<note>.comments.json` older
   vaults and agents wrote is folded into the store on first touch and over the
   whole tree at boot (`comments-migration.ts`); an unparseable one is reported
   by its own name and left. A deleted note's store goes with it
@@ -793,9 +843,9 @@ agents default`; unset falls back
 
 - **A DEDICATED DICTATION WEBSOCKET, off the invalidation bus.** `/voice/stream`
   carries PCM16 up and partial/final/error down; `/ws` carries pings and never a
-  payload. It sits behind the same loopback guard, is exempt from the
-  route-table guard like `/ws`, and its sockets are closed by name at teardown
-  so a live hold cannot stall exit.
+  payload. It sits behind the same loopback guard, is a declared row in the
+  route table (`http-surface.test.ts`) like `/ws`, and its sockets are closed
+  by name at teardown so a live hold cannot stall exit.
 
 - **THE RENDERER STREAMS WITH A `ScriptProcessorNode`, not an `AudioWorklet`.**
   A worklet is fetched as a script and the prod CSP names `worker-src 'none'`;
@@ -871,6 +921,10 @@ agents default`; unset falls back
   what makes the apply exactly-once. Signing in again resets the cursor, so a synced
   row also carries `events.origin_device_id` / `origin_device_seq` under a
   unique index, keyed `(device, position)` rather than the account-global `seq`.
+  A row this install wrote carries no origin, so that index cannot catch its own
+  rows coming back: the planner skips every device id the install has signed in
+  as (`sync_own_devices`, recorded at boot and at sign-in, kept by a sign-out),
+  not only the current one, because each sign-in mints a new id.
   Lifecycle projects over what landed, never what arrived.
   `apps/cli/src/server/cloud/sync-pass.ts`.
 
@@ -993,12 +1047,23 @@ agents default`; unset falls back
 - **THE CREDENTIAL IS A FILE, NOT A CHALLENGE** (reversing the
   loopback-adoption-is-earned line). The server writes `<dataDir>/server.json`
   at 0600 and removes it on ordered shutdown; every caller reads it and sends
-  the bearer. No probing, no adoption ceremony, and the browser-origin guard
-  survives only where the credential is ambient: a cookie-authed request must
-  also prove same-origin because loopback "site" ignores the port. The bound is
-  the honest one: it proves the caller can read the data dir, not that it is
-  this code. One token, two carriers (header, and an HttpOnly SameSite=Strict
-  cookie). `apps/cli/src/server/server-file.ts` and `browser-request.ts`.
+  the bearer. No probing, no adoption ceremony. The bound is the honest one: it
+  proves the caller can read the data dir, not that it is this code. A BROWSER
+  CANNOT SEND A HEADER, so it holds its own per-boot secret in an HttpOnly
+  SameSite=Strict cookie, and nothing hands that out to a plain request: the
+  cookie is set only by trading a single-use, five-minute handoff nonce that a
+  holder of the bearer minted (`system.browserHandoff`; `serve --open`, the
+  link `serve` prints and the shell's Open in Browser) on a document URL
+  carrying `?handoff=`, which answers a 303 to the same URL without it. Each
+  carrier accepts only its own secret, and the cookie, being ambient, must also
+  prove same-origin because loopback "site" ignores the port. EVERY REQUEST
+  MUST NAME 127.0.0.1 OR localhost AS ITS HOST, refused with a 421 ahead of
+  every route, /health and the sockets included: a page that rebinds its own
+  hostname onto the port gets nothing. Residual: a cookie is port-agnostic, so
+  a server on another loopback port the browser visits receives it; that is why
+  it is not the bearer, never touches disk and dies with the boot.
+  `apps/cli/src/server/server-file.ts`, `browser-session.ts`,
+  `browser-request.ts` and the guard at the top of `app.ts`.
 
 - **Shutdown is ORDERED, per-step TIME-BOXED, and its exit code is the truth.**
   Writers stop, the vault flush runs, handles close; each step has its own
@@ -1035,9 +1100,11 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   are off: a check 15s after launch and every 4 minutes, the download and the
   restart each a click, in Settings › About or the app menu. Install stops the
   server child first, so the vault's pending commit flushes before Squirrel
-  swaps the bundle. THE BRIDGE CARRIES TWO THINGS: the loopback origin and the
-  updater, because the updater lives in main and no server can answer for it;
-  every frame crosses as `unknown` and the page parses it. Still no token in
+  swaps the bundle. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS: the loopback
+  origin, the updater, the spell checker, the vault switch and Reveal/Open
+  (`IPC_CHANNELS` in `apps/desktop/src/types.ts`), because no server can
+  answer for any of them; every frame crosses as `unknown` and the page
+  parses it. Still no token in
   the renderer. `apps/desktop/src/main/updates.ts` (the policy over an
   injectable port) and `apps/desktop/src/update-state.ts` (the one state).
 
@@ -1052,6 +1119,23 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   row. `apps/desktop/src/main/spellcheck.ts` (the policy over a port),
   `apps/desktop/src/spellcheck-state.ts` (the one state),
   `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
+
+- **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST FORK.** A Finder
+  or Dock launch inherits launchd's PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), and
+  the server decides whether the agent runs by finding `claude` or `codex` on
+  PATH (`binaryOnPath`), so the installed app opened the normal way reported
+  no agent while every terminal launch found one. A packaged macOS shell runs
+  `$SHELL -ilc` once (zsh when unset), reads PATH from between two markers so
+  rc-file noise cannot leak in, puts those entries ahead of the inherited ones
+  and assigns the union to main's own `process.env.PATH`: the first child and
+  every vault switch's spread it, so `serverProcessEnv` stays the one channel
+  for the child's own variables. It is asked while Electron readies and capped
+  at 5s; a timeout, a failure or an empty answer adds whichever of
+  `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin` exist instead. The
+  fixed list alone is rejected, as is an `LSEnvironment` PATH in the bundle:
+  neither can know a version manager's directory, and `codex` installed under
+  one is invisible to both. A dev launch is left alone: it comes from a
+  terminal whose PATH is already the user's. `apps/desktop/src/main/login-shell-path.ts`.
 
 ### Desktop workspace surfaces
 
@@ -1086,8 +1170,9 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   its keyboard walk and the menu's arrow-key walk are one rhythm — the
   menu's own walk stands down for a key the row already handled. The view is
   the workspace's (`railView` in `app/prefs.ts`) because a `#tag` chip shows
-  Recent scoped to the tag, a create shows Files and a delete's Undo shows
-  Deleted; the selected tag is the workspace's for the same reason. THERE IS
+  Recent scoped to the tag, a create shows Files, and the palette's Deleted
+  notes and the Metadata tab's "Deleted notes…" show Deleted; the selected
+  tag is the workspace's for the same reason. THERE IS
   NO FOLDER SCOPE: the top bar's breadcrumb REVEALS rather than narrows —
   a segment shows Files, opens the way to that folder and selects it
   (`revealInTree` in `sidebar/tree-state.ts`, applied where the fold state
@@ -1101,7 +1186,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   toggle live above the note; copy link, export and share sit under its ⋯
   menu. One `useVaultSwitch` and one `RecentVaultLabel`
   (`app/desktop-vaults.tsx`) serve the rail's vault row and Settings alike.
-  The rail hides what the user did not write
+  The rail and the palette's note rows and folder pages hide what the user
+  did not write through one filter, `visibleEntries` in `app/vault-hooks.ts`
   (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment
   sidecars, dot-entries); the server's listing stays complete because the
   CLI and the agent read it. Under the macOS shell the rail reserves the
@@ -1127,22 +1213,27 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `@repo/editor/note-stats` over the editor's lowest blocks, beside the TOC's
   walk so both agree on the document, and published by the serializer's
   debounce, never per keystroke; the panel reads a path-keyed store like the
-  live editor's. The top bar's breadcrumb scopes the rail to a folder, so the
-  folder is the workspace's state and a prop to both, not a request store: a
-  store is for a surface with no route to the owner, and both are one hop away.
+  live editor's. The top bar's breadcrumb reveals a folder in the rail's tree
+  (`revealInTree`); the reveal request is the workspace's state, keyed by a
+  nonce, and a prop to both, not a request store: a store is for a surface
+  with no route to the owner, and both are one hop away.
   `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
-  `panelOpen` defaults off; a comment focus, the top bar's Comments or its
-  toggle opens it. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
+  `panelOpen` defaults off; its toggle opens it, and so does every entry
+  that shows something in it — a comment focus, the top bar's Comments, a
+  thread the composer launched or the palette picked — through one
+  `revealPanel` (`app/workspace.tsx`) that leaves zen, persists the open and
+  picks the tab, because an entry that only picks its tab or thread shows
+  nothing in a closed panel. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
   the flat underline row; the pill switch went with its last consumer. Its width persists through the same Fluid resize handle the
   rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
   second resize mechanism would be a second answer to one drag.
 
 - **AMBIENT STATE LIVES IN THE RAIL'S FOOTER; THE NOTE KEEPS ITS COUNT.** A
   strip across the whole window was a second bar under a rail that already
-  had a bottom, so the sync state, the agent's spinner, Deleted notes and
-  Settings moved into Fluid's `SidebarFooter` and the window-wide status bar
+  had a bottom, so the sync state, the agent's spinner and Settings moved
+  into Fluid's `SidebarFooter` and the window-wide status bar
   went. What stays under the note is `app/note-footer.tsx`: the open note's
   word count and reading time alone, right-aligned, at `--app-status-h`
   beside `--app-header-h`, and with no rule above it so it reads as the
@@ -1177,6 +1268,23 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   last consumer, and Fluid's field is frameless over a divider.
   `packages/ui/src/components/command.tsx` and
   `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
+
+- **THE BUS IS APPLIED ONCE PER FRAME, AND A KIND REFETCHES ONLY WHAT IT
+  MOVES.** `ChangeBatch` folds every ws frame since the last animation frame
+  and flushes once, so a K-note rename is one knowledge sweep rather than K,
+  and a hidden window, which runs no frames, folds a long turn into one flush
+  on return. Thread kinds are weighed in two total tables beside the vault
+  kinds' invalidations, `MOVES_THE_LIST` and `MOVES_THE_DETAIL`, next to
+  thread-hooks' `MOVES_THE_TIMELINE`: `events-appended` moves neither, so a
+  streamed turn refetches the timeline's delta and never the unpaged thread
+  list. A `content-changed` under the comment store sweeps the comments, since
+  a second comment rewrites an existing store and announces no row; every
+  `content-changed` stamps the cached listing's `modifiedMs` with the frame's
+  arrival instead of re-walking the vault, so the recents move while a note is
+  edited. A reconnect sweeps every family the bus reaches, declared once and
+  checked against every frame's invalidations.
+  `apps/desktop/src/renderer/app/workspace-context.tsx` and
+  `apps/desktop/src/renderer/app/__tests__/changed-message.test.ts`.
 
 ### Repo guards, vendoring and tooling
 
@@ -1216,8 +1324,10 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   whole component. The popup keeps the set instead and reads document order
   itself (`syncRows` in `packages/ui/src/components/dropdown-menu.tsx`, the
   same shape `sidebar-menu.tsx` uses): a row registers its element and asks
-  only whether it is the active one. There are no React rule suppressions left
-  in the renderer or `@repo/ui`, and the compiler optimizes both.
+  only whether it is the active one. No `exhaustive-deps` or `rules-of-hooks`
+  suppression is left in the renderer or `@repo/ui` — those are the ones the
+  compiler bails on, and `react/rule-suppression` refuses a new one — so the
+  compiler optimizes both.
 
 - **THE REACT COMPILER IS ON FOR ALL THREE APPS**: `compiler: true` on
   `@vitejs/plugin-react` in both vite configs and `reactCompiler: true` in
@@ -1238,6 +1348,19 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   web shares — cannot be listed without freezing web too: after a sweep, revert
   the `expo:` catalog rows by hand, then `npx expo install --check` in
   `apps/mobile`. An SDK upgrade moves all of them together.
+
+- **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit
+  replays the output with no error, and the e2e suite and `package:*` test and
+  ship what it replays. Another workspace's files enter a key only through a
+  `^` edge, so every cached task of a workspace with dependencies carries one
+  (`tools/repo-guards/src/turbo-cache-keys.test.ts`); the desktop build takes
+  `^topo`, the transit node, since `^build` would cycle through the CLI build
+  that stages its renderer (`apps/desktop/turbo.json`). A file in no
+  workspace is a named input (the licence texts on `apps/cli/turbo.json`), a
+  file a later command follows is a named output (the web build's
+  `.wrangler/deploy/**`, `apps/web/turbo.json`), and `NODE_ENV` is hashed
+  `globalEnv`, not a passthrough: vite emits React's dev build under
+  `development`, and the dev shell hands that value to every agent shell.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

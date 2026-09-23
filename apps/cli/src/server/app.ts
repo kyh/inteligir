@@ -5,6 +5,7 @@ import nodePath from "node:path";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { serveStatic } from "@hono/node-server/serve-static";
 import {
+  BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
@@ -24,7 +25,8 @@ import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { loopbackRequestOrigin } from "./loopback-origin";
 import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
-import { presentedCredential, serverTokenCookie, tokenAccepted } from "./server-file";
+import { presentedCredential, tokenAccepted } from "./server-file";
+import type { PresentedCredential } from "./server-file";
 import { handleVaultAsset } from "./vault/asset-route";
 import type { VoiceStreamConnection } from "./voice/voice-stream-connection";
 import type { VoiceStreamHub } from "./voice/voice-stream-hub";
@@ -36,15 +38,15 @@ export interface CreateAppArgs {
   voiceStreamHub: VoiceStreamHub;
   serverToken: string;
   clientDir: string | null;
-  // only the document policy's fallback for a request naming no loopback host; the bound port comes from the request.
-  configuredPort: number;
 }
 
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
 const STATIC_NO_STORE_CACHE_CONTROL = "no-store";
 
 interface AppEnv {
-  Variables: { staticFilePath?: string };
+  // set by the host guard before any route runs: the bound port comes from the request, since a
+  // dev port may have been probed upward at bind.
+  Variables: { staticFilePath?: string; requestOrigin: string };
 }
 
 // stamped after the chain answers: serveStatic's onFound header writes land after its
@@ -71,6 +73,26 @@ export const createApp = (args: CreateAppArgs) => {
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
 
+  // first, ahead of every route, /health and the oauth landing included: the server binds 127.0.0.1
+  // alone, so any other name is a page that rebound its own hostname onto this port. the header,
+  // never the url: an upgrade's url is rebuilt on a fixed localhost base.
+  app.use("*", async (c, next): Promise<Response | undefined> => {
+    const origin = loopbackRequestOrigin(c.req.header("host"));
+    if (origin === null) {
+      return c.text("This server answers only to 127.0.0.1 and localhost", 421);
+    }
+    c.set("requestOrigin", origin);
+    // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
+    await next();
+    return undefined;
+  });
+
+  // each carrier has its own secret: the bearer never rides a cookie, and the browser's cookie is no bearer.
+  const credentialAccepted = (credential: PresentedCredential): boolean =>
+    credential.carrier === "header"
+      ? tokenAccepted(args.serverToken, credential.token)
+      : args.context.browserSession.cookieAccepted(credential.token);
+
   // one gate at the http boundary: three of the four surfaces it protects are not procedures.
   // /health stays outside (a supervisor's spawn probe holds no credential yet), and so does the
   // oauth browser landing (a cross-site top-level navigation carries none; its single-use state
@@ -81,7 +103,7 @@ export const createApp = (args: CreateAppArgs) => {
       authorization: c.req.header("authorization"),
       cookie: c.req.header("cookie"),
     });
-    if (credential === null || !tokenAccepted(args.serverToken, credential.token)) {
+    if (credential === null || !credentialAccepted(credential)) {
       return c.text("This request carried no valid inteligir device token", 401);
     }
     if (
@@ -178,13 +200,6 @@ export const createApp = (args: CreateAppArgs) => {
     const clientDir = nodePath.resolve(args.clientDir);
     // read once: the bundle is immutable for this process's life.
     const shellDocument = readFileSync(nodePath.join(clientDir, "index.html"), "utf-8");
-    const configuredOrigin = `http://127.0.0.1:${String(args.configuredPort)}`;
-    // the ws origin comes from the caller's own host header: a dev port may have been probed
-    // upward at bind, and a connect-src naming the configured port refuses this app's own socket.
-    const documentHeadersFor = (host: string | undefined): Record<string, string> =>
-      documentSecurityHeaders({
-        wsOrigin: websocketOrigin(loopbackRequestOrigin(host) ?? configuredOrigin),
-      });
     const serveClientFile = serveStatic<AppEnv>({
       onFound: (path, c) => {
         c.set("staticFilePath", path);
@@ -192,8 +207,32 @@ export const createApp = (args: CreateAppArgs) => {
       root: clientDir,
     });
 
+    // a browser's one way in. live or spent, the answer is the same URL without the nonce, so it
+    // never lingers in the address bar or the history and a reload lands a browser that already
+    // holds its cookie. the origin is the guard's: a path of `//elsewhere/` must stay on this server.
+    const browserHandoff: MiddlewareHandler<AppEnv> = async (
+      c,
+      next,
+    ): Promise<Response | undefined> => {
+      const nonce = c.req.query(BROWSER_HANDOFF_PARAM);
+      if (nonce === undefined) {
+        // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
+        await next();
+        return undefined;
+      }
+      const target = new URL(c.req.url);
+      target.searchParams.delete(BROWSER_HANDOFF_PARAM);
+      const cookie = args.context.browserSession.redeemHandoff(nonce);
+      c.header("cache-control", STATIC_NO_STORE_CACHE_CONTROL);
+      if (cookie !== null) {
+        c.header("set-cookie", cookie);
+      }
+      return c.redirect(`${c.get("requestOrigin")}${target.pathname}${target.search}`, 303);
+    };
+
     // stamped by content type, not route: serveStatic answers index.html for `/` and the fallback
-    // reads the same file for deep links. also where the browser gets its cookie: it cannot set a header.
+    // reads the same file for deep links. the ws origin is the one the caller reached: a
+    // connect-src naming the configured port refuses this app's own socket on a probed dev bind.
     const documentHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
       // oxlint-disable-next-line node/callback-return -- hono's next() resolves after the downstream handlers; the headers are stamped on their response
       await next();
@@ -201,10 +240,12 @@ export const createApp = (args: CreateAppArgs) => {
         return;
       }
       c.res.headers.set("cache-control", STATIC_NO_STORE_CACHE_CONTROL);
-      for (const [name, value] of Object.entries(documentHeadersFor(c.req.header("host")))) {
+      const policy = documentSecurityHeaders({
+        wsOrigin: websocketOrigin(c.get("requestOrigin")),
+      });
+      for (const [name, value] of Object.entries(policy)) {
         c.res.headers.set(name, value);
       }
-      c.res.headers.set("set-cookie", serverTokenCookie(args.serverToken));
     };
 
     // only /assets/* carries content hashes, so only it may be immutable; an asset miss must 404,
@@ -220,6 +261,7 @@ export const createApp = (args: CreateAppArgs) => {
     app.on(
       ["GET", "HEAD"],
       "*",
+      browserHandoff,
       documentHeaders,
       staticCacheControl(STATIC_NO_STORE_CACHE_CONTROL),
       serveClientFile,

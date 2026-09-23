@@ -126,7 +126,6 @@ const buildTree = (entries: readonly VaultEntry[], sort: TreeSort) => {
   return roots;
 };
 
-// the matches and every folder above them, so a folder holding a match is never hidden
 type EditingState =
   | { mode: "rename"; path: string }
   | { mode: "create"; kind: "dir" | "file"; parentDir: string };

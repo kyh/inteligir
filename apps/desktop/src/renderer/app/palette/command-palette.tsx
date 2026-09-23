@@ -37,9 +37,11 @@ import { useState } from "react";
 import { bindingFor } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";
 import { planMove } from "../sidebar/tree-ops";
+import { orpc } from "../api";
 import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
 import { vaultFolders } from "../vault-hooks";
-import type { NoteSearchHit, NoteSearchSource } from "./note-search";
+import { listedNotePaths, NOTE_SEARCH_LIMIT, searchNotesByFilename } from "./note-search";
+import type { NoteSearchHit } from "./note-search";
 import {
   FolderPage,
   matchesQuery,
@@ -98,7 +100,6 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   entries: readonly VaultEntry[];
   threads: readonly Thread[];
-  searchSource: NoteSearchSource;
   canSync: boolean;
   actions: PaletteActions;
   // the subject of the root "Move note to folder…" row; absent with no note open
@@ -331,7 +332,6 @@ export const CommandPalette = ({
   onOpenChange,
   entries,
   threads,
-  searchSource,
   canSync,
   actions,
   openNotePath = null,
@@ -342,19 +342,27 @@ export const CommandPalette = ({
   const [moveSubject, setMoveSubject] = useState<string | null>(request.subject ?? null);
   const settledQuery = useDebounced(query, SEARCH_DEBOUNCE_MS);
 
-  // a source, not a route: it merges the filename fallback the index cannot answer. A superseded
+  // Under the knowledge family, so the bus's sweep refreshes it; the filename fallback is derived
+  // from the listing on every render, so nothing the index cannot answer is cached. A superseded
   // read is aborted by the cache itself: the key's last observer moving on cancels a fetch that
   // consumed its signal.
-  /* oxlint-disable sort-keys -- TanStack infers `placeholderData`'s parameter from the data
-     type, which only exists once queryKey/queryFn are above it; sorted, `previous` is `{}`. */
-  const noteHitsQuery = useQuery({
-    queryKey: ["palette", "note-hits", settledQuery],
-    queryFn: async ({ signal }) =>
-      await searchSource(settledQuery, signal).catch((): NoteSearchHit[] => []),
-    enabled: open && page === "root",
+  const asksIndex = settledQuery.trim() !== "";
+  const indexQuery = useQuery({
+    ...orpc.knowledge.search.queryOptions({
+      input: { limit: NOTE_SEARCH_LIMIT, q: settledQuery },
+    }),
+    enabled: open && page === "root" && asksIndex,
     placeholderData: (previous) => previous,
   });
-  const noteHits = noteHitsQuery.data ?? [];
+  // an error leaves no data, so a refusing index falls back like an empty one
+  const indexHits = asksIndex ? (indexQuery.data?.results ?? []) : [];
+  const noteHits: NoteSearchHit[] =
+    indexHits.length > 0
+      ? indexHits.map((result) => ({
+          path: result.path,
+          title: result.title === "" ? null : result.title,
+        }))
+      : searchNotesByFilename(settledQuery, listedNotePaths(entries));
 
   const close = (): void => {
     onOpenChange(false);
@@ -595,7 +603,7 @@ export const CommandPalette = ({
           {noteHits.map((hit) => (
             <CommandItem
               key={hit.path}
-              action={hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
+              action={hit.title ?? hit.path}
               onSelect={() => {
                 run(() => {
                   actions.openNote(hit.path);
@@ -603,14 +611,12 @@ export const CommandPalette = ({
               }}
             >
               <FileTextIcon />
-              <span className="truncate">
-                {hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
-              </span>
-              {hit.title !== undefined && hit.title !== "" ? (
+              <span className="truncate">{hit.title ?? hit.path}</span>
+              {hit.title === null ? null : (
                 <span className="ml-auto truncate pl-3 text-body text-muted-foreground">
                   {hit.path}
                 </span>
-              ) : null}
+              )}
             </CommandItem>
           ))}
         </CommandGroup>

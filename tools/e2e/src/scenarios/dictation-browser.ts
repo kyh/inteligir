@@ -33,7 +33,7 @@ export const dictationBrowser: Scenario = {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/ with a fake microphone`);
-      await agentBrowser(["--args", CHROME_MEDIA_ARGS, "open", `${app.baseUrl}/`], 60_000);
+      await agentBrowser(["--args", CHROME_MEDIA_ARGS, "open", await app.browserUrl("/")], 60_000);
       await agentBrowser(["wait", '[data-slate-editor="true"]'], MOUNT_DEADLINE_MS);
       // the composer is behind ⌘K.
       await agentBrowser(["press", process.platform === "darwin" ? "Meta+k" : "Control+k"]);

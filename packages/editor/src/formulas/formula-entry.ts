@@ -7,6 +7,7 @@ import { parseExpression, evaluateExpression } from "@repo/notes/formulas/expres
 import { formatResult } from "@repo/notes/formulas/format-result";
 import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import type { FormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import { stringProp } from "@repo/editor/node-props";
 
 const NAME_RE = /^(?<name>[A-Za-z][A-Za-z0-9_-]*)=(?<rest>.+)$/u;
@@ -98,3 +99,13 @@ export const formulaNodeFrom = (props: FormulaNodeProps): TElement => ({
   source: props.source,
   type: "formulaPill",
 });
+
+// A body with pipes is the persisted grammar and completes verbatim; a pipeless body runs the entry grammar.
+export const formulaNodeFromTyped = (body: string): TElement | null => {
+  if (body.includes("|")) {
+    const { display, meta = "", source } = parseFormulaRaw(body);
+    return formulaNodeFrom({ display, meta, raw: body, source });
+  }
+  const props = formulaPropsFromEntry(body);
+  return props === null ? null : formulaNodeFrom(props);
+};

@@ -7,7 +7,8 @@ a process that starts and stops the server with the app.
 
 ```
 src/main/       the Electron main process: the window, the protocol, the fork
-src/preload/    the ONE bridge into the app window (the loopback ws origin, the updater)
+src/preload/    the ONE bridge into the app window (the loopback ws origin, the updater,
+                the spell checker, the vault switch, Reveal/Open)
 src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 ```
 
@@ -43,8 +44,8 @@ between this shell and a browser:
   target is handed to the system browser instead.
 - **`window.open` is denied unconditionally**, even same-origin.
 - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The one
-  preload exposes the loopback origin and the updater, nothing that holds a
-  token.
+  preload exposes the loopback origin, the updater, the spell checker, the
+  vault switch and Reveal/Open, nothing that holds a token.
 
 Origins are compared **field by field** — scheme, host, and port only where the
 scheme has one — never with `URL.origin`: Node's parser answers the opaque
@@ -112,6 +113,19 @@ Which mode that resolution runs in is decided by `app.isPackaged`, never by the
 ambient `NODE_ENV`: a packaged install is the production one (`~/.inteligir`,
 `~/Inteligir`, port 4664) and a checkout gets the same per-checkout dev instance
 `pnpm cli serve` derives, so developing never drives your real vault.
+
+## The child's PATH is the login shell's
+
+An app opened from Finder or the Dock inherits launchd's PATH
+(`/usr/bin:/bin:/usr/sbin:/sbin`), which holds neither agent CLI, and the server
+turns the agent off when it cannot find one on PATH. So before the first fork
+the packaged shell runs `$SHELL -ilc` once, reads the PATH it prints, and puts
+those entries ahead of the inherited ones on main's own environment, which every
+child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,
+fails or prints nothing leaves the usual install dirs that exist
+(`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`) in its place. A dev
+launch skips it: its terminal already has the user's PATH. The smoke never runs
+main, so the unit tests are what cover this.
 
 ## Running it
 
@@ -218,7 +232,9 @@ bridge by the page; the policy is unit-tested against a fake updater
 - **No deep-link scheme.** `inteligir://` is the renderer's own origin now; a
   cross-device link would need a second, registered scheme and there is nothing
   to receive yet.
-- **No IPC beyond the socket origin and the updater.** The bridge carries what
-  the page cannot ask its server: the loopback origin, because a browser
-  `WebSocket` cannot be proxied, and the updater, because it lives in main.
-  Every other question the page has, it asks its own server over `/rpc`.
+- **No IPC for anything the server can answer.** The bridge carries what the
+  page cannot ask its server: the loopback origin, because a browser
+  `WebSocket` cannot be proxied; the updater, the spell checker and the vault
+  switch, because each lives in main; and Reveal/Open of a vault entry,
+  because only main may hand the OS a path. Every other question the page
+  has, it asks its own server over `/rpc`.

@@ -145,8 +145,12 @@ export const Route = createFileRoute("/app/devices")({
     if (import.meta.env.SSR) {
       return;
     }
-    if ((await currentSession()) === null) {
+    const session = await currentSession();
+    if (session.kind === "signed-out") {
       redirect({ to: "/app/sign-in", throw: true });
+    }
+    if (session.kind === "unknown") {
+      throw new Error(session.message);
     }
   },
   component: DevicesPage,

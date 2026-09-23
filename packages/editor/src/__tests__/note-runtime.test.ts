@@ -161,6 +161,27 @@ describe("createNoteRuntime", () => {
     expect(order).toEqual(["preFlush", "remove"]);
   });
 
+  it("registerPreFlush: the controller drains it before taking bytes from disk, until dispose", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    await settle();
+
+    let runs = 0;
+    runtime.registerPreFlush(() => {
+      runs += 1;
+    });
+    runtime.controller.externalChange("root");
+    await settle();
+    const drained = runs;
+    expect(drained).toBeGreaterThan(0);
+
+    runtime.dispose();
+    runtime.controller.externalChange("root");
+    await settle();
+    expect(runs).toBe(drained);
+  });
+
   it("registerPreFlush: last registration wins, and null clears it", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");

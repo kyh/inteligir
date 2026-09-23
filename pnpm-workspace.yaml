@@ -16,13 +16,13 @@ catalog:
   "@zed-industries/codex-acp": 0.16.0
   # exact: prebuilt N-API addon with no build script, which `npx inteligir` depends on.
   # tar + unbzip2-stream because Node has no bzip2 and Windows tar.exe cannot -j
-  cn: ^0.3.0
+  cn: ^0.3.2
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3
   # optional peer @vitejs/plugin-react loads for `compiler: true`
-  oxc-transform-react: ^0.150.0
-  "@cloudflare/vite-plugin": ^1.56.0
+  oxc-transform-react: ^0.151.0
+  "@cloudflare/vite-plugin": ^1.57.1
   "@cloudflare/vitest-pool-workers": ^0.22.0
   "@expo/metro-runtime": ~57.0.16
   # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
@@ -63,7 +63,7 @@ catalog:
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.4
   hono: ^4.13.8
-  jsdom: ^30.1.0
+  jsdom: ^30.1.1
   lucide-react: ^1.47.0
   nanoid: ^6.0.1
   # held under 19.3: @react-three/fiber 9 peers react <19.3
@@ -76,7 +76,7 @@ catalog:
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
   tailwindcss: ^4.3.3
-  tsx: ^4.23.13
+  tsx: ^4.23.15
   typescript: ^7.0.2
   unified: ^11.0.5
   # exact: 8.2.x's rolldown tree-shakes better-auth's HOST_COOKIE_PREFIX and the Worker
@@ -84,7 +84,7 @@ catalog:
   vite: 8.1.5
   # held on 4.x: @cloudflare/vitest-pool-workers peers vitest ^4.1
   vitest: ^4.1.11
-  wrangler: ^4.135.0
+  wrangler: ^4.136.1
   yaml: ^2.9.1
   zod: ^4.6.5
   zustand: ^5.0.15

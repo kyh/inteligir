@@ -2,7 +2,7 @@
   "name": "@repo/repo-guards",
   "version": "0.1.0",
   "private": true,
-  "description": "Derived fitness tests over the repo ITSELF: invariants that span workspaces and belong to none of them — the package dependency DAG and platform-purity rules, workspace coverage, ws change-kind reachability, one total dispatch per domain vocabulary, one spelling per cross-cutting predicate, one spelling per API route path, the staged install layout, environment contracts, CI, and smoke wiring.",
+  "description": "Derived fitness tests over the repo ITSELF: invariants that span workspaces and belong to none of them — the package dependency DAG and platform-purity rules, workspace coverage, ws change-kind reachability, one total dispatch per domain vocabulary, one spelling per cross-cutting predicate, one spelling per API route path, the staged install layout, environment contracts, turbo cache keys, CI, and smoke wiring.",
   "type": "module",
   "scripts": {
     "test": "vitest run",
