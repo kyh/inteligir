@@ -103,7 +103,13 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
   window is one upsert that RETURNS the count it settled on — a read-then-write
   limiter lets N concurrent requests all read the same count and all decide
-  they are under the cap, which is the burst it exists to stop. The hosted
+  they are under the cap, which is the burst it exists to stop. Every window
+  keyed on an address, Better Auth's included, reads `cf-connecting-ip`
+  (`CALLER_IP_HEADER`), the one address the edge writes itself, never
+  `x-forwarded-for`. `/api/auth/get-session` spends no window: a session read
+  is no password oracle, and every route guard and hover preload makes one. A
+  read that fails is unknown to the route guards, never signed out
+  (`src/lib/auth-client.ts`). The hosted
   vault's two read budgets (`/v1/git/*` 600/min, `/v1/vault/*` 3,000/min) spend
   the same table keyed on the DEVICE, never the address: a stolen credential
   moves between addresses, and the device row is what `/app/devices` revokes.
