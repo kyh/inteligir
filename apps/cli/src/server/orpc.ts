@@ -12,7 +12,7 @@ import type { CommentsService } from "./comments/comments-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
 import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
-import type { OpenExternalUrl } from "./cloud/browser-opener";
+import type { OpenExternalUrl } from "./browser-opener";
 import type { FoldersService } from "./folders/folders-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";

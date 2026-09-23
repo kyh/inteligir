@@ -42,6 +42,14 @@ const oauthCallbackPage = (completion: OauthCompletion): OauthCallbackPage => {
         title: "That took too long",
       };
     }
+    case "removed": {
+      return {
+        detail:
+          "This connector was removed or changed while it was being authorized, so nothing was stored. Start again from Settings → Connectors.",
+        status: 400,
+        title: "That connector is gone",
+      };
+    }
     case "refused": {
       return { detail: completion.detail, status: 400, title: "The provider refused" };
     }

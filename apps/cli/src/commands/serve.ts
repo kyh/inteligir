@@ -72,7 +72,7 @@ export const serveCommand = () =>
         return;
       }
       // not fatal: a machine with no browser must not take the server down, and the URL is already printed.
-      const { systemOpenExternalUrl } = await import("../server/cloud/browser-opener");
+      const { systemOpenExternalUrl } = await import("../server/browser-opener");
       await systemOpenExternalUrl(uiUrl);
     },
   });

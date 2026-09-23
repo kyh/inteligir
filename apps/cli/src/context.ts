@@ -1,6 +1,6 @@
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
-import type { OpenExternalUrl } from "./server/cloud/browser-opener";
+import type { OpenExternalUrl } from "./server/browser-opener";
 import { resolveCheckoutRoot } from "./server/dev-instance";
 import { createLocalClient } from "./server/local-client";
 import { DATA_DIR_ENV_VAR, resolveServer } from "./server-discovery";

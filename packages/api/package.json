@@ -6,7 +6,6 @@
   "type": "module",
   "exports": {
     "./cloud/account/account-schema": "./src/cloud/account/account-schema.ts",
-    "./cloud/approval-slot": "./src/cloud/approval-slot.ts",
     "./cloud/bytes": "./src/cloud/bytes.ts",
     "./cloud/captures/captures-schema": "./src/cloud/captures/captures-schema.ts",
     "./cloud/client": "./src/cloud/cloud-client.ts",

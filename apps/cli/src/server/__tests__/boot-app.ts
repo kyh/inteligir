@@ -11,7 +11,7 @@ import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
-import type { OpenExternalUrl } from "../cloud/browser-opener";
+import type { OpenExternalUrl } from "../browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
