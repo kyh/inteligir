@@ -3,9 +3,10 @@ import {
   getThreadEventItemRef,
   isThreadEventDelta,
   mergeAdjacentDeltas,
+  settledReasoningText,
   threadEventSchema,
 } from "../provider-event";
-import type { DeltaRunLimit, ThreadEvent } from "../provider-event";
+import type { DeltaRunLimit, ThreadEvent, ThreadEventItem } from "../provider-event";
 import { threadScope, turnScope } from "../thread-event-scope";
 
 describe("threadEventSchema scope validation", () => {
@@ -177,5 +178,23 @@ describe("mergeAdjacentDeltas", () => {
       expect(jsonBytes(event)).toBeLessThanOrEqual(limit.maxBytes);
     }
     expect(deltasOf(merged).join("")).toBe(deltasOf(events).join(""));
+  });
+});
+
+const reasoning = (
+  summary: string[],
+  content: string[],
+): Extract<ThreadEventItem, { type: "reasoning" }> => ({
+  content,
+  id: "item_r",
+  summary,
+  type: "reasoning",
+});
+
+describe("settledReasoningText", () => {
+  it("reads the visible summary, else the raw content, one paragraph per part", () => {
+    expect(settledReasoningText(reasoning(["first", "second"], ["raw"]))).toBe("first\n\nsecond");
+    expect(settledReasoningText(reasoning([], ["raw", "more"]))).toBe("raw\n\nmore");
+    expect(settledReasoningText(reasoning([], []))).toBe("");
   });
 });

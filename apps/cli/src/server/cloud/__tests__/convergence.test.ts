@@ -298,8 +298,9 @@ describe("two installs against one account", () => {
     const onA = await commandRow(a);
     const onB = await commandRow(b);
     expect(onB.status).toBe("completed");
-    expect(onB.output).toContain("bytes elided");
-    expect(onA.output).toBe(output);
+    expect(onA.outputLineCount).toBe(20_000);
+    expect(onB.outputLineCount).toBeLessThan(onA.outputLineCount);
+    expect(onB.outputHead).toEqual(onA.outputHead);
   });
 
   it("carries B's reply back to A, so the log is genuinely two-way", async () => {

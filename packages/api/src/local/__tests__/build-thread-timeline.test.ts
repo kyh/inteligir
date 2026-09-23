@@ -1,7 +1,14 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import { applyTimelineDelta, computeTimelineDelta, threadTimelineSchema } from "../thread-timeline";
-import type { ThreadTimeline, TimelineRowStatus } from "../thread-timeline";
+import {
+  applyTimelineDelta,
+  COMMAND_OUTPUT_LINE_CHARS,
+  COMMAND_OUTPUT_LINES,
+  computeTimelineDelta,
+  threadTimelineSchema,
+  timelineDeltaSchema,
+} from "../thread-timeline";
+import type { ThreadTimeline, TimelineRowStatus, TimelineTurnRow } from "../thread-timeline";
 import { describe, expect, it } from "vitest";
 import { clipThreadEventForSync } from "../../cloud/sync/fit-sync-event";
 import { EVENT_MAX_BYTES, syncEventInputSchema } from "../../cloud/sync/sync-schema";
@@ -178,7 +185,8 @@ describe("buildThreadTimeline", () => {
       throw new Error("unexpected work kinds");
     }
     expect(reasoning.text).toBe("scanned");
-    expect(command.output).toBe("abc123 fix\ndef456 feat\n");
+    expect(command.outputHead).toEqual(["abc123 fix", "def456 feat"]);
+    expect(command.outputLineCount).toBe(2);
     expect(command.exitCode).toBe(0);
     expect(command.status).toBe("completed");
   });
@@ -241,6 +249,7 @@ describe("buildThreadTimeline", () => {
     for (let cut = 0; cut <= events.length; cut += 1) {
       const base = buildThreadTimeline(events.slice(0, cut));
       const delta = computeTimelineDelta(base, full);
+      expect(timelineDeltaSchema.parse(delta)).toEqual(delta);
       expect(delta.fromSequence).toBe(base.maxSequence);
       expect(applyTimelineDelta(base, delta)).toEqual(full);
     }
@@ -307,19 +316,183 @@ describe("buildThreadTimeline", () => {
     const delta = computeTimelineDelta(before, after);
     expect(delta.rowOrder).toBeUndefined();
     expect(delta.upsertRows.map((row) => row.id)).toEqual(["item:turn_1:item_a"]);
+    expect(delta.turnPatches).toEqual([]);
   });
 
-  it("a turn row still upserts when one of its own children changes", () => {
+  it("a turn moves as a patch carrying only the child that changed", () => {
     const events = stored(streamedTurnEvents());
     // event 7 is the command's outputDelta, a child of the turn row
-    const before = buildThreadTimeline(events.slice(0, 6));
-    const after = buildThreadTimeline(events.slice(0, 7));
-    const delta = computeTimelineDelta(before, after);
-    expect(delta.upsertRows.map((row) => row.id)).toContain("turn:turn_1");
+    const streamed = computeTimelineDelta(
+      buildThreadTimeline(events.slice(0, 6)),
+      buildThreadTimeline(events.slice(0, 7)),
+    );
+    expect(streamed.upsertRows).toEqual([]);
+    expect(
+      streamed.turnPatches.map((patch) => ({
+        childOrder: patch.childOrder,
+        id: patch.id,
+        upsertChildren: patch.upsertChildren.map((child) => child.id),
+      })),
+    ).toEqual([
+      { childOrder: undefined, id: "turn:turn_1", upsertChildren: ["item:turn_1:item_c"] },
+    ]);
+
+    // event 6 starts the command, so the turn gains a child and names its new order
+    const joined = computeTimelineDelta(
+      buildThreadTimeline(events.slice(0, 5)),
+      buildThreadTimeline(events.slice(0, 6)),
+    );
+    const [patch] = joined.turnPatches;
+    expect(patch?.childOrder).toEqual(["item:turn_1:item_r", "item:turn_1:item_c"]);
+    expect(patch?.upsertChildren.map((child) => child.id)).toEqual(["item:turn_1:item_c"]);
   });
 
   it("projects an empty log to an empty timeline", () => {
     expect(buildThreadTimeline([])).toEqual({ maxSequence: 0, rows: [], tokenUsage: null });
+  });
+});
+
+const LONG_TURN = turnScope("turn_long");
+
+// a turn that has run many commands, then opens a thought that streams
+const longTurnEvents = (commands: number): ThreadEvent[] => {
+  const output = Array.from(
+    { length: COMMAND_OUTPUT_LINES },
+    (_, line) => `line ${line} of the build log`,
+  ).join("\n");
+  return [
+    { scope: LONG_TURN, threadId: THREAD_ID, type: "turn/started" },
+    ...Array.from({ length: commands }, (_, index): ThreadEvent => ({
+      item: {
+        aggregatedOutput: output,
+        approvalStatus: null,
+        command: `make step-${index}`,
+        cwd: "/vault",
+        exitCode: 0,
+        id: `item_c${index}`,
+        status: "completed",
+        type: "commandExecution",
+      },
+      scope: LONG_TURN,
+      threadId: THREAD_ID,
+      type: "item/completed",
+    })),
+    {
+      item: { content: [], id: "item_r", summary: [], type: "reasoning" },
+      scope: LONG_TURN,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    {
+      delta: "Checking the last step",
+      itemId: "item_r",
+      scope: LONG_TURN,
+      threadId: THREAD_ID,
+      type: "item/reasoning/textDelta",
+    },
+  ];
+};
+
+const turnOf = (timeline: ThreadTimeline): TimelineTurnRow => {
+  const turn = timeline.rows.find((row) => row.kind === "turn");
+  if (turn?.kind !== "turn") {
+    throw new Error("expected a turn row");
+  }
+  return turn;
+};
+
+describe("a delta into a long turn", () => {
+  const events = stored(longTurnEvents(200));
+  const before = buildThreadTimeline(events.slice(0, -1));
+  const after = buildThreadTimeline(events);
+  const delta = computeTimelineDelta(before, after);
+
+  it("carries the one thought that streamed, not the turn that holds it", () => {
+    expect(JSON.stringify(turnOf(after)).length).toBeGreaterThan(100_000);
+    expect(JSON.stringify(delta).length).toBeLessThan(1000);
+    expect(delta.upsertRows).toEqual([]);
+    expect(delta.turnPatches.map((patch) => patch.upsertChildren.map((child) => child.id))).toEqual(
+      [["item:turn_long:item_r"]],
+    );
+    expect(applyTimelineDelta(before, delta)).toEqual(after);
+  });
+
+  it("keeps every child it did not carry the same object", () => {
+    const applied = applyTimelineDelta(before, delta);
+    if (applied === null) {
+      throw new Error("expected the delta to apply");
+    }
+    const held = turnOf(before).children;
+    const patched = turnOf(applied).children;
+    expect(patched.slice(0, -1).every((child, index) => child === held[index])).toBe(true);
+    expect(patched.at(-1)).not.toBe(held.at(-1));
+  });
+
+  it("refuses a patch whose turn or child the held timeline lacks", () => {
+    const withoutTurn = { ...before, rows: before.rows.filter((row) => row.kind !== "turn") };
+    expect(applyTimelineDelta(withoutTurn, delta)).toBeNull();
+    const [patch] = delta.turnPatches;
+    if (patch === undefined) {
+      throw new Error("expected a turn patch");
+    }
+    const unknownChild = { ...patch, childOrder: ["item:turn_long:item_gone"] };
+    expect(applyTimelineDelta(before, { ...delta, turnPatches: [unknownChild] })).toBeNull();
+  });
+});
+
+const commandRow = (output: string) => {
+  const turn = turnScope("turn_out");
+  const [turnRow] = buildThreadTimeline(
+    stored([
+      { scope: turn, threadId: THREAD_ID, type: "turn/started" },
+      {
+        item: {
+          aggregatedOutput: output,
+          approvalStatus: null,
+          command: "make",
+          cwd: "/vault",
+          exitCode: 0,
+          id: "item_c",
+          status: "completed",
+          type: "commandExecution",
+        },
+        scope: turn,
+        threadId: THREAD_ID,
+        type: "item/completed",
+      },
+    ]),
+  ).rows;
+  const [row] = turnRow?.kind === "turn" ? turnRow.children : [];
+  if (row?.kind !== "work" || row.workKind !== "command") {
+    throw new Error("expected the command row");
+  }
+  return row;
+};
+
+describe("a command row", () => {
+  it("carries a bounded head and the count of a 10k-line output", () => {
+    const lines = Array.from({ length: 10_000 }, (_, index) => `${index}:${"=".repeat(500)}`);
+    const row = commandRow(`${lines.join("\n")}\n`);
+    expect(row.outputLineCount).toBe(10_000);
+    expect(row.outputHead).toHaveLength(COMMAND_OUTPUT_LINES);
+    expect(row.outputHead[0]).toBe(lines[0]?.slice(0, COMMAND_OUTPUT_LINE_CHARS));
+    // each line's quotes and comma, plus the row's other fields
+    const bound = COMMAND_OUTPUT_LINES * (COMMAND_OUTPUT_LINE_CHARS + 3) + 1000;
+    expect(JSON.stringify(row).length).toBeLessThan(bound);
+  });
+
+  it("cuts a one-line blob at the line cap, never inside a character", () => {
+    // the cap lands between the first emoji's two halves
+    const lead = "x".repeat(COMMAND_OUTPUT_LINE_CHARS - 1);
+    const row = commandRow(`${lead}${"😀".repeat(100_000)}`);
+    expect(row.outputLineCount).toBe(1);
+    expect(row.outputHead).toEqual([lead]);
+  });
+
+  it("carries no lines for an output of whitespace", () => {
+    const row = commandRow(" \n\n");
+    expect(row.outputHead).toEqual([]);
+    expect(row.outputLineCount).toBe(0);
   });
 });
 

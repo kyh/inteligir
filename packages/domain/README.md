@@ -43,7 +43,9 @@ src/
                          # optional viewContext beside bb's `text`.
                          # `mergeAdjacentDeltas` stores one item's adjacent
                          # deltas as one row, a reset opening a new run and a
-                         # caller's cap bounding each
+                         # caller's cap bounding each. `settledReasoningText`
+                         # is the one reading of a settled thought both the
+                         # desktop's fold and the phone's run
   thread-event-scope.ts  # thread | turn scope, and the per-type policy table
                          # (`satisfies` keeps it total: a new type without a
                          # row stops compiling; anything looser than turn
