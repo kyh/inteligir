@@ -14,6 +14,7 @@ import {
   session,
   shell,
   Tray,
+  utilityProcess,
 } from "electron";
 import type { MenuItemConstructorOptions } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
@@ -37,6 +38,7 @@ import type { UpdaterPort, Updates } from "./updates";
 import { resolveVaultEntry } from "./vault-entry";
 import {
   browserSignInUrl,
+  bundledServerVersion,
   describeServerVerdict,
   planServerStart,
   resolveServerTarget,
@@ -45,7 +47,7 @@ import {
   sessionPartition,
   verifyServer,
 } from "./server-instance";
-import type { LiveServer, ServerTarget } from "./server-instance";
+import type { LiveServer, ServerTarget, ServerVerdict } from "./server-instance";
 import {
   forgetVault,
   planVaultSwitch,
@@ -106,22 +108,26 @@ const requireTarget = (): ServerTarget => {
   return currentTarget;
 };
 
-// doubles as the child's readiness signal: a child that lost the port race must not be reported up about a stranger.
-const verifiedServerAnswered = async (target: ServerTarget): Promise<boolean> => {
-  const verdict = await verifyServer(target.dataDir);
-  if (verdict.kind === "verified") {
-    ({ live } = verdict);
-    return true;
-  }
-  if (verdict.kind !== "no-server") {
+const judgeServer = async (
+  target: ServerTarget,
+  expectedVersion: string,
+): Promise<ServerVerdict> => {
+  const verdict = await verifyServer(target.dataDir, expectedVersion);
+  if (verdict.kind !== "verified" && verdict.kind !== "no-server") {
     console.warn(`[desktop] ${describeServerVerdict(verdict, target.dataDir)}`);
   }
-  return false;
+  return verdict;
 };
 
 const startServer = async (target: ServerTarget): Promise<void> => {
-  if (planServerStart(await verifiedServerAnswered(target)) === "adopt") {
+  const expectedVersion = bundledServerVersion(app.getAppPath());
+  const plan = planServerStart(await judgeServer(target, expectedVersion), target.dataDir);
+  if (plan.kind === "refuse") {
+    throw new Error(plan.reason);
+  }
+  if (plan.kind === "adopt") {
     console.log(`[desktop] adopting the server already serving ${target.dataDir}`);
+    ({ live } = plan);
     serverProcess = null;
     return;
   }
@@ -132,7 +138,16 @@ const startServer = async (target: ServerTarget): Promise<void> => {
   const child = createServerProcess({
     entryPath,
     env: serverProcessEnv(target, app.isPackaged),
-    isReady: async () => await verifiedServerAnswered(target),
+    fork: (modulePath, forkArgs, options) => utilityProcess.fork(modulePath, forkArgs, options),
+    // a child that lost the port race must not be reported up about a stranger.
+    isReady: async () => {
+      const verdict = await judgeServer(target, expectedVersion);
+      if (verdict.kind !== "verified") {
+        return false;
+      }
+      ({ live } = verdict);
+      return true;
+    },
     log: (message) => {
       console.log(`[server] ${message}`);
     },
