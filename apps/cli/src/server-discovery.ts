@@ -5,7 +5,7 @@
 import { resolveAppConfig } from "./server/config";
 import type { ResolveAppConfigArgs } from "./server/config";
 import { loopbackOrigin, readServerFile } from "./server/server-file";
-import { CliExitError, EXIT_UNREACHABLE } from "./cli-error";
+import { CliExitError, START_SERVER_HINT } from "./cli-error";
 
 export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
 
@@ -40,8 +40,8 @@ export const resolveServer = (args: ResolveServerArgs): ResolvedServer => {
   if (server === null) {
     throw new CliExitError(
       `No inteligir server is running for ${dataDir} (no readable server.json there).` +
-        ` Start one with \`pnpm dev\`, or name another instance with ${DATA_DIR_ENV_VAR}.`,
-      { code: "SERVER_UNREACHABLE", exitCode: EXIT_UNREACHABLE },
+        ` ${START_SERVER_HINT}, or name another instance with ${DATA_DIR_ENV_VAR}.`,
+      { code: "SERVER_UNREACHABLE" },
     );
   }
   return {

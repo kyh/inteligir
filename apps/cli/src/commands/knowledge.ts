@@ -25,7 +25,7 @@ const parseLimit = (rawValue: string | undefined, max: number): number | undefin
 export const searchCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
-      limit: { description: "Maximum results", type: "string" },
+      limit: { description: `Maximum results (1–${KNOWLEDGE_SEARCH_MAX_LIMIT})`, type: "string" },
       query: { description: "The search query", required: true, type: "positional" },
       ...jsonArg,
     },
@@ -59,7 +59,7 @@ export const matchesCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
       "case-sensitive": { description: "Match case exactly", type: "boolean" },
-      limit: { description: "Maximum matches", type: "string" },
+      limit: { description: `Maximum matches (1–${KNOWLEDGE_MATCHES_MAX_LIMIT})`, type: "string" },
       text: { description: "The text to find, one line", required: true, type: "positional" },
       "whole-word": { description: "Match whole words only", type: "boolean" },
       ...jsonArg,
@@ -126,7 +126,7 @@ export const backlinksCommand = (deps: CliDeps) =>
 export const unlinkedCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
-      limit: { description: "Maximum notes", type: "string" },
+      limit: { description: `Maximum notes (1–${KNOWLEDGE_UNLINKED_MAX_LIMIT})`, type: "string" },
       path: { description: "The vault-relative path", required: true, type: "positional" },
       ...jsonArg,
     },
@@ -204,7 +204,10 @@ export const problemsCommand = (deps: CliDeps) =>
         description: "Count daily notes and templates as orphans too",
         type: "boolean",
       },
-      limit: { description: "Maximum rows per family", type: "string" },
+      limit: {
+        description: `Maximum rows per family (1–${KNOWLEDGE_PROBLEMS_MAX_LIMIT})`,
+        type: "string",
+      },
       ...jsonArg,
     },
     meta: {
@@ -237,7 +240,7 @@ export const problemsCommand = (deps: CliDeps) =>
 export const relatedCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
-      limit: { description: "Maximum results", type: "string" },
+      limit: { description: `Maximum results (1–${KNOWLEDGE_RELATED_MAX_LIMIT})`, type: "string" },
       path: { description: "The vault-relative path", required: true, type: "positional" },
       ...jsonArg,
     },

@@ -1,5 +1,5 @@
 // not citty's runMain: it answers every failure with process.exit(1), flattening the exit-code contract
-// (2 wait timeout, 3 unreachable). failures go to stderr only: a --json caller parses stdout.
+// (each class's own, in cli-error.ts). failures go to stderr only: a --json caller parses stdout.
 
 import { stripVTControlCharacters } from "node:util";
 import { ORPCError } from "@orpc/client";
@@ -8,7 +8,7 @@ import type { CommandDef } from "citty";
 import {
   CliExitError,
   EXIT_ERROR,
-  EXIT_UNREACHABLE,
+  START_SERVER_HINT,
   getErrorMessage,
   invalidUsage,
   isUnreachable,
@@ -114,28 +114,33 @@ interface Failure {
 const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
   cause instanceof ORPCError;
 
+const failureOf = (error: CliExitError): Failure => ({
+  code: error.code,
+  exitCode: error.exitCode,
+  message: error.message,
+});
+
 // citty's CLIError (missing argument, unknown command, bad enum) is not exported, so it is recognised by name.
 // its colour is stripped whatever the stream: a message is data, and a --json caller parses it.
 const asFailure = (cause: unknown): Failure => {
   if (cause instanceof CliExitError) {
-    return { code: cause.code, exitCode: cause.exitCode, message: cause.message };
+    return failureOf(cause);
   }
   if (isOrpcError(cause)) {
     return { code: cause.code, exitCode: EXIT_ERROR, message: cause.message };
   }
   if (cause instanceof Error && cause.name === "CLIError") {
-    const local = invalidUsage(stripVTControlCharacters(cause.message));
-    return { code: local.code, exitCode: local.exitCode, message: local.message };
+    return failureOf(invalidUsage(stripVTControlCharacters(cause.message)));
   }
   const message = getErrorMessage(cause);
   if (isUnreachable(cause)) {
-    return {
-      code: "SERVER_UNREACHABLE",
-      exitCode: EXIT_UNREACHABLE,
-      message: `${message} — no inteligir server answered. Start one with \`inteligir serve\`.`,
-    };
+    return failureOf(
+      new CliExitError(`${message} — no inteligir server answered. ${START_SERVER_HINT}.`, {
+        code: "SERVER_UNREACHABLE",
+      }),
+    );
   }
-  return { code: "UNEXPECTED", exitCode: EXIT_ERROR, message };
+  return failureOf(new CliExitError(message, { code: "UNEXPECTED" }));
 };
 
 export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<number> => {

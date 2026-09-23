@@ -49,6 +49,8 @@ export const VAULT_MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
 
 export const contentHashHex = async (content: string): Promise<string> => await sha256Hex(content);
 
+export const contentHashSchema = z.string().regex(/^[0-9a-f]{64}$/u);
+
 export const contentHashBytesHex = async (
   bytes: ArrayBuffer | Uint8Array<ArrayBuffer>,
 ): Promise<string> => {
@@ -126,10 +128,7 @@ export const vaultWriteRequestSchema = z
     content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
     // sha-256 hex of the utf-8 bytes this write was derived from; a mismatch answers 409 with
     // the current content. omitted, the write is last-writer-wins.
-    expectedHash: z
-      .string()
-      .regex(/^[0-9a-f]{64}$/u)
-      .optional(),
+    expectedHash: contentHashSchema.optional(),
     ifAbsent: z.literal(true).optional(),
     path: vaultPathSchema,
   })

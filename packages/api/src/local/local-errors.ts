@@ -5,6 +5,7 @@
 // spreads the classes it can raise; a base carrying every class gives every switch unreachable branches.
 
 import { z } from "zod";
+import { contentHashSchema } from "./vault/vault-schema";
 
 // not BAD_REQUEST (an input schema's refusal): the filesystem's, decided after the value parsed
 export const INVALID_PATH = {
@@ -21,7 +22,7 @@ export const CAS_MISMATCH = {
     current: z
       .object({
         content: z.string(),
-        hash: z.string().regex(/^[0-9a-f]{64}$/u),
+        hash: contentHashSchema,
       })
       .strict()
       .optional(),

@@ -1,4 +1,7 @@
-import { KNOWLEDGE_TAG_NOTES_MAX_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
+import {
+  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
+  KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+} from "@repo/api/local/knowledge/knowledge-schema";
 import type { KnowledgeTagNotesRequest } from "@repo/api/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
@@ -12,7 +15,10 @@ export const tagCommand = (deps: CliDeps) =>
     subCommands: {
       notes: defineCommand({
         args: {
-          limit: { description: "Page size (1–500, default 100)", type: "string" },
+          limit: {
+            description: `Page size (1–${KNOWLEDGE_TAG_NOTES_MAX_LIMIT}, default ${KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT})`,
+            type: "string",
+          },
           offset: { description: "Rows to skip, for the next page", type: "string" },
           tag: { description: "The tag, without the #", required: true, type: "positional" },
           ...jsonArg,

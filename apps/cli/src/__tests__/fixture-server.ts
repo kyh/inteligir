@@ -34,7 +34,7 @@ import type {
   QueuedThreadMessage,
   Thread,
 } from "@repo/api/local/threads/threads-schema";
-import { DEFAULT_ATTACHMENT_LOCATION } from "@repo/api/local/vault/vault-schema";
+import { DEFAULT_ATTACHMENT_LOCATION, contentHashHex } from "@repo/api/local/vault/vault-schema";
 import type {
   VaultEntry,
   VaultPrefsResponse,
@@ -72,6 +72,8 @@ export interface FixtureState {
   backlinks: BacklinkEntryWire[];
   related: RelatedNoteWire[];
   connectors: ConnectorsResponse;
+  // the header values each add carried: the listing reduces them to hasAuth, as the real store's does.
+  connectorHeaders: Map<string, Record<string, string>>;
   folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
@@ -97,6 +99,19 @@ export const makeThread = (overrides: Partial<Thread> & Pick<Thread, "id">): Thr
   ...overrides,
 });
 
+export const makeInteraction = (
+  overrides: Partial<PendingInteraction> & Pick<PendingInteraction, "id" | "threadId">,
+): PendingInteraction => ({
+  createdAt: 1_700_000_000_000,
+  payload: null,
+  requestKey: `req_${overrides.id}`,
+  resolution: null,
+  resolvedAt: null,
+  status: "pending",
+  turnId: "turn_1",
+  ...overrides,
+});
+
 export const FIXTURE_REVISION_SHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c";
 
 export const makeRevision = (
@@ -115,6 +130,7 @@ export const makeFixtureState = (): FixtureState => ({
   backlinks: [],
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, state: "signed-out" },
   comments: new Map(),
+  connectorHeaders: new Map(),
   connectors: { servers: [] },
   dataDir: "/fixture/data",
   failWith: null,
@@ -260,6 +276,9 @@ const connectorsRouter = {
   add: base.connectors.add.handler(({ context, input, errors }) => {
     if (context.connectors.servers.some((row) => row.name === input.name)) {
       throw errors.ALREADY_EXISTS({ message: `"${input.name}" exists` });
+    }
+    if (input.transport.kind === "http" && input.transport.headers !== undefined) {
+      context.connectorHeaders.set(input.name, input.transport.headers);
     }
     context.connectors.servers.push({
       enabled: true,
@@ -559,9 +578,21 @@ const vaultRouter = {
     name: "vault",
     root: "/fixture/vault",
   })),
-  write: base.vault.write.handler(({ context, input, errors }) => {
-    if (input.ifAbsent === true && context.vault.has(input.path)) {
+  // the real route's two refusals, spelled as it spells them.
+  write: base.vault.write.handler(async ({ context, input, errors }) => {
+    const current = context.vault.get(input.path);
+    if (input.ifAbsent === true && current !== undefined) {
       throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
+    }
+    if (input.expectedHash !== undefined) {
+      const message = `${input.path} changed since the base this write was derived from`;
+      if (current === undefined) {
+        throw errors.CAS_MISMATCH({ data: {}, message });
+      }
+      const hash = await contentHashHex(current);
+      if (hash !== input.expectedHash) {
+        throw errors.CAS_MISMATCH({ data: { current: { content: current, hash } }, message });
+      }
     }
     context.vault.set(input.path, input.content);
     return { path: input.path };

@@ -83,7 +83,11 @@ list|add|remove` · `folders list|add|remove` · `cloud status|login|sync` ·
 `status` · `guide`.
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
-2 `action wait` timeout · 3 no server reachable.
+2 `action wait` timeout · 3 no server reachable · 4 `action wait
+--until-input` met an approval · 130 interrupted. Each class the CLI raises
+itself carries its exit code in one table, `CLI_FAILURE_EXIT_CODES` in
+`src/cli-error.ts`, so a class cannot leave with another's code, and
+`guide-covers-commands.test.ts` holds the served guide to naming every row.
 
 **A refusal can never be printed as an answer.** The oRPC client throws on a
 typed error, and `src/program.ts` turns that into a failure on stderr with the

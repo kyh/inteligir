@@ -1,12 +1,14 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ORPCError } from "@orpc/client";
-import type { Thread } from "@repo/api/local/threads/threads-schema";
+import type { PendingInteraction, Thread } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { parsePositiveNumber } from "../args";
-import { CliExitError, EXIT_WAIT_TIMEOUT, getErrorMessage } from "../cli-error";
+import { CliExitError, getErrorMessage } from "../cli-error";
+import type { CliFailure } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
+import { describeInteraction } from "./describe-interaction";
 import { formatThreadTimeline } from "./format-thread-timeline";
 
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
@@ -38,12 +40,15 @@ const describeSendOutcome = (outcome: SendOutcome): string => {
 };
 
 // the re-wrap keeps the refusal's own class so a --json caller branches on the same vocabulary a bare send gives.
-const sendFailureCode = (cause: unknown): string => {
-  if (cause instanceof ORPCError || cause instanceof CliExitError) {
-    return String(cause.code);
-  }
-  return "SEND_FAILED";
-};
+const sendFailure = (cause: unknown): CliFailure =>
+  cause instanceof ORPCError ? { serverClass: String(cause.code) } : { code: "SEND_FAILED" };
+
+// "resolving" is already answered; only "pending" is waiting on someone.
+const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
+  interactions.filter((row) => row.status === "pending").map((row) => row.id);
+
+const answerHint = (ids: readonly string[]): string =>
+  `approval ${ids.join(", ")} (\`inteligir interactions answer <id> <decision>\`)`;
 
 export const actionCommand = (deps: CliDeps) =>
   defineCommand({
@@ -104,7 +109,7 @@ export const actionCommand = (deps: CliDeps) =>
             throw new CliExitError(
               `Action ${createdThread.id} was created but its first turn failed: ${getErrorMessage(error)}. ` +
                 `Retry with \`inteligir action send ${createdThread.id} …\` or archive it.`,
-              { code: sendFailureCode(error) },
+              sendFailure(error),
             );
           }
           if (outputJson(args, { send: outcome, thread: createdThread })) {
@@ -169,9 +174,14 @@ export const actionCommand = (deps: CliDeps) =>
             ...(detail.thread.originDocPath === null
               ? []
               : [`Doc: ${detail.thread.originDocPath}`]),
-            ...detail.pendingInteractions.map(
-              (interaction) => `Pending interaction ${interaction.id} (${interaction.status})`,
-            ),
+            ...(detail.pendingInteractions.length === 0
+              ? []
+              : [
+                  "Pending interactions:",
+                  ...detail.pendingInteractions
+                    .flatMap(describeInteraction)
+                    .map((line) => `  ${line}`),
+                ]),
             ...(rendered.length > 0 ? ["", rendered] : []),
           ]);
         },
@@ -188,10 +198,15 @@ export const actionCommand = (deps: CliDeps) =>
             description: `Give up after this many seconds (default ${DEFAULT_WAIT_TIMEOUT_SECONDS}, at most ${MAX_WAIT_TIMEOUT_SECONDS})`,
             type: "string",
           },
+          "until-input": {
+            description: "Stop with exit 4 once the thread waits on an approval",
+            type: "boolean",
+          },
           ...jsonArg,
         },
         meta: {
-          description: "Block until the thread settles; exit 0 idle, 1 error, 2 timeout",
+          description:
+            "Block until the thread settles; exit 0 idle, 1 error, 2 timeout, 4 approval waiting (--until-input)",
           name: "wait",
         },
         run: async ({ args }) => {
@@ -207,11 +222,17 @@ export const actionCommand = (deps: CliDeps) =>
                 });
           const api = apiFor(deps);
           const deadline = Date.now() + timeoutSeconds * 1000;
-          const expire = (): CliExitError =>
-            new CliExitError(`Thread ${args.id} did not settle within ${timeoutSeconds}s`, {
-              code: "WAIT_TIMEOUT",
-              exitCode: EXIT_WAIT_TIMEOUT,
-            });
+          // a thread blocked on an approval is waiting on a person, so a timeout names what it was waiting on.
+          let awaiting: string[] = [];
+          const noticed = new Set<string>();
+          const expire = (): CliExitError => {
+            const blocker =
+              awaiting.length === 0 ? "" : `; it is waiting on ${answerHint(awaiting)}`;
+            return new CliExitError(
+              `Thread ${args.id} did not settle within ${timeoutSeconds}s${blocker}`,
+              { code: "WAIT_TIMEOUT" },
+            );
+          };
           // the request carries the deadline too: a server that accepts and never answers must not park the wait past it.
           const readThread = async (remainingMs: number) => {
             try {
@@ -231,7 +252,7 @@ export const actionCommand = (deps: CliDeps) =>
             if (remainingMs <= 0) {
               throw expire();
             }
-            const { thread: current } = await readThread(remainingMs);
+            const { thread: current, pendingInteractions } = await readThread(remainingMs);
             if (current.status === "idle") {
               if (outputJson(args, { status: current.status, threadId: args.id })) {
                 return;
@@ -243,6 +264,20 @@ export const actionCommand = (deps: CliDeps) =>
               throw new CliExitError(`Thread ${args.id} settled in error`, {
                 code: "THREAD_ERROR",
               });
+            }
+            awaiting = awaitingAnswer(pendingInteractions);
+            if (awaiting.length > 0 && args["until-input"] === true) {
+              throw new CliExitError(
+                `Thread ${args.id} is waiting on ${answerHint(awaiting)}; answer it, then wait again`,
+                { code: "AWAITING_INTERACTION" },
+              );
+            }
+            const fresh = awaiting.filter((id) => !noticed.has(id));
+            if (fresh.length > 0 && args.json !== true) {
+              out.warn(`Thread ${args.id} is waiting on ${answerHint(fresh)}; still waiting`);
+            }
+            for (const id of fresh) {
+              noticed.add(id);
             }
             const remainingAfterPoll = deadline - Date.now();
             if (remainingAfterPoll <= 0) {

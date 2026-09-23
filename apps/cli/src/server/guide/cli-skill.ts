@@ -1,6 +1,24 @@
 // SKILL.md-shaped so a harness can ingest it verbatim. Must name every CLI leaf
 // and every flag it accepts, and no flag it does not: a test walks the citty
 // tree against these bytes, so re-flagging a command means editing this text.
+// Limits are the contract's own constants, so a changed cap cannot leave a stale range here.
+
+import {
+  KNOWLEDGE_MATCHES_MAX_LIMIT,
+  KNOWLEDGE_PROBLEMS_MAX_LIMIT,
+  KNOWLEDGE_RELATED_MAX_LIMIT,
+  KNOWLEDGE_SEARCH_MAX_LIMIT,
+  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
+  KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+  KNOWLEDGE_UNLINKED_MAX_LIMIT,
+} from "@repo/api/local/knowledge/knowledge-schema";
+import {
+  VAULT_HISTORY_DEFAULT_LIMIT,
+  VAULT_HISTORY_MAX_LIMIT,
+  VAULT_MAX_CONTENT_LENGTH,
+} from "@repo/api/local/vault/vault-schema";
+
+const MIB = 1024 * 1024;
 
 export const CLI_SKILL_MD = `---
 name: inteligir-cli
@@ -47,16 +65,27 @@ spaces (\`inteligir search "two words"\`).
 
 ## Vault — files on disk
 
-- \`inteligir vault list [dir]\` — list the tree (folders end with \`/\`).
-- \`inteligir vault read <path>\` — print a file's content.
-- \`inteligir vault write <path> [--content <text>]\` — write a file; without
-  \`--content\` the content is read from stdin (UTF-8; bytes are preserved
-  exactly, and anything over 10 MiB is refused). A terminal or an empty stdin
-  is refused: pass \`--content ''\` to empty a file. Parent folders are created.
+- \`inteligir vault list [dir]\` — list the tree (folders end with \`/\`);
+  \`[dir]\` narrows it to one folder, and a folder that is not there is refused
+  as \`NOT_FOUND\` rather than listed as empty.
+- \`inteligir vault read <path>\` — print a file's content. Under \`--json\` the
+  answer also carries \`hash\`, the base a guarded write names.
+- \`inteligir vault write <path> [--content <text>] [--if-absent | --expected-hash <hash>]\`
+  — write a file; without \`--content\` the content is read from stdin (UTF-8;
+  bytes are preserved exactly, and anything over ${VAULT_MAX_CONTENT_LENGTH / MIB} MiB is refused).
+  A terminal or an empty stdin is refused: pass \`--content ''\` to empty a
+  file. Parent folders are created. \`--if-absent\` creates only: something
+  already at the path is refused as \`ALREADY_EXISTS\`, so pass it whenever you
+  mean a new note. \`--expected-hash <hash>\` writes only over the bytes you
+  read — the \`hash\` from \`vault read --json\` — and a file that changed since
+  is refused as \`CAS_MISMATCH\`: read it again, redo your edit on what it holds
+  now, and retry. Without either, the last writer wins. The two cannot be
+  combined.
 - \`inteligir vault rename <from> <to>\` — rename/move a note; wiki links into
   it are rewritten and the old name is recorded as an alias.
 - \`inteligir vault history <path> [--skip <n>] [--limit <n>]\` — the note's own
-  commits, newest first, following renames. One tab-separated line per
+  commits, newest first, following renames; \`--limit\` is the page
+  (1–${VAULT_HISTORY_MAX_LIMIT}, default ${VAULT_HISTORY_DEFAULT_LIMIT}). One tab-separated line per
   revision: sha, author date, author, the path AT that revision, subject.
 - \`inteligir vault revision <path> <sha>\` — print what the note held at that
   revision. \`<path>\` is the path \`vault history\` reported for that row, not
@@ -67,7 +96,7 @@ spaces (\`inteligir search "two words"\`).
   survive as their own revision) and writes against the base it read, so a
   concurrent write is refused rather than overwritten; a deleted note is
   created afresh, and refused if something reappeared at its path. Prefer this
-  over piping \`revision\` into \`write\`, which carries no such guard.
+  over piping \`revision\` into \`write\`: it checkpoints and guards in one step.
 - \`inteligir vault delete <path>\` — delete a file or folder. There is no
   trash: a deleted doc stays in the vault's git history.
 - \`inteligir vault deleted\` — docs no longer on disk, newest deletion first,
@@ -91,29 +120,30 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
 
 - \`inteligir search <query>\` — full-text search; \`tag:<name>\` terms narrow
   by tag and compose with text (\`inteligir search "tag:project deadline"\`).
-  \`--limit <n>\` caps results (1–100).
+  \`--limit <n>\` caps results (1–${KNOWLEDGE_SEARCH_MAX_LIMIT}).
 - \`inteligir matches <text>\` — every literal occurrence of a text, one row
   per match as \`path:line:column\` with the line around it. Unlike \`search\`
   it scans the bytes: no stemming, no ranking. \`--case-sensitive\` and
-  \`--whole-word\` narrow; \`--limit <n>\` caps rows (1–500).
+  \`--whole-word\` narrow; \`--limit <n>\` caps rows (1–${KNOWLEDGE_MATCHES_MAX_LIMIT}).
 - \`inteligir backlinks <path>\` — the notes linking INTO a note.
 - \`inteligir unlinked <path>\` — notes that name a note in prose (its stem or
   an alias, as a whole word) without linking it, one row per note as
   \`path:line:column\` with the sentence; code, links, urls and frontmatter do
   not count. Wrap that text as \`[[Title]]\` to make it a link. \`--limit <n>\`
-  caps rows (1–200).
+  caps rows (1–${KNOWLEDGE_UNLINKED_MAX_LIMIT}).
 - \`inteligir problems\` — what the graph cannot resolve: wiki links to notes
   that do not exist (with the source and line), embeds of missing files, notes
   nothing links to, and stems spelled at more than one path. Daily notes and
   templates are orphans by design and are left out unless
-  \`--include-conventions\` is given. \`--limit <n>\` caps each family (1–200).
+  \`--include-conventions\` is given. \`--limit <n>\` caps each family
+  (1–${KNOWLEDGE_PROBLEMS_MAX_LIMIT}).
 - \`inteligir related <path>\` — notes connected to a note WITHOUT linking to
   it: shared link targets, shared tags, similar text. Each row is followed by
-  the reasons it is there. \`--limit <n>\` caps results (1–50).
+  the reasons it is there. \`--limit <n>\` caps results (1–${KNOWLEDGE_RELATED_MAX_LIMIT}).
 - \`inteligir tags\` — every tag with its usage count, most used first.
 - \`inteligir tag notes <tag>\` — every note holding the tag or one nested under
-  it, by path; \`--limit <n>\` is the page (1–500, default 100) and
-  \`--offset <n>\` skips to the next one.
+  it, by path; \`--limit <n>\` is the page (1–${KNOWLEDGE_TAG_NOTES_MAX_LIMIT}, default
+  ${KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT}) and \`--offset <n>\` skips to the next one.
 - \`inteligir tag rename <from> <to>\` — rename a tag (spelled without the
   \`#\`) in every note, nested tags under it included; a note that changed
   mid-rename is reported as skipped, never overwritten.
@@ -129,11 +159,17 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   when the action is idle, queues behind a running one otherwise. A message
   still waiting in the queue always starts before a later send.
 - \`inteligir action show <id>\` — action detail plus the compact timeline
-  (turns, commands, file changes, messages).
+  (turns, commands, file changes, messages), and any approval it is waiting on
+  with what that approval would allow.
 - \`inteligir action wait <id>\` — block until the action settles. Exit code
   0 = idle, 1 = settled in error, 2 = timeout. \`--timeout <seconds>\` is a
   real wall-clock bound (default 600, at most 86400) and
   \`--poll-interval <ms>\` sets the poll cadence (default 300, at most 60000).
+  An action blocked on an approval does not settle until someone answers it:
+  \`wait\` says so on stderr, naming each interaction and the
+  \`inteligir interactions answer\` command, and keeps waiting; a timeout names
+  them too. \`--until-input\` stops instead, with exit 4
+  (\`AWAITING_INTERACTION\`): answer, then \`wait\` again.
 - \`inteligir action archive <id>\` — archive an action.
 
 The spawn-and-wait loop an agent should use:
@@ -170,12 +206,16 @@ The registry is this app's own; enabled rows reach every agent session's
 launch, Claude Code and Codex alike.
 
 - \`inteligir connectors list\` — the configured servers, each with its target
-  and whether it is enabled and authenticated.
+  and whether it is enabled and authenticated; an OAuth server shows
+  \`needs-auth\`, \`connected\` or \`needs-reauth\`.
 - \`inteligir connectors add <name> --url <https://…> [--header NAME=VALUE]\` —
-  add a remote server (the header carries its API key). For a local stdio
-  server, name the program after \`--\` instead:
+  add a remote server (the header carries its API key). \`--header NAME=-\`
+  reads the value from stdin instead, which keeps the key out of the process
+  list and the shell's history:
+  \`printf '%s' "$KEY" | inteligir connectors add <name> --url <…> --header x-api-key=-\`.
+  For a local stdio server, name the program after \`--\` instead:
   \`inteligir connectors add <name> -- <command> [args…]\`. Exactly one of the
-  two forms.
+  two forms; \`--header\` is for the remote one.
 - \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
   from their next launch.
 
@@ -198,8 +238,10 @@ them as read-only — do not modify them.
 
 ## Interactions — approvals the agent is waiting on
 
-- \`inteligir interactions list [--thread <id>]\` — pending approval requests;
-  \`--thread\` narrows to one thread.
+- \`inteligir interactions list [--thread <id>]\` — pending approval requests,
+  each with what it would allow (\`$ <command> (in <cwd>)\`, or
+  \`write <scope>\`, and the agent's reason) and the answers it takes;
+  \`--thread\` narrows to one thread. Read it before answering.
 - \`inteligir interactions answer <id> <resolution> [--thread <id>]\` — answer
   one; resolutions are \`allow_once\`, \`allow_for_session\`, or \`deny\` (a
   request may offer only some of them, and the CLI says which). \`--thread\`
@@ -238,14 +280,36 @@ it would throw away.
 ## Exit codes and failure output
 
 0 success · 1 error (including a thread that settled in error) ·
-2 wait timeout · 3 no server reachable.
+2 wait timeout · 3 no server reachable · 4 an approval is waiting
+(\`action wait --until-input\`) · 130 interrupted (^C).
 
 Every command checks the server's HTTP status before printing: a refusal is
 never printed as an answer. Failures go to **stderr** and stdout stays empty,
 so a \`--json\` caller can parse stdout unconditionally. Under \`--json\` the
 failure itself is JSON on stderr: \`{"error":"<class>","message":"<text>"}\`,
 where \`<class>\` is the server's own error class where there is one
-(\`NOT_FOUND\`, \`BAD_REQUEST\`, …) or a CLI one otherwise
-(\`INVALID_USAGE\`, \`WAIT_TIMEOUT\`, \`SERVER_UNREACHABLE\`). Classes are
-\`UPPER_SNAKE\` on both sides — one vocabulary, whichever side raised it.
+(\`NOT_FOUND\`, \`BAD_REQUEST\`, \`CAS_MISMATCH\`, …; each exits 1) or one of
+the CLI's own, each with the exit code it carries:
+
+- \`INVALID_USAGE\` (1) — the command line itself: an unknown flag, a missing
+  or extra argument, a value out of range. Nothing was sent.
+- \`NOT_FOUND\` (1) — \`interactions answer\` named no open interaction, or
+  \`vault list\` no folder.
+- \`SEND_FAILED\` (1) — \`action new\` created the action but its first turn
+  never reached the server (a refusal the server did send keeps its own
+  class); the message names the new id either way.
+- \`THREAD_ERROR\` (1) — the action \`action wait\` was watching settled in
+  error.
+- \`UNEXPECTED_RESPONSE\` (1) — the server answered a shape the CLI did not ask
+  for.
+- \`UNEXPECTED\` (1) — anything else; the message says what.
+- \`WAIT_TIMEOUT\` (2) — \`action wait\` ran out of time.
+- \`SERVER_UNREACHABLE\` (3) — no \`server.json\`, or nothing answered at the
+  port it names.
+- \`AWAITING_INTERACTION\` (4) — \`action wait --until-input\` met an approval.
+- \`INTERRUPTED\` (130) — the password prompt was left with ^C or ^D. A ^C
+  anywhere else also exits 130, with no failure line at all.
+
+Classes are \`UPPER_SNAKE\` on both sides — one vocabulary, whichever side
+raised it.
 `;
