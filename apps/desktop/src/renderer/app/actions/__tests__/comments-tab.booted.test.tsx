@@ -6,8 +6,9 @@ import { bootTestApp } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommentsTab } from "../comments-tab";
-import { createWorkspaceQueryClient } from "../../workspace-context";
+import { createWorkspaceQueryClient, WorkspaceProvider } from "../../workspace-context";
 import { routeRendererFetch } from "./booted-fetch";
+import { routeRendererSocket } from "./booted-socket";
 
 afterEach(() => {
   cleanup();
@@ -46,5 +47,38 @@ describe("the comments tab under a refused read", () => {
       expect(screen.getByText(/No comments yet/u)).toBeTruthy();
     });
     expect(screen.queryByText("The comments could not be read.")).toBeNull();
+  });
+});
+
+describe("the comments tab over the live bus", () => {
+  it("shows an agent's second comment with nothing else happening", async () => {
+    const booted = await bootTestApp();
+    routeRendererFetch(booted);
+    routeRendererSocket(booted);
+    writeFileSync(path.join(booted.vaultDir, "note.md"), "note\n", "utf-8");
+
+    render(
+      <WorkspaceProvider>
+        <CommentsTab docPath="note.md" focusIds={[]} />
+      </WorkspaceProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/No comments yet/u)).toBeTruthy();
+    });
+
+    // the first creates the store, which the listing announces; the second only rewrites it.
+    await booted.client.comments.add({ id: "c1", path: "note.md", source: "agent", text: "first" });
+    await waitFor(() => {
+      expect(screen.getByText("first")).toBeTruthy();
+    });
+    await booted.client.comments.add({
+      id: "c2",
+      path: "note.md",
+      source: "agent",
+      text: "second",
+    });
+    await waitFor(() => {
+      expect(screen.getByText("second")).toBeTruthy();
+    });
   });
 });
