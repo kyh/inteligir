@@ -4,7 +4,6 @@ import type { KnowledgeProblemsResponse } from "@repo/api/local/knowledge/knowle
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "../api";
 import { matchesQuery, PalettePage } from "./palette-page";
-import type { PageShell } from "./palette-page";
 
 // a row opens `path`; with a `target` it lands on that link inside it
 interface ProblemRow {
@@ -92,21 +91,23 @@ const problemsHidden = (problems: KnowledgeProblemsResponse): number =>
     problems.duplicateStems,
   ].reduce((hidden, family) => hidden + (family.total - family.rows.length), 0);
 
-export interface ProblemsPageProps extends PageShell {
+export interface ProblemsPageProps {
+  open: boolean;
+  query: string;
   onOpenNote: (path: string) => void;
   onOpenLink: (sourcePath: string, target: string) => void;
 }
 
-export const ProblemsPage = ({ onOpenNote, onOpenLink, ...shell }: ProblemsPageProps) => {
+export const ProblemsPage = ({ open, query, onOpenNote, onOpenLink }: ProblemsPageProps) => {
   // read once per visit to the page, not per keystroke: the query filters the rows it holds
   const problemsQuery = useQuery({
     ...orpc.knowledge.problems.queryOptions({
       input: { limit: KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT },
     }),
-    enabled: shell.open,
+    enabled: open,
   });
   const problems = problemsQuery.data;
-  const families = problems === undefined ? [] : problemFamilies(problems, shell.query);
+  const families = problems === undefined ? [] : problemFamilies(problems, query);
   const hidden = problems === undefined ? 0 : problemsHidden(problems);
 
   const emptySentence = (): string => {
@@ -116,19 +117,13 @@ export const ProblemsPage = ({ onOpenNote, onOpenLink, ...shell }: ProblemsPageP
     if (problems === undefined) {
       return "…";
     }
-    return shell.query === ""
+    return query === ""
       ? "No problems: every link resolves, every note is linked, every stem is unique."
       : "No problem matches.";
   };
 
   return (
-    <PalettePage
-      {...shell}
-      title="Problems"
-      description="What the vault's links cannot resolve"
-      placeholder="Filter problems…"
-      wide
-    >
+    <PalettePage>
       <CommandEmpty>{emptySentence()}</CommandEmpty>
       {families.map((family) => (
         <CommandGroup key={family.id} heading={`${family.heading} · ${family.total}`}>

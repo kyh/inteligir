@@ -1,16 +1,8 @@
-// The one shell every palette page draws: the dialog, its field, the list the page fills and the
-// hint strip under it. Every page filters its own rows, so nothing here matches a query.
+// What a palette page draws under the palette's one field: its own controls, then the list it
+// fills. The dialog, the field and the hint strip are the palette's, drawn once, so a page switch
+// swaps only this. Every page filters its own rows, so nothing here matches a query.
 
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandFooter,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@repo/ui/components/command";
-import { cn } from "@repo/ui/lib/cn";
+import { CommandEmpty, CommandGroup, CommandItem, CommandList } from "@repo/ui/components/command";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
 import { FolderIcon, LayoutTemplateIcon } from "lucide-react";
@@ -35,59 +27,20 @@ export const useDebounced = <T,>(value: T, ms: number): T => {
 export const matchesQuery = (label: string, query: string): boolean =>
   label.toLowerCase().includes(query.trim().toLowerCase());
 
-// what every page shares: the dialog's open state and the box's text
-export interface PageShell {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  query: string;
-  onQueryChange: (query: string) => void;
-}
-
-export interface PalettePageProps extends PageShell {
-  title: string;
-  description: string;
-  placeholder: string;
-  wide?: boolean;
-  // between the input and the list: the search page's toggles and replace row
+export interface PalettePageProps {
+  // between the field and the list: the search page's toggles and replace row
   toolbar?: React.ReactNode;
   children: React.ReactNode;
 }
 
-export const PalettePage = ({
-  open,
-  onOpenChange,
-  title,
-  description,
-  placeholder,
-  query,
-  onQueryChange,
-  wide = false,
-  toolbar,
-  children,
-}: PalettePageProps) => (
-  <CommandDialog
-    open={open}
-    onOpenChange={onOpenChange}
-    title={title}
-    description={description}
-    className={cn(wide && "max-w-[min(100%-2rem,720px)]")}
-  >
-    <CommandInput
-      placeholder={placeholder}
-      value={query}
-      onValueChange={onQueryChange}
-      aria-label={title}
-    />
+export const PalettePage = ({ toolbar, children }: PalettePageProps) => (
+  <>
     {toolbar}
     <CommandList>{children}</CommandList>
-    <CommandFooter />
-  </CommandDialog>
+  </>
 );
 
-export interface FolderPageProps extends PageShell {
-  title: string;
-  description: string;
-  placeholder: string;
+export interface FolderPageProps {
   empty: string;
   // already narrowed to the rows the page may offer; "" is the vault root
   folders: readonly string[];
@@ -95,16 +48,8 @@ export interface FolderPageProps extends PageShell {
 }
 
 // the one picker behind "New note in folder…" and "Move note to folder…"
-export const FolderPage = ({
-  title,
-  description,
-  placeholder,
-  empty,
-  folders,
-  onPick,
-  ...shell
-}: FolderPageProps) => (
-  <PalettePage {...shell} title={title} description={description} placeholder={placeholder}>
+export const FolderPage = ({ empty, folders, onPick }: FolderPageProps) => (
+  <PalettePage>
     <CommandEmpty>{empty}</CommandEmpty>
     <CommandGroup heading="Folders">
       {folders.map((dir) => (

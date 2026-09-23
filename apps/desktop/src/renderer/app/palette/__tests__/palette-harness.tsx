@@ -17,11 +17,18 @@ import type { ReactNode } from "react";
 import { vi } from "vitest";
 import { z } from "zod";
 import { CommandPalette } from "../command-palette";
-import type { CommandPaletteProps, PaletteActions, PaletteRequest } from "../command-palette";
+import type {
+  CommandPaletteProps,
+  PaletteActions,
+  PaletteNote,
+  PaletteRequest,
+} from "../command-palette";
 import { createWorkspaceQueryClient } from "../../workspace-context";
 
 export interface KnowledgeFakes {
-  matches?: (request: KnowledgeMatchesRequest) => KnowledgeMatchesResponse;
+  matches?: (
+    request: KnowledgeMatchesRequest,
+  ) => KnowledgeMatchesResponse | Promise<KnowledgeMatchesResponse>;
   problems?: () => KnowledgeProblemsResponse;
   // unset, the index answers nothing; a throw is the index unreachable
   search?: (
@@ -67,7 +74,7 @@ export const stubKnowledgeFetch = (fakes: KnowledgeFakes): void => {
     // the oRPC client always sends a string body; anything else is a stub answering the wrong call
     const body = requestBodySchema.parse(JSON.parse(z.string().parse(init?.body ?? "{}")));
     if (procedure === "knowledge/matches" && fakes.matches !== undefined) {
-      return answer(fakes.matches(matchesRequestSchema.parse(body.json)));
+      return answer(await fakes.matches(matchesRequestSchema.parse(body.json)));
     }
     if (procedure === "knowledge/problems") {
       return answer(fakes.problems === undefined ? noProblems : fakes.problems());
@@ -86,18 +93,15 @@ export const stubKnowledgeFetch = (fakes: KnowledgeFakes): void => {
 
 export const defaultRequest: PaletteRequest = { nonce: 1, page: "root" };
 
-// Every verb the palette can run, each a mock typed by the contract it stands for. A test
-// spreads its own over the ones it asserts on.
+// Every verb the palette can run, each a mock typed by the contract it stands for, with no note
+// open. A test spreads its own over the ones it asserts on.
 export const makeActions = () =>
   ({
-    exportPdf: null,
-    findInNote: null,
     goToHeading: vi.fn<PaletteActions["goToHeading"]>(),
-    insertTemplate: null,
-    listHeadings: null,
     moveNote: vi.fn<PaletteActions["moveNote"]>(),
     newNote: vi.fn<PaletteActions["newNote"]>(),
     newNoteFromTemplate: vi.fn<PaletteActions["newNoteFromTemplate"]>(),
+    note: null,
     openDailyNote: vi.fn<PaletteActions["openDailyNote"]>(),
     openDeletedNotes: vi.fn<PaletteActions["openDeletedNotes"]>(),
     openMatch: vi.fn<PaletteActions["openMatch"]>(),
@@ -105,10 +109,21 @@ export const makeActions = () =>
     openProblemLink: vi.fn<PaletteActions["openProblemLink"]>(),
     openSettings: vi.fn<PaletteActions["openSettings"]>(),
     openThread: vi.fn<PaletteActions["openThread"]>(),
-    pin: null,
     replaceAll: vi.fn<PaletteActions["replaceAll"]>(async () => {}),
     syncNow: vi.fn<PaletteActions["syncNow"]>(),
   }) satisfies PaletteActions;
+
+// an open, unpinned note with no headings, every verb a mock
+export const makeNote = (path = "Welcome.md") =>
+  ({
+    exportPdf: vi.fn<PaletteNote["exportPdf"]>(),
+    findInNote: vi.fn<PaletteNote["findInNote"]>(),
+    insertTemplate: vi.fn<PaletteNote["insertTemplate"]>(),
+    listHeadings: vi.fn<PaletteNote["listHeadings"]>(() => []),
+    path,
+    pinned: false,
+    togglePin: vi.fn<PaletteNote["togglePin"]>(),
+  }) satisfies PaletteNote;
 
 // keyed like the workspace keys it, so a rerender with a new nonce is a fresh open
 const palette = (props: CommandPaletteProps) => (

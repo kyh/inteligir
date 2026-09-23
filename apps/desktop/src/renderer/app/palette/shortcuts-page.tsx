@@ -11,7 +11,6 @@ import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
 import { matchesQuery, PalettePage } from "./palette-page";
-import type { PageShell } from "./palette-page";
 
 interface ShortcutRow {
   id: string;
@@ -41,27 +40,23 @@ const shortcutGroups = (
   },
 ];
 
-export interface ShortcutsPageProps extends PageShell {
+export interface ShortcutsPageProps {
+  query: string;
   modifier: ShortcutModifier;
   onPick: () => void;
 }
 
-export const ShortcutsPage = ({ modifier, onPick, ...shell }: ShortcutsPageProps) => {
+export const ShortcutsPage = ({ query, modifier, onPick }: ShortcutsPageProps) => {
   const groups = shortcutGroups(modifier)
     .map((group) => ({
       heading: group.heading,
       rows: group.rows.filter(
-        (row) => matchesQuery(row.label, shell.query) || matchesQuery(row.chord, shell.query),
+        (row) => matchesQuery(row.label, query) || matchesQuery(row.chord, query),
       ),
     }))
     .filter((group) => group.rows.length > 0);
   return (
-    <PalettePage
-      {...shell}
-      title="Keyboard shortcuts"
-      description="Every binding, spelled for this keyboard"
-      placeholder="Filter shortcuts…"
-    >
+    <PalettePage>
       <CommandEmpty>No shortcut matches.</CommandEmpty>
       {groups.map((group) => (
         <CommandGroup key={group.heading} heading={group.heading}>

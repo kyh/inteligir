@@ -43,7 +43,7 @@ import { setNotePinned } from "./note/pin-note";
 import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
-import type { PaletteEntryPage, PaletteRequest } from "./palette/command-palette";
+import type { PaletteEntry, PaletteRequest } from "./palette/command-palette";
 import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
@@ -133,15 +133,12 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   // the last request mounted with `open` off, because unmounting the dialog cuts its exit tween;
   // the next open replaces it.
   const [palette, setPalette] = useState<{ request: PaletteRequest; open: boolean } | null>(null);
-  const openPalette = useCallback(
-    (page: PaletteEntryPage, extra: { subject?: string } = {}): void => {
-      setPalette((current) => ({
-        open: true,
-        request: { page, ...extra, nonce: (current?.request.nonce ?? 0) + 1 },
-      }));
-    },
-    [],
-  );
+  const openPalette = useCallback((entry: PaletteEntry): void => {
+    setPalette((current) => ({
+      open: true,
+      request: { ...entry, nonce: (current?.request.nonce ?? 0) + 1 },
+    }));
+  }, []);
   const closePalette = useCallback((): void => {
     setPalette((current) => (current === null ? null : { ...current, open: false }));
   }, []);
@@ -455,7 +452,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         if (palette?.open === true) {
           closePalette();
         } else {
-          openPalette("root");
+          openPalette({ page: "root" });
         }
         break;
       }
@@ -464,7 +461,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         break;
       }
       case "open-headings": {
-        openPalette("headings");
+        openPalette({ page: "headings" });
         break;
       }
       case "open-settings": {
@@ -492,13 +489,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   const paletteActions = useMemo(
     () => ({
-      exportPdf:
-        openPath === null
-          ? null
-          : () => {
-              exportNoteAsPdf(docStem(openPath));
-            },
-      findInNote: openPath === null ? null : findInNote,
       goToHeading: (heading: HeadingItem) => {
         const { openPath: path } = noteStore.state();
         const editor = path === null ? null : getLiveEditor(path);
@@ -506,17 +496,28 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
           goToHeading(editor, heading);
         }
       },
-      insertTemplate: openPath === null ? null : insertTemplateIntoNote,
-      listHeadings:
-        openPath === null
-          ? null
-          : () => {
-              const editor = getLiveEditor(openPath);
-              return editor === null ? [] : collectHeadings(editor);
-            },
       moveNote: treeOps.moveEntry,
       newNote: newUntitledNote,
       newNoteFromTemplate,
+      note:
+        openPath === null
+          ? null
+          : {
+              exportPdf: () => {
+                exportNoteAsPdf(docStem(openPath));
+              },
+              findInNote,
+              insertTemplate: insertTemplateIntoNote,
+              listHeadings: () => {
+                const editor = getLiveEditor(openPath);
+                return editor === null ? [] : collectHeadings(editor);
+              },
+              path: openPath,
+              pinned: openPinned,
+              togglePin: () => {
+                setPinned(openPath, !openPinned);
+              },
+            },
       openDailyNote,
       openDeletedNotes: () => {
         chooseRailView("deleted");
@@ -526,15 +527,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       openProblemLink,
       openSettings: onOpenSettings,
       openThread,
-      pin:
-        openPath === null
-          ? null
-          : {
-              pinned: openPinned,
-              toggle: () => {
-                setPinned(openPath, !openPinned);
-              },
-            },
       replaceAll,
       syncNow,
     }),
@@ -610,7 +602,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               onOpenFile={setOpenNote}
               ops={treeOps}
               onMoveRequest={(path) => {
-                openPalette("move-to-folder", { subject: path });
+                openPalette({ page: "move-to-folder", subject: path });
               }}
               view={railView}
               onViewChange={chooseRailView}
@@ -618,7 +610,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               onSelectTag={setSelectedTag}
               reveal={reveal}
               onOpenSearch={() => {
-                openPalette("root");
+                openPalette({ page: "root" });
               }}
               searchShortcut={bindingFor("open-palette", shortcutModifier)}
               onSyncNow={syncNow}
@@ -709,7 +701,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               key={palette.request.nonce}
               open={palette.open}
               request={palette.request}
-              openNotePath={openPath}
               modifier={shortcutModifier}
               onOpenChange={(open) => {
                 if (!open) {

@@ -111,7 +111,7 @@ export const vaultSearchBrowser: Scenario = {
       await openSearch();
       await agentBrowser(["fill", REPLACE_INPUT, REPLACEMENT]);
       await agentBrowser(["find", "role", "button", "click", "--name", "Replace all", "--exact"]);
-      // the palette closes first, then the confirm asks with the same verb
+      // the confirm asks with the same verb, over the palette, which stays open on the run
       await agentBrowser(["find", "role", "button", "click", "--name", "Replace all", "--exact"]);
 
       const diskDeadline = Date.now() + DISK_DEADLINE_MS;
