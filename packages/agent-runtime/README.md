@@ -40,6 +40,9 @@ src/
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
                        # payload and resolution
+    provider-error.ts  # acpCall (a rejected request → RequestError) and
+                       # describeProviderError (an auth refusal → the login
+                       # command)
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
     json-value.ts      # JsonValue/JsonObject, for tool arguments
@@ -90,6 +93,15 @@ src/
   first, then the same allow/reject family; no offered option answers
   `cancelled`. An unrecognised tool kind falls back to the command subject,
   because the contract has no "other".
+- **A rejected request is parsed where it is made.** The 0.4 client rejects
+  with the response's bare JSON-RPC `error` object, not an Error, so every
+  `initialize`, `session/new`, `session/load` and `session/prompt` goes through
+  `acpCall`, which rebuilds it as the SDK's `RequestError`. What a user reads
+  is `describeProviderError`: the adapter's message, except an auth refusal
+  (`-32000`) with a harness in hand, which names the harness and its login
+  command. A refused `session/new` destroys the child it opened, so the send
+  after a sign-in opens a new adapter rather than prompting a session that
+  never existed.
 - **The child's exit is reported, never interpreted.** `onProcessExit` carries
   the thread's `activeTurnId`, `pendingTurnStart` and `providerThreadId` with
   `expected` set only by an ordered destroy or shutdown; deciding a turn failed
@@ -121,8 +133,10 @@ pnpm --filter @repo/agent-runtime test
 notifications onto the provider-event grammar (one message item per turn,
 edit-kind calls as `fileChange`, cancellation interrupting open items, a prompt
 rejection failing through the grammar) and permission requests onto the
-pending-interaction contract. The process half — spawning, `initialize`,
-`session/new`, `session/load`, reaping, exit reporting — is exercised by the
+pending-interaction contract; `provider-error.test.ts` pins the rejection
+rebuild and the auth hint. The process half — spawning, `initialize`,
+`session/new`, `session/load`, reaping, exit reporting, an adapter refusing
+for auth at `session/new` or at the prompt — is exercised by the
 server's `apps/cli/src/server/agents/__tests__/acp-manager.test.ts` against
 the fake agent, because the assertions there are about what the host does with
 the events.

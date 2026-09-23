@@ -62,6 +62,7 @@ import type {
   TimelineResponse,
 } from "@repo/api/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
+import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError } from "./turn-driver";
@@ -402,7 +403,7 @@ export class ThreadService implements ProviderEventSink {
   }
 
   private recordDispatchFailure(threadId: string, cause: unknown): void {
-    this.failTurnlessRun(threadId, cause instanceof Error ? cause.message : String(cause));
+    this.failTurnlessRun(threadId, messageOf(cause));
   }
 
   // not routed through ingest: a thread-scoped provider/error projects no
