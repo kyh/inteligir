@@ -25,6 +25,7 @@ const sessionOver = (options: { exists: boolean; createRefuses?: boolean }) => {
       remove: async () => ({ outcome: "removed" }),
       write: async (path, content) => {
         noteCalls.push(["write", path, content]);
+        return content;
       },
     },
     notify: (_level, message) => {

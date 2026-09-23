@@ -12,7 +12,8 @@ const TURN_DEADLINE_MS = 30_000;
 const EDITOR = '[data-slate-editor="true"]';
 
 export const externalEditBrowser: Scenario = {
-  description: "a clean buffer adopts an agent write; a dirty buffer merges instead of clobbering",
+  description:
+    "a clean buffer adopts an agent write; a dirty buffer merges instead of clobbering, and adopts the merge",
   name: "external-edit-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -76,6 +77,37 @@ export const externalEditBrowser: Scenario = {
           break;
         }
         expect(Date.now() < mergeDeadline, `disk never held both sides of the merge:\n${onDisk}`);
+        await delay(250);
+      }
+
+      ctx.log("the buffer adopts the merge, so the next save keeps the external line");
+      const adoptMergeDeadline = Date.now() + TURN_DEADLINE_MS;
+      for (;;) {
+        const buffer = await agentBrowser(["get", "text", EDITOR]);
+        if (buffer.includes("external-appended-line")) {
+          break;
+        }
+        expect(
+          Date.now() < adoptMergeDeadline,
+          `the buffer never adopted the merged bytes — got: ${buffer}`,
+        );
+        await delay(250);
+      }
+      await agentBrowser(["click", EDITOR]);
+      await agentBrowser(["press", "End"]);
+      await agentBrowser(["type", EDITOR, " second-typed-tail"]);
+
+      const secondSaveDeadline = Date.now() + TURN_DEADLINE_MS;
+      for (;;) {
+        const onDisk = await readFile(path.join(app.vaultDir, notePath), "utf-8");
+        if (onDisk.includes("second-typed-tail")) {
+          expect(
+            onDisk.includes("external-appended-line"),
+            `the save after the merge erased the external line:\n${onDisk}`,
+          );
+          break;
+        }
+        expect(Date.now() < secondSaveDeadline, `the second save never reached disk:\n${onDisk}`);
         await delay(250);
       }
     } finally {

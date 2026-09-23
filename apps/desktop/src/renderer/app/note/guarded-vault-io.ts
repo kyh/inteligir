@@ -25,7 +25,7 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     bases.set(path, content);
   };
 
-  const write = async (path: string, content: string): Promise<void> => {
+  const write = async (path: string, content: string): Promise<string> => {
     const base = bases.get(path);
     // Not inferred from `content`: that would let a concurrent edit merge to
     // the disk's bytes alone and drop this write silently.
@@ -36,7 +36,7 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     const { error } = await safe(api.vault.write({ content, expectedHash, path }));
     if (error === null) {
       bases.set(path, content);
-      return;
+      return content;
     }
     // No `current` means a delete raced the write; nothing to merge against.
     if (
@@ -50,7 +50,7 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
       const retry = await safe(api.vault.write({ content: merged, expectedHash: retryHash, path }));
       if (retry.error === null) {
         bases.set(path, merged);
-        return;
+        return merged;
       }
       throw new Error(
         `write ${path}: conflict retry refused (${refusalMessage(retry.error, "no reason given")})`,
@@ -62,9 +62,11 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
   const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
     const { error } = await safe(api.vault.remove({ path }));
     if (error === null) {
+      bases.delete(path);
       return { outcome: "removed" };
     }
     if (isDefinedError(error) && error.code === "NOT_FOUND") {
+      bases.delete(path);
       return { outcome: "absent" };
     }
     throw error;

@@ -2,7 +2,8 @@ import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import type { VaultIO } from "@repo/editor/vault-editor";
 
 // `hangReads` never settles a read, so a runtime can be observed before its first
-// load; `manualRead`/`manualWrite` park each call in pendingReads/pendingWrites until the test settles it.
+// load; `manualRead`/`manualWrite` park each call in pendingReads/pendingWrites until the test settles it;
+// `landAs` makes a write land other bytes than it was sent, as a host's merge does.
 export class FakeVault implements VaultIO {
   files = new Map<string, string>();
   writes = 0;
@@ -13,6 +14,7 @@ export class FakeVault implements VaultIO {
   pendingReads: PromiseWithResolvers<string>[] = [];
   pendingWrites: PromiseWithResolvers<void>[] = [];
   removeOutcome: DeleteVaultEntryResult = { outcome: "removed" };
+  landAs: ((sent: string) => string) | null = null;
 
   read = async (path: string): Promise<string> => {
     if (this.hangReads) {
@@ -29,15 +31,16 @@ export class FakeVault implements VaultIO {
       : await Promise.resolve(content);
   };
 
-  write = async (path: string, content: string): Promise<void> => {
+  write = async (path: string, content: string): Promise<string> => {
     this.writes += 1;
-    this.files.set(path, content);
-    if (!this.manualWrite) {
-      return;
+    const landed = this.landAs?.(content) ?? content;
+    this.files.set(path, landed);
+    if (this.manualWrite) {
+      const pending: PromiseWithResolvers<void> = Promise.withResolvers();
+      this.pendingWrites.push(pending);
+      await pending.promise;
     }
-    const pending: PromiseWithResolvers<void> = Promise.withResolvers();
-    this.pendingWrites.push(pending);
-    await pending.promise;
+    return landed;
   };
 
   create = async (path: string, content: string): Promise<void> => {

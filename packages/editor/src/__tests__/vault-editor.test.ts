@@ -45,6 +45,123 @@ describe("VaultEditorController", () => {
     expect(c.getState().dirty).toBe(false);
   });
 
+  it("adopts the bytes a write landed when the host merged a concurrent change in", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\nthree\n");
+    io.landAs = (sent) => `${sent}external\n`;
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    c.edit("one typed\ntwo\nthree\n");
+    await c.flush();
+    expect(c.getState()).toMatchObject({
+      content: "one typed\ntwo\nthree\nexternal\n",
+      dirty: false,
+      saving: false,
+    });
+  });
+
+  it("rebases an edit made mid-write onto the bytes that landed, and keeps it dirty", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\nthree\n");
+    io.manualWrite = true;
+    io.landAs = (sent) => `${sent}external\n`;
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    c.edit("one typed\ntwo\nthree\n");
+    const flushed = c.flush();
+    await tick();
+    c.edit("one typed more\ntwo\nthree\n");
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    expect(c.getState()).toMatchObject({
+      content: "one typed more\ntwo\nthree\nexternal\n",
+      dirty: true,
+    });
+
+    io.manualWrite = false;
+    io.landAs = null;
+    await c.flush();
+    expect(io.files.get("a.md")).toBe("one typed more\ntwo\nthree\nexternal\n");
+    expect(c.getState().dirty).toBe(false);
+  });
+
+  it("drains a keystroke the surface still holds before adopting merged bytes", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\nthree\n");
+    io.manualWrite = true;
+    io.landAs = (sent) => `${sent}external\n`;
+    let held: string | null = null;
+    const c = new VaultEditorController(io, () => {
+      if (held !== null) {
+        c.edit(held);
+        held = null;
+      }
+    });
+    await c.open("a.md");
+    c.edit("one typed\ntwo\nthree\n");
+    const flushed = c.flush();
+    await tick();
+    held = "one typed more\ntwo\nthree\n";
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    expect(held).toBe(null);
+    expect(c.getState()).toMatchObject({
+      content: "one typed more\ntwo\nthree\nexternal\n",
+      dirty: true,
+    });
+  });
+
+  it("drains a held keystroke before an external reload and leaves it to the save", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\nthree\n");
+    let held: string | null = "one typed\ntwo\nthree\n";
+    const c = new VaultEditorController(io, () => {
+      if (held !== null) {
+        c.edit(held);
+        held = null;
+      }
+    });
+    c.setRoot("/vault");
+    await c.open("a.md");
+    io.files.set("a.md", "one\ntwo\nthree\nexternal\n");
+    c.externalChange("/vault");
+    await tick();
+    expect(c.getState()).toMatchObject({ content: "one typed\ntwo\nthree\n", dirty: true });
+  });
+
+  it.each([
+    ["held by the surface", true],
+    ["typed straight into the buffer", false],
+  ])(
+    "rebases a keystroke %s during a reload's read onto the bytes read",
+    async (_label, viaSurface) => {
+      const io = new FakeVault();
+      io.files.set("a.md", "one\ntwo\nthree\n");
+      let held: string | null = null;
+      const c = new VaultEditorController(io, () => {
+        if (held !== null) {
+          c.edit(held);
+          held = null;
+        }
+      });
+      c.setRoot("/vault");
+      await c.open("a.md");
+      io.manualRead = true;
+      c.externalChange("/vault");
+      if (viaSurface) {
+        held = "one typed\ntwo\nthree\n";
+      } else {
+        c.edit("one typed\ntwo\nthree\n");
+      }
+      io.pendingReads[0]?.resolve("one\ntwo\nthree\nexternal\n");
+      await tick();
+      expect(c.getState()).toMatchObject({
+        content: "one typed\ntwo\nthree\nexternal\n",
+        dirty: true,
+      });
+    },
+  );
+
   it("a slow open does not apply after a newer open", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
@@ -162,9 +279,7 @@ describe("VaultEditorController", () => {
     const c = new VaultEditorController(io);
     await c.open("a.md");
     c.edit("v1");
-    io.write = async () => {
-      await Promise.reject(new Error("disk full"));
-    };
+    io.write = async () => await Promise.reject(new Error("disk full"));
     const opened = await c.open("b.md");
     expect(opened).toBe(false);
     expect(c.getState()).toMatchObject({ content: "v1", dirty: true, path: "a.md" });
