@@ -135,6 +135,8 @@ pnpm --filter @repo/editor test
 
 Two vitest projects: `editor` (node, `*.test.ts`) for the pipeline, the
 fixtures, the property/adversarial harnesses and the open-note store;
-`editor-dom` (jsdom, `*.test.tsx`) for the components. Component tests drive
-the DOM with `fireEvent` — `@testing-library/user-event` is deliberately not a
-dependency.
+`editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
+sources through the React Compiler as the shipped renderer does, so a
+memoized read that goes stale fails here (`compiled-under-test.test.tsx`
+fails if the plugin goes). Component tests drive the DOM with `fireEvent` —
+`@testing-library/user-event` is deliberately not a dependency.

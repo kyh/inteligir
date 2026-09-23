@@ -3,7 +3,8 @@ import type { DurableObject } from "cloudflare:workers";
 
 // durable-git publishes TypeScript source with no .d.ts, which tsc rejects under this repo's
 // stricter flags, so the worker tsconfig's `paths` maps the package here; the bundler ignores
-// `paths` and resolves the real source. Transcribed from durable-git@0.0.8; re-check on a bump.
+// `paths` and resolves the real source. Transcribed from durable-git@0.0.8, which
+// tools/repo-guards/src/durable-git-stub.test.ts holds to the version the lockfile resolves.
 
 export interface Env {
   REPO: DurableObjectNamespace<RepoCell>;

@@ -60,7 +60,9 @@ document-class effect races the others.
 
 ## Verification
 
-`pnpm --filter @repo/ui test` runs the lib helpers' suites. The orphan
+`pnpm --filter @repo/ui test` runs the package's suites; the jsdom ones run
+the sources through the React Compiler as the shipped renderer does, which
+`components/__tests__/compiled-under-test.test.tsx` pins. The orphan
 invariant lives in `tools/repo-guards/src/ui-orphan-exports.test.ts`, PER
 EXPORT: every named export under the wildcard-exported directories needs a
 consumer outside the gallery or a reasoned allowance row. Knip alone cannot

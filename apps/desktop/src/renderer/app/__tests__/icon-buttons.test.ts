@@ -9,27 +9,26 @@ import { rendererSources } from "./renderer-sources";
 
 const rendererDir = fileURLToPath(new URL("..", import.meta.url));
 
-// an opening tag: `<Button` through its closing `>`, attributes included
-const BUTTON_TAG = /<Button\b[^>]*?>/gsu;
+// an opening tag: `<Button` through its closing `>`, attributes included; `=>` is taken whole so an
+// arrow in an attribute cannot end the tag early.
+const BUTTON_TAG = /<Button\b(?:=>|[^>])*?>/gsu;
+const ICON_SIZE = /size="icon(?:-compact)?"/u;
+const NAMED = /\baria-label=|\btitle=/u;
 
-const unlabelledIconButtons = (): string[] => {
-  const findings: string[] = [];
-  for (const file of rendererSources(rendererDir)) {
-    const source = readFileSync(file, "utf-8");
-    for (const match of source.matchAll(BUTTON_TAG)) {
-      const [tag] = match;
-      if (!/size="icon(?:-compact)?"/u.test(tag)) {
-        continue;
-      }
-      if (/\baria-label=|\btitle=/u.test(tag)) {
-        continue;
-      }
-      const line = source.slice(0, match.index).split("\n").length;
-      findings.push(`${path.relative(rendererDir, file)}:${String(line)}`);
-    }
-  }
-  return findings;
-};
+const iconButtonTags = (source: string): RegExpExecArray[] =>
+  [...source.matchAll(BUTTON_TAG)].filter(([tag]) => ICON_SIZE.test(tag));
+
+const unlabelledLines = (source: string): number[] =>
+  iconButtonTags(source)
+    .filter(([tag]) => !NAMED.test(tag))
+    .map((match) => source.slice(0, match.index).split("\n").length);
+
+const unlabelledIconButtons = (): string[] =>
+  rendererSources(rendererDir).flatMap((file) =>
+    unlabelledLines(readFileSync(file, "utf-8")).map(
+      (line) => `${path.relative(rendererDir, file)}:${String(line)}`,
+    ),
+  );
 
 describe("icon-only buttons", () => {
   it("every icon-size Button names what it does, which is also its tooltip", () => {
@@ -39,15 +38,17 @@ describe("icon-only buttons", () => {
     ).toEqual([]);
   });
 
+  it("reads an arrow in an attribute as part of the tag", () => {
+    expect(unlabelledLines('<Button onClick={() => x()} size="icon-compact">')).toEqual([1]);
+    expect(unlabelledLines('<Button onClick={() => x()} size="icon" aria-label="Close">')).toEqual(
+      [],
+    );
+  });
+
   it("finds the buttons at all", () => {
-    let seen = 0;
-    for (const file of rendererSources(rendererDir)) {
-      for (const match of readFileSync(file, "utf-8").matchAll(BUTTON_TAG)) {
-        if (/size="icon(?:-compact)?"/u.test(match[0])) {
-          seen += 1;
-        }
-      }
-    }
+    const seen = rendererSources(rendererDir).flatMap((file) =>
+      iconButtonTags(readFileSync(file, "utf-8")),
+    ).length;
     expect(seen).toBeGreaterThan(5);
   });
 });
