@@ -34,7 +34,8 @@ const boot = (
   const service = createVaultService({
     lock: identityLock,
     notifier: noopNotifier,
-    onMutated: (paths) => sink?.noteVaultChange({ kind: "paths", paths }),
+    onMutated: (mutations) =>
+      sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
     root: dirs.root,
   });
   const knowledge = createKnowledgeRuntime({

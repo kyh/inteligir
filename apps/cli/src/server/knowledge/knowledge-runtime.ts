@@ -32,7 +32,7 @@ import { createCoalescingTimer } from "../coalescing-timer";
 import { mapWithConcurrency } from "../concurrency";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
-import type { VaultFilesChange } from "../vault/vault-runtime";
+import type { VaultFilesChange } from "../vault/vault-changes";
 import { messageOf } from "../error-message";
 import { createSqliteDriver } from "./sqlite-driver";
 

@@ -619,6 +619,22 @@ to the END of its group.
   `apps/cli/src/server/vault/git-bootstrap.ts`, over `CAPTURE_INBOX_PATH` in
   `apps/cli/src/server/cloud/captures.ts`.
 
+- **A WATCHER EVENT IS A MUTATION'S ECHO ONLY WHILE THE ENTRY IS THE ONE IT
+  LEFT, AND A PULL NAMES ITS PATHS.** Every service mutation reports what an
+  lstat of its path answers right after it: inode, size and mtime, read off the
+  write's own handle before the rename, or absence for a delete. The runtime
+  drops a watcher event only when a fresh lstat matches exactly, and forgets
+  the record after 2s. Keyed on the path and the window alone, a foreign write
+  landing behind a save (an agent editing the open note) would be dropped with
+  the echo: no notification, no re-index. A pass whose rebase moved HEAD
+  reports `git diff --name-only --no-renames` between the two heads, and the
+  drain unions it with the watcher's batches held while the pass ran; only a
+  rebase that could not be aborted, or a diff that failed, asks for a
+  whole-vault reconcile, because a pass that names nothing makes every push
+  from another device re-read the whole vault.
+  `apps/cli/src/server/vault/vault-changes.ts`,
+  `apps/cli/src/server/vault/vault-runtime.ts`.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile

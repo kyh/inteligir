@@ -8,6 +8,8 @@ import type { EnsureVaultRepoArgs } from "./git-bootstrap";
 import { createGitEngine } from "./git-engine";
 import type { GitEngine, GitEngineArgs } from "./git-engine";
 import { seedVault } from "./seed-vault";
+import { entryFingerprintAt, sameEntryFingerprint } from "./vault-changes";
+import type { EntryFingerprint, VaultFilesChange, VaultMutation } from "./vault-changes";
 import { createVaultService, sweepStaleTmpFiles } from "./vault-service";
 import type { VaultService } from "./vault-service";
 import { createVaultWatcher } from "./watcher";
@@ -16,10 +18,9 @@ import type { ParcelWatcherBackend } from "./watcher/parcel-backend";
 
 const DEFAULT_SYNC_INTERVAL_MS = 60_000;
 
+// eviction only: an echo is told by its fingerprint, and one arriving later than this is
+// delivered like any other event.
 const SELF_WRITE_ECHO_WINDOW_MS = 2000;
-
-// "unknown" has no path list (the consolidated post-sync change): a consumer must re-diff.
-export type VaultFilesChange = { kind: "paths"; paths: readonly string[] } | { kind: "unknown" };
 
 export interface VaultRuntimeArgs {
   vaultDir: string;
@@ -68,8 +69,19 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   await ensureVaultRepo(ensureArgs);
   void sweepStaleTmpFilesInBackground(root);
 
-  // watcher batches held back while a sync ran; drained as one notification.
-  let sawChangesDuringSync = false;
+  // what a pass moved and the watcher batches held back while it ran, drained as one
+  // notification when it ends; "unknown" once any of them could not name its paths.
+  let heldDuringSync: Set<string> | "unknown" | null = null;
+  const holdDuringSync = (change: VaultFilesChange): void => {
+    if (change.kind === "unknown" || heldDuringSync === "unknown") {
+      heldDuringSync = "unknown";
+      return;
+    }
+    heldDuringSync ??= new Set();
+    for (const changedPath of change.paths) {
+      heldDuringSync.add(changedPath);
+    }
+  };
 
   // the engine's own status callback reads it back, so it lands in a slot the args close over.
   let engine: GitEngine | null = null;
@@ -79,19 +91,24 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     onError: (message) => {
       console.error(`vault git: ${message}`);
     },
-    onFilesChanged: () => {
-      // mid-sync: hold it with the watcher's batches for the consolidated notification.
-      sawChangesDuringSync = true;
-    },
+    // mid-sync: held with the watcher's batches for the consolidated notification.
+    onFilesChanged: holdDuringSync,
     onStatusChanged: () => {
       args.notifier.notifyVault(["sync-status-changed"]);
-      if (engine !== null && !engine.isSyncing() && sawChangesDuringSync) {
-        sawChangesDuringSync = false;
-        args.notifier.notifyVault(["files-changed"]);
-        // the held-back batches' paths are gone.
-        args.onFilesChanged?.({ kind: "unknown" });
-        engine.scheduleCommit();
+      const held = heldDuringSync;
+      if (engine === null || engine.isSyncing() || held === null) {
+        return;
       }
+      heldDuringSync = null;
+      if (held === "unknown") {
+        args.notifier.notifyVault(["files-changed"]);
+        args.onFilesChanged?.({ kind: "unknown" });
+      } else {
+        const paths = [...held].toSorted();
+        args.notifier.notifyVault(["files-changed"], paths);
+        args.onFilesChanged?.({ kind: "paths", paths });
+      }
+      engine.scheduleCommit();
     },
     remote: args.remote,
     root,
@@ -103,52 +120,69 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   engine = git;
 
   // the mutation already notified directly, so its watcher echo would only double-invalidate.
+  // an event is that echo only while the entry is still the one the mutation left, never by path
+  // alone: a foreign write behind a save (an agent editing the open note) must still land.
   // recursive dir ops may still echo once through their children; not worth tracking a subtree.
-  const recentSelfWrites = new Map<string, number>();
-  const noteSelfWrites = (paths: readonly string[]): void => {
-    const now = Date.now();
-    for (const notePath of paths) {
-      recentSelfWrites.set(notePath, now);
+  const recentSelfWrites = new Map<string, { at: number; left: EntryFingerprint }>();
+  const noteSelfWrites = (mutations: readonly VaultMutation[]): void => {
+    const at = Date.now();
+    for (const mutation of mutations) {
+      recentSelfWrites.set(mutation.path, { at, left: mutation.fingerprint });
     }
   };
-  const stripSelfEchoes = (paths: readonly string[]): string[] => {
+  const stripSelfEchoes = async (paths: readonly string[]): Promise<string[]> => {
     const now = Date.now();
-    for (const [notePath, at] of recentSelfWrites) {
+    for (const [notePath, { at }] of recentSelfWrites) {
       if (now - at > SELF_WRITE_ECHO_WINDOW_MS) {
         recentSelfWrites.delete(notePath);
       }
     }
-    return paths.filter((notePath) => !recentSelfWrites.has(notePath));
+    const echoes = await Promise.all(
+      paths.map(async (notePath) => {
+        const recorded = recentSelfWrites.get(notePath);
+        return (
+          recorded !== undefined &&
+          sameEntryFingerprint(recorded.left, await entryFingerprintAt(path.join(root, notePath)))
+        );
+      }),
+    );
+    return paths.filter((_notePath, index) => echoes[index] !== true);
   };
 
   const service = createVaultService({
     lock: async (work) => await git.runExclusive(work),
     notifier: args.notifier,
-    onMutated: (paths) => {
-      noteSelfWrites(paths);
+    onMutated: (mutations) => {
+      noteSelfWrites(mutations);
+      const paths = mutations.map((mutation) => mutation.path);
       args.onFilesChanged?.({ kind: "paths", paths });
       git.scheduleCommit(paths);
     },
     root,
   });
 
+  let disposed = false;
+  const deliverWatched = async (paths: readonly string[]): Promise<void> => {
+    // stripped first: saves land mid-pass while the network steps run, and their echoes would
+    // otherwise ride every pass's drain.
+    const external = await stripSelfEchoes(paths);
+    if (disposed || external.length === 0) {
+      return;
+    }
+    if (gitIsSyncing()) {
+      holdDuringSync({ kind: "paths", paths: external });
+      return;
+    }
+    args.notifier.notifyVault(["files-changed"], external);
+    args.onFilesChanged?.({ kind: "paths", paths: external });
+    git.scheduleCommit(external);
+  };
+
   let watcher: VaultWatcher | null = null;
   if (args.watch ?? true) {
     const watcherArgs: VaultWatcherArgs = {
       onChanged: (paths) => {
-        // stripped first: saves land mid-pass while the network steps run, and their echoes
-        // would turn every pass's drain into a whole-vault reconcile.
-        const external = stripSelfEchoes(paths);
-        if (external.length === 0) {
-          return;
-        }
-        if (gitIsSyncing()) {
-          sawChangesDuringSync = true;
-          return;
-        }
-        args.notifier.notifyVault(["files-changed"], external);
-        args.onFilesChanged?.({ kind: "paths", paths: external });
-        git.scheduleCommit(external);
+        void deliverWatched(paths);
       },
       onError: (message) => {
         console.error(`vault watcher: ${message}`);
@@ -174,6 +208,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
 
   return {
     async dispose() {
+      disposed = true;
       await watcher?.dispose();
       await git.dispose();
     },

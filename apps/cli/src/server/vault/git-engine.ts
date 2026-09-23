@@ -22,6 +22,7 @@ import {
   runGit,
 } from "./git-run";
 import type { CommitAuthor, NetworkFailure, RunGitOptions } from "./git-run";
+import type { VaultFilesChange } from "./vault-changes";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 
 // a 15s pause ends an editing session, so the log stays answerable ("the version from before
@@ -48,7 +49,8 @@ export interface GitEngineArgs {
   // of a commit, and each announcement costs every client a porcelain read under the repo lock.
   // a flush that fails, and the one that lands after it, move the reported error, so both fire.
   onStatusChanged?: () => void;
-  onFilesChanged?: () => void;
+  // fired mid-pass, when a rebase moved the tree.
+  onFilesChanged?: (change: VaultFilesChange) => void;
   onError?: (message: string) => void;
   quietMs?: number;
   maxWaitMs?: number;
@@ -319,6 +321,22 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return stdout.trim();
   };
 
+  // what a rebase from a clean tree rewrote on disk. --no-renames: a moved note is a path gone
+  // and a path added, and a consumer has to hear about both.
+  const reportMovedTree = async (from: string, to: string): Promise<void> => {
+    let paths: string[];
+    try {
+      const { stdout } = await run(["diff", "--name-only", "-z", "--no-renames", from, to, "--"]);
+      paths = stdout.split("\0").filter((changed) => changed.length > 0);
+    } catch {
+      args.onFilesChanged?.({ kind: "unknown" });
+      return;
+    }
+    if (paths.length > 0) {
+      args.onFilesChanged?.({ kind: "paths", paths });
+    }
+  };
+
   const unmergedPaths = async (): Promise<string[]> => {
     const entries = await porcelain();
     return entries
@@ -365,6 +383,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       lastError =
         `a failed rebase could not be aborted; manual recovery needed: ` +
         `run \`git rebase --abort\` in ${root}, then restart inteligir`;
+      // a tree left mid-rebase is no diff between two commits. a clean abort needs no report:
+      // it puts back the tree the pass started from.
+      args.onFilesChanged?.({ kind: "unknown" });
       return "recorded";
     }
     if (conflictFiles.length > 0) {
@@ -446,8 +467,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     // the push decides what this pass reports.
     lastOutcome = { kind: "none" };
-    if ((await revParse("HEAD")) !== tips.head) {
-      args.onFilesChanged?.();
+    const head = await revParse("HEAD");
+    if (head !== tips.head) {
+      await reportMovedTree(tips.head, head);
     }
     return true;
   };
