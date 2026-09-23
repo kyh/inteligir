@@ -114,6 +114,19 @@ ambient `NODE_ENV`: a packaged install is the production one (`~/.inteligir`,
 `~/Inteligir`, port 4664) and a checkout gets the same per-checkout dev instance
 `pnpm cli serve` derives, so developing never drives your real vault.
 
+## The child's PATH is the login shell's
+
+An app opened from Finder or the Dock inherits launchd's PATH
+(`/usr/bin:/bin:/usr/sbin:/sbin`), which holds neither agent CLI, and the server
+turns the agent off when it cannot find one on PATH. So before the first fork
+the packaged shell runs `$SHELL -ilc` once, reads the PATH it prints, and puts
+those entries ahead of the inherited ones on main's own environment, which every
+child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,
+fails or prints nothing leaves the usual install dirs that exist
+(`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`) in its place. A dev
+launch skips it: its terminal already has the user's PATH. The smoke never runs
+main, so the unit tests are what cover this.
+
 ## Running it
 
 ```bash

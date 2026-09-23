@@ -1107,6 +1107,23 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/desktop/src/spellcheck-state.ts` (the one state),
   `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
 
+- **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST FORK.** A Finder
+  or Dock launch inherits launchd's PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), and
+  the server decides whether the agent runs by finding `claude` or `codex` on
+  PATH (`binaryOnPath`), so the installed app opened the normal way reported
+  no agent while every terminal launch found one. A packaged macOS shell runs
+  `$SHELL -ilc` once (zsh when unset), reads PATH from between two markers so
+  rc-file noise cannot leak in, puts those entries ahead of the inherited ones
+  and assigns the union to main's own `process.env.PATH`: the first child and
+  every vault switch's spread it, so `serverProcessEnv` stays the one channel
+  for the child's own variables. It is asked while Electron readies and capped
+  at 5s; a timeout, a failure or an empty answer adds whichever of
+  `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin` exist instead. The
+  fixed list alone is rejected, as is an `LSEnvironment` PATH in the bundle:
+  neither can know a version manager's directory, and `codex` installed under
+  one is invisible to both. A dev launch is left alone: it comes from a
+  terminal whose PATH is already the user's. `apps/desktop/src/main/login-shell-path.ts`.
+
 ### Desktop workspace surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
