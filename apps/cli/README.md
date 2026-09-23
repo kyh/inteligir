@@ -159,9 +159,11 @@ server `serve` loads. The chunks sit FLAT beside the entry: `src/paths.ts` and
 the two sibling lookups below resolve from whichever file they landed in, so
 every file in `dist/` has to answer them the same way.
 
-Two bundles cannot ride inside the entry and each says why beside itself: the
-vault watcher is a forked CHILD PROCESS and the transcriber is a WORKER THREAD,
-so both need a real file on disk resolved as a sibling of the running entry.
+Three bundles cannot ride inside the entry and each says why beside itself: the
+vault watcher is a forked CHILD PROCESS, and the transcriber and the knowledge
+projector are WORKER THREADS, so each needs a real file on disk resolved as a
+sibling of the running entry. In a checkout the two workers run their `.ts`
+source under tsx's hook instead (`src/server/worker-entry.ts`).
 
 Four trees are staged as CONTENT rather than code: the committed SQL
 migrations, the dialect skills the agent reads with its own shell, the

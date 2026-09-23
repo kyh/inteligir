@@ -3,6 +3,7 @@ import { chmodSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import type { DocProjection } from "@repo/notes/knowledge/projection";
 import { projectDoc } from "@repo/notes/knowledge/projection";
+import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -42,14 +43,14 @@ const docRow = (path: string, content: string) => {
     path,
     projection,
   };
-  return { body: content, row };
+  return { row, search: docSearchColumns(projection, content) };
 };
 
 const seed = (store: SqlKnowledgeStore): void => {
   const alpha = docRow("alpha.md", "# Alpha Note\n\nBody about zebras.\n");
   const beta = docRow("beta.md", "# Beta Note\n\nAlpha appears only in this body.\n");
-  store.upsertDoc(alpha.row, alpha.body);
-  store.upsertDoc(beta.row, beta.body);
+  store.upsertDoc(alpha.row, alpha.search);
+  store.upsertDoc(beta.row, beta.search);
   store.upsertOther("img/pic.png");
 };
 
@@ -176,7 +177,7 @@ describe("the better-sqlite3 knowledge store", () => {
     expect(() => {
       store.transaction(() => {
         const extra = docRow("gamma.md", "# Gamma\n");
-        store.upsertDoc(extra.row, extra.body);
+        store.upsertDoc(extra.row, extra.search);
         throw new Error("boom");
       });
     }).toThrow("boom");
@@ -212,7 +213,7 @@ describe("the better-sqlite3 knowledge store", () => {
     expect(existsSync(dbPath)).toBe(true);
 
     const gamma = docRow("gamma.md", "# Gamma\n\nquokka\n");
-    store.upsertDoc(gamma.row, gamma.body);
+    store.upsertDoc(gamma.row, gamma.search);
     expect(store.search("quokka", 10).map((h) => h.path)).toEqual(["gamma.md"]);
   });
 });

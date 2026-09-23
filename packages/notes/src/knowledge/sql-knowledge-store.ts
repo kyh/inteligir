@@ -11,7 +11,7 @@ import { PROJECTION_VERSION } from "./projection";
 import { parseStoredProjection } from "./projection-row";
 import { searchExcerpt } from "./search-excerpt";
 import type { SearchHit } from "./search-index";
-import { planSearchQuery, stemText } from "./search-query";
+import { planSearchQuery } from "./search-query";
 import type { SearchQueryPlan } from "./search-query";
 import { splitLines } from "./source-lines";
 import type { DocText } from "./text-matches";
@@ -397,36 +397,33 @@ export const createSqlKnowledgeStore = (
 
     transaction,
 
-    upsertDoc(row, body) {
+    upsertDoc(row, search) {
       transaction(() => {
-        const { projection } = row;
         driver.run(
           `INSERT INTO files (path, kind, content_hash, projection)
            VALUES (?, 'doc', ?, ?)
            ON CONFLICT(path) DO UPDATE SET
              kind = 'doc', content_hash = excluded.content_hash,
              projection = excluded.projection`,
-          [row.path, row.contentHash, JSON.stringify(projection)],
+          [row.path, row.contentHash, JSON.stringify(row.projection)],
         );
         const rowid = rowidOf(row.path);
         if (rowid === null) {
           throw new Error("knowledge-store: upserted file row vanished");
         }
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
-        const headings = [...projection.headings, ...projection.aliases].join("\n");
         driver.run(
-          // aliases ride the headings column as a ranking boost; knowledge-index's setDoc must match
           `INSERT INTO search_fts
              (rowid, title, headings, body, title_stems, heading_stems, body_stems, path)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             rowid,
-            projection.title,
-            headings,
-            body,
-            stemText(projection.title),
-            stemText(headings),
-            stemText(body),
+            search.title,
+            search.headings,
+            search.body,
+            search.titleStems,
+            search.headingStems,
+            search.bodyStems,
             row.path,
           ],
         );

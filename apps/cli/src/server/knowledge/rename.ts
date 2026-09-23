@@ -4,7 +4,6 @@
 // so any link the surgery missed or skipped still resolves.
 
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
 import { snapshotDocs } from "./snapshot-docs";
@@ -77,7 +76,13 @@ export const renameNoteWithLinkRewrite = async (
     oldStem !== "" &&
     oldStem.toLowerCase() !== docStem(renamed.path).toLowerCase();
 
-  const edits = computeRenameEdits(docs, allFiles, aliasEntries, fromPath, renamed.path);
+  const edits = await knowledge.renameEdits({
+    aliasEntries,
+    allFiles,
+    docs,
+    from: fromPath,
+    to: renamed.path,
+  });
   const rewritten: string[] = [];
   let aliasRecorded = false;
 

@@ -76,7 +76,8 @@ apps/
                  index and every route over it (search, matches, backlinks,
                  related, unlinked mentions, problems, tags, tag notes) plus
                  the two rewrite sets (note rename, tag rename) over one
-                 snapshot loop. Every app-written file in the data dir
+                 snapshot loop, with the scan behind both on a worker thread.
+                 Every app-written file in the data dir
                  (connectors, connected folders, agent prefs, vault prefs) is a
                  `json-file-store.ts` over `staged-write.ts`; `config.json` is
                  the one file read at boot and never written by the app, except
@@ -769,11 +770,36 @@ rename`.
   announces nothing. A doc whose projection throws (nesting deep enough to
   overflow the parser's stack) is indexed as an other, and the hash of those
   bytes is kept so an unchanged doc is not re-projected by every reconcile;
-  projection runs outside the store transaction so one doc cannot roll back
-  its batch. Rebuilding on either is rejected: the rebuild re-reads the same
-  vault and fails the same way, so it loops. A disposed runtime stops its pass
-  at the next batch boundary and never rebuilds, since a rebuild would reopen
-  the file dispose closed. `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
+  projection runs outside the store transaction, one doc at a time, so one doc
+  cannot roll back its batch. Rebuilding on either is rejected: the rebuild
+  re-reads the same vault and fails the same way, so it loops. A disposed
+  runtime stops its pass at the next step boundary and never rebuilds, since a
+  rebuild would reopen the file dispose closed.
+  `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
+
+- **THE SCAN RUNS ON A WORKER; THE SERVER'S LOOP READS BYTES AND WRITES ROWS.**
+  Projecting a 20k-line note is seconds of synchronous CPU (2.9s measured),
+  every autosave of it re-projects it, and the server's thread also answers
+  every request, the ws bus and the watcher's liveness ping. So
+  `projectDoc`, the stem shadow (`docSearchColumns` in
+  `@repo/notes/knowledge/search-columns`, which the store's `upsertDoc` takes
+  ready-made) and both rewrite sets' byte surgery run on one worker per
+  knowledge runtime (`apps/cli/src/server/knowledge/projection-worker.ts`),
+  spawned on the first job and kept warm, unref'd while idle. What stays on the
+  loop is the read, the hash and the rows, which commit in 16ms slices with a
+  yield between; one doc's FTS insert cannot be split, and is the residual
+  stall. Every frame is parsed by zod on the side that receives it, the
+  projection through the store's own row schema. `dispose()` stops the worker
+  before it awaits the pass, so a pass mid-projection is released, not waited
+  out. No byte cap on what the index projects: by owner decision one is added
+  only if the worker cannot keep up. The build stages the worker as
+  `dist/projection-worker.mjs`; a checkout runs its source under tsx's hook,
+  named rather than inherited (`apps/cli/src/server/worker-entry.ts`, which the
+  transcriber shares), and most suites hand the runtime the same jobs inline
+  (`apps/cli/src/server/knowledge/__tests__/inline-projector.ts`) because a
+  worker booted from source costs seconds. Pinned by `monitorEventLoopDelay`
+  over a 20k-line note in
+  `apps/cli/src/server/knowledge/__tests__/knowledge-runtime.test.ts`.
 
 ### Agents and threads
 

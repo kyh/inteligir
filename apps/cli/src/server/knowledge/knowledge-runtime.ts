@@ -1,7 +1,8 @@
 // announced paths are statted, never resolved through a listing of the whole
 // vault; a change naming no paths is a reconcile — a hash diff over the listing.
 // every query settles pending work first, which is why no `knowledge` ws change
-// kind exists.
+// kind exists. the scan behind every row runs in a worker; this thread reads the
+// bytes and writes the rows.
 
 import nodePath from "node:path";
 import { setImmediate as yieldTurn } from "node:timers/promises";
@@ -13,8 +14,8 @@ import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { notesInTagFamily } from "@repo/notes/knowledge/tag-notes";
 import { relatedNotes } from "@repo/notes/knowledge/related-notes";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
-import { projectDoc } from "@repo/notes/knowledge/projection";
 import type { DocProjection } from "@repo/notes/knowledge/projection";
+import type { DocSearchColumns } from "@repo/notes/knowledge/search-columns";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
@@ -34,6 +35,8 @@ import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-runtime";
 import { messageOf } from "../error-message";
+import type { RenameEditsJob, TagRenameEditsJob } from "./projection-protocol";
+import type { Projector } from "./projector";
 import { createSqliteDriver } from "./sqlite-driver";
 
 const KNOWLEDGE_DB_FILE_NAME = "knowledge.db";
@@ -41,8 +44,13 @@ const KNOWLEDGE_DB_FILE_NAME = "knowledge.db";
 // the watcher already debounces at 200ms; this only coalesces a service-write burst.
 const CHANGE_DEBOUNCE_MS = 100;
 
-// a latency bound on one uninterrupted synchronous unit, not a throughput knob.
+// docs per step (a page of hydration, a round of reads handed to the worker), and so how far a
+// pass runs past dispose().
 const BATCH_DOCS = 200;
+
+// a latency bound on one uninterrupted run of row writes, not a throughput knob: a batch of
+// large docs commits and yields once a slice passes it.
+const WRITE_SLICE_MS = 16;
 
 const READ_CONCURRENCY = 8;
 
@@ -61,6 +69,8 @@ export interface KnowledgeRuntimeArgs {
   dataDir: string;
   vault: KnowledgeVaultReader;
   vaultRoot: string;
+  // owned: dispose() disposes it first, so a pass mid-projection is released, not waited out
+  projector: Projector;
 }
 
 export interface KnowledgeRuntime {
@@ -90,6 +100,9 @@ export interface KnowledgeRuntime {
   renameCandidates: (from: string, to: string) => Promise<string[]>;
   // every doc holding the tag or one nested under it, computed with no reads
   tagRenameCandidates: (from: string) => Promise<string[]>;
+  // the rewrite sets' byte surgery scans every candidate, so it runs where projection does
+  renameEdits: (job: RenameEditsJob) => Promise<Map<string, string>>;
+  tagRenameEdits: (job: TagRenameEditsJob) => Promise<Map<string, string>>;
   readonly lastReconcile: ReconcileStats | null;
   dispose: () => Promise<void>;
 }
@@ -100,8 +113,7 @@ const assertUnhandledVerdict = (verdict: never): never => {
   throw new Error(`unhandled file verdict: ${JSON.stringify(verdict)}`);
 };
 
-// thrown at a batch boundary so a pass stops within one chunk of dispose(), and never read as a
-// failure: nothing is rebuilt for a runtime that is going away.
+// thrown at a step boundary so a pass stops within one step of dispose().
 class PassDisposedError extends Error {
   constructor() {
     super("the knowledge runtime was disposed mid-pass");
@@ -114,6 +126,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     createSqliteDriver(nodePath.join(args.dataDir, KNOWLEDGE_DB_FILE_NAME)),
     args.vaultRoot,
   );
+  const { projector } = args;
   const graph = new LinkGraphIndex();
   const hashes = new Map<string, string>();
   const others = new Set<string>();
@@ -216,36 +229,79 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     others.add(path);
   };
 
-  // projected outside the transaction, one doc at a time: a doc the scan cannot take (a
-  // stack-deep nesting overflows it) costs that doc its searchable row, never the batch.
-  const applyDocUpdates = (updates: readonly DocUpdate[]): void => {
-    const projected: (DocUpdate & { projection: DocProjection })[] = [];
-    for (const update of updates) {
-      try {
-        projected.push({ ...update, projection: projectDoc(update.path, update.content) });
-      } catch (error) {
-        console.warn(`[knowledge] cannot index ${update.path}: ${messageOf(error)}`);
-        indexOther(update.path);
-        unprojectable.set(update.path, update.hash);
-      }
-    }
-    if (projected.length === 0) {
-      return;
-    }
+  interface ProjectedUpdate {
+    path: string;
+    hash: string;
+    projection: DocProjection;
+    search: DocSearchColumns;
+  }
+
+  // one transaction, closed once the slice budget runs out; answers how many docs it wrote
+  const writeSlice = (docs: readonly ProjectedUpdate[]): number => {
+    const began = performance.now();
+    let written = 0;
     store.transaction(() => {
-      for (const doc of projected) {
+      for (const doc of docs) {
         store.upsertDoc(
           { contentHash: doc.hash, path: doc.path, projection: doc.projection },
-          doc.content,
+          doc.search,
         );
+        written += 1;
+        if (performance.now() - began >= WRITE_SLICE_MS) {
+          break;
+        }
       }
     });
-    for (const doc of projected) {
+    for (const doc of docs.slice(0, written)) {
       graph.applyDoc(doc.path, doc.projection);
       others.delete(doc.path);
       hashes.set(doc.path, doc.hash);
       unprojectable.delete(doc.path);
     }
+    return written;
+  };
+
+  const writeDocRows = async (docs: readonly ProjectedUpdate[]): Promise<void> => {
+    let pending = docs;
+    while (pending.length > 0) {
+      pending = pending.slice(writeSlice(pending));
+      if (pending.length > 0) {
+        await yieldTurn();
+        assertLive();
+      }
+    }
+  };
+
+  // the worker projects one doc at a time: a doc the scan cannot take (a stack-deep nesting
+  // overflows it) costs that doc its searchable row, never the batch.
+  const applyDocUpdates = async (updates: readonly DocUpdate[]): Promise<void> => {
+    if (updates.length === 0) {
+      return;
+    }
+    const results = await projector.project(
+      updates.map((update) => ({ content: update.content, path: update.path })),
+    );
+    assertLive();
+    const projected: ProjectedUpdate[] = [];
+    for (const [index, update] of updates.entries()) {
+      const result = results[index];
+      if (result === undefined) {
+        continue;
+      }
+      if (result.kind === "projected") {
+        projected.push({
+          hash: update.hash,
+          path: update.path,
+          projection: result.projection,
+          search: result.search,
+        });
+        continue;
+      }
+      console.warn(`[knowledge] cannot index ${update.path}: ${result.reason}`);
+      indexOther(update.path);
+      unprojectable.set(update.path, update.hash);
+    }
+    await writeDocRows(projected);
   };
 
   type FileVerdict =
@@ -325,7 +381,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
           }
         }
       }
-      applyDocUpdates(updates);
+      await applyDocUpdates(updates);
       if (start + BATCH_DOCS < paths.length) {
         await yieldTurn();
       }
@@ -443,7 +499,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     try {
       await passWork();
     } catch (error) {
-      if (error instanceof PassDisposedError) {
+      // however it ended: dispose() stops the worker under a pass mid-projection, and nothing is
+      // rebuilt for a runtime that is going away.
+      if (disposed) {
         return;
       }
       // rebuild before this pass resolves: a caller awaiting it must not read the nuked index as a success.
@@ -518,6 +576,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async dispose() {
       disposed = true;
       debounce.clear();
+      await projector.dispose();
       try {
         await queuedPass;
         await runningPass;
@@ -577,6 +636,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       return renameCandidates(graph, from, to);
     },
 
+    renameEdits: projector.renameEdits,
+
     async search(params) {
       return await readThroughIndex("search", () =>
         searchVaultNotes(
@@ -601,6 +662,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       await settle();
       return notesInTagFamily(graph, from);
     },
+
+    tagRenameEdits: projector.tagRenameEdits,
 
     async tags() {
       await settle();

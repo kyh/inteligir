@@ -1,9 +1,11 @@
 // The store is a cache: recovery from corruption or a version mismatch is
 // delete-and-rebuild from the vault, so nothing durable may live in it.
-// Synchronous because the sqlite binding behind it is; the host chunks batches.
+// Synchronous because the sqlite binding behind it is; the host chunks batches, and hands
+// upsertDoc a doc already projected and stemmed so a write parses nothing.
 
 import type { SearchResult } from "./knowledge-index";
 import type { DocProjection } from "./projection";
+import type { DocSearchColumns } from "./search-columns";
 import type { SearchHit } from "./search-index";
 import type { DocText } from "./text-matches";
 
@@ -16,7 +18,7 @@ export interface StoredDocRow {
 export interface KnowledgeStore {
   loadAll: () => { docs: StoredDocRow[]; others: { path: string }[] };
 
-  upsertDoc: (row: StoredDocRow, body: string) => void;
+  upsertDoc: (row: StoredDocRow, search: DocSearchColumns) => void;
 
   upsertOther: (path: string) => void;
 

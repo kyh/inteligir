@@ -10,6 +10,7 @@
         "src/**/__tests__/**/*.test.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
         "src/server/voice/transcribe-worker.ts",
+        "src/server/knowledge/projection-worker.ts",
         "scripts/*.mjs"
       ],
       "project": ["src/**/*.ts", "scripts/**/*.mjs"],

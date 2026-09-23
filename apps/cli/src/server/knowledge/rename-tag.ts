@@ -2,7 +2,6 @@
 // writeIfUnchanged, so a doc that changed under the rename loses its rewrite, never its
 // content. Each write is the vault's own, so the auto-commit names the files.
 
-import { computeTagRenameEdits } from "@repo/notes/knowledge/rename-tags";
 import type { KnowledgeRenameTagResponse } from "@repo/api/local/knowledge/knowledge-schema";
 import { snapshotDocs } from "./snapshot-docs";
 import type { VaultService } from "../vault/vault-service";
@@ -10,7 +9,7 @@ import type { KnowledgeRuntime } from "./knowledge-runtime";
 
 export interface RenameTagArgs {
   service: Pick<VaultService, "read" | "writeIfUnchanged">;
-  knowledge: Pick<KnowledgeRuntime, "tagRenameCandidates">;
+  knowledge: Pick<KnowledgeRuntime, "tagRenameCandidates" | "tagRenameEdits">;
   from: string;
   to: string;
 }
@@ -23,7 +22,7 @@ export const renameTagAcrossVault = async (
   const { docs, skipped } = await snapshotDocs(service, candidates);
 
   const rewritten: string[] = [];
-  for (const [path, content] of computeTagRenameEdits(docs, from, to)) {
+  for (const [path, content] of await knowledge.tagRenameEdits({ docs, from, to })) {
     const snapshot = docs.get(path);
     if (snapshot === undefined) {
       continue;

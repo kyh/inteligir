@@ -1,5 +1,7 @@
 import { chmodSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+import { setTimeout as delay } from "node:timers/promises";
 import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
@@ -9,8 +11,12 @@ import { createVaultService } from "../../vault/vault-service";
 import type { VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
 import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "../knowledge-runtime";
+import type { ProjectionResult } from "../projection-protocol";
+import { createProjectionWorker, createProjector } from "../projector";
+import type { Projector } from "../projector";
 import { createSqliteDriver } from "../sqlite-driver";
 import { identityLock } from "../../__tests__/identity-lock";
+import { createInlineProjector } from "./inline-projector";
 
 const searchPaths = async (knowledge: KnowledgeRuntime, query: string): Promise<string[]> => {
   const hits = await knowledge.search({ limit: 10, query });
@@ -29,6 +35,7 @@ const makeDirs = () => {
 const boot = (
   dirs: ReturnType<typeof makeDirs>,
   reader: (service: VaultService) => KnowledgeRuntimeArgs["vault"] = (service) => service,
+  projector: Projector = createInlineProjector(),
 ) => {
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
@@ -39,6 +46,7 @@ const boot = (
   });
   const knowledge = createKnowledgeRuntime({
     dataDir: dirs.dataDir,
+    projector,
     vault: reader(service),
     vaultRoot: dirs.root,
   });
@@ -47,6 +55,25 @@ const boot = (
     await knowledge.dispose();
   });
   return { knowledge, service };
+};
+
+// the scan of this note holds a loop for seconds (2.9s measured, 6s on a loaded machine) and the
+// rows it leaves this thread write in tenths of one, so a loaded machine cannot fail the test and
+// a scan back on this thread cannot pass it
+const EVENT_LOOP_CEILING_MS = 1000;
+// the histogram records the gap between two of its own timer ticks, so the work must sit between
+// ticks: a tick before it, and the timers phase reached once after
+const HISTOGRAM_RESOLUTION_MS = 10;
+
+const hugeNote = (lines: number): string => {
+  const out = ["# Field notes", ""];
+  for (let entry = 0; out.length < lines; entry += 1) {
+    if (entry % 40 === 0) {
+      out.push(`## Day ${entry / 40}`, "");
+    }
+    out.push(`Entry ${entry} saw a quokka near [[Burrow ${entry % 50}]] #field`, "");
+  }
+  return out.join("\n");
 };
 
 const recordingReads =
@@ -136,6 +163,7 @@ describe("the knowledge runtime", () => {
     };
     const knowledge = createKnowledgeRuntime({
       dataDir: dirs.dataDir,
+      projector: createInlineProjector(),
       vault: counted,
       vaultRoot: dirs.root,
     });
@@ -317,23 +345,31 @@ describe("the knowledge runtime", () => {
     expect(knowledge.lastReconcile).toEqual({ projected: 0, removed: 0, unchanged: 3 });
   });
 
-  it("stops a reconcile within a chunk of dispose, and never reopens the index after", async () => {
+  it("stops a reconcile within a step of dispose, and never reopens the index after", async () => {
     const dirs = makeDirs();
-    const docCount = 600;
-    for (let index = 0; index < docCount; index += 1) {
-      writeFileSync(nodePath.join(dirs.root, `n${index}.md`), `# N${index}\n`);
-    }
+    writeFileSync(nodePath.join(dirs.root, "kept.md"), "# Kept\n");
     const reads: string[] = [];
+    let watching = false;
     const firstRead: PromiseWithResolvers<void> = Promise.withResolvers();
     const { knowledge } = boot(dirs, (service) => ({
       ...service,
       readBytes: async (path) => {
-        firstRead.resolve();
+        if (watching) {
+          firstRead.resolve();
+        }
         reads.push(path);
         return await service.readBytes(path);
       },
     }));
+    await knowledge.settle();
 
+    const docCount = 600;
+    for (let index = 0; index < docCount; index += 1) {
+      writeFileSync(nodePath.join(dirs.root, `n${index}.md`), `# N${index}\n`);
+    }
+    reads.splice(0);
+    watching = true;
+    knowledge.noteVaultChange({ kind: "unknown" });
     const settling = knowledge.settle();
     await firstRead.promise;
     await knowledge.dispose();
@@ -345,8 +381,49 @@ describe("the knowledge runtime", () => {
     onTestFinished(() => {
       driver.close();
     });
-    expect(driver.all("SELECT path FROM files LIMIT 1", [])).toHaveLength(1);
+    expect(driver.all("SELECT path FROM files WHERE path = 'kept.md'", [])).toHaveLength(1);
   });
+
+  it("releases a pass mid-projection on dispose, never waiting the projection out", async () => {
+    const dirs = makeDirs();
+    writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n");
+    const projecting: PromiseWithResolvers<void> = Promise.withResolvers();
+    const released: PromiseWithResolvers<ProjectionResult> = Promise.withResolvers();
+    // a projection that never finishes on its own: dispose() hangs unless it stops the projector first
+    const wedged = createProjector({
+      dispose: async () => {
+        released.reject(new Error("disposed"));
+      },
+      run: async () => {
+        projecting.resolve();
+        return await released.promise;
+      },
+    });
+    const { knowledge } = boot(dirs, undefined, wedged);
+
+    const settling = knowledge.settle();
+    await projecting.promise;
+    await knowledge.dispose();
+    await expect(settling).resolves.toBeUndefined();
+  });
+
+  it("keeps the event loop free while a 20k-line note projects", async () => {
+    const { service, knowledge } = boot(makeDirs(), undefined, createProjectionWorker());
+    // the worker boots from source on its first job, and the boot is not what is measured
+    await service.write("warm.md", "# Warm\n");
+    await knowledge.settle();
+
+    const loop = monitorEventLoopDelay({ resolution: HISTOGRAM_RESOLUTION_MS });
+    loop.enable();
+    await delay(HISTOGRAM_RESOLUTION_MS * 2);
+    await service.write("field-notes.md", hugeNote(20_000));
+    const hits = await searchPaths(knowledge, "quokka");
+    await delay(HISTOGRAM_RESOLUTION_MS * 2);
+    loop.disable();
+
+    expect(hits).toEqual(["field-notes.md"]);
+    expect(loop.max / 1e6).toBeLessThan(EVENT_LOOP_CEILING_MS);
+  }, 120_000);
 });
 
 describe("unlinked mentions", () => {

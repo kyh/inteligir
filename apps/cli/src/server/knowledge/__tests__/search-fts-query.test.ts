@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import nodePath from "node:path";
 import { projectDoc } from "@repo/notes/knowledge/projection";
+import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
@@ -17,13 +18,14 @@ const storeWith = (docs: Record<string, string>): SqlKnowledgeStore => {
     store.dispose();
   });
   for (const [path, content] of Object.entries(docs)) {
+    const projection = projectDoc(path, content);
     store.upsertDoc(
       {
         contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
         path,
-        projection: projectDoc(path, content),
+        projection,
       },
-      content,
+      docSearchColumns(projection, content),
     );
   }
   return store;

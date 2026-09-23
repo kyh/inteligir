@@ -16,6 +16,7 @@ import type { CloudTransport } from "../cloud/sync-runtime";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
 import type { AppConfig } from "../config";
+import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
 import { authorizationHeader, LOOPBACK_HOST, loopbackOrigin } from "../server-file";
@@ -99,6 +100,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   };
 
   const ports: ComposePorts = {
+    knowledge: { projector: createInlineProjector() },
     vault: { gitEnv: hermeticGitEnv(), remote: () => null, watch: false },
   };
   if (options.openExternalUrl !== undefined) {
