@@ -1,18 +1,24 @@
 import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultConflict, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { beginAgentTurnWrites } from "../../agents/agent-commits";
 import { ensureVaultRepo } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
 import { GitError, runGit } from "../git-run";
+import { createVaultRuntime } from "../vault-runtime";
+import type { VaultFilesChange } from "../vault-runtime";
+import { createVaultService } from "../vault-service";
+import type { ParcelWatcherBackend, ParcelWatcherEventBatch } from "../watcher/parcel-backend";
 import { boundAddressSchema } from "../../__tests__/bound-address";
 import { hermeticGitEnv } from "./git-test-env";
+import { createNotifierRecorder } from "./notifier-recorder";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 const env = hermeticGitEnv();
@@ -38,12 +44,22 @@ const FAST_COMMIT: AutoCommitTiming = { maxWaitMs: 500, quietMs: 50 };
 const makeEngine = async (args: {
   remoteUrl: string | null;
   timing?: AutoCommitTiming;
-}): Promise<{ root: string; engine: GitEngine; statusChanges: () => number }> => {
+  env?: Record<string, string>;
+}): Promise<{
+  root: string;
+  engine: GitEngine;
+  statusChanges: () => number;
+  filesChanges: () => number;
+}> => {
   const root = scratchDir("inteligir-git-vault-");
   await ensureVaultRepo({ env, root });
   let statusChanges = 0;
+  let filesChanges = 0;
   const engineArgs: GitEngineArgs = {
-    env,
+    env: { ...env, ...args.env },
+    onFilesChanged: () => {
+      filesChanges += 1;
+    },
     onStatusChanged: () => {
       statusChanges += 1;
     },
@@ -55,7 +71,12 @@ const makeEngine = async (args: {
   onTestFinished(async () => {
     await engine.dispose();
   });
-  return { engine, root, statusChanges: () => statusChanges };
+  return {
+    engine,
+    filesChanges: () => filesChanges,
+    root,
+    statusChanges: () => statusChanges,
+  };
 };
 
 const syncState = async (engine: GitEngine): Promise<VaultStatusResponse["state"]> => {
@@ -98,6 +119,39 @@ const awaitCommitCount = async (root: string, count: number): Promise<void> => {
 // only a negative ("no commit follows") waits this out; a coming commit is awaited by count.
 const debounceSettled = async (timing: AutoCommitTiming): Promise<void> => {
   await delay(timing.maxWaitMs + timing.quietMs);
+};
+
+const expectConflict = (status: VaultStatusResponse): VaultConflict => {
+  if (status.state !== "conflict") {
+    throw new Error(`expected a conflict, got ${status.state}`);
+  }
+  return status.conflict;
+};
+
+// A pushes an edit to one note; B commits its own edit to it, which B's next pass meets.
+const divergedPair = async () => {
+  const remote = await makeBareRemote();
+  const a = await makeEngine({ remoteUrl: remote });
+  const b = await makeEngine({ remoteUrl: remote });
+  await a.engine.syncNow();
+  await b.engine.syncNow();
+  await a.engine.syncNow();
+
+  await writeFile(path.join(a.root, "shared.md"), "from A\n", "utf-8");
+  await a.engine.commitNow();
+  await a.engine.syncNow();
+
+  await writeFile(path.join(b.root, "shared.md"), "from B\n", "utf-8");
+  await b.engine.commitNow();
+  return { a, b };
+};
+
+// no checkout writes this date, so a rewrite of the file shows in its mtime.
+const UNTOUCHED = new Date("2020-01-01T00:00:00Z");
+
+const mtimeOf = async (file: string): Promise<number> => {
+  const { mtimeMs } = await stat(file);
+  return mtimeMs;
 };
 
 describe("ensureVaultRepo", () => {
@@ -348,33 +402,44 @@ describe("sync", { timeout: 30_000 }, () => {
   });
 
   it("surfaces diverging edits as a typed conflict and leaves the repo clean", async () => {
-    const remote = await makeBareRemote();
-    const a = await makeEngine({ remoteUrl: remote });
-    const b = await makeEngine({ remoteUrl: remote });
-    await a.engine.syncNow();
-    await b.engine.syncNow();
-    await a.engine.syncNow();
+    const { b } = await divergedPair();
+    const conflict = expectConflict(await b.engine.syncNow());
 
-    await writeFile(path.join(a.root, "shared.md"), "from A\n", "utf-8");
-    await a.engine.commitNow();
-    await a.engine.syncNow();
-
-    await writeFile(path.join(b.root, "shared.md"), "from B\n", "utf-8");
-    await b.engine.commitNow();
-    const status = await b.engine.syncNow();
-
-    expect(status.state).toBe("conflict");
-    if (status.state !== "conflict") {
-      throw new Error("unreachable");
-    }
-    expect(status.conflict.files).toEqual(["shared.md"]);
-    expect(status.conflict.ours.commits).toBeGreaterThanOrEqual(1);
-    expect(status.conflict.theirs.commits).toBeGreaterThanOrEqual(1);
+    expect(conflict.files).toEqual(["shared.md"]);
+    expect(conflict.ours.commits).toBeGreaterThanOrEqual(1);
+    expect(conflict.theirs.commits).toBeGreaterThanOrEqual(1);
 
     await expectCleanRepo(b.root);
     expect(await readFile(path.join(b.root, "shared.md"), "utf-8")).toBe("from B\n");
 
     expect(await reportedState(b.engine)).toBe("conflict");
+  });
+
+  it("leaves a recorded conflict's worktree alone while neither side moves", async () => {
+    const { b } = await divergedPair();
+    expectConflict(await b.engine.syncNow());
+    const shared = path.join(b.root, "shared.md");
+    await utimes(shared, UNTOUCHED, UNTOUCHED);
+    const filesChanges = b.filesChanges();
+
+    expectConflict(await b.engine.syncNow());
+    expect(await mtimeOf(shared)).toBe(UNTOUCHED.getTime());
+    expect(b.filesChanges()).toBe(filesChanges);
+  });
+
+  it("replays a recorded conflict once the remote moves", async () => {
+    const { a, b } = await divergedPair();
+    const first = expectConflict(await b.engine.syncNow());
+    await writeFile(path.join(a.root, "other.md"), "more from A\n", "utf-8");
+    await a.engine.commitNow();
+    await a.engine.syncNow();
+    const shared = path.join(b.root, "shared.md");
+    await utimes(shared, UNTOUCHED, UNTOUCHED);
+
+    const second = expectConflict(await b.engine.syncNow());
+    expect(second.theirs.commits).toBe(first.theirs.commits + 1);
+    expect(await mtimeOf(shared)).not.toBe(UNTOUCHED.getTime());
+    await expectCleanRepo(b.root);
   });
 
   it("says a hold is holding it instead of answering as if a pass ran", async () => {
@@ -412,6 +477,197 @@ describe("sync", { timeout: 30_000 }, () => {
   });
 });
 
+// answers no request: a network dropping every packet, as git sees it short of its own limits.
+const makeSilentRemote = async () => {
+  const server = createServer(() => {
+    /* never answered */
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const requested = once(server, "request");
+  const hangUp = () => {
+    server.closeAllConnections();
+  };
+  onTestFinished(async () => {
+    hangUp();
+    server.close();
+    await once(server, "close");
+  });
+  const { port } = boundAddressSchema.parse(server.address());
+  return { hangUp, requested, url: `http://127.0.0.1:${String(port)}/vault.git` };
+};
+
+// holds a local fetch inside upload-pack while closed, so a test can act between a pass's
+// pre-fetch step and its rebase. the loop also ends with its dir, so a failed test leaks no shell.
+const makeGatedFetch = async () => {
+  const dir = scratchDir("inteligir-git-gate-");
+  const reached = path.join(dir, "reached");
+  const opened = path.join(dir, "open");
+  const script = path.join(dir, "upload-pack.sh");
+  await writeFile(
+    script,
+    [
+      "#!/bin/sh",
+      `: > '${reached}'`,
+      `while [ -d '${dir}' ] && [ ! -e '${opened}' ]; do sleep 0.05; done`,
+      'exec git-upload-pack "$@"',
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  await chmod(script, 0o755);
+  return {
+    close: async () => {
+      await rm(opened, { force: true });
+      await rm(reached, { force: true });
+    },
+    env: {
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "remote.origin.uploadpack",
+      GIT_CONFIG_VALUE_0: script,
+    },
+    open: async () => {
+      await writeFile(opened, "", "utf-8");
+    },
+    reached: async () => {
+      await vi.waitFor(
+        () => {
+          expect(existsSync(reached)).toBe(true);
+        },
+        { timeout: 10_000 },
+      );
+    },
+  };
+};
+
+const scriptedWatcher = () => {
+  let deliver: ((events: ParcelWatcherEventBatch) => void) | null = null;
+  const backend: ParcelWatcherBackend = {
+    subscribe: async (_dir, listener) => {
+      deliver = (events) => {
+        listener(null, events);
+      };
+      return await Promise.resolve({
+        unsubscribe: async () => {
+          await Promise.resolve();
+        },
+      });
+    },
+  };
+  return {
+    backend,
+    emit: (absolutePath: string) => {
+      deliver?.([{ path: absolutePath, type: "update" }]);
+    },
+  };
+};
+
+// far under any network limit, far over a file write.
+const LOCAL_STEP_MS = 5000;
+// past the watcher's debounce, so an echo reaches the runtime before the pass ends.
+const WATCHER_FLUSH_MS = 600;
+
+describe("a pass waiting on the network", { timeout: 30_000 }, () => {
+  it("lets a save through while its fetch hangs", async () => {
+    const remote = await makeSilentRemote();
+    const { engine, root } = await makeEngine({ remoteUrl: remote.url });
+    const service = createVaultService({
+      lock: engine.runExclusive,
+      notifier: createNotifierRecorder(),
+      root,
+    });
+
+    const pass = engine.syncNow();
+    try {
+      await remote.requested;
+      const saved = await Promise.race([
+        service.write("saved.md", "mid-fetch\n").then(() => "written"),
+        delay(LOCAL_STEP_MS, "stalled"),
+      ]);
+      expect(saved).toBe("written");
+      expect(await reportedState(engine)).toBe("syncing");
+    } finally {
+      remote.hangUp();
+    }
+    await expect(pass).resolves.toMatchObject({ state: "offline" });
+  });
+
+  it("ends the pass before its rebase when a turn takes its hold during the fetch", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    const gate = await makeGatedFetch();
+    const b = await makeEngine({ env: gate.env, remoteUrl: remote });
+    await a.engine.syncNow();
+    await gate.open();
+    await b.engine.syncNow();
+    await gate.close();
+
+    await writeFile(path.join(a.root, "from-a.md"), "pushed by A\n", "utf-8");
+    await a.engine.commitNow();
+    await a.engine.syncNow();
+    const headBefore = await runGit(b.root, ["rev-parse", "HEAD"], { env });
+
+    const pass = b.engine.syncNow();
+    await gate.reached();
+    const turn = beginAgentTurnWrites({ git: b.engine, threadId: "thr_mid", turnId: "turn_mid" });
+    try {
+      const ready = await Promise.race([
+        turn.ready.then(() => "ready"),
+        delay(LOCAL_STEP_MS, "stalled"),
+      ]);
+      expect(ready).toBe("ready");
+      await writeFile(path.join(b.root, "agent.md"), "agent writing\n", "utf-8");
+      turn.recordPaths(["agent.md"]);
+    } finally {
+      await gate.open();
+    }
+
+    await expect(pass).resolves.toMatchObject({ state: "held" });
+    const headAfter = await runGit(b.root, ["rev-parse", "HEAD"], { env });
+    expect(headAfter.stdout).toBe(headBefore.stdout);
+    expect(existsSync(path.join(b.root, "from-a.md"))).toBe(false);
+
+    await turn.finish();
+    expect(await lastMessage(b.root)).toBe("agent: vault update");
+    expect(await syncState(b.engine)).toBe("clean");
+    expect(await readFile(path.join(b.root, "from-a.md"), "utf-8")).toBe("pushed by A\n");
+  });
+
+  it("keeps a save's own watcher echo out of the post-pass reconcile", async () => {
+    const remote = await makeSilentRemote();
+    const vaultDir = makeTempDir("inteligir-git-echo-vault-", { realpath: true });
+    const watcher = scriptedWatcher();
+    const changes: VaultFilesChange[] = [];
+    const runtime = await createVaultRuntime({
+      dataDir: scratchDir("inteligir-git-echo-data-"),
+      gitEnv: env,
+      notifier: createNotifierRecorder(),
+      onFilesChanged: (change) => {
+        changes.push(change);
+      },
+      remote: () => ({ source: "explicit", url: remote.url }),
+      syncIntervalMs: null,
+      vaultDir,
+      watcherBackend: watcher.backend,
+    });
+    onTestFinished(async () => {
+      await runtime.dispose();
+    });
+
+    const pass = runtime.syncNow();
+    try {
+      await remote.requested;
+      await runtime.service.write("saved.md", "mid-fetch\n");
+      watcher.emit(path.join(vaultDir, "saved.md"));
+      await delay(WATCHER_FLUSH_MS);
+    } finally {
+      remote.hangUp();
+    }
+    await expect(pass).resolves.toMatchObject({ state: "offline" });
+    expect(changes).toEqual([{ kind: "paths", paths: ["saved.md"] }]);
+  });
+});
+
 describe("runGit", () => {
   const gitEnvValue = async (root: string, name: string): Promise<string> => {
     const { stdout } = await runGit(
@@ -423,11 +679,20 @@ describe("runGit", () => {
   };
 
   it("never lets git ask this process a question", async () => {
-    // a git prompt blocks under the repo lock, stalling every vault write until the timeout.
+    // nobody can answer a git prompt, so it only holds the invocation until the timeout.
     const root = scratchDir("inteligir-git-env-");
     await ensureVaultRepo({ env, root });
     expect(await gitEnvValue(root, "GIT_TERMINAL_PROMPT")).toBe("0");
-    expect(await gitEnvValue(root, "GIT_SSH_COMMAND")).toBe("ssh -o BatchMode=yes");
+    expect(await gitEnvValue(root, "GIT_SSH_COMMAND")).toBe(
+      "ssh -o BatchMode=yes -o ConnectTimeout=20",
+    );
+  });
+
+  it("gives up on a stalled transfer long before the network timeout", async () => {
+    const root = scratchDir("inteligir-git-stall-");
+    await ensureVaultRepo({ env, root });
+    expect(await gitEnvValue(root, "GIT_HTTP_LOW_SPEED_LIMIT")).toBe("1000");
+    expect(await gitEnvValue(root, "GIT_HTTP_LOW_SPEED_TIME")).toBe("30");
   });
 
   it("passes every pathspec literally — the builder carries the flag, not each caller", async () => {

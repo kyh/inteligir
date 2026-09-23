@@ -244,7 +244,7 @@ The list is grouped by the part of the system a decision governs; append a new b
 to the END of its group.
 
 - [Editor and dialect](#editor-and-dialect) — 12
-- [Vault: writes, git and containment](#vault-writes-git-and-containment) — 13
+- [Vault: writes, git and containment](#vault-writes-git-and-containment) — 14
 - [Knowledge: index, search and links](#knowledge-index-search-and-links) — 12
 - [Agents and threads](#agents-and-threads) — 11
 - [Dictation](#dictation) — 6
@@ -544,6 +544,22 @@ to the END of its group.
   run), and restarts nothing: the next `serve` is the switch.
   `apps/desktop/src/main/vaults.ts` (the shell's policy over it),
   `main/index.ts` (`switchVault`), `apps/desktop/src/vaults-state.ts`.
+
+- **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fence and
+  the pre-fetch commit are one locked step, the commit and rebase a second,
+  the account marker a third; the fetch and the push run between them
+  unlocked. Held across the network, the lock made every save and every turn
+  start wait out a dropped connection's timeout. The price is that the world
+  moves during the fetch, so the rebase step re-checks first: a turn that took
+  its hold, or a dispose that ran the final flush, ends the pass there, and a
+  save that landed is committed before the rebase would refuse it. Saves now
+  land mid-pass, so the runtime strips their watcher echoes before asking
+  whether a pass is running. A recorded conflict keeps the two tips it was met
+  between, and a pass where neither moved skips the rebase rather than
+  rewriting the conflicted files every minute. Network git gives up early too:
+  under 1KB/s for 30s, or an ssh connect past 20s
+  (`apps/cli/src/server/vault/git-run.ts`). The split is
+  `apps/cli/src/server/vault/git-engine.ts`.
 
 ### Knowledge: index, search and links
 

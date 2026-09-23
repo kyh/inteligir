@@ -136,12 +136,14 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   if (args.watch ?? true) {
     const watcherArgs: VaultWatcherArgs = {
       onChanged: (paths) => {
-        if (gitIsSyncing()) {
-          sawChangesDuringSync = true;
-          return;
-        }
+        // stripped first: saves land mid-pass while the network steps run, and their echoes
+        // would turn every pass's drain into a whole-vault reconcile.
         const external = stripSelfEchoes(paths);
         if (external.length === 0) {
+          return;
+        }
+        if (gitIsSyncing()) {
+          sawChangesDuringSync = true;
           return;
         }
         args.notifier.notifyVault(["files-changed"], external);

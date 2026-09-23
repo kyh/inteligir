@@ -42,14 +42,21 @@ export type RunGitCommand = (args: readonly string[]) => Promise<{ stdout: strin
 
 export type RunGit = typeof runGit;
 
-// git must never prompt: every invocation runs under the repo lock, so a credential prompt
-// blocks every vault write until the timeout. GIT_TERMINAL_PROMPT=0 covers git; ssh prompts on
-// its own and only BatchMode=yes refuses it, but a caller's own GIT_SSH_COMMAND wins.
-const nonInteractiveGitEnv = (env: NodeJS.ProcessEnv) => {
+// git must never wait on a person or a dead network: nobody answers a prompt, and a dropped
+// connection otherwise holds a sync pass for the whole network timeout. GIT_TERMINAL_PROMPT=0
+// covers git; ssh prompts on its own and only BatchMode=yes refuses it, but a caller's own
+// GIT_SSH_COMMAND wins. the low-speed pair aborts a transfer under 1KB/s for 30s, which
+// includes a server that accepted the connection and never answered.
+const unattendedGitEnv = (env: NodeJS.ProcessEnv) => {
+  const unattended = {
+    GIT_HTTP_LOW_SPEED_LIMIT: "1000",
+    GIT_HTTP_LOW_SPEED_TIME: "30",
+    GIT_TERMINAL_PROMPT: "0",
+  };
   if (env.GIT_SSH_COMMAND === undefined) {
-    return { GIT_SSH_COMMAND: "ssh -o BatchMode=yes", GIT_TERMINAL_PROMPT: "0" };
+    return { ...unattended, GIT_SSH_COMMAND: "ssh -o BatchMode=yes -o ConnectTimeout=20" };
   }
-  return { GIT_TERMINAL_PROMPT: "0" };
+  return unattended;
 };
 
 // execFile's rejection carries the child's stderr as an untyped property.
@@ -65,7 +72,7 @@ export const runGit = async (
   const pending = execFileAsync("git", ["--literal-pathspecs", ...gitArgs], {
     cwd,
     encoding: "utf-8",
-    env: { ...process.env, ...nonInteractiveGitEnv(process.env), ...options.env },
+    env: { ...process.env, ...unattendedGitEnv(process.env), ...options.env },
     maxBuffer: GIT_MAX_BUFFER_BYTES,
     timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
   });
