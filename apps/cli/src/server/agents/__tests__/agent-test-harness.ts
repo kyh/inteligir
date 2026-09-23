@@ -86,4 +86,4 @@ export const fetchTimelineRows = async (
 };
 
 export const flattenTimelineRows = (rows: TimelineRow[]): TimelineRow[] =>
-  rows.flatMap((row) => (row.kind === "turn" ? [row, ...row.children] : [row]));
+  rows.flatMap((row): TimelineRow[] => (row.kind === "turn" ? [row, ...row.children] : [row]));

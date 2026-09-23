@@ -41,7 +41,8 @@ src/
     notifications.ts   # the /ws frame grammar: subscribe/unsubscribe in, hello
                        # and `changed` pings out — never a payload
     thread-timeline.ts # the timeline row grammar, and the delta algebra
-                       # (computeTimelineDelta / applyTimelineDelta)
+                       # (computeTimelineDelta / applyTimelineDelta): rows
+                       # whole, a held turn as a patch of the children that moved
     build-thread-timeline.ts  # the pure fold from stored events into rows —
                        # deterministic, ids included, because the server diffs
                        # two projections into one delta
@@ -118,6 +119,11 @@ src/
   turn-scoped event: a streaming assistant message is turn-scoped but lands
   top-level, and counting it moved the turn row and resent the subtree per
   token.
+- **A held turn moves as a patch, and a command row carries a head.** A turn
+  holds its whole turn's work, so the delta sends its own fields and only the
+  children past the base; a command row carries its first lines and the count
+  of the rest, never the output. Both bound what one streamed token costs on
+  the wire.
 
 ## Seams
 
@@ -138,5 +144,6 @@ single-flight, the approval slot, the byte primitives, the sync clip (every
 event type fits the cap with its envelope untouched), and that the cloud
 vault-path grammar admits exactly what `parseVaultPath` returns unchanged;
 `src/local/__tests__/` the timeline fold and delta algebra (a clipped log
-folds to the same statuses), the `/ws` strict/lenient pair, and the vault and
+folds to the same statuses, a thought streamed into a long turn sends that
+thought alone, a 10k-line output folds to a bounded row), the `/ws` strict/lenient pair, and the vault and
 comments schemas.

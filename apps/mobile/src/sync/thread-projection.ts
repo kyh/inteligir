@@ -2,6 +2,7 @@
 // final text.
 
 import type { StoredThread } from "./sync-store";
+import { settledReasoningText } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 
 export type ThreadDisplayItem =
@@ -74,7 +75,7 @@ const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null =
         return { id: item.id, kind: "agent", text: item.text };
       }
       if (item.type === "reasoning") {
-        const text = [...item.summary, ...item.content].join("\n").trim();
+        const text = settledReasoningText(item).trim();
         return text === "" ? null : { id: item.id, kind: "reasoning", text };
       }
       if (item.type === "plan") {

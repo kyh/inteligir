@@ -1,5 +1,6 @@
 // the row grammar is bb's (github.com/get-bb/bb, MIT); the fold is this repo's own
 
+import { settledReasoningText } from "@repo/domain/provider-event";
 import type {
   ThreadEvent,
   ThreadEventFileChange,
@@ -9,13 +10,16 @@ import type {
   ThreadEventTurnStatus,
 } from "@repo/domain/provider-event";
 import { assertUnreachable } from "./assert-unreachable";
+import { COMMAND_OUTPUT_LINE_CHARS, COMMAND_OUTPUT_LINES } from "./thread-timeline";
 import type {
   ThreadTimeline,
+  TimelineCommandWorkRow,
   TimelineConversationRow,
   TimelineErrorRow,
   TimelineFileChange,
   TimelineRow,
   TimelineRowStatus,
+  TimelineTurnChild,
   TimelineTurnRow,
   TimelineWorkRow,
 } from "./thread-timeline";
@@ -90,25 +94,49 @@ interface TurnAccumulator {
 
 // the sequence a row sorts by travels beside it: a projected item sorts by where its first event
 // landed, which its own sourceSeqStart only coincidentally matches
-interface SequencedRow {
+interface SequencedRow<Row extends TimelineRow> {
   seq: number;
-  row: TimelineRow;
+  row: Row;
 }
 
 type PlacedRow =
-  | { placement: "top-level"; row: TimelineRow }
-  | { placement: "turn"; row: TimelineRow };
+  | { placement: "top-level"; row: TimelineConversationRow }
+  | { placement: "turn"; row: TimelineWorkRow };
 
 const reasoningRowText = (
-  snapshot: { content: readonly string[]; summary: readonly string[] },
+  snapshot: Extract<ThreadEventItem, { type: "reasoning" }>,
   settled: boolean,
   buffer: string,
 ): string => {
-  // summary is the provider's visible thinking text (codex settles with content empty)
-  const completedText = (snapshot.summary.length > 0 ? snapshot.summary : snapshot.content).join(
-    "\n\n",
-  );
+  const completedText = settledReasoningText(snapshot);
   return settled && completedText.length > 0 ? completedText : buffer;
+};
+
+// a cut between a surrogate pair's halves would leave the first half alone
+const LONE_HIGH_SURROGATE_AT_END = /[\uD800-\uDBFF]$/u;
+
+const clipOutputLine = (line: string): string => {
+  const clipped = line.slice(0, COMMAND_OUTPUT_LINE_CHARS);
+  return LONE_HIGH_SURROGATE_AT_END.test(clipped) ? clipped.slice(0, -1) : clipped;
+};
+
+// a trailing newline ends the last line rather than opening an empty one. the lines are counted by
+// a scan rather than split out, since the fold reruns per frame over every output in the thread
+const commandOutput = (
+  output: string,
+): Pick<TimelineCommandWorkRow, "outputHead" | "outputLineCount"> => {
+  const text = output.endsWith("\n") ? output.slice(0, -1) : output;
+  if (text.trim() === "") {
+    return { outputHead: [], outputLineCount: 0 };
+  }
+  let outputLineCount = 1;
+  for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) {
+    outputLineCount += 1;
+  }
+  return {
+    outputHead: text.split("\n", COMMAND_OUTPUT_LINES).map(clipOutputLine),
+    outputLineCount,
+  };
 };
 
 const toTimelineFileChanges = (changes: readonly ThreadEventFileChange[]): TimelineFileChange[] =>
@@ -194,12 +222,12 @@ const projectItem = (accumulator: ItemAccumulator): PlacedRow | null => {
     case "commandExecution": {
       const row: TimelineWorkRow = {
         ...base,
+        ...commandOutput(snapshot.aggregatedOutput ?? accumulator.outputBuffer),
         approvalStatus: snapshot.approvalStatus,
         command: snapshot.command,
         cwd: snapshot.cwd,
         exitCode: snapshot.exitCode ?? null,
         kind: "work",
-        output: snapshot.aggregatedOutput ?? accumulator.outputBuffer,
         status: itemStatusToRowStatus(snapshot.status),
         workKind: "command",
       };
@@ -226,17 +254,17 @@ const projectItem = (accumulator: ItemAccumulator): PlacedRow | null => {
 export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): ThreadTimeline => {
   const ordered = events.toSorted((left, right) => left.sequence - right.sequence);
 
-  const topLevel: SequencedRow[] = [];
+  const topLevel: SequencedRow<TimelineRow>[] = [];
   const turnOrder: string[] = [];
   const turnsByTurnId = new Map<string, TurnAccumulator>();
-  const turnChildren = new Map<string, SequencedRow[]>();
+  const turnChildren = new Map<string, SequencedRow<TimelineTurnChild>[]>();
   const itemOrder: string[] = [];
   const itemsByKey = new Map<string, ItemAccumulator>();
   let tokenUsage: ThreadEventTokenUsage | null = null;
   let maxSequence = 0;
 
   // a row joins a turn only once that turn has started; anything else stays top-level
-  const place = (row: TimelineRow, seq: number, turnId: string | null): void => {
+  const place = (row: TimelineTurnChild, seq: number, turnId: string | null): void => {
     if (turnId === null || !turnsByTurnId.has(turnId)) {
       topLevel.push({ row, seq });
       return;
@@ -369,7 +397,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
           turnId: null,
           viewContext: event.viewContext ?? null,
         };
-        place(row, entry.sequence, null);
+        topLevel.push({ row, seq: entry.sequence });
         break;
       }
       case "turn/started": {
@@ -438,11 +466,11 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
     if (placed === null) {
       continue;
     }
-    place(
-      placed.row,
-      accumulator.sourceSeqStart,
-      placed.placement === "top-level" ? null : accumulator.turnId,
-    );
+    if (placed.placement === "top-level") {
+      topLevel.push({ row: placed.row, seq: accumulator.sourceSeqStart });
+    } else {
+      place(placed.row, accumulator.sourceSeqStart, accumulator.turnId);
+    }
   }
 
   for (const turnId of turnOrder) {

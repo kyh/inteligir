@@ -108,6 +108,12 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
 export type ThreadEventItem = z.infer<typeof threadEventItemSchema>;
 export type ThreadEventItemType = ThreadEventItem["type"];
 
+// summary is the provider's visible thinking and content its raw chain of thought, which codex
+// leaves empty; one reading, so the phone and the desktop show a settled item the same text.
+export const settledReasoningText = (
+  item: Extract<ThreadEventItem, { type: "reasoning" }>,
+): string => (item.summary.length > 0 ? item.summary : item.content).join("\n\n");
+
 const unscopedThreadEventSchema = z.discriminatedUnion("type", [
   z.object({
     threadId: z.string(),

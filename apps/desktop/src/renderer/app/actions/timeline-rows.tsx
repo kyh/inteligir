@@ -14,8 +14,6 @@ import { cn } from "@repo/ui/lib/cn";
 import { memo } from "react";
 import type { ReactNode } from "react";
 
-const COMMAND_OUTPUT_LINES = 40;
-
 const CHANGE_MARKS = {
   add: "+",
   delete: "−",
@@ -37,42 +35,49 @@ const isAction = (row: TimelineRow): boolean =>
   row.kind === "work" &&
   (row.workKind === "command" || row.workKind === "file-change" || row.workKind === "tool");
 
-const thoughtRow = (row: TimelineWorkRow): ReactNode => {
+const countLabel = (count: number, one: string, many: string): string =>
+  count === 1 ? `1 ${one}` : `${String(count)} ${many}`;
+
+const ThoughtRowContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
   if (row.workKind === "reasoning") {
     return row.text.trim() === "" ? null : (
-      <ThinkingReasoning key={row.id} pending={row.status === "pending"}>
+      <ThinkingReasoning pending={row.status === "pending"}>
         {firstLine(row.text)}
       </ThinkingReasoning>
     );
   }
   if (row.workKind === "plan") {
     return row.text.trim() === "" ? null : (
-      <ThinkingStep key={row.id} pending={row.status === "pending"}>
-        Plan: {firstLine(row.text)}
-      </ThinkingStep>
+      <ThinkingStep pending={row.status === "pending"}>Plan: {firstLine(row.text)}</ThinkingStep>
     );
   }
   return null;
 };
 
-const actionChip = (row: TimelineWorkRow): ReactNode => {
+const ActionChipContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
   switch (row.workKind) {
     case "command": {
       const failed = row.exitCode !== null && row.exitCode !== 0;
-      const output =
-        row.output.trim() === "" ? [] : row.output.split("\n").slice(0, COMMAND_OUTPUT_LINES);
+      const lines = row.outputHead.map((line, index) => (
+        <ToolChipDetail key={`${row.id}:${String(index)}`}>{line}</ToolChipDetail>
+      ));
+      const unshown = row.outputLineCount - row.outputHead.length;
+      if (unshown > 0) {
+        lines.push(
+          <ToolChipDetail key={`${row.id}:more`} className="font-sans text-ink-3">
+            {countLabel(unshown, "more line", "more lines")}
+          </ToolChipDetail>,
+        );
+      }
       return (
         <ToolChip
-          key={row.id}
           icon="run"
           label={failed ? `Ran a command — exit ${String(row.exitCode)}` : "Ran a command"}
           chip={firstLine(row.command)}
           mono
           detailMono
         >
-          {output.map((line, index) => (
-            <ToolChipDetail key={`${row.id}:${String(index)}`}>{line}</ToolChipDetail>
-          ))}
+          {lines}
         </ToolChip>
       );
     }
@@ -80,7 +85,6 @@ const actionChip = (row: TimelineWorkRow): ReactNode => {
       const [first] = row.changes;
       return (
         <ToolChip
-          key={row.id}
           icon="write"
           label={
             row.changes.length > 1 ? `Edited ${String(row.changes.length)} files` : "Edited a file"
@@ -104,7 +108,6 @@ const actionChip = (row: TimelineWorkRow): ReactNode => {
     case "tool": {
       return (
         <ToolChip
-          key={row.id}
           icon={row.error === null ? "think" : "read"}
           label={row.error === null ? "Called a tool" : "Tool failed"}
           chip={row.toolName}
@@ -125,8 +128,9 @@ const actionChip = (row: TimelineWorkRow): ReactNode => {
   }
 };
 
-const countLabel = (count: number, one: string, many: string): string =>
-  count === 1 ? `1 ${one}` : `${String(count)} ${many}`;
+// memoized on `row` like the rows that hold them: a patched turn keeps every child it did not carry
+const ThoughtRow = memo(ThoughtRowContent);
+const ActionChip = memo(ActionChipContent);
 
 const ErrorRowView = ({ row }: { row: TimelineErrorRow }) => (
   <div className="text-body text-destructive">
@@ -150,7 +154,9 @@ const TurnRowView = ({ row }: { row: TimelineTurnRow }) => {
     >
       {thoughts.length === 0 ? null : (
         <Thinking working={working} doneLabel={countLabel(thoughts.length, "thought", "thoughts")}>
-          {thoughts.map((child): ReactNode => (child.kind === "work" ? thoughtRow(child) : null))}
+          {thoughts.map((child) =>
+            child.kind === "work" ? <ThoughtRow key={child.id} row={child} /> : null,
+          )}
         </Thinking>
       )}
       {actions.length === 0 ? null : (
@@ -158,7 +164,9 @@ const TurnRowView = ({ row }: { row: TimelineTurnRow }) => {
           summary={countLabel(actions.length, "tool call", "tool calls")}
           defaultExpanded={false}
         >
-          {actions.map((child): ReactNode => (child.kind === "work" ? actionChip(child) : null))}
+          {actions.map((child) =>
+            child.kind === "work" ? <ActionChip key={child.id} row={child} /> : null,
+          )}
         </ToolChipList>
       )}
       {errors.map((child) => (
@@ -204,5 +212,5 @@ const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
   }
 };
 
-// memoized on `row`: `applyTimelineDelta` preserves untouched rows' identity, and a turn row carries its subtree.
+// memoized on `row`: `applyTimelineDelta` preserves untouched rows' identity, and a patched turn its untouched children's.
 export const TimelineRowView = memo(TimelineRowContent);

@@ -934,6 +934,21 @@ agents default`; unset falls back
   together, and a bump re-records (`record:transcripts`,
   `packages/agent-runtime/scripts/record-acp-transcripts.ts`).
 
+- **A TIMELINE DELTA MOVES A HELD TURN AS A PATCH, AND A ROW CARRIES WHAT THE
+  PANEL DRAWS.** A turn holds every command, tool call and thought of its turn,
+  so upserting it whole resent all of them for one streamed token; a held turn
+  travels in `turnPatches` as its status, completion, `sourceSeqEnd` and only
+  the children past the base, with `childOrder` sent when membership moved, and
+  `applyTimelineDelta` keeps every other child the same object, which the
+  panel's memoized chips skip on. A new turn, or any turn when the base is not
+  a prefix, still goes whole. A turn's children are work and error rows alone,
+  so the row grammar is a nested discriminated union and not recursive. A
+  command row carries its first `COMMAND_OUTPUT_LINES` lines, each cut at
+  `COMMAND_OUTPUT_LINE_CHARS`, and the count of the rest, never the output;
+  the event log keeps every byte. Residual: a reasoning row's text and a tool
+  row's result and arguments still ride whole.
+  `packages/api/src/local/thread-timeline.ts`.
+
 ### Dictation
 
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by
