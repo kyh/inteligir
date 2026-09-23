@@ -9,8 +9,8 @@
 //
 // Rows are children, not data: each page of the palette already owns its own filtering and its
 // own row shapes, and a data array would be a second answer to what a row is. A row therefore
-// does not answer for its own position — the list reads document order, the same `syncRows`
-// shape `dropdown-menu.tsx` and `sidebar-menu.tsx` use.
+// does not answer for its own position — the list reads document order through `useRowOrder`,
+// the registry `dropdown-menu.tsx` and `sidebar-menu.tsx` share.
 
 import {
   createContext,
@@ -37,6 +37,8 @@ import { cn } from "@repo/ui/lib/cn";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
+import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
+import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
 import { radiusMap } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
 import { useSize } from "@repo/ui/lib/size-context";
@@ -84,20 +86,15 @@ interface RowMeta {
   onSelect?: (() => void) | undefined;
 }
 
-// The highlighted row as a store: only the row it left, the row it reached, the field and the
-// footer re-render as the pill travels, never the whole list.
-interface HighlightStore {
-  get: () => HTMLElement | null;
-  subscribe: (listener: () => void) => () => void;
-}
-
 interface CommandContextValue {
   listId: string;
   // A row hands the list its element and a ref to its own data; only the list can read the
   // document order of rows that mount and unmount independently of each other.
   registerRow: (element: HTMLElement, meta: RefObject<RowMeta>) => () => void;
   rowCount: number;
-  highlight: HighlightStore;
+  // only the row it left, the row it reached, the field and the footer re-render as the pill
+  // travels, never the whole list
+  highlight: HighlightStore<HTMLElement | null>;
   select: (element: HTMLElement) => void;
   move: (to: 1 | -1 | "first" | "last") => void;
   close: () => void;
@@ -154,77 +151,35 @@ const CommandDialog = ({
   const listId = useId();
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  const { activeIndex, setActiveIndex, itemRects, isMeasured, session, handlers, registerItem } =
+  const { activeIndex, setActiveIndex, itemRects, isMeasured, session, handlers, setItems } =
     useProximityHover(listRef);
 
-  const rowsRef = useRef<Set<HTMLElement>>(new Set());
   const metaRef = useRef<Map<HTMLElement, RefObject<RowMeta>>>(new Map());
-  const registeredCountRef = useRef(0);
-  const [orderedRows, setOrderedRows] = useState<HTMLElement[]>([]);
+  const { rows: orderedRows, registerRow: registerOrderedRow } = useRowOrder(
+    listRef,
+    "[data-command-item]",
+    setItems,
+  );
   // the same rows, readable from a handler that must not re-subscribe when they change
-  const orderedRef = useRef<HTMLElement[]>([]);
+  const orderedRef = useRef<readonly HTMLElement[]>([]);
   useIsoLayoutEffect(() => {
     orderedRef.current = orderedRows;
   }, [orderedRows]);
 
-  const syncRows = useCallback(() => {
-    const list = listRef.current;
-    const sorted =
-      list === null
-        ? []
-        : [...list.querySelectorAll<HTMLElement>("[data-command-item]")].filter((el) =>
-            rowsRef.current.has(el),
-          );
-    setOrderedRows((previous) =>
-      previous.length === sorted.length && previous.every((el, i) => el === sorted[i])
-        ? previous
-        : sorted,
-    );
-    for (const [i, el] of sorted.entries()) {
-      registerItem(i, el);
-    }
-    for (let i = sorted.length; i < registeredCountRef.current; i += 1) {
-      registerItem(i, null);
-    }
-    registeredCountRef.current = sorted.length;
-  }, [registerItem]);
-
   const registerRow = useCallback(
     (element: HTMLElement, meta: RefObject<RowMeta>) => {
-      rowsRef.current.add(element);
       metaRef.current.set(element, meta);
-      syncRows();
+      const unregister = registerOrderedRow(element);
       return () => {
-        rowsRef.current.delete(element);
         metaRef.current.delete(element);
-        syncRows();
+        unregister();
       };
     },
-    [syncRows],
+    [registerOrderedRow],
   );
 
-  // the highlight as an element, published right after each commit
-  const activeElRef = useRef<HTMLElement | null>(null);
-  const listenersRef = useRef(new Set<() => void>());
-  const highlight = useMemo<HighlightStore>(
-    () => ({
-      get: () => activeElRef.current,
-      subscribe: (listener) => {
-        listenersRef.current.add(listener);
-        return () => {
-          listenersRef.current.delete(listener);
-        };
-      },
-    }),
-    [],
-  );
   const activeEl = activeIndex === null ? null : (orderedRows.at(activeIndex) ?? null);
-  useIsoLayoutEffect(() => {
-    activeElRef.current = activeEl;
-    for (const listener of listenersRef.current) {
-      listener();
-    }
-  }, [activeEl]);
+  const highlight = useHighlightStore(activeEl);
 
   // The list is its own scroller, so a keyboard move scrolls it here, the moment the move is
   // decided: a move onto the row already highlighted (↓ in a one-row list, a query that keeps
@@ -301,7 +256,7 @@ const CommandDialog = ({
       if (to === "last") {
         next = last;
       } else if (to === 1 || to === -1) {
-        const { current } = activeElRef;
+        const current = highlight.get();
         const position =
           current === null ? -1 : enabled.indexOf(orderedRef.current.indexOf(current));
         if (position === -1) {
@@ -314,7 +269,7 @@ const CommandDialog = ({
       setActiveIndex(next);
       scrollToRow(next, "center");
     },
-    [isDisabled, setActiveIndex, scrollToRow],
+    [isDisabled, highlight, setActiveIndex, scrollToRow],
   );
 
   const close = useCallback(() => {
@@ -329,16 +284,11 @@ const CommandDialog = ({
     meta.onSelect?.();
   }, []);
 
-  const setListNode = useCallback(
-    (node: HTMLDivElement | null) => {
-      listRef.current = node;
-      if (node !== null) {
-        // the rows that registered before the list had a node have no document order yet
-        syncRows();
-      }
-    },
-    [syncRows],
-  );
+  // the rows register before the list's own ref attaches, and their order is read a commit
+  // later, so the node needs no sync of its own
+  const setListNode = useCallback((node: HTMLDivElement | null) => {
+    listRef.current = node;
+  }, []);
 
   const ctx = useMemo<CommandContextValue>(
     () => ({
@@ -661,11 +611,7 @@ const CommandItem = ({
     return registerRow(rowEl, metaRef);
   }, [registerRow, rowEl]);
 
-  const isActive = useSyncExternalStore(
-    highlight.subscribe,
-    () => rowEl !== null && highlight.get() === rowEl,
-    () => false,
-  );
+  const isActive = useHighlighted(highlight, (active) => rowEl !== null && active === rowEl);
 
   return (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the keyboard path is the field's: it holds focus and runs this row through aria-activedescendant

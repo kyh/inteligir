@@ -20,6 +20,8 @@ import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
+import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
+import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
 import { radiusMap } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
@@ -53,7 +55,7 @@ interface DropdownItemsContextValue {
   // a row hands the popup its element; the popup keeps the ordering, since only it can read the
   // document order of rows that mount and unmount independently of each other
   registerRow: (element: HTMLElement) => () => void;
-  activeRowEl: HTMLElement | null;
+  highlight: HighlightStore<HTMLElement | null>;
 }
 
 const DropdownItemsContext = createContext<DropdownItemsContextValue | null>(null);
@@ -149,46 +151,14 @@ const DropdownMenuContent = ({
   const { open, actionsRef } = useDropdownMenuContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const { activeIndex, setActiveIndex, itemRects, session, handlers, registerItem, measureItems } =
+  const { activeIndex, setActiveIndex, itemRects, session, handlers, setItems, measureItems } =
     useProximityHover(containerRef);
-  const rowsRef = useRef<Set<HTMLElement>>(new Set());
-  const registeredCountRef = useRef(0);
-  const [orderedRows, setOrderedRows] = useState<HTMLElement[]>([]);
-
-  // the document's own order, read from the popup: a conditional row changes where its siblings
-  // sit without re-rendering them, so no row can answer for its own position
-  const syncRows = useCallback(() => {
-    const container = containerRef.current;
-    const sorted =
-      container === null
-        ? []
-        : [...container.querySelectorAll<HTMLElement>("[data-dropdown-menu-item]")].filter((el) =>
-            rowsRef.current.has(el),
-          );
-    setOrderedRows((previous) =>
-      previous.length === sorted.length && previous.every((el, i) => el === sorted[i])
-        ? previous
-        : sorted,
-    );
-    for (const [i, el] of sorted.entries()) {
-      registerItem(i, el);
-    }
-    for (let i = sorted.length; i < registeredCountRef.current; i += 1) {
-      registerItem(i, null);
-    }
-    registeredCountRef.current = sorted.length;
-  }, [registerItem]);
-
-  const registerRow = useCallback(
-    (element: HTMLElement) => {
-      rowsRef.current.add(element);
-      syncRows();
-      return () => {
-        rowsRef.current.delete(element);
-        syncRows();
-      };
-    },
-    [syncRows],
+  // a conditional row changes where its siblings sit without re-rendering them, so the popup
+  // reads the order, never a row
+  const { rows: orderedRows, registerRow } = useRowOrder(
+    containerRef,
+    "[data-dropdown-menu-item]",
+    setItems,
   );
   const {
     onMouseEnter: handleMouseEnter,
@@ -248,7 +218,8 @@ const DropdownMenuContent = ({
   }, [open, measureItems]);
 
   const activeRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
-  const itemsCtx = useMemo(() => ({ activeRowEl, registerRow }), [registerRow, activeRowEl]);
+  const highlight = useHighlightStore(activeRowEl);
+  const itemsCtx = useMemo(() => ({ highlight, registerRow }), [registerRow, highlight]);
 
   return (
     <Menu.Portal>
@@ -383,7 +354,7 @@ const DropdownMenuItem = ({
 }: DropdownMenuItemProps) => {
   // state, not a ref: `isActive` compares it while rendering, and a ref read there is not reactive
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
-  const { registerRow, activeRowEl } = useDropdownItems();
+  const { registerRow, highlight } = useDropdownItems();
   const sizeClasses = useSize();
 
   useIsoLayoutEffect(() => {
@@ -393,7 +364,7 @@ const DropdownMenuItem = ({
     return registerRow(rowEl);
   }, [registerRow, rowEl]);
 
-  const isActive = rowEl !== null && activeRowEl === rowEl;
+  const isActive = useHighlighted(highlight, (active) => rowEl !== null && active === rowEl);
   const activeTone = isActive ? "text-foreground" : "text-muted-foreground";
 
   return (
