@@ -96,6 +96,34 @@ describe("appendEventsInTransaction", () => {
     expect(listStoredThreadEvents(db, { afterSequence: 1, threadId: thread.id })).toHaveLength(1);
   });
 
+  it("leaves out and reports a stored row this build's grammar refuses, keeping the rest", () => {
+    const { db } = openTempDbWithPath();
+    const thread = createThread(db, noopNotifier, {});
+    append(db, [turnStarted(thread.id, "turn_1")]);
+    // what a newer build sharing the data dir writes: a type this grammar has never seen.
+    db.$client
+      .prepare(
+        `INSERT INTO events (id, thread_id, scope_kind, turn_id, sequence, type, data, created_at)
+         VALUES ('evt_newer', ?, 'thread', NULL, 2, 'item/fromANewerBuild', ?, 0)`,
+      )
+      .run(
+        thread.id,
+        JSON.stringify({ scope: threadScope(), threadId: thread.id, type: "item/fromANewerBuild" }),
+      );
+    append(db, [agentDelta(thread.id, "turn_1", "after")]);
+
+    const skipped: { sequence: number; type: string }[] = [];
+    const stored = listStoredThreadEvents(db, {
+      onSkipped: (row) => {
+        skipped.push(row);
+      },
+      threadId: thread.id,
+    });
+    expect(stored.map((entry) => entry.sequence)).toEqual([1, 3]);
+    expect(skipped).toEqual([{ sequence: 2, type: "item/fromANewerBuild" }]);
+    expect(listStoredThreadEvents(db, { afterSequence: 1, threadId: thread.id })).toHaveLength(1);
+  });
+
   it("enforces the scope CHECK at the database, not only at parse", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});

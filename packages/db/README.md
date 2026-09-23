@@ -107,6 +107,13 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   names another account's row. SQLite treats nulls as distinct there, so
   locally written rows coexist. `appendSyncedEventsInTransaction` answers the
   rows that LANDED, not a count, so lifecycle projects over what landed.
+- **A stored row this build cannot read costs that row, never the thread.** No
+  CHECK constrains `events.type` and a new event type ships without a
+  migration, so a newer build sharing the data dir can leave a row this
+  grammar refuses. `listStoredThreadEvents` leaves it out and reports it
+  through `onSkipped`; the timeline projector
+  (`apps/cli/src/server/threads/timeline-projection.ts`) warns once and reads
+  past it.
 - **The outbox stores the bytes it will send, once, at enqueue.** The log
   calls a position replayed with a different body `sync-conflict`, so
   re-serializing at push time is not a retry. `device_seq` is its own counter
@@ -162,9 +169,10 @@ and bumps the version, upgrades a POPULATED v2 file in place with its child
 rows and foreign keys intact, refuses a newer build's file, opens with WAL and
 `synchronous=NORMAL`, hands a deleted row's pages back on close; contiguous
 sequences under interleaved writers, the turn/started gate, the scope CHECK at
-the database, a 20-event burst prepares two SELECTs and one INSERT; the
-lifecycle happy path and its typed no-ops, a folder rebind a write refuses
-partway moving nothing, `listThreads` answered from its partial indexes with
-no temp b-tree; FIFO claims across connections and same-millisecond bursts;
-interaction idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so
-it carries its own 30s budget.
+the database, a 20-event burst prepares two SELECTs and one INSERT, a stored
+row the grammar refuses left out and reported; the lifecycle happy path and
+its typed no-ops, a folder rebind a write refuses partway moving nothing,
+`listThreads` answered from its partial indexes with no temp b-tree; FIFO
+claims across connections and same-millisecond bursts; interaction
+idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so it carries
+its own 30s budget.

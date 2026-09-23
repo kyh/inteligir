@@ -224,17 +224,41 @@ export const appendSyncedEventsInTransaction = (
   return { ...appendInTransaction(tx, applied), applied };
 };
 
+export interface UnreadableStoredEvent {
+  sequence: number;
+  type: string;
+}
+
 export interface ListStoredThreadEventsArgs {
   threadId: string;
   afterSequence?: number;
+  // a newer build sharing this data dir can store a type this build's grammar has never seen, and
+  // no migration fences it: the row is left out and reported, never thrown for the whole thread.
+  onSkipped?: (row: UnreadableStoredEvent) => void;
 }
+
+const readStoredEvent = (data: string): ThreadEvent | null => {
+  let json: unknown;
+  try {
+    json = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  const parsed = threadEventSchema.safeParse(json);
+  return parsed.success ? parsed.data : null;
+};
 
 export const listStoredThreadEvents = (
   db: DbConnection,
   args: ListStoredThreadEventsArgs,
 ): StoredThreadEvent[] => {
   const rows = db
-    .select({ createdAt: events.createdAt, data: events.data, sequence: events.sequence })
+    .select({
+      createdAt: events.createdAt,
+      data: events.data,
+      sequence: events.sequence,
+      type: events.type,
+    })
     .from(events)
     .where(
       args.afterSequence === undefined
@@ -243,11 +267,16 @@ export const listStoredThreadEvents = (
     )
     .orderBy(events.sequence)
     .all();
-  return rows.map((row) => ({
-    createdAt: row.createdAt,
-    event: threadEventSchema.parse(JSON.parse(row.data)),
-    sequence: row.sequence,
-  }));
+  const stored: StoredThreadEvent[] = [];
+  for (const row of rows) {
+    const event = readStoredEvent(row.data);
+    if (event === null) {
+      args.onSkipped?.({ sequence: row.sequence, type: row.type });
+      continue;
+    }
+    stored.push({ createdAt: row.createdAt, event, sequence: row.sequence });
+  }
+  return stored;
 };
 
 // crash recovery asks this before failing a turn: a turn another device started is running
