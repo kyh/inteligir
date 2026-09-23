@@ -172,4 +172,12 @@ export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
   id: text("id").primaryKey(),
   appliedAt: integer("applied_at").notNull(),
 });
+
+// every device id this install has signed in as. the log keeps a sign-in's rows after it ends,
+// and this install already holds them as local events with a null origin, which the origin
+// dedupe cannot see; a pull skips a row under any of these ids. outlives a sign-out on purpose:
+// forgetting an id re-applies everything written under it.
+export const syncOwnDevices = sqliteTable("sync_own_devices", {
+  deviceId: text("device_id").primaryKey(),
+});
 /* oxlint-enable sort-keys */

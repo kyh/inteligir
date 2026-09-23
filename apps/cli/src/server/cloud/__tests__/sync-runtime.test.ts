@@ -12,7 +12,8 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { CAPTURE_INBOX_PATH } from "../captures";
 import type { CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
-import { readDeviceCredential } from "../credential-store";
+import { readDeviceCredential, writeDeviceCredential } from "../credential-store";
+import type { DeviceCredential } from "../credential-store";
 import type { SyncedEventSink } from "../sync-pass";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime, CloudTransport, LoginOutcome } from "../sync-runtime";
@@ -78,9 +79,14 @@ const makeHarness = (
     fetch?: CloudFetch;
     pollIntervalMs?: number | null;
     cloud?: FakeCloud;
+    /** on disk before the runtime boots, as a restart finds it. */
+    credential?: DeviceCredential;
   } = {},
 ): Harness => {
   const dataDir = makeTempDir("inteligir-sync-");
+  if (options.credential !== undefined) {
+    writeDeviceCredential(dataDir, options.credential);
+  }
   const db = createConnection(nodePath.join(dataDir, "inteligir.db"));
   runMigrations(db);
   const cloud = options.cloud ?? new FakeCloud();
@@ -630,5 +636,25 @@ describe("applying the account's log", () => {
     expect(reader.applied[0]?.threadId).toBe("thr_shared");
     expect(reader.applied[0]?.events[0]).toEqual(message("thr_shared", "from the writer"));
     expect(reader.applied[0]?.cursor).toBe(1);
+  });
+
+  it("skips rows written under the id it booted with, after signing in again", async () => {
+    const cloud = new FakeCloud();
+    const earlier = makeHarness({ cloud, pollIntervalMs: null });
+    await signIn(earlier);
+    append(earlier, [message("thr_mine", "written under the first sign-in")]);
+    await earlier.runtime.syncNow();
+    const credential = readDeviceCredential(earlier.dataDir);
+    if (credential === null) {
+      throw new Error("expected a stored credential");
+    }
+
+    // a database that never saw the sign-in happen: only the boot can have recorded its id.
+    const restarted = makeHarness({ cloud, credential, pollIntervalMs: null });
+    const again = await loginAs(restarted.runtime, "Laptop again");
+    expect(again.kind).toBe("logged-in");
+
+    expect(restarted.applied).toEqual([]);
+    expect(readSyncState(restarted.db).cursor).toBe(1);
   });
 });

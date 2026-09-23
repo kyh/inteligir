@@ -193,11 +193,11 @@ const pageLoop = (args: {
         return args.results.shift() ?? ok({ events: [], hasMore: false, lastSeq: loop.cursor });
       },
     },
-    deviceId: "dev_self",
     fenced: args.fenced ?? (() => true),
     onSkipped: (message) => {
       loop.skipped.push(message);
     },
+    ownDeviceIds: new Set(["dev_self"]),
     readCursor: () => loop.cursor,
     recordFailure: args.recordFailure ?? (() => "continue"),
   };
@@ -258,8 +258,8 @@ describe("pullPages", () => {
         applied.push([...steps]);
       },
       client: { pull: async () => await held },
-      deviceId: "dev_1",
       fenced: () => session.fenced(sessionId),
+      ownDeviceIds: new Set(["dev_1"]),
       readCursor: () => 0,
       recordFailure: session.recordFailure,
     });

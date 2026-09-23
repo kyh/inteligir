@@ -871,6 +871,10 @@ agents default`; unset falls back
   what makes the apply exactly-once. Signing in again resets the cursor, so a synced
   row also carries `events.origin_device_id` / `origin_device_seq` under a
   unique index, keyed `(device, position)` rather than the account-global `seq`.
+  A row this install wrote carries no origin, so that index cannot catch its own
+  rows coming back: the planner skips every device id the install has signed in
+  as (`sync_own_devices`, recorded at boot and at sign-in, kept by a sign-out),
+  not only the current one, because each sign-in mints a new id.
   Lifecycle projects over what landed, never what arrived.
   `apps/cli/src/server/cloud/sync-pass.ts`.
 

@@ -103,7 +103,7 @@ export const MAX_PULL_PAGES_PER_PASS = 25;
 export interface PullPagesArgs {
   // captured at the top of the pass, never re-read.
   client: Pick<CloudClient, "pull">;
-  deviceId: string;
+  ownDeviceIds: ReadonlySet<string>;
   // re-checked before the request and before the apply: a page that arrived under an ended
   // session may belong to another account.
   fenced: () => boolean;
@@ -129,7 +129,7 @@ export const pullPages = async (args: PullPagesArgs): Promise<boolean> => {
     if (!result.ok) {
       return args.recordFailure(result.failure) === "continue";
     }
-    const plan = planPage(result.value.events, args.deviceId);
+    const plan = planPage(result.value.events, args.ownDeviceIds);
     for (const message of plan.skipped) {
       args.onSkipped?.(message);
     }
