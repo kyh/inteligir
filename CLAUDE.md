@@ -727,6 +727,18 @@ rename`.
   fact, and says `listed of total` while cut.
   `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`.
 
+- **A DOC THE INDEX CANNOT READ OR PROJECT COSTS THAT DOC, NEVER THE INDEX.**
+  A read refused for any reason but not-found or over-the-cap (EACCES, EIO)
+  keeps the doc's last row and is retried by every pass, since a permission fix
+  announces nothing. A doc whose projection throws (nesting deep enough to
+  overflow the parser's stack) is indexed as an other, and the hash of those
+  bytes is kept so an unchanged doc is not re-projected by every reconcile;
+  projection runs outside the store transaction so one doc cannot roll back
+  its batch. Rebuilding on either is rejected: the rebuild re-reads the same
+  vault and fails the same way, so it loops. A disposed runtime stops its pass
+  at the next batch boundary and never rebuilds, since a rebuild would reopen
+  the file dispose closed. `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
+
 ### Agents and threads
 
 - **A turn row's `sourceSeqEnd` names its own contributors**, not every
