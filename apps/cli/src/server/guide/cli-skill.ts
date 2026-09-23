@@ -121,7 +121,8 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   created but its first turn fails, the failure names the new id so you can
   retry or archive it.
 - \`inteligir action send <id> <prompt>\` — send a follow-up; starts a turn
-  when the action is idle, queues behind a running one otherwise.
+  when the action is idle, queues behind a running one otherwise. A message
+  still waiting in the queue always starts before a later send.
 - \`inteligir action show <id>\` — action detail plus the compact timeline
   (turns, commands, file changes, messages).
 - \`inteligir action wait <id>\` — block until the action settles. Exit code

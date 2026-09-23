@@ -86,6 +86,8 @@ export type SendOutcome =
   | { kind: "provider-unavailable"; message: string }
   | { kind: "dispatch-failed" };
 
+type QueuedSendOutcome = Extract<SendOutcome, { kind: "queued" }>;
+
 type SendDecision =
   | {
       kind: "dispatch";
@@ -94,6 +96,8 @@ type SendDecision =
       text: string;
       viewContext: ViewContext | undefined;
     }
+  // the queue's head starts, and the send that found it answers for its own message, queued behind it.
+  | { kind: "drain"; claimed: ClaimedQueuedThreadMessageRow; outcome: QueuedSendOutcome }
   | { kind: "done"; outcome: SendOutcome };
 
 export type AnswerInteractionOutcome =
@@ -203,10 +207,10 @@ const queueInTransaction = (
   threadId: string,
   text: string,
   buffer: NotificationBuffer,
-): SendDecision => {
+): QueuedSendOutcome => {
   const queued = createQueuedThreadMessageInTransaction(tx, { text, threadId });
   buffer.notifyThread(threadId, ["queue-changed"]);
-  return { kind: "done", outcome: { kind: "queued", queuedMessageId: queued.id } };
+  return { kind: "queued", queuedMessageId: queued.id };
 };
 
 export class ThreadService implements ProviderEventSink {
@@ -227,7 +231,7 @@ export class ThreadService implements ProviderEventSink {
   // a method rather than constructor work because it writes.
   boot(): void {
     // before the sweep: a claim held by the dead process hides its message from
-    // both the queue read and the next drain. a swept row does not auto-dispatch.
+    // both the queue read and the next drain. a swept row does not auto-dispatch: the next send starts it first.
     releaseAllQueuedMessageClaims(this.db);
     this.recoverWedgedThreads();
   }
@@ -291,10 +295,19 @@ export class ThreadService implements ProviderEventSink {
       this.resolveSendInTransaction(tx, request, buffer),
     );
     buffer.flushTo(this.notifier);
-    if (decision.kind === "dispatch") {
-      return this.dispatchTurn(decision);
+    switch (decision.kind) {
+      case "dispatch": {
+        return this.dispatchTurn(decision);
+      }
+      case "drain": {
+        this.dispatchQueuedMessage(request.threadId, decision.claimed);
+        return decision.outcome;
+      }
+      case "done": {
+        return decision.outcome;
+      }
+      // no default
     }
-    return decision.outcome;
   }
 
   private resolveSendInTransaction(
@@ -326,12 +339,28 @@ export class ThreadService implements ProviderEventSink {
     switch (thread.status) {
       case "idle":
       case "error": {
-        return this.prepareTurnInTransaction(tx, thread, request.text, request.viewContext, buffer);
+        // a message left in line (a restart, a remote settle, a failed dispatch) goes
+        // first: starting this one ahead of it would run the older one after an unrelated turn.
+        const head = claimNextQueuedThreadMessageInTransaction(tx, thread.id);
+        if (head === null) {
+          return this.prepareTurnInTransaction(
+            tx,
+            thread,
+            request.text,
+            request.viewContext,
+            buffer,
+          );
+        }
+        return {
+          claimed: head,
+          kind: "drain",
+          outcome: queueInTransaction(tx, thread.id, request.text, buffer),
+        };
       }
       case "active":
       case "starting":
       case "stopping": {
-        return queueInTransaction(tx, thread.id, request.text, buffer);
+        return { kind: "done", outcome: queueInTransaction(tx, thread.id, request.text, buffer) };
       }
       // no default
     }
@@ -492,7 +521,7 @@ export class ThreadService implements ProviderEventSink {
 
   private ingest(
     args:
-      | { origin: "local"; threadId: string; events: readonly ThreadEvent[] }
+      | { origin: "local" | "recovery"; threadId: string; events: readonly ThreadEvent[] }
       | { origin: "remote"; threadId: string; rows: readonly SyncedEventInput[]; cursor: number },
   ): void {
     const { threadId } = args;
@@ -543,7 +572,10 @@ export class ThreadService implements ProviderEventSink {
           continue;
         }
         buffer.notifyThread(threadId, ["status-changed"]);
-        if (outcome.thread.status === "idle" && args.origin === "local") {
+        // a queued reply follows the turn it waited on however that turn ended. a recovery
+        // settle does not drain: a restart never starts a turn on its own, and the next send takes the head.
+        const settled = outcome.thread.status === "idle" || outcome.thread.status === "error";
+        if (settled && args.origin === "local") {
           const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
           if (claimed !== null) {
             buffer.notifyThread(threadId, ["queue-changed"]);
@@ -613,15 +645,19 @@ export class ThreadService implements ProviderEventSink {
         // a crash between run.preparing and run.started: no turn to complete, so the failure names none.
         this.failTurnlessRun(thread.id, message);
       } else {
-        this.ingestProviderEvents(thread.id, [
-          { message, scope: threadScope(), threadId: thread.id, type: "provider/error" },
-          {
-            scope: turnScope(activeTurnId),
-            status: "failed",
-            threadId: thread.id,
-            type: "turn/completed",
-          },
-        ]);
+        this.ingest({
+          events: [
+            { message, scope: threadScope(), threadId: thread.id, type: "provider/error" },
+            {
+              scope: turnScope(activeTurnId),
+              status: "failed",
+              threadId: thread.id,
+              type: "turn/completed",
+            },
+          ],
+          origin: "recovery",
+          threadId: thread.id,
+        });
       }
       // the provider requests behind these rows died with the old process; a restarted provider raises fresh rows.
       interruptOpenPendingInteractions(this.db, this.notifier, thread.id);

@@ -1,7 +1,11 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
-import { claimNextQueuedThreadMessage, listQueuedThreadMessages } from "@repo/db/queued-messages";
+import {
+  claimNextQueuedThreadMessage,
+  listQueuedThreadMessages,
+  releaseAllQueuedMessageClaims,
+} from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
@@ -16,6 +20,7 @@ import { unavailableTurnDriver } from "../threads/turn-driver";
 import { authorizationHeader } from "../server-file";
 import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import type { BootedTestApp } from "./boot-app";
+import { FakeTurnDriver } from "./fake-turn-driver";
 
 type ThreadsClient = BootedTestApp["client"];
 
@@ -264,6 +269,77 @@ describe("the queue drain", () => {
         .filter((row) => row.kind === "conversation" && row.role === "user")
         .map((row) => (row.kind === "conversation" ? row.text : "")),
     ).toEqual(["first", "q1", "q2"]);
+  });
+
+  it("drains a queued message after the turn it waited on fails", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    await client.threads.send({ text: "queued", threadId });
+
+    driver.completeTurn(threadId, started.turnId, "failed");
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued"]);
+    expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+  });
+
+  it("starts a stranded message before the send that found it, which queues behind", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    await client.threads.send({ text: "queued", threadId });
+    // a drain the previous process claimed and never finished: the settle finds nothing to start.
+    claimNextQueuedThreadMessage(db, noopNotifier, threadId);
+    driver.completeTurn(threadId, started.turnId, "completed");
+    releaseAllQueuedMessageClaims(db);
+    expect(await getThreadStatus(client, threadId)).toBe("idle");
+
+    const later = await client.threads.send({ text: "later", threadId });
+    expect(later.kind).toBe("queued");
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued"]);
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["later"]);
+
+    const queuedTurn = driver.startedTurns.at(1);
+    if (!queuedTurn) {
+      throw new Error("expected the stranded message's turn");
+    }
+    driver.completeTurn(threadId, queuedTurn.turnId, "completed");
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued", "later"]);
+  });
+
+  it("settles a turn a restart orphaned without starting the message queued behind it", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "first", threadId });
+    await client.threads.send({ text: "queued", threadId });
+
+    const drivers: FakeTurnDriver[] = [];
+    const revived = new ThreadService({
+      createTurnDriver: (sink) => {
+        const made = new FakeTurnDriver(sink, { mode: "manual" });
+        drivers.push(made);
+        return made;
+      },
+      db,
+      notifier: noopNotifier,
+    });
+    const [revivedDriver] = drivers;
+    if (revivedDriver === undefined) {
+      throw new Error("the revived driver was not constructed");
+    }
+    revived.boot();
+    expect(revived.get(threadId)?.thread.status).toBe("error");
+    expect(revivedDriver.startedTurns).toEqual([]);
+
+    expect(revived.send({ text: "later", threadId }).kind).toBe("queued");
+    expect(revivedDriver.startedTurns.map((turn) => turn.text)).toEqual(["queued"]);
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["later"]);
   });
 
   it("appends a drained message exactly once, even when its dispatch fails", async () => {
