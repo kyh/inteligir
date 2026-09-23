@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import { vi } from "vitest";
 import type { CliDeps } from "../context";
+import type { OpenExternalUrl } from "../server/cloud/browser-opener";
 import { FIXTURE_SERVER_TOKEN } from "./fixture-server";
 import { runCli } from "../program";
 
@@ -19,6 +20,7 @@ export interface RunArgs {
   baseUrl: string;
   env?: Record<string, string>;
   homeDir?: string;
+  openExternalUrl?: OpenExternalUrl;
   stdin?: Uint8Array;
 }
 
@@ -26,6 +28,7 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
   const deps: CliDeps = {
     env: { ...args.env },
     homeDir: args.homeDir,
+    openExternalUrl: args.openExternalUrl,
     resolveServer: () => ({
       baseUrl: args.baseUrl,
       dataDir: "/fixture/data",

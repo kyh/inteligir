@@ -1040,10 +1040,13 @@ agents default`; unset falls back
   SameSite=Strict cookie, and nothing hands that out to a plain request: the
   cookie is set only by trading a single-use, five-minute handoff nonce that a
   holder of the bearer minted (`system.browserHandoff`; `serve --open`, the
-  link `serve` prints and the shell's Open in Browser) on a document URL
-  carrying `?handoff=`, which answers a 303 to the same URL without it. Each
-  carrier accepts only its own secret, and the cookie, being ambient, must also
-  prove same-origin because loopback "site" ignores the port. EVERY REQUEST
+  link `serve` prints, `inteligir open` and the shell's Open in Browser) on a
+  document URL carrying `?handoff=`, which answers a 303 to the same URL
+  without it. A document request carrying neither credential gets a 401 page
+  that runs nothing and names those ways in (`signed-out-page.ts`), never the
+  shell, which would load and then fail every call with nothing saying why.
+  Each carrier accepts only its own secret, and the cookie, being ambient, must
+  also prove same-origin because loopback "site" ignores the port. EVERY REQUEST
   MUST NAME 127.0.0.1 OR localhost AS ITS HOST, refused with a 421 ahead of
   every route, /health and the sockets included: a page that rebinds its own
   hostname onto the port gets nothing. Residual: a cookie is port-agnostic, so

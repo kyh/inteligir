@@ -67,5 +67,6 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ],
   ["cloud sync", ["cloud", "sync"]],
   ["status", ["status"]],
+  ["open", ["open"]],
   ["guide", ["guide"]],
 ]);

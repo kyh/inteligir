@@ -27,6 +27,7 @@ import {
   searchCommand,
   tagsCommand,
 } from "./commands/knowledge";
+import { openCommand } from "./commands/open";
 import { statusCommand } from "./commands/status";
 import { tagCommand } from "./commands/tag";
 import { cloudCommand } from "./commands/cloud";
@@ -59,6 +60,7 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       guide: guideCommand(deps),
       interactions: interactionsCommand(deps),
       matches: matchesCommand(deps),
+      open: openCommand(deps),
       problems: problemsCommand(deps),
       related: relatedCommand(deps),
       search: searchCommand(deps),

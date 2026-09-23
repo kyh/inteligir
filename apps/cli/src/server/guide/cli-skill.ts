@@ -35,6 +35,11 @@ output; without it the output is compact human text.
   is already running. Flags: \`--port <n>\`, \`--data-dir <path>\`,
   \`--vault <path>\`, \`--open\` (open the workspace in a browser once it is
   listening).
+- \`inteligir open\` — open the workspace in a signed-in browser tab. A
+  browser cannot carry the server's token, so it signs in through a one-time
+  link that expires within minutes; a tab without one gets a page naming this
+  command. Under \`--json\` it opens nothing and prints \`{"url": …}\`: hand
+  that link to the user rather than opening it yourself.
 
 ## Vault — files on disk
 

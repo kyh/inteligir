@@ -169,7 +169,8 @@ try {
   }
   process.stdout.write(`smoke: health -> ${await health.text()}\n`);
 
-  const shell = await fetch(baseUrl, { headers: { accept: "text/html" } });
+  // with the bearer: a request carrying no credential gets the signed-out page instead
+  const shell = await fetch(baseUrl, { headers: { ...authHeaders(), accept: "text/html" } });
   const html = await shell.text();
   if (!shell.ok || !html.includes("<title>inteligir</title>")) {
     fail(`the SPA shell did not answer (${shell.status}, ${html.length} bytes)`);
