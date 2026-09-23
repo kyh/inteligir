@@ -1,11 +1,12 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommentsTab } from "../comments-tab";
+import type { CommentFocus } from "../comments-tab";
 import { createWorkspaceQueryClient, WorkspaceProvider } from "../../workspace-context";
 import { routeRendererFetch } from "./booted-fetch";
 import { routeRendererSocket } from "./booted-socket";
@@ -13,12 +14,13 @@ import { routeRendererSocket } from "./booted-socket";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const mountTab = (docPath: string): void => {
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
-      <CommentsTab docPath={docPath} focusIds={[]} />
+      <CommentsTab docPath={docPath} focus={null} />
     </QueryClientProvider>,
   );
 };
@@ -59,7 +61,7 @@ describe("the comments tab over the live bus", () => {
 
     render(
       <WorkspaceProvider>
-        <CommentsTab docPath="note.md" focusIds={[]} />
+        <CommentsTab docPath="note.md" focus={null} />
       </WorkspaceProvider>,
     );
     await waitFor(() => {
@@ -80,5 +82,35 @@ describe("the comments tab over the live bus", () => {
     await waitFor(() => {
       expect(screen.getByText("second")).toBeTruthy();
     });
+  });
+});
+
+describe("a focus from the note", () => {
+  it("shows and scrolls to a resolved thread, lets Hide hide it, and a new click shows it again", async () => {
+    const booted = await bootTestApp();
+    routeRendererFetch(booted);
+    await booted.client.vault.write({ content: "# Plan\n", path: "plan.md" });
+    await booted.client.comments.add({ id: "c1", path: "plan.md", text: "Ship it?" });
+    await booted.client.comments.resolve({ id: "c1", path: "plan.md", resolved: true });
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+
+    const queryClient = createWorkspaceQueryClient();
+    const tabFocusedOn = (focus: CommentFocus) => (
+      <QueryClientProvider client={queryClient}>
+        <CommentsTab docPath="plan.md" focus={focus} />
+      </QueryClientProvider>
+    );
+    const view = render(tabFocusedOn({ ids: ["c1"], nonce: 1 }));
+
+    expect(await screen.findByText("Ship it?")).toBeDefined();
+    expect(scrolled).toHaveBeenCalledTimes(1);
+    expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide resolved (1)" }));
+    expect(screen.queryByText("Ship it?")).toBeNull();
+
+    view.rerender(tabFocusedOn({ ids: ["c1"], nonce: 2 }));
+    expect(screen.getByText("Ship it?")).toBeDefined();
+    expect(scrolled).toHaveBeenCalledTimes(2);
   });
 });
