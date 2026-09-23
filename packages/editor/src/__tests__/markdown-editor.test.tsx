@@ -38,6 +38,7 @@ vi.mock("@repo/editor/editor-chrome", () => ({
 }));
 
 vi.mock("@repo/editor/live-editor", () => ({
+  announceLiveEditorEdit: vi.fn(),
   registerLiveEditor: vi.fn(() => () => {}),
 }));
 

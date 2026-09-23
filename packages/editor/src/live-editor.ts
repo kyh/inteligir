@@ -2,32 +2,54 @@
 // mounts a new editor, and the outgoing one must stop answering for the incoming path.
 
 import type { SlateEditor } from "platejs";
+import { useSyncExternalStore } from "react";
 
 const editors = new Map<string, SlateEditor>();
 // weak: a strong reverse map would pin every editor a session built.
 const paths = new WeakMap<SlateEditor, string>();
-const waiters = new Map<string, Set<(editor: SlateEditor) => void>>();
+// one channel for a registration and an edit alike: the column shows one note, so a reader
+// re-checking its snapshot on a change it does not care about costs a lookup
+const listeners = new Set<() => void>();
+
+const notify = (): void => {
+  for (const listener of listeners) {
+    listener();
+  }
+};
+
+export const subscribeLiveEditors = (listener: () => void): (() => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
 
 export const registerLiveEditor = (path: string, editor: SlateEditor): (() => void) => {
   editors.set(path, editor);
   paths.set(editor, path);
-  const waiting = waiters.get(path);
-  if (waiting !== undefined) {
-    waiters.delete(path);
-    for (const resolve of waiting) {
-      resolve(editor);
-    }
-  }
+  notify();
   return () => {
     if (editors.get(path) === editor) {
       editors.delete(path);
+      notify();
     }
   };
+};
+
+// Slate has one onChange slot and the Plate surface owns it, so the surface announces each
+// edit here for the readers outside its tree.
+export const announceLiveEditorEdit = (): void => {
+  notify();
 };
 
 export const getLiveEditor = (path: string): SlateEditor | null => editors.get(path) ?? null;
 
 export const liveEditorPath = (editor: SlateEditor): string | null => paths.get(editor) ?? null;
+
+// a render must subscribe, never read getLiveEditor: the editor registers after the render that
+// asked for it, and nothing else would draw that render again
+export const useLiveEditor = (path: string | null): SlateEditor | null =>
+  useSyncExternalStore(subscribeLiveEditors, () => (path === null ? null : getLiveEditor(path)));
 
 // the editor serving `path` once it mounts; bounded, because a refused navigation mounts
 // nothing and the caller would otherwise wait forever
@@ -39,23 +61,20 @@ export const whenLiveEditor = async (
   if (live !== undefined) {
     return live;
   }
-  const pending = waiters.get(path) ?? new Set<(editor: SlateEditor) => void>();
-  waiters.set(path, pending);
   const settled = Promise.withResolvers<SlateEditor | null>();
-  const finish = (editor: SlateEditor | null): void => {
-    pending.delete(finish);
-    if (pending.size === 0 && waiters.get(path) === pending) {
-      waiters.delete(path);
+  const unsubscribe = subscribeLiveEditors(() => {
+    const mounted = editors.get(path);
+    if (mounted !== undefined) {
+      settled.resolve(mounted);
     }
-    settled.resolve(editor);
-  };
+  });
   const timer = setTimeout(() => {
-    finish(null);
+    settled.resolve(null);
   }, timeoutMs);
-  pending.add(finish);
   try {
     return await settled.promise;
   } finally {
     clearTimeout(timer);
+    unsubscribe();
   }
 };
