@@ -244,9 +244,10 @@ const managedConfigSchema = z.object({
 const managedConfigFileSchema = managedConfigSchema.loose();
 
 const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFileSchema> => {
+  const configPath = path.join(dataDir, CONFIG_FILE_NAME);
   let raw: string;
   try {
-    raw = readFileSync(path.join(dataDir, CONFIG_FILE_NAME), "utf-8");
+    raw = readFileSync(configPath, "utf-8");
   } catch (error) {
     if (errnoCode(error) === "ENOENT") {
       return {};
@@ -257,9 +258,15 @@ const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFil
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(`${CONFIG_FILE_NAME} is not valid JSON`);
+    throw new Error(`${configPath} is not valid JSON`);
   }
-  return managedConfigFileSchema.parse(parsed);
+  const verdict = managedConfigFileSchema.safeParse(parsed);
+  if (!verdict.success) {
+    throw new Error(
+      `${configPath} does not match the ${CONFIG_FILE_NAME} shape:\n${z.prettifyError(verdict.error)}`,
+    );
+  }
+  return verdict.data;
 };
 
 type ManagedConfig = z.infer<typeof managedConfigSchema>;

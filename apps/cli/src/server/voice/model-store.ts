@@ -11,6 +11,7 @@ import { x as extractTar } from "tar";
 import unbzip2 from "unbzip2-stream";
 import { z } from "zod";
 import { errnoCode } from "../errno";
+import { messageOf } from "../error-message";
 import type { VoiceModelSpec } from "./model-catalog";
 import type { VoiceModelFiles } from "./worker-protocol";
 
@@ -113,7 +114,7 @@ export const downloadModel = async (args: DownloadModelArgs): Promise<void> => {
       response = await fetchImpl(spec.url, { signal });
     } catch (error) {
       throw new ModelDownloadError(
-        `Could not reach ${new URL(spec.url).host}: ${error instanceof Error ? error.message : String(error)}`,
+        `Could not reach ${new URL(spec.url).host}: ${messageOf(error)}`,
       );
     }
     if (!response.ok || response.body === null) {
@@ -172,9 +173,7 @@ export const downloadModel = async (args: DownloadModelArgs): Promise<void> => {
     if (signal.aborted) {
       throw new ModelDownloadError("The download was stopped.");
     }
-    throw new ModelDownloadError(
-      `The download failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new ModelDownloadError(`The download failed: ${messageOf(error)}`);
   }
 };
 

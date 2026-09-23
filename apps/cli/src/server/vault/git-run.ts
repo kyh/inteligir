@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
+import { messageOf } from "../error-message";
 
 const execFileAsync = promisify(execFile);
 
@@ -87,10 +88,9 @@ export const runGit = async (
     const { stdout } = await pending;
     return { stdout };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     const failure = execFileFailure.safeParse(error);
     throw new GitError(
-      `git ${gitArgs[0] ?? ""} failed: ${message}`,
+      `git ${gitArgs[0] ?? ""} failed: ${messageOf(error)}`,
       failure.success ? failure.data.stderr : "",
       failure.success ? (failure.data.signal ?? null) : null,
     );

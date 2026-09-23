@@ -1,11 +1,7 @@
-// not `string.length`: it counts UTF-16 units, and slicing by it can halve a
-// surrogate pair, which reaches the model as U+FFFD.
+// not `string.length`: it counts UTF-16 units, and slicing by it can halve a surrogate pair,
+// which reaches the model as U+FFFD. `encodeInto` writes whole code points only, so `read` is
+// always a boundary, and a U+FFFD the text really holds survives the cut.
 export const headCapUtf8 = (text: string, maxBytes: number): string => {
-  const bytes = new TextEncoder().encode(text);
-  if (bytes.length <= maxBytes) {
-    return text;
-  }
-  // the non-fatal decoder drops a trailing partial sequence instead of throwing.
-  const decoded = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes.subarray(0, maxBytes));
-  return decoded.endsWith("�") ? decoded.slice(0, -1) : decoded;
+  const { read } = new TextEncoder().encodeInto(text, new Uint8Array(maxBytes));
+  return text.slice(0, read);
 };

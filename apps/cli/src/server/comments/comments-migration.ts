@@ -7,6 +7,7 @@ import {
   legacySidecarNotePath,
 } from "@repo/notes/comments/sidecar-schema";
 
+import { messageOf } from "../error-message";
 import type { VaultService } from "../vault/vault-service";
 import type { CommentsService } from "./comments-service";
 
@@ -31,8 +32,7 @@ export const migrateLegacyCommentSidecars = async (args: {
         migrated += 1;
       }
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      args.warn(`${entry.path}: left as found; ${reason}`);
+      args.warn(`${entry.path}: left as found; ${messageOf(error)}`);
     }
   }
   return migrated;

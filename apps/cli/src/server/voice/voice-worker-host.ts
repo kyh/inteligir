@@ -4,6 +4,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
+import { messageOf } from "../error-message";
 import type {
   VoiceModelFiles,
   VoiceStreamEvent,
@@ -132,7 +133,7 @@ export const spawnVoiceStreamWorker = (
     worker = new Worker(resolveWorkerEntry(), { workerData: init });
   } catch (error) {
     // a missing worker bundle is a packaging fault, not a corrupt model.
-    callbacks.onError(error instanceof Error ? error.message : String(error), false);
+    callbacks.onError(messageOf(error), false);
     return DEAD_HANDLE;
   }
 

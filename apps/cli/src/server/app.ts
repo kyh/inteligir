@@ -23,6 +23,7 @@ import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { INERT_PAGE_HEADERS } from "./inert-page";
+import { JsonFileStoreError } from "./json-file-store";
 import type { UpgradedSocket } from "./listen";
 import { loopbackRequestOrigin } from "./loopback-origin";
 import type { AppServices } from "./orpc";
@@ -129,6 +130,18 @@ export const createApp = (args: CreateAppArgs) => {
   const rpc = new RPCHandler(localRouter, {
     errorStatusMap: ERROR_STATUS_MAP,
     interceptors: [
+      // a data-dir file the user can fix names itself on the wire; left alone it is a bare
+      // "Internal server error" that says nothing of which file or why.
+      async ({ next }) => {
+        try {
+          return await next();
+        } catch (error) {
+          if (error instanceof JsonFileStoreError) {
+            throw new ORPCError("INTERNAL_SERVER_ERROR", { cause: error, message: error.message });
+          }
+          throw error;
+        }
+      },
       onError((cause: unknown) => {
         if (isOrpcError(cause) && errorStatus(cause.code) < SERVER_FAULT_STATUS) {
           return;
