@@ -7,6 +7,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { useOpenNote, useOpenNotePath } from "@repo/editor/note/open-note-context";
+import { focusNoteBody, registerNoteBodyFocus } from "@repo/editor/note-body-focus";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -49,15 +50,29 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
       }),
     [path, titleRef],
   );
+  useEffect(
+    () =>
+      registerNoteBodyFocus(path, () => {
+        columnRef.current
+          ?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')
+          ?.focus();
+      }),
+    [path, columnRef],
+  );
 
   const ext = dot > 0 ? fileName.slice(dot) : "";
   const dir = dirnamePath(path);
 
-  const commitTitle = async (raw: string): Promise<void> => {
+  // `toBody` hands the caret on only once the note is where it will stay: typed into the body
+  // while a rename is in flight, a keystroke reaches an editor the session has already let go of.
+  const commitTitle = async (raw: string, toBody: boolean): Promise<void> => {
     const next = raw.trim();
     if (next === "" || next === displayName) {
       if (titleRef.current) {
         titleRef.current.textContent = displayName;
+      }
+      if (toBody) {
+        focusNoteBody(path);
       }
       return;
     }
@@ -68,11 +83,20 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
       if (titleRef.current) {
         titleRef.current.textContent = displayName;
       }
+      if (toBody) {
+        focusNoteBody(path);
+      }
       return;
     }
-    const ok = await renameEntry(path, joinPath(dir, verdict.name));
-    if (!ok && titleRef.current) {
-      titleRef.current.textContent = displayName;
+    const dest = joinPath(dir, verdict.name);
+    if (!(await renameEntry(path, dest))) {
+      if (titleRef.current) {
+        titleRef.current.textContent = displayName;
+      }
+      return;
+    }
+    if (toBody) {
+      focusNoteBody(dest);
     }
   };
 
@@ -81,6 +105,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
   // the stale path), so window blur and unmount only settle edits blur never saw.
   // A ⌘Q from the title loses the retitle: the async rename cannot finish during quit.
   const editingRef = useRef(false);
+  const toBodyRef = useRef(false);
   const commitTitleRef = useRef(commitTitle);
   useEffect(() => {
     commitTitleRef.current = commitTitle;
@@ -100,7 +125,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
     () => () => {
       if (editingRef.current) {
         editingRef.current = false;
-        void commitTitleRef.current(titleRef.current?.textContent ?? "");
+        void commitTitleRef.current(titleRef.current?.textContent ?? "", false);
       }
     },
     [titleRef],
@@ -109,10 +134,8 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
   const onTitleKeyDown = (e: KeyboardEvent<HTMLHeadingElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      toBodyRef.current = true;
       e.currentTarget.blur();
-      columnRef.current
-        ?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')
-        ?.focus();
     }
     if (e.key === "Escape") {
       e.preventDefault();
@@ -133,7 +156,9 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
         }}
         onBlur={(e) => {
           editingRef.current = false;
-          void commitTitle(e.currentTarget.textContent ?? "");
+          const toBody = toBodyRef.current;
+          toBodyRef.current = false;
+          void commitTitle(e.currentTarget.textContent ?? "", toBody);
         }}
         onKeyDown={onTitleKeyDown}
         className={cn(

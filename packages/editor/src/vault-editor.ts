@@ -4,24 +4,44 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import { diff3 } from "@repo/notes/text/diff3";
 
+// `landed` carries the bytes that landed: a host that merges in a concurrent change lands more than
+// it was sent. `vanished` is a file deleted since its bytes were read, which no retry can land.
+export type WriteOutcome =
+  | { readonly kind: "landed"; readonly content: string }
+  | { readonly kind: "vanished" };
+
 export interface VaultIO {
   read: (path: string) => Promise<string>;
-  // answers the bytes that landed: a host that merges in a concurrent change lands more than it was sent.
-  write: (path: string, content: string) => Promise<string>;
+  // rejects on any failure a later attempt might get past.
+  write: (path: string, content: string) => Promise<WriteOutcome>;
   // refuses an existing path.
   create: (path: string, content: string) => Promise<void>;
   // rejects when the host cannot say the file is gone, so the note stays open over it.
   remove: (path: string) => Promise<DeleteVaultEntryResult>;
 }
 
+export type SaveError =
+  | { readonly kind: "vanished" }
+  | { readonly kind: "refused"; readonly message: string };
+
 export interface VaultEditorState {
   readonly path: string | null;
   readonly content: string;
   readonly dirty: boolean;
-  readonly saving: boolean;
+  // the last write's failure, held until a write lands or the buffer is replaced; `dirty` stays set under it.
+  readonly saveError: SaveError | null;
 }
 
-const EMPTY: VaultEditorState = { content: "", dirty: false, path: null, saving: false };
+export const EMPTY_EDITOR_STATE: VaultEditorState = {
+  content: "",
+  dirty: false,
+  path: null,
+  saveError: null,
+};
+
+const ignoreRejection = (): void => {
+  /* the write reports its own failure */
+};
 
 const drainNothing = (): void => {
   /* no surface holds edits back */
@@ -40,7 +60,7 @@ const rebase = (from: string, buffer: string, landed: string): string => {
 };
 
 export class VaultEditorController {
-  private st: VaultEditorState = EMPTY;
+  private st: VaultEditorState = EMPTY_EDITOR_STATE;
   // only the latest read applies, so a slow read can't land over a newer one.
   private readSeq = 0;
   private writing: Promise<void> | null = null;
@@ -84,7 +104,7 @@ export class VaultEditorController {
     this.readSeq += 1;
     const seq = this.readSeq;
     if (initial !== undefined) {
-      this.emit({ content: initial, dirty: false, path });
+      this.emit({ content: initial, dirty: false, path, saveError: null });
       return true;
     }
     try {
@@ -93,13 +113,13 @@ export class VaultEditorController {
       if (this.readSeq !== seq) {
         return true;
       }
-      this.emit({ content: text, dirty: false, path });
+      this.emit({ content: text, dirty: false, path, saveError: null });
     } catch {
       if (this.readSeq !== seq) {
         return true;
       }
       // unreadable (deleted between click and read): don't revive it as an empty buffer.
-      this.emit({ content: "", dirty: false, path: null });
+      this.emit(EMPTY_EDITOR_STATE);
     }
     return true;
   }
@@ -112,39 +132,43 @@ export class VaultEditorController {
   }
 
   private async writeSnapshot(path: string, snapshot: string): Promise<void> {
-    let landed: string;
+    let outcome: WriteOutcome;
     try {
-      landed = await this.io.write(path, snapshot);
-    } catch {
-      // leave dirty set so a later flush retries
-      this.emit({ saving: false });
+      outcome = await this.io.write(path, snapshot);
+    } catch (error) {
+      // dirty stays set, so a later flush retries
+      if (this.st.path === path) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emit({ saveError: { kind: "refused", message } });
+      }
       return;
     }
+    // a file switch landed mid-write: stay dirty
     if (this.st.path !== path) {
-      // a file switch landed mid-write — stay dirty
-      this.emit({ saving: false });
       return;
     }
+    if (outcome.kind === "vanished") {
+      this.emit({ saveError: { kind: "vanished" } });
+      return;
+    }
+    const landed = outcome.content;
     if (landed !== snapshot) {
       this.drain();
     }
     // a newer edit made mid-write stays dirty, on top of what landed
     const content = rebase(snapshot, this.st.content, landed);
-    this.emit({ content, dirty: content !== landed, saving: false });
+    this.emit({ content, dirty: content !== landed, saveError: null });
   }
 
   async flush(): Promise<void> {
     if (this.writing) {
-      await this.writing.catch(() => {
-        /* empty */
-      });
+      await this.writing.catch(ignoreRejection);
     }
     const { path } = this.st;
     if (path === null || !this.st.dirty) {
       return;
     }
     const snapshot = this.st.content;
-    this.emit({ saving: true });
     const writing = this.writeSnapshot(path, snapshot);
     this.writing = writing;
     await writing;
@@ -161,9 +185,7 @@ export class VaultEditorController {
       return null;
     }
     if (this.writing) {
-      await this.writing.catch(() => {
-        /* empty */
-      });
+      await this.writing.catch(ignoreRejection);
     }
     // cancel any in-flight read of this path
     this.readSeq += 1;
@@ -174,9 +196,31 @@ export class VaultEditorController {
       // the file's fate is unknown, so the note stays.
     }
     if (outcome !== null) {
-      this.emit({ content: "", dirty: false, path: null });
+      this.emit(EMPTY_EDITOR_STATE);
     }
     return outcome;
+  }
+
+  // the file was deleted under unsaved edits, so no write can land: create it again from the
+  // buffer. false when the create is refused, as it is when anything landed at the path since.
+  async recreate(): Promise<boolean> {
+    const { path } = this.st;
+    if (path === null) {
+      return false;
+    }
+    if (this.writing) {
+      await this.writing.catch(ignoreRejection);
+    }
+    const snapshot = this.st.content;
+    try {
+      await this.io.create(path, snapshot);
+    } catch {
+      return false;
+    }
+    if (this.st.path === path) {
+      this.emit({ dirty: this.st.content !== snapshot, saveError: null });
+    }
+    return true;
   }
 
   // a buffer dirty before the read is left to its save, whose CAS merges the external bytes in.
@@ -203,7 +247,7 @@ export class VaultEditorController {
         return;
       }
       if (this.st.path === path && !this.st.dirty) {
-        this.emit({ content: "", dirty: false, path: null });
+        this.emit(EMPTY_EDITOR_STATE);
       }
     }
   }

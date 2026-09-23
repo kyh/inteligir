@@ -15,6 +15,8 @@ export interface FakeEditorHostOptions {
   readonly wikiTargets?: readonly WikiTarget[];
   // a create the session refuses answers null, as the real one does after it has said why
   readonly refuseCreates?: boolean;
+  // answers the rename in place of the immediate success, so a case can hold it in flight
+  readonly renameEntry?: VaultActions["renameEntry"];
 }
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
@@ -43,7 +45,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     flush: record("flush", Promise.resolve(true)),
     openFile: recordVoid("openFile"),
     registerNoteSerializeFlush: recordVoid("registerNoteSerializeFlush"),
-    renameEntry: record("renameEntry", Promise.resolve(true)),
+    renameEntry: options.renameEntry ?? record("renameEntry", Promise.resolve(true)),
   };
 
   const wikiResolver = createStore<WikiResolver>()(() => ({

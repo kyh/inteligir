@@ -56,7 +56,7 @@ describe("VaultEditorController", () => {
     expect(c.getState()).toMatchObject({
       content: "one typed\ntwo\nthree\nexternal\n",
       dirty: false,
-      saving: false,
+      saveError: null,
     });
   });
 
@@ -238,6 +238,55 @@ describe("VaultEditorController", () => {
     const opened = await c.open("b.md");
     expect(opened).toBe(false);
     expect(c.getState()).toMatchObject({ content: "v1", dirty: true, path: "a.md" });
+  });
+
+  it("holds a refused write's reason until a write lands", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    const { write } = io;
+    io.write = async () => await Promise.reject(new Error("disk full"));
+    c.edit("v1");
+    await c.flush();
+    expect(c.getState()).toMatchObject({
+      dirty: true,
+      saveError: { kind: "refused", message: "disk full" },
+    });
+
+    io.write = write;
+    await c.flush();
+    expect(c.getState()).toMatchObject({ dirty: false, saveError: null });
+  });
+
+  it("names a write refused because the file is gone, and re-creates it from the buffer", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    io.files.delete("a.md");
+    c.edit("v1");
+    await c.flush();
+    expect(c.getState()).toMatchObject({ dirty: true, saveError: { kind: "vanished" } });
+
+    expect(await c.recreate()).toBe(true);
+    expect(io.files.get("a.md")).toBe("v1");
+    expect(c.getState()).toMatchObject({ content: "v1", dirty: false, saveError: null });
+  });
+
+  it("refuses to re-create over a file that landed at the path since", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    io.files.delete("a.md");
+    c.edit("v1");
+    await c.flush();
+    io.files.set("a.md", "someone else's");
+
+    expect(await c.recreate()).toBe(false);
+    expect(io.files.get("a.md")).toBe("someone else's");
+    expect(c.getState()).toMatchObject({ dirty: true, saveError: { kind: "vanished" } });
   });
 
   it("a failed open clears instead of reviving a deleted path", async () => {

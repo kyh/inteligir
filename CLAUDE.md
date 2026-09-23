@@ -521,8 +521,10 @@ to the END of its group.
   source is
   component state, not `dataTransfer`, so a file dragged in from the desktop
   has no source here and is ignored. No second write path: the move rides
-  `vault.rename`, which rewrites links, and the open note follows through
-  `openNoteAfterRename`.
+  `vault.rename`, which rewrites links, and the vault session carries the open
+  note whether the move named it or a folder above it, and closes it only once
+  a delete of its folder removed it (`packages/editor/src/note/vault-session.ts`),
+  so the tree never navigates on a move's or a delete's answer.
 
 - **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
   the editor.** `<dataDir>/vault-prefs.json` holds `attachments`: the vault
@@ -618,6 +620,22 @@ to the END of its group.
   a bullet one device deleted beside the other's append comes back.
   `apps/cli/src/server/vault/git-bootstrap.ts`, over `CAPTURE_INBOX_PATH` in
   `apps/cli/src/server/cloud/captures.ts`.
+
+- **A SAVE THAT FAILS IS SAID ONCE AND RETRIED; ONE WHOSE FILE IS GONE IS ASKED
+  ABOUT.** A refused write leaves the buffer dirty with its reason as
+  `saveError` (`packages/editor/src/vault-editor.ts`). The session says so once
+  per failure, never per attempt, and the runtime retries on a backoff from 2s
+  to 30s, since nothing else re-arms the autosave until the next keystroke. A
+  guarded write that finds no file (`CAS_MISMATCH` with no `current`) answers
+  `vanished`, a `WriteOutcome` rather than a throw so the controller cannot
+  miss it, and is never retried, because it cannot land. Refusing to
+  leave it, as a switch refuses to leave any unsaved note, would hold the user
+  there for good, so leaving asks instead: discard the edits, or re-create the
+  note from the buffer through an `ifAbsent` create, refused if anything landed
+  at the path since. Discarding is the dialog's confirm, so an Escape keeps the
+  edits. `packages/editor/src/note/note-runtime.ts`,
+  `packages/editor/src/note/vault-session.ts` and
+  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`.
 
 ### Knowledge: index, search and links
 
