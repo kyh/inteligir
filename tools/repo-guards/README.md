@@ -131,6 +131,9 @@ worktree under `.claude` is never read as this commit's tree.
 | `agent-skills.test.ts`         | Every skill directory has a `SKILL.md` naming itself; the hub's Focused   |
 |                                | Contracts index lists every other skill and no phantom; the file the CLI  |
 |                                | resolver probes exists — a renamed probe answers null, not an error.      |
+| `control-bytes.test.ts`        | No tracked source, markdown, config or sql file carries a raw control     |
+|                                | byte other than tab, LF and CR — git diffs a file holding a NUL as        |
+|                                | binary and ripgrep skips it. A string literal spells it as an escape.     |
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
 `ALLOWED_EXPORTS`, `NOT_DEMOED`, `dispatchedIn`, `elsewhere`, `ELSEWHERE`,

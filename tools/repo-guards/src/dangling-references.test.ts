@@ -1,11 +1,11 @@
 // the other guards read source, not prose, so prose and configuration rot unwatched;
 // this walks what the repo says (comments, markdown, configs, strings) against what it has.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, workspaceGlobs, workspaces } from "./repo";
+import { REPO_ROOT, trackedFiles, workspaceGlobs, workspaces } from "./repo";
 
 const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/u;
 
@@ -59,27 +59,16 @@ const ignoredByGit = (paths: readonly string[]): Set<string> => {
   return ignored;
 };
 
-// git's index, not a directory walk, so build output and ignored sidecars are not read as claims.
-const scannedFiles = (): string[] => {
-  const tracked = execFileSync("git", ["ls-files", "-z"], {
-    cwd: REPO_ROOT,
-    encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split("\0")
-    .filter((file) => file.length > 0);
-  return tracked.filter(
+const scannedFiles = (): string[] =>
+  trackedFiles().filter(
     (file) =>
       SCANNED_FILE.test(file) &&
       !GENERATED_FILE.test(file) &&
       // dot-directories hold tooling state.
       !file.split("/").some((segment) => segment.startsWith(".")) &&
       !DATA_DIR.test(file) &&
-      !DATA_FILES.has(file) &&
-      // the index still lists a file deleted in the working tree.
-      fs.existsSync(path.join(REPO_ROOT, file)),
+      !DATA_FILES.has(file),
   );
-};
 
 interface Reference {
   text: string;
