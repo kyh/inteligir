@@ -20,7 +20,10 @@ import {
   DEVICE_CREDENTIAL_PREFIX,
   deviceLoginRequestSchema,
 } from "@repo/api/cloud/device/device-schema";
-import type { DeviceLoginResponse } from "@repo/api/cloud/device/device-schema";
+import type {
+  DeviceLoginResponse,
+  RevokeDeviceResponse,
+} from "@repo/api/cloud/device/device-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
@@ -28,6 +31,7 @@ import {
 } from "@repo/api/cloud/sync/sync-schema";
 import type { PullResponse, PushResponse, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
 import type { CloudFetch } from "@repo/api/cloud/client";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
 type RequestBody = z.infer<ReturnType<typeof z.json>>;
@@ -108,6 +112,10 @@ export class FakeCloud {
     return this.devices.size;
   }
 
+  activeDeviceCount(): number {
+    return [...this.devices.values()].filter((device) => !device.revoked).length;
+  }
+
   readonly fetch: CloudFetch = async (input, init) =>
     await Promise.resolve(this.route(input, init));
 
@@ -125,6 +133,11 @@ export class FakeCloud {
     const device = this.authorize(init);
     if (device === null) {
       return refuse("unauthorized", "No valid device credential.");
+    }
+    if (method === "POST" && url.pathname === DEVICE_API_PATHS.signOut) {
+      this.revoke(device.deviceId);
+      const response: RevokeDeviceResponse = { revoked: true };
+      return Response.json(response);
     }
     if (method === "POST" && url.pathname === SYNC_API_PATHS.push) {
       return this.push(device.deviceId, body);
@@ -176,13 +189,14 @@ export class FakeCloud {
     if (this.accounts.get(parsed.data.email) !== parsed.data.password) {
       return refuse("invalid-credentials", "Wrong email or password.");
     }
-    const active = [...this.devices.values()].filter((device) => !device.revoked).length;
-    if (active >= this.maxDevices) {
+    if (this.activeDeviceCount() >= this.maxDevices) {
       return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
-    const credential = `${DEVICE_CREDENTIAL_PREFIX}${String(this.nextDevice).padStart(64, "0")}`;
+    // random like the worker's, never derived from the per-cloud device counter: two fake clouds
+    // would mint one credential, and a sign-out sent to the other would revoke a stranger
+    const credential = `${DEVICE_CREDENTIAL_PREFIX}${randomBytes(32).toString("hex")}`;
     this.devices.set(credential, { deviceId, revoked: false });
     const response: DeviceLoginResponse = { credential, deviceId };
     return Response.json(response);

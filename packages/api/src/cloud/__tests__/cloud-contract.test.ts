@@ -6,6 +6,7 @@ import {
 } from "../captures/captures-schema";
 import { CLOUD_ERROR_CODES, cloudError, cloudErrorSchema } from "../cloud-errors";
 import {
+  DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PATTERN,
   DEVICE_LOGIN_REFUSALS,
   DEVICE_NAME_MAX_LENGTH,
@@ -16,6 +17,7 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "../device/device-schema";
 import { createCloudClient } from "../cloud-client";
+import type { CloudFailure } from "../cloud-client";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
 import {
@@ -45,6 +47,58 @@ describe("error envelope", () => {
     const envelope = cloudError("sync-conflict", "already stored with a different body", 7);
     expect(cloudErrorSchema.parse(envelope).error.deviceSeq).toBe(7);
     expect("deviceSeq" in cloudError("unauthorized", "nope").error).toBe(false);
+  });
+});
+
+const failureFor = async (response: Response): Promise<CloudFailure | null> => {
+  const result = await createCloudClient({
+    baseUrl: "https://cloud.test",
+    credential: `igd_${"a".repeat(64)}`,
+    fetch: async () => response,
+  }).account();
+  return result.ok ? null : result.failure;
+};
+
+const failureKind = async (response: Response): Promise<CloudFailure["kind"] | null> => {
+  const failure = await failureFor(response);
+  return failure?.kind ?? null;
+};
+
+const edgePage = (status: number): Response =>
+  new Response("<html><body>Service Unavailable</body></html>", {
+    headers: { "content-type": "text/html" },
+    status,
+  });
+
+describe("a failure the cloud did not word", () => {
+  it("reads an edge's HTML 503 as a cloud it could not reach, not a body to report", async () => {
+    expect(await failureFor(edgePage(503))).toStrictEqual({
+      kind: "unreachable",
+      message: "HTTP 503 with no error body",
+    });
+  });
+
+  it("reads a bare timeout, throttle or fault the same way", async () => {
+    expect(await failureKind(edgePage(408))).toBe("unreachable");
+    expect(await failureKind(edgePage(429))).toBe("unreachable");
+    expect(await failureKind(new Response("internal error", { status: 500 }))).toBe("unreachable");
+  });
+
+  it("keeps a refusal the cloud did word, whatever its status", async () => {
+    expect(
+      await failureFor(
+        Response.json(cloudError("rate-limited", "Too many attempts."), { status: 429 }),
+      ),
+    ).toStrictEqual({
+      code: "rate-limited",
+      deviceSeq: null,
+      kind: "refused",
+      message: "Too many attempts.",
+    });
+  });
+
+  it("calls any other unreadable answer malformed", async () => {
+    expect(await failureKind(edgePage(403))).toBe("malformed");
   });
 });
 
@@ -110,6 +164,27 @@ describe("device login", () => {
     const answer = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
     expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
     expect(deviceLoginResponseSchema.safeParse({ ...answer, token: "x" }).success).toBe(false);
+  });
+
+  it("signs a device out with its own credential, and nothing else", async () => {
+    const seen: { path: string; method: string; authorization: string | null }[] = [];
+    const credential = `igd_${"a".repeat(64)}`;
+    const result = await createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential,
+      fetch: async (input, init) => {
+        seen.push({
+          authorization: new Headers(init?.headers).get("authorization"),
+          method: init?.method ?? "GET",
+          path: new URL(input).pathname,
+        });
+        return Response.json({ revoked: true });
+      },
+    }).signOut();
+    expect(result).toStrictEqual({ ok: true, value: { revoked: true } });
+    expect(seen).toStrictEqual([
+      { authorization: `Bearer ${credential}`, method: "POST", path: DEVICE_API_PATHS.signOut },
+    ]);
   });
 
   it("names refusals the envelope can carry, and nothing else as one", () => {

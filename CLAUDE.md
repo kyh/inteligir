@@ -954,8 +954,9 @@ agents default`; unset falls back
   browser-approved pairing line). `POST /v1/device/login` verifies the password
   through Better Auth's server API, mints the device credential and deletes the
   session the sign-in created, so a device holds exactly one secret and the
-  devices page is what revokes it. The route is unauthenticated and throttled
-  per caller address: a login route with no throttle is a password oracle.
+  devices page, or the device's own sign-out, is what revokes it. The route is
+  unauthenticated and throttled per caller address: a login route with no
+  throttle is a password oracle.
   Rejected: the browser approve page, the one-time code, PKCE and the loopback
   callback, a ceremony whose point was keeping the password out of the app.
   Residual: the password passes through the app once over HTTPS. Social
@@ -1097,6 +1098,26 @@ agents default`; unset falls back
   neither answers nor closes, and every open runs a pass, since a ping sent
   while it was down reached nothing. `apps/cli/src/server/cloud/sync-pass.ts`,
   `sync-runtime.ts` and `cloud-socket.ts`.
+
+- **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
+  never waited on.** Forgetting the file alone leaves the row active, and the
+  twenty-device cap counts active rows, so about twenty sign-in cycles would
+  lock the account out with no in-app way back. `POST /v1/device/sign-out` is
+  the dashboard's revoke asked with the device's own credential (the app holds
+  no session): the row, its limiter rows, its sockets. The CLI's logout, a login
+  that replaces a live credential, and the phone's credential drop send it on a
+  client of their own, because closing the session aborts every request the
+  session's client carries, and clear local state without waiting: an
+  unreachable cloud must not hold a sign-out open, and the row it leaves is the
+  Devices page's to revoke. A shutdown waits for a sign-out in flight within
+  the cloud step's budget. A credential the cloud already refused asks nothing.
+  The login flow sends it for a credential its store could not keep. A 5xx,
+  408 or 429 with no error envelope reads as `unreachable`, never `malformed`:
+  every refusal the worker means rides the envelope.
+  `apps/web/src/worker/device/routes.ts`,
+  `apps/cli/src/server/cloud/sync-runtime.ts`,
+  `apps/mobile/src/sync/sync-runtime.ts`,
+  `packages/api/src/cloud/device/login-flow.ts`.
 
 ### Server process and the desktop shell
 

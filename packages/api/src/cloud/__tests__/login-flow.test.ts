@@ -14,16 +14,24 @@ import type { DeviceCredentialStore, LoginOutcome } from "../device/login-flow";
 const CLOUD_URL = "https://cloud.test";
 const LOGGED_IN = { credential: `igd_${"c".repeat(64)}`, deviceId: "dev_x" };
 
-interface RecordedLogin {
+interface RecordedCall {
   url: string;
   body: string;
+  authorization: string | null;
 }
 
+// answers the login, and the sign-out a credential nobody kept is owed
 const loginOk = () => {
-  const calls: RecordedLogin[] = [];
+  const calls: RecordedCall[] = [];
   const fetch: CloudFetch = async (input, init) => {
-    calls.push({ body: z.string().parse(init?.body), url: input });
-    return Response.json(LOGGED_IN);
+    calls.push({
+      authorization: new Headers(init?.headers).get("authorization"),
+      body: z.string().parse(init?.body),
+      url: input,
+    });
+    return new URL(input).pathname === DEVICE_API_PATHS.signOut
+      ? Response.json({ revoked: true })
+      : Response.json(LOGGED_IN);
   };
   return { calls, fetch };
 };
@@ -107,11 +115,36 @@ describe("loginDevice", () => {
   });
 
   it("lets a store that cannot write say so — the credential is not half-adopted", async () => {
+    const cloud = loginOk();
     const store: DeviceCredentialStore = {
       write: () => {
         throw new Error("keychain unavailable");
       },
     };
-    await expect(login(loginOk().fetch, store)).rejects.toThrow("keychain unavailable");
+    await expect(login(cloud.fetch, store)).rejects.toThrow("keychain unavailable");
+
+    // the cloud already counted the device: the credential nobody kept gives its slot back
+    const [, signOut] = cloud.calls;
+    expect(cloud.calls).toHaveLength(2);
+    expect(new URL(signOut?.url ?? "").pathname).toBe(DEVICE_API_PATHS.signOut);
+    expect(signOut?.authorization).toBe(`Bearer ${LOGGED_IN.credential}`);
+  });
+
+  it("reports the store's error even when the cloud cannot hear the sign-out", async () => {
+    let calls = 0;
+    const fetch: CloudFetch = async () => {
+      calls += 1;
+      if (calls > 1) {
+        throw new Error("network is down");
+      }
+      return Response.json(LOGGED_IN);
+    };
+    const store: DeviceCredentialStore = {
+      write: () => {
+        throw new Error("keychain unavailable");
+      },
+    };
+    await expect(login(fetch, store)).rejects.toThrow("keychain unavailable");
+    expect(calls).toBe(2);
   });
 });

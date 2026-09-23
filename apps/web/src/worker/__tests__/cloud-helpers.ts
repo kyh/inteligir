@@ -1,4 +1,4 @@
-import { deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
+import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
 import type { DeviceLoginRequest } from "@repo/api/cloud/device/device-schema";
 import { syncPingSchema } from "@repo/api/cloud/sync/sync-ws";
 import type { SyncPing } from "@repo/api/cloud/sync/sync-ws";
@@ -76,6 +76,13 @@ export const loginDevice = async (
 };
 
 export const deviceHeaders = (credential: string) => ({ authorization: `Bearer ${credential}` });
+
+export const postSignOut = async (authorization: Record<string, string>): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.signOut}`, {
+    body: "{}",
+    headers: { ...authorization, "content-type": "application/json" },
+    method: "POST",
+  });
 
 export const openSocket = async (
   credential: string,

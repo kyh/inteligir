@@ -2,6 +2,7 @@ import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import {
   deviceLoginResponseSchema,
   listDevicesResponseSchema,
+  revokeDeviceResponseSchema,
 } from "@repo/api/cloud/device/device-schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { SELF } from "cloudflare:test";
@@ -13,6 +14,7 @@ import {
   ORIGIN,
   PASSWORD,
   postLogin,
+  postSignOut,
   sessionHeaders,
   signUpUser,
   userIdOf,
@@ -256,6 +258,54 @@ describe("device login", () => {
       headers: sessionHeaders(bearer),
     });
     expect(response.status).toBe(401);
+  });
+});
+
+describe("device sign-out", () => {
+  it("revokes the credential it was asked with: its next request is refused, a second sign-out too", async () => {
+    const { bearer } = await signUpUser("signout-revoke@example.test");
+    const { credential } = await loginDevice(bearer, "Leaving Laptop");
+    const other = await loginDevice(bearer, "Staying Laptop");
+
+    const signedOut = await postSignOut(deviceHeaders(credential));
+    expect(signedOut.status).toBe(200);
+    expect(revokeDeviceResponseSchema.parse(await signedOut.json())).toEqual({ revoked: true });
+
+    const after = await pull(credential);
+    expect(after.status).toBe(401);
+    const again = await postSignOut(deviceHeaders(credential));
+    expect(again.status).toBe(401);
+    expect(cloudErrorSchema.parse(await again.json()).error.code).toBe("unauthorized");
+
+    const active = await activeDevices(await userIdOf(bearer));
+    expect(active.map((row) => row.id)).toEqual([other.deviceId]);
+    const staying = await pull(other.credential);
+    expect(staying.status).toBe(200);
+  });
+
+  // each cycle is a password verify, which is slow on purpose
+  it(
+    "gives the slot back: twenty-one sign-in and sign-out cycles never meet the cap",
+    { timeout: 60_000 },
+    async () => {
+      const { bearer } = await signUpUser("signout-cycles@example.test");
+      for (let cycle = 0; cycle < 21; cycle += 1) {
+        const { credential } = await loginDevice(bearer, `Laptop ${cycle}`);
+        const signedOut = await postSignOut(deviceHeaders(credential));
+        expect(signedOut.status).toBe(200);
+      }
+      expect(await activeDevices(await userIdOf(bearer))).toEqual([]);
+    },
+  );
+
+  it("answers only a device credential — a session cannot sign a device out", async () => {
+    const { bearer } = await signUpUser("signout-session@example.test");
+    const { credential } = await loginDevice(bearer, "Laptop");
+
+    const refused = await postSignOut(sessionHeaders(bearer));
+    expect(refused.status).toBe(401);
+    const pulled = await pull(credential);
+    expect(pulled.status).toBe(200);
   });
 });
 
