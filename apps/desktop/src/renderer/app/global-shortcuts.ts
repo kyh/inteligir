@@ -15,7 +15,7 @@ export type GlobalShortcutAction =
 
 export interface GlobalShortcut {
   readonly key: string;
-  // a row claims shift explicitly; an unshifted row never fires shifted, so ⌘⇧K stays the editor's link insert
+  // a row claims shift explicitly; an unshifted row never fires on a shifted chord
   readonly shift?: true;
   readonly action: GlobalShortcutAction;
   readonly label: string;

@@ -40,7 +40,7 @@ export interface NoteTopbarProps {
   onBack: () => void;
   onForward: () => void;
   onFindInNote: () => void;
-  // a breadcrumb segment scopes the rail to that folder
+  // a breadcrumb segment reveals that folder in the rail's Files view
   onOpenFolder: (folder: string) => void;
   commentCount: number;
   onOpenComments: () => void;
