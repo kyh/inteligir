@@ -20,10 +20,17 @@ const MAX_TREE_PAGES = 40;
 
 const NOT_SIGNED_IN = "Not signed in.";
 
+// a refresh that fails keeps a ready listing, whose commit still pins every read and embed, and says
+// why in `refreshError`; `error` and `empty` are for a phone with no listing to keep.
 export type NotesTreeState =
   | { state: "idle" }
   | { state: "loading" }
-  | { state: "ready"; commit: string; entries: VaultTreeResponse["entries"] }
+  | {
+      state: "ready";
+      commit: string;
+      entries: VaultTreeResponse["entries"];
+      refreshError: string | null;
+    }
   | { state: "empty"; message: string }
   | { state: "error"; message: string };
 
@@ -45,15 +52,24 @@ export interface NotesStore {
   // drops what the previous sign-in fetched. null is no sign-in, or one the cloud refused, and
   // wipes the disk rows like a new sign-in does: only a restore keeps them.
   reset: (next: SignInSource | null) => void;
+  // a call while this sign-in's refresh runs joins it, so an awaiting caller sees it land
   refresh: () => Promise<void>;
   tree: ReadableStore<NotesTreeState>;
   readNote: (path: string) => Promise<NoteRead>;
-  // the store beside the note in the same tree, folded against the note's own markers
-  readComments: (path: string) => Promise<CommentsRead>;
+  // the store at the id of a note the caller already read, folded against that read's markers
+  readComments: (note: CachedNote) => Promise<CommentsRead>;
   resolveWiki: (target: string) => string | null;
   // null until a tree is ready: the route refuses an unpinned asset url. the bytes then sit in the
   // platform image caches (NSURLCache, Fresco), which core RN Image cannot purge on sign-out.
   assetSource: (path: string) => VaultAssetSource | null;
+}
+
+type LiveSession = Extract<ReturnType<SessionPort["current"]>, { kind: "live" }>;
+
+// both answer for the ready tree's commit, so they are replaced together
+interface Listing {
+  resolver: TargetResolver;
+  paths: ReadonlySet<string>;
 }
 
 export interface CreateNotesStoreArgs {
@@ -75,10 +91,9 @@ const bestEffort = (work: Promise<void>): void => {
 // the cloud has since refused, must not land.
 export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   const { session } = args;
-  let resolver: TargetResolver | null = null;
-  // a session id, not a boolean, so a new sign-in's refresh is never blocked by the previous
-  // sign-in's stalled one.
-  let refreshingFor = -1;
+  let listing: Listing | null = null;
+  // keyed by session id, so a new sign-in's refresh never joins the previous sign-in's stalled one.
+  let refreshing: { sessionId: number; done: Promise<void> } | null = null;
   const noteCache = args.cache ?? createMemoryNoteCache(NOTE_CACHE_MAX);
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
   const assetSources = new Map<string, VaultAssetSource>();
@@ -124,6 +139,71 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     return { commit: result.value.commit, content: result.value.content, ok: true, path };
   };
 
+  const refreshFailed = (message: string): void => {
+    const view = tree.get();
+    tree.set(
+      view.state === "ready" ? { ...view, refreshError: message } : { message, state: "error" },
+    );
+  };
+
+  const walkTree = async (current: LiveSession): Promise<void> => {
+    if (tree.get().state === "idle") {
+      tree.set({ state: "loading" });
+    }
+    const entries: VaultTreeResponse["entries"][number][] = [];
+    let commit: string | undefined;
+    let after: string | undefined;
+    for (let page = 0; page < MAX_TREE_PAGES; page += 1) {
+      const query: Parameters<CloudClient["vaultTree"]>[0] = {};
+      if (commit !== undefined) {
+        query.ref = commit;
+      }
+      if (after !== undefined) {
+        query.after = after;
+      }
+      const result = await current.client.vaultTree(query);
+      if (!session.fenced(current.id)) {
+        return;
+      }
+      if (!result.ok) {
+        if (session.recordFailure(result.failure) === "ended") {
+          return;
+        }
+        // an account with no hosted vault answers 404 forever; that is a state, not a fault to
+        // hunt.
+        const noVault = result.failure.kind === "refused" && result.failure.code === "not-found";
+        if (noVault && tree.get().state !== "ready") {
+          tree.set({
+            message: "No hosted vault yet — sync a desktop to your account first.",
+            state: "empty",
+          });
+        } else {
+          refreshFailed(describeCloudFailure(result.failure));
+        }
+        return;
+      }
+      ({ commit } = result.value);
+      entries.push(...result.value.entries);
+      after = result.value.next ?? undefined;
+      if (after === undefined) {
+        break;
+      }
+    }
+    if (commit === undefined) {
+      return;
+    }
+    if (after !== undefined) {
+      refreshFailed("This vault is too large for the notes list.");
+      return;
+    }
+    const paths = entries.map((entry) => entry.path);
+    // alias tiers stay empty: an alias lives in frontmatter the phone does not hold.
+    listing = { paths: new Set(paths), resolver: buildResolver(paths) };
+    assetSources.clear();
+    tree.set({ commit, entries, refreshError: null, state: "ready" });
+    bestEffort(noteCache.sweep(commit));
+  };
+
   return {
     assetSource(path) {
       const current = session.current();
@@ -140,16 +220,17 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return source;
     },
 
-    async readComments(path) {
-      const note = await readFile(path);
-      if (!note.ok) {
-        return { message: note.message, ok: false };
-      }
+    async readComments(note) {
       const id = frontmatterId(note.content);
       if (id === null || !isNoteIdKey(id)) {
         return { ok: true, threads: [] };
       }
-      const store = await readFile(commentsStorePath(id));
+      const storePath = commentsStorePath(id);
+      // the listing names every path at the commit the store's read would pin to
+      if (listing !== null && !listing.paths.has(storePath)) {
+        return { ok: true, threads: [] };
+      }
+      const store = await readFile(storePath);
       if (!store.ok) {
         return store.notFound ? { ok: true, threads: [] } : { message: store.message, ok: false };
       }
@@ -172,78 +253,26 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
     async refresh() {
       const current = session.current();
-      if (current.kind !== "live" || refreshingFor === current.id) {
+      if (current.kind !== "live") {
         return;
       }
-      const sessionId = current.id;
-      refreshingFor = sessionId;
-      if (tree.get().state === "idle") {
-        tree.set({ state: "loading" });
+      if (refreshing?.sessionId === current.id) {
+        await refreshing.done;
+        return;
       }
+      const slot = { done: walkTree(current), sessionId: current.id };
+      refreshing = slot;
       try {
-        const entries: VaultTreeResponse["entries"][number][] = [];
-        let commit: string | undefined;
-        let after: string | undefined;
-        for (let page = 0; page < MAX_TREE_PAGES; page += 1) {
-          const query: Parameters<CloudClient["vaultTree"]>[0] = {};
-          if (commit !== undefined) {
-            query.ref = commit;
-          }
-          if (after !== undefined) {
-            query.after = after;
-          }
-          const result = await current.client.vaultTree(query);
-          if (!session.fenced(sessionId)) {
-            return;
-          }
-          if (!result.ok) {
-            // a listing at a commit stays true, so a refresh that could not reach the cloud (a
-            // resume while offline) keeps it rather than trading it for an error.
-            if (session.recordFailure(result.failure) === "ended" || tree.get().state === "ready") {
-              return;
-            }
-            // an account with no hosted vault answers 404 forever; that is a state, not a fault to
-            // hunt.
-            const noVault =
-              result.failure.kind === "refused" && result.failure.code === "not-found";
-            tree.set(
-              noVault
-                ? {
-                    message: "No hosted vault yet — sync a desktop to your account first.",
-                    state: "empty",
-                  }
-                : { message: describeCloudFailure(result.failure), state: "error" },
-            );
-            return;
-          }
-          ({ commit } = result.value);
-          entries.push(...result.value.entries);
-          after = result.value.next ?? undefined;
-          if (after === undefined) {
-            break;
-          }
-        }
-        if (commit === undefined) {
-          return;
-        }
-        if (after !== undefined) {
-          tree.set({ message: "This vault is too large for the notes list.", state: "error" });
-          return;
-        }
-        // alias tiers stay empty: an alias lives in frontmatter the phone does not hold.
-        resolver = buildResolver(entries.map((entry) => entry.path));
-        assetSources.clear();
-        tree.set({ commit, entries, state: "ready" });
-        bestEffort(noteCache.sweep(commit));
+        await slot.done;
       } finally {
-        if (refreshingFor === sessionId) {
-          refreshingFor = -1;
+        if (refreshing === slot) {
+          refreshing = null;
         }
       }
     },
 
     reset(next) {
-      resolver = null;
+      listing = null;
       assetSources.clear();
       tree.set({ state: "idle" });
       if (next !== "restored") {
@@ -252,7 +281,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     },
 
     resolveWiki(target) {
-      return resolver === null ? null : resolver.resolveWiki(target);
+      return listing === null ? null : listing.resolver.resolveWiki(target);
     },
 
     tree,

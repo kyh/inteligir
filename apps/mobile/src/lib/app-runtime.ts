@@ -8,6 +8,7 @@ import {
 } from "../credential/secure-store-credential";
 import type { LoginRequest, LoginState } from "../login/login-store";
 import { createExpoNoteCache } from "../notes/expo-note-cache";
+import type { CachedNote } from "../notes/note-cache";
 import type { CommentsRead, NoteRead, NotesTreeState } from "../notes/notes-store";
 import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
@@ -93,8 +94,8 @@ export const refreshNotes = async (): Promise<void> => {
 export const readNote = async (path: string): Promise<NoteRead> =>
   await getRuntime().notes.readNote(path);
 
-export const readNoteComments = async (path: string): Promise<CommentsRead> =>
-  await getRuntime().notes.readComments(path);
+export const readNoteComments = async (note: CachedNote): Promise<CommentsRead> =>
+  await getRuntime().notes.readComments(note);
 
 export const resolveWikiPath = (target: string): string | null =>
   getRuntime().notes.resolveWiki(target);
