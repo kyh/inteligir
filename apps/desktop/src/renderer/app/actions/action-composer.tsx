@@ -11,6 +11,7 @@ import { useId, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import { failed } from "../api";
+import { ensureOpenNoteId } from "../note/open-note-id";
 import { useWorkspace } from "../workspace-context";
 import type { ViewContextSource } from "../thread-activity";
 import { spliceIntoComposer } from "../voice/dictation";
@@ -167,6 +168,9 @@ export const ActionComposer = ({
     setSending(true);
     void (async () => {
       try {
+        if (attachedPath !== null) {
+          ensureOpenNoteId(attachedPath);
+        }
         const viewContext = attachedPath === null ? null : await readViewContext();
         const created = await createAction(api, {
           contextPaths: mentions,

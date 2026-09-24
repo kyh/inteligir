@@ -77,6 +77,27 @@ describe("LinkGraphIndex — [[Title|uuid]] id tier", () => {
     expect(index.forwardLinks("b.md")[0]?.targetPath).toBeNull();
   });
 
+  it("pathForNoteId follows a moved doc by its id, and null once no doc carries it", () => {
+    const index = new LinkGraphIndex();
+    index.applyDoc("plans.md", projectDoc("plans.md", `---\nid: ${UUID}\n---\n# Plans\n`));
+    expect(index.pathForNoteId(UUID, "plans.md")).toBe("plans.md");
+    index.remove("plans.md");
+    index.applyDoc("archive/plans.md", projectDoc("archive/plans.md", `---\nid: ${UUID}\n---\n`));
+    expect(index.pathForNoteId(UUID, "plans.md")).toBe("archive/plans.md");
+    index.remove("archive/plans.md");
+    expect(index.pathForNoteId(UUID, "plans.md")).toBeNull();
+  });
+
+  it("pathForNoteId keeps the last path while it carries the id, so a copy never takes it", () => {
+    const index = new LinkGraphIndex();
+    const doc = `---\nid: ${UUID}\n---\n# Plans\n`;
+    index.applyDoc("plans.md", projectDoc("plans.md", doc));
+    index.applyDoc("deep/plans copy.md", projectDoc("deep/plans copy.md", doc));
+    expect(index.pathForNoteId(UUID, "deep/plans copy.md")).toBe("deep/plans copy.md");
+    // with the last path gone, the copies break the way the [[Title|uuid]] tier breaks them
+    expect(index.pathForNoteId(UUID, "gone.md")).toBe("plans.md");
+  });
+
   it("an id change re-points existing links (namespace invalidation)", () => {
     const index = new LinkGraphIndex();
     index.applyDoc("one.md", projectDoc("one.md", `---\nid: ${UUID}\n---\n# One\n`));

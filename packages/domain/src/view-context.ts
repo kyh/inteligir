@@ -1,6 +1,6 @@
 // rides the message, never a thread column or a mutable "current view": it describes the screen
 // the message left from, so it cannot go stale and nothing has to happen on navigation. not the
-// thread's `originDocPath`, which is the durable binding rebound on rename.
+// thread's `originDocPath`, the durable binding resolved by the note's frontmatter id.
 
 import { z } from "zod";
 

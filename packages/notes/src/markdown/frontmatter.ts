@@ -200,6 +200,10 @@ export type FrontmatterIdVerdict =
   | { kind: "invalid" }
   | { kind: "foreign-id"; value: string };
 
+export type FrontmatterIdYamlVerdict =
+  | Exclude<FrontmatterIdVerdict, { kind: "written" }>
+  | { kind: "written"; yaml: string };
+
 // YAML 1.2 core's null spellings: `id:` and `id: ~` hold nothing a minted id could displace
 const YAML_NULL_RE = /^(?:~|null|Null|NULL)?$/u;
 
@@ -208,9 +212,11 @@ const holdsNoValue = (prop: TypedProperty): boolean =>
   (prop.type === "unsupported" && YAML_NULL_RE.test(prop.rawYaml.trim()));
 
 // A line cut like the pin's: `id:` goes first, an empty one is replaced, a note that has one
-// keeps it.
-export const withFrontmatterId = (content: string, id: string): FrontmatterIdVerdict => {
-  const yaml = frontmatterYaml(content);
+// keeps it. Over the block's own YAML, the form the live editor's frontmatter node holds.
+export const frontmatterYamlWithId = (
+  yaml: string | null,
+  id: string,
+): FrontmatterIdYamlVerdict => {
   const parsed = parseProperties(yaml ?? "");
   if (parsed.kind === "invalid") {
     return { kind: "invalid" };
@@ -228,8 +234,14 @@ export const withFrontmatterId = (content: string, id: string): FrontmatterIdVer
     };
   }
   const lines = yaml === null || yaml === "" ? [] : splitLines(yaml);
-  const next = [`id: ${id}`, ...withoutTopLevelKey(lines, "id")];
-  return { content: replaceFrontmatterYaml(content, next.join("\n")), kind: "written" };
+  return { kind: "written", yaml: [`id: ${id}`, ...withoutTopLevelKey(lines, "id")].join("\n") };
+};
+
+export const withFrontmatterId = (content: string, id: string): FrontmatterIdVerdict => {
+  const verdict = frontmatterYamlWithId(frontmatterYaml(content), id);
+  return verdict.kind === "written"
+    ? { content: replaceFrontmatterYaml(content, verdict.yaml), kind: "written" }
+    : verdict;
 };
 
 // a note minted from a template must not inherit the template's identity: two notes with one

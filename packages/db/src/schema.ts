@@ -30,6 +30,10 @@ export const threads = sqliteTable(
     archivedAt: integer("archived_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
+    // the origin note's frontmatter `id`, which a move anywhere (Finder, a pull, an agent's `mv`)
+    // keeps; origin_doc_path stays the path at compose time and answers for a note with none. no
+    // index: nothing selects by it, each row is resolved through the knowledge index on read.
+    originNoteId: text("origin_note_id"),
   },
   (table) => [
     // two partial indexes: one (archived_at, updated_at) index cannot serve
@@ -41,7 +45,6 @@ export const threads = sqliteTable(
     index("threads_archived_updated_idx")
       .on(table.updatedAt)
       .where(sql`${table.archivedAt} IS NOT NULL`),
-    index("threads_origin_doc_idx").on(table.originDocPath),
   ],
 );
 

@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ThreadService } from "../service";
 import { unavailableTurnDriver } from "../turn-driver";
 import { makeTempDir } from "../../__tests__/temp-dir";
+import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
 const { reads, projections } = vi.hoisted(() => ({
   projections: { calls: 0 },
@@ -59,12 +60,13 @@ const openService = () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     }),
   };
 };
 
-const streamingThread = (service: ThreadService) => {
-  const thread = service.create({});
+const streamingThread = async (service: ThreadService) => {
+  const thread = await service.create({});
   const scope = turnScope("turn_1");
   const base = { scope, threadId: thread.id };
   const started: ThreadEvent = { type: "turn/started", ...base };
@@ -91,9 +93,9 @@ beforeEach(() => {
 });
 
 describe("a frame during a streaming turn", () => {
-  it("reads only the events that landed since the last one", () => {
+  it("reads only the events that landed since the last one", async () => {
     const { service } = openService();
-    const { threadId, delta } = streamingThread(service);
+    const { threadId, delta } = await streamingThread(service);
 
     const held = service.timeline({ threadId });
     if (held?.kind !== "full") {
@@ -115,9 +117,9 @@ describe("a frame during a streaming turn", () => {
     expect(reads.rows).toBe(30);
   });
 
-  it("projects once per frame: the base is the projection it served last", () => {
+  it("projects once per frame: the base is the projection it served last", async () => {
     const { service } = openService();
-    const { threadId, delta } = streamingThread(service);
+    const { threadId, delta } = await streamingThread(service);
 
     let sequence = 0;
     const first = service.timeline({ threadId });
@@ -138,9 +140,9 @@ describe("a frame during a streaming turn", () => {
     expect(projections.calls).toBe(30);
   });
 
-  it("still answers a client several frames behind, and the delta still applies", () => {
+  it("still answers a client several frames behind, and the delta still applies", async () => {
     const { service } = openService();
-    const { threadId, delta } = streamingThread(service);
+    const { threadId, delta } = await streamingThread(service);
 
     const first = service.timeline({ threadId });
     if (first?.kind !== "full") {
@@ -166,9 +168,9 @@ describe("a frame during a streaming turn", () => {
 });
 
 describe("a stored row this build cannot read", () => {
-  it("costs that row, never the thread's timeline, and is reported once", () => {
+  it("costs that row, never the thread's timeline, and is reported once", async () => {
     const { db, service } = openService();
-    const { threadId } = streamingThread(service);
+    const { threadId } = await streamingThread(service);
     // what a newer build sharing the data dir leaves at the log's tail.
     db.$client
       .prepare(

@@ -27,7 +27,6 @@ const MOVES_THE_TIMELINE = {
   "archived-changed": false,
   "events-appended": true,
   "interactions-changed": false,
-  "origin-changed": false,
   "queue-changed": false,
   "status-changed": true,
   "thread-created": false,

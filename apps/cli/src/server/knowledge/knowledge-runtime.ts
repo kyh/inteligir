@@ -95,6 +95,9 @@ export interface KnowledgeRuntime {
   problems: (options: VaultProblemsOptions) => Promise<VaultProblems>;
   // every doc whose frontmatter `id` is this one, by path
   noteIdOwners: (id: string) => Promise<string[]>;
+  // the doc whose frontmatter `id` this is: `lastPath` while it still is, else the id tier's own
+  // pick; null when no indexed doc carries it
+  pathForNoteId: (id: string, lastPath: string) => Promise<string | null>;
   relatedNotes: (path: string, limit: number) => Promise<RelatedNoteEntry[]>;
   tags: () => Promise<TagCount[]>;
   // the tag's family by path: a page of it and the whole count
@@ -625,6 +628,11 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         needsReconcile = true;
       }
       debounce.arm();
+    },
+
+    async pathForNoteId(id, lastPath) {
+      await settle();
+      return graph.pathForNoteId(id, normalizePath(lastPath));
     },
 
     async problems(options) {

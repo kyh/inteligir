@@ -69,6 +69,7 @@ import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
 import { z } from "zod";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
+import type { ThreadOrigins } from "./thread-origins";
 import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError } from "./turn-driver";
 import type {
@@ -116,9 +117,14 @@ export type InterruptOutcome =
   | { kind: "not-found" }
   | { kind: "remote"; message: string };
 
+// the row, not the wire thread: its origin is resolved after the transaction, off the index.
+type StopOutcome =
+  | { kind: "answered"; stop: ThreadStop; thread: ThreadRow }
+  | Exclude<InterruptOutcome, { kind: "answered" }>;
+
 type InterruptDecision =
   | { kind: "interrupt"; turnId: string | null }
-  | { kind: "done"; outcome: InterruptOutcome };
+  | { kind: "done"; outcome: StopOutcome };
 
 export type AnswerInteractionOutcome =
   | { kind: "resolved"; interaction: PendingInteraction }
@@ -137,15 +143,16 @@ export interface ThreadServiceArgs {
   db: DbConnection;
   notifier: DbNotifier;
   createTurnDriver: CreateTurnDriver;
+  origins: ThreadOrigins;
   sync?: ThreadSyncHooks;
 }
 
-const toWireThread = (row: ThreadRow): Thread => ({
+const toWireThread = (row: ThreadRow, originDocPath: string | null): Thread => ({
   activeTurnId: row.activeTurnId,
   archivedAt: row.archivedAt,
   createdAt: row.createdAt,
   id: row.id,
-  originDocPath: row.originDocPath,
+  originDocPath,
   providerId: row.providerId,
   status: row.status,
   title: row.title,
@@ -320,10 +327,7 @@ const requestStopInTransaction = (
   switch (thread.status) {
     case "idle":
     case "error": {
-      return {
-        kind: "done",
-        outcome: { kind: "answered", stop: "not-running", thread: toWireThread(thread) },
-      };
+      return { kind: "done", outcome: { kind: "answered", stop: "not-running", thread } };
     }
     case "starting":
     case "active":
@@ -354,11 +358,13 @@ export class ThreadService implements ProviderEventSink {
   private readonly notifier: DbNotifier;
   private readonly driver: TurnDriver;
   private readonly timelines: ThreadTimelineProjector;
+  private readonly origins: ThreadOrigins;
   private readonly sync: ThreadSyncHooks | null;
 
   constructor(args: ThreadServiceArgs) {
     this.db = args.db;
     this.notifier = args.notifier;
+    this.origins = args.origins;
     this.sync = args.sync ?? null;
     this.timelines = new ThreadTimelineProjector(args.db);
     this.driver = args.createTurnDriver(this);
@@ -379,22 +385,35 @@ export class ThreadService implements ProviderEventSink {
     this.sync?.enqueue(tx, events);
   }
 
-  create(input: CreateThreadRequest): Thread {
+  // the stored path answers for a note with no id, or one no indexed doc carries any more.
+  private async toWire(row: ThreadRow): Promise<Thread> {
+    const { originDocPath, originNoteId } = row;
+    if (originDocPath === null || originNoteId === null) {
+      return toWireThread(row, originDocPath);
+    }
+    const resolved = await this.origins.pathForNoteId(originNoteId, originDocPath);
+    return toWireThread(row, resolved ?? originDocPath);
+  }
+
+  async create(input: CreateThreadRequest): Promise<Thread> {
     const created: CreateThreadInput = {};
     if (input.title !== undefined) {
       created.title = input.title;
     }
     if (input.originDocPath !== undefined) {
-      created.originDocPath = input.originDocPath;
+      created.origin = {
+        noteId: await this.origins.noteIdAt(input.originDocPath),
+        path: input.originDocPath,
+      };
     }
-    return toWireThread(createThread(this.db, this.notifier, created));
+    return await this.toWire(createThread(this.db, this.notifier, created));
   }
 
-  list(): Thread[] {
-    return listThreads(this.db).map(toWireThread);
+  async list(): Promise<Thread[]> {
+    return await Promise.all(listThreads(this.db).map(async (row) => await this.toWire(row)));
   }
 
-  get(threadId: string): GetThreadResponse | null {
+  async get(threadId: string): Promise<GetThreadResponse | null> {
     const thread = getThread(this.db, threadId);
     if (thread === null) {
       return null;
@@ -408,7 +427,7 @@ export class ThreadService implements ProviderEventSink {
         id: row.id,
         text: row.text,
       })),
-      thread: toWireThread(thread),
+      thread: await this.toWire(thread),
     };
   }
 
@@ -422,16 +441,23 @@ export class ThreadService implements ProviderEventSink {
 
   // the stop comes after the archive: a settled stop drains the queue, and only an archived thread
   // refuses the turn that drain would start.
-  archive(threadId: string): Thread | null {
+  async archive(threadId: string): Promise<Thread | null> {
     if (archiveThread(this.db, this.notifier, threadId) === null) {
       return null;
     }
-    this.interrupt(threadId);
+    this.stop(threadId);
     const thread = getThread(this.db, threadId);
-    return thread === null ? null : toWireThread(thread);
+    return thread === null ? null : await this.toWire(thread);
   }
 
-  interrupt(threadId: string): InterruptOutcome {
+  async interrupt(threadId: string): Promise<InterruptOutcome> {
+    const outcome = this.stop(threadId);
+    return outcome.kind === "answered"
+      ? { ...outcome, thread: await this.toWire(outcome.thread) }
+      : outcome;
+  }
+
+  private stop(threadId: string): StopOutcome {
     const buffer = new NotificationBuffer();
     const decision = writeTransaction(this.db, (tx) =>
       requestStopInTransaction(tx, threadId, buffer),
@@ -448,11 +474,7 @@ export class ThreadService implements ProviderEventSink {
     if (thread === null) {
       return { kind: "not-found" };
     }
-    return {
-      kind: "answered",
-      stop: interrupt === "settling" ? "requested" : "stopped",
-      thread: toWireThread(thread),
-    };
+    return { kind: "answered", stop: interrupt === "settling" ? "requested" : "stopped", thread };
   }
 
   // nothing at a provider will ever report this turn's end, so the stop settles here.

@@ -38,8 +38,6 @@ const boot = () => {
   return { knowledge, root, service };
 };
 
-const noRebind = (): void => {};
-
 describe("rename with link rewrite", () => {
   it("rewrites exactly the candidate docs and records the old stem as an alias", async () => {
     const { root, service, knowledge } = boot();
@@ -54,7 +52,6 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       from: "notes/target.md",
       knowledge,
-      rebindThreads: noRebind,
       service,
       to: "archive/moved.md",
     });
@@ -91,7 +88,6 @@ describe("rename with link rewrite", () => {
     await renameNoteWithLinkRewrite({
       from: "other.md",
       knowledge,
-      rebindThreads: noRebind,
       service,
       to: "note.md",
     });
@@ -115,7 +111,6 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       from: "misc.md",
       knowledge,
-      rebindThreads: noRebind,
       service,
       to: "Retro.md",
     });
@@ -133,7 +128,6 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       from: "dir",
       knowledge,
-      rebindThreads: noRebind,
       service,
       to: "moved-dir",
     });
@@ -160,7 +154,6 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       from: "target.md",
       knowledge,
-      rebindThreads: noRebind,
       service: racing,
       to: "moved.md",
     });

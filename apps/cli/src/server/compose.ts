@@ -6,7 +6,6 @@ import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
-import { rebindThreadOrigins } from "@repo/db/threads";
 import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
@@ -38,6 +37,7 @@ import type { AppServices } from "./orpc";
 import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
+import { createThreadOrigins } from "./threads/thread-origins";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
 import { VaultPrefsStore } from "./vault/vault-prefs-store";
@@ -212,6 +212,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     createTurnDriver: agentDriver.createTurnDriver,
     db,
     notifier: bus,
+    origins: createThreadOrigins(vault.service, knowledge),
     sync: cloud,
   });
   // crash recovery writes (settles turns, frees claims, enqueues), so it runs in boot order, not in the constructor.
@@ -253,15 +254,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     openExternalUrl: ports.openExternalUrl ?? systemOpenExternalUrl,
     recordAgentWrites: agentDriver.recordAgentWrites,
     renameNote: async (from: string, to: string) =>
-      await renameNoteWithLinkRewrite({
-        from,
-        knowledge,
-        rebindThreads: (movedFrom, movedTo) => {
-          rebindThreadOrigins(db, bus, { from: movedFrom, to: movedTo });
-        },
-        service: vault.service,
-        to,
-      }),
+      await renameNoteWithLinkRewrite({ from, knowledge, service: vault.service, to }),
     renameTag: async (from: string, to: string) =>
       await renameTagAcrossVault({ from, knowledge, service: vault.service, to }),
     system: {

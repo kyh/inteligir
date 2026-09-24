@@ -23,6 +23,7 @@ import { authorizationHeader } from "../server-file";
 import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import type { BootedTestApp } from "./boot-app";
 import { FakeTurnDriver } from "./fake-turn-driver";
+import { pathOnlyOrigins } from "./path-only-origins";
 
 type ThreadsClient = BootedTestApp["client"];
 
@@ -313,6 +314,7 @@ describe("a thread's title", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     service.applySyncedEvents({
       cursor: 1,
@@ -435,13 +437,15 @@ describe("the queue drain", () => {
       },
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     const [revivedDriver] = drivers;
     if (revivedDriver === undefined) {
       throw new Error("the revived driver was not constructed");
     }
     revived.boot();
-    expect(revived.get(threadId)?.thread.status).toBe("error");
+    const recovered = await revived.get(threadId);
+    expect(recovered?.thread.status).toBe("error");
     expect(revivedDriver.startedTurns).toEqual([]);
 
     expect(revived.send({ text: "later", threadId }).kind).toBe("queued");
@@ -488,11 +492,11 @@ describe("the queue drain", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     revived.boot();
-    expect(revived.get(threadId)?.queuedMessages.map((message) => message.text)).toEqual([
-      "queued",
-    ]);
+    const recovered = await revived.get(threadId);
+    expect(recovered?.queuedMessages.map((message) => message.text)).toEqual(["queued"]);
     expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
   });
 
@@ -545,6 +549,7 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     expect(() => {
       service.ingestProviderEvents(threadId, [
@@ -577,9 +582,11 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     revived.boot();
-    expect(revived.get(threadId)?.thread.status).toBe("error");
+    const recovered = await revived.get(threadId);
+    expect(recovered?.thread.status).toBe("error");
     expect(await getThreadStatus(client, threadId)).toBe("error");
     const rows = timelineRows(await fetchTimeline(client, threadId));
     const errorRow = rows.find((row) => row.kind === "error");
@@ -597,7 +604,8 @@ describe("turn identity and crash recovery", () => {
 
     // the request behind the orphan died with the process, so it settles interrupted rather than answerable.
     expect(getPendingInteraction(db, orphan.id)?.status).toBe("interrupted");
-    expect(revived.get(threadId)?.pendingInteractions).toEqual([]);
+    const settled = await revived.get(threadId);
+    expect(settled?.pendingInteractions).toEqual([]);
   });
 
   it("folds any dispatch throw into error status with a recorded provider/error", async () => {
@@ -676,6 +684,7 @@ describe("stopping a turn", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     const threadId = "thr_remote";
     remote.applySyncedEvents({

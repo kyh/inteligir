@@ -59,7 +59,6 @@ const MOVES_THE_LIST = {
   "archived-changed": true,
   "events-appended": false,
   "interactions-changed": false,
-  "origin-changed": true,
   "queue-changed": false,
   "status-changed": true,
   "thread-created": true,
@@ -70,7 +69,6 @@ const MOVES_THE_DETAIL = {
   "archived-changed": true,
   "events-appended": false,
   "interactions-changed": true,
-  "origin-changed": true,
   "queue-changed": true,
   "status-changed": true,
   "thread-created": true,
@@ -205,11 +203,17 @@ export class ChangeBatch {
       emitVaultChange(event);
     }
 
-    if ([...this.threads.values()].some((kinds) => movesAny(MOVES_THE_LIST, kinds))) {
+    // a thread finds its note by the note's id, so a moved note re-points every thread with no
+    // thread frame of its own.
+    const filesMoved = this.vaultKinds.has("files-changed");
+    if (filesMoved || [...this.threads.values()].some((kinds) => movesAny(MOVES_THE_LIST, kinds))) {
       void queryClient.invalidateQueries({ queryKey: orpc.threads.list.key() });
     }
+    if (filesMoved) {
+      void queryClient.invalidateQueries({ queryKey: orpc.threads.get.key() });
+    }
     for (const [threadId, kinds] of this.threads) {
-      if (movesAny(MOVES_THE_DETAIL, kinds)) {
+      if (!filesMoved && movesAny(MOVES_THE_DETAIL, kinds)) {
         void queryClient.invalidateQueries({
           queryKey:
             threadId === undefined

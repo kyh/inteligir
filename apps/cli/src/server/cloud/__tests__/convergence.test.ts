@@ -10,6 +10,7 @@ import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime } from "../sync-runtime";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
+import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
 // pollIntervalMs: null — the test triggers every pass itself.
 const bootInstall = async (
@@ -71,6 +72,7 @@ const rebootCloud = async (
       createTurnDriver: () => unavailableTurnDriver,
       db: install.db,
       notifier: new NotificationBuffer(),
+      origins: pathOnlyOrigins,
       sync: runtime,
     }),
   );
@@ -255,9 +257,11 @@ describe("two installs against one account", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db: b.db,
       notifier: new NotificationBuffer(),
+      origins: pathOnlyOrigins,
     });
     rebooted.boot();
-    expect(rebooted.list().some((row) => row.id === thread.id)).toBe(true);
+    const listed = await rebooted.list();
+    expect(listed.some((row) => row.id === thread.id)).toBe(true);
     expect(eventOrder(b, thread.id).some((row) => row.startsWith("provider/error"))).toBe(false);
     const afterReboot = await b.client.threads.get({ threadId: thread.id });
     expect(afterReboot.thread.status).toBe("active");

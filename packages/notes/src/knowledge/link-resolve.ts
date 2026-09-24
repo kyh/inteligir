@@ -10,6 +10,9 @@ import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from 
 export interface TargetResolver {
   resolveWiki: (target: string, alias?: string) => string | null;
   resolveMd: (target: string, fromPath: string) => string | null;
+  // the doc whose frontmatter `id` this is; a copied file carries its original's, so it breaks
+  // like every other tier
+  resolveNoteId: (id: string) => string | null;
 }
 
 const pickBest = (candidates: readonly string[]): string | null => {
@@ -129,10 +132,12 @@ export const buildResolver = (
     return pickBest(byNameLower.get(clean.toLowerCase()) ?? []);
   };
 
+  const resolveNoteId = (id: string): string | null => pickBest(idOwners.get(id) ?? []);
+
   const resolveWiki = (target: string, alias?: string): string | null => {
     // a uuid-shaped alias names the target by frontmatter id; a display alias never does
     if (alias !== undefined && isUuidWikiAlias(alias)) {
-      const owned = pickBest(idOwners.get(alias) ?? []);
+      const owned = resolveNoteId(alias);
       if (owned !== null) {
         return owned;
       }
@@ -188,7 +193,7 @@ export const buildResolver = (
     return null;
   };
 
-  return { resolveMd, resolveWiki };
+  return { resolveMd, resolveNoteId, resolveWiki };
 };
 
 // the shortest target that resolves back to `path`: its name, else its path, spelled without the
