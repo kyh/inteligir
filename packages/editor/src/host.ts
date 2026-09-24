@@ -2,7 +2,6 @@ import { useStore } from "zustand";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { LinkResolver, VaultActions } from "@repo/editor/host-io";
-import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
 
 // React's door to the host singleton; anything outside a component reads getEditorHostIo() itself.
@@ -17,11 +16,14 @@ export interface VaultLinkTarget {
   path: string | null;
 }
 
-// An md url in the open note, read and resolved as the knowledge index does; null for a url
-// no vault path answers (a scheme, `//host`, a same-note `#anchor`).
-export const useVaultLinkTarget = (url: string): VaultLinkTarget | null => {
+// An md url written in the note at `notePath` (the open note, or the note an embed shows), read
+// and resolved as the knowledge index does; null for a url no vault path answers (a scheme,
+// `//host`, a same-note `#anchor`).
+export const useVaultLinkTarget = (
+  url: string,
+  notePath: string | null,
+): VaultLinkTarget | null => {
   const { resolveMdTarget } = useLinkResolver();
-  const notePath = useOpenNotePath();
   const target = mdLinkTarget(url);
   if (target === null) {
     return null;

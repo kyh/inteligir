@@ -22,7 +22,8 @@ import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/rea
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { BlockquoteElement, alertMarkerPrefix } from "@repo/editor/nodes/blockquote-node";
+import { alertMarkerPrefix } from "@repo/editor/markdown/alert-marker";
+import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";

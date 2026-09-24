@@ -1,6 +1,8 @@
 // Output is not byte-canonical (toCanonical normalizes it) and avoids opaque
 // constructs, so the property test exercises the modelled nodes.
 
+import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
+
 // oxlint-disable no-bitwise -- mulberry32 is defined in terms of 32-bit word math; the seeded sequence is the point
 const mulberry32 = (seed: number): (() => number) => {
   let a = seed >>> 0;
@@ -55,8 +57,6 @@ const WORDS = [
 ];
 
 const WIKI_TARGETS = ["Alpha Note", "Some Note", "Other", "Project X", "Hub"];
-
-const ALERT_KINDS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"];
 
 const MATH_BODIES = ["E=mc^2", "\\int_0^1 x^2 dx", "a^2 + b^2 = c^2", "x + y = z"];
 
@@ -153,7 +153,9 @@ const table = (rng: Rng): string => {
 
 const blockquote = (rng: Rng): string => {
   if (chance(rng, 0.5)) {
-    const kind = pick(rng, ALERT_KINDS);
+    const variant = pick(rng, ALERT_VARIANTS);
+    // GitHub reads the marker in any case, so the dialect must round-trip one written lowercase
+    const kind = chance(rng, 0.3) ? variant.toLowerCase() : variant;
     return `> [!${kind}]\n> ${inlineText(rng, 3, 8)}`;
   }
   return `> ${inlineText(rng, 3, 8)}`;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, TextApi } from "platejs";
 import type { Value } from "platejs";
 
+import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
 import { ALERT_VARIANT_KEY, stripAlertMarkers } from "@repo/editor/transclusion";
 
 const quote = (...lines: string[]): Value => [
@@ -35,11 +36,17 @@ describe("stripAlertMarkers", () => {
   });
 
   it("recognizes every alert variant", () => {
-    for (const variant of ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]) {
+    for (const variant of ALERT_VARIANTS) {
       const out = stripAlertMarkers(quote(`[!${variant}]`, "body"));
       expect(out[0]?.[ALERT_VARIANT_KEY]).toBe(variant);
       expect(firstText(out)).toBe("body");
     }
+  });
+
+  it("reads a marker in any case, as GitHub does, and records its variant", () => {
+    const out = stripAlertMarkers(quote("[!note]", "body"));
+    expect(out[0]?.[ALERT_VARIANT_KEY]).toBe("NOTE");
+    expect(firstText(out)).toBe("body");
   });
 
   it("leaves the loose form alone — hiding non-marker bytes would lie", () => {
