@@ -1,6 +1,7 @@
 // no `logout` here on purpose: it discards a queue of unsent writes, a decision for a person in front of
 // that state rather than a verb for a model to drive.
 
+import { cloudDevicesPageUrl } from "@repo/api/local/cloud/cloud-schema";
 import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
@@ -14,6 +15,12 @@ const describe = (status: CloudStatusResponse): string[] => {
     case "signed-out": {
       return [
         `signed out  ${new URL(status.cloudUrl).host}`,
+        ...(status.revokeError === null
+          ? []
+          : [
+              `sign-out did not remove this device from the account: ${status.revokeError}`,
+              `Remove it from Devices at ${cloudDevicesPageUrl(status.cloudUrl)}`,
+            ]),
         "Run: inteligir cloud login --email <address> — with your account's password.",
       ];
     }
@@ -29,6 +36,9 @@ const describe = (status: CloudStatusResponse): string[] => {
       return [
         `signed in  ${new URL(status.cloudUrl).host}  device ${status.deviceId}`,
         `${status.connected ? "following" : "polling"}  ${status.pending} queued  cursor ${status.cursor}  synced ${synced}`,
+        ...(status.dropped === 0
+          ? []
+          : [`${status.dropped} event${status.dropped === 1 ? "" : "s"} never reached the cloud`]),
         ...(status.lastError === null ? [] : [`last error: ${status.lastError}`]),
       ];
     }

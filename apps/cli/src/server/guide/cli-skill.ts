@@ -299,7 +299,8 @@ account. It is off until this install signs in, and it never carries vault
 files — those are git's job.
 
 - \`inteligir cloud status\` — whether this install is signed in, how many
-  events are queued for the account, and how far behind it is.
+  events are queued for the account, how many never reached it, and how far
+  behind it is.
 - \`inteligir cloud login --email <address> [--password <password>] [--name <device>]\`
   — sign this machine in with the account's own email and password; it gets
   its own device credential, revocable from the account's Devices page.

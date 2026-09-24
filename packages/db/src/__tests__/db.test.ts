@@ -8,6 +8,7 @@ import type { DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
 import { listMigrationNames, runMigrations } from "../migrate";
+import { readSyncState } from "../sync-outbox";
 import { noopNotifier } from "@repo/domain/notifier";
 import { makeTempDir } from "./open-temp-db";
 
@@ -90,6 +91,28 @@ describe("boot", () => {
         sql`SELECT provider_id AS a, provider_thread_id AS b FROM threads WHERE id = 'thr_v2'`,
       ),
     ).toEqual({ a: null, b: null });
+  });
+
+  it("adds the dropped-events count to the sync state an earlier generation left", () => {
+    const names = listMigrationNames(MIGRATIONS_DIR);
+    const generation = names.findIndex((name) => name.endsWith("_sync_dropped_events")) + 1;
+    expect(generation).toBeGreaterThan(0);
+    const earlier = makeTempDir("inteligir-db-migrations-earlier-");
+    freezeMigrationsAt(earlier, generation - 1);
+
+    const db = openTempDb();
+    runMigrations(db, earlier);
+    db.run(
+      sql`INSERT INTO sync_state (id, last_device_seq, cursor, last_synced_at) VALUES (1, 7, 42, 1000)`,
+    );
+
+    expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
+    expect(readSyncState(db)).toEqual({
+      cursor: 42,
+      droppedEvents: 0,
+      lastDeviceSeq: 7,
+      lastSyncedAt: 1000,
+    });
   });
 
   it("refuses to answer a schema version before migrations ran", () => {

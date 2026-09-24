@@ -1434,6 +1434,42 @@ describe("cloud login", () => {
   });
 });
 
+describe("cloud status", () => {
+  it("says how many events never reached the cloud", async () => {
+    const state = seededState();
+    state.cloud = {
+      accountEmail: "owner@example.test",
+      cloudUrl: "https://cloud.test",
+      connected: true,
+      cursor: 4,
+      deviceId: "dev_1",
+      dropped: 2,
+      lastError: null,
+      lastSyncedAt: null,
+      pending: 0,
+      state: "signed-in",
+    };
+    const server = await boot(state);
+    const result = await runCliForTest({ argv: ["cloud", "status"], baseUrl: server.baseUrl });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("2 events never reached the cloud");
+  });
+
+  it("sends a device its sign-out could not remove to the devices page", async () => {
+    const state = seededState();
+    state.cloud = {
+      cloudUrl: "https://cloud.test",
+      revokeError: "Could not reach the cloud: HTTP 503",
+      state: "signed-out",
+    };
+    const server = await boot(state);
+    const result = await runCliForTest({ argv: ["cloud", "status"], baseUrl: server.baseUrl });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("HTTP 503");
+    expect(result.stdout).toContain("https://cloud.test/app/devices");
+  });
+});
+
 describe("--json failures", () => {
   it("puts the error envelope on stderr and leaves stdout empty", async () => {
     const server = await boot(seededState());

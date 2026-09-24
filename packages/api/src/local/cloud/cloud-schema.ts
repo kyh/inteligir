@@ -14,6 +14,9 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
   z
     .object({
       cloudUrl: z.url(),
+      // the last sign-out's revoke, refused or unreachable: the credential is gone here and still
+      // live in the cloud until the account's devices page removes it
+      revokeError: z.string().nullable(),
       state: z.literal("signed-out"),
     })
     .strict(),
@@ -26,6 +29,9 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
       connected: z.boolean(),
       cursor: z.number().int().nonnegative(),
       deviceId: z.string().min(1),
+      // queued events deleted without reaching the log, since this sign-in; lastError says the
+      // latest refusal, and the next good pass clears it
+      dropped: z.number().int().nonnegative(),
       lastError: z.string().nullable(),
       lastSyncedAt: z.number().int().nullable(),
       pending: z.number().int().nonnegative(),
@@ -43,6 +49,11 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
     .strict(),
 ]);
 export type CloudStatusResponse = z.infer<typeof cloudStatusResponseSchema>;
+
+// where a person removes a device this one could not: the Worker's devices page
+// (apps/web/src/routes/app/devices.tsx), named once for the two clients that point at it
+export const cloudDevicesPageUrl = (cloudUrl: string): string =>
+  new URL("/app/devices", cloudUrl).href;
 
 // the cloud's own email and password fields, so a value refused there is refused here first
 export const cloudLoginRequestSchema = deviceLoginRequestSchema

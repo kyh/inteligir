@@ -140,7 +140,7 @@ export const makeRevision = (
 export const makeFixtureState = (): FixtureState => ({
   agent: { detail: null, mode: "auto", runtime: "acp" },
   backlinks: [],
-  cloud: { cloudUrl: FIXTURE_CLOUD_URL, state: "signed-out" },
+  cloud: { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" },
   comments: new Map(),
   concurrentWrite: null,
   connectorHeaders: new Map(),
@@ -205,6 +205,7 @@ const cloudRouter = {
       connected: false,
       cursor: 0,
       deviceId: `dev_${input.deviceName ?? "fixture-host"}`,
+      dropped: 0,
       lastError: null,
       lastSyncedAt: null,
       pending: 0,
@@ -213,7 +214,7 @@ const cloudRouter = {
     return context.cloud;
   }),
   logout: base.cloud.logout.handler(({ context }) => {
-    context.cloud = { cloudUrl: FIXTURE_CLOUD_URL, state: "signed-out" };
+    context.cloud = { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" };
     return context.cloud;
   }),
   status: base.cloud.status.handler(({ context }) => context.cloud),

@@ -1108,7 +1108,11 @@ to the END of its group.
   live credential, and the phone's credential drop send it on a client of
   their own, since closing the session aborts its client's requests, and clear
   local state without waiting: an unreachable cloud must not hold a sign-out
-  open. `apps/web/src/worker/device/routes.ts`,
+  open. A revoke the cloud did not take is said on the desktop's signed-out
+  status (`revokeError`) until the next login or restart, since the row stays
+  live until the Devices page removes it; one refused as unauthorized says
+  nothing, since that credential is already dead.
+  `apps/web/src/worker/device/routes.ts`,
   `apps/cli/src/server/cloud/sync-runtime.ts`,
   `apps/mobile/src/sync/sync-runtime.ts`,
   `packages/api/src/cloud/device/login-flow.ts`.
@@ -1208,8 +1212,11 @@ to the END of its group.
   `clipThreadEventForSync` (`@repo/api/cloud/sync/fit-sync-event`) elides the
   middle of the largest texts and never a type, an id, a status or a scope. An
   event the contract still refuses is dropped rather than stranding every event
-  behind it (`apps/cli/src/server/cloud/outbox.ts`,
-  `packages/db/src/sync-outbox.ts`).
+  behind it, and so is every row a log refusal names; each drop is COUNTED in
+  the delete's own transaction (`sync_state.dropped_events`), shown in
+  Settings and `inteligir cloud status` until sign-out, because the last error
+  it raises is cleared by the next good pass while the loss is not
+  (`apps/cli/src/server/cloud/outbox.ts`, `packages/db/src/sync-outbox.ts`).
 
 - **A PULLED ROW THIS BUILD CANNOT READ IS PULLED AGAIN BY THE NEXT BUILD.** The
   planner moves the cursor past a foreign row its grammar refuses, because the

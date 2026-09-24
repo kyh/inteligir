@@ -13,6 +13,7 @@ import type {
 } from "@repo/api/cloud/client";
 import { loginDevice } from "@repo/api/cloud/device/login-flow";
 import type { LoginOutcome as DeviceLoginOutcome } from "@repo/api/cloud/device/login-flow";
+import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
@@ -98,6 +99,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
 
   let sink: SyncedEventSink | null = null;
   let lastError: string | null = null;
+  let revokeError: string | null = null;
   let disposed = false;
   const flight = createSingleFlight();
   // best-effort; a failure costs the label, never the sync.
@@ -138,15 +140,23 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   const signOutAbort = new AbortController();
 
   // never awaited by the caller: an unreachable cloud must not hold a sign-out open, and the row it
-  // leaves is the Devices page's to revoke. its own client, because closing the session aborts every
-  // request the session's client carries.
+  // leaves is the Devices page's to revoke, which the signed-out status says. its own client,
+  // because closing the session aborts every request the session's client carries.
   const signOutBestEffort = (credential: DeviceCredential): void => {
     const client = createCloudClient(clientArgs(credential.credential, signOutAbort.signal));
     const earlier = signOutsSettled;
     signOutsSettled = (async () => {
       const result = await client.signOut();
       if (!result.ok) {
-        debug(`sign-out did not revoke this device: ${describeCloudFailure(result.failure)}`);
+        const message = describeCloudFailure(result.failure);
+        debug(`sign-out did not revoke this device: ${message}`);
+        // a credential the cloud refuses is no longer live: the devices page has nothing to remove.
+        const refusedCredential =
+          result.failure.kind === "refused" && SYNC_TERMINAL_CODES.has(result.failure.code);
+        if (!refusedCredential) {
+          revokeError = message;
+          notifyStatus();
+        }
       }
       await earlier;
     })();
@@ -341,7 +351,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     const current = session.current();
     switch (current.kind) {
       case "off": {
-        return { cloudUrl: args.cloudUrl, state: "signed-out" };
+        return { cloudUrl: args.cloudUrl, revokeError, state: "signed-out" };
       }
       case "unauthorized": {
         return {
@@ -359,6 +369,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
           connected: link.isConnected(),
           cursor: state.cursor,
           deviceId: current.credential.deviceId,
+          dropped: state.droppedEvents,
           lastError,
           lastSyncedAt: state.lastSyncedAt,
           pending: countSyncOutbox(args.db),
@@ -404,6 +415,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     haltTransport();
     resetSyncState(args.db);
     writeDeviceCredential(args.dataDir, credential);
+    revokeError = null;
     openSession(credential);
     // only once the new credential is kept: a failed write leaves the previous one this device's key
     if (previous.kind === "live") {

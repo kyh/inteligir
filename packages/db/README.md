@@ -47,8 +47,9 @@ src/
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
-                      # cursor and its skipped-row marker, the applied-capture
-                      # ledger, the own device ids
+                      # cursor and its skipped-row marker, the count of rows
+                      # dropped unsent, the applied-capture ledger, the own
+                      # device ids
   own-synced-copies.ts
                       # the once-per-database removal of this install's own rows
                       # a replay pulled back under a device id it never recorded

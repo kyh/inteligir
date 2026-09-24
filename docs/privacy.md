@@ -132,7 +132,8 @@ delete.
   flight.
 - Signing out on a device revokes it the same way, but only if the cloud hears
   the sign-out: a device that signs out offline forgets its credential while its
-  row stays active, until you revoke it from the dashboard.
+  row stays active, until you revoke it from the dashboard. The desktop's
+  Settings › Devices says so until it restarts or signs in again.
 - `git push` to ANY remote is subject to that remote's own retention; the
   hosted vault repo is deleted with the account, a GitHub remote is governed
   by GitHub.

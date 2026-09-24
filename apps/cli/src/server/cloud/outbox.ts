@@ -114,7 +114,8 @@ export const takePushBatch = (db: DbConnection): PushBatch | null => {
   return { rejected, request, throughDeviceSeq };
 };
 
-// accepted and duplicates alike: both mean the position is in the log with these bytes.
+// accepted and duplicates alike: both mean the position is in the log with these bytes. the
+// rejected rows go with them, and are counted as never reaching it.
 export const ackPushBatch = (db: DbConnection, batch: PushBatch): void => {
-  deleteSyncOutboxThrough(db, batch.throughDeviceSeq);
+  deleteSyncOutboxThrough(db, batch.throughDeviceSeq, batch.rejected.length);
 };

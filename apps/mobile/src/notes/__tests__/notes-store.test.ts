@@ -13,6 +13,7 @@ import { createNotesStore } from "../notes-store";
 import type { CommentsRead, NotesStore, SignInSource } from "../notes-store";
 
 const COMMIT = "c".repeat(40);
+const LATER_COMMIT = "e".repeat(40);
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const OTHER_CREDENTIAL = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_2" };
 
@@ -198,7 +199,11 @@ describe("the notes store", () => {
     let endless = false;
     const { signIn, store } = notesOver(async (input, init) =>
       endless && new URL(input).pathname === VAULT_API_PATHS.tree
-        ? Response.json({ commit: COMMIT, entries: [{ path: "a.md", size: 4 }], next: "a.md" })
+        ? Response.json({
+            commit: LATER_COMMIT,
+            entries: [{ path: "a.md", size: 4 }],
+            next: "a.md",
+          })
         : await cloud.fetch(input, init),
     );
     signIn(CREDENTIAL, "restored");
@@ -212,6 +217,24 @@ describe("the notes store", () => {
       ...ready,
       refreshError: "This vault is too large for the notes list.",
     });
+  });
+
+  it("asks for one page and keeps the listing whole when head has not moved", async () => {
+    const cloud = fakeCloud();
+    const { signIn, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+    const ready = store.tree.get();
+    const treeRequests = (): string[] =>
+      cloud.requests.filter((line) => line.startsWith(VAULT_API_PATHS.tree));
+    const walked = treeRequests().length;
+    expect(walked).toBeGreaterThan(1);
+
+    await store.refresh();
+
+    expect(treeRequests()).toHaveLength(walked + 1);
+    expect(store.tree.get()).toBe(ready);
+    expect(store.resolveWiki("b")).toBe("notes/b.md");
   });
 
   it("is an error only when there is no listing to keep", async () => {
@@ -515,7 +538,7 @@ describe("the notes store over a durable cache", () => {
     expect(calls.filter((line) => line.startsWith("set"))).toEqual([]);
   });
 
-  it("sweeps to the tree's commit on every refresh", async () => {
+  it("sweeps to the tree's commit on every refresh that lands one", async () => {
     const { cache, calls } = recordingCache();
     const cloud = fakeCloud();
     const { signIn, store } = notesOver(cloud.fetch, cache);
