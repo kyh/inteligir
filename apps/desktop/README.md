@@ -16,8 +16,9 @@ src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 
 The window loads `inteligir://app`, a scheme registered `standard` (so Chromium
 gives it a real origin), `secure`, `supportFetchAPI` and `stream`.
-`src/main/protocol.ts` answers everything on it: the built bundle, and — proxied
-to the loopback server — `/rpc/*` and `/vault/asset`.
+`src/main/protocol.ts` registers it and `src/main/protocol-handler.ts` (pure,
+unit-tested over a fake fetch) answers everything on it: the built bundle, and
+— proxied to the loopback server — `/rpc/*` and `/vault/asset`.
 
 That shape is what keeps the page same-origin with its own API without putting
 CORS on the loopback server, and **the renderer never holds the device token**:
@@ -32,6 +33,16 @@ stream dial the loopback origin directly, main attaches the bearer to those
 upgrades with `onBeforeSendHeaders`, and the preload hands the renderer that
 origin as `window.desktopBridge.socketOrigin` — because `window.location.origin`
 is now `inteligir://app` and names no server.
+
+**Both carriers lend the bearer to the page alone.** Chromium tells main which
+origin made each request (`initiatorOrigin`), and neither the page nor a frame
+inside it can forge it. The handler forwards a proxied path only when that is
+`inteligir://app`, or absent for a request the browser started itself, and
+answers anything else 403; the socket filter attaches the header under the same
+rule (`carriesBearer`). A note's own frame is the case it exists for: an
+`inteligir-html` block runs sandboxed, so its origin is opaque (`"null"`), and
+what a note carries must never act with the device token. The gate runs ahead
+of both renderers, because `pnpm dev` serves no CSP.
 
 ## The origin pin is the whole security surface
 
@@ -195,6 +206,15 @@ build.
 
 `node_modules` is unpacked from the asar because a child process cannot be
 spawned from inside an archive and a `.node` binary cannot be loaded from one.
+
+`electronFuses` in `electron-builder.yml` flips the binary's fuses before it is
+signed: `NODE_OPTIONS` and `--inspect` are ignored, `file://` pages get no
+extra privileges, and cookies are encrypted at rest. `runAsNode` stays on,
+because the server's watcher forks its child with `child_process` inside the
+utility process and the smoke boots the server as Node. An unsigned build
+(`-c.mac.identity=null`) is killed at launch on Apple Silicon: the flip
+invalidates Electron's ad-hoc signature, so re-sign it with
+`codesign --force --deep --sign -` before running it.
 
 ### The release path
 

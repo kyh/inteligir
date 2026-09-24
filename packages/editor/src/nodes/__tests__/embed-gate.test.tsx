@@ -1,7 +1,7 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { KEYS } from "platejs";
 import { createPlateEditor, Plate, PlateContent } from "platejs/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EmbedKit } from "@repo/editor/kits/embed-kit";
 
@@ -74,5 +74,27 @@ describe("file (pdf) scheme gate", () => {
     const { container } = renderNode(KEYS.file, url);
     expect(container.querySelector("iframe")).toBeNull();
     expect(container.querySelector("a")?.getAttribute("href")).toBe(url);
+  });
+});
+
+describe("the media toolbar's Open original", () => {
+  it("opens an http(s) url with no handle back to this window", () => {
+    const opened = vi.spyOn(window, "open").mockReturnValue(null);
+    const url = "https://example.com/report.docx";
+    fireEvent.click(renderNode(KEYS.file, url).getByRole("button", { name: "Open original" }));
+    expect(opened).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
+    opened.mockRestore();
+  });
+
+  it.each([
+    // oxlint-disable-next-line no-script-url -- the blocked scheme is this test's input, not a live URL.
+    "javascript:alert(1)//x.pdf",
+    "file:///tmp/secret.pdf",
+    "assets/local.pdf",
+  ])("opens nothing for %s", (url) => {
+    const opened = vi.spyOn(window, "open").mockReturnValue(null);
+    fireEvent.click(renderNode(KEYS.file, url).getByRole("button", { name: "Open original" }));
+    expect(opened).not.toHaveBeenCalled();
+    opened.mockRestore();
   });
 });

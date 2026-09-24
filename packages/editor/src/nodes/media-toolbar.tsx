@@ -5,6 +5,7 @@ import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/reac
 import { cn } from "@repo/ui/lib/cn";
 import { Button } from "@repo/ui/components/button";
 
+import { openExternalUrl } from "@repo/editor/lib/wire";
 import { stringProp } from "@repo/editor/node-props";
 
 const BUTTON_CLASS = "rounded-md text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
@@ -107,9 +108,7 @@ export const MediaToolbar = () => {
             title="Open original"
             className={BUTTON_CLASS}
             onClick={() => {
-              if (url) {
-                window.open(url, "_blank", "noopener,noreferrer");
-              }
+              openExternalUrl(url);
             }}
           >
             <ExternalLinkIcon />

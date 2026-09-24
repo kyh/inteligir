@@ -1462,10 +1462,16 @@ agents default`; unset falls back
   so the page is same-origin with its API, there is no CORS, and the renderer
   never holds the token (which is what keeps `<img src>` working). Websockets
   are the one exception: main attaches the bearer to those upgrades and the
-  single preload hands the renderer the loopback origin. The pin cannot use
-  `URL.origin`, which answers `"null"` for any non-special scheme; scheme and
-  host are compared as fields. A copied link names the server's loopback origin,
-  never the page's. `apps/desktop/src/main/protocol.ts`, `origin-pin.ts`,
+  single preload hands the renderer the loopback origin. BOTH CARRIERS LEND THE
+  BEARER ONLY TO THE PAGE: a request's `initiatorOrigin` must be
+  `inteligir://app`, or absent for one the browser started itself
+  (`carriesBearer`), so a sandboxed note frame, whose origin is opaque
+  (`"null"`), gets a 403 from the handler and a bare upgrade from main. The
+  gate runs ahead of both renderers, because `pnpm dev` serves no CSP. The pin
+  cannot use `URL.origin`, which answers `"null"` for any non-special scheme;
+  scheme and host are compared as fields. A copied link names the server's
+  loopback origin, never the page's. `apps/desktop/src/main/protocol.ts` (the Electron wiring)
+  over `protocol-handler.ts` (pure, tested), `origin-pin.ts`,
   `credential-scope.ts`, `apps/desktop/src/types.ts`,
   `apps/desktop/src/renderer/app/socket-origin.ts`.
 
@@ -1529,6 +1535,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `server.json` only when the row carries its own token, so a shutdown never
   retracts another boot's address. `apps/cli/src/server/serve-lock.ts` and
   `claimDataDir` in `serve.ts`.
+
+- **THE PACKAGED BINARY'S FUSES ARE FLIPPED, EXCEPT RUN-AS-NODE.** electron-builder
+  flips them before signing: `NODE_OPTIONS` and `--inspect` are ignored,
+  `file://` pages get no extra privileges (the protocol handler's own
+  `net.fetch` of the bundle is not a page and still reads it), and the cookie
+  store is encrypted, a one-way change to an install's profile. `runAsNode`
+  stays on because the server's watcher forks its child with `child_process`
+  from inside the utility process, which runs this binary as Node, and the
+  packaged smoke boots the server the same way; it goes off only once that
+  fork does. `apps/desktop/electron-builder.yml`.
 
 ### Desktop workspace surfaces
 

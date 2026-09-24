@@ -27,6 +27,11 @@ const openPopover = (url: string) => {
   return host.calls;
 };
 
+const anchorOf = (url: string): HTMLAnchorElement | null => {
+  openPopover(url);
+  return screen.getByText("the plan").closest("a");
+};
+
 describe("a link's Open", () => {
   it("opens a vault url in the app, at the path the knowledge index resolves", async () => {
     const calls = openPopover("../notes/Plan%20B.md#goals");
@@ -40,12 +45,46 @@ describe("a link's Open", () => {
     expect(screen.queryByRole("button", { name: "Open link" })).toBeNull();
   });
 
-  it("hands an external url to the browser", async () => {
+  it("hands an external url to the browser, with no handle back to this window", async () => {
     const opened = vi.spyOn(window, "open").mockReturnValue(null);
     const calls = openPopover("https://example.com/plan");
     fireEvent.click(await screen.findByRole("button", { name: "Open link" }));
-    expect(opened).toHaveBeenCalledWith("https://example.com/plan", "_blank");
+    expect(opened).toHaveBeenCalledWith(
+      "https://example.com/plan",
+      "_blank",
+      "noopener,noreferrer",
+    );
     expect(calls).toEqual([]);
     opened.mockRestore();
+  });
+
+  it.each([
+    // oxlint-disable-next-line no-script-url -- the refused scheme is this test's input, not a live URL.
+    "javascript:alert(1)",
+    "file:///etc/passwd",
+    "data:text/html,<script>alert(1)</script>",
+  ])("offers no Open for %s", async (url) => {
+    openPopover(url);
+    await screen.findByRole("button", { name: "Edit link" });
+    expect(screen.queryByRole("button", { name: "Open link" })).toBeNull();
+  });
+});
+
+describe("a link's href", () => {
+  it("keeps an http(s) url", () => {
+    expect(anchorOf("https://example.com/plan")?.getAttribute("href")).toBe(
+      "https://example.com/plan",
+    );
+  });
+
+  it.each([
+    // oxlint-disable-next-line no-script-url -- the refused scheme is this test's input, not a live URL.
+    "javascript:alert(1)",
+    "file:///etc/passwd",
+    "data:text/html,<script>alert(1)</script>",
+  ])("drops %s, which a middle-click or a drag would otherwise follow", (url) => {
+    const anchor = anchorOf(url);
+    expect(anchor).not.toBeNull();
+    expect(anchor?.hasAttribute("href")).toBe(false);
   });
 });
