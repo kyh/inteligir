@@ -458,6 +458,22 @@ to the END of its group.
   reader, `noteIdOfProperties` in `@repo/notes/markdown/frontmatter`, which
   the index and the recompute share.
 
+- **A BLOCK OVERLAY NAMES ITS BLOCK BY NODE ID AND SUBSCRIBES TO THE
+  DOCUMENT.** The heading fold and the drag handle wrap each top-level block
+  through `aboveNodes`, whose `path` is the one the block last rendered with:
+  Plate re-renders a block only when its own node changes, so after an insert
+  above it every block below names the wrong index. Their providers sit in
+  `aboveEditable`, which an edit never re-renders, so each reads the document
+  through `useEditorSelector` with a value equality that moves only when what
+  it draws does (a fold's reach or a heading's key; a block joining, leaving
+  or moving), never per keystroke. Both key a block by its NodeIdPlugin id
+  (`blockId` in `packages/editor/src/node-props.ts`), which survives an edit
+  and a move, where the node object survives only the move. Plate turns the
+  plugin off under NODE_ENV=test, so a block without an id takes no part, and
+  a suite that drives either overlay mounts the harness with `nodeIds`.
+  `packages/editor/src/heading-collapse.tsx`,
+  `packages/editor/src/block-draggable.tsx`.
+
 ### Vault: writes, git and containment
 
 - **The auto-commit stages what the window's writers named.** A scheduler that
