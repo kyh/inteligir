@@ -137,25 +137,30 @@ export const MicButton = ({ status, onTranscript, onPartial, disabled }: MicButt
     });
     clientRef.current = client;
     client.start();
+    // The session may have been cancelled, and another begun, while permission was pending: a
+    // stale answer touches only its own capture, never the live session's.
     void (async () => {
+      let capture: StreamCaptureHandle;
       try {
-        captureRef.current = await startStreamingCapture((pcm) => {
+        capture = await startStreamingCapture((pcm) => {
           client.pushPcm(pcm);
         });
-        // The session may have been cancelled while permission was pending.
-        if (clientRef.current === client) {
-          setState({ kind: "recording", level: 0 });
-          // "" shows the preview as "Listening…" until the first partial.
-          onPartial("");
-        } else {
-          captureRef.current?.stop();
-          captureRef.current = null;
-        }
       } catch (error) {
-        stopSession();
-        setState({ kind: "idle" });
-        toast.error(microphoneProblem(error));
+        if (clientRef.current === client) {
+          stopSession();
+          setState({ kind: "idle" });
+          toast.error(microphoneProblem(error));
+        }
+        return;
       }
+      if (clientRef.current !== client) {
+        capture.stop();
+        return;
+      }
+      captureRef.current = capture;
+      setState({ kind: "recording", level: 0 });
+      // "" shows the preview as "Listening…" until the first partial.
+      onPartial("");
     })();
   };
 
