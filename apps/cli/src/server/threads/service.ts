@@ -14,6 +14,8 @@ import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
+  listThreadMetaEvents,
+  threadHasEvents,
   turnStartOriginDeviceId,
 } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
@@ -40,12 +42,14 @@ import type { ClaimedQueuedThreadMessageRow } from "@repo/db/queued-messages";
 import { writeSyncCursor } from "@repo/db/sync-outbox";
 import {
   applyThreadLifecycleEventInTransaction,
-  archiveThread,
+  applyThreadMetaInTransaction,
+  archiveThreadInTransaction,
   createThread,
   ensureThreadInTransaction,
   getThread,
   listThreads,
   nameUntitledThreadInTransaction,
+  rebindThreadOriginsInTransaction,
 } from "@repo/db/threads";
 import type { CreateThreadInput, ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -213,6 +217,8 @@ const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
     case "item/reasoning/textDelta":
     case "item/started":
     case "provider/error":
+    case "thread/archived":
+    case "thread/meta":
     case "thread/tokenUsage/updated": {
       return null;
     }
@@ -278,6 +284,46 @@ const nameThreadFromRequestsInTransaction = (
     }
     return;
   }
+};
+
+type ThreadMetaEvent = Extract<ThreadEvent, { type: "thread/meta" }>;
+
+// the thread's own facts, whichever device stated them; answers whether a row archived it here.
+const projectThreadFactsInTransaction = (
+  tx: DbTransaction,
+  threadId: string,
+  events: readonly ThreadEvent[],
+  buffer: NotificationBuffer,
+): boolean => {
+  let archived = false;
+  for (const event of events) {
+    if (event.type === "thread/meta") {
+      const change = applyThreadMetaInTransaction(tx, { facts: event, threadId });
+      if (change.title) {
+        buffer.notifyThread(threadId, ["title-changed"]);
+      }
+      if (change.origin) {
+        buffer.notifyThread(threadId, ["origin-changed"]);
+      }
+    } else if (event.type === "thread/archived" && archiveThreadInTransaction(tx, threadId)) {
+      buffer.notifyThread(threadId, ["archived-changed"]);
+      archived = true;
+    }
+  }
+  return archived;
+};
+
+// what a thread is as its first request leaves it: the name that request gave it and the note it
+// was started over. its harness is stated once a provider starts a turn on it.
+const threadIdentity = (row: ThreadRow): ThreadMetaEvent | null => {
+  const meta: ThreadMetaEvent = { scope: threadScope(), threadId: row.id, type: "thread/meta" };
+  if (row.title !== null) {
+    meta.title = row.title;
+  }
+  if (row.originDocPath !== null) {
+    meta.originDocPath = row.originDocPath;
+  }
+  return meta.title === undefined && meta.originDocPath === undefined ? null : meta;
 };
 
 // a queued reply follows the turn it waited on however that turn ended, a stop included: it is
@@ -379,6 +425,33 @@ export class ThreadService implements ProviderEventSink {
     this.sync?.enqueue(tx, events);
   }
 
+  // a provider started a turn here, so the harness the row names is bound: the log states it once,
+  // and another device keeps it. the session id is this device's alone and never travels.
+  private stateHarnessInTransaction(tx: DbTransaction, threadId: string): void {
+    const providerId = getThread(tx, threadId)?.providerId ?? null;
+    if (
+      providerId === null ||
+      listThreadMetaEvents(tx, threadId).some((meta) => meta.providerId !== undefined)
+    ) {
+      return;
+    }
+    this.appendLocal(tx, [{ providerId, scope: threadScope(), threadId, type: "thread/meta" }]);
+  }
+
+  // a thread reaches another device with its first request, so a fact about one that never made
+  // one stays here: sent alone, it would arrive there as an empty action.
+  private announceInTransaction(
+    tx: DbTransaction,
+    fact: ThreadEvent,
+    buffer: NotificationBuffer,
+  ): void {
+    if (!threadHasEvents(tx, fact.threadId)) {
+      return;
+    }
+    this.appendLocal(tx, [fact]);
+    buffer.notifyThread(fact.threadId, ["events-appended"]);
+  }
+
   create(input: CreateThreadRequest): Thread {
     const created: CreateThreadInput = {};
     if (input.title !== undefined) {
@@ -423,12 +496,50 @@ export class ThreadService implements ProviderEventSink {
   // the stop comes after the archive: a settled stop drains the queue, and only an archived thread
   // refuses the turn that drain would start.
   archive(threadId: string): Thread | null {
-    if (archiveThread(this.db, this.notifier, threadId) === null) {
+    const buffer = new NotificationBuffer();
+    const found = writeTransaction(this.db, (tx) => {
+      if (getThread(tx, threadId) === null) {
+        return false;
+      }
+      if (archiveThreadInTransaction(tx, threadId)) {
+        buffer.notifyThread(threadId, ["archived-changed"]);
+        this.announceInTransaction(
+          tx,
+          { scope: threadScope(), threadId, type: "thread/archived" },
+          buffer,
+        );
+      }
+      return true;
+    });
+    buffer.flushTo(this.notifier);
+    if (!found) {
       return null;
     }
     this.interrupt(threadId);
     const thread = getThread(this.db, threadId);
     return thread === null ? null : toWireThread(thread);
+  }
+
+  // announced, because another device learns of the note's move through git, which rebinds
+  // nothing there.
+  rebindOrigins(args: { from: string; to: string }): void {
+    const buffer = new NotificationBuffer();
+    writeTransaction(this.db, (tx) => {
+      for (const moved of rebindThreadOriginsInTransaction(tx, args)) {
+        buffer.notifyThread(moved.id, ["origin-changed"]);
+        this.announceInTransaction(
+          tx,
+          {
+            originDocPath: moved.originDocPath,
+            scope: threadScope(),
+            threadId: moved.id,
+            type: "thread/meta",
+          },
+          buffer,
+        );
+      }
+    });
+    buffer.flushTo(this.notifier);
   }
 
   interrupt(threadId: string): InterruptOutcome {
@@ -578,9 +689,16 @@ export class ThreadService implements ProviderEventSink {
     if (turn.viewContext !== undefined) {
       requested.viewContext = turn.viewContext;
     }
+    const firstRequest = !threadHasEvents(tx, threadId);
     this.appendLocal(tx, [requested]);
     buffer.notifyThread(threadId, ["events-appended"]);
     nameThreadFromRequestsInTransaction(tx, threadId, [requested], buffer);
+    // after the naming, so the identity carries the title this request gave the thread.
+    const named = firstRequest ? getThread(tx, threadId) : null;
+    const identity = named === null ? null : threadIdentity(named);
+    if (identity !== null) {
+      this.appendLocal(tx, [identity]);
+    }
     return {
       kind: "dispatch",
       threadId,
@@ -717,7 +835,7 @@ export class ThreadService implements ProviderEventSink {
     }
     const buffer = new NotificationBuffer();
     const drains: ClaimedQueuedThreadMessageRow[] = [];
-    writeTransaction(this.db, (tx) => {
+    const archived = writeTransaction(this.db, (tx) => {
       // lifecycle projects over the rows that landed, so a full replay after signing in again is a no-op rather than a status flap.
       let projected: readonly ThreadEvent[] = events;
       if (args.origin === "remote") {
@@ -731,12 +849,14 @@ export class ThreadService implements ProviderEventSink {
         // nothing landed — seen, not new.
         writeSyncCursor(tx, args.cursor);
         if (projected.length === 0) {
-          return;
+          return false;
         }
       } else {
         this.appendLocal(tx, events);
       }
       buffer.notifyThread(threadId, ["events-appended"]);
+      // before the naming: a stated title outranks the one a first line would give.
+      const archivedHere = projectThreadFactsInTransaction(tx, threadId, projected, buffer);
       nameThreadFromRequestsInTransaction(tx, threadId, projected, buffer);
       for (const event of projected) {
         const lifecycleEvent = lifecycleEventFor(event);
@@ -754,8 +874,17 @@ export class ThreadService implements ProviderEventSink {
           drains.push(claimed);
         }
       }
+      if (args.origin === "local" && projected.some((event) => event.type === "turn/started")) {
+        this.stateHarnessInTransaction(tx, threadId);
+      }
+      return archivedHere;
     });
     buffer.flushTo(this.notifier);
+    // archived on another device, it stops here as a local archive stops it; a turn that device
+    // runs is its own to stop.
+    if (archived) {
+      this.interrupt(threadId);
+    }
     for (const claimed of drains) {
       this.dispatchQueuedMessage(threadId, claimed);
     }

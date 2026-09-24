@@ -1166,7 +1166,9 @@ agents default`; unset falls back
   Naming it in the desktop left every action the CLI, an agent or another
   device started as "Untitled action". The rule is `deriveThreadTitle`
   (`@repo/domain/thread-title`: the first visible line, cut at 60 code points),
-  which the phone's projection runs too, so both agree.
+  which the phone's projection runs too, so both agree. A title the log states
+  in a `thread/meta` row outranks it on every device, whichever lands first,
+  so an explicit title reaches the others too.
   `apps/cli/src/server/threads/service.ts`.
 
 - **A LOADED SESSION IS HANDED ONLY THE INSTRUCTIONS IT DOES NOT HOLD.** ACP's
@@ -1364,8 +1366,28 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   second flag. The invite gate is account-creation policy. The BYO git remote
   (`INTELIGIR_VAULT_REMOTE`) stays accountless.
 
-- **The THREAD channel carries thread events alone.** A thread with no events
-  never reaches another device. Vault bytes ride the git remote, never this log.
+- **The THREAD channel carries thread events alone, and a thread's own facts
+  are events on it** (owner decision). A thread with no events never reaches
+  another device. Vault bytes ride the git remote, never this log. A thread
+  states its title and origin note in a `thread/meta` row beside its first
+  request, its harness in one with the first turn a provider starts on it (a
+  bind whose dispatch was withdrawn states nothing), a rename's new origin in
+  one more, and an archive as `thread/archived`
+  (`@repo/domain/provider-event`); a fact about a thread that never made a
+  request stays local, since sent alone it would arrive as an empty action.
+  Another device folds them through the same ingest: a title and an origin
+  take the latest statement, a bound harness stays (the session id never
+  travels, so that device opens a fresh session on it), and an archive stops
+  a turn that device runs, as a local one does. A stale install's planner
+  skips a type it cannot read and its next build pulls the row again, so a
+  new event type needs no new route. The push's `threads` half is read off
+  the batch's titled `thread/meta` rows, lane `any` since a thread a desktop
+  runs is no dispatch, so the Worker's `thread_meta` and the log cannot
+  disagree; keeping that lane with a producer, rather than deleting it, is the
+  owner's call, and nothing reads it back yet. Pre-existing threads, and one
+  whose first request was made signed out, carry no identity row: the first
+  line still names them. `apps/cli/src/server/threads/service.ts`,
+  `apps/cli/src/server/cloud/outbox.ts`.
 
 - **Cloud state names its Durable Object from a VERIFIED credential.** Account
   deletion revokes credentials first, then purges, then writes a tombstone every

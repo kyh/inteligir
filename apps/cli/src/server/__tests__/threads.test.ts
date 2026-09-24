@@ -1,14 +1,18 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { writeTransaction } from "@repo/db/connection";
+import { listStoredThreadEvents } from "@repo/db/events";
+import type { SyncedEventInput } from "@repo/db/events";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import {
   claimNextQueuedThreadMessageInTransaction,
   listQueuedThreadMessages,
   releaseAllQueuedMessageClaims,
 } from "@repo/db/queued-messages";
-import { applyThreadLifecycleEventInTransaction } from "@repo/db/threads";
+import { applyThreadLifecycleEventInTransaction, setThreadProviderSession } from "@repo/db/threads";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
 import { WS_PATH } from "@repo/api/local/routes";
@@ -330,6 +334,168 @@ describe("a thread's title", () => {
       threadId: "thr_remote",
     });
     expect(await threadTitle(client, "thr_remote")).toBe("Plan the offsite");
+  });
+});
+
+interface RecordedChanges {
+  changes: string[];
+  notifier: DbNotifier;
+}
+
+const recordingNotifier = (): RecordedChanges => {
+  const changes: string[] = [];
+  return {
+    changes,
+    notifier: {
+      ...noopNotifier,
+      notifyThread(threadId, kinds) {
+        changes.push(...kinds.map((kind) => `${threadId} ${kind}`));
+      },
+    },
+  };
+};
+
+const createThreadOver = async (client: ThreadsClient, originDocPath: string): Promise<string> => {
+  const { thread } = await client.threads.create({ originDocPath });
+  return thread.id;
+};
+
+const synced = (event: ThreadEvent, deviceSeq: number): SyncedEventInput => ({
+  event,
+  origin: { deviceId: "dev_other", deviceSeq },
+});
+
+describe("a thread's own facts", () => {
+  it("land from another device on the row, each announced once", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const { changes, notifier } = recordingNotifier();
+    const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier,
+    });
+    const threadId = "thr_remote";
+    service.applySyncedEvents({
+      cursor: 3,
+      rows: [
+        synced(
+          { scope: threadScope(), text: "plan it", threadId, type: "client/turn/requested" },
+          1,
+        ),
+        synced(
+          {
+            originDocPath: "Offsite.md",
+            providerId: "codex",
+            scope: threadScope(),
+            threadId,
+            title: "Offsite",
+            type: "thread/meta",
+          },
+          2,
+        ),
+        synced({ scope: threadScope(), threadId, type: "thread/archived" }, 3),
+      ],
+      threadId,
+    });
+
+    const { thread } = await client.threads.get({ threadId });
+    expect(thread).toMatchObject({
+      originDocPath: "Offsite.md",
+      providerId: "codex",
+      title: "Offsite",
+    });
+    expect(thread.archivedAt).not.toBeNull();
+    for (const kind of ["title-changed", "origin-changed", "archived-changed"]) {
+      expect(changes.filter((change) => change === `${threadId} ${kind}`)).toHaveLength(1);
+    }
+  });
+
+  it("take a title stated after the thread's first line already named it", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier: noopNotifier,
+    });
+    const threadId = "thr_remote";
+    const request: ThreadEvent = {
+      scope: threadScope(),
+      text: "plan it",
+      threadId,
+      type: "client/turn/requested",
+    };
+    service.applySyncedEvents({ cursor: 1, rows: [synced(request, 1)], threadId });
+    expect(await threadTitle(client, threadId)).toBe("plan it");
+
+    const meta: ThreadEvent = {
+      scope: threadScope(),
+      threadId,
+      title: "Offsite",
+      type: "thread/meta",
+    };
+    service.applySyncedEvents({ cursor: 2, rows: [synced(meta, 2)], threadId });
+    expect(await threadTitle(client, threadId)).toBe("Offsite");
+  });
+
+  it("are stated on the log with a thread's first request, and not with its next", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const { thread } = await client.threads.create({ originDocPath: "Plans.md" });
+    await client.threads.send({ text: "Tidy the intro", threadId: thread.id });
+    await client.threads.interrupt({ threadId: thread.id });
+    await client.threads.send({ text: "and the outro", threadId: thread.id });
+
+    const metas = listStoredThreadEvents(db, { threadId: thread.id }).flatMap(({ event }) =>
+      event.type === "thread/meta" ? [event] : [],
+    );
+    expect(metas).toEqual([
+      {
+        originDocPath: "Plans.md",
+        scope: threadScope(),
+        threadId: thread.id,
+        title: "Tidy the intro",
+        type: "thread/meta",
+      },
+    ]);
+  });
+
+  it("state a bound harness with the first turn a provider starts, once", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "unbound", threadId });
+    await client.threads.interrupt({ threadId });
+    setThreadProviderSession(db, { providerId: "codex", providerThreadId: "pt_1", threadId });
+    await client.threads.send({ text: "bound", threadId });
+    await client.threads.interrupt({ threadId });
+    await client.threads.send({ text: "again", threadId });
+
+    const stated = listStoredThreadEvents(db, { threadId }).flatMap(({ event }) =>
+      event.type === "thread/meta" && event.providerId !== undefined ? [event.providerId] : [],
+    );
+    expect(stated).toEqual(["codex"]);
+  });
+
+  it("follow a renamed note, and reach the log only for a thread that made a request", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const sent = await createThreadOver(client, "Plans.md");
+    await client.threads.send({ text: "go", threadId: sent });
+    const draft = await createThreadOver(client, "Plans.md");
+    const { changes, notifier } = recordingNotifier();
+    const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier,
+    });
+
+    service.rebindOrigins({ from: "Plans.md", to: "Moved.md" });
+
+    expect(changes.toSorted()).toEqual(
+      [`${draft} origin-changed`, `${sent} events-appended`, `${sent} origin-changed`].toSorted(),
+    );
+    const moved = listStoredThreadEvents(db, { threadId: sent }).at(-1)?.event;
+    expect(moved).toMatchObject({ originDocPath: "Moved.md", type: "thread/meta" });
+    expect(listStoredThreadEvents(db, { threadId: draft })).toEqual([]);
+    const drafted = await client.threads.get({ threadId: draft });
+    expect(drafted.thread.originDocPath).toBe("Moved.md");
   });
 });
 

@@ -23,10 +23,12 @@ Object — never in anything shared across accounts.
   request, so the device holds its credential and nothing else.
 
 - **Thread events** — the append-only log of your agent conversations
-  (messages, tool activity, status), pushed by each device to your account's
-  own thread-sync Durable Object so your other devices can follow along. The
-  cloud stores these as opaque JSON and fans them out; it does not interpret
-  them.
+  (messages, tool activity, status, and each thread's title, the path of the
+  note it was started over, the agent it runs on and whether you archived it),
+  pushed by each device to your account's own thread-sync Durable Object so
+  your other devices can follow along. The cloud stores these as opaque JSON
+  and fans them out; it does not interpret them. Beside them it keeps one row
+  per thread holding its title, sent alongside the events that state it.
 - **Captures** — quick-capture text you post from a device, held in the same
   per-user object until one of your devices applies it to your Inbox note and
   acknowledges it, which deletes the row. A capture is handed to one device at

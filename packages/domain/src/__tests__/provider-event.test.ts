@@ -8,6 +8,7 @@ import {
 } from "../provider-event";
 import type { DeltaRunLimit, ThreadEvent, ThreadEventItem } from "../provider-event";
 import { threadScope, turnScope } from "../thread-event-scope";
+import { MAX_THREAD_TITLE_LENGTH } from "../thread-title";
 
 describe("threadEventSchema scope validation", () => {
   it("refuses a turn-only event under thread scope at parse", () => {
@@ -41,6 +42,25 @@ describe("threadEventSchema scope validation", () => {
       type: "client/turn/requested",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("holds a thread's own facts to thread scope, and a stated title to the create route's bound", () => {
+    const meta = { scope: threadScope(), threadId: "thr_1", title: "Plan", type: "thread/meta" };
+    expect(threadEventSchema.safeParse(meta).success).toBe(true);
+    expect(threadEventSchema.safeParse({ ...meta, scope: turnScope("turn_1") }).success).toBe(
+      false,
+    );
+    expect(
+      threadEventSchema.safeParse({ ...meta, title: "x".repeat(MAX_THREAD_TITLE_LENGTH + 1) })
+        .success,
+    ).toBe(false);
+    expect(
+      threadEventSchema.safeParse({
+        scope: turnScope("turn_1"),
+        threadId: "thr_1",
+        type: "thread/archived",
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts provider/error under either scope", () => {

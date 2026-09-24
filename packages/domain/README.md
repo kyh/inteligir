@@ -38,10 +38,13 @@ src/
                          # status, not a side field, and `stopping` has no
                          # run.started cell: a queued turn cannot reactivate it
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # seven item kinds, twelve event types, scope refined
+                         # seven item kinds, fourteen event types, scope refined
                          # at parse. `client/turn/requested` carries the
                          # optional viewContext and contextPaths beside bb's
                          # `text`, which stays exactly what the user typed.
+                         # `thread/meta` (title, origin note, harness) and
+                         # `thread/archived` are local: the thread's own facts,
+                         # riding its log to every device
                          # `mergeAdjacentDeltas` stores one item's adjacent
                          # deltas as one row, a reset opening a new run and a
                          # caller's cap bounding each. `settledReasoningText`
@@ -56,7 +59,9 @@ src/
                          # so a second surface breaks every consumer at compile
   thread-title.ts        # `deriveThreadTitle`: a thread's name from its first
                          # message, the one reading the server's naming and
-                         # the phone's projection both run
+                         # the phone's projection both run; and
+                         # `MAX_THREAD_TITLE_LENGTH`, an explicit title's bound
+                         # on the create route and on `thread/meta`
   pending-interactions.ts  # the provider-neutral approval grammar — subjects
                          # (command | file_change), decisions, payload,
                          # resolution — and `parseApprovalResolution`, the ONE

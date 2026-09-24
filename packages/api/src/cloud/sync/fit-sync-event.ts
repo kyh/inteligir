@@ -197,6 +197,9 @@ const eventPayload = (event: ThreadEvent): PayloadText[] => {
         }),
       ];
     }
+    // a thread's facts are names, not payload: a cut origin would point at another note.
+    case "thread/archived":
+    case "thread/meta":
     case "thread/tokenUsage/updated":
     case "turn/started": {
       return [];

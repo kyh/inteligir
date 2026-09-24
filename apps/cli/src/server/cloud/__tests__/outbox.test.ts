@@ -1,3 +1,4 @@
+import { PUSH_MAX_THREADS, pushRequestSchema } from "@repo/api/cloud/sync/sync-schema";
 import { closeConnection, createConnection, writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
@@ -121,6 +122,56 @@ describe("the outbox", () => {
     expect(command.item.aggregatedOutput?.length).toBeLessThan(output.length);
     expect(command.item.aggregatedOutput).toContain("bytes elided");
     expect(said?.type).toBe("client/turn/requested");
+    closeConnection(db);
+  });
+
+  it("sends each named thread's latest title as the batch's threads half", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    enqueue(db, [
+      message("thr_1", "hello"),
+      { scope: threadScope(), threadId: "thr_1", title: "First", type: "thread/meta" },
+      { originDocPath: "Moved.md", scope: threadScope(), threadId: "thr_2", type: "thread/meta" },
+      { scope: threadScope(), threadId: "thr_1", title: "Second", type: "thread/meta" },
+    ]);
+    const batch = takePushBatch(db);
+    expect(batch?.request.events).toHaveLength(4);
+    expect(batch?.request.threads).toEqual([
+      { lane: "any", threadId: "thr_1", title: "Second", updatedAt: expect.any(Number) },
+    ]);
+    closeConnection(db);
+  });
+
+  it("ends a batch before the thread that would take its threads half past the cap", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    const named = Array.from({ length: PUSH_MAX_THREADS + 1 }, (_, index): ThreadEvent => ({
+      scope: threadScope(),
+      threadId: `thr_${index}`,
+      title: `Thread ${index}`,
+      type: "thread/meta",
+    }));
+    enqueue(db, named);
+    const first = takePushBatch(db);
+    if (first === null) {
+      throw new Error("expected a batch");
+    }
+    expect(first.request.events).toHaveLength(PUSH_MAX_THREADS);
+    expect(first.request.threads).toHaveLength(PUSH_MAX_THREADS);
+    expect(pushRequestSchema.safeParse(first.request).success).toBe(true);
+    ackPushBatch(db, first);
+
+    expect(takePushBatch(db)?.request.threads?.map((row) => row.threadId)).toEqual([
+      `thr_${PUSH_MAX_THREADS}`,
+    ]);
+    closeConnection(db);
+  });
+
+  it("sends no threads half for a batch that names no thread", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    enqueue(db, [message("thr_1", "hello")]);
+    expect(takePushBatch(db)?.request).not.toHaveProperty("threads");
     closeConnection(db);
   });
 
