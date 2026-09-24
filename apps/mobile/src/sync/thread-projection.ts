@@ -1,7 +1,6 @@
-// renders completed items only and lets streaming deltas pass: the completed item carries their
-// final text.
+// renders completed items only: each carries the final text of the deltas the store never holds.
 
-import type { StoredThread } from "./sync-store";
+import type { StoredThread, StoredThreadEvent } from "./sync-store";
 import { settledReasoningText } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 
@@ -58,7 +57,7 @@ const itemFailed = (event: Extract<ThreadEvent, { type: "item/completed" }>): bo
   );
 };
 
-const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null => {
+const itemFrom = (event: StoredThreadEvent, index: number): ThreadDisplayItem | null => {
   switch (event.type) {
     case "client/turn/requested": {
       return { id: `${event.threadId}:req:${index}`, kind: "user", text: event.text };
@@ -86,11 +85,6 @@ const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null =
         ? null
         : { failed: itemFailed(event), id: item.id, kind: "tool", label };
     }
-    case "item/agentMessage/delta":
-    case "item/commandExecution/outputDelta":
-    case "item/plan/delta":
-    case "item/reasoning/summaryTextDelta":
-    case "item/reasoning/textDelta":
     case "item/started":
     case "thread/tokenUsage/updated":
     case "turn/completed":
@@ -101,7 +95,7 @@ const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null =
   }
 };
 
-export const projectThread = (thread: StoredThread): ThreadProjection => {
+const foldThread = (thread: StoredThread): ThreadProjection => {
   const items: ThreadDisplayItem[] = [];
   for (const [index, event] of thread.events.entries()) {
     const item = itemFrom(event, index);
@@ -117,4 +111,18 @@ export const projectThread = (thread: StoredThread): ThreadProjection => {
     threadId: thread.threadId,
     title: firstUser === undefined ? "Untitled thread" : firstLine(firstUser.text),
   };
+};
+
+// a snapshot is never mutated, so its fold is final: a change to one thread re-folds that thread
+// alone, not every thread the list holds.
+const projections = new WeakMap<StoredThread, ThreadProjection>();
+
+export const projectThread = (thread: StoredThread): ThreadProjection => {
+  const cached = projections.get(thread);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const projection = foldThread(thread);
+  projections.set(thread, projection);
+  return projection;
 };

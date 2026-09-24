@@ -32,6 +32,19 @@ export const agentMessage = (
   type: "item/completed",
 });
 
+export const agentDelta = (
+  threadId: string,
+  turnId: string,
+  itemId: string,
+  delta: string,
+): ThreadEvent => ({
+  delta,
+  itemId,
+  scope: turnScope(turnId),
+  threadId,
+  type: "item/agentMessage/delta",
+});
+
 export const logRow = (args: {
   seq: number;
   deviceId: string;

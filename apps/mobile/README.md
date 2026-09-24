@@ -27,7 +27,8 @@ src/
                            status store the screens subscribe to (`restoring`
                            until the boot read ends), and lends that session to
                            every other read under the sign-in
-    thread-projection.ts   fold a thread's events into display rows
+    thread-projection.ts   fold a thread's events into display rows, once per
+                           snapshot
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
@@ -61,12 +62,18 @@ The two sync stores — the pull cursor and the applied thread log — **must
 agree**, so they live in one `SyncStore`, and v1's concrete implementation keeps
 both **in memory**. This is correct, not degraded: a cold launch re-pulls the
 account log from cursor 0 and re-applies it idempotently (own rows skipped by
-device id, every row deduped on its `(deviceId, deviceSeq)` origin), rebuilding
-the readable state. Persisting the cursor beside an in-memory log would claim
-rows the log never saw. It is also why the phone keeps no skipped-row marker:
-an app update is a relaunch, which re-reads every row the old build skipped.
-There is no outbox and no capture ledger: the phone appends nothing to the log
-and claims nothing from the inbox, so neither has anything to hold.
+device id, a row at or below the cursor passed over, since the two move in one
+call), rebuilding the readable state. Persisting the cursor beside an in-memory
+log would claim rows the log never saw. It is also why the phone keeps no
+skipped-row marker: an app update is a relaunch, which re-reads every row the
+old build skipped. There is no outbox and no capture ledger: the phone appends
+nothing to the log and claims nothing from the inbox, so neither has anything
+to hold.
+
+The log holds what the thread view draws from and no more: a streaming delta
+moves the cursor and the thread's recency and is dropped, because the thread
+view draws completed items alone and each carries its deltas' final text. A
+long streamed turn costs the phone its items, not its tokens.
 
 The **device credential** is durable in `expo-secure-store` (the Keychain /
 Keystore), never AsyncStorage — it is a bearer secret and the sync switch,

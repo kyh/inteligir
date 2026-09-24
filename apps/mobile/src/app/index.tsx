@@ -1,9 +1,9 @@
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -207,7 +207,7 @@ const HomeScreen = () => {
         </View>
       </View>
 
-      <ScrollView
+      <FlatList
         style={styles.screen}
         contentContainerStyle={styles.list}
         refreshControl={
@@ -218,42 +218,38 @@ const HomeScreen = () => {
             }}
           />
         }
-      >
-        {threads.length === 0 ? (
+        data={threads}
+        keyExtractor={(thread) => thread.threadId}
+        ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>No threads yet.</Text>
             <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
               Pull to refresh, or start one on your desktop.
             </Text>
           </View>
-        ) : (
-          threads.map((thread) => (
-            <Pressable
-              key={thread.threadId}
-              style={({ pressed }) => [
-                styles.threadRow,
-                { backgroundColor: theme.card, borderColor: theme.border },
-                pressed && styles.pressed70,
-              ]}
-              onPress={() => {
-                router.push({ params: { id: thread.threadId }, pathname: "/thread/[id]" });
-              }}
-            >
-              <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
-                {thread.title}
+        }
+        renderItem={({ item: thread }) => (
+          <Pressable
+            style={({ pressed }) => [
+              styles.threadRow,
+              { backgroundColor: theme.card, borderColor: theme.border },
+              pressed && styles.pressed70,
+            ]}
+            onPress={() => {
+              router.push({ params: { id: thread.threadId }, pathname: "/thread/[id]" });
+            }}
+          >
+            <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
+              {thread.title}
+            </Text>
+            {thread.preview === "" ? null : (
+              <Text style={[styles.smallText, { color: theme.mutedForeground }]} numberOfLines={1}>
+                {thread.preview}
               </Text>
-              {thread.preview === "" ? null : (
-                <Text
-                  style={[styles.smallText, { color: theme.mutedForeground }]}
-                  numberOfLines={1}
-                >
-                  {thread.preview}
-                </Text>
-              )}
-            </Pressable>
-          ))
+            )}
+          </Pressable>
         )}
-      </ScrollView>
+      />
 
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
         <Pressable
