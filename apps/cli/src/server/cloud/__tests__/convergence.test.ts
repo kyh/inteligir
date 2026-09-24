@@ -379,7 +379,11 @@ describe("two installs against one account", () => {
     await login(a, "A");
     await login(b, "B");
 
-    await a.client.vault.write({ content: "# Week\n", path: "Week.md" });
+    await a.client.vault.write({
+      content: "# Week\n",
+      guard: { kind: "overwrite" },
+      path: "Week.md",
+    });
     const { thread } = await a.client.threads.create({
       originDocPath: "Week.md",
       title: "Plan the week",
@@ -411,7 +415,7 @@ describe("two installs against one account", () => {
     // the move reaches B through git, never the log: B's vault takes A's bytes, the note's id with
     // them, and B's thread follows that id.
     const { content } = await a.client.vault.read({ path: "Plans/Week.md" });
-    await b.client.vault.write({ content, path: "Plans/Week.md" });
+    await b.client.vault.write({ content, guard: { kind: "overwrite" }, path: "Plans/Week.md" });
 
     const moved = await b.client.threads.get({ threadId: thread.id });
     expect(moved.thread.originDocPath).toBe("Plans/Week.md");
@@ -454,7 +458,11 @@ describe("two installs against one account", () => {
     await login(a, "A");
     await login(b, "B");
 
-    await a.client.vault.write({ content: "# Draft\n", path: "Draft.md" });
+    await a.client.vault.write({
+      content: "# Draft\n",
+      guard: { kind: "overwrite" },
+      path: "Draft.md",
+    });
     const { thread } = await a.client.threads.create({ originDocPath: "Draft.md" });
     await a.client.vault.rename({ from: "Draft.md", to: "Kept/Draft.md" });
     await a.client.threads.archive({ threadId: thread.id });

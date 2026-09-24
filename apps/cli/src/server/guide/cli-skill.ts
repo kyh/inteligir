@@ -76,17 +76,18 @@ spaces (\`inteligir search "two words"\`).
   as \`NOT_FOUND\` rather than listed as empty.
 - \`inteligir vault read <path>\` — print a file's content. Under \`--json\` the
   answer also carries \`hash\`, the base a guarded write names.
-- \`inteligir vault write <path> [--content <text>] [--if-absent | --expected-hash <hash>]\`
+- \`inteligir vault write <path> [--content <text>] (--if-absent | --expected-hash <hash> | --overwrite)\`
   — write a file; without \`--content\` the content is read from stdin (UTF-8;
   bytes are preserved exactly, and anything over ${VAULT_MAX_CONTENT_LENGTH / MIB} MiB is refused).
   A terminal or an empty stdin is refused: pass \`--content ''\` to empty a
-  file. Parent folders are created. \`--if-absent\` creates only: something
-  already at the path is refused as \`ALREADY_EXISTS\`, so pass it whenever you
-  mean a new note. \`--expected-hash <hash>\` writes only over the bytes you
-  read — the \`hash\` from \`vault read --json\` — and a file that changed since
-  is refused as \`CAS_MISMATCH\`: read it again, redo your edit on what it holds
-  now, and retry. Without either, the last writer wins. The two cannot be
-  combined.
+  file. Parent folders are created. Exactly one guard is required.
+  \`--if-absent\` creates only: something already at the path is refused as
+  \`ALREADY_EXISTS\`, so pass it whenever you mean a new note.
+  \`--expected-hash <hash>\` writes only over the bytes you read — the \`hash\`
+  from \`vault read --json\` — and a file that changed since is refused as
+  \`CAS_MISMATCH\`: read it again, redo your edit on what it holds now, and
+  retry; pass it whenever you edit a note. \`--overwrite\` replaces whatever is
+  there, and the last writer wins.
 - \`inteligir vault rename <from> <to>\` — rename/move a note or a folder; the
   links into it and out of it are rewritten, and a renamed note's old name is
   recorded as an alias.

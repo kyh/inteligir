@@ -123,19 +123,24 @@ export type VaultRevisionResponse = z.infer<typeof vaultRevisionResponseSchema>;
 export const vaultCommitResponseSchema = z.object({ files: z.number().int().min(0) }).strict();
 export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
 
+// required, so last-writer-wins is a choice a caller spells rather than what it gets by
+// forgetting a field. `expected` carries the sha-256 hex of the utf-8 bytes the write was derived
+// from, and a mismatch answers CAS_MISMATCH with the current content; `absent` is a create, and
+// never a hash of bytes not yet on disk, which no file could match.
+const vaultWriteGuardSchema = z.discriminatedUnion("kind", [
+  z.object({ hash: contentHashSchema, kind: z.literal("expected") }).strict(),
+  z.object({ kind: z.literal("absent") }).strict(),
+  z.object({ kind: z.literal("overwrite") }).strict(),
+]);
+export type VaultWriteGuard = z.infer<typeof vaultWriteGuardSchema>;
+
 export const vaultWriteRequestSchema = z
   .object({
     content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
-    // sha-256 hex of the utf-8 bytes this write was derived from; a mismatch answers 409 with
-    // the current content. omitted, the write is last-writer-wins.
-    expectedHash: contentHashSchema.optional(),
-    ifAbsent: z.literal(true).optional(),
+    guard: vaultWriteGuardSchema,
     path: vaultPathSchema,
   })
-  .strict()
-  .refine((value) => value.expectedHash === undefined || value.ifAbsent === undefined, {
-    message: "expectedHash and ifAbsent are mutually exclusive",
-  });
+  .strict();
 export type VaultWriteRequest = z.infer<typeof vaultWriteRequestSchema>;
 
 export const vaultWriteResponseSchema = z.object({ path: z.string().min(1) }).strict();
@@ -222,7 +227,7 @@ export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 
 // doc paths no longer on disk. `sha` names the revision whose tree still holds the bytes — the
 // deleting commit's parent, or HEAD for a deletion the auto-commit has not flushed yet — so a
-// restore is `revision` read plus an `ifAbsent` write. latest deletion per path, newest first.
+// restore is `revision` read plus an `absent` write. latest deletion per path, newest first.
 export const vaultDeletedEntrySchema = z
   .object({
     // git's `%aI` of the deleting commit; the read time for an unflushed deletion.

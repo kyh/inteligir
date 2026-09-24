@@ -15,9 +15,14 @@ describe("the knowledge routes", () => {
     const { client } = await bootTestApp();
     await client.vault.write({
       content: "# Alpha\n\nMentions [[beta]] and #project quokka work.\n",
+      guard: { kind: "overwrite" },
       path: "alpha.md",
     });
-    await client.vault.write({ content: "# Beta\n\nQuokka research.\n", path: "beta.md" });
+    await client.vault.write({
+      content: "# Beta\n\nQuokka research.\n",
+      guard: { kind: "overwrite" },
+      path: "beta.md",
+    });
 
     const hits = knowledgeSearchResponseSchema.parse(
       await client.knowledge.search({ q: "quokka" }),
@@ -42,9 +47,21 @@ describe("the knowledge routes", () => {
 
   it("lists a tag's family by path, paged, with the whole count", async () => {
     const { client } = await bootTestApp();
-    await client.vault.write({ content: "# B\n\n#Work here.\n", path: "b.md" });
-    await client.vault.write({ content: "# A\n\n#work/deep here.\n", path: "a.md" });
-    await client.vault.write({ content: "# C\n\n#workshop is not it.\n", path: "c.md" });
+    await client.vault.write({
+      content: "# B\n\n#Work here.\n",
+      guard: { kind: "overwrite" },
+      path: "b.md",
+    });
+    await client.vault.write({
+      content: "# A\n\n#work/deep here.\n",
+      guard: { kind: "overwrite" },
+      path: "a.md",
+    });
+    await client.vault.write({
+      content: "# C\n\n#workshop is not it.\n",
+      guard: { kind: "overwrite" },
+      path: "c.md",
+    });
 
     const whole = knowledgeTagNotesResponseSchema.parse(
       await client.knowledge.tagNotes({ tag: "work" }),
@@ -60,9 +77,17 @@ describe("the knowledge routes", () => {
   it("ranks related notes with the reasons they are related", async () => {
     const { client } = await bootTestApp();
     // hub is a direct neighbour (backlinks' job), so it is absent from related.
-    await client.vault.write({ content: "# Hub\n", path: "hub.md" });
-    await client.vault.write({ content: "# Left\n\nSee [[hub]]. #shared\n", path: "left.md" });
-    await client.vault.write({ content: "# Right\n\nSee [[hub]]. #shared\n", path: "right.md" });
+    await client.vault.write({ content: "# Hub\n", guard: { kind: "overwrite" }, path: "hub.md" });
+    await client.vault.write({
+      content: "# Left\n\nSee [[hub]]. #shared\n",
+      guard: { kind: "overwrite" },
+      path: "left.md",
+    });
+    await client.vault.write({
+      content: "# Right\n\nSee [[hub]]. #shared\n",
+      guard: { kind: "overwrite" },
+      path: "right.md",
+    });
 
     const { path, related } = knowledgeRelatedResponseSchema.parse(
       await client.knowledge.related({ path: "left.md" }),

@@ -9,6 +9,7 @@ import {
   vaultHistoryRequestSchema,
   vaultRevisionSchema,
   vaultRevisionShaSchema,
+  vaultWriteRequestSchema,
 } from "../vault-schema";
 
 describe("the content hash", () => {
@@ -73,6 +74,36 @@ describe("a history request", () => {
       false,
     );
     expect(vaultHistoryRequestSchema.safeParse({ path: "a.md", skip: -1 }).success).toBe(false);
+  });
+});
+
+describe("a write's guard", () => {
+  const hash = "a".repeat(64);
+
+  it("is required: a write that names none is refused, not last-writer-wins", () => {
+    expect(vaultWriteRequestSchema.safeParse({ content: "x", path: "a.md" }).success).toBe(false);
+  });
+
+  it("takes exactly one of expected, absent and overwrite", () => {
+    for (const guard of [{ hash, kind: "expected" }, { kind: "absent" }, { kind: "overwrite" }]) {
+      expect(vaultWriteRequestSchema.parse({ content: "x", guard, path: "a.md" }).guard).toEqual(
+        guard,
+      );
+    }
+  });
+
+  it("refuses a hash on anything but expected, and expected without a well-formed one", () => {
+    for (const guard of [
+      { hash, kind: "absent" },
+      { hash, kind: "overwrite" },
+      { kind: "expected" },
+      { hash: "ABC123", kind: "expected" },
+      { kind: "if-match" },
+    ]) {
+      expect(vaultWriteRequestSchema.safeParse({ content: "x", guard, path: "a.md" }).success).toBe(
+        false,
+      );
+    }
   });
 });
 

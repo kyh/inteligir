@@ -24,7 +24,7 @@ export const externalEditBrowser: Scenario = {
     // the scripted driver writes exactly here.
     const notePath = `Agent/${thread.id}.md`;
     const noteFile = path.join(app.vaultDir, notePath);
-    await app.api.vault.write({ content: BASE_NOTE, ifAbsent: true, path: notePath });
+    await app.api.vault.write({ content: BASE_NOTE, guard: { kind: "absent" }, path: notePath });
 
     const agentBrowser = await ctx.browser("external-edit");
     const readBuffer = async (): Promise<string> => await agentBrowser(["get", "text", EDITOR]);

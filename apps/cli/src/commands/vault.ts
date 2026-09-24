@@ -10,7 +10,7 @@ import {
 import type {
   VaultHistoryRequest,
   VaultStatusResponse,
-  VaultWriteRequest,
+  VaultWriteGuard,
 } from "@repo/api/local/vault/vault-schema";
 import {
   ATTACHMENT_LOCATION_SPELLINGS,
@@ -95,25 +95,37 @@ const assertContentWithinBound = (content: string): void => {
   }
 };
 
-// the contract's two guards, refused here as the schema would refuse them, before stdin is read.
+// the contract's guard is required, so exactly one flag names it, refused here as the schema would
+// refuse it, before stdin is read: last-writer-wins is `--overwrite`, never a forgotten flag.
 const writeGuard = (args: {
   "expected-hash"?: string | undefined;
   "if-absent"?: boolean | undefined;
-}): Pick<VaultWriteRequest, "expectedHash" | "ifAbsent"> => {
+  overwrite?: boolean | undefined;
+}): VaultWriteGuard => {
   const expectedHash = args["expected-hash"];
   const ifAbsent = args["if-absent"] === true;
+  const overwrite = args.overwrite === true;
+  const named = [expectedHash !== undefined, ifAbsent, overwrite].filter(Boolean).length;
+  if (named === 0) {
+    throw invalidUsage(
+      "name the write's guard: --if-absent for a new file, --expected-hash <hash> over the bytes you read, or --overwrite",
+    );
+  }
+  if (named > 1) {
+    throw invalidUsage(
+      "--if-absent, --expected-hash and --overwrite each guard a whole write; name one",
+    );
+  }
   if (expectedHash === undefined) {
-    return ifAbsent ? { ifAbsent: true } : {};
+    return ifAbsent ? { kind: "absent" } : { kind: "overwrite" };
   }
-  if (ifAbsent) {
-    throw invalidUsage("--if-absent and --expected-hash cannot both guard one write");
-  }
-  if (!contentHashSchema.safeParse(expectedHash).success) {
+  const hash = contentHashSchema.safeParse(expectedHash);
+  if (!hash.success) {
     throw invalidUsage(
       `--expected-hash takes the 64 lowercase hex characters \`vault read --json\` answers as hash (got "${expectedHash}")`,
     );
   }
-  return { expectedHash };
+  return { hash: hash.data, kind: "expected" };
 };
 
 interface VaultSelection {
@@ -419,23 +431,19 @@ export const vaultCommand = (deps: CliDeps) =>
           const revision = await api.vault.revision({ path: args.path, sha: args.sha });
           await api.vault.commitNow();
           const current = await safe(api.vault.read({ path: args.path }));
-          let request: VaultWriteRequest;
+          let guard: VaultWriteGuard;
           if (current.error === null) {
-            request = {
-              content: revision.content,
-              expectedHash: await contentHashHex(current.data.content),
-              path: args.path,
-            };
+            guard = { hash: await contentHashHex(current.data.content), kind: "expected" };
           } else if (isDefinedError(current.error) && current.error.code === "NOT_FOUND") {
             // a deleted note has no base to guard against; create-exclusively, so a note that
             // reappeared there in the meantime is refused rather than replaced.
-            request = { content: revision.content, ifAbsent: true, path: args.path };
+            guard = { kind: "absent" };
           } else {
             throw current.error;
           }
-          const body = await api.vault.write(request);
+          const body = await api.vault.write({ content: revision.content, guard, path: args.path });
           const comments: CommentStoreRestore =
-            "ifAbsent" in request
+            guard.kind === "absent"
               ? await restoreCommentStore(api, revision.content, args.sha)
               : { kind: "none" };
           if (comments.kind === "failed") {
@@ -518,11 +526,16 @@ export const vaultCommand = (deps: CliDeps) =>
             description: "Create only: refuse if something is already at the path",
             type: "boolean",
           },
+          overwrite: {
+            description: "Replace whatever is at the path: the last writer wins",
+            type: "boolean",
+          },
           path: { description: "The vault-relative path", required: true, type: "positional" },
           ...jsonArg,
         },
         meta: {
-          description: "Write a file (content from --content, else stdin); parents are created",
+          description:
+            "Write a file (content from --content, else stdin) under one guard; parents are created",
           name: "write",
         },
         run: async ({ args }) => {
@@ -535,7 +548,7 @@ export const vaultCommand = (deps: CliDeps) =>
             ({ content } = args);
           }
           const api = apiFor(deps);
-          const body = await api.vault.write({ content, path: args.path, ...guard });
+          const body = await api.vault.write({ content, guard, path: args.path });
           if (outputJson(args, body)) {
             return;
           }

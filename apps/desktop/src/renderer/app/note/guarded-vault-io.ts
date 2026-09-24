@@ -19,9 +19,9 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
   };
 
   const create = async (path: string, content: string): Promise<CreateOutcome> => {
-    // ifAbsent and no hash: hashing content not yet on disk names bytes the
+    // absent, never a hash: hashing content not yet on disk names bytes the
     // server cannot match, so it refuses every create.
-    const { error } = await safe(api.vault.write({ content, ifAbsent: true, path }));
+    const { error } = await safe(api.vault.write({ content, guard: { kind: "absent" }, path }));
     if (error === null) {
       bases.set(path, content);
       return { kind: "created" };
@@ -39,8 +39,10 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     if (base === undefined) {
       throw new Error(`write ${path}: no base was read, so nothing can guard this write`);
     }
-    const expectedHash = await contentHashHex(base);
-    const { error } = await safe(api.vault.write({ content, expectedHash, path }));
+    const hash = await contentHashHex(base);
+    const { error } = await safe(
+      api.vault.write({ content, guard: { hash, kind: "expected" }, path }),
+    );
     if (error === null) {
       bases.set(path, content);
       return { conflicted: false, content, kind: "landed" };
@@ -52,8 +54,13 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
       }
       const disk = error.data.current.content;
       const { conflicted, merged } = diff3(base, content, disk);
-      const retryHash = await contentHashHex(disk);
-      const retry = await safe(api.vault.write({ content: merged, expectedHash: retryHash, path }));
+      const retry = await safe(
+        api.vault.write({
+          content: merged,
+          guard: { hash: await contentHashHex(disk), kind: "expected" },
+          path,
+        }),
+      );
       if (retry.error === null) {
         bases.set(path, merged);
         return { conflicted, content: merged, kind: "landed" };

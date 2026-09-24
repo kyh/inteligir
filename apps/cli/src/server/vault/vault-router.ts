@@ -8,7 +8,6 @@ import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
 import { removeEntryWithComments } from "../comments/remove-with-comments";
 import { attributeWrites, base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
-import type { GuardedWriteGuard } from "./vault-service";
 
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
@@ -38,15 +37,12 @@ const revision = base.vault.revision.handler(
 const write = base.vault.write.handler(
   async ({ context, input, errors }) =>
     await refusing(async () => {
-      if (input.expectedHash === undefined && input.ifAbsent === undefined) {
+      const { guard } = input;
+      if (guard.kind === "overwrite") {
         const written = await context.vault.service.write(input.path, input.content);
         attributeWrites(context, [written.path]);
         return written;
       }
-      const guard: GuardedWriteGuard =
-        input.expectedHash === undefined
-          ? { ifAbsent: true }
-          : { expectedHash: input.expectedHash };
       const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
       if (result.applied) {
         attributeWrites(context, [result.path]);

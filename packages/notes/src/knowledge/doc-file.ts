@@ -42,7 +42,7 @@ export const isVaultMetadataPath = (path: string): boolean =>
   isLegacyCommentsSidecarPath(path) || path.split("/").some((segment) => segment.startsWith("."));
 
 // The first of `stem`, `stem 2`, `stem 3`… not taken under `dir`. Lowercased on both sides
-// because the disk may be case-insensitive; the server's `ifAbsent` stays the real guard.
+// because the disk may be case-insensitive; the server's `absent` guard stays the real one.
 export const freeDocPath = (dir: string, stem: string, takenPaths: Iterable<string>): string => {
   const taken = new Set([...takenPaths].map((path) => path.toLowerCase()));
   for (let n = 1; ; n += 1) {

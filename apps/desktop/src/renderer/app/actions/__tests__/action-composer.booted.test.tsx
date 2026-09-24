@@ -119,7 +119,11 @@ describe("the composer's @-mentions", () => {
     const harness = await bootThreadHarness({ mode: "manual" });
     vi.stubGlobal("WebSocket", InertSocket);
     routeRendererFetch(harness);
-    await harness.client.vault.write({ content: "# Plans\n", path: "Plans.md" });
+    await harness.client.vault.write({
+      content: "# Plans\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
 
     render(
       <WorkspaceProvider>

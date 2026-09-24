@@ -70,8 +70,8 @@ export const vaultContract = {
     .output(vaultRenameResponseSchema)
     .errors({ CONFLICT: {}, INVALID_PATH, NOT_FOUND: {} }),
 
-  // no vault.restore: restore is the client composing this with write + expectedHash (or
-  // ifAbsent for a deleted note), so there is one cas.
+  // no vault.restore: restore is the client composing this with an `expected`-guarded write (or
+  // an `absent` one for a deleted note), so there is one cas.
   revision: oc
     .input(vaultRevisionRequestSchema)
     .output(vaultRevisionResponseSchema)
@@ -89,8 +89,8 @@ export const vaultContract = {
 
   tree: oc.output(vaultTreeResponseSchema),
 
-  // ALREADY_EXISTS is ifAbsent's refusal; every other collision answers CONFLICT, so no other
-  // row declares it.
+  // ALREADY_EXISTS is the `absent` guard's refusal; every other collision answers CONFLICT, so no
+  // other row declares it.
   write: oc
     .input(vaultWriteRequestSchema)
     .output(vaultWriteResponseSchema)

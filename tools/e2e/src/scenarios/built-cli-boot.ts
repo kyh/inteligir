@@ -46,7 +46,11 @@ export const builtCliBoot: Scenario = {
     expect((await shell.text()) === staged, "GET / answers dist/ui/index.html byte for byte");
 
     ctx.log("a write through the API reaches the index");
-    await app.api.vault.write({ content: `# Built\n\n${WRITTEN_TOKEN}\n`, path: WRITTEN_PATH });
+    await app.api.vault.write({
+      content: `# Built\n\n${WRITTEN_TOKEN}\n`,
+      guard: { kind: "overwrite" },
+      path: WRITTEN_PATH,
+    });
     await pollUntil(
       async () => await searchFinds(app, WRITTEN_TOKEN, WRITTEN_PATH),
       (found) => found,

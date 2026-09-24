@@ -46,7 +46,11 @@ describe("the history tab under a refused read", () => {
   it("keeps the honest empty state for a note with no commits yet", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
-    await booted.client.vault.write({ content: "# Fresh\n", path: "fresh.md" });
+    await booted.client.vault.write({
+      content: "# Fresh\n",
+      guard: { kind: "overwrite" },
+      path: "fresh.md",
+    });
 
     mountTab("fresh.md");
     await waitFor(() => {
@@ -62,11 +66,15 @@ const EDITED = "# One\n# Two\n# Three\n";
 
 // two committed revisions under uncommitted bytes; answers the oldest revision's sha.
 const seedHistory = async (booted: BootedTestApp): Promise<string> => {
-  await booted.client.vault.write({ content: "# One\n", path: PLAN });
+  await booted.client.vault.write({ content: "# One\n", guard: { kind: "overwrite" }, path: PLAN });
   await booted.client.vault.commitNow();
-  await booted.client.vault.write({ content: "# One\n# Two\n", path: PLAN });
+  await booted.client.vault.write({
+    content: "# One\n# Two\n",
+    guard: { kind: "overwrite" },
+    path: PLAN,
+  });
   await booted.client.vault.commitNow();
-  await booted.client.vault.write({ content: EDITED, path: PLAN });
+  await booted.client.vault.write({ content: EDITED, guard: { kind: "overwrite" }, path: PLAN });
   const { revisions } = await booted.client.vault.history({ path: PLAN });
   expect(revisions).toHaveLength(2);
   return revisions.at(-1)?.sha ?? "";
@@ -123,7 +131,11 @@ describe("restoring a revision from the history tab", () => {
     const refused = vi.spyOn(toast, "error");
 
     await openRevision(oldest);
-    await booted.client.vault.write({ content: "# Concurrent\n", path: PLAN });
+    await booted.client.vault.write({
+      content: "# Concurrent\n",
+      guard: { kind: "overwrite" },
+      path: PLAN,
+    });
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     await waitFor(() => {
       expect(refused).toHaveBeenCalledWith(

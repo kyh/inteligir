@@ -622,19 +622,20 @@ const vaultRouter = {
   // the real route's refusals, spelled as it spells them.
   write: base.vault.write.handler(async ({ context, input, errors }) => {
     const current = context.vault.get(input.path);
-    if (input.ifAbsent === true && current !== undefined) {
+    const { guard } = input;
+    if (guard.kind === "absent" && current !== undefined) {
       throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
     }
     if (parentFolders(input.path).some((folder) => context.vault.has(folder))) {
       throw errors.CONFLICT({ message: `A file shadows a parent folder of ${input.path}` });
     }
-    if (input.expectedHash !== undefined) {
+    if (guard.kind === "expected") {
       const message = `${input.path} changed since the base this write was derived from`;
       if (current === undefined) {
         throw errors.CAS_MISMATCH({ data: {}, message });
       }
       const hash = await contentHashHex(current);
-      if (hash !== input.expectedHash) {
+      if (hash !== guard.hash) {
         throw errors.CAS_MISMATCH({ data: { current: { content: current, hash } }, message });
       }
     }

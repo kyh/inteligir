@@ -90,7 +90,11 @@ describe("a focus from the note", () => {
   it("shows and scrolls to a resolved thread, lets Hide hide it, and a new click shows it again", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
-    await booted.client.vault.write({ content: "# Plan\n", path: "plan.md" });
+    await booted.client.vault.write({
+      content: "# Plan\n",
+      guard: { kind: "overwrite" },
+      path: "plan.md",
+    });
     await booted.client.comments.add({ id: "c1", path: "plan.md", text: "Ship it?" });
     await booted.client.comments.resolve({ id: "c1", path: "plan.md", resolved: true });
     const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");

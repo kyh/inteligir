@@ -21,7 +21,7 @@ export const actionScripted: Scenario = {
     const { api, vaultDir } = app;
 
     ctx.log("write the note and attach an action to it");
-    await api.vault.write({ content: BASE, path: "notes/plans.md" });
+    await api.vault.write({ content: BASE, guard: { kind: "overwrite" }, path: "notes/plans.md" });
     const { thread } = await api.threads.create({
       originDocPath: "notes/plans.md",
       title: "Tighten the intro",
@@ -47,7 +47,7 @@ export const actionScripted: Scenario = {
     ctx.log("a CAS write from the base lands");
     await api.vault.write({
       content: edited,
-      expectedHash: await contentHashHex(minted),
+      guard: { hash: await contentHashHex(minted), kind: "expected" },
       path: "notes/plans.md",
     });
     expectEq(
@@ -60,7 +60,7 @@ export const actionScripted: Scenario = {
     const [conflict] = await safe(
       api.vault.write({
         content: minted.replace("first draft", "someone else's save"),
-        expectedHash: await contentHashHex(minted),
+        guard: { hash: await contentHashHex(minted), kind: "expected" },
         path: "notes/plans.md",
       }),
     );

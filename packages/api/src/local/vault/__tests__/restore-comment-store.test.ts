@@ -39,7 +39,7 @@ const vaultClient = (stub: VaultStub) =>
         if (stub.refuseWrite !== undefined) {
           throw stub.refuseWrite;
         }
-        if (input.ifAbsent === true && stub.disk.has(input.path)) {
+        if (input.guard.kind === "absent" && stub.disk.has(input.path)) {
           throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
         }
         stub.disk.set(input.path, input.content);

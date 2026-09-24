@@ -277,7 +277,7 @@ describe("vault commands", () => {
     const state = seededState();
     const server = await boot(state);
     const write = await runCliForTest({
-      argv: ["vault", "write", "notes/new.md", "--content", "# New\n"],
+      argv: ["vault", "write", "notes/new.md", "--content", "# New\n", "--overwrite"],
       baseUrl: server.baseUrl,
     });
     expect(write.code).toBe(0);
@@ -1078,7 +1078,7 @@ describe("argv the CLI refuses", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["vault", "write", "notes/dash.md", "--content", "-x"],
+      argv: ["vault", "write", "notes/dash.md", "--content", "-x", "--overwrite"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
@@ -1096,10 +1096,12 @@ describe("a leaf refuses bad usage before it resolves a server", () => {
     expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
   });
 
-  it("vault write checks its guard first: a malformed hash, and both guards at once", async () => {
+  it("vault write checks its guard first: none, a malformed hash, and two at once", async () => {
     for (const guard of [
+      [],
       ["--expected-hash", "ABC123"],
       ["--if-absent", "--expected-hash", "0".repeat(64)],
+      ["--overwrite", "--if-absent"],
     ]) {
       const result = await runCliForTest({
         argv: ["vault", "write", "notes/x.md", "--content", "x", ...guard, "--json"],
@@ -1156,7 +1158,7 @@ describe("vault write reads stdin as BYTES", () => {
     const server = await boot(state);
     const content = "﻿# Héllo 😀\n";
     const result = await runCliForTest({
-      argv: ["vault", "write", "notes/bytes.md"],
+      argv: ["vault", "write", "notes/bytes.md", "--if-absent"],
       baseUrl: server.baseUrl,
       stdin: new TextEncoder().encode(content),
     });
@@ -1168,7 +1170,7 @@ describe("vault write reads stdin as BYTES", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["vault", "write", "notes/bad.md"],
+      argv: ["vault", "write", "notes/bad.md", "--if-absent"],
       baseUrl: server.baseUrl,
       // A lone continuation byte: no valid decoding exists.
       stdin: Uint8Array.from([0x23, 0x20, 0xff, 0x0a]),
@@ -1182,7 +1184,7 @@ describe("vault write reads stdin as BYTES", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["vault", "write", "notes/big.md"],
+      argv: ["vault", "write", "notes/big.md", "--if-absent"],
       baseUrl: server.baseUrl,
       stdin: new Uint8Array(VAULT_MAX_CONTENT_LENGTH + 1).fill(0x61),
     });
@@ -1195,7 +1197,7 @@ describe("vault write reads stdin as BYTES", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["vault", "write", "notes/tty.md"],
+      argv: ["vault", "write", "notes/tty.md", "--if-absent"],
       baseUrl: server.baseUrl,
       stdin: "terminal",
     });
@@ -1208,7 +1210,7 @@ describe("vault write reads stdin as BYTES", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["vault", "write", "notes/hello.md"],
+      argv: ["vault", "write", "notes/hello.md", "--overwrite"],
       baseUrl: server.baseUrl,
       stdin: new Uint8Array(),
     });
@@ -1217,7 +1219,7 @@ describe("vault write reads stdin as BYTES", () => {
     expect(state.vault.get("notes/hello.md")).toBe("# Hello\n\nBody.\n");
 
     const emptied = await runCliForTest({
-      argv: ["vault", "write", "notes/hello.md", "--content", ""],
+      argv: ["vault", "write", "notes/hello.md", "--content", "", "--overwrite"],
       baseUrl: server.baseUrl,
     });
     expect(emptied.code).toBe(0);

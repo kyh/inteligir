@@ -51,7 +51,7 @@ export const cliDrive: Scenario = {
     expect(which.stdout.trim().length > 0, "`inteligir --version` answered");
 
     ctx.log("vault write + read through the CLI, verified on disk");
-    await cli("vault", "write", NOTE_PATH, "--content", NOTE_CONTENT);
+    await cli("vault", "write", NOTE_PATH, "--content", NOTE_CONTENT, "--if-absent");
     const readBack = await cli("vault", "read", NOTE_PATH);
     expectEq(readBack.stdout, NOTE_CONTENT, "CLI read-back matches");
     expectEq(

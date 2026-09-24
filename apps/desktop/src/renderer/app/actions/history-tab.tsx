@@ -135,7 +135,7 @@ const RevisionDetail = ({
       const { error } = await safe(
         client.vault.write({
           content: bytes,
-          expectedHash: await contentHashHex(current),
+          guard: { hash: await contentHashHex(current), kind: "expected" },
           path: docPath,
         }),
       );

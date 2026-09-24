@@ -22,7 +22,11 @@ describe("an action composed over a note with no id", () => {
     const harness = await bootWorkspace({
       note: NOTE,
       seed: async (booted) => {
-        await booted.client.vault.write({ content: "# Plans\n\nFirst line.\n", path: NOTE });
+        await booted.client.vault.write({
+          content: "# Plans\n\nFirst line.\n",
+          guard: { kind: "overwrite" },
+          path: NOTE,
+        });
       },
     });
     await waitFor(() => {

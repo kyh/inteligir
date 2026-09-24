@@ -26,7 +26,11 @@ const originOf = async (app: BootedTestApp, threadId: string): Promise<string | 
 describe("an action's origin", () => {
   it("follows its note through a move the rename route never saw, by the id minted at compose", async () => {
     const app = await bootTestApp();
-    await app.client.vault.write({ content: "# Plans\n", path: PLANS });
+    await app.client.vault.write({
+      content: "# Plans\n",
+      guard: { kind: "overwrite" },
+      path: PLANS,
+    });
 
     const { thread } = await app.client.threads.create({ originDocPath: PLANS });
     expect(thread.originDocPath).toBe(PLANS);
@@ -46,7 +50,7 @@ describe("an action's origin", () => {
   it("keeps the id a note already carries, writing nothing into it", async () => {
     const app = await bootTestApp();
     const content = "---\nid: plans-id\n---\n# Plans\n";
-    await app.client.vault.write({ content, path: PLANS });
+    await app.client.vault.write({ content, guard: { kind: "overwrite" }, path: PLANS });
 
     const { thread } = await app.client.threads.create({ originDocPath: PLANS });
     expect(await readFile(path.join(app.vaultDir, PLANS), "utf-8")).toBe(content);
@@ -58,7 +62,11 @@ describe("an action's origin", () => {
   it("binds by path alone when the note cannot take an id, and never refuses the action", async () => {
     const app = await bootTestApp();
     const unreadable = "---\na: [unclosed\n---\nbody\n";
-    await app.client.vault.write({ content: unreadable, path: PLANS });
+    await app.client.vault.write({
+      content: unreadable,
+      guard: { kind: "overwrite" },
+      path: PLANS,
+    });
 
     const { thread } = await app.client.threads.create({ originDocPath: PLANS });
     expect(thread.originDocPath).toBe(PLANS);

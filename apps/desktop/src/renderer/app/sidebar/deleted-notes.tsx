@@ -28,7 +28,11 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
   const restore = useMutation({
     mutationFn: async (entry: VaultDeletedEntry) => {
       const { content } = await client.vault.revision({ path: entry.path, sha: entry.sha });
-      const { path } = await client.vault.write({ content, ifAbsent: true, path: entry.path });
+      const { path } = await client.vault.write({
+        content,
+        guard: { kind: "absent" },
+        path: entry.path,
+      });
       const comments = await restoreCommentStore(client, content, entry.sha);
       return { comments, path };
     },

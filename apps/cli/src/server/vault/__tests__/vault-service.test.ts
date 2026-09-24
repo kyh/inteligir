@@ -173,7 +173,7 @@ describe("what a write announces", () => {
     expect(notifier.vaultChanges).toEqual([["files-changed"]]);
 
     notifier.reset();
-    await service.writeGuarded("guarded.md", "one", { ifAbsent: true });
+    await service.writeGuarded("guarded.md", "one", { kind: "absent" });
     expect(notifier.vaultChanges).toEqual([["files-changed"]]);
   });
 
@@ -346,7 +346,7 @@ describe("what the filesystem throws at the vault", () => {
       code: "conflict",
     });
     await expect(
-      service.writeGuarded("file.md/child.md", "z", { ifAbsent: true }),
+      service.writeGuarded("file.md/child.md", "z", { kind: "absent" }),
     ).rejects.toMatchObject({ code: "conflict" });
     await expect(service.rename("other.md", "file.md/other.md")).rejects.toMatchObject({
       code: "conflict",
@@ -402,7 +402,8 @@ describe("what the filesystem throws at the vault", () => {
 
     await service.write("private.md", "two");
     await service.writeGuarded("private.md", "three", {
-      expectedHash: await contentHashHex("two"),
+      hash: await contentHashHex("two"),
+      kind: "expected",
     });
     await service.writeIfUnchanged("private.md", "three", "four");
 
@@ -426,7 +427,10 @@ describe("what the filesystem throws at the vault", () => {
           code: "EACCES",
         });
         await expect(
-          service.writeGuarded("sealed.md", "x", { expectedHash: await contentHashHex("bytes") }),
+          service.writeGuarded("sealed.md", "x", {
+            hash: await contentHashHex("bytes"),
+            kind: "expected",
+          }),
         ).rejects.toMatchObject({ code: "EACCES" });
       } finally {
         await chmod(absPath, 0o644);

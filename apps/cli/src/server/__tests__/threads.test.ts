@@ -499,7 +499,11 @@ describe("a thread's own facts", () => {
 
   it("state the origin's note id beside its path, so another device follows a move by id", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
-    await client.vault.write({ content: "---\nid: note-plans\n---\n# Plans\n", path: "Plans.md" });
+    await client.vault.write({
+      content: "---\nid: note-plans\n---\n# Plans\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
     const threadId = await createThreadOver(client, "Plans.md");
     await client.threads.send({ text: "go", threadId });
 

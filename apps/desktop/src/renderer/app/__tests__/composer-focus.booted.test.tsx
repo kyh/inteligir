@@ -28,7 +28,11 @@ describe("the ⌘K composer", () => {
     await bootWorkspace({
       note: NOTE,
       seed: async (harness) => {
-        await harness.client.vault.write({ content: "# Plans\n\nFirst line.\n", path: NOTE });
+        await harness.client.vault.write({
+          content: "# Plans\n\nFirst line.\n",
+          guard: { kind: "overwrite" },
+          path: NOTE,
+        });
       },
     });
     await waitFor(() => {

@@ -32,8 +32,16 @@ const bootAt = async (entry: string) => {
   const booted = await bootTestApp();
   vi.stubGlobal("WebSocket", InertSocket);
   routeRendererFetch(booted);
-  await booted.client.vault.write({ content: "# Alpha\n", path: "alpha.md" });
-  await booted.client.vault.write({ content: "# Beta\n", path: "beta.md" });
+  await booted.client.vault.write({
+    content: "# Alpha\n",
+    guard: { kind: "overwrite" },
+    path: "alpha.md",
+  });
+  await booted.client.vault.write({
+    content: "# Beta\n",
+    guard: { kind: "overwrite" },
+    path: "beta.md",
+  });
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [entry] }),
     routeTree,
