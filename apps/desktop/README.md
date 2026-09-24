@@ -281,3 +281,7 @@ policy is unit-tested against a fake updater (`src/main/__tests__/updates.test.t
   has, it asks its own server over `/rpc`. Each channel is one row in
   `src/ipc-contract.ts`, its name beside its request and answer schemas, and a
   refusal crosses as a value rather than a throw, which Electron would reword.
+  `src/main/__tests__/ipc-contract.test.ts` holds both ends to every row: main
+  registers each channel exactly once, the preload calls it, and neither side
+  spells a channel as a literal, because a row one end forgot fails only at
+  runtime ("No handler registered", or a handler nothing calls).

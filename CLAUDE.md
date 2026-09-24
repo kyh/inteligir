@@ -1821,7 +1821,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   because no server can answer for any of them. Each channel is one row
   (`apps/desktop/src/ipc-contract.ts`): its name beside its request and answer
   schemas, typing main's handler and the preload's invoke alike, and every
-  frame is parsed by the side that receives it. A refusal crosses as a value
+  frame is parsed by the side that receives it; its test holds both ends to
+  every row (`apps/desktop/src/main/__tests__/ipc-contract.test.ts`). A refusal crosses as a value
   (`{ ok: false, reason }`), never a throw, because Electron rewords a thrown
   error; a throw is a fault, and the page words it itself. Still no token in
   the renderer. `apps/desktop/src/main/updates.ts` (the policy over an
