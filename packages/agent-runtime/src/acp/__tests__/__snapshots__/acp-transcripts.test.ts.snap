@@ -527,6 +527,11 @@ exports[`codex-acp@1.13.0 > replays command onto the provider grammar 1`] = `
       "type": "turn/started",
     },
     {
+      "message": "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.",
+      "severity": "warning",
+      "type": "provider/notice",
+    },
+    {
       "item": {
         "id": "turn_replay:message",
         "text": "",
@@ -535,29 +540,34 @@ exports[`codex-acp@1.13.0 > replays command onto the provider grammar 1`] = `
       "type": "item/started",
     },
     {
-      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll run \`ls\` once and count the entries.
+      "delta": "I’ll run \`ls\` once and count the entries.
 ",
-      "deltas": 13,
+      "deltas": 12,
       "itemId": "turn_replay:message",
       "type": "item/agentMessage/delta",
     },
     {
       "item": {
+        "approvalStatus": null,
+        "command": "List files",
+        "cwd": "",
         "id": "exec-7e3620f0-1bb3-4032-bba1-fd603d57d8be",
         "status": "pending",
-        "tool": "List files",
-        "type": "toolCall",
+        "type": "commandExecution",
       },
       "type": "item/started",
     },
     {
       "item": {
+        "aggregatedOutput": "a.md
+b.md
+",
+        "approvalStatus": null,
+        "command": "List files",
+        "cwd": "",
         "id": "exec-7e3620f0-1bb3-4032-bba1-fd603d57d8be",
         "status": "completed",
-        "tool": "List files",
-        "type": "toolCall",
+        "type": "commandExecution",
       },
       "type": "item/completed",
     },
@@ -570,9 +580,7 @@ I’ll run \`ls\` once and count the entries.
     {
       "item": {
         "id": "turn_replay:message",
-        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll run \`ls\` once and count the entries.
+        "text": "I’ll run \`ls\` once and count the entries.
 2 entries.",
         "type": "agentMessage",
       },
@@ -594,6 +602,11 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
       "type": "turn/started",
     },
     {
+      "message": "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.",
+      "severity": "warning",
+      "type": "provider/notice",
+    },
+    {
       "item": {
         "id": "turn_replay:message",
         "text": "",
@@ -602,10 +615,8 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
       "type": "item/started",
     },
     {
-      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.",
-      "deltas": 26,
+      "delta": "I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.",
+      "deltas": 25,
       "itemId": "turn_replay:message",
       "type": "item/agentMessage/delta",
     },
@@ -896,9 +907,7 @@ Rationale: Read-only verification of the two user-requested file changes; no ext
     {
       "item": {
         "id": "turn_replay:message",
-        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.Created \`hello.md\` with only \`hello\`. Replaced \`draft\` with \`final\` in \`note.md\`. Verified both. No shell used.",
+        "text": "I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.Created \`hello.md\` with only \`hello\`. Replaced \`draft\` with \`final\` in \`note.md\`. Verified both. No shell used.",
         "type": "agentMessage",
       },
       "type": "item/completed",
@@ -919,6 +928,11 @@ exports[`codex-acp@1.13.0 > replays failed-command onto the provider grammar 1`]
       "type": "turn/started",
     },
     {
+      "message": "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.",
+      "severity": "warning",
+      "type": "provider/notice",
+    },
+    {
       "item": {
         "id": "turn_replay:message",
         "text": "",
@@ -927,29 +941,33 @@ exports[`codex-acp@1.13.0 > replays failed-command onto the provider grammar 1`]
       "type": "item/started",
     },
     {
-      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll run \`cat missing-file.md\` once.
+      "delta": "I’ll run \`cat missing-file.md\` once.
 ",
-      "deltas": 12,
+      "deltas": 11,
       "itemId": "turn_replay:message",
       "type": "item/agentMessage/delta",
     },
     {
       "item": {
+        "approvalStatus": null,
+        "command": "Read file '/vault/missing-file.md'",
+        "cwd": "",
         "id": "exec-8d7d3dd9-d6d7-410a-9b05-ef7d7a04a36d",
         "status": "pending",
-        "tool": "Read file '/vault/missing-file.md'",
-        "type": "toolCall",
+        "type": "commandExecution",
       },
       "type": "item/started",
     },
     {
       "item": {
+        "aggregatedOutput": "cat: missing-file.md: No such file or directory
+",
+        "approvalStatus": null,
+        "command": "Read file '/vault/missing-file.md'",
+        "cwd": "",
         "id": "exec-8d7d3dd9-d6d7-410a-9b05-ef7d7a04a36d",
         "status": "failed",
-        "tool": "Read file '/vault/missing-file.md'",
-        "type": "toolCall",
+        "type": "commandExecution",
       },
       "type": "item/completed",
     },
@@ -962,9 +980,7 @@ I’ll run \`cat missing-file.md\` once.
     {
       "item": {
         "id": "turn_replay:message",
-        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll run \`cat missing-file.md\` once.
+        "text": "I’ll run \`cat missing-file.md\` once.
 Ran once. Exit code 1: \`cat: missing-file.md: No such file or directory\`.",
         "type": "agentMessage",
       },
@@ -986,6 +1002,11 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
       "type": "turn/started",
     },
     {
+      "message": "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.",
+      "severity": "warning",
+      "type": "provider/notice",
+    },
+    {
       "item": {
         "id": "turn_replay:message",
         "text": "",
@@ -994,11 +1015,9 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
       "type": "item/started",
     },
     {
-      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
+      "delta": "I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
 ",
-      "deltas": 19,
+      "deltas": 18,
       "itemId": "turn_replay:message",
       "type": "item/agentMessage/delta",
     },
@@ -1033,19 +1052,27 @@ I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
     },
     {
       "item": {
+        "approvalStatus": null,
+        "command": "Read file '/vault/note.md'",
+        "cwd": "",
         "id": "exec-1fca24fb-47f5-4287-8c22-43be2293c060",
         "status": "pending",
-        "tool": "Read file '/vault/note.md'",
-        "type": "toolCall",
+        "type": "commandExecution",
       },
       "type": "item/started",
     },
     {
       "item": {
+        "aggregatedOutput": "# Draft
+
+The launch moves to Thursday.
+",
+        "approvalStatus": null,
+        "command": "Read file '/vault/note.md'",
+        "cwd": "",
         "id": "exec-1fca24fb-47f5-4287-8c22-43be2293c060",
         "status": "completed",
-        "tool": "Read file '/vault/note.md'",
-        "type": "toolCall",
+        "type": "commandExecution",
       },
       "type": "item/completed",
     },
@@ -1080,9 +1107,7 @@ Tracked here because no todo/plan tool was available.",
     {
       "item": {
         "id": "turn_replay:message",
-        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
+        "text": "I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
 No todo/plan tool is available. I’ll track them here:
 
 - [ ] Read \`note.md\`.
@@ -1115,6 +1140,11 @@ exports[`codex-acp@1.13.0 > replays reply onto the provider grammar 1`] = `
       "type": "turn/started",
     },
     {
+      "message": "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.",
+      "severity": "warning",
+      "type": "provider/notice",
+    },
+    {
       "item": {
         "id": "turn_replay:message",
         "text": "",
@@ -1123,19 +1153,15 @@ exports[`codex-acp@1.13.0 > replays reply onto the provider grammar 1`] = `
       "type": "item/started",
     },
     {
-      "delta": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-pong",
-      "deltas": 2,
+      "delta": "pong",
+      "deltas": 1,
       "itemId": "turn_replay:message",
       "type": "item/agentMessage/delta",
     },
     {
       "item": {
         "id": "turn_replay:message",
-        "text": "Warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
-
-pong",
+        "text": "pong",
         "type": "agentMessage",
       },
       "type": "item/completed",

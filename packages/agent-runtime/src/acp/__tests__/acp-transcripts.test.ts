@@ -109,9 +109,16 @@ const fileChanges = (events: readonly ProviderEvent[]) =>
     event.type === "item/completed" && event.item.type === "fileChange" ? event.item.changes : [],
   );
 
-const itemStatuses = (events: readonly ProviderEvent[]) =>
+const commands = (events: readonly ProviderEvent[]) =>
   events.flatMap((event) =>
-    event.type === "item/completed" && "status" in event.item ? [event.item.status] : [],
+    event.type === "item/completed" && event.item.type === "commandExecution"
+      ? [{ output: event.item.aggregatedOutput, status: event.item.status }]
+      : [],
+  );
+
+const messages = (events: readonly ProviderEvent[]) =>
+  events.flatMap((event) =>
+    event.type === "item/completed" && event.item.type === "agentMessage" ? [event.item.text] : [],
   );
 
 const adapters = readdirSync(FIXTURES);
@@ -176,8 +183,25 @@ describe.each(adapters)("%s", (adapter) => {
     );
   });
 
-  it("completes the failed command's item as failed", async () => {
+  it("carries the command's output on its command item", async () => {
+    const { events } = await replay(read("command"));
+    expect(commands(events)).toEqual([
+      { output: expect.stringMatching(/a\.md\s+b\.md/u), status: "completed" },
+    ]);
+  });
+
+  it("completes the failed command's item as failed, carrying what it printed", async () => {
     const { events } = await replay(read("failed-command"));
-    expect(itemStatuses(events)).toContain("failed");
+    expect(commands(events)).toContainEqual({
+      output: expect.stringContaining("missing-file.md"),
+      status: "failed",
+    });
+  });
+
+  it.each(scenarios)("keeps the adapter's own warnings out of the %s message", async (scenario) => {
+    const { events } = await replay(read(scenario));
+    for (const text of messages(events)) {
+      expect(text).not.toMatch(/^Warning: /mu);
+    }
   });
 });

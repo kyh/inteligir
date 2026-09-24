@@ -84,7 +84,7 @@ const isUnmapped = (event: ProviderEvent): event is UnmappedProviderEvent =>
 
 type TurnProviderEvent = Exclude<
   ProviderEvent,
-  UnmappedProviderEvent | Extract<ProviderEvent, { type: "provider/error" }>
+  UnmappedProviderEvent | Extract<ProviderEvent, { type: "provider/error" | "provider/notice" }>
 >;
 
 const mapProviderError = (
@@ -158,6 +158,11 @@ export const mapProviderEvent = (
 ): MapProviderEventResult => {
   if (isUnmapped(event)) {
     return dropped(`${event.type} has no persisted mapping`);
+  }
+  // the agent log is the one place a notice is read until one earns a renderer, so its text rides
+  // the reason.
+  if (event.type === "provider/notice") {
+    return dropped(`${event.type} has no persisted mapping: ${event.severity}: ${event.message}`);
   }
   if (event.type === "provider/error") {
     return mapProviderError(event, turnId);

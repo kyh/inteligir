@@ -189,6 +189,103 @@ describe("AcpTurnMapper", () => {
     },
   );
 
+  it("lands codex's own warning as a notice, never as the message", () => {
+    const m = mapper();
+    expect(
+      m.update({
+        sessionId: "sess_1",
+        update: {
+          content: { text: "Warning: Skill descriptions were shortened.\n\n", type: "text" },
+          sessionUpdate: "agent_message_chunk",
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        message: "Skill descriptions were shortened.",
+        severity: "warning",
+        type: "provider/notice",
+      }),
+    ]);
+    m.update({
+      sessionId: "sess_1",
+      update: {
+        content: { text: "pong", type: "text" },
+        messageId: "msg_1",
+        sessionUpdate: "agent_message_chunk",
+      },
+    });
+    expect(m.completed("end_turn")).toContainEqual(
+      expect.objectContaining({ item: expect.objectContaining({ text: "pong" }) }),
+    );
+  });
+
+  it("keeps a warning the model wrote itself in its message", () => {
+    const events = mapper().update({
+      sessionId: "sess_1",
+      update: {
+        content: { text: "Warning: this deletes the note.\n\n", type: "text" },
+        messageId: "msg_1",
+        sessionUpdate: "agent_message_chunk",
+      },
+    });
+    expect(events.map((event) => event.type)).toEqual(["item/started", "item/agentMessage/delta"]);
+  });
+
+  it("lands a protocol notice as the same notice", () => {
+    expect(
+      mapper().update({
+        sessionId: "sess_1",
+        update: {
+          description: "Conversation compacted to fit the model's context window.",
+          sessionUpdate: "notice",
+          severity: "info",
+          title: "Context compacted",
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        message: "Context compacted: Conversation compacted to fit the model's context window.",
+        severity: "info",
+        type: "provider/notice",
+      }),
+    ]);
+  });
+
+  it("lands a codex shell command as a command carrying its raw output, whatever its kind", () => {
+    const m = mapper();
+    const [started] = m.update({
+      sessionId: "sess_1",
+      update: {
+        kind: "read",
+        name: "exec_command",
+        sessionUpdate: "tool_call",
+        status: "in_progress",
+        title: "List files",
+        toolCallId: "exec_1",
+      },
+    });
+    expect(started).toMatchObject({ item: { type: "commandExecution" }, type: "item/started" });
+    const [completed] = m.update({
+      sessionId: "sess_1",
+      update: {
+        name: "exec_command",
+        rawOutput: { exit_code: 0, formatted_output: "a.md\nb.md\n" },
+        sessionUpdate: "tool_call_update",
+        status: "completed",
+        toolCallId: "exec_1",
+      },
+    });
+    expect(completed).toMatchObject({
+      item: {
+        aggregatedOutput: "a.md\nb.md\n",
+        command: "List files",
+        status: "completed",
+        type: "commandExecution",
+      },
+      type: "item/completed",
+    });
+  });
+
   it("drops an update for a tool call it never saw opened, which no recorded adapter sends", () => {
     expect(
       mapper().update({
