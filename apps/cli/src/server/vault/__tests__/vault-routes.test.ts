@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
+import { legacyCommentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
 import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/api/local/routes";
 import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import {
@@ -10,8 +11,8 @@ import {
   VAULT_MAX_CONTENT_LENGTH,
   contentHashHex,
 } from "@repo/api/local/vault/vault-schema";
-import { describe, expect, it } from "vitest";
-import { bootTestApp } from "../../__tests__/boot-app";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { bootTestApp, listenTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { WsBus } from "../../ws-bus";
 import type { BusSocket } from "../../ws-bus";
@@ -20,6 +21,10 @@ import { hermeticGitEnv } from "./git-test-env";
 
 // vitest types its asymmetric matchers `any`; naming one keeps the assertion typed.
 const anyNumber: unknown = expect.any(Number);
+
+const PNG = new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255])], {
+  type: "image/png",
+});
 
 describe("the vault routes", () => {
   it("writes through the API onto disk, lists and reads it back", async () => {
@@ -137,11 +142,30 @@ describe("the vault routes", () => {
     const [oversizedAsset] = await safe(
       client.vault.assetWrite({
         baseName: "big.png",
-        bytesBase64: "A".repeat(Math.ceil(((VAULT_ASSET_MAX_BYTES + 1) * 4) / 3)),
         dir: "assets",
+        file: new Blob([new Uint8Array(VAULT_ASSET_MAX_BYTES + 1)]),
       }),
     );
     expect(isDefinedError(oversizedAsset) && oversizedAsset.code).toBe("PAYLOAD_TOO_LARGE");
+
+    const [shadowedWrite] = await safe(client.vault.write({ content: "x", path: "a.md/b.md" }));
+    expect(isDefinedError(shadowedWrite) && shadowedWrite.code).toBe("CONFLICT");
+
+    const [shadowedAsset] = await safe(
+      client.vault.assetWrite({ baseName: "shot.png", dir: "a.md", file: PNG }),
+    );
+    expect(isDefinedError(shadowedAsset) && shadowedAsset.code).toBe("CONFLICT");
+  });
+
+  it("carries a pasted attachment over the wire as a multipart Blob, byte-exact", async () => {
+    const booted = await bootTestApp();
+    const { client } = await listenTestApp(booted);
+
+    const written = await client.vault.assetWrite({ baseName: "shot.png", dir: "", file: PNG });
+
+    expect(written).toEqual({ path: "shot.png" });
+    const onDisk = await readFile(path.join(booted.vaultDir, "shot.png"));
+    expect(new Uint8Array(onDisk)).toEqual(new Uint8Array(await PNG.arrayBuffer()));
   });
 
   it("refuses a vault nested in the data dir at composition time", async () => {
@@ -375,5 +399,44 @@ describe("a note's comment store goes with the note", () => {
     expect(isDefinedError(gone) && gone.code).toBe("NOT_FOUND");
     const tree = await client.vault.tree();
     expect(tree.entries.some((row) => row.path.startsWith("box"))).toBe(false);
+  });
+
+  it("never lets a doc past the read cap refuse the delete, alone or inside a folder", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => {
+      warn.mockRestore();
+    });
+    const { client, vaultDir } = await bootTestApp();
+    const oversized = "x".repeat(VAULT_MAX_CONTENT_LENGTH + 1);
+    await writeFile(path.join(vaultDir, "huge.txt"), oversized);
+
+    expect(await client.vault.remove({ path: "huge.txt" })).toEqual({ ok: true });
+
+    await client.vault.write({ content: NOTE, path: "box/a.md" });
+    await client.comments.add({ id: "c1", path: "box/a.md", text: "a" });
+    await writeFile(path.join(vaultDir, "box", "huge.txt"), oversized);
+
+    expect(await client.vault.remove({ path: "box" })).toEqual({ ok: true });
+
+    const [gone] = await safe(client.vault.read({ path: STORE }));
+    expect(isDefinedError(gone) && gone.code).toBe("NOT_FOUND");
+    const tree = await client.vault.tree();
+    expect(tree.entries.some((row) => row.path.startsWith("box"))).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("box/huge.txt"));
+  });
+});
+
+describe("the comments routes", () => {
+  it("answers a legacy fold that would replace a non-text id with the declared BAD_REQUEST", async () => {
+    const { client, vaultDir } = await bootTestApp();
+    await writeFile(path.join(vaultDir, "plan.md"), "---\nid: 42\n---\nnote\n");
+    await writeFile(
+      path.join(vaultDir, legacyCommentsSidecarPath("plan.md")),
+      '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n',
+    );
+
+    const [refused] = await safe(client.comments.list({ path: "plan.md" }));
+
+    expect(isDefinedError(refused) && refused.code).toBe("BAD_REQUEST");
   });
 });

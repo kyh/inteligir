@@ -149,6 +149,8 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     return paths.filter((_notePath, index) => echoes[index] !== true);
   };
 
+  // once per folder: every client re-walks the vault on each files-changed.
+  const reportedUnreadable = new Set<string>();
   const service = createVaultService({
     lock: async (work) => await git.runExclusive(work),
     notifier: args.notifier,
@@ -157,6 +159,13 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       const paths = mutations.map((mutation) => mutation.path);
       args.onFilesChanged?.({ kind: "paths", paths });
       git.scheduleCommit(paths);
+    },
+    onUnreadableFolder: (relPath, code) => {
+      if (reportedUnreadable.has(relPath)) {
+        return;
+      }
+      reportedUnreadable.add(relPath);
+      console.warn(`vault: ${relPath} cannot be read (${code}); listing it empty`);
     },
     root,
   });

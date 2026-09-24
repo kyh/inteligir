@@ -682,7 +682,10 @@ to the END of its group.
   the CLI's `root | beside-note | folder:<path>` spelling) from the open note.
   The folder is created on the first write; `setPrefs` refuses only a path that
   is a file today, which would refuse every paste. `""` is the root on the
-  asset write's wire, because a vault path is never empty.
+  asset write's wire, because a vault path is never empty. The bytes ride that
+  wire as a Blob, which the rpc link sends as a multipart part rather than
+  base64 inside the json, and the renderer refuses a file past
+  `VAULT_ASSET_MAX_BYTES` before uploading it.
   `apps/cli/src/server/vault/vault-prefs-store.ts`.
 
 - **THE OS SEES A VAULT ENTRY THROUGH MAIN ALONE, and main checks physically.**
@@ -823,6 +826,18 @@ to the END of its group.
   suites under a 512MB heap ceiling so an allocation that grows with a note
   fails there. `packages/editor/src/vault-editor.ts`,
   `apps/desktop/src/renderer/app/note/vault-provider.tsx`.
+
+- **WHAT THE FILESYSTEM REFUSES COSTS THAT ENTRY, NEVER THE CALL.** A
+  subfolder the walk cannot open (no permission, or gone mid-walk) keeps its
+  row and lists empty, logged once, because one such folder failed the listing
+  and the boot with it; the root still throws. A file standing where a folder
+  must is `conflict` on every write, rename, mkdir and paste, whichever of
+  EEXIST or ENOTDIR the mkdir answered. A move where the filesystem refuses a
+  hard link (exFAT, some SMB mounts) falls back to the check-then-rename a
+  folder move already accepts. An overwrite keeps the file's mode, and a
+  compare-and-swap read failing for any reason but absence is a fault, never
+  "the file is gone". A paste's free name comes from one read of its folder,
+  with no cap. `apps/cli/src/server/vault/vault-service.ts`.
 
 ### Knowledge: index, search and links
 
@@ -1108,9 +1123,11 @@ rename`.
   list) is refused by name, never overwritten: it may be someone's identity
   for the note. The beside-the-note `<note>.comments.json` older
   vaults and agents wrote is folded into the store on first touch and over the
-  whole tree at boot (`comments-migration.ts`); an unparseable one is reported
-  by its own name and left. A deleted note's store goes with it
-  (`remove-with-comments.ts`, a folder's with every note under it) unless the
+  whole tree once the server listens (`comments-migration.ts`, kicked from
+  `serve.ts` and guarded, so it neither delays nor fails the boot); an
+  unparseable one is reported by its own name and left. A deleted note's store
+  goes with it (`remove-with-comments.ts`, a folder's with every note under
+  it; a doc past the read cap or gone mid-scan never refuses the delete) unless the
   index names a note outside the deletion still carrying that id, a byte copy
   whose delete would otherwise take the original's bodies; an index that has
   not seen the copy yet errs toward removing, and the Problems page's

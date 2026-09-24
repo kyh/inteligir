@@ -12,10 +12,10 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
-import { base64FromBytes } from "@repo/api/cloud/bytes";
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { HTML_FRAME_PATH, vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
+import { VAULT_ASSET_MAX_BYTES } from "@repo/api/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
@@ -303,10 +303,13 @@ export const VaultProvider = ({
       readVaultFile: async ({ path }) => await readFile(api, path),
       // the choice is read per paste, not cached: the CLI can change it between two pastes.
       writeVaultAsset: async ({ baseName, file }) => {
+        // refused before the upload, so an oversized paste costs no round trip of its bytes.
+        if (file.size > VAULT_ASSET_MAX_BYTES) {
+          throw new Error(`attachment is ${file.size} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`);
+        }
         const { attachments } = await api.vault.prefs();
         const dir = attachmentDir(attachments, store.state().openPath);
-        const bytesBase64 = base64FromBytes(new Uint8Array(await file.arrayBuffer()));
-        return await api.vault.assetWrite({ baseName, bytesBase64, dir });
+        return await api.vault.assetWrite({ baseName, dir, file });
       },
     };
     setEditorHostIo(io);

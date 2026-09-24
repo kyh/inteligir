@@ -11,7 +11,6 @@ import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import { createAgentsService } from "./agents/agents-service";
 import { createBrowserSession } from "./browser-session";
-import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { createCommentsService } from "./comments/comments-service";
 import { systemOpenExternalUrl } from "./browser-opener";
 import type { OpenExternalUrl } from "./browser-opener";
@@ -229,13 +228,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const voiceStreamHub = new VoiceStreamHub(voice);
 
   const comments = createCommentsService(vault.service, () => Math.floor(Date.now() / 1000));
-  await migrateLegacyCommentSidecars({
-    comments,
-    vault: vault.service,
-    warn: (message) => {
-      console.warn(`[comments] ${message}`);
-    },
-  });
 
   // last, once every service it announces through exists; the bus has no clients before a socket is injected.
   cloud.start();
