@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 
 import { DEVICE_API_PATHS, listDevicesResponseSchema } from "@repo/api/cloud/device/device-schema";
 import type { Device } from "@repo/api/cloud/device/device-schema";
@@ -32,31 +33,30 @@ const revokeDevice = async (deviceId: string): Promise<void> => {
   }
 };
 
+const DevicesFrame = ({ children }: { children: React.ReactNode }) => (
+  <main className="mx-auto w-full max-w-lg px-6 py-16">
+    <Link to="/" className="mb-8 block text-sm font-medium tracking-tight">
+      {siteConfig.name}
+    </Link>
+    <h1 className="text-lg font-medium tracking-tight">Devices</h1>
+    {children}
+  </main>
+);
+
 const DevicesPage = () => {
-  const [devices, setDevices] = useState<Device[] | null>(null);
+  const router = useRouter();
+  const devices = Route.useLoaderData();
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setDevices(await fetchDevices());
-    } catch (error_) {
-      setError(error_ instanceof Error ? error_.message : "Couldn't load devices.");
-    }
-  }, []);
-
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- the list lands after an await, not synchronously; fetching it on mount is what this effect is for
-    void load();
-  }, [load]);
 
   const revoke = async (deviceId: string) => {
     setError(null);
     try {
       await revokeDevice(deviceId);
-      await load();
     } catch (error_) {
       setError(error_ instanceof Error ? error_.message : "Couldn't revoke that device.");
+      return;
     }
+    await router.invalidate();
   };
 
   const onRevoke = (deviceId: string) => {
@@ -64,11 +64,7 @@ const DevicesPage = () => {
   };
 
   return (
-    <main className="mx-auto w-full max-w-lg px-6 py-16">
-      <Link to="/" className="mb-8 block text-sm font-medium tracking-tight">
-        {siteConfig.name}
-      </Link>
-      <h1 className="text-lg font-medium tracking-tight">Devices</h1>
+    <DevicesFrame>
       <p className="mt-1 text-sm text-muted-foreground">
         To add a machine, sign in there — Settings → Devices in the app, or{" "}
         <code>inteligir cloud login</code>. Each device gets its own credential; revoking one cuts
@@ -81,7 +77,37 @@ const DevicesPage = () => {
 
       <h2 className="mt-4 text-sm font-medium">Signed-in devices</h2>
       <DeviceList devices={devices} onRevoke={onRevoke} />
-    </main>
+    </DevicesFrame>
+  );
+};
+
+const DevicesPending = () => (
+  <DevicesFrame>
+    <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
+  </DevicesFrame>
+);
+
+// A failed session read or device list is usually a 429 or a 5xx, so its message and a retry are
+// the remedy, not the root's generic line. invalidate rather than reset: reset clears the boundary
+// without re-running the guard or the loader that threw.
+const DevicesError = ({ error }: ErrorComponentProps) => {
+  const router = useRouter();
+  return (
+    <DevicesFrame>
+      <div className="mt-6 grid justify-items-start gap-3">
+        <AuthError message={error instanceof Error ? error.message : "Couldn't load devices."} />
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          onClick={() => {
+            void router.invalidate();
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    </DevicesFrame>
   );
 };
 
@@ -89,12 +115,9 @@ const DeviceList = ({
   devices,
   onRevoke,
 }: {
-  devices: Device[] | null;
+  devices: Device[];
   onRevoke: (deviceId: string) => void;
 }) => {
-  if (devices === null) {
-    return <p className="mt-2 text-sm text-muted-foreground">Loading…</p>;
-  }
   if (devices.length === 0) {
     return <p className="mt-2 text-sm text-muted-foreground">No devices signed in yet.</p>;
   }
@@ -153,5 +176,8 @@ export const Route = createFileRoute("/app/devices")({
       throw new Error(session.message);
     }
   },
+  loader: fetchDevices,
   component: DevicesPage,
+  pendingComponent: DevicesPending,
+  errorComponent: DevicesError,
 });
