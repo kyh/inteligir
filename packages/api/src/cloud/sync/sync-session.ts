@@ -4,7 +4,7 @@
 import type { CloudClient, CloudFailure } from "../cloud-client";
 import { SYNC_TERMINAL_CODES } from "../cloud-errors";
 import { planPage } from "./plan-page";
-import type { LogPlanStep } from "./plan-page";
+import type { LogPlan, LogPlanStep } from "./plan-page";
 import { PULL_DEFAULT_LIMIT } from "./sync-schema";
 
 // `id` is the fence: a pass captures the id it started under and re-checks it after every await,
@@ -18,6 +18,8 @@ export type SyncSession<TCredential> =
 export interface SyncSessionArgs<TCredential> {
   makeClient: (credential: TCredential, signal: AbortSignal) => CloudClient;
   onEnded?: (failure: Extract<CloudFailure, { kind: "refused" }>) => void;
+  // a fence refusal is otherwise silent: the step just stops. absent costs one read per check.
+  debugLog?: ((line: string) => void) | undefined;
 }
 
 export interface SyncSessionHandle<TCredential> {
@@ -66,7 +68,15 @@ export const createSyncSession = <TCredential>(
 
     current: () => session,
 
-    fenced: (sessionId) => session.kind === "live" && session.id === sessionId,
+    fenced: (sessionId) => {
+      const holds = session.kind === "live" && session.id === sessionId;
+      if (!holds) {
+        args.debugLog?.(
+          `session ${sessionId} fenced out: the session is now ${session.kind} ${session.id}`,
+        );
+      }
+      return holds;
+    },
 
     open(credential) {
       rotate();
@@ -117,17 +127,24 @@ export interface PullPagesArgs {
   recordFailure: (failure: CloudFailure) => "continue" | "ended";
   onPage?: () => void;
   onSkipped?: (message: string) => void;
+  debugLog?: ((line: string) => void) | undefined;
 }
+
+// counts and positions only: a row's event is the conversation itself.
+const describePage = (afterSeq: number, plan: LogPlan, rows: number, hasMore: boolean): string => {
+  const applies = plan.steps.flatMap((step) => (step.kind === "apply" ? [step] : []));
+  const applied = applies.reduce((sum, step) => sum + step.rows.length, 0);
+  const threads = new Set(applies.map((step) => step.threadId)).size;
+  return `pulled ${rows} row(s) after ${afterSeq}: ${applied} to apply across ${threads} thread(s), ${rows - applied} skipped as this device's own or unreadable${hasMore ? ", more behind" : ""}`;
+};
 
 export const pullPages = async (args: PullPagesArgs): Promise<SyncOutcome> => {
   for (let page = 0; page < MAX_PULL_PAGES_PER_PASS; page += 1) {
     if (!args.fenced()) {
       return "fenced";
     }
-    const result = await args.client.pull({
-      afterSeq: args.readCursor(),
-      limit: PULL_DEFAULT_LIMIT,
-    });
+    const afterSeq = args.readCursor();
+    const result = await args.client.pull({ afterSeq, limit: PULL_DEFAULT_LIMIT });
     if (!args.fenced()) {
       return "fenced";
     }
@@ -135,6 +152,7 @@ export const pullPages = async (args: PullPagesArgs): Promise<SyncOutcome> => {
       return args.recordFailure(result.failure) === "continue" ? "failed" : "fenced";
     }
     const plan = planPage(result.value.events, args.ownDeviceIds);
+    args.debugLog?.(describePage(afterSeq, plan, result.value.events.length, result.value.hasMore));
     for (const message of plan.skipped) {
       args.onSkipped?.(message);
     }

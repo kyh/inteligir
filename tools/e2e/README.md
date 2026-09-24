@@ -118,6 +118,9 @@ what each one is FOR.
 |                           | a rename drags the attachment along — all verified on disk                |
 | cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get    |
 |                           | resolves against this checkout                                            |
+| debug-log                 | `INTELIGIR_DEBUG` traces what the watcher kept and dropped and the        |
+|                           | index's verdict, by path and never by content or credential; an instance  |
+|                           | without it writes no debug line                                           |
 | browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,    |
 |                           | API reached, the palette chord safe, clean console after a settle window  |
 | note-create-browser       | a note created through the session — the sidebar's New note, the inline   |
@@ -169,6 +172,8 @@ Each feature issue lands with its scenario here.
 | `INTELIGIR_VOICE`            | `scripted` — a dictation session with no model and no  |
 |                              | native binding, so dictation-browser drives the whole  |
 |                              | streaming path on any machine                          |
+| `INTELIGIR_DEBUG`            | the diagnostics debug-log reads off an instance's      |
+|                              | stderr; unset on every other instance                  |
 
 Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
 /`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git

@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
 import { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
+import type { DebugLog } from "../debug-log";
 import { relativeUnder } from "../path-containment";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 import { createForkChannel } from "./watcher/fork-channel";
@@ -21,6 +22,7 @@ export interface VaultWatcherArgs {
   backend?: ParcelWatcherBackend;
   // how the proxy starts its child; absent, node forks it
   spawnChannel?: () => ChildChannel;
+  debugLog?: DebugLog | undefined;
 }
 
 export interface VaultWatcher {
@@ -58,16 +60,22 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
       }
       const paths = [...pendingPaths].toSorted();
       pendingPaths.clear();
+      args.debugLog?.(`flush ${paths.length} path(s): ${paths.join(", ")}`);
       args.onChanged(paths);
     },
   });
 
-  const toVaultRelativePath = (absPath: string): string | null => {
+  const eventVerdict = (
+    absPath: string,
+  ): { kind: "kept"; path: string } | { kind: "dropped"; why: string } => {
     const rel = relativeUnder(root, absPath);
     if (rel === null) {
-      return null;
+      return { kind: "dropped", why: "not beneath the vault root" };
     }
-    return rel.split("/").some((segment) => isIgnoredEntryName(segment)) ? null : rel;
+    const ignored = rel.split("/").find((segment) => isIgnoredEntryName(segment));
+    return ignored === undefined
+      ? { kind: "kept", path: rel }
+      : { kind: "dropped", why: `under ignored entry ${ignored}` };
   };
 
   const scheduleResubscribe = (retry: () => void): void => {
@@ -76,6 +84,7 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
     }
     const delay = Math.min(RESUBSCRIBE_BASE_DELAY_MS * 2 ** retryAttempt, RESUBSCRIBE_MAX_DELAY_MS);
     retryAttempt += 1;
+    args.debugLog?.(`resubscribing in ${delay}ms (attempt ${retryAttempt})`);
     retryTimer = setTimeout(() => {
       retryTimer = null;
       retry();
@@ -107,10 +116,15 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
             // reports a failed establish later, through this callback.
             retryAttempt = 0;
             for (const event of events) {
-              const rel = toVaultRelativePath(event.path);
-              if (rel !== null) {
-                pendingPaths.add(rel);
+              const verdict = eventVerdict(event.path);
+              if (verdict.kind === "kept") {
+                pendingPaths.add(verdict.path);
               }
+              args.debugLog?.(
+                verdict.kind === "kept"
+                  ? `${event.type} ${verdict.path}: kept`
+                  : `${event.type} ${event.path}: dropped, ${verdict.why}`,
+              );
             }
             if (pendingPaths.size > 0) {
               scheduler.schedule();

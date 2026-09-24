@@ -14,6 +14,7 @@ import type {
 import { HARNESSES, HARNESS_IDS } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
+import type { DebugLog } from "../debug-log";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
 import type { AgentSessionFacts } from "./agent-shell-env";
@@ -36,6 +37,8 @@ export interface ResolveAgentDriverArgs {
   env?: NodeJS.ProcessEnv;
   // absent: the runtime forks each adapter with child_process
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
+  // the ACP frames each adapter trades; the scripted driver speaks none.
+  debugLog?: DebugLog | undefined;
 }
 
 // a write the agent made through the server rather than its own tools, named by the thread whose
@@ -98,6 +101,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     availableHarnesses(env).length === 0 ? NO_AGENT_CLI : null;
   const acp: AcpRuntimeManagerDeps = {
     db: args.db,
+    debugLog: args.debugLog,
     defaultProviderId: () => defaultHarnessId(args.preferredProviderId?.() ?? null, env),
     git: args.vault.git,
     hostEnv: env,

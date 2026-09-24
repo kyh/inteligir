@@ -1367,6 +1367,20 @@ to the END of its group.
   Silicon enforces, so `resetAdHocDarwinSignature` re-signs the app ad-hoc
   right after. `apps/desktop/electron-builder.yml`.
 
+- **DIAGNOSTICS ARE `INTELIGIR_DEBUG`'S NAMED TRACES, SHIPPED IN EVERY BUILD.**
+  The watcher, the index, the sync pass and the ACP adapter drop, skip and fence
+  without a trace, and a user's "it didn't update" cannot wait for a build. So
+  each decision calls its namespace's log, which is `undefined` while the
+  namespace is off: an optional call evaluates no argument, so an untraced site
+  costs one read. A line names paths, ids and protocol words, never a note's
+  content or a credential, because it is written to be pasted into a report;
+  the ACP tap drops any field that is not a protocol word
+  (`packages/agent-runtime/src/acp/frame-trace.ts`). An unknown name is refused
+  at boot, since a misspelt one reads as "nothing happened". A levelled
+  logger was rejected: the value is these few decisions, not more volume.
+  `apps/cli/src/server/debug-log.ts`, end to end in
+  `tools/e2e/src/scenarios/debug-log.ts`.
+
 ### Desktop workspace surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`

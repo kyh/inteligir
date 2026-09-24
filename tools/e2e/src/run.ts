@@ -13,6 +13,7 @@ import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
+import { debugLogTrace } from "./scenarios/debug-log";
 import { desktopShell } from "./scenarios/desktop-shell";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
@@ -42,6 +43,7 @@ const SCENARIOS: readonly Scenario[] = [
   threadsScripted,
   actionScripted,
   cliDrive,
+  debugLogTrace,
   browserSmoke,
   noteCreateBrowser,
   editorConstructsBrowser,

@@ -26,6 +26,7 @@ import {
 } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
+import type { DebugLog } from "../debug-log";
 import type { CaptureVault } from "./captures";
 import {
   clearDeviceCredential,
@@ -67,6 +68,8 @@ export interface CloudRuntimeArgs {
    *  pass's end. never per enqueue: the queued count rides the drain pass that follows it. */
   onStatusChanged?: () => void;
   onDebug?: (message: string) => void;
+  /** INTELIGIR_DEBUG's sync trace, beside onDebug's always-on warnings. */
+  debugLog?: DebugLog | undefined;
 }
 
 export type LoginOutcome =
@@ -121,6 +124,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   });
 
   const session = createSyncSession<DeviceCredential>({
+    debugLog: args.debugLog,
     makeClient: (credential, signal) =>
       createCloudClient(clientArgs(credential.credential, signal)),
     onEnded: (failure) => {
@@ -241,8 +245,12 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
         args.onVaultPing?.();
         return;
       }
-      if (ping.type === "sync" && ping.seq <= readSyncState(args.db).cursor) {
-        return;
+      if (ping.type === "sync") {
+        const { cursor } = readSyncState(args.db);
+        if (ping.seq <= cursor) {
+          args.debugLog?.(`sync ping at ${ping.seq} skipped: the cursor ${cursor} covers it`);
+          return;
+        }
       }
       requestPass?.();
     },
@@ -295,6 +303,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     build: args.build,
     db: args.db,
     debug,
+    debugLog: args.debugLog,
     fenced,
     recordFailure,
     setLastError: (message) => {
@@ -323,6 +332,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       }
     }
     const outcome = await runSyncPass(passDeps, context);
+    args.debugLog?.(`session ${context.sessionId} pass: ${outcome}`);
     notifyStatus();
     return outcome;
   };

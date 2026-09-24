@@ -69,6 +69,14 @@ task list is held against the module's own declared set by
 `tools/repo-guards/src/turbo-passthrough.test.ts`, so adding a variable to
 `config.ts` fails the gate until the task names it.
 
+When something "didn't update", `INTELIGIR_DEBUG` names what to trace,
+comma-separated: `watcher`, `knowledge`, `sync`, `acp`
+(`INTELIGIR_DEBUG=watcher,knowledge pnpm dev`). The server then writes each
+decision those make to its stderr as a `[debug:<name>]` line, by path and id,
+never by a note's content or a credential; an unknown name is refused at boot.
+`inteligir guide` § Diagnostics is the user's copy, and
+`apps/cli/src/server/debug-log.ts` says what each one traces.
+
 The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
 staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` wraps that same package in the

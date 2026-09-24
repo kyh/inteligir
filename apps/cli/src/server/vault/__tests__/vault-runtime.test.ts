@@ -15,8 +15,12 @@ const bootRuntime = async () => {
   const vaultDir = makeTempDir("inteligir-echo-vault-", { realpath: true });
   const watcher = scriptedWatcher();
   const changes: VaultFilesChange[] = [];
+  const traced: string[] = [];
   const runtime = await createVaultRuntime({
     dataDir: makeTempDir("inteligir-echo-data-"),
+    debugLog: (line) => {
+      traced.push(line);
+    },
     gitEnv: hermeticGitEnv(),
     notifier: createNotifierRecorder(),
     onFilesChanged: (change) => {
@@ -47,7 +51,7 @@ const bootRuntime = async () => {
     );
     return changes.at(-1);
   };
-  return { report, runtime, writeExternally };
+  return { report, runtime, traced, writeExternally };
 };
 
 describe("the runtime's self-write echo filter", { timeout: 20_000 }, () => {
@@ -87,5 +91,15 @@ describe("the runtime's self-write echo filter", { timeout: 20_000 }, () => {
 
     await writeExternally("after.md", "an agent's edit\n");
     expect(await report("after.md")).toEqual({ kind: "paths", paths: ["after.md"] });
+  });
+
+  it("traces the echo it dropped and the paths it delivered", async () => {
+    const { report, runtime, traced, writeExternally } = await bootRuntime();
+    await runtime.service.write("note.md", "ours\n");
+    await writeExternally("other.md", "an external edit\n");
+    await report("note.md", "other.md");
+
+    expect(traced).toContain("note.md: dropped, the echo of this server's own write");
+    expect(traced).toContain("delivered: other.md");
   });
 });

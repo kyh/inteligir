@@ -19,6 +19,7 @@ import type { ComposeRuntimeArgs } from "./compose";
 import { composeSessionMcpServers } from "./connectors/session-servers";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
+import { debugLog } from "./debug-log";
 import { resolveCheckoutRoot } from "./dev-instance";
 import { messageOf } from "./error-message";
 import { closeServer, listenWithRetry } from "./listen";
@@ -151,6 +152,7 @@ const boot = async (
       const driverArgs: ResolveAgentDriverArgs = {
         config: driverConfig,
         db,
+        debugLog: debugLog(driverConfig.debug, "acp"),
         mcpServers: async () => await composeSessionMcpServers(connectors, connectorsOauth),
         notifier: bus,
         preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,

@@ -24,6 +24,7 @@ import type { ConnectorsService } from "./connectors/connectors-service";
 import { ConnectorsStore } from "./connectors/connectors-store";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
 import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
+import { debugLog } from "./debug-log";
 import { messageOf } from "./error-message";
 import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
@@ -125,6 +126,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     });
   const vaultArgs: VaultRuntimeArgs = {
     dataDir: config.dataDir,
+    debugLog: debugLog(config.debug, "watcher"),
     notifier: bus,
     onFilesChanged: (change) => {
       knowledgeRef?.noteVaultChange(change);
@@ -152,6 +154,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
 
   const knowledge = createKnowledgeRuntime({
     dataDir: config.dataDir,
+    debugLog: debugLog(config.debug, "knowledge"),
     projector: ports.knowledge?.projector ?? createProjectionWorker(),
     vault: vault.service,
     vaultRoot: config.vaultDir,
@@ -194,6 +197,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     cloudUrl: config.cloudUrl,
     dataDir: config.dataDir,
     db,
+    debugLog: debugLog(config.debug, "sync"),
     // the rail's one sync row reads the vault's git sync and this runtime together, so both ride one kind.
     onStatusChanged: () => {
       bus.notifyVault(["sync-status-changed"]);

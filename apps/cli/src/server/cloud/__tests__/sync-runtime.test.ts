@@ -81,6 +81,8 @@ interface Harness {
   vaultPings: () => number;
   /** the status as each onStatusChanged found it. */
   statusNotices: CloudStatusResponse[];
+  /** every line of the sync trace, which every harness runs with on. */
+  traced: string[];
 }
 
 const makeHarness = (
@@ -104,6 +106,7 @@ const makeHarness = (
   const socketOpens: OpenCloudSocketArgs[] = [];
   let vaultPings = 0;
   const statusNotices: CloudStatusResponse[] = [];
+  const traced: string[] = [];
   // null before the constructor returns (a stored credential opens its session inside it) and
   // after the teardown closes the db status() reads.
   let asked: CloudRuntime | null = null;
@@ -133,6 +136,9 @@ const makeHarness = (
     cloudUrl: CLOUD_URL,
     dataDir,
     db,
+    debugLog: (line) => {
+      traced.push(line);
+    },
     onDebug: () => {},
     onStatusChanged: () => {
       if (asked !== null) {
@@ -160,6 +166,7 @@ const makeHarness = (
     runtime,
     socketOpens,
     statusNotices,
+    traced,
     vault,
     vaultPings: () => vaultPings,
   };
@@ -474,6 +481,35 @@ describe("a worker newer than this build", () => {
 
     paused = false;
     expect(await harness.runtime.syncNow()).toMatchObject({ lastError: null, state: "signed-in" });
+  });
+});
+
+describe("the sync trace", () => {
+  it("names where each step of a pass stopped and a ping it skipped, and no message", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    const [dial] = harness.socketOpens;
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
+    append(harness, [message("thr_1", "the secret the user typed")]);
+    await harness.runtime.syncNow();
+    dial.onPing({ seq: 0, type: "sync" });
+
+    for (const line of [
+      /^session \d+ push: caught-up$/u,
+      /^pulled 1 row\(s\) after \d+: 0 to apply across 0 thread\(s\), 1 skipped as this device's own or unreadable$/u,
+      /^session \d+ pull: caught-up$/u,
+      /^session \d+ captures: caught-up$/u,
+      /^session \d+ pass: caught-up$/u,
+      /^sync ping at 0 skipped: the cursor \d+ covers it$/u,
+    ]) {
+      expect(
+        harness.traced.some((traced) => line.test(traced)),
+        String(line),
+      ).toBe(true);
+    }
+    expect(harness.traced.join("\n")).not.toContain("secret");
   });
 });
 

@@ -338,3 +338,24 @@ describe("the agent selection", () => {
     expect(layered.agentModels).toEqual({ claude: "m3", codex: "m2" });
   });
 });
+
+const resolveWithDebug = (value?: string) =>
+  resolveAppConfig({
+    checkoutPath: "/checkout/a",
+    env: value === undefined ? {} : { INTELIGIR_DEBUG: value },
+    homeDir: makeTempDir("inteligir-config-test-"),
+  }).debug;
+
+describe("the diagnostics selection", () => {
+  it("reads a comma-separated INTELIGIR_DEBUG, none when unset or empty", () => {
+    expect([...resolveWithDebug()]).toEqual([]);
+    expect([...resolveWithDebug("")]).toEqual([]);
+    expect([...resolveWithDebug(" watcher , sync,")].toSorted()).toEqual(["sync", "watcher"]);
+  });
+
+  it("refuses a namespace it does not know, naming the ones it does", () => {
+    expect(() => resolveWithDebug("watcher,wacher")).toThrow(
+      /INTELIGIR_DEBUG must be a comma-separated list of acp, knowledge, sync, watcher \(got "wacher"\)/u,
+    );
+  });
+});

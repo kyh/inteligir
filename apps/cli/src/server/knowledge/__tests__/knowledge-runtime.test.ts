@@ -414,6 +414,47 @@ describe("the knowledge runtime", () => {
   }, 120_000);
 });
 
+describe("the knowledge runtime's debug trace", () => {
+  it("names each file's verdict by its path, and never its content", async () => {
+    const dirs = makeDirs();
+    writeFileSync(nodePath.join(dirs.root, "kept.md"), "# Kept\n\nsecret quokka words\n");
+    writeFileSync(nodePath.join(dirs.root, "asset.png"), "not really a png");
+    const service = createVaultService({
+      lock: identityLock,
+      notifier: noopNotifier,
+      root: dirs.root,
+    });
+    const lines: string[] = [];
+    const knowledge = createKnowledgeRuntime({
+      dataDir: dirs.dataDir,
+      debugLog: (line) => {
+        lines.push(line);
+      },
+      projector: createInlineProjector(),
+      vault: service,
+      vaultRoot: dirs.root,
+    });
+    onTestFinished(async () => {
+      await knowledge.dispose();
+    });
+    await knowledge.settle();
+    const atBoot = lines.length;
+    expect(lines.toSorted()).toEqual([
+      "asset.png: not a searchable doc, indexed as an other",
+      "kept.md: changed, indexing",
+    ]);
+
+    rmSync(nodePath.join(dirs.root, "asset.png"));
+    knowledge.noteVaultChange({ kind: "paths", paths: ["asset.png", "kept.md"] });
+    await knowledge.settle();
+    expect(lines.slice(atBoot)).toEqual([
+      "asset.png: gone, removed with anything under it",
+      "kept.md: unchanged, skipped",
+    ]);
+    expect(lines.join("\n")).not.toContain("quokka");
+  });
+});
+
 describe("unlinked mentions", () => {
   it("names the notes that spell this one in prose, and drops one once it links", async () => {
     const { service, knowledge } = bootIndexedVault(makeDirs());

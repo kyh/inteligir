@@ -35,6 +35,7 @@ import { contentHashBytesHex } from "@repo/api/local/vault/vault-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { createCoalescingTimer } from "../coalescing-timer";
 import { mapWithConcurrency } from "../concurrency";
+import type { DebugLog } from "../debug-log";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-changes";
@@ -75,6 +76,7 @@ export interface KnowledgeRuntimeArgs {
   vaultRoot: string;
   // owned: dispose() disposes it first, so a pass mid-projection is released, not waited out
   projector: Projector;
+  debugLog?: DebugLog | undefined;
 }
 
 export interface KnowledgeRuntime {
@@ -360,6 +362,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         const wasUnreadable = unreadable.delete(path);
         switch (verdict.kind) {
           case "projected": {
+            args.debugLog?.(`${path}: changed, indexing`);
             updates.push(verdict.update);
             if (stats !== undefined) {
               stats.projected += 1;
@@ -367,20 +370,24 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
             break;
           }
           case "unchanged": {
+            args.debugLog?.(`${path}: unchanged, skipped`);
             if (stats !== undefined) {
               stats.unchanged += 1;
             }
             break;
           }
           case "other": {
+            args.debugLog?.(`${path}: not a searchable doc, indexed as an other`);
             indexOther(path);
             break;
           }
           case "missing": {
+            args.debugLog?.(`${path}: gone, removed`);
             removeIndexed(path);
             break;
           }
           case "unreadable": {
+            args.debugLog?.(`${path}: unreadable, keeping its last entry (${verdict.reason})`);
             unreadable.add(path);
             if (!wasUnreadable) {
               console.warn(
@@ -414,6 +421,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     let indexed: string[] | undefined;
     store.transaction(() => {
       for (const path of gone) {
+        args.debugLog?.(`${path}: gone, removed with anything under it`);
         unreadable.delete(path);
         // an indexed file has no indexed children, so only a folder pays for the prefix scan.
         if (removeIndexed(path)) {
@@ -462,6 +470,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         continue;
       }
       if (kind === "dir") {
+        args.debugLog?.(`${path}: a folder, indexing every file under it`);
         assertLive();
         for (const file of await args.vault.listFilesUnder(path)) {
           files.add(file);
