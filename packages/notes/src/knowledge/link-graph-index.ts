@@ -31,11 +31,6 @@ export interface ForwardLinkEntry {
   anchor?: string;
 }
 
-export interface NoteIdEntry {
-  id: string;
-  path: string;
-}
-
 export interface WikiTarget {
   path: string;
   title: string;
@@ -44,6 +39,21 @@ export interface WikiTarget {
   pinned?: boolean;
   id?: string;
 }
+
+// the alias and id tiers `buildResolver` takes, read off the rows the index answers.
+export const resolverEntriesOf = (targets: readonly WikiTarget[]) => {
+  const aliasEntries: (readonly [string, string])[] = [];
+  const idEntries: (readonly [string, string])[] = [];
+  for (const target of targets) {
+    for (const alias of target.aliases ?? []) {
+      aliasEntries.push([alias, target.path]);
+    }
+    if (target.id !== undefined) {
+      idEntries.push([target.id, target.path]);
+    }
+  }
+  return { aliasEntries, idEntries };
+};
 
 interface DocRecord {
   title: string;
@@ -273,20 +283,11 @@ export class LinkGraphIndex {
     return this.tagIndex.notesWithTag(tag);
   }
 
-  noteIds(): NoteIdEntry[] {
-    const entries: NoteIdEntry[] = [];
-    for (const [path, record] of this.docs) {
-      if (record.noteId !== null) {
-        entries.push({ id: record.noteId, path });
-      }
-    }
-    return entries.toSorted((a, b) => (a.path < b.path ? -1 : 1));
-  }
-
   pathsWithNoteId(id: string): string[] {
-    return this.noteIds()
-      .filter((entry) => entry.id === id)
-      .map((entry) => entry.path);
+    return [...this.docs]
+      .filter(([, record]) => record.noteId === id)
+      .map(([path]) => path)
+      .toSorted();
   }
 
   // `lastPath` while it still carries the id: a copied file carries its original's and must not

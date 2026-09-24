@@ -81,7 +81,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
 
   setEditorHostIo({
     actions,
-    getBacklinks: async () => await Promise.resolve([]),
     htmlFrameUrl: FAKE_HTML_FRAME_URL,
     linkResolver,
     onVaultChanged: () => () => {

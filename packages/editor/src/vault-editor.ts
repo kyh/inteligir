@@ -1,7 +1,6 @@
 // held outside React: every async edge (save-vs-reload, open-vs-reload, delete-vs-save) needs
 // a guard that reads and writes in one tick, which render-timed refs cannot give.
 
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import { diff3 } from "@repo/notes/text/diff3";
 import type { Diff3Result } from "@repo/notes/text/diff3";
 
@@ -22,7 +21,7 @@ export interface VaultIO {
   write: (path: string, content: string) => Promise<WriteOutcome>;
   create: (path: string, content: string) => Promise<CreateOutcome>;
   // rejects when the host cannot say the file is gone, so the note stays open over it.
-  remove: (path: string) => Promise<DeleteVaultEntryResult>;
+  remove: (path: string) => Promise<void>;
 }
 
 export type SaveError =
@@ -35,11 +34,15 @@ export interface VaultEditorState {
   readonly dirty: boolean;
   // the last write's failure, held until a write lands or the buffer is replaced; `dirty` stays set under it.
   readonly saveError: SaveError | null;
+  // moves when bytes from the IO rather than an edit replace the buffer: a surface re-seeds from
+  // them and its next keystroke saves them, so they are gated before it does, dirty or not.
+  readonly diskSeq: number;
 }
 
 export const EMPTY_EDITOR_STATE: VaultEditorState = {
   content: "",
   dirty: false,
+  diskSeq: 0,
   path: null,
   saveError: null,
 };
@@ -115,6 +118,11 @@ export class VaultEditorController {
     void this.reloadOpen();
   }
 
+  // an echo of the buffer's own bytes (every save's) replaces nothing, so it leaves the seq alone.
+  private diskSeqFor(content: string): number {
+    return content === this.st.content ? this.st.diskSeq : this.st.diskSeq + 1;
+  }
+
   async open(path: string, initial?: string): Promise<boolean> {
     await this.flush();
     // still dirty means the save failed — keep the current file open
@@ -124,7 +132,13 @@ export class VaultEditorController {
     this.readSeq += 1;
     const seq = this.readSeq;
     if (initial !== undefined) {
-      this.emit({ content: initial, dirty: false, path, saveError: null });
+      this.emit({
+        content: initial,
+        diskSeq: this.st.diskSeq + 1,
+        dirty: false,
+        path,
+        saveError: null,
+      });
       return true;
     }
     try {
@@ -133,7 +147,13 @@ export class VaultEditorController {
       if (this.readSeq !== seq) {
         return true;
       }
-      this.emit({ content: text, dirty: false, path, saveError: null });
+      this.emit({
+        content: text,
+        diskSeq: this.st.diskSeq + 1,
+        dirty: false,
+        path,
+        saveError: null,
+      });
     } catch {
       if (this.readSeq !== seq) {
         return true;
@@ -177,7 +197,12 @@ export class VaultEditorController {
     }
     // a newer edit made mid-write stays dirty, on top of what landed
     const rebased = rebase(snapshot, this.st.content, landed);
-    this.emit({ content: rebased.merged, dirty: rebased.merged !== landed, saveError: null });
+    this.emit({
+      content: rebased.merged,
+      diskSeq: this.diskSeqFor(rebased.merged),
+      dirty: rebased.merged !== landed,
+      saveError: null,
+    });
     if (outcome.conflicted || rebased.conflicted) {
       this.onMergeConflict();
     }
@@ -206,26 +231,24 @@ export class VaultEditorController {
 
   // waits for the in-flight write so it can't recreate the file after the delete; dirty is
   // cleared at the end, not up front, so flush's own bookkeeping stays intact while it runs.
-  async remove(): Promise<DeleteVaultEntryResult | null> {
+  async remove(): Promise<boolean> {
     const { path } = this.st;
     if (path === null) {
-      return null;
+      return false;
     }
     if (this.writing) {
       await this.writing.catch(ignoreRejection);
     }
     // cancel any in-flight read of this path
     this.readSeq += 1;
-    let outcome: DeleteVaultEntryResult | null = null;
     try {
-      outcome = await this.io.remove(path);
+      await this.io.remove(path);
     } catch {
       // the file's fate is unknown, so the note stays.
+      return false;
     }
-    if (outcome !== null) {
-      this.emit(EMPTY_EDITOR_STATE);
-    }
-    return outcome;
+    this.emit(EMPTY_EDITOR_STATE);
+    return true;
   }
 
   // the file was deleted under unsaved edits, so no write can land: create it again from the
@@ -275,7 +298,11 @@ export class VaultEditorController {
       // because left alone the next save would pass the CAS and erase the external bytes.
       this.drain();
       const rebased = rebase(before, this.st.content, text);
-      this.emit({ content: rebased.merged, dirty: rebased.merged !== text });
+      this.emit({
+        content: rebased.merged,
+        diskSeq: this.diskSeqFor(rebased.merged),
+        dirty: rebased.merged !== text,
+      });
       if (rebased.conflicted) {
         this.onMergeConflict();
       }

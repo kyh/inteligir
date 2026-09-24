@@ -269,7 +269,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return { kind: "created", path };
   };
 
-  // an existing file opens with no notice.
+  // an existing file answers its path with no notice.
   const createFileAt = async (rawPath: string, seedContent = ""): Promise<string | null> => {
     const result = await createNewFileAt(rawPath, seedContent);
     return result.kind === "refused" ? null : result.path;
@@ -321,10 +321,15 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     if (open !== null && open.path !== path) {
       await flush();
     }
-    // null is a delete that threw: its fate is unknown, so the note stays open over it.
-    const outcome =
-      open?.path === path ? await open.remove() : await ports.note.remove(path).catch(() => null);
-    if (outcome === null) {
+    // a delete that threw leaves the file's fate unknown, so the note stays open over it.
+    const removed =
+      open?.path === path
+        ? await open.remove()
+        : await ports.note.remove(path).then(
+            () => true,
+            () => false,
+          );
+    if (!removed) {
       ports.notify(`Couldn't delete ${path}.`);
     } else if (open !== null) {
       dropNote(open.path);

@@ -77,6 +77,17 @@ class FakeController {
       fn();
     }
   }
+
+  // bytes from the IO (an open, a reload, a save's merge), as the controller marks them.
+  load(patch: Partial<VaultEditorState>): void {
+    this.emit({ ...patch, diskSeq: this.state.diskSeq + 1 });
+  }
+
+  // the buffer's own bytes: an edit, then the save that lands them unchanged.
+  settle(content: string): void {
+    this.emit({ content, dirty: true });
+    this.emit({ dirty: false });
+  }
 }
 
 // subscribe first, then publish once, so no emission slips between snapshot and subscription
@@ -92,7 +103,7 @@ const mountRuntime = (): FakeController => {
 const openNote = (path: string, content: string): FakeController => {
   const controller = mountRuntime();
   publishOpenPath(path);
-  controller.emit({ content, dirty: false, path });
+  controller.load({ content, dirty: false, path });
   return controller;
 };
 
@@ -127,6 +138,25 @@ const richSnapshotsFor = (seen: readonly OpenNoteState[], path: string): OpenNot
       s.openDoc.kind === "markdown" && s.openDoc.path === path && s.openDoc.surface.mode === "rich",
   );
 
+// Plate re-seeds from whatever content a rich surface is handed, and its next keystroke saves
+// what it made of those bytes.
+const expectGatedWithItsBytes = (seen: readonly OpenNoteState[]): void => {
+  const landed = seen.find((s) => s.editor.content === GATED_MD);
+  expect(landed?.analyzed).toEqual({
+    content: GATED_MD,
+    path: RICH_PATH,
+    rawReason: GATED_REASON,
+  });
+  expect(landed?.openDoc).toEqual({
+    kind: "markdown",
+    path: RICH_PATH,
+    surface: { mode: "raw", reason: GATED_REASON },
+  });
+  expect(richSnapshotsFor(seen, RICH_PATH).filter((s) => s.editor.content === GATED_MD)).toEqual(
+    [],
+  );
+};
+
 describe("open-note-store publishEditor", () => {
   beforeEach(() => {
     store = createOpenNoteStore();
@@ -156,7 +186,7 @@ describe("open-note-store publishEditor", () => {
       const controller = mountRuntime();
       publishOpenPath(OTHER_PATH);
       const beforeLoad = seen.length;
-      controller.emit({ content: GATED_MD, dirty: false, path: OTHER_PATH });
+      controller.load({ content: GATED_MD, dirty: false, path: OTHER_PATH });
       stop();
 
       expect(seen.length - beforeLoad).toBe(1);
@@ -184,7 +214,7 @@ describe("open-note-store publishEditor", () => {
 
       const { seen, stop } = recordStates();
       publishOpenPath(OTHER_PATH);
-      controller.emit({ content: GATED_MD, dirty: false, path: OTHER_PATH });
+      controller.load({ content: GATED_MD, dirty: false, path: OTHER_PATH });
       stop();
 
       expect(richSnapshotsFor(seen, OTHER_PATH)).toEqual([]);
@@ -199,13 +229,37 @@ describe("open-note-store publishEditor", () => {
         surface: { mode: "raw", reason: GATED_REASON },
       });
 
-      controller.emit({ content: RICH_MD, dirty: false });
+      controller.settle(RICH_MD);
       await drain();
       expect(useOpenNote.getState().openDoc).toEqual({
         kind: "markdown",
         path: RICH_PATH,
         surface: { mode: "rich" },
       });
+    });
+  });
+
+  describe("bytes from disk on the open path", () => {
+    it("gates a clean reload in the same update as its bytes", () => {
+      const controller = openNote(RICH_PATH, RICH_MD);
+
+      const { seen, stop } = recordStates();
+      controller.load({ content: GATED_MD, dirty: false });
+      stop();
+
+      expectGatedWithItsBytes(seen);
+      expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1);
+    });
+
+    it("gates a merge that leaves the buffer dirty in the same update as its bytes", () => {
+      const controller = openNote(RICH_PATH, RICH_MD);
+      controller.emit({ content: RICH_MD_2, dirty: true });
+
+      const { seen, stop } = recordStates();
+      controller.load({ content: GATED_MD, dirty: true });
+      stop();
+
+      expectGatedWithItsBytes(seen);
     });
   });
 
@@ -242,8 +296,8 @@ describe("open-note-store publishEditor", () => {
       const controller = openNote(RICH_PATH, RICH_MD);
       const { seen, stop } = recordStates();
 
-      controller.emit({ content: GATED_MD, dirty: false });
-      controller.emit({ content: RICH_MD_2, dirty: false });
+      controller.settle(GATED_MD);
+      controller.settle(RICH_MD_2);
       await drain();
       stop();
 
@@ -260,9 +314,9 @@ describe("open-note-store publishEditor", () => {
     it("collapses a burst of settles into exactly ONE analysis apply", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: false });
-      controller.emit({ content: RICH_MD_2, dirty: false });
-      controller.emit({ content: GATED_MD, dirty: false });
+      controller.settle(GATED_MD);
+      controller.settle(RICH_MD_2);
+      controller.settle(GATED_MD);
 
       const { seen, stop } = recordStates();
       await drain();
@@ -279,10 +333,10 @@ describe("open-note-store publishEditor", () => {
     it("drops a pass cancelled by a path change", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: false });
+      controller.settle(GATED_MD);
       const next = mountRuntime();
       publishOpenPath(OTHER_PATH);
-      next.emit({ content: RICH_MD, dirty: false, path: OTHER_PATH });
+      next.load({ content: RICH_MD, dirty: false, path: OTHER_PATH });
       await drain();
 
       expect(useOpenNote.getState().analyzed).toEqual({
@@ -300,7 +354,7 @@ describe("open-note-store publishEditor", () => {
     it("drops a pass whose buffer went dirty again, and re-runs on the next settle", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: false });
+      controller.settle(GATED_MD);
       // same bytes, so only `dirty` distinguishes this from the scheduled target
       controller.emit({ dirty: true });
       await drain();
@@ -325,7 +379,7 @@ describe("open-note-store publishEditor", () => {
     it("fires once when a mid-session settle yanks Plate out from under the user", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: false });
+      controller.settle(GATED_MD);
       await drain();
 
       expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1);
@@ -351,7 +405,7 @@ describe("open-note-store publishEditor", () => {
       const controller = openNote(RICH_PATH, GATED_MD);
       await drain();
 
-      controller.emit({ content: GATED_MD_2, dirty: false });
+      controller.settle(GATED_MD_2);
       await drain();
 
       expect(useOpenNote.getState().analyzed.content).toBe(GATED_MD_2);

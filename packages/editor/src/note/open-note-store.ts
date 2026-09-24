@@ -15,7 +15,8 @@ import type { VaultEditorState } from "@repo/editor/vault-editor";
 import { deriveOpenDoc, isMarkdownPath } from "@repo/editor/note/open-doc";
 import type { OpenDoc } from "@repo/editor/note/open-doc";
 
-// keyed to the saved (path, content) it was computed for; analysis lags typing on purpose.
+// keyed to the (path, content) it was computed for, bytes from disk or a settled buffer;
+// analysis lags typing on purpose.
 interface Analyzed {
   rawReason: GateReason | null;
   content: string;
@@ -62,6 +63,17 @@ const whenIdle = (run: () => void): (() => void) => {
   return () => {
     clearTimeout(timer);
   };
+};
+
+const verdictFor = (path: string | null, content: string): GateReason | null =>
+  path !== null && isMarkdownPath(path) && content.trim() !== "" ? safeGateReason(content) : null;
+
+// a mid-session rich→raw flip swaps Plate for the textarea under the cursor; say
+// why once. a fresh open lands in the textarea and doesn't toast.
+const toastRawFlip = (was: Analyzed, path: string | null, rawReason: GateReason | null): void => {
+  if (was.path === path && was.rawReason === null && rawReason !== null) {
+    toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
+  }
 };
 
 const capped = (stack: readonly string[]): string[] =>
@@ -133,26 +145,26 @@ export const createOpenNoteStore = (): OpenNoteStore => {
     pendingAnalysis = null;
   };
 
-  // a path change is analyzed synchronously with the editor update so the gate
-  // and the content never disagree; a same-path save is analyzed once the renderer
-  // is idle, because analyzeMarkdown is a full Slate construct + parse + serialize
-  // (up to 3 passes) and a microtask would still run it before the settle's frame
-  // paints. a dirty buffer keeps the last verdict.
+  // bytes from disk (a new path, a reload, a save's merge) are analyzed synchronously
+  // with the editor update, dirty or not: Plate re-seeds from them, and its next
+  // keystroke saves whatever it made of them. the buffer's own settle is analyzed
+  // once the renderer is idle, because analyzeMarkdown is a full Slate construct +
+  // parse + serialize (up to 3 passes) and a microtask would still run it before
+  // the settle's frame paints. a dirty edit keeps the last verdict.
   const publishEditor = (editor: VaultEditorState): void => {
     const s = store.getState();
-    const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
     const pathChanged = s.analyzed.path !== editor.path;
-    if ((pathChanged || s.analyzed.content !== editor.content) && !editor.dirty) {
-      if (pathChanged) {
-        dropPendingAnalysis();
-        const rawReason =
-          isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
-        apply({
-          analyzed: { content: editor.content, path: editor.path, rawReason },
-          editor,
-        });
-        return;
-      }
+    if (editor.diskSeq !== s.editor.diskSeq || (pathChanged && !editor.dirty)) {
+      dropPendingAnalysis();
+      const rawReason = verdictFor(editor.path, editor.content);
+      toastRawFlip(s.analyzed, editor.path, rawReason);
+      apply({
+        analyzed: { content: editor.content, path: editor.path, rawReason },
+        editor,
+      });
+      return;
+    }
+    if (s.analyzed.content !== editor.content && !editor.dirty) {
       const pending = pendingAnalysis;
       if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
         dropPendingAnalysis();
@@ -168,18 +180,8 @@ export const createOpenNoteStore = (): OpenNoteStore => {
           ) {
             return;
           }
-          const markdownOpen = target.path !== null && isMarkdownPath(target.path);
-          const rawReason =
-            markdownOpen && target.content.trim() !== "" ? safeGateReason(target.content) : null;
-          // a mid-session rich→raw flip swaps Plate for the textarea under the
-          // cursor; say why once. a fresh open lands in the textarea and doesn't toast.
-          if (
-            live.analyzed.path === target.path &&
-            live.analyzed.rawReason === null &&
-            rawReason !== null
-          ) {
-            toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
-          }
+          const rawReason = verdictFor(target.path, target.content);
+          toastRawFlip(live.analyzed, target.path, rawReason);
           apply({ analyzed: { content: target.content, path: target.path, rawReason } });
         });
         pendingAnalysis = { ...target, cancel };
