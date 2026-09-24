@@ -41,11 +41,8 @@ export const usePinnedPaths = (): ReadonlySet<string> => {
 };
 
 // a listing by path, not a search: the family's first `limit` notes and the whole count
-export const useNotesWithTag = (tag: string | null, limit: number) =>
-  useQuery({
-    ...orpc.knowledge.tagNotes.queryOptions({ input: { limit, tag: tag ?? "none" } }),
-    enabled: tag !== null,
-  });
+export const useNotesWithTag = (tag: string, limit: number) =>
+  useQuery(orpc.knowledge.tagNotes.queryOptions({ input: { limit, tag } }));
 
 export const useVaultStatus = () => useQuery(orpc.vault.status.queryOptions());
 

@@ -12,6 +12,7 @@ import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking"
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { Badge } from "@repo/ui/components/badge";
 import { cn } from "@repo/ui/lib/cn";
+import { plural } from "@repo/ui/lib/plural";
 import { FileTextIcon } from "lucide-react";
 import { memo } from "react";
 import type { ReactNode } from "react";
@@ -48,9 +49,6 @@ const isAction = (row: TimelineRow): boolean =>
   row.kind === "work" &&
   (row.workKind === "command" || row.workKind === "file-change" || row.workKind === "tool");
 
-const countLabel = (count: number, one: string, many: string): string =>
-  count === 1 ? `1 ${one}` : `${String(count)} ${many}`;
-
 const ThoughtRowContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
   if (row.workKind === "reasoning") {
     return row.text.trim() === "" ? null : (
@@ -78,7 +76,7 @@ const ActionChipContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
       if (unshown > 0) {
         lines.push(
           <ToolChipDetail key={`${row.id}:more`} className="font-sans text-ink-3">
-            {countLabel(unshown, "more line", "more lines")}
+            {plural(unshown, "more line")}
           </ToolChipDetail>,
         );
       }
@@ -166,17 +164,14 @@ const TurnRowView = ({ row }: { row: TimelineTurnRow }) => {
       )}
     >
       {thoughts.length === 0 ? null : (
-        <Thinking working={working} doneLabel={countLabel(thoughts.length, "thought", "thoughts")}>
+        <Thinking working={working} doneLabel={plural(thoughts.length, "thought")}>
           {thoughts.map((child) =>
             child.kind === "work" ? <ThoughtRow key={child.id} row={child} /> : null,
           )}
         </Thinking>
       )}
       {actions.length === 0 ? null : (
-        <ToolChipList
-          summary={countLabel(actions.length, "tool call", "tool calls")}
-          defaultExpanded={false}
-        >
+        <ToolChipList summary={plural(actions.length, "tool call")} defaultExpanded={false}>
           {actions.map((child) =>
             child.kind === "work" ? <ActionChip key={child.id} row={child} /> : null,
           )}

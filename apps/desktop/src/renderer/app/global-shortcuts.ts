@@ -2,7 +2,7 @@
 
 import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 export type GlobalShortcutAction =
   | "open-action-composer"
@@ -126,10 +126,7 @@ export const useGlobalShortcuts = (
   { modifier, enabled }: GlobalShortcutOptions,
   onShortcut: (action: GlobalShortcutAction) => void,
 ): void => {
-  const latest = useRef(onShortcut);
-  useLayoutEffect(() => {
-    latest.current = onShortcut;
-  });
+  const onAction = useEffectEvent(onShortcut);
   useEffect(() => {
     if (!enabled) {
       return;
@@ -140,7 +137,7 @@ export const useGlobalShortcuts = (
         return;
       }
       event.preventDefault();
-      latest.current(shortcut.action);
+      onAction(shortcut.action);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {

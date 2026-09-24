@@ -26,7 +26,7 @@ import {
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { failed, orpc, refusalMessage, safe } from "../api";
+import { client, failed, orpc, refusalMessage, safe } from "../api";
 import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
 import { useFollowBottom } from "./follow-bottom";
@@ -42,7 +42,6 @@ import { HistoryTab } from "./history-tab";
 import { ReadRefusal } from "./read-refusal";
 import { QueuedReplyView, TimelineRowView } from "./timeline-rows";
 import { usePinnedPaths } from "../vault-hooks";
-import { useWorkspace } from "../workspace-context";
 import { bindingFor } from "../global-shortcuts";
 
 export type PanelTab = "actions" | "comments" | "history" | "metadata";
@@ -204,7 +203,6 @@ const ActionDetail = ({
   onBack: () => void;
   onOpenDoc: (path: string) => void;
 }) => {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const detailQuery = useThreadDetail(threadId);
   const transcript = useThreadTimeline(threadId);
@@ -228,7 +226,7 @@ const ActionDetail = ({
     setSending(true);
     void (async () => {
       try {
-        const outcome = await sendToThread(api, {
+        const outcome = await sendToThread(client, {
           activeTurnId: detailQuery.data?.thread.activeTurnId ?? null,
           text: trimmed,
           threadId,
@@ -249,7 +247,7 @@ const ActionDetail = ({
   // rethrown so the card hands its options back for another try
   const answerInteraction = async (interactionId: string, resolution: string): Promise<void> => {
     const { error } = await safe(
-      api.threads.answerInteraction({ interactionId, resolution, threadId }),
+      client.threads.answerInteraction({ interactionId, resolution, threadId }),
     );
     invalidate();
     if (error !== null) {
@@ -261,7 +259,7 @@ const ActionDetail = ({
   const archive = (): void => {
     void (async () => {
       try {
-        await api.threads.archive({ threadId });
+        await client.threads.archive({ threadId });
         onBack();
       } catch (error) {
         failed(error, "Could not archive the action.");
@@ -274,7 +272,7 @@ const ActionDetail = ({
 
   const stop = (): void => {
     void (async () => {
-      const [error] = await safe(api.threads.interrupt({ threadId }));
+      const [error] = await safe(client.threads.interrupt({ threadId }));
       if (error !== null) {
         toast.error(refusalMessage(error, "Could not stop the action."));
       }
