@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
-import { exec, hermeticProcessEnv } from "../harness/exec";
+import { buildProcessEnv, exec } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
 
 // a cold vite build of the whole Worker; a cached one returns at once.
@@ -17,7 +17,7 @@ export const builtWorkerBoot: Scenario = {
     // week's Worker.
     await exec("pnpm", ["turbo", "run", "build", "--filter=@repo/web"], {
       cwd: context.repoRoot,
-      env: hermeticProcessEnv(),
+      env: buildProcessEnv(),
       timeoutMs: BUILD_TIMEOUT_MS,
     });
     const builtConfig = path.join(

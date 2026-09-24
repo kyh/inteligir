@@ -4,15 +4,17 @@
 import { describe, expect, it } from "vitest";
 
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
+import { AWAITING_CONSUMER } from "./ui-package";
 
 const ROLES_DECLARED = "packages/ui/src/styles/globals.css";
 
-// where chrome is drawn. `packages/ui/src/ai` is `ui-type-roles.test.ts`'s, which leaves a file held
-// in AWAITING_CONSUMER its own sizes until a surface draws it.
+// where chrome is drawn. A file held in AWAITING_CONSUMER keeps its own sizes until a surface
+// draws it.
 const CHROME_ROOTS = [
   "apps/desktop/src/renderer/",
   "packages/editor/src/",
   "packages/ui/src/components/",
+  "packages/ui/src/ai/",
 ];
 
 // Tailwind's own ladder and any px or rem literal. An em literal is allowed: it follows the note's
@@ -39,7 +41,9 @@ const PROSE_SIZES = new Map<string, ProseSize>([
 
 const chromeFiles = workspaces()
   .flatMap((workspace) => workspaceFiles(workspace).shipped)
-  .filter((file) => CHROME_ROOTS.some((root) => file.startsWith(root)))
+  .filter(
+    (file) => CHROME_ROOTS.some((root) => file.startsWith(root)) && !AWAITING_CONSUMER.has(file),
+  )
   .toSorted();
 
 const rawSizesIn = (file: string): string[] =>

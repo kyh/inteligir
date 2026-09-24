@@ -36,7 +36,9 @@ src/
                       # workspaceFiles (src/** split shipped vs test),
                       # workspaceSourceFiles (the whole workspace dir — scripts/
                       # included), styleFiles, sourceOf (full-line comments
-                      # dropped, so prose cannot invent a package), importsOf
+                      # dropped, so prose cannot invent a package), importsOf,
+                      # and the turbo.json readers (turboTaskBodies,
+                      # workspaceTurboConfig)
   ui-package.ts       # @repo/ui's swept roots, read from its exports map, and
                       # the gallery dir that never counts as a consumer
   *.test.ts           # one guard per file — the table below
@@ -106,6 +108,10 @@ worktree under `.claude` is never read as this commit's tree.
 | `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the `/design`       |
 |                                | gallery or is a `NOT_DEMOED` row; `hooks` and `lib` are declared          |
 |                                | non-component roots.                                                      |
+| `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`, `packages/editor/src`,      |
+|                                | `packages/ui/src/components` and `packages/ui/src/ai` (minus              |
+|                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed note size |
+|                                | is a `PROSE_SIZES` row with its reason.                                   |
 | `compiled-hook-shapes.test.ts` | No react-importing source defines a `use*` hook inside another function — |
 |                                | the React Compiler hoists its closures to module scope and reports no     |
 |                                | diagnostic. The scanner is self-tested against braces in strings,         |
@@ -144,7 +150,7 @@ Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
 `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,
 `elsewhere`, `ELSEWHERE`, `RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`,
 `DECLARED_WITHOUT_PRODUCER`, `DECLARED_ARTIFACT_EDGES`, `DECLARED_SPLITS`,
-`DATA_FILES`, `DELIBERATE_NON_REFERENCES` —
+`DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES` —
 has a companion assertion that no row is STALE: a row whose subject is gone, or
 whose gap has closed, fails too. An allowance that outlives what it excused only
 ever loosens.

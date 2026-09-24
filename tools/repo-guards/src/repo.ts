@@ -280,3 +280,20 @@ export const resolveWorkspace = (specifier: string): Workspace | null =>
   workspaces().find(
     (workspace) => specifier === workspace.name || specifier.startsWith(`${workspace.name}/`),
   ) ?? null;
+
+const turboConfigSchema = z.looseObject({ tasks: z.record(z.string(), z.unknown()) });
+
+// turbo.json is JSONC; sourceOf drops full-line comments, which is every comment this repo's turbo
+// configs use. Each guard parses a body with its own task schema, since each reads other fields.
+export const turboTaskBodies = (configPath: string): Map<string, unknown> => {
+  const parsed = turboConfigSchema.safeParse(JSON.parse(sourceOf(configPath)));
+  if (!parsed.success) {
+    throw new Error(`${configPath}: expected an object at "tasks"`);
+  }
+  return new Map(Object.entries(parsed.data.tasks));
+};
+
+export const workspaceTurboConfig = (workspace: Workspace): string | null => {
+  const relative = `${workspace.dir}/turbo.json`;
+  return fs.existsSync(path.join(REPO_ROOT, relative)) ? relative : null;
+};

@@ -3,6 +3,7 @@ import type { TimelineRow } from "@repo/api/local/thread-timeline";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { expect } from "../harness/assert";
 import { OWNER, signUp } from "../harness/cloud-account";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { AppInstance, InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -54,8 +55,7 @@ export const threadSyncHosted: Scenario = {
   description:
     "a thread sent on A reaches B through a real dev Worker, carried by the socket's ping before B's poll could run",
   name: "thread-sync-hosted",
-  // a cold wrangler dev boot alone may take its two-minute ready deadline.
-  timeoutMs: 360_000,
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const worker = await ctx.cloudWorker();
 
