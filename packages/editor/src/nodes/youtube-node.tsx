@@ -20,7 +20,7 @@ export const VideoElement = (props: PlateElementProps) => {
         {isHttpUrl(url) ? (
           <RemoteContentCard kind="video" selected={focused && selected} url={url} />
         ) : (
-          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-subtitle text-muted-foreground">
             Video: <span className="break-all">{url || "no URL"}</span>
           </div>
         )}

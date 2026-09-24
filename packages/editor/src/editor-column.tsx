@@ -205,7 +205,7 @@ export const EditorColumn = () => {
 
   if (kind === "none") {
     return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
+      <div className="flex flex-1 items-center justify-center p-8 text-center text-subtitle text-muted-foreground">
         Select a note to edit, or create one. The agent edits these same files.
       </div>
     );

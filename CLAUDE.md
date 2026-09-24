@@ -377,16 +377,23 @@ to the END of its group.
   and imported from there by every file in the repo, reversing the drop-the-pass-through cleanup for a reason it did not
   have: the wrapper now carries configuration, and a second unconfigured `cn`
   beside it would be the bug again. Named in the font-size group, a role also
-  correctly replaces another role, which CSS ordering cannot do. `text-sm`, `text-xs` and a
-  `text-[13px]` literal are gone from the shell and from `@repo/ui`'s
-  components: a role says what a line IS, and four spellings of 12px said
-  nothing. The utilities carry the compact step alone because the product
+  correctly replaces another role, which CSS ordering cannot do. `text-sm`,
+  `text-xs` and every px or rem literal are gone from the shell, from
+  `@repo/ui`'s components and from the chrome `@repo/editor` draws (its
+  pickers, find bar, toolbars, properties, and the cards, labels and buttons
+  around a node): a role says what a line IS, and four spellings of 12px said
+  nothing. `tools/repo-guards/src/type-roles.test.ts` holds all three, since a
+  scale held by convention alone drifts.
+  The utilities carry the compact step alone because the product
   pins compact at its root (`app/workspace-context.tsx`); a region on the
   default step would read the map instead. A sized control's text,
   `useSize().text`, is the body role: `text-body` at compact, the map's
   default number as a literal otherwise, pinned by the same test. THE NOTE IS NOT CHROME: the
-  editor's prose keeps the appearance dials below, and `@repo/ui/src/ai`
-  keeps its own sizes until a surface draws it.
+  editor's prose keeps the appearance dials below, so what it draws as text of
+  the note sizes in em or takes typeset's own size (an opaque block is
+  typeset's `pre`), and a fixed size that is part of the note (the title, the
+  drag gutter matched to a heading) is a reasoned `PROSE_SIZES` row in that
+  guard. `@repo/ui/src/ai` keeps its own sizes until a surface draws it.
 
 - **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
   The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`

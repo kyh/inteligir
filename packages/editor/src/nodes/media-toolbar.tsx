@@ -65,7 +65,7 @@ export const MediaToolbar = () => {
             ref={inputRef}
             defaultValue={url}
             placeholder="https://…"
-            className="h-6 w-56 rounded-md border border-border bg-background px-2 text-xs outline-none"
+            className="h-6 w-56 rounded-md border border-border bg-background px-2 text-body outline-none"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 commitUrl();

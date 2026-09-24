@@ -84,7 +84,7 @@ const PropertyRow = ({
   return (
     <div className="group grid grid-cols-[9rem_1fr] items-start gap-2">
       <div className="flex flex-col gap-0.5 pt-1">
-        <span className="truncate text-sm text-muted-foreground" title={prop.key}>
+        <span className="truncate text-body text-muted-foreground" title={prop.key}>
           {prop.key}
         </span>
         {options.length > 1 && (
@@ -97,7 +97,7 @@ const PropertyRow = ({
               }
             }}
             aria-label={`${prop.key} type`}
-            className="w-fit rounded-[4px] bg-transparent text-[10px] text-muted-foreground/70 outline-none hover:text-foreground"
+            className="w-fit rounded-[4px] bg-transparent text-caption text-muted-foreground/70 outline-none hover:text-foreground"
           >
             {options.map((type) => (
               <option key={type} value={type}>
@@ -115,7 +115,7 @@ const PropertyRow = ({
           type="button"
           aria-label={`Remove ${prop.key}`}
           onClick={onDelete}
-          className="mt-1 rounded-[4px] px-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+          className="mt-1 rounded-[4px] px-1 text-body text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
         >
           Remove
         </button>
@@ -160,7 +160,7 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
         onClick={() => {
           setOpen(true);
         }}
-        className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
+        className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-body text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
       >
         <PlusIcon className="size-3.5" />
         Add property
@@ -178,7 +178,7 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
         onKeyDown={onKeyDown}
         placeholder="Property"
         spellCheck={false}
-        className="h-7 px-1.5 text-sm"
+        className="h-7 px-1.5 text-body"
       />
       <Input
         value={value}
@@ -189,7 +189,7 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
         onBlur={submit}
         placeholder="Value"
         spellCheck={false}
-        className="h-7 px-1.5 text-sm"
+        className="h-7 px-1.5 text-body"
       />
     </div>
   );
@@ -274,7 +274,7 @@ export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
 
   if (invalid) {
     return (
-      <p className="rounded-[8px] bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground">
+      <p className="rounded-[8px] bg-muted/50 px-2.5 py-1.5 text-body text-muted-foreground">
         Properties unavailable — this note&rsquo;s frontmatter isn&rsquo;t a valid property list.
         It&rsquo;s preserved untouched; edit it in the document.
       </p>

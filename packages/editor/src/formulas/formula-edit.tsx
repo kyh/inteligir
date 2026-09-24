@@ -101,7 +101,7 @@ export const FormulaEditPopover = ({
         <input
           ref={inputRef}
           aria-label="Edit formula"
-          className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-xs outline-none"
+          className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-body outline-none"
           value={entry}
           onChange={(event) => {
             setEntry(event.target.value);

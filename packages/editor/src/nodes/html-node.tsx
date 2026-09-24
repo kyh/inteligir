@@ -22,7 +22,7 @@ const SourceView = ({ value }: { value: string }) => {
   const lines = value.split("\n");
   const head = lines.slice(0, 12).join("\n");
   return (
-    <pre className="max-h-48 overflow-auto px-3 py-2 font-mono text-xs whitespace-pre text-muted-foreground">
+    <pre className="max-h-48 overflow-auto px-3 py-2 font-mono text-body whitespace-pre text-muted-foreground">
       {head}
       {lines.length > 12 ? `\n… ${String(lines.length - 12)} more lines` : ""}
     </pre>
@@ -100,8 +100,8 @@ export const HtmlElement = (props: PlateElementProps) => {
       aria-pressed={mode === target}
       className={
         mode === target
-          ? "text-xs font-medium text-foreground"
-          : "text-xs text-muted-foreground hover:text-foreground"
+          ? "text-body font-medium text-foreground"
+          : "text-body text-muted-foreground hover:text-foreground"
       }
       onClick={() => {
         setMode(target);
@@ -122,7 +122,7 @@ export const HtmlElement = (props: PlateElementProps) => {
             {modeButton("run", "Run")}
             <button
               type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-body text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setEditing(true);
               }}

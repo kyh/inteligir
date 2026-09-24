@@ -96,7 +96,7 @@ const tipWithShortcut = (label: string, shortcut: string | null) =>
   ) : (
     <span className="flex items-center gap-2">
       <span>{label}</span>
-      <kbd className="-my-1 flex h-4 min-w-4 items-center justify-center rounded border border-background/30 px-1 font-sans text-[10px] text-background/80">
+      <kbd className="-my-1 flex h-4 min-w-4 items-center justify-center rounded border border-background/30 px-1 font-sans text-caption text-background/80">
         {shortcut}
       </kbd>
     </span>
@@ -106,7 +106,7 @@ const tipWithShortcut = (label: string, shortcut: string | null) =>
 const VaultTile = ({ name }: { name: string }) => (
   <span
     aria-hidden="true"
-    className="pointer-events-none absolute top-1/2 left-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-md bg-foreground text-[10px] font-semibold text-background"
+    className="pointer-events-none absolute top-1/2 left-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-md bg-foreground text-caption font-semibold text-background"
   >
     {name.slice(0, 1).toLocaleUpperCase()}
   </span>

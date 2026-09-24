@@ -77,7 +77,7 @@ const TabGroupElement = (props: PlateElementProps) => {
                 setActive(panel.index);
               }}
               className={cn(
-                "rounded-sm px-2 py-0.5 text-xs font-medium",
+                "rounded-sm px-2 py-0.5 text-body font-medium",
                 panel.index === shown
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -136,7 +136,7 @@ const TabPanelElement = (props: PlateElementProps) => {
     >
       <div
         contentEditable={false}
-        className="mb-1 hidden text-xs font-semibold text-muted-foreground print:block"
+        className="mb-1 hidden text-body font-semibold text-muted-foreground print:block"
       >
         {label}
       </div>

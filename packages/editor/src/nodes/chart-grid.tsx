@@ -162,7 +162,7 @@ const CellInput = ({
       value={draft ?? text}
       spellCheck={false}
       className={cn(
-        "w-full min-w-14 bg-transparent px-1.5 py-0.5 font-mono text-xs outline-none",
+        "w-full min-w-14 bg-transparent px-1.5 py-0.5 font-mono text-body outline-none",
         "rounded-sm focus:bg-background focus:ring-1 focus:ring-border",
         align === "right" ? "text-right" : "text-left",
       )}
@@ -192,7 +192,7 @@ export const ChartGridEditor = ({
   const view = chartGridView(chart);
   if (view === null) {
     return (
-      <div className="px-3 py-2 text-xs text-muted-foreground">
+      <div className="px-3 py-2 text-body text-muted-foreground">
         The series disagree on labels, which the grid cannot show faithfully.{" "}
         <button type="button" className="underline hover:text-foreground" onClick={onRawEdit}>
           Edit raw JSON
@@ -207,13 +207,13 @@ export const ChartGridEditor = ({
       <table className="w-full border-separate border-spacing-0">
         <thead>
           <tr>
-            <th className="w-1/3 border-b border-border/60 px-1.5 pb-1 text-left text-[10px] font-normal text-muted-foreground">
+            <th className="w-1/3 border-b border-border/60 px-1.5 pb-1 text-left text-caption font-normal text-muted-foreground">
               Label
             </th>
             {Array.from({ length: columns }, (_, column) => (
               <th
                 key={column}
-                className="border-b border-border/60 px-1.5 pb-1 text-right text-[10px] font-normal text-muted-foreground"
+                className="border-b border-border/60 px-1.5 pb-1 text-right text-caption font-normal text-muted-foreground"
               >
                 {view.seriesNames === null ? (
                   "Value"
@@ -268,7 +268,7 @@ export const ChartGridEditor = ({
                   <button
                     type="button"
                     aria-label={`Remove row ${String(row + 1)}`}
-                    className="text-xs text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
+                    className="text-body text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
                     onClick={() => {
                       const next = chartWithRowRemoved(chart, row);
                       if (next !== null) {
@@ -284,7 +284,7 @@ export const ChartGridEditor = ({
           ))}
         </tbody>
       </table>
-      <div className="flex items-center gap-3 pt-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-3 pt-1.5 text-body text-muted-foreground">
         <button
           type="button"
           className="hover:text-foreground"

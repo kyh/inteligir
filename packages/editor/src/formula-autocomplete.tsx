@@ -105,7 +105,9 @@ const FormulaInputElement = (props: PlateElementProps) => {
                 <SigmaIcon className="mr-2 text-muted-foreground" />
                 <span className="flex min-w-0 flex-1 items-baseline gap-2">
                   <span className="truncate">{variable.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">{variable.display}</span>
+                  <span className="truncate text-body text-muted-foreground">
+                    {variable.display}
+                  </span>
                 </span>
               </InlineComboboxItem>
             ))}

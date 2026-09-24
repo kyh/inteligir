@@ -54,7 +54,7 @@ const MermaidCodeBlock = (props: PlateElementProps) => {
               showPreview();
             }
           }}
-          className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-muted-foreground opacity-0 transition-opacity group-hover/mermaid:opacity-100 hover:bg-accent hover:text-foreground"
+          className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-body text-muted-foreground opacity-0 transition-opacity group-hover/mermaid:opacity-100 hover:bg-accent hover:text-foreground"
         >
           {mode === "preview" ? <CodeIcon className="size-3" /> : <EyeIcon className="size-3" />}
           {mode === "preview" ? "Source" : "Diagram"}
@@ -76,7 +76,7 @@ const CodeBlockElement = (props: PlateElementProps) => {
       {lang !== undefined && lang !== "" ? (
         <span
           contentEditable={false}
-          className="absolute top-1.5 right-2 font-sans text-[10px] tracking-wide text-muted-foreground/80 uppercase opacity-0 transition-opacity select-none group-hover/code:opacity-100"
+          className="absolute top-1.5 right-2 font-sans text-caption tracking-wide text-muted-foreground/80 uppercase opacity-0 transition-opacity select-none group-hover/code:opacity-100"
         >
           {lang}
         </span>

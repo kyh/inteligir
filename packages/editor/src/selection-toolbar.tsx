@@ -79,7 +79,7 @@ const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
             actions.askAboutSelection(text);
           }
         }}
-        className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary transition-colors hover:bg-accent [&_svg]:size-3.5"
+        className="flex h-7 items-center gap-1 rounded-md px-2 text-body font-medium text-primary transition-colors hover:bg-accent [&_svg]:size-3.5"
       >
         <SparklesIcon />
         Ask agent
@@ -124,7 +124,7 @@ const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
     onMouseDown={(e) => {
       e.preventDefault();
     }}
-    className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
+    className="flex h-7 items-center gap-1 rounded-md px-2 text-body font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
   >
     {children}
     <ChevronDownIcon className="!size-3 text-muted-foreground/70" />
@@ -187,7 +187,7 @@ const LinkInput = ({
           }
         }}
         placeholder="Paste or type a link…"
-        className="h-7 w-56 bg-transparent px-1 text-xs outline-none placeholder:text-muted-foreground"
+        className="h-7 w-56 bg-transparent px-1 text-body outline-none placeholder:text-muted-foreground"
       />
       <BarButton
         variant="primary"

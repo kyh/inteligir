@@ -26,7 +26,7 @@ export const BarButton = ({
         event.preventDefault();
       }}
       className={cn(
-        "flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors [&_svg]:size-3.5",
+        "flex h-7 items-center gap-1 rounded-md px-2 text-body font-medium transition-colors [&_svg]:size-3.5",
         variant === "default" && "text-foreground hover:bg-accent",
         variant === "primary" && "text-primary hover:bg-primary/10",
         variant === "danger" && "text-muted-foreground hover:bg-muted hover:text-destructive",

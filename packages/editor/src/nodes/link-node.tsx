@@ -121,12 +121,12 @@ export const LinkElement = (props: PlateElementProps) => {
                   }
                 }}
                 placeholder="https://…"
-                className="h-7 w-56 bg-transparent px-1.5 text-xs outline-none placeholder:text-muted-foreground"
+                className="h-7 w-56 bg-transparent px-1.5 text-body outline-none placeholder:text-muted-foreground"
               />
               <button
                 type="button"
                 onClick={applyDraft}
-                className="flex items-center rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                className="flex items-center rounded-md px-2 py-1 text-body font-medium text-primary transition-colors hover:bg-primary/10"
               >
                 Apply
               </button>
@@ -134,7 +134,7 @@ export const LinkElement = (props: PlateElementProps) => {
           ) : (
             <div className="flex items-center gap-0.5">
               <span
-                className={cn("max-w-56 truncate px-1.5 text-xs text-muted-foreground")}
+                className={cn("max-w-56 truncate px-1.5 text-body text-muted-foreground")}
                 title={url}
               >
                 {url}

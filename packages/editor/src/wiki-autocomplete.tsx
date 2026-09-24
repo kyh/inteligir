@@ -93,7 +93,7 @@ const WikiInputElement = (props: PlateElementProps) => {
         )}
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
           <span className="truncate">{target.title}</span>
-          <span className="truncate text-xs text-muted-foreground">{target.path}</span>
+          <span className="truncate text-body text-muted-foreground">{target.path}</span>
         </span>
       </InlineComboboxItem>
     );
