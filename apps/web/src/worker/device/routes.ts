@@ -16,7 +16,7 @@ import { createAuth } from "../auth/auth";
 import { jsonNoStore, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { device } from "../db/schema";
-import { allowInWindow, callerRateKey, forgetDeviceBudgets, RATE_WINDOWS } from "../rate-limit";
+import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
 // session auth for everything except login, which IS the authentication, and sign-out, which a
@@ -74,7 +74,7 @@ export const handleDeviceRoutes = async (
   const route = `${request.method} ${url.pathname}`;
 
   if (route === `POST ${DEVICE_API_PATHS.login}`) {
-    if (!(await allowInWindow(env, db, callerRateKey("login", request), RATE_WINDOWS.login))) {
+    if (!(await spendCallerBudget(env, db, "login", request))) {
       return refuse("rate-limited", "Too many attempts — wait a minute.");
     }
     const body = deviceLoginRequestSchema.safeParse(await request.json().catch(() => null));

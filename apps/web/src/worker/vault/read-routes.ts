@@ -13,7 +13,7 @@ import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
-import { allowInWindow, deviceRateKey, RATE_WINDOWS } from "../rate-limit";
+import { spendDeviceBudget } from "../rate-limit";
 import { vaultRegistry, vaultRepoName } from "./git-remote";
 import { treeListingSlot } from "./tree-listing";
 import type { TreeListingSlot } from "./tree-listing";
@@ -195,14 +195,7 @@ export const handleVaultReadRoutes = async (
     return refuse("unauthorized", "No valid device credential.");
   }
 
-  if (
-    !(await allowInWindow(
-      env,
-      db,
-      deviceRateKey("vaultRead", verified.deviceId),
-      RATE_WINDOWS.vaultRead,
-    ))
-  ) {
+  if (!(await spendDeviceBudget(env, db, "vaultRead", verified.deviceId))) {
     return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");
   }
 

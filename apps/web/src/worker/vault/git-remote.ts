@@ -3,7 +3,7 @@ import { createDurableGit } from "durable-git";
 import type { Registry } from "durable-git";
 import { createDb } from "../db/client";
 import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
-import { allowInWindow, deviceRateKey, RATE_WINDOWS } from "../rate-limit";
+import { spendDeviceBudget } from "../rate-limit";
 import { pingVaultAdvanced } from "../sync/routes";
 import { treeListingPrefix } from "./tree-listing";
 
@@ -125,14 +125,7 @@ export const handleVaultGitRemote = async (
     return unauthorized();
   }
 
-  if (
-    !(await allowInWindow(
-      env,
-      db,
-      deviceRateKey("vaultGit", verified.deviceId),
-      RATE_WINDOWS.vaultGit,
-    ))
-  ) {
+  if (!(await spendDeviceBudget(env, db, "vaultGit", verified.deviceId))) {
     // plain text: a JSON envelope in a git client's stderr is noise
     return new Response("too many requests\n", { status: 429 });
   }

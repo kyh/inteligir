@@ -19,7 +19,7 @@ export const AUTH_RATE_WINDOW_SECONDS = 60;
 
 // one upsert: a read-then-write limiter lets N concurrent requests all read the same count and
 // all pass, so the count is read from the write itself
-export const allowInWindow = async (
+const allowInWindow = async (
   env: Env,
   db: ReturnType<typeof createDb>,
   key: string,
@@ -92,7 +92,6 @@ export const callerRateKey = (family: CallerRateFamily, request: Request): strin
 export const RATE_WINDOWS = {
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
-  // per address, because nothing else about a caller who has not logged in is known
   login: { max: 10, windowMs: 60_000 },
   // set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
   // device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
@@ -101,3 +100,19 @@ export const RATE_WINDOWS = {
   // runaway loop, and a note past it sees its tail answered 429
   vaultRead: { max: 3000, windowMs: 60_000 },
 } as const satisfies Record<CallerRateFamily | DeviceRateFamily, RateWindow>;
+
+export const spendCallerBudget = async (
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  family: CallerRateFamily,
+  request: Request,
+): Promise<boolean> =>
+  await allowInWindow(env, db, callerRateKey(family, request), RATE_WINDOWS[family]);
+
+export const spendDeviceBudget = async (
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  family: DeviceRateFamily,
+  deviceId: string,
+): Promise<boolean> =>
+  await allowInWindow(env, db, deviceRateKey(family, deviceId), RATE_WINDOWS[family]);

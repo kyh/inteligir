@@ -8,15 +8,10 @@ export const AUTH_FALLBACK_ERROR = "Something went wrong — try again.";
 export const authErrorMessage = (error: { message?: string | undefined } | null): string =>
   error?.message ?? AUTH_FALLBACK_ERROR;
 
-interface ActiveSession {
-  readonly userId: string;
-  readonly email: string;
-}
-
 // a read that failed is not a read that found no session: sending a signed-in user to sign-in
 // over a 429 or a 5xx asks for a password they already gave
 export type SessionState =
-  | { readonly kind: "signed-in"; readonly session: ActiveSession }
+  | { readonly kind: "signed-in" }
   | { readonly kind: "signed-out" }
   | { readonly kind: "unknown"; readonly message: string };
 
@@ -28,5 +23,5 @@ export const activeSession = async (): Promise<SessionState> => {
   if (data === null) {
     return { kind: "signed-out" };
   }
-  return { kind: "signed-in", session: { email: data.user.email, userId: data.user.id } };
+  return { kind: "signed-in" };
 };

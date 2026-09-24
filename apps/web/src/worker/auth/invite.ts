@@ -7,7 +7,7 @@ import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
-import { allowInWindow, callerRateKey, RATE_WINDOWS } from "../rate-limit";
+import { spendCallerBudget } from "../rate-limit";
 
 // The invite is claimed before the account exists: one UPDATE … WHERE redeemed_at IS NULL is
 // the only atomic step, so it settles two simultaneous sign-ups on one code. A failed sign-up
@@ -50,14 +50,7 @@ export const handleInviteSignUp = async (request: Request, env: Env): Promise<Re
   const url = new URL(request.url);
   const db = createDb(env.DB);
 
-  if (
-    !(await allowInWindow(
-      env,
-      db,
-      callerRateKey("inviteSignUp", request),
-      RATE_WINDOWS.inviteSignUp,
-    ))
-  ) {
+  if (!(await spendCallerBudget(env, db, "inviteSignUp", request))) {
     // the page renders { message }; a bare-text body is the one refusal it cannot explain
     return refuse(429, "Too many attempts — wait a minute.");
   }
