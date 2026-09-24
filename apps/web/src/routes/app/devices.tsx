@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { useState } from "react";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 
-import { DEVICE_API_PATHS, listDevicesResponseSchema } from "@repo/api/cloud/device/device-schema";
-import type { Device } from "@repo/api/cloud/device/device-schema";
+import { readCloudCall } from "@repo/api/cloud/client";
+import type { CloudFailure } from "@repo/api/cloud/client";
+import {
+  DEVICE_API_PATHS,
+  listDevicesResponseSchema,
+  revokeDeviceResponseSchema,
+} from "@repo/api/cloud/device/device-schema";
+import type { Device, RevokeDeviceRequest } from "@repo/api/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
-import { AuthError } from "@/components/auth-shell";
+import { AuthError, CONNECTION_FAILED } from "@/components/auth-shell";
 import { currentSession } from "@/lib/session-guard";
 import { siteConfig } from "@/lib/site-config";
 
@@ -13,88 +20,85 @@ import { siteConfig } from "@/lib/site-config";
 // ssr: false because everything here depends on the live session, and only the client can send
 // a signed-out visitor to sign-in.
 
-const fetchDevices = async (): Promise<Device[]> => {
-  const response = await fetch(DEVICE_API_PATHS.list);
-  if (!response.ok) {
-    throw new Error("Couldn't load devices.");
-  }
-  return listDevicesResponseSchema.parse(await response.json()).devices;
-};
+const redirectToSignIn = (href: string) =>
+  redirect({ to: "/app/sign-in", search: { next: href }, throw: true });
 
-const revokeDevice = async (deviceId: string): Promise<void> => {
-  const response = await fetch(DEVICE_API_PATHS.revoke, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ deviceId }),
-  });
-  if (!response.ok) {
-    throw new Error("Couldn't revoke that device.");
-  }
-};
+// a session that ended since the guard read it answers the list and the revoke alike
+const isSignedOut = (failure: CloudFailure): boolean =>
+  failure.kind === "refused" && failure.code === "unauthorized";
+
+const failureMessage = (failure: CloudFailure): string =>
+  failure.kind === "unreachable" ? CONNECTION_FAILED : failure.message;
+
+const DevicesShell = ({ children }: { children: React.ReactNode }) => (
+  <main className="mx-auto w-full max-w-lg px-6 py-16">
+    <Link to="/" className="mb-8 block text-sm font-medium tracking-tight">
+      {siteConfig.name}
+    </Link>
+    <h1 className="text-lg font-medium tracking-tight">Devices</h1>
+    <p className="mt-1 text-sm text-muted-foreground">
+      To add a machine, sign in there — Settings → Devices in the app, or{" "}
+      <code>inteligir cloud login</code>. Each device gets its own credential; revoking one cuts it
+      off immediately.
+    </p>
+    {children}
+  </main>
+);
 
 const DevicesPage = () => {
-  const [devices, setDevices] = useState<Device[] | null>(null);
+  const router = useRouter();
+  const devices = Route.useLoaderData();
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setDevices(await fetchDevices());
-    } catch (error_) {
-      setError(error_ instanceof Error ? error_.message : "Couldn't load devices.");
-    }
-  }, []);
-
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- the list lands after an await, not synchronously; fetching it on mount is what this effect is for
-    void load();
-  }, [load]);
+  const [revoking, setRevoking] = useState<string | null>(null);
 
   const revoke = async (deviceId: string) => {
+    setRevoking(deviceId);
     setError(null);
-    try {
-      await revokeDevice(deviceId);
-      await load();
-    } catch (error_) {
-      setError(error_ instanceof Error ? error_.message : "Couldn't revoke that device.");
+    const request: RevokeDeviceRequest = { deviceId };
+    const result = await readCloudCall(
+      async () =>
+        await fetch(DEVICE_API_PATHS.revoke, {
+          body: JSON.stringify(request),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      revokeDeviceResponseSchema,
+    );
+    if (!result.ok && !isSignedOut(result.failure)) {
+      setError(failureMessage(result.failure));
     }
-  };
-
-  const onRevoke = (deviceId: string) => {
-    void revoke(deviceId);
+    // a refused revoke is as likely a stale row as a fault, and a signed-out session is the
+    // loader's to send to sign-in, so the list is read again either way
+    await router.invalidate({ sync: true });
+    setRevoking(null);
   };
 
   return (
-    <main className="mx-auto w-full max-w-lg px-6 py-16">
-      <Link to="/" className="mb-8 block text-sm font-medium tracking-tight">
-        {siteConfig.name}
-      </Link>
-      <h1 className="text-lg font-medium tracking-tight">Devices</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        To add a machine, sign in there — Settings → Devices in the app, or{" "}
-        <code>inteligir cloud login</code>. Each device gets its own credential; revoking one cuts
-        it off immediately.
-      </p>
-
+    <DevicesShell>
       <div className="mt-6">
         <AuthError message={error} />
       </div>
-
       <h2 className="mt-4 text-sm font-medium">Signed-in devices</h2>
-      <DeviceList devices={devices} onRevoke={onRevoke} />
-    </main>
+      <DeviceList
+        devices={devices}
+        revoking={revoking}
+        onRevoke={(deviceId) => {
+          void revoke(deviceId);
+        }}
+      />
+    </DevicesShell>
   );
 };
 
 const DeviceList = ({
   devices,
+  revoking,
   onRevoke,
 }: {
-  devices: Device[] | null;
+  devices: Device[];
+  revoking: string | null;
   onRevoke: (deviceId: string) => void;
 }) => {
-  if (devices === null) {
-    return <p className="mt-2 text-sm text-muted-foreground">Loading…</p>;
-  }
   if (devices.length === 0) {
     return <p className="mt-2 text-sm text-muted-foreground">No devices signed in yet.</p>;
   }
@@ -111,11 +115,12 @@ const DeviceList = ({
               type="button"
               variant="tertiary"
               size="compact"
+              disabled={revoking === device.id}
               onClick={() => {
                 onRevoke(device.id);
               }}
             >
-              Revoke
+              {revoking === device.id ? "Revoking…" : "Revoke"}
             </Button>
           ) : null}
         </li>
@@ -139,19 +144,58 @@ const formatWhen = (epochMs: number): string =>
     timeStyle: "short",
   });
 
+const DevicesPending = () => (
+  <DevicesShell>
+    <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
+  </DevicesShell>
+);
+
+const DevicesError = ({ error }: ErrorComponentProps) => {
+  const router = useRouter();
+  return (
+    <DevicesShell>
+      <div className="mt-6 grid justify-items-start gap-3">
+        <AuthError message={error instanceof Error ? error.message : "Couldn't load devices."} />
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          onClick={() => {
+            void router.invalidate();
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    </DevicesShell>
+  );
+};
+
 export const Route = createFileRoute("/app/devices")({
   ssr: false,
-  beforeLoad: async () => {
-    if (import.meta.env.SSR) {
-      return;
-    }
+  beforeLoad: async ({ location }) => {
     const session = await currentSession();
     if (session.kind === "signed-out") {
-      redirect({ to: "/app/sign-in", throw: true });
+      redirectToSignIn(location.href);
     }
     if (session.kind === "unknown") {
       throw new Error(session.message);
     }
   },
+  loader: async ({ location }) => {
+    const result = await readCloudCall(
+      async () => await fetch(DEVICE_API_PATHS.list),
+      listDevicesResponseSchema,
+    );
+    if (result.ok) {
+      return result.value.devices;
+    }
+    if (isSignedOut(result.failure)) {
+      redirectToSignIn(location.href);
+    }
+    throw new Error(failureMessage(result.failure));
+  },
+  pendingComponent: DevicesPending,
+  errorComponent: DevicesError,
   component: DevicesPage,
 });

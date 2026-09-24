@@ -91,12 +91,29 @@ answers git clients in plain text.
   `Authorization: Bearer <token>`; the token comes back in the `set-auth-token`
   header on sign-in/up.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
-  (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` claims the code in one
-  atomic `UPDATE … WHERE redeemed_at IS NULL`, then forwards into the one
-  instance built with sign-up enabled — so the response (cookie,
-  `set-auth-token`, validation errors) is Better Auth's own, untouched. Every
-  other caller's instance carries `disableSignUp`, which shuts
+  (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
+  `signUpRequestSchema` (`@repo/api/cloud/account/account-schema`, which the
+  page, the gate and the e2e harness share with `AUTH_PAGE_PATHS`) and refuses a
+  password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
+  the code. It then claims the code in one atomic
+  `UPDATE … WHERE redeemed_at IS NULL` and forwards into the one instance built
+  with sign-up enabled — so the response (cookie, `set-auth-token`, Better
+  Auth's own refusals) is Better Auth's, untouched. Better Auth is configured
+  with those same two bounds (`src/worker/auth/auth.ts`), which the reset page
+  and device login hold too. Every other caller's instance carries
+  `disableSignUp`, which shuts
   `/api/auth/sign-up/email` and `auth.api.signUpEmail` together.
+- **The site's pages ask for a session in the route, and remember the way
+  back.** `/app/devices` is `ssr: false`; its `beforeLoad` sends a signed-out
+  visit to `/app/sign-in?next=<the page>`, and its loader does the same when
+  the list answers `unauthorized`. Sign-in follows `next` through
+  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), else
+  lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
+  the route's loader and every refusal reads the cloud error envelope through
+  `readCloudCall` (`@repo/api/cloud/client`), so a failure is the route's error
+  view with a retry, never a page stuck on Loading. The three auth forms submit
+  through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
+  request that never left into a message rather than a button stuck busy.
 - **A device signs in with the account's own email and password**
   (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
   verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential

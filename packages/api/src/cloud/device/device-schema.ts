@@ -23,8 +23,9 @@ export const normalizeDeviceName = (raw: string): string => {
   return name.length === 0 ? "this device" : name;
 };
 
-// better auth's own bounds: a password refused here is one it would refuse too, and a longer
-// one is hashing cost an unauthenticated caller chooses
+// the Worker configures Better Auth with these, so a password refused here is one it would
+// refuse too; the ceiling is there because a longer one is hashing cost an unauthenticated
+// caller chooses
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 

@@ -1,54 +1,50 @@
-import { useState } from "react";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
+import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
+import type { SignUpRequest } from "@repo/api/cloud/account/account-schema";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
-import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-shell";
+import {
+  AuthError,
+  AuthField,
+  AuthShell,
+  fieldValue,
+  useAuthSubmit,
+} from "@/components/auth-shell";
+import { AUTH_FALLBACK_ERROR } from "@/lib/auth-client";
+import { SIGNED_IN_HOME } from "@/lib/next-path";
 import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
-
-// not the Better Auth client: sign-up is invite-gated by a Worker route
-// (src/worker/auth/invite.ts) that forwards Better Auth's response, cookie included
-const SIGN_UP_URL = "/v1/auth/sign-up";
-
-const FALLBACK_ERROR = "Something went wrong — try again.";
 
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
 const refusalMessage = async (response: Response): Promise<string> => {
   const body = refusalSchema.safeParse(await response.json().catch(() => null));
-  return body.success ? body.data.message : FALLBACK_ERROR;
+  return body.success ? body.data.message : AUTH_FALLBACK_ERROR;
 };
 
 const SignUpPage = () => {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    setError(null);
-    void (async () => {
-      const response = await fetch(SIGN_UP_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: fieldValue(form, "name"),
-          email: fieldValue(form, "email"),
-          password: fieldValue(form, "password"),
-          inviteCode: fieldValue(form, "inviteCode"),
-        }),
-      });
-      if (!response.ok) {
-        setError(await refusalMessage(response));
-        setBusy(false);
-        return;
-      }
-      await router.navigate({ to: "/" });
-    })();
-  };
+  const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
+    const request: SignUpRequest = {
+      email: fieldValue(form, "email"),
+      inviteCode: fieldValue(form, "inviteCode"),
+      name: fieldValue(form, "name"),
+      password: fieldValue(form, "password"),
+    };
+    // not the Better Auth client: the invite gate forwards Better Auth's response, cookie included
+    const response = await fetch(AUTH_PAGE_PATHS.signUp, {
+      body: JSON.stringify(request),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return await refusalMessage(response);
+    }
+    await router.navigate({ to: SIGNED_IN_HOME });
+    return null;
+  });
 
   return (
     <AuthShell
@@ -79,9 +75,10 @@ const SignUpPage = () => {
           label="Password"
           type="password"
           autoComplete="new-password"
-          minLength={8}
+          minLength={PASSWORD_MIN_LENGTH}
+          maxLength={PASSWORD_MAX_LENGTH}
           required
-          hint="At least 8 characters."
+          hint={`At least ${PASSWORD_MIN_LENGTH} characters.`}
         />
         <AuthField
           id="inviteCode"
@@ -92,8 +89,8 @@ const SignUpPage = () => {
           required
         />
         <AuthError message={error} />
-        <Button type="submit" disabled={busy}>
-          {busy ? "Creating account…" : "Create account"}
+        <Button type="submit" disabled={pending}>
+          {pending ? "Creating account…" : "Create account"}
         </Button>
       </form>
     </AuthShell>
@@ -105,7 +102,7 @@ export const Route = createFileRoute("/app/sign-up")({
   beforeLoad: async () => {
     const session = await currentSession();
     if (session.kind === "signed-in") {
-      redirect({ to: "/", throw: true });
+      redirect({ to: SIGNED_IN_HOME, throw: true });
     }
   },
   component: SignUpPage,
