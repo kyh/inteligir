@@ -1,5 +1,3 @@
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-
 import { VaultEditorController } from "@repo/editor/vault-editor";
 import type { SaveError, VaultIO } from "@repo/editor/vault-editor";
 import { createDebouncer } from "@repo/editor/lib/debounce";
@@ -151,8 +149,8 @@ export const createNoteRuntime = (
     registerPreFlush(fn: (() => void) | null): void {
       preFlush = fn;
     },
-    // null is a delete that threw, and the note stays open.
-    async remove(): Promise<DeleteVaultEntryResult | null> {
+    // false is a delete that threw, and the note stays open.
+    async remove(): Promise<boolean> {
       preFlush?.();
       autosave.cancel();
       cancelRetry();

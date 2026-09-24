@@ -1,5 +1,5 @@
 // Idempotent pipeline: once roundTrip(raw) === raw, re-serializing is stable, so a rich save is
-// a minimal diff. Only a parse failure is refused — unmodelled constructs become opaque nodes.
+// a minimal diff. Unmodelled constructs become opaque nodes rather than a refusal.
 // Plate's deserializeMd is banned: its htmlToJsx pre-pass corrupts code fences and it swallows
 // parse errors into degraded models.
 
@@ -26,7 +26,7 @@ export type GateReason =
   // the pipeline threw, or answered a document the editor cannot hold
   | { kind: "pipeline-error" };
 
-// `normalizes`: rich-safe, but the first save restyles markup, so it is one Format from canonical.
+// `normalizes`: rich-safe, but the first save restyles markup.
 export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | GateReason;
 
 export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
@@ -168,11 +168,7 @@ export const analyzeMarkdown = (md: string): DocAnalysis => {
   if (md.trim() === "") {
     return { kind: "canonical" };
   }
-  const converted = convert(md);
-  if (!converted.ok) {
-    return converted.reason;
-  }
-  const serialized = serialize(converted.editor, converted.value);
+  const serialized = roundTripResult(md);
   if (!serialized.ok) {
     return serialized.reason;
   }

@@ -1,4 +1,3 @@
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `hangReads` never settles a read, so a runtime can be observed before its first
@@ -56,7 +55,7 @@ export class FakeVault implements VaultIO {
     return await Promise.resolve({ kind: "created" });
   };
 
-  remove = async (path: string): Promise<DeleteVaultEntryResult> => {
+  remove = async (path: string): Promise<void> => {
     this.removes += 1;
     const gone = [...this.files.keys()].filter(
       (file) => file === path || file.startsWith(`${path}/`),
@@ -64,8 +63,6 @@ export class FakeVault implements VaultIO {
     for (const file of gone) {
       this.files.delete(file);
     }
-    const outcome: DeleteVaultEntryResult =
-      gone.length > 0 ? { outcome: "removed" } : { outcome: "absent" };
-    return await Promise.resolve(outcome);
+    await Promise.resolve();
   };
 }

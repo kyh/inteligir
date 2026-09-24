@@ -5,7 +5,7 @@
 import { DAILY_NOTES_FOLDER, TEMPLATES_FOLDER } from "../templates/placeholders";
 import { isDocPath, wikiLinkName } from "./doc-file";
 import type { LinkKind } from "./link-kinds";
-import type { BacklinkEntry, ForwardLinkEntry, NoteIdEntry, WikiTarget } from "./link-graph-index";
+import type { BacklinkEntry, ForwardLinkEntry, WikiTarget } from "./link-graph-index";
 import { extnamePath } from "./vault-path";
 
 export interface UnresolvedLinkRow {
@@ -52,8 +52,6 @@ export interface ProblemsGraph {
   wikiTargets: () => WikiTarget[];
   forwardLinks: (path: string) => ForwardLinkEntry[];
   backlinks: (path: string) => BacklinkEntry[];
-  // by path, so a duplicate's paths come out sorted
-  noteIds: () => NoteIdEntry[];
 }
 
 export interface VaultProblemsOptions {
@@ -90,6 +88,8 @@ export const collectVaultProblems = (
   const missingEmbeds: UnresolvedLinkRow[] = [];
   const orphans: OrphanRow[] = [];
   const byStem = new Map<string, string[]>();
+  // the rows come by path, so a duplicate's paths come out sorted
+  const byId = new Map<string, string[]>();
 
   for (const doc of docs) {
     // once per source and target: a note naming [[Nowhere]] twice is one problem
@@ -132,6 +132,15 @@ export const collectVaultProblems = (
     } else {
       paths.push(doc.path);
     }
+
+    if (doc.id !== undefined) {
+      const sharing = byId.get(doc.id);
+      if (sharing === undefined) {
+        byId.set(doc.id, [doc.path]);
+      } else {
+        sharing.push(doc.path);
+      }
+    }
   }
 
   const duplicateStems: DuplicateStemRow[] = [];
@@ -143,15 +152,6 @@ export const collectVaultProblems = (
     duplicateStems.push({ paths, stem: wikiLinkName(first) });
   }
 
-  const byId = new Map<string, string[]>();
-  for (const { id, path } of graph.noteIds()) {
-    const paths = byId.get(id);
-    if (paths === undefined) {
-      byId.set(id, [path]);
-    } else {
-      paths.push(path);
-    }
-  }
   const duplicateIds: DuplicateIdRow[] = [];
   for (const [id, paths] of byId) {
     if (paths.length > 1) {

@@ -84,7 +84,7 @@ const seedHistory = async (booted: BootedTestApp): Promise<string> => {
 const openRevision = async (sha: string): Promise<void> => {
   const store = createOpenNoteStore();
   store.publishOpenPath(PLAN);
-  store.publishEditor({ content: EDITED, dirty: false, path: PLAN, saveError: null });
+  store.publishEditor({ content: EDITED, dirty: false, diskSeq: 1, path: PLAN, saveError: null });
   render(
     <WorkspaceProvider>
       <OpenNoteStoreProvider store={store}>

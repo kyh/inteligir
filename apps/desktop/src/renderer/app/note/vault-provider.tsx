@@ -9,6 +9,7 @@ import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type { VaultSession, WorkspaceBoot } from "@repo/editor/note/vault-session";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
@@ -44,8 +45,6 @@ const NO_RESOLVER: LinkResolver = {
   targets: [],
 };
 
-type Api = typeof client;
-
 const listingEntries = (tree: VaultTreeResponse): VaultEntry[] =>
   tree.entries.flatMap((entry) =>
     entry.kind === "file"
@@ -59,8 +58,8 @@ const listingEntries = (tree: VaultTreeResponse): VaultEntry[] =>
       : [],
   );
 
-const readFile = async (api: Api, path: string): Promise<string> => {
-  const { content } = await api.vault.read({ path });
+const readFile = async (path: string): Promise<string> => {
+  const { content } = await client.vault.read({ path });
   return content;
 };
 
@@ -85,13 +84,12 @@ interface VaultPort {
 }
 
 interface VaultPortInputs {
-  api: Api;
   bootPath: string | null;
   queryClient: QueryClient;
   store: OpenNoteStore;
 }
 
-const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs): VaultPort => {
+const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): VaultPort => {
   let entries: readonly VaultEntry[] = [];
   let wikiTargets: readonly WikiTarget[] = [];
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
@@ -99,16 +97,7 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
   const linkResolver = createStore<LinkResolver>()(() => NO_RESOLVER);
   // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
   const rebuildResolver = (): void => {
-    const aliasEntries: (readonly [string, string])[] = [];
-    const idEntries: (readonly [string, string])[] = [];
-    for (const target of wikiTargets) {
-      for (const alias of target.aliases ?? []) {
-        aliasEntries.push([alias, target.path]);
-      }
-      if (target.id !== undefined) {
-        idEntries.push([target.id, target.path]);
-      }
-    }
+    const { aliasEntries, idEntries } = resolverEntriesOf(wikiTargets);
     const resolver = buildResolver(
       entries.map((entry) => entry.path),
       aliasEntries,
@@ -120,13 +109,13 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
       targets: wikiTargets,
     });
   };
-  const io = createGuardedVaultIo(api);
+  const io = createGuardedVaultIo(client);
   const formulas = createNoteFormulas({
     listTargets: async () => {
       const { targets } = await readWikiTargets(queryClient);
       return targets;
     },
-    readFile: async (path) => await readFile(api, path),
+    readFile,
   });
   const session = createVaultSession({
     // discarding is the confirm, so an Escape or a dismissal re-creates and the edits survive it.
@@ -186,7 +175,7 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
       writeLastOpenNote(path);
       mirrorOpenPath(path);
     },
-    rename: async (from, to) => await renameVaultEntry(api, from, to),
+    rename: async (from, to) => await renameVaultEntry(client, from, to),
   });
 
   return {
@@ -223,9 +212,7 @@ export const VaultProvider = ({
   // Built once per mount: a later navigation must not re-run the boot preference, and a second
   // session would re-boot the vault.
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [port] = useState(() =>
-    createVaultPort({ api: client, bootPath: initialPath, queryClient, store }),
-  );
+  const [port] = useState(() => createVaultPort({ bootPath: initialPath, queryClient, store }));
   const { session } = port;
 
   // Must run before the start effect so the first published open path reaches
@@ -253,10 +240,6 @@ export const VaultProvider = ({
   useEffect(() => {
     const io: EditorHostIo = {
       actions: session.actions,
-      getBacklinks: async ({ path }) => {
-        const body = await client.knowledge.backlinks({ path }).catch(() => null);
-        return body === null ? [] : body.backlinks;
-      },
       // root-relative: the page and the frame share the one origin that serves both.
       htmlFrameUrl: HTML_FRAME_PATH,
       linkResolver: port.linkResolver,
@@ -271,7 +254,7 @@ export const VaultProvider = ({
         }
         return { bytes: await response.blob(), ok: true };
       },
-      readVaultFile: async ({ path }) => await readFile(client, path),
+      readVaultFile: async ({ path }) => await readFile(path),
       // the choice is read per paste, not cached: the CLI can change it between two pastes.
       writeVaultAsset: async ({ baseName, file }) => {
         // refused before the upload, so an oversized paste costs no round trip of its bytes.

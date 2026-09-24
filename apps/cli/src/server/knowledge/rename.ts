@@ -6,6 +6,7 @@
 // every name.
 
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 import type { VaultEntry, VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
 import { snapshotDocs } from "./snapshot-docs";
@@ -72,13 +73,7 @@ export const renameNoteWithLinkRewrite = async (
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
   const linkedDocs = await knowledge.renameCandidates(movesOf(source, allFiles, toPath));
-  const targets = await knowledge.wikiTargets();
-  const aliasEntries = targets.flatMap((target) =>
-    (target.aliases ?? []).map((alias): readonly [string, string] => [alias, target.path]),
-  );
-  const idEntries = targets.flatMap((target): (readonly [string, string])[] =>
-    target.id === undefined ? [] : [[target.id, target.path]],
-  );
+  const { aliasEntries, idEntries } = resolverEntriesOf(await knowledge.wikiTargets());
   const candidates = linkedDocs.filter(isDocPath);
   const { docs, skipped } = await snapshotDocs(service, candidates);
 

@@ -23,13 +23,19 @@ export const MarkdownKit = [
   })
     // `parser` is a top-level plugin field the stock plugin installs via a deferred `.extend`,
     // so only another deferred extension overrides it (a plain object merges early and is
-    // clobbered). Merging only `deserialize` keeps the stock format/query trigger. A paste the
-    // conversion refuses answers nothing, and Plate falls through to plain text.
+    // clobbered). Merging only `deserialize` keeps the stock format/query trigger. A refused or
+    // failed conversion answers an empty fragment, which Plate skips for plain text; a throw
+    // would drop the paste, since slate has already prevented the default.
     .extend(() => ({
       parser: {
         deserialize: ({ data, editor }) => {
-          const converted = mdToSlate(editor, data);
-          return converted.ok ? converted.nodes : undefined;
+          try {
+            const converted = mdToSlate(editor, data);
+            return converted.ok ? converted.nodes : [];
+          } catch (error) {
+            console.error("paste: markdown conversion failed", error);
+            return [];
+          }
         },
       },
     })),

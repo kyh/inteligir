@@ -1,4 +1,3 @@
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 import { diff3 } from "@repo/notes/text/diff3";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
@@ -72,17 +71,13 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     throw error;
   };
 
-  const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
+  // an absent file is as gone as a removed one.
+  const remove = async (path: string): Promise<void> => {
     const { error } = await safe(api.vault.remove({ path }));
-    if (error === null) {
-      bases.delete(path);
-      return { outcome: "removed" };
+    if (error !== null && !(isDefinedError(error) && error.code === "NOT_FOUND")) {
+      throw error;
     }
-    if (isDefinedError(error) && error.code === "NOT_FOUND") {
-      bases.delete(path);
-      return { outcome: "absent" };
-    }
-    throw error;
+    bases.delete(path);
   };
 
   return { create, read, remove, write };

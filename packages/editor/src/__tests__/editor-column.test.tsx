@@ -10,7 +10,7 @@ import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-hos
 // a .txt note draws the plain textarea, so the case needs no Plate tree to find the body.
 const showNote = (store: OpenNoteStore, path: string): void => {
   store.publishOpenPath(path);
-  store.publishEditor({ content: "body", dirty: false, path, saveError: null });
+  store.publishEditor({ content: "body", dirty: false, diskSeq: 1, path, saveError: null });
 };
 
 const retitle = (text: string): void => {

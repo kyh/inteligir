@@ -64,36 +64,40 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
   const ext = dot > 0 ? fileName.slice(dot) : "";
   const dir = dirnamePath(path);
 
-  // `toBody` hands the caret on only once the note is where it will stay: typed into the body
-  // while a rename is in flight, a keystroke reaches an editor the session has already let go of.
-  const commitTitle = async (raw: string, toBody: boolean): Promise<void> => {
+  const revertTitle = () => {
+    if (titleRef.current) {
+      titleRef.current.textContent = displayName;
+    }
+  };
+
+  // the path a typed title renames the note to; null keeps it where it is.
+  const renameTarget = (raw: string): string | null => {
     const next = raw.trim();
     if (next === "" || next === displayName) {
-      if (titleRef.current) {
-        titleRef.current.textContent = displayName;
-      }
-      if (toBody) {
-        focusNoteBody(path);
-      }
-      return;
+      return null;
     }
     // Reject, never sanitize: an unchecked `/` creates folders and Windows-illegal characters break sync.
     const verdict = checkNoteName(`${next}${ext}`);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));
-      if (titleRef.current) {
-        titleRef.current.textContent = displayName;
-      }
+      return null;
+    }
+    return joinPath(dir, verdict.name);
+  };
+
+  // `toBody` hands the caret on only once the note is where it will stay: typed into the body
+  // while a rename is in flight, a keystroke reaches an editor the session has already let go of.
+  const commitTitle = async (raw: string, toBody: boolean): Promise<void> => {
+    const dest = renameTarget(raw);
+    if (dest === null) {
+      revertTitle();
       if (toBody) {
         focusNoteBody(path);
       }
       return;
     }
-    const dest = joinPath(dir, verdict.name);
     if (!(await renameEntry(path, dest))) {
-      if (titleRef.current) {
-        titleRef.current.textContent = displayName;
-      }
+      revertTitle();
       return;
     }
     if (toBody) {

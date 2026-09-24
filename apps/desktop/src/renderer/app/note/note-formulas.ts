@@ -5,6 +5,8 @@ import { vaultChangeTouches } from "@repo/editor/host-io";
 import type { EditorHostIo, VaultChangedEvent } from "@repo/editor/host-io";
 import { collectFormulas } from "@repo/notes/formulas/collect-formulas";
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
+import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
+import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 
 export interface NoteFormulaPorts {
@@ -50,14 +52,15 @@ export const createNoteFormulas = ({ listTargets, readFile }: NoteFormulaPorts):
         }
       }
     },
+    // the id tier's own pick, so a byte copy sharing the id answers as it does for a uuid link.
     read: async ({ noteId }) => {
-      const targets = await listTargets();
-      const target = targets.find((row) => row.type === "doc" && row.id === noteId);
-      if (target === undefined) {
+      const { idEntries } = resolverEntriesOf(await listTargets());
+      const path = buildResolver([], [], idEntries).resolveNoteId(noteId);
+      if (path === null) {
         return null;
       }
-      const formulas = await formulasAt(target.path);
-      return formulas === null ? null : { formulas, path: target.path };
+      const formulas = await formulasAt(path);
+      return formulas === null ? null : { formulas, path };
     },
   };
 };

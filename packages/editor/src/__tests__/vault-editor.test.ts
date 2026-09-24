@@ -60,6 +60,33 @@ describe("VaultEditorController", () => {
     });
   });
 
+  it("moves diskSeq only when bytes from the IO replace what the buffer holds", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\n");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    expect(c.getState().diskSeq).toBe(1);
+
+    c.edit("one typed\n");
+    await c.flush();
+    c.externalChange();
+    await tick();
+    expect(c.getState()).toMatchObject({ content: "one typed\n", diskSeq: 1 });
+
+    io.files.set("a.md", "one typed\nexternal\n");
+    c.externalChange();
+    await tick();
+    expect(c.getState()).toMatchObject({ content: "one typed\nexternal\n", diskSeq: 2 });
+
+    io.landAs = (sent) => `${sent}merged\n`;
+    c.edit("one typed\nexternal\nmore\n");
+    await c.flush();
+    expect(c.getState()).toMatchObject({
+      content: "one typed\nexternal\nmore\nmerged\n",
+      diskSeq: 3,
+    });
+  });
+
   it("rebases an edit made mid-write onto the bytes that landed, and keeps it dirty", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "one\ntwo\nthree\n");
@@ -268,7 +295,7 @@ describe("VaultEditorController", () => {
     io.remove = async () => await Promise.reject(new Error("offline"));
     const c = new VaultEditorController(io);
     await c.open("a.md");
-    expect(await c.remove()).toBe(null);
+    expect(await c.remove()).toBe(false);
     expect(c.getState()).toMatchObject({ content: "A", path: "a.md" });
   });
 

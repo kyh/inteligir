@@ -1,5 +1,5 @@
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
-import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import type { StoreApi } from "zustand/vanilla";
 
 // The host as a module singleton rather than context: kit factories and paste handlers run
@@ -59,10 +59,6 @@ export type LinkResolverStore = Pick<
 // A Blob, not base64: the asset route already answers the media type, and re-deriving it from the extension is a second allowlist.
 export type ReadVaultAssetResult = { ok: true; bytes: Blob } | { ok: false; error: string };
 
-export type DeleteVaultEntryResult =
-  | { readonly outcome: "removed" }
-  | { readonly outcome: "absent" };
-
 // `files` moved a listing row (a create, rename, delete or a change the watcher saw), and
 // `paths: null` is one nobody could attribute, so every reader re-checks; `content` rewrote one
 // file in place and moved no row.
@@ -80,7 +76,6 @@ export interface EditorHostIo {
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
   /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */
   writeVaultAsset: (payload: { baseName: string; file: Blob }) => Promise<{ path: string }>;
-  getBacklinks: (payload: { path: string }) => Promise<BacklinkEntry[]>;
   readNoteFormulas: (payload: { noteId: string }) => Promise<{
     path: string;
     formulas: CollectedFormula[];

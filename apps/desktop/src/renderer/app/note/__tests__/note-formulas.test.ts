@@ -13,6 +13,8 @@ const DISK = new Map([
   ["a.md", "---\nid: id-a\n---\n\n{{1|1|id=fa;name=a}}\n"],
   ["b.md", "---\nid: id-b\n---\n\n{{2|2|id=fb;name=b}}\n"],
   ["c.md", "---\nid: id-c\n---\n\n{{3|3|id=fc;name=c}}\n"],
+  ["Projects/Plan.md", "---\nid: id-plan\n---\n\n{{4|4|id=fp;name=plan}}\n"],
+  ["Projects/Plan copy.md", "---\nid: id-plan\n---\n\n{{5|5|id=fp;name=plan}}\n"],
 ]);
 
 const overVault = (listing: readonly WikiTargetWire[] = LISTING) => {
@@ -40,6 +42,19 @@ describe("a formula's foreign note", () => {
     expect(answer?.path).toBe("b.md");
     expect(answer?.formulas.map((formula) => formula.meta.id)).toEqual(["fb"]);
     expect(reads).toEqual(["b.md"]);
+  });
+
+  it("lands where a uuid link does when a byte copy shares the id", async () => {
+    // path order puts the copy first: ' ' sorts before '.'
+    const { formulas, reads } = overVault([
+      { id: "id-plan", path: "Projects/Plan copy.md", title: "Plan copy", type: "doc" },
+      { id: "id-plan", path: "Projects/Plan.md", title: "Plan", type: "doc" },
+    ]);
+
+    const answer = await formulas.read({ noteId: "id-plan" });
+
+    expect(answer?.path).toBe("Projects/Plan.md");
+    expect(reads).toEqual(["Projects/Plan.md"]);
   });
 
   it("answers null for an id no listed doc holds, reading nothing", async () => {
