@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createServerProcess, STOP_GRACE_MS } from "../server-process";
+import { createServerProcess, READY_TIMEOUT_MS, STOP_GRACE_MS } from "../server-process";
 import type { ServerChild, ServerProcess, ServerProcessArgs } from "../server-process";
 
 class FakeChild implements ServerChild {
@@ -137,5 +137,17 @@ describe("createServerProcess", () => {
     child.exit(1);
     await expect(started).rejects.toThrow(/exited before it was ready/u);
     expect(unexpectedExits).toEqual([]);
+  });
+
+  it("stops a child still booting when the readiness wait runs out, and says so", async () => {
+    vi.useFakeTimers();
+    const { child, server } = harness(async () => await Promise.resolve(false));
+    const started = expect(server.start()).rejects.toThrow(/readiness wait ran out/u);
+    await vi.advanceTimersByTimeAsync(READY_TIMEOUT_MS - 1000);
+    expect(child.terms).toBe(0);
+    // past the deadline by more than one poll, since the last may start just short of it
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(child.terms, "the wait must run on the clock it is judged by").toBe(1);
+    await started;
   });
 });

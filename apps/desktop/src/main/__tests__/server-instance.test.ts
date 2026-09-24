@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "inteligir/server/config";
 import { loopbackOrigin, SERVER_FILE_NAME } from "inteligir/server/server-file";
+import type { ServerFile } from "inteligir/server/server-file";
 import { silentOwnerSentence } from "inteligir/server/server-probe";
 import type { AskServerStatus, StatusAnswer } from "inteligir/server/server-probe";
 import { makeTempDir } from "inteligir/server/testing";
@@ -123,13 +124,20 @@ describe("resolveServerTarget", () => {
 const TOKEN = "device-token";
 const VERSION = "0.1.0";
 
+const serverRow = (dataDir: string, port: number, pid: number = process.pid): ServerFile => ({
+  pid,
+  port,
+  token: TOKEN,
+  vaultDir: path.join(dataDir, "vault"),
+});
+
 // this process's own pid by default, so the row's owner is alive and the probe dials it.
 const dataDirWithServer = (port: number | null, pid: number = process.pid): string => {
   const dir = makeTempDir("inteligir-shell-data-");
   if (port !== null) {
     writeFileSync(
       path.join(dir, SERVER_FILE_NAME),
-      JSON.stringify({ pid, port, token: TOKEN, vaultDir: path.join(dir, "vault") }),
+      JSON.stringify(serverRow(dir, port, pid)),
       "utf-8",
     );
   }
@@ -196,7 +204,11 @@ describe("verifyServer", () => {
       VERSION,
       respondingServer(dataDir, { token: "other" }),
     );
-    expect(verdict).toEqual({ kind: "unreachable", origin: loopbackOrigin(4700) });
+    expect(verdict).toEqual({
+      kind: "refused",
+      origin: loopbackOrigin(4700),
+      row: serverRow(dataDir, 4700),
+    });
   });
 
   it("refuses a real server that serves a different vault", async () => {
@@ -240,20 +252,24 @@ describe("verifyServer", () => {
     const dataDir = dataDirWithServer(4700);
     await expect(
       verifyServer(dataDir, VERSION, answeringWith({ body: { hello: "world" }, kind: "answered" })),
-    ).resolves.toEqual({ kind: "unreadable", origin: loopbackOrigin(4700) });
+    ).resolves.toEqual({
+      kind: "unreadable",
+      origin: loopbackOrigin(4700),
+      row: serverRow(dataDir, 4700),
+    });
     await expect(
       verifyServer(dataDir, VERSION, answeringWith({ kind: "silent" })),
     ).resolves.toEqual({
       kind: "silent",
-      pid: process.pid,
-      port: 4700,
+      origin: loopbackOrigin(4700),
+      row: serverRow(dataDir, 4700),
     });
   });
 
   it("fails CLOSED when the data dir names no server", async () => {
     await expect(
       verifyServer(dataDirWithServer(null), VERSION, respondingServer("/x")),
-    ).resolves.toEqual({ kind: "no-server" });
+    ).resolves.toEqual({ kind: "none" });
   });
 
   it("reports a row whose owner has exited as stale, without dialing it", async () => {
@@ -264,17 +280,19 @@ describe("verifyServer", () => {
       dialed = true;
       return await respondingServer(dataDir)(row);
     });
-    expect(verdict).toEqual({ kind: "stale", pid });
+    expect(verdict).toEqual({ kind: "dead-owner", row: serverRow(dataDir, 4700, pid) });
     expect(dialed).toBe(false);
   });
 });
 
+const ROW = serverRow("/data", 4664, 4242);
+
 describe("describeServerVerdict", () => {
-  it.each([
-    [{ kind: "no-server" as const }],
-    [{ kind: "stale" as const, pid: 4242 }],
-    [{ kind: "unreachable" as const, origin: loopbackOrigin(4664) }],
-    [{ kind: "unreadable" as const, origin: loopbackOrigin(4664) }],
+  it.each<ServerVerdict>([
+    { kind: "none" },
+    { kind: "dead-owner", row: ROW },
+    { kind: "refused", origin: loopbackOrigin(4664), row: ROW },
+    { kind: "unreadable", origin: loopbackOrigin(4664), row: ROW },
   ])("says something a human can act on for %o", (verdict) => {
     expect(describeServerVerdict(verdict, "/data").length).toBeGreaterThan(10);
   });
@@ -304,9 +322,9 @@ describe("describeServerVerdict", () => {
   });
 
   it("says what the CLI says about a busy owner", () => {
-    expect(describeServerVerdict({ kind: "silent", pid: 4242, port: 4664 }, "/data")).toBe(
-      silentOwnerSentence("/data", { pid: 4242, port: 4664 }),
-    );
+    expect(
+      describeServerVerdict({ kind: "silent", origin: loopbackOrigin(4664), row: ROW }, "/data"),
+    ).toBe(silentOwnerSentence("/data", { pid: 4242, port: 4664 }));
   });
 });
 
@@ -318,7 +336,7 @@ describe("planServerStart", () => {
   });
 
   it.each<ServerVerdict>([
-    { kind: "silent", pid: 4242, port: 4664 },
+    { kind: "silent", origin: loopbackOrigin(4664), row: ROW },
     {
       expected: VERSION,
       kind: "incompatible",
@@ -333,10 +351,10 @@ describe("planServerStart", () => {
   });
 
   it.each<ServerVerdict>([
-    { kind: "no-server" },
-    { kind: "stale", pid: 4242 },
-    { kind: "unreachable", origin: loopbackOrigin(4664) },
-    { kind: "unreadable", origin: loopbackOrigin(4664) },
+    { kind: "none" },
+    { kind: "dead-owner", row: ROW },
+    { kind: "refused", origin: loopbackOrigin(4664), row: ROW },
+    { kind: "unreadable", origin: loopbackOrigin(4664), row: ROW },
     { claimed: "/elsewhere", kind: "wrong-data-dir", origin: loopbackOrigin(4664) },
   ])("spawns its own when nothing holds the data dir: %o", (verdict) => {
     expect(planServerStart(verdict, "/data")).toEqual({ kind: "spawn" });

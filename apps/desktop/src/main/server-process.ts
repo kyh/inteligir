@@ -2,7 +2,6 @@
 // compositor's event loop. no restart: a restarted child mints a fresh token, and
 // rebinding the protocol handler to it means re-registering the scheme, which throws.
 
-import { setTimeout as delay } from "node:timers/promises";
 import type { ForkOptions } from "electron";
 import { SHUTDOWN_TIMEOUT_MS } from "inteligir/server/shutdown";
 
@@ -10,7 +9,7 @@ const STOP_GRACE_HEADROOM_MS = 5000;
 
 export const STOP_GRACE_MS = SHUTDOWN_TIMEOUT_MS + STOP_GRACE_HEADROOM_MS;
 
-const READY_TIMEOUT_MS = 45_000;
+export const READY_TIMEOUT_MS = 45_000;
 // a warm boot answers in under 200ms; a fixed 250ms grid would be coarser than the whole boot.
 const READY_POLL_MIN_MS = 25;
 const READY_POLL_MAX_MS = 250;
@@ -50,6 +49,14 @@ interface RunningChild {
 const GRACE_ELAPSED = "grace-elapsed";
 
 // the global timer, not node:timers/promises: a test's fake clock reaches only the global one.
+const sleep = async (ms: number): Promise<void> => {
+  const elapsed = Promise.withResolvers<null>();
+  setTimeout(() => {
+    elapsed.resolve(null);
+  }, ms);
+  await elapsed.promise;
+};
+
 const exitsWithin = async (exited: Promise<number>, graceMs: number): Promise<boolean> => {
   const grace = Promise.withResolvers<typeof GRACE_ELAPSED>();
   const timer = setTimeout(() => {
@@ -117,7 +124,7 @@ export const createServerProcess = (args: ServerProcessArgs): ServerProcess => {
           becameReady = true;
           return;
         }
-        await delay(interval);
+        await sleep(interval);
         interval = Math.min(interval * 2, READY_POLL_MAX_MS);
       }
       child.kill();

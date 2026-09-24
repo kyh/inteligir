@@ -535,10 +535,12 @@ to the END of its group.
   other lives in `<root>/vaults/<sha256(path)[:16]>/`, derived once in
   `config.ts`, and the root's `config.json` is the selector the shell and
   `inteligir serve` both read. A folder is ONE vault however it is spelled: a
-  selection stores its physical spelling (`physicalVaultDir`), except that it
-  keeps a spelling whose data dir already exists (`resolveVaultCandidate`), so
-  a symlinked spelling never mints a signed-out twin; the hash stays over the
-  stored spelling, since re-deriving it would move every selector written.
+  selection stores its physical spelling (`physicalVaultDir`, the native
+  realpath) unless the given spelling alone already keys a data dir
+  (`resolveVaultCandidate`), and "already open" and "is the default" compare
+  physically, so a symlinked spelling never mints a signed-out twin; the hash
+  stays over the stored spelling, since re-deriving it would move every
+  selector written.
   Cost accepted: the credential, the connectors and the agent default live in
   the data dir, so a second vault starts signed out, which also keeps it off
   the account's hosted remote. The shell switches only a child it started, puts
