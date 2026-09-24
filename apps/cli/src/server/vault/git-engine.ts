@@ -8,7 +8,12 @@ import type {
 } from "@repo/api/local/vault/vault-schema";
 import type { VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
 import { ACCOUNT_MARKER_KEY } from "./git-bootstrap";
-import { readDeletedNotes, readNoteHistory, readNoteRevision } from "./git-history";
+import {
+  cachedDeletionLog,
+  readDeletedNotes,
+  readNoteHistory,
+  readNoteRevision,
+} from "./git-history";
 import type { NoteHistoryPage } from "./git-history";
 import { entryPaths, isUnmerged, readPorcelain } from "./git-porcelain";
 import type { PorcelainEntry } from "./git-porcelain";
@@ -142,6 +147,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
   const run = async (gitArgs: readonly string[], options: RunGitOptions = {}) =>
     await runGit(root, gitArgs, { ...options, env: { ...extraEnv, ...options.env } });
+
+  const deletionLog = cachedDeletionLog(run);
 
   const runNetwork = async (gitArgs: readonly string[], env?: Record<string, string>) => {
     const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
@@ -628,7 +635,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return await withRepoLock(async () => await commitPathsIfDirty(paths, author, subject));
     },
     async deleted() {
-      return await readDeletedNotes(run, (notePath) => existsSync(path.join(root, notePath)));
+      return await readDeletedNotes(run, deletionLog, (notePath) =>
+        existsSync(path.join(root, notePath)),
+      );
     },
     async dispose() {
       disposed = true;

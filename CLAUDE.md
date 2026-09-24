@@ -610,8 +610,12 @@ to the END of its group.
   `apps/cli/src/commands/vault.ts`. A deleted note comes back the same way: the
   deleted-notes list is the git log's deletions plus the worktree's uncommitted
   ones (a just-deleted note is not in the log for up to 60s), and restore is a
-  `revision` read plus an `ifAbsent` write. There is no trash folder and no
-  purge.
+  `revision` read plus an `ifAbsent` write. The log half is walked once per
+  HEAD, and overlapping reads share the walk (`cachedDeletionLog`): the
+  Deleted view re-reads on every `files-changed` frame, and the walk grows with
+  the vault's age. The renderer still re-reads on that frame, since the
+  unflushed half and the disk change with no commit. There is no trash folder
+  and no purge.
 
 - **THE AUTO-COMMIT IS SESSION-SHAPED (15s quiet / 60s max)** so the log is
   answerable: a single-file commit names its file and a fifteen-second pause
