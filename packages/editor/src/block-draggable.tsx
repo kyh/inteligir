@@ -20,6 +20,7 @@ import { PathApi } from "platejs";
 import type { Descendant } from "platejs";
 import { createPlatePlugin, useEditorRef, useEditorSelector } from "platejs/react";
 import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
+import { shallow } from "zustand/shallow";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -31,11 +32,6 @@ const sortableIds = (children: readonly Descendant[]): string[] =>
     const id = blockId(node);
     return id === undefined ? [] : [id];
   });
-
-// A fresh array every change; compared by value, the sortable context moves only when a block
-// joins, leaves or moves.
-const sameIds = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((id, index) => id === b[index]);
 
 const indexOfBlock = (children: readonly Descendant[], id: UniqueIdentifier): number =>
   children.findIndex((node) => blockId(node) === id);
@@ -50,8 +46,10 @@ const DragProvider = ({ children }: { children: React.ReactNode }) => {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+  // A fresh array every change; compared by value, the sortable context moves only when a block
+  // joins, leaves or moves.
   const items = useEditorSelector(() => sortableIds(editor.children), [], {
-    equalityFn: sameIds,
+    equalityFn: shallow,
   });
 
   const onDragEnd = (event: DragEndEvent) => {

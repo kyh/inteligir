@@ -16,9 +16,8 @@ import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react"
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { isPdfUrl } from "@repo/editor/lib/wire";
 
-import { MediaEmbedElement } from "@repo/editor/nodes/embed-node";
 import { FileElement } from "@repo/editor/nodes/pdf-node";
-import { VideoElement } from "@repo/editor/nodes/youtube-node";
+import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";
 
 export const EmbedBaseKit = [BaseVideoPlugin, BaseMediaEmbedPlugin, BaseFilePlugin];
 
@@ -125,8 +124,8 @@ const AutoEmbedPlugin = createPlatePlugin({ key: "embedAutoPill" })
   }));
 
 export const EmbedKit = [
-  VideoPlugin.withComponent(VideoElement),
-  MediaEmbedPlugin.withComponent(MediaEmbedElement),
+  VideoPlugin.withComponent(remoteMediaElement("video")),
+  MediaEmbedPlugin.withComponent(remoteMediaElement("page")),
   FilePlugin.withComponent(FileElement),
   AutoEmbedPlugin,
 ];

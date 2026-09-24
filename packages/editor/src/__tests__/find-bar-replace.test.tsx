@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { act, createRef } from "react";
 import type { Path, TRange, Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
@@ -141,6 +141,60 @@ describe("replace in the find bar", () => {
       replaceActiveMatch(editor);
     });
     expect(editor.api.string([0])).toBe("aa aa");
+  });
+});
+
+// is-hotkey reads `mod` as Ctrl wherever navigator.platform names no Mac, which jsdom's does not
+const REPLACE_ALL_CHORD = { ctrlKey: true, key: "Enter", keyCode: 13 };
+
+const openReplace = (): PlateEditor => {
+  const editor = mountEditor();
+  act(() => {
+    openFindBar(editor, { replace: true });
+    setFindQuery(editor, "alpha");
+    setReplaceText(editor, "omega");
+  });
+  return editor;
+};
+
+describe("the find bar's keyboard", () => {
+  it("replaces every match on the replace-all chord in the replace field", () => {
+    const editor = openReplace();
+    act(() => {
+      fireEvent.keyDown(screen.getByLabelText("Replace with"), REPLACE_ALL_CHORD);
+    });
+    expect(editor.api.string([0])).toBe("omega beta omega gamma");
+    expect(editor.api.string([1])).toBe("omega again");
+  });
+
+  it("replaces only the active match on a plain Enter in the replace field", () => {
+    const editor = openReplace();
+    act(() => {
+      fireEvent.keyDown(screen.getByLabelText("Replace with"), { key: "Enter", keyCode: 13 });
+    });
+    expect(editor.api.string([0])).toBe("omega beta ALPHA gamma");
+    expect(editor.api.string([1])).toBe("alpha again");
+  });
+
+  it("leaves the note alone on an Enter that commits an IME candidate", () => {
+    const editor = openReplace();
+    act(() => {
+      fireEvent.keyDown(screen.getByLabelText("Replace with"), {
+        isComposing: true,
+        key: "Enter",
+        keyCode: 13,
+      });
+    });
+    expect(editor.api.string([0])).toBe("alpha beta ALPHA gamma");
+    expect(editor.api.string([1])).toBe("alpha again");
+  });
+
+  it("closes the bar on Escape in the find field", () => {
+    const editor = openReplace();
+    act(() => {
+      fireEvent.keyDown(screen.getByLabelText("Find in note"), { key: "Escape" });
+    });
+    expect(getFindBarState(editor).open).toBe(false);
   });
 });
 

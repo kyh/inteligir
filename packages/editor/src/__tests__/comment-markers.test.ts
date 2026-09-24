@@ -9,7 +9,7 @@ import { serializeMd } from "@platejs/markdown";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { insertCommentMarkers, removeCommentMarkers } from "@repo/editor/comments/comment-markers";
-import { commentSpans, holdsCommentMarkers } from "@repo/editor/comments/comment-ranges";
+import { blockHoldsCommentMarkers, commentSpans } from "@repo/editor/comments/comment-ranges";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
 const editorWith = (md: string) => {
@@ -55,9 +55,9 @@ describe("comment markers", () => {
 
 const spansOf = (md: string) => {
   const editor = editorWith(md);
-  const spans = commentSpans(editor).map(({ extent, holder, ids, orphan }) => ({
+  const spans = commentSpans(editor).map(({ block, extent, ids, orphan }) => ({
+    block: editor.children.indexOf(block),
     extent: extent === null ? null : editor.api.string(extent),
-    holder: editor.children.indexOf(holder),
     ids,
     orphan,
   }));
@@ -67,44 +67,44 @@ const spansOf = (md: string) => {
 describe("comment range pairing", () => {
   it("pairs a range and reads its ids", () => {
     const { editor, spans } = spansOf("x %%i:c1:start%%mid%%i:c1:end%% y\n");
-    expect(spans).toEqual([{ extent: "mid", holder: 0, ids: ["c1"], orphan: false }]);
+    expect(spans).toEqual([{ block: 0, extent: "mid", ids: ["c1"], orphan: false }]);
     const [block] = editor.children;
-    expect(block !== undefined && holdsCommentMarkers(block)).toBe(true);
+    expect(block !== undefined && blockHoldsCommentMarkers(block)).toBe(true);
   });
 
   it("pairs a multi-root marker once", () => {
     const { spans } = spansOf("x %%i:a,b:start%%mid%%i:a,b:end%% y\n");
-    expect(spans).toEqual([{ extent: "mid", holder: 0, ids: ["a", "b"], orphan: false }]);
+    expect(spans).toEqual([{ block: 0, extent: "mid", ids: ["a", "b"], orphan: false }]);
   });
 
   it("surfaces a lone edge as an orphan over the block holding it", () => {
     const { spans } = spansOf("x %%i:c1:start%%never closed\n");
-    expect(spans).toEqual([{ extent: "x never closed", holder: 0, ids: ["c1"], orphan: true }]);
+    expect(spans).toEqual([{ block: 0, extent: "x never closed", ids: ["c1"], orphan: true }]);
   });
 
   it("pairs a range across two paragraphs and holds it at the block it starts in", () => {
     const { spans } = spansOf("first %%i:y:start%%para\n\nsecond para%%i:y:end%% tail\n");
-    expect(spans).toEqual([{ extent: "parasecond para", holder: 0, ids: ["y"], orphan: false }]);
+    expect(spans).toEqual([{ block: 0, extent: "parasecond para", ids: ["y"], orphan: false }]);
   });
 
   it("pairs markers on their own lines around a fence, the dialect's block comment", () => {
     const { spans } = spansOf("%%i:x:start%%\n```js\ncode\n```\n%%i:x:end%%\n");
-    expect(spans).toEqual([{ extent: "code", holder: 0, ids: ["x"], orphan: false }]);
+    expect(spans).toEqual([{ block: 0, extent: "code", ids: ["x"], orphan: false }]);
   });
 
   it("orphans a start that a second start with the same ids replaced", () => {
     const { spans } = spansOf("%%i:c1:start%%a\n\n%%i:c1:start%%b%%i:c1:end%%\n");
     expect(spans).toEqual([
-      { extent: "a", holder: 0, ids: ["c1"], orphan: true },
-      { extent: "b", holder: 1, ids: ["c1"], orphan: false },
+      { block: 0, extent: "a", ids: ["c1"], orphan: true },
+      { block: 1, extent: "b", ids: ["c1"], orphan: false },
     ]);
   });
 
   it("orphans an end with no start before it, even when a start follows", () => {
     const { spans } = spansOf("a%%i:c1:end%%\n\n%%i:c1:start%%b\n");
     expect(spans).toEqual([
-      { extent: "a", holder: 0, ids: ["c1"], orphan: true },
-      { extent: "b", holder: 1, ids: ["c1"], orphan: true },
+      { block: 0, extent: "a", ids: ["c1"], orphan: true },
+      { block: 1, extent: "b", ids: ["c1"], orphan: true },
     ]);
   });
 

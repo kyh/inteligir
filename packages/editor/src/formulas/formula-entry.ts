@@ -1,7 +1,8 @@
 // Entry forms: `=2+2` / `2+2` anonymous executable; `sum=2+2` named executable
 // (fresh id); `time=9am` symbolic (the name is the source, the value the display, fresh id).
 
-import type { TElement } from "platejs";
+import { ElementApi } from "platejs";
+import type { TElement, TNode } from "platejs";
 
 import { parseExpression, evaluateExpression } from "@repo/notes/formulas/expression";
 import { formatResult } from "@repo/notes/formulas/format-result";
@@ -19,6 +20,9 @@ export interface FormulaNodeProps {
   meta: string;
   raw: string;
 }
+
+export const isFormulaPill = (node: TNode): node is TElement =>
+  ElementApi.isElement(node) && node.type === FORMULA_PILL_KEY;
 
 export const mintFormulaId = (): string => crypto.randomUUID();
 

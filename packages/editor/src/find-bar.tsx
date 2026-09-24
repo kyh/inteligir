@@ -37,7 +37,7 @@ export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replac
 const REPLACE_ALL_SHORTCUT: EditorShortcut<FindBarShortcutAction> = {
   action: "replace-all",
   hotkey: "mod+enter",
-  label: "Replace all in the note",
+  label: "Replace all (from the replace field)",
 };
 
 // ⌘F itself is the shell's row: global-shortcuts.ts opens the bar from the window listener
@@ -145,11 +145,8 @@ const searchMatches = (editor: SlateEditor, search: FindSearch): TRange[] => {
   return matches;
 };
 
-export const collectFindMatches = (
-  editor: SlateEditor,
-  query: string,
-  options: TextMatchOptions = FIELD_MATCHING,
-): TRange[] => searchMatches(editor, { options, query });
+export const collectFindMatches = (editor: SlateEditor, query: string): TRange[] =>
+  searchMatches(editor, { options: FIELD_MATCHING, query });
 
 const activeIndexIn = (matches: readonly TRange[], active: TRange | null): number =>
   active === null ? -1 : matches.findIndex((match) => RangeApi.equals(match, active));

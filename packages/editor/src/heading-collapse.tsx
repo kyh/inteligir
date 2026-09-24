@@ -12,6 +12,7 @@ import { createPlatePlugin, useEditorSelector } from "platejs/react";
 import type { RenderNodeWrapper } from "platejs/react";
 import { ChevronDownIcon } from "lucide-react";
 import { z } from "zod";
+import { shallow } from "zustand/shallow";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
@@ -160,30 +161,6 @@ const derive = (
   return { folded, hidden, keys, path };
 };
 
-const sameIds = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean => {
-  if (a.size !== b.size) {
-    return false;
-  }
-  for (const id of a) {
-    if (!b.has(id)) {
-      return false;
-    }
-  }
-  return true;
-};
-
-const sameKeys = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean => {
-  if (a.size !== b.size) {
-    return false;
-  }
-  for (const [id, key] of a) {
-    if (b.get(id) !== key) {
-      return false;
-    }
-  }
-  return true;
-};
-
 // Every change re-derives, so this is what keeps typing in a paragraph from re-rendering every
 // block: the context moves only when a fold's reach or a heading's key does.
 const sameDerived = (a: Derived | null, b: Derived | null): boolean => {
@@ -193,8 +170,8 @@ const sameDerived = (a: Derived | null, b: Derived | null): boolean => {
   return (
     a.path === b.path &&
     a.folded === b.folded &&
-    sameIds(a.hidden, b.hidden) &&
-    sameKeys(a.keys, b.keys)
+    shallow(a.hidden, b.hidden) &&
+    shallow(a.keys, b.keys)
   );
 };
 

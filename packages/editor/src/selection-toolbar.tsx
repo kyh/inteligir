@@ -77,7 +77,6 @@ const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
         variant="ghost"
         size="compact"
         leadingIcon={SparklesIcon}
-        onMouseDown={keepSelection}
         onClick={() => {
           const { selection } = editor;
           const text = selection ? editor.api.string(selection) : "";
@@ -124,10 +123,7 @@ const IconButton = ({
 // must be a real Menu.Trigger: a detached controlled menu anchored to a plain button closes
 // with reason `trigger-hover` as the pointer moves into the popup, so mouse clicks on items die.
 const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
-  <DropdownMenuTrigger
-    onMouseDown={keepSelection}
-    className="flex h-7 items-center gap-1 rounded-md px-2 text-body font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
-  >
+  <DropdownMenuTrigger className="flex h-7 items-center gap-1 rounded-md px-2 text-body font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5">
     {children}
     <ChevronDownIcon className="!size-3 text-muted-foreground/70" />
   </DropdownMenuTrigger>
@@ -194,7 +190,6 @@ const LinkInput = ({
       <Button
         variant="ghost"
         size="compact"
-        onMouseDown={keepSelection}
         onClick={() => {
           onSubmit(url.trim());
         }}
@@ -345,7 +340,6 @@ export const SelectionToolbar = () => {
                 remember();
                 setLinkMode(true);
               }}
-              onMouseDown={keepSelection}
               title="Link"
             >
               <Link2Icon />
@@ -357,7 +351,6 @@ export const SelectionToolbar = () => {
               onClick={() => {
                 void extractBlocksToNote(editor, selectedTopLevelPaths(editor));
               }}
-              onMouseDown={keepSelection}
               title="Extract to new note"
             >
               <FileOutputIcon />

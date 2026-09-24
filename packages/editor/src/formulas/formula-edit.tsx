@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { NodeApi } from "platejs";
 import type { NodeEntry, SlateEditor, TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
 
@@ -7,8 +6,11 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
-import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
-import { entryTextOf, formulaPropsFromEntry } from "@repo/editor/formulas/formula-entry";
+import {
+  entryTextOf,
+  formulaPropsFromEntry,
+  isFormulaPill,
+} from "@repo/editor/formulas/formula-entry";
 import type { FormulaNodeProps } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -16,7 +18,7 @@ const formulaEntriesById = (editor: SlateEditor, id: string): NodeEntry<TElement
   const out: NodeEntry<TElement>[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === FORMULA_PILL_KEY,
+    match: isFormulaPill,
   })) {
     const meta = parseFormulaMeta(stringProp(entry[0], "meta"));
     if (meta.id === id) {

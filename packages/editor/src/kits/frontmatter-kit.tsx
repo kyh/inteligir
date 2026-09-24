@@ -1,16 +1,12 @@
 // Pinned to [0]: mdast-util-frontmatter emits the `---` fence wherever the node sits, and a
 // mid-document fence re-parses as a thematic break.
 
-import { ElementApi, createSlatePlugin } from "platejs";
-import type { TNode } from "platejs";
+import { createSlatePlugin } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { FRONTMATTER_KEY } from "@repo/editor/dialect-node-keys";
-
-// the note's properties, edited through the properties panel: never a block a gesture takes.
-export const isFrontmatterElement = (node: TNode | undefined): boolean =>
-  ElementApi.isElement(node) && node.type === FRONTMATTER_KEY;
+import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
 
 const FrontmatterBasePlugin = createSlatePlugin({
   key: FRONTMATTER_KEY,

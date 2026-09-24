@@ -10,7 +10,7 @@ import { KEYS, getPluginTypes } from "platejs";
 import { BlockContextMenu } from "@repo/editor/block-context-menu";
 import { BlockSelection } from "@repo/editor/block-selection";
 import { CursorOverlay } from "@repo/editor/cursor-overlay";
-import { isFrontmatterElement } from "@repo/editor/kits/frontmatter-kit";
+import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
 
 export const BlockMenuKit = [
   BlockSelectionPlugin.configure(({ editor }) => ({

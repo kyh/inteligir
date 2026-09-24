@@ -4,7 +4,6 @@
 // Only a bound expression that cannot resolve marks stale and keeps its last
 // display; a plain expression that cannot evaluate is left alone.
 
-import { NodeApi } from "platejs";
 import type { NodeEntry, SlateEditor, TElement } from "platejs";
 
 import {
@@ -17,10 +16,9 @@ import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import { loadFormulaGraph, resolveExpression } from "@repo/notes/formulas/resolve-graph";
 import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { noteIdOfProperties, parseProperties } from "@repo/notes/markdown/frontmatter";
-import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
-import { rebuildRaw } from "@repo/editor/formulas/formula-entry";
+import { isFormulaPill, rebuildRaw } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
 import { readFrontmatterRaw } from "@repo/editor/properties/properties-node";
 
@@ -35,7 +33,7 @@ const formulaEntries = (editor: SlateEditor): FormulaEntryInDoc[] => {
   const out: FormulaEntryInDoc[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === FORMULA_PILL_KEY,
+    match: isFormulaPill,
   })) {
     const [node] = entry;
     const source = stringProp(node, "source") ?? "";

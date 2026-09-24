@@ -15,11 +15,12 @@ import { checkNoteName } from "@repo/notes/knowledge/note-name";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-import { COMMENT_MARKER_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { isCommentMarker } from "@repo/editor/comments/comment-ranges";
+import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { isFrontmatterElement } from "@repo/editor/kits/frontmatter-kit";
 import { getLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
 import { MD_STRINGIFY } from "@repo/editor/markdown/markdown-doc";
+import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
 
 const HEADING_TYPES = new Set<string>([KEYS.h1, KEYS.h2, KEYS.h3, KEYS.h4, KEYS.h5, KEYS.h6]);
 const NAME_MAX_CHARS = 80;
@@ -64,7 +65,7 @@ export const extractBlocksMarkdown = (editor: SlateEditor, paths: readonly Path[
 // a marker's thread lives in the comment store keyed by this note's id, so the marker would
 // leave for a note whose store never heard of it
 const carriesCommentMarker = (block: TElement): boolean =>
-  [...NodeApi.elements(block)].some(([element]) => element.type === COMMENT_MARKER_KEY);
+  [...NodeApi.elements(block)].some(([element]) => isCommentMarker(element));
 
 const linkParagraph = (editor: SlateEditor, body: string): TElement => ({
   children: [{ text: "" }, { body, children: [{ text: "" }], type: WIKI_LINK_KEY }, { text: "" }],
