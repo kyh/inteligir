@@ -16,7 +16,13 @@ describe("probeServerFile", () => {
 
   it("calls a row whose pid has exited dead, without dialing its port", async () => {
     const dataDir = makeTempDir("inteligir-probe-dead-");
-    const row = { pid: exitedPid(), port: 4664, token: "t", vaultDir: `${dataDir}/vault` };
+    const row = {
+      pid: exitedPid(),
+      port: 4664,
+      token: "t",
+      vaultDir: `${dataDir}/vault`,
+      version: "0.1.0-test",
+    };
     writeServerFile(dataDir, row);
     let dialed = false;
     const probe = await probeServerFile(dataDir, async () => {
@@ -36,6 +42,7 @@ describe("probeServerFile", () => {
       port,
       token: TEST_SERVER_TOKEN,
       vaultDir: booted.vaultDir,
+      version: "0.1.0-test",
     });
     await expect(probeServerFile(booted.dataDir)).resolves.toMatchObject({
       identity: { dataDir: booted.dataDir, version: "0.1.0-test" },
@@ -52,13 +59,20 @@ describe("probeServerFile", () => {
       port,
       token: "not-this-boot",
       vaultDir: booted.vaultDir,
+      version: "0.1.0-test",
     });
     await expect(probeServerFile(booted.dataDir)).resolves.toMatchObject({ kind: "refused" });
   });
 
   it("tells a 200 that names no server from one that does", async () => {
     const dataDir = makeTempDir("inteligir-probe-unreadable-");
-    writeServerFile(dataDir, { pid: process.pid, port: 4664, token: "t", vaultDir: "/v" });
+    writeServerFile(dataDir, {
+      pid: process.pid,
+      port: 4664,
+      token: "t",
+      vaultDir: "/v",
+      version: "0.1.0-test",
+    });
     const probe = await probeServerFile(dataDir, async () => {
       await Promise.resolve();
       return { body: { hello: "world" }, kind: "answered" as const };

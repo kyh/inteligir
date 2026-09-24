@@ -57,6 +57,7 @@ describe("CliExitError", () => {
     expect(new CliExitError("x", { code: "INVALID_USAGE" }).exitCode).toBe(1);
     expect(new CliExitError("x", { code: "WAIT_TIMEOUT" }).exitCode).toBe(2);
     expect(new CliExitError("x", { code: "SERVER_UNREACHABLE" }).exitCode).toBe(3);
+    expect(new CliExitError("x", { code: "SERVER_VERSION_MISMATCH" }).exitCode).toBe(3);
     expect(new CliExitError("x", { code: "AWAITING_INTERACTION" }).exitCode).toBe(4);
     expect(new CliExitError("x", { code: "INTERRUPTED" }).exitCode).toBe(130);
   });

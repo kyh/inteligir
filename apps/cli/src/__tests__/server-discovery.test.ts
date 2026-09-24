@@ -7,6 +7,7 @@ import type { ServerFile } from "../server/server-file";
 import { describe, expect, it } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
 import { resolveDataDir, resolveServer } from "../server-discovery";
+import type { ResolvedServer } from "../server-discovery";
 import { makeTempDir } from "../server/__tests__/temp-dir";
 
 const scratch = (): string => makeTempDir("inteligir-cli-discovery-");
@@ -63,6 +64,16 @@ describe("resolveDataDir", () => {
 });
 
 describe("resolveServer", () => {
+  const CLI_VERSION = "0.5.0";
+
+  const resolveIn = (homeDir: string, dataDir: string): ResolvedServer =>
+    resolveServer({
+      checkoutPath: CHECKOUT,
+      cliVersion: CLI_VERSION,
+      env: { [DATA_DIR_ENV_VAR]: dataDir },
+      homeDir,
+    });
+
   it("dials the BOUND port the row names and carries its token", () => {
     const homeDir = scratch();
     const dataDir = path.join(homeDir, "data");
@@ -71,14 +82,9 @@ describe("resolveServer", () => {
       port: 24_911,
       token: "abc",
       vaultDir: path.join(homeDir, "vault"),
+      version: CLI_VERSION,
     });
-    expect(
-      resolveServer({
-        checkoutPath: CHECKOUT,
-        env: { [DATA_DIR_ENV_VAR]: dataDir },
-        homeDir,
-      }),
-    ).toEqual({
+    expect(resolveIn(homeDir, dataDir)).toEqual({
       baseUrl: "http://127.0.0.1:24911",
       dataDir,
       token: "abc",
@@ -91,11 +97,7 @@ describe("resolveServer", () => {
     const dataDir = path.join(homeDir, "data");
     mkdirSync(dataDir, { recursive: true });
     const failure = captureExit(() => {
-      resolveServer({
-        checkoutPath: CHECKOUT,
-        env: { [DATA_DIR_ENV_VAR]: dataDir },
-        homeDir,
-      });
+      resolveIn(homeDir, dataDir);
     });
     expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
     expect(failure.code).toBe("SERVER_UNREACHABLE");
@@ -110,12 +112,47 @@ describe("resolveServer", () => {
     const homeDir = scratch();
     const dataDir = path.join(homeDir, "data");
     writeServerRow(dataDir, { port: 24_911 });
-    expect(() =>
-      resolveServer({
-        checkoutPath: CHECKOUT,
-        env: { [DATA_DIR_ENV_VAR]: dataDir },
-        homeDir,
-      }),
-    ).toThrow(/No inteligir server is running/u);
+    expect(() => resolveIn(homeDir, dataDir)).toThrow(/No inteligir server is running/u);
+  });
+
+  it("refuses a server of another release before dialing, naming both and the matching CLI", () => {
+    const homeDir = scratch();
+    const dataDir = path.join(homeDir, "data");
+    writeServerRow(dataDir, {
+      pid: 42,
+      port: 24_911,
+      token: "abc",
+      vaultDir: path.join(homeDir, "vault"),
+      version: "0.6.1",
+    });
+    const failure = captureExit(() => {
+      resolveIn(homeDir, dataDir);
+    });
+    expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
+    expect(failure.code).toBe("SERVER_VERSION_MISMATCH");
+    expect(failure.message).toContain("0.6.1");
+    expect(failure.message).toContain(CLI_VERSION);
+    expect(failure.message).toContain("npm i -g inteligir@0.6.1");
+    expect(failure.message).toContain("update the app");
+  });
+
+  // an older server's row parses without the field: reading it as "no server" would send the
+  // user to start one while one is running.
+  it("refuses a server that publishes no version as older than this CLI, not as no server", () => {
+    const homeDir = scratch();
+    const dataDir = path.join(homeDir, "data");
+    writeServerRow(dataDir, {
+      pid: 42,
+      port: 24_911,
+      token: "abc",
+      vaultDir: path.join(homeDir, "vault"),
+    });
+    const failure = captureExit(() => {
+      resolveIn(homeDir, dataDir);
+    });
+    expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
+    expect(failure.code).toBe("SERVER_VERSION_MISMATCH");
+    expect(failure.message).toContain(`older than this CLI (${CLI_VERSION})`);
+    expect(failure.message).not.toContain("No inteligir server is running");
   });
 });

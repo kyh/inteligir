@@ -6,6 +6,7 @@ import { DATA_DIR_ENV_VAR, PROD_DATA_DIR_NAME, runtimeModeOf } from "./server/co
 import { resolveCheckoutRoot } from "./server/dev-instance";
 import { createLocalClient } from "./server/local-client";
 import type { LocalClientArgs } from "./server/local-client";
+import { readCliVersion } from "./paths";
 import { resolveServer } from "./server-discovery";
 import type { ResolvedServer } from "./server-discovery";
 
@@ -26,7 +27,11 @@ export const createCliDeps = (env: NodeJS.ProcessEnv = process.env): CliDeps => 
   return {
     env,
     resolveServer() {
-      cached ??= resolveServer({ checkoutPath: resolveCheckoutRoot(), env });
+      cached ??= resolveServer({
+        checkoutPath: resolveCheckoutRoot(),
+        cliVersion: readCliVersion(),
+        env,
+      });
       return cached;
     },
   };

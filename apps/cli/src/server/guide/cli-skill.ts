@@ -45,6 +45,8 @@ spaces (\`inteligir search "two words"\`).
   instance, or the installed one under \`NODE_ENV=production\`.
 - No readable \`server.json\` means no server: the CLI exits 3 rather than
   dialing anything.
+- A server of another release is refused the same way: the CLI and the server
+  must be one version, so the message names both and the install that matches.
 - \`inteligir status\` prints which server it reached and which vault that
   server is about to write into.
 - \`INTELIGIR_THREAD_ID\` — set inside agent shells to the thread you are
@@ -321,6 +323,8 @@ the CLI's own, each with the exit code it carries:
 - \`WAIT_TIMEOUT\` (2) — \`action wait\` ran out of time.
 - \`SERVER_UNREACHABLE\` (3) — no \`server.json\`, or nothing answered at the
   port it names.
+- \`SERVER_VERSION_MISMATCH\` (3) — the server that \`server.json\` names is
+  another release than this CLI. Nothing was sent.
 - \`AWAITING_INTERACTION\` (4) — \`action wait --until-input\` met an approval.
 - \`INTERRUPTED\` (130) — the password prompt was left with ^C or ^D. A ^C
   anywhere else also exits 130, with no failure line at all.

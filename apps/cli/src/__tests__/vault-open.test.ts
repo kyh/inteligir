@@ -97,6 +97,7 @@ describe("inteligir vault open", () => {
       port: 4664,
       token: "t",
       vaultDir: defaultVaultDir,
+      version: "0.1.0-test",
     });
     const work = newVault(homeDir, "Work");
     const result = await open(homeDir, work);
