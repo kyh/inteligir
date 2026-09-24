@@ -43,12 +43,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@repo/domain": "workspace:*",
     "@repo/notes": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@orpc/server": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

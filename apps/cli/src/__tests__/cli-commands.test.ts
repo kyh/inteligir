@@ -349,6 +349,77 @@ describe("vault commands", () => {
     });
     expect(again.stdout).toContain("Nothing has been deleted.");
   });
+
+  it("restores a note still there over a checkpoint, and refuses one that moved after the read", async () => {
+    const state = seededState();
+    const server = await boot(state);
+
+    const restore = await runCliForTest({
+      argv: ["vault", "restore", "notes/hello.md", FIXTURE_REVISION_SHA, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(restore.code).toBe(0);
+    expect(JSON.parse(restore.stdout)).toEqual({ comments: "none", path: "notes/hello.md" });
+    expect(state.vault.get("notes/hello.md")).toBe("# Hello\n");
+    expect(state.vaultLog).toEqual(["commitNow", "write notes/hello.md"]);
+
+    state.concurrentWrite = { content: "# Concurrent\n", path: "notes/hello.md" };
+    const stale = await runCliForTest({
+      argv: ["vault", "restore", "notes/hello.md", FIXTURE_REVISION_SHA, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(stale.code).toBe(1);
+    expect(stale.stdout).toBe("");
+    expect(JSON.parse(stale.stderr)).toEqual({
+      error: "CAS_MISMATCH",
+      message: "notes/hello.md changed since the base this write was derived from",
+    });
+    expect(state.vault.get("notes/hello.md")).toBe("# Concurrent\n");
+  });
+
+  it("brings a deleted note's comments back with it, and fails naming them when they cannot come back", async () => {
+    const noteId = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+    const store = `.inteligir/comments/${noteId}.json`;
+    const state = seededState();
+    state.revisions.set("notes/gone.md", [
+      {
+        content: `---\nid: ${noteId}\n---\n# Gone\n`,
+        revision: makeRevision({ path: "notes/gone.md", sha: FIXTURE_REVISION_SHA }),
+      },
+    ]);
+    state.revisions.set(store, [
+      {
+        content: '{"threads":[]}\n',
+        revision: makeRevision({ path: store, sha: FIXTURE_REVISION_SHA }),
+      },
+    ]);
+    const server = await boot(state);
+
+    const restore = await runCliForTest({
+      argv: ["vault", "restore", "notes/gone.md", FIXTURE_REVISION_SHA],
+      baseUrl: server.baseUrl,
+    });
+    expect(restore.stdout).toBe(
+      `✔ Restored notes/gone.md to ${FIXTURE_REVISION_SHA}, with its comments\n`,
+    );
+    expect(state.vault.get(store)).toBe('{"threads":[]}\n');
+
+    state.vault.delete("notes/gone.md");
+    state.vault.delete(store);
+    state.vault.set(".inteligir/comments", "a file where the store's folder goes\n");
+    const stranded = await runCliForTest({
+      argv: ["vault", "restore", "notes/gone.md", FIXTURE_REVISION_SHA, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(stranded.code).toBe(1);
+    expect(stranded.stdout).toBe("");
+    expect(JSON.parse(stranded.stderr)).toEqual({
+      error: "CONFLICT",
+      message: `Restored notes/gone.md to ${FIXTURE_REVISION_SHA}, but not its comments: A file shadows a parent folder of ${store}`,
+    });
+    expect(state.vault.has("notes/gone.md")).toBe(true);
+    expect(state.vault.has(store)).toBe(false);
+  });
 });
 
 describe("knowledge commands", () => {

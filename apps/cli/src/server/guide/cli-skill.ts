@@ -96,8 +96,12 @@ spaces (\`inteligir search "two words"\`).
   deleted\` lists. It checkpoints the vault first (so the bytes being replaced
   survive as their own revision) and writes against the base it read, so a
   concurrent write is refused rather than overwritten; a deleted note is
-  created afresh, and refused if something reappeared at its path. Prefer this
-  over piping \`revision\` into \`write\`: it checkpoints and guards in one step.
+  created afresh, and refused if something reappeared at its path. A deleted
+  note's comments come back with it (\`--json\`'s \`comments\` says
+  \`restored\`, \`kept\` when a store already sits at its id, or \`none\`); when
+  they cannot, the note stays restored and the command fails in the refusal's
+  own class, its message naming the note. Prefer this over piping
+  \`revision\` into \`write\`: it checkpoints and guards in one step.
 - \`inteligir vault delete <path>\` — delete a file or folder. There is no
   trash: a deleted doc stays in the vault's git history.
 - \`inteligir vault deleted\` — docs no longer on disk, newest deletion first,

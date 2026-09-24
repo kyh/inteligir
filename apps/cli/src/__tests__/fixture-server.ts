@@ -70,6 +70,11 @@ export interface FixtureState {
   failWith: { code: "BAD_REQUEST" | "INTERNAL_SERVER_ERROR"; message: string } | null;
   refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
   vault: Map<string, string>;
+  // every commitNow and landed write, in order, so a composition's ordering is assertable.
+  vaultLog: string[];
+  // bytes another writer lands just after the next read of that path is answered: the race a
+  // guarded write exists to refuse.
+  concurrentWrite: { path: string; content: string } | null;
   // newest first.
   revisions: Map<string, { revision: VaultRevision; content: string }[]>;
   searchResults: SearchResultWire[];
@@ -135,6 +140,7 @@ export const makeFixtureState = (): FixtureState => ({
   backlinks: [],
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, state: "signed-out" },
   comments: new Map(),
+  concurrentWrite: null,
   connectorHeaders: new Map(),
   connectors: { servers: [] },
   dataDir: "/fixture/data",
@@ -149,6 +155,7 @@ export const makeFixtureState = (): FixtureState => ({
   tags: [],
   threads: [],
   vault: new Map(),
+  vaultLog: [],
   vaultPrefs: { attachments: DEFAULT_ATTACHMENT_LOCATION },
   vaultStatus: { lastError: null, lastSyncAt: null, state: "no-remote" },
 });
@@ -532,11 +539,19 @@ const threadsRouter = {
   }),
 };
 
+const parentFolders = (path: string): string[] => {
+  const segments = path.split("/");
+  return segments.slice(1).map((_, index) => segments.slice(0, index + 1).join("/"));
+};
+
 const vaultRouter = {
   assetWrite: base.vault.assetWrite.handler(({ input }) => ({
     path: `${input.dir}/${input.baseName}`,
   })),
-  commitNow: base.vault.commitNow.handler(() => ({ files: 0 })),
+  commitNow: base.vault.commitNow.handler(({ context }) => {
+    context.vaultLog.push("commitNow");
+    return { files: 0 };
+  }),
   // a path with revisions and no bytes on disk: the fixture's "deleted".
   deleted: base.vault.deleted.handler(({ context }) => ({
     entries: [...context.revisions]
@@ -557,6 +572,11 @@ const vaultRouter = {
     const content = context.vault.get(input.path);
     if (content === undefined) {
       throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
+    }
+    const racing = context.concurrentWrite;
+    if (racing?.path === input.path) {
+      context.concurrentWrite = null;
+      context.vault.set(racing.path, racing.content);
     }
     return { content, path: input.path };
   }),
@@ -595,11 +615,14 @@ const vaultRouter = {
     name: "vault",
     root: "/fixture/vault",
   })),
-  // the real route's two refusals, spelled as it spells them.
+  // the real route's refusals, spelled as it spells them.
   write: base.vault.write.handler(async ({ context, input, errors }) => {
     const current = context.vault.get(input.path);
     if (input.ifAbsent === true && current !== undefined) {
       throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
+    }
+    if (parentFolders(input.path).some((folder) => context.vault.has(folder))) {
+      throw errors.CONFLICT({ message: `A file shadows a parent folder of ${input.path}` });
     }
     if (input.expectedHash !== undefined) {
       const message = `${input.path} changed since the base this write was derived from`;
@@ -612,6 +635,7 @@ const vaultRouter = {
       }
     }
     context.vault.set(input.path, input.content);
+    context.vaultLog.push(`write ${input.path}`);
     return { path: input.path };
   }),
 };

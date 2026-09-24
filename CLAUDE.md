@@ -1116,7 +1116,12 @@ rename`.
   duplicate ids are where a shared id surfaces. The
   deleted-notes restore brings both back from the same revision through
   `@repo/api/local/vault/restore-comment-store`, the one composition the
-  dialog and `vault restore` both run after the note's own ifAbsent write.
+  rail's Deleted view and `vault restore` both run after the note's own
+  ifAbsent write. Only a store the revision never held is `none` and only one
+  already at that id is `kept`; any other refusal is `failed`, never folded
+  into either, because the note is back by then and a store silently left
+  behind strands its threads: the rail opens the note with a warning, and the
+  CLI exits 1 in the refusal's own class.
 
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at travels on the send (`@repo/domain/view-context`),

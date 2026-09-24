@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
 import type { VaultDeletedEntry } from "@repo/api/local/vault/vault-schema";
+import { toast } from "@repo/ui/components/sonner";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { InertSocket } from "../../__tests__/inert-socket";
 import { createWorkspaceQueryClient, WorkspaceProvider } from "../../workspace-context";
 import { DeletedNotes } from "../deleted-notes";
@@ -14,6 +16,8 @@ const GONE: VaultDeletedEntry = {
   path: "notes/gone.md",
   sha: "0123456789abcdef0123456789abcdef01234567",
 };
+
+const pathInputSchema = z.object({ path: z.string() });
 
 // the workspace's own query defaults, minus the retries that would hold a refusal for seconds
 const mount = () => {
@@ -86,5 +90,31 @@ describe("the Deleted view", () => {
       expect(onOpenNote).toHaveBeenCalledWith("notes/gone.md");
     });
     expect(writes).toEqual([{ content: "# Gone\n", ifAbsent: true, path: "notes/gone.md" }]);
+  });
+
+  it("opens a restored note whose comments could not come back, and says so apart from a refused restore", async () => {
+    // the client logs every refused call in dev
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const warned = vi.spyOn(toast, "warning");
+    const refused = vi.spyOn(toast, "error");
+    stubRpc({
+      "vault/deleted": () => ({ entries: [GONE] }),
+      "vault/revision": (input) => {
+        if (pathInputSchema.parse(input).path !== GONE.path) {
+          throw new Error("the store's revision could not be read");
+        }
+        return { content: "---\nid: 0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b\n---\n# Gone\n" };
+      },
+      "vault/write": () => ({ path: GONE.path }),
+    });
+    const onOpenNote = mount();
+    fireEvent.click(await screen.findByTitle(GONE.path));
+    await waitFor(() => {
+      expect(onOpenNote).toHaveBeenCalledWith("notes/gone.md");
+    });
+    expect(warned).toHaveBeenCalledWith(
+      "Restored notes/gone.md, but not its comments: Internal Server Error",
+    );
+    expect(refused).not.toHaveBeenCalled();
   });
 });

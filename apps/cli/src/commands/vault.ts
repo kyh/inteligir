@@ -1,5 +1,5 @@
 import { buffer } from "node:stream/consumers";
-import { isDefinedError, safe } from "@orpc/client";
+import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import {
   VAULT_HISTORY_DEFAULT_LIMIT,
   VAULT_HISTORY_MAX_LIMIT,
@@ -19,9 +19,11 @@ import {
   parseAttachmentLocation,
 } from "@repo/api/local/vault/attachment-location";
 import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
+import type { CommentStoreRestore } from "@repo/api/local/vault/restore-comment-store";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
-import { CliExitError, invalidUsage } from "../cli-error";
+import { CliExitError, getErrorMessage, invalidUsage } from "../cli-error";
+import type { CliFailure } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
@@ -79,6 +81,10 @@ const readContentFromStdin = async (): Promise<string> => {
     throw invalidUsage("stdin is not valid UTF-8; vault files are text");
   }
 };
+
+// the note is back either way, so the failure keeps the store refusal's own class, like a send's.
+const commentsFailure = (cause: Error): CliFailure =>
+  cause instanceof ORPCError ? { serverClass: String(cause.code) } : { code: "UNEXPECTED" };
 
 const assertContentWithinBound = (content: string): void => {
   const { byteLength } = new TextEncoder().encode(content);
@@ -428,15 +434,21 @@ export const vaultCommand = (deps: CliDeps) =>
             throw current.error;
           }
           const body = await api.vault.write(request);
-          const comments =
+          const comments: CommentStoreRestore =
             "ifAbsent" in request
               ? await restoreCommentStore(api, revision.content, args.sha)
-              : "none";
-          if (outputJson(args, { ...body, comments })) {
+              : { kind: "none" };
+          if (comments.kind === "failed") {
+            throw new CliExitError(
+              `Restored ${body.path} to ${args.sha}, but not its comments: ${getErrorMessage(comments.error)}`,
+              commentsFailure(comments.error),
+            );
+          }
+          if (outputJson(args, { ...body, comments: comments.kind })) {
             return;
           }
           out.success(
-            `Restored ${body.path} to ${args.sha}${comments === "restored" ? ", with its comments" : ""}`,
+            `Restored ${body.path} to ${args.sha}${comments.kind === "restored" ? ", with its comments" : ""}`,
           );
         },
       }),
