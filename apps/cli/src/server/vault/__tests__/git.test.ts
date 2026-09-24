@@ -4,6 +4,7 @@ import { appendFile, chmod, mkdir, readFile, rm, stat, utimes, writeFile } from 
 import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
 import type { VaultConflict, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -1015,7 +1016,11 @@ describe("classifyNetworkFailure", () => {
     ],
     [
       "error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\nfatal: the remote end hung up unexpectedly",
-      "rejected",
+      "too-large",
+    ],
+    [
+      "error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413 Request Entity Too Large",
+      "too-large",
     ],
     [
       " ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs",
@@ -1184,6 +1189,107 @@ describe("a refused credential", () => {
     });
     const status = await engine.syncNow();
     expect(status.state).toBe("unauthorized");
+  });
+});
+
+const pktLine = (payload: string): string =>
+  `${(Buffer.byteLength(payload) + 4).toString(16).padStart(4, "0")}${payload}`;
+
+// refuses every pack the way the hosted vault refuses one over its cap: the fetch finds no repo,
+// the advertisement is an empty repo's, and the push itself answers 413.
+const makeTooLargeRemote = async () => {
+  let pushes = 0;
+  const server = createServer((request, response) => {
+    const url = request.url ?? "";
+    if (request.method === "GET" && url.endsWith("/info/refs?service=git-receive-pack")) {
+      response.writeHead(200, { "content-type": "application/x-git-receive-pack-advertisement" });
+      response.end(
+        `${pktLine("# service=git-receive-pack\n")}0000` +
+          `${pktLine(`${"0".repeat(40)} capabilities^{}\0report-status\n`)}0000`,
+      );
+      return;
+    }
+    if (request.method === "POST" && url.endsWith("/git-receive-pack")) {
+      pushes += 1;
+      request.resume();
+      request.on("end", () => {
+        response.writeHead(413, { "content-type": "text/plain" });
+        response.end("push exceeds the limit\n");
+      });
+      return;
+    }
+    response.writeHead(404);
+    response.end("not found\n");
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  onTestFinished(async () => {
+    server.close();
+    await once(server, "close");
+  });
+  const { port } = boundAddressSchema.parse(server.address());
+  return { pushes: () => pushes, url: `http://127.0.0.1:${String(port)}/vault.git` };
+};
+
+describe("a push too large for the remote", { timeout: 30_000 }, () => {
+  it("says too-large, not rejected, and resends nothing while the refused history stands", async () => {
+    const remote = await makeTooLargeRemote();
+    const { engine, root } = await makeEngine({ remoteUrl: remote.url });
+    await writeFile(path.join(root, "scan.md"), "a history over the cap\n", "utf-8");
+    await engine.commitNow();
+
+    const refused = await engine.syncNow();
+    expect(refused.state).toBe("too-large");
+    expect(refused.lastError).toBe("The git remote refused the push as too large.");
+    expect(remote.pushes()).toBe(1);
+
+    expect(await syncState(engine)).toBe("too-large");
+    await writeFile(path.join(root, "more.md"), "grown past the refused head\n", "utf-8");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("too-large");
+    expect(await reportedState(engine)).toBe("too-large");
+    expect(remote.pushes()).toBe(1);
+  });
+
+  it("pushes again once the branch no longer holds the refused head", async () => {
+    const remote = await makeTooLargeRemote();
+    const { engine, root } = await makeEngine({ remoteUrl: remote.url });
+    const initialized = await runGit(root, ["rev-parse", "HEAD"], { env });
+    await writeFile(path.join(root, "scan.md"), "a history over the cap\n", "utf-8");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("too-large");
+
+    await runGit(root, ["reset", "-q", "--hard", initialized.stdout.trim()], { env });
+    await writeFile(path.join(root, "small.md"), "a rewritten history\n", "utf-8");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("too-large");
+    expect(remote.pushes()).toBe(2);
+  });
+
+  it("names the hosted vault's stated cap on the account remote", async () => {
+    const remote = await makeTooLargeRemote();
+    const root = scratchDir("inteligir-git-too-large-");
+    await ensureVaultRepo({ env, root });
+    const engine = createGitEngine({
+      env,
+      remote: () => ({
+        account: { id: "user-a", state: "known" },
+        source: "account",
+        url: remote.url,
+      }),
+      root,
+    });
+    onTestFinished(async () => {
+      await engine.dispose();
+    });
+    await writeFile(path.join(root, "scan.md"), "a history over the cap\n", "utf-8");
+    await engine.commitNow();
+
+    const refused = await engine.syncNow();
+    expect(refused.state).toBe("too-large");
+    expect(refused.lastError).toContain(
+      `${String(VAULT_GIT_MAX_PUSH_BYTES / (1024 * 1024))} MiB push limit`,
+    );
   });
 });
 

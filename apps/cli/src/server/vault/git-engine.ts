@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
 import type {
   VaultConflict,
   VaultDeletedEntry,
@@ -99,6 +100,21 @@ interface RecordedConflict {
   remote: string;
 }
 
+// where a push the remote refused as too large was met. while the remote tip stands and the
+// branch only grew from the refused head, every pack a push would send holds the refused one, so
+// the pass skips a push that could only upload the same refusal again.
+interface RefusedPush {
+  url: string;
+  head: string;
+  remote: string | null;
+}
+
+const pushTooLargeMessage = (remote: VaultRemoteSpec): string =>
+  remote.source === "account"
+    ? `This vault's unsynced history is over the hosted vault's ` +
+      `${String(VAULT_GIT_MAX_PUSH_BYTES / (1024 * 1024))} MiB push limit.`
+    : "The git remote refused the push as too large.";
+
 // what the latest pass to reach a verdict concluded; a pass that ends before one (a pending
 // account, a hold taken during its fetch, a dispose) leaves the last one standing. "none" leaves
 // the report to the tree. "broken" is final: no pass runs after it. "account-mismatch" runs no
@@ -123,6 +139,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // nowhere else, and a vault with no remote runs no pass that would clear it.
   let flushError: string | null = null;
   let lastOutcome: SyncOutcome = { kind: "none" };
+  let refusedPush: RefusedPush | null = null;
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -328,6 +345,44 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return stdout.trim();
   };
 
+  // what `push origin <branch>` sends, against the tip it is measured from.
+  const pushTips = async (
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<Omit<RefusedPush, "url">> => ({
+    head: await revParse(`refs/heads/${branch}`),
+    remote: remoteHasBranch ? await revParse(`refs/remotes/origin/${branch}`) : null,
+  });
+
+  // a failed check reads as "not an ancestor", which resends the push: the answer a doubt earns.
+  const isAncestor = async (ancestor: string, rev: string): Promise<boolean> => {
+    try {
+      await run(["merge-base", "--is-ancestor", ancestor, rev]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // under the lock, before the push. true ends the pass on the refusal already recorded.
+  const repeatsRefusedPush = async (
+    remote: VaultRemoteSpec,
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<boolean> => {
+    const refused = refusedPush;
+    if (refused === null || refused.url !== remote.url) {
+      return false;
+    }
+    const tips = await pushTips(branch, remoteHasBranch);
+    if (tips.remote !== refused.remote || !(await isAncestor(refused.head, tips.head))) {
+      return false;
+    }
+    lastOutcome = { failure: "too-large", kind: "unreachable" };
+    lastError = pushTooLargeMessage(remote);
+    return true;
+  };
+
   // what a rebase from a clean tree rewrote on disk. --no-renames: a moved note is a path gone
   // and a path added, and a consumer has to hear about both.
   const reportMovedTree = async (from: string, to: string): Promise<void> => {
@@ -503,16 +558,30 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       remoteHasBranch = false;
     }
 
-    if (!(await withRepoLock(async () => await integrateFetched(branch, remoteHasBranch)))) {
+    const pushing = await withRepoLock(
+      async () =>
+        (await integrateFetched(branch, remoteHasBranch)) &&
+        !(await repeatsRefusedPush(remote, branch, remoteHasBranch)),
+    );
+    if (!pushing) {
       return;
     }
 
     try {
       await runNetwork(["push", "origin", branch], remote.env);
     } catch (error) {
-      recordNetworkFailure(classifyNetworkFailure(error));
-      throw error;
+      const failure = classifyNetworkFailure(error);
+      recordNetworkFailure(failure);
+      if (failure !== "too-large") {
+        throw error;
+      }
+      // read after the refusal: the branch only grows past what the push sent, and a head that
+      // holds the refused one is as large.
+      const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
+      refusedPush = { url: remote.url, ...tips };
+      throw new Error(pushTooLargeMessage(remote), { cause: error });
     }
+    refusedPush = null;
     if (remote.source === "account" && remote.account.state === "known") {
       const accountId = remote.account.id;
       await withRepoLock(async () => {

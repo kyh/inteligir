@@ -63,7 +63,7 @@ its own `tsconfig.json`.
 | `POST /v1/capture`             | device  | Quick capture in, deduped on an idempotency key            |
 | `POST /v1/sync/captures/claim` | device  | Take the inbox for a five-minute window                    |
 | `POST /v1/sync/captures/ack`   | device  | Delete what that claim owns — per-id outcomes              |
-| `/v1/git/vault.git/*`          | device  | The hosted vault git remote — smart HTTP, per-user repo    |
+| `/v1/git/vault.git/*`          | device  | The hosted vault git remote — smart HTTP, 90 MiB push cap  |
 | `GET /v1/vault/tree`           | device  | Flat listing of the hosted vault at one commit             |
 | `GET /v1/vault/file`           | device  | One note's bytes at that commit — 2 MB ceiling             |
 | `GET /v1/vault/asset`          | device  | One embedded binary at that commit                         |

@@ -1,4 +1,4 @@
-import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
+import { VAULT_GIT_MAX_PUSH_BYTES, VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { createDurableGit } from "durable-git";
 import type { Registry } from "durable-git";
 import { createDb } from "../db/client";
@@ -22,9 +22,58 @@ const PROTOCOL_ROUTES = new Set([
 ]);
 
 // mirrors durable-git's negotiation-body ceiling, enforced on the declared length because the
-// library buffers an undeclared (chunked) body whole. parseInt, not Number: Number(null) is 0,
-// so an absent header would read as a tiny declared body
+// library buffers an undeclared (chunked) body whole
 const MAX_UPLOAD_PACK_BYTES = 16 * 1024 * 1024;
+
+// NaN when undeclared, never 0: Number("") is 0, so an absent header would read as a tiny body
+const declaredLength = (request: Request): number => {
+  const header = request.headers.get("content-length") ?? "";
+  return /^\d+$/u.test(header) ? Number(header) : Number.NaN;
+};
+
+// plain text for a person running git by hand; the engine reads the status alone, since git
+// reports a failed push's status and drops its body
+const pushTooLarge = (): Response =>
+  new Response(
+    `push exceeds the hosted vault's ${String(VAULT_GIT_MAX_PUSH_BYTES / (1024 * 1024))} MiB limit\n`,
+    { status: 413 },
+  );
+
+// git streams every push past its 1 MiB postBuffer with no declared length, so the cap is counted
+// in flight. the body ends at the cap rather than erroring: durable-git fails the cut pack's
+// checksum and moves no ref either way, and an errored body only reaches the runtime's own pump
+// to the repo cell, where it surfaces as an uncaught rejection.
+interface CappedBody {
+  body: ReadableStream<Uint8Array>;
+  exceeded: () => boolean;
+}
+
+const cappedBody = (body: ReadableStream<Uint8Array>): CappedBody => {
+  const reader = body.getReader();
+  let received = 0;
+  let exceeded = false;
+  const counted = new ReadableStream<Uint8Array>({
+    async cancel(reason) {
+      await reader.cancel(reason);
+    },
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      received += value.byteLength;
+      if (received > VAULT_GIT_MAX_PUSH_BYTES) {
+        exceeded = true;
+        await reader.cancel();
+        controller.close();
+        return;
+      }
+      controller.enqueue(value);
+    },
+  });
+  return { body: counted, exceeded: () => exceeded };
+};
 
 // dgit refuses repo names outside this set, and the userId is embedded in the name
 const REPO_NAME_SAFE = /^[A-Za-z0-9._-]+$/u;
@@ -94,12 +143,25 @@ export const handleVaultGitRemote = async (
   }
 
   if (sub === "/git-upload-pack") {
-    const header = request.headers.get("content-length") ?? "";
-    const declared = /^\d+$/u.test(header) ? Number(header) : Number.NaN;
+    const declared = declaredLength(request);
     if (!Number.isFinite(declared) || declared > MAX_UPLOAD_PACK_BYTES) {
       return new Response("upload-pack body must declare a length within the ceiling\n", {
         status: 413,
       });
+    }
+  }
+
+  let { body } = request;
+  let capped: CappedBody | null = null;
+  if (sub === "/git-receive-pack") {
+    const declared = declaredLength(request);
+    if (declared > VAULT_GIT_MAX_PUSH_BYTES) {
+      return pushTooLarge();
+    }
+    // a declared length frames the body, so only an undeclared one can run past it
+    if (Number.isNaN(declared) && body !== null) {
+      capped = cappedBody(body);
+      ({ body } = capped);
     }
   }
 
@@ -110,7 +172,7 @@ export const handleVaultGitRemote = async (
   headers.set(AUTHORIZED_HEADER, repo);
 
   const response = await handler.fetch(
-    new Request(target, { body: request.body, headers, method: request.method }),
+    new Request(target, { body, headers, method: request.method }),
     env,
     ctx,
   );
@@ -120,7 +182,8 @@ export const handleVaultGitRemote = async (
     const idle = Number(response.headers.get("x-commit-time")) || Date.now();
     ctx.waitUntil(upsertVaultRegistry(env, repo, idle));
   }
-  return response;
+  // durable-git answers a cut pack 200 with every ref refused; the cap is the reason
+  return capped?.exceeded() === true ? pushTooLarge() : response;
 };
 
 // durable-git's own R2 layout, private to it and copied here: pushed packs, then clone-cache packs

@@ -1,3 +1,4 @@
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -13,7 +14,7 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-import { cloneVault, pushVaultFiles, ZERO_OID } from "./git-pack";
+import { cloneVault, pushOversizedPack, pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
@@ -157,6 +158,32 @@ describe("vault git remote round-trip", () => {
       headers: deviceHeaders(betaDevice.credential),
     });
     expect(refs.status).toBe(404);
+  });
+});
+
+// streams the cap's worth of bytes through the repo cell, which outlasts the default timeout
+describe("the push cap", { timeout: 60_000 }, () => {
+  it("refuses a streamed push past the cap with a 413, moves no ref, and takes the next push", async () => {
+    const { bearer } = await signUpUser("vault-git-cap@example.test");
+    const { credential } = await loginDevice(bearer, "Laptop");
+
+    const refused = await pushOversizedPack(credential, VAULT_GIT_MAX_PUSH_BYTES + 1024 * 1024);
+    expect(refused.status).toBe(413);
+    expect(await refused.text()).toContain("MiB limit");
+    const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(refs.status).toBe(404);
+
+    const next = await pushVaultFiles(
+      credential,
+      "vault: initialize",
+      [{ content: "# hello\n", path: "welcome.md" }],
+      ZERO_OID,
+      { length: "undeclared" },
+    );
+    expect(next.response.status).toBe(200);
+    expect(await next.response.text()).toContain("unpack ok");
   });
 });
 

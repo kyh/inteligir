@@ -799,7 +799,8 @@ to the END of its group.
   after. What a pass concluded is one `SyncOutcome`, the latest verdict
   winning, except that a remote which did not answer leaves a recorded
   conflict standing: a detached HEAD says `detached`, never `clean`; a push
-  the remote answered and refused says `rejected`, never `offline`; a push
+  the remote answered and refused says `rejected`, never `offline`, and one it
+  refused as too large (a 413) says `too-large`; a push
   that lost a race to another device's is no failure and leaves the tree to
   say `dirty` (`classifyNetworkFailure` in
   `apps/cli/src/server/vault/git-run.ts`).
@@ -1727,6 +1728,26 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   client whose request declares it, because stripped, the row reads as the old
   kind. `packages/api/src/cloud/cloud-client.ts`,
   `packages/api/src/cloud/cloud-errors.ts`.
+
+- **THE HOSTED VAULT TAKES A PUSH OF AT MOST 90 MiB, AND A VAULT OVER IT SAYS
+  `too-large`** (owner decision: a stated cap now, large files later).
+  `VAULT_GIT_MAX_PUSH_BYTES` in `packages/api/src/cloud/vault/vault-git.ts` is
+  the one spelling: under the 100 MB request body the edge takes on the Free
+  and Pro plans, so the refusal is always the Worker's own and never whatever
+  the edge does to a body past its limit, and far under durable-git's own
+  512 MiB. The Worker refuses a
+  declared length over it and counts an undeclared body (every push past git's
+  1 MiB postBuffer) in flight, ending it at the cap so durable-git fails the
+  cut pack and moves no ref, then answers 413
+  (`apps/web/src/worker/vault/git-remote.ts`). Splitting the push into
+  commit-sized steps was rejected: a vault's first commit is the whole tree,
+  so there is nothing smaller to send. The engine reads any 413 as
+  `too-large`, whose reason names the cap on the account remote, and records
+  the tips it was refused at: while the remote tip stands and the branch still
+  holds the refused head, a pass skips the push, since every pack it could send
+  holds the refused one and each retry would upload the cap's worth again. A
+  rewritten history, a moved remote or a restart tries again
+  (`apps/cli/src/server/vault/git-engine.ts`).
 
 ### Server process and the desktop shell
 
