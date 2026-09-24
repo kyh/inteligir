@@ -9,6 +9,7 @@ import {
   writeManagedVaultDir,
 } from "../config";
 import { pathContains } from "../path-containment";
+import { resolveVaultCandidate } from "../vault-switch";
 import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
 
 const PROD = { NODE_ENV: "production" };
@@ -107,6 +108,44 @@ describe("a second vault's data dir", () => {
     expect(() => resolveAppConfig({ checkoutPath: "/checkout/a", env: PROD, homeDir })).toThrow(
       /must be disjoint/u,
     );
+  });
+});
+
+const linkedWork = () => {
+  const homeDir = makeTempDir("inteligir-config-test-");
+  const work = path.join(homeDir, "Work");
+  mkdirSync(work);
+  const linked = path.join(homeDir, "Linked");
+  symlinkSync(work, linked);
+  return {
+    args: { checkoutPath: "/checkout/a", env: PROD, homeDir },
+    linked,
+    root: path.join(homeDir, PROD_DATA_DIR_NAME),
+    work: realpathSync.native(work),
+  };
+};
+
+describe("a vault chosen for the selector", () => {
+  it("is stored by its physical spelling, so one folder keeps one data dir", () => {
+    const { args, linked, root, work } = linkedWork();
+    const candidate = resolveVaultCandidate(args, linked);
+    expect(candidate.vaultDir).toBe(work);
+    expect(candidate.dataDir).toBe(vaultDataDir(root, work));
+  });
+
+  it("keeps the spelling given when only that spelling already keys a data dir", () => {
+    const { args, linked, root } = linkedWork();
+    mkdirSync(vaultDataDir(root, linked), { recursive: true });
+    const candidate = resolveVaultCandidate(args, linked);
+    expect(candidate.vaultDir).toBe(linked);
+    expect(candidate.dataDir).toBe(vaultDataDir(root, linked));
+  });
+
+  it("takes the physical spelling once its own data dir exists", () => {
+    const { args, linked, root, work } = linkedWork();
+    mkdirSync(vaultDataDir(root, linked), { recursive: true });
+    mkdirSync(vaultDataDir(root, work), { recursive: true });
+    expect(resolveVaultCandidate(args, linked).dataDir).toBe(vaultDataDir(root, work));
   });
 });
 

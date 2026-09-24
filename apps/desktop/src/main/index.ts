@@ -93,6 +93,8 @@ let spellcheck: Spellcheck | null = null;
 // the shell's own, never a vault's: a vault is a git repo that leaves this machine
 let recentVaultsPath: string | null = null;
 let recentVaults: string[] = [];
+// a quit mid-boot stops the child the boot is waiting on, so the boot's failure is the quit's
+let quitRequested = false;
 
 // must precede `app.whenReady`; Electron enforces the ordering.
 registerAppScheme();
@@ -118,13 +120,12 @@ const judgeServer = async (
   expectedVersion: string,
 ): Promise<ServerVerdict> => {
   const verdict = await verifyServer(target.dataDir, expectedVersion);
-  if (verdict.kind !== "verified" && verdict.kind !== "no-server") {
+  if (verdict.kind !== "verified" && verdict.kind !== "none") {
     console.warn(`[desktop] ${describeServerVerdict(verdict, target.dataDir)}`);
   }
   return verdict;
 };
 
-// the server forks nothing itself: each node child it needs, main forks through the broker.
 const forkServer = (modulePath: string, args: string[], options: ForkOptions): UtilityProcess => {
   const server = utilityProcess.fork(modulePath, args, options);
   const broker = createForkBroker({
@@ -291,6 +292,14 @@ const guardNavigation = (event: Electron.Event, url: string): void => {
   }
 };
 
+const loadWindow = async (window: BrowserWindow, url: string): Promise<void> => {
+  try {
+    await window.loadURL(url);
+  } catch (error) {
+    console.error(`[desktop] window failed to load ${url}: ${toErrorMessage(error)}`);
+  }
+};
+
 const createWindow = (target: ServerTarget): BrowserWindow => {
   const partition = sessionPartition(target.dataDir);
   const window = new BrowserWindow({
@@ -337,7 +346,22 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
     }
   });
 
-  void window.loadURL(`${APP_ORIGIN}/`);
+  // the packaged smoke reads these lines: the fuses change what a page may load
+  window.webContents.once("did-finish-load", () => {
+    console.log("[desktop] window loaded");
+  });
+  window.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+      if (isMainFrame) {
+        console.error(
+          `[desktop] window failed to load ${validatedUrl}: ${String(errorCode)} ${errorDescription}`,
+        );
+      }
+    },
+  );
+
+  void loadWindow(window, `${APP_ORIGIN}/`);
   return window;
 };
 
@@ -637,8 +661,12 @@ const bootVault = async (target: ServerTarget): Promise<void> => {
   mainWindow = createWindow(target);
 };
 
-// a refusal is decided before anything moves and answered as a value; a throw is a fault
-type VaultSwitchOutcome = { ok: true } | { ok: false; reason: string };
+// a refusal is decided before anything moves and answered as a value; a throw is a fault.
+// a rollback's refusal is `reported`: the window that asked is closed by then, so main said it
+type VaultSwitchOutcome =
+  | { ok: true }
+  | { ok: false; reason: string }
+  | { ok: false; reason: string; reported: true };
 
 const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
   const previous = requireTarget();
@@ -686,9 +714,9 @@ const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
         throw reopenError;
       }
       previousWindow?.close();
-      throw new Error(`Could not open ${candidate.target.vaultDir}: ${toErrorMessage(error)}`, {
-        cause: error,
-      });
+      const reason = `Could not open ${candidate.target.vaultDir}: ${toErrorMessage(error)}`;
+      dialog.showErrorBox("Could not open the vault", reason);
+      return { ok: false, reason, reported: true };
     }
   } finally {
     switching = false;
@@ -722,7 +750,7 @@ const switchVaultFromMenu = async (vaultDir: string): Promise<void> => {
   } catch (error) {
     outcome = { ok: false, reason: toErrorMessage(error) };
   }
-  if (!outcome.ok) {
+  if (!outcome.ok && !("reported" in outcome)) {
     dialog.showErrorBox("Could not open the vault", outcome.reason);
   }
 };
@@ -747,7 +775,7 @@ const pickAndSwitchFromMenu = async (): Promise<void> => {
 };
 
 const answerSwitch = (outcome: VaultSwitchOutcome): VaultSwitchAnswer =>
-  outcome.ok ? { ok: true, state: vaultsState() } : outcome;
+  outcome.ok ? { ok: true, state: vaultsState() } : { ok: false, reason: outcome.reason };
 
 const configureVaultsIpc = (): void => {
   handle(INVOKE_ROUTES.vaults.getState, () => vaultsState());
@@ -949,6 +977,11 @@ const startApp = async (target: ServerTarget): Promise<void> => {
     applyShellPath(await shellPath);
     await onAppReady(target);
   } catch (error) {
+    // the teardown in flight quits once the child is down; a modal here would hold main open
+    if (quitRequested) {
+      console.warn(`[desktop] startup ended by a quit: ${toErrorMessage(error)}`);
+      return;
+    }
     console.error("[desktop] fatal startup error", error);
     dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
     app.quit();
@@ -974,6 +1007,7 @@ if (target.kind === "refused") {
   // the child's SIGTERM teardown flushes the vault's pending commit; `before-quit` is where it still has time to run.
   let teardown: Promise<void> | null = null;
   app.on("before-quit", (event) => {
+    quitRequested = true;
     if (serverProcess === null || teardown !== null) {
       return;
     }

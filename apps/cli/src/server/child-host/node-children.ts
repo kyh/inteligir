@@ -1,8 +1,6 @@
 // how this server starts its two node children, the vault watcher and the ACP adapters. run by node
 // (`inteligir serve`, npx, a suite), it forks them with child_process over its own execPath, the
-// server's defaults. run by the desktop shell, it is a utility process whose execPath is Electron's
-// helper, which the packaged binary's runAsNode fuse keeps from running JavaScript: main forks
-// each one for it through the broker.
+// server's defaults. run by the desktop shell, main forks each one for it through the broker.
 
 import path from "node:path";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";

@@ -1,7 +1,5 @@
-// the server's half of the fork broker: inside the desktop shell the server is a utility process,
-// which cannot fork one of its own, and with the runAsNode fuse off child_process cannot run node
-// under Electron's binary either. so main forks each node child for it and hands both ends of a
-// MessageChannel out: the server and the child talk directly, and main reports the child's exit.
+// the server's half of main's fork broker (apps/desktop/src/main/fork-broker.ts): the server and
+// each child talk directly over one MessageChannel, and main reports the exit.
 
 import { forkReplySchema } from "./fork-broker-wire";
 import type { ForkRequest } from "./fork-broker-wire";

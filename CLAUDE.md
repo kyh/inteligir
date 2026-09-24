@@ -748,7 +748,9 @@ to the END of its group.
   and "is the default" compare physically, so `~/inteligir` or a `~/Dropbox`
   symlink never mints a signed-out twin with no threads. The hash stays over
   the stored spelling: re-deriving it would move every selector already
-  written.
+  written, and for the same reason a selection keeps the spelling it was
+  given when only that spelling already keys a data dir
+  (`resolveVaultCandidate` in `apps/cli/src/server/vault-switch.ts`).
   Cost accepted: the credential, the connectors and the agent default live in
   the data dir, so a second vault starts signed out and unconfigured, which is
   also what keeps it off the account's hosted remote. The shell switches only a

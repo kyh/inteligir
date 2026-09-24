@@ -35,6 +35,9 @@ const CONFIG_FILE_NAME = "config.json";
 const CODEX_SIGNED_OUT = "Codex is not signed in";
 // main's line once the child it started has stopped (src/main/server-process.ts)
 const SERVER_STOPPED_CLEANLY = "server exited (code 0)";
+// main's lines once the window's page has loaded, or has not (src/main/index.ts)
+const WINDOW_LOADED = "[desktop] window loaded";
+const WINDOW_FAILED = "[desktop] window failed to load";
 // each would steer the agent turn off the bundled adapter and its codex: the host's own codex, its
 // credentials, or an agent mode that is not ACP
 const HOST_AGENT_ENV = new Set([
@@ -170,6 +173,25 @@ const waitHealthy = async (url) => {
   log(`health -> ${await health.text()}`);
 };
 
+// a healthy server is not a loaded window: the fuses change what the page itself may load
+const waitWindowLoaded = async (launched) => {
+  const deadline = Date.now() + BOOT_TIMEOUT_MS;
+  for (;;) {
+    const output = launched.output();
+    if (output.includes(WINDOW_FAILED)) {
+      fail("the window did not load its page — see the output above");
+    }
+    if (output.includes(WINDOW_LOADED)) {
+      log("window loaded");
+      return;
+    }
+    if (Date.now() > deadline) {
+      fail(`the window had not loaded within ${BOOT_TIMEOUT_MS}ms`);
+    }
+    await delay(250);
+  }
+};
+
 // hand-rolled: the typed client needs a bundler this script does not have
 const rpcClient = (url, forDataDir) => {
   const row = JSON.parse(readFileSync(path.join(forDataDir, "server.json"), "utf-8"));
@@ -260,6 +282,7 @@ try {
     INTELIGIR_VAULT_DIR: vaultDir,
   });
   await waitHealthy(baseUrl);
+  await waitWindowLoaded(launched);
   const rpc = rpcClient(baseUrl, dataDir);
 
   // with the bearer: a request carrying no credential gets the signed-out page instead
@@ -365,7 +388,7 @@ try {
   await stopApp(launched);
   launched = null;
 
-  log("PASS (the window opened; its rendering is not checked)");
+  log("PASS (the window loaded its page; its rendering is not checked)");
 } finally {
   killGroup(launched);
   await rm(scratch, { force: true, recursive: true });

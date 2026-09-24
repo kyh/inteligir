@@ -10,7 +10,7 @@ import { resolveVaultCandidate } from "inteligir/server/vault-switch";
 import { toErrorMessage } from "../types";
 import { createLocalClient } from "inteligir/server/local-client";
 import { probeServerFile, silentOwnerSentence } from "inteligir/server/server-probe";
-import type { AskServerStatus } from "inteligir/server/server-probe";
+import type { AskServerStatus, ServerFileProbe } from "inteligir/server/server-probe";
 
 export interface ServerTarget {
   dataDir: string;
@@ -72,12 +72,8 @@ export interface LiveServer {
 }
 
 export type ServerVerdict =
+  | Exclude<ServerFileProbe, { kind: "answered" }>
   | { kind: "verified"; live: LiveServer }
-  | { kind: "no-server" }
-  | { kind: "stale"; pid: number }
-  | { kind: "unreachable"; origin: string }
-  | { kind: "silent"; pid: number; port: number }
-  | { kind: "unreadable"; origin: string }
   | { kind: "wrong-data-dir"; origin: string; claimed: string }
   | { kind: "incompatible"; origin: string; serverVersion: string; expected: string };
 
@@ -91,42 +87,22 @@ export const verifyServer = async (
   askStatus?: AskServerStatus,
 ): Promise<ServerVerdict> => {
   const probe = await probeServerFile(dataDir, askStatus);
-  switch (probe.kind) {
-    case "none": {
-      return { kind: "no-server" };
-    }
-    case "dead-owner": {
-      return { kind: "stale", pid: probe.row.pid };
-    }
-    case "silent": {
-      return { kind: "silent", pid: probe.row.pid, port: probe.row.port };
-    }
-    case "refused": {
-      return { kind: "unreachable", origin: probe.origin };
-    }
-    case "unreadable": {
-      return { kind: "unreadable", origin: probe.origin };
-    }
-    case "answered": {
-      const { identity, origin, row } = probe;
-      if (identity.dataDir !== dataDir) {
-        return { claimed: identity.dataDir, kind: "wrong-data-dir", origin };
-      }
-      if (identity.version !== expectedVersion) {
-        return {
-          expected: expectedVersion,
-          kind: "incompatible",
-          origin,
-          serverVersion: identity.version,
-        };
-      }
-      return { kind: "verified", live: { origin, token: row.token } };
-    }
-    default: {
-      const exhaustive: never = probe;
-      return exhaustive;
-    }
+  if (probe.kind !== "answered") {
+    return probe;
   }
+  const { identity, origin, row } = probe;
+  if (identity.dataDir !== dataDir) {
+    return { claimed: identity.dataDir, kind: "wrong-data-dir", origin };
+  }
+  if (identity.version !== expectedVersion) {
+    return {
+      expected: expectedVersion,
+      kind: "incompatible",
+      origin,
+      serverVersion: identity.version,
+    };
+  }
+  return { kind: "verified", live: { origin, token: row.token } };
 };
 
 const HANDOFF_TIMEOUT_MS = 2000;
@@ -147,17 +123,17 @@ export const describeServerVerdict = (verdict: ServerVerdict, dataDir: string): 
     case "verified": {
       return `${verdict.live.origin} serves ${dataDir}`;
     }
-    case "no-server": {
+    case "none": {
       return `no inteligir server has published itself for ${dataDir}`;
     }
-    case "stale": {
-      return `the server that published itself for ${dataDir} (pid ${String(verdict.pid)}) has exited`;
+    case "dead-owner": {
+      return `the server that published itself for ${dataDir} (pid ${String(verdict.row.pid)}) has exited`;
     }
-    case "unreachable": {
+    case "refused": {
       return `${verdict.origin} did not answer this instance's token — the row in ${dataDir} is stale, or something else holds the port`;
     }
     case "silent": {
-      return silentOwnerSentence(dataDir, verdict);
+      return silentOwnerSentence(dataDir, verdict.row);
     }
     case "unreadable": {
       return `${verdict.origin} answered with something that is not an inteligir server's status`;
@@ -190,9 +166,9 @@ export const planServerStart = (verdict: ServerVerdict, dataDir: string): Server
     case "incompatible": {
       return { kind: "refuse", reason: describeServerVerdict(verdict, dataDir) };
     }
-    case "no-server":
-    case "stale":
-    case "unreachable":
+    case "none":
+    case "dead-owner":
+    case "refused":
     case "unreadable":
     case "wrong-data-dir": {
       return { kind: "spawn" };
