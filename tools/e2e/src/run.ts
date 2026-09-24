@@ -23,6 +23,7 @@ import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { remoteContentBrowser } from "./scenarios/remote-content-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
+import { slowStorage } from "./scenarios/slow-storage";
 import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { treeOpsBrowser } from "./scenarios/tree-ops-browser";
@@ -33,6 +34,7 @@ import { viewContextBrowser } from "./scenarios/view-context-browser";
 
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
+  slowStorage,
   vaultSync,
   hostedVaultSync,
   threadSyncHosted,

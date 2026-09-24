@@ -37,6 +37,7 @@ import { errnoCode } from "../errno";
 import { pathContains } from "../path-containment";
 import { ABSENT_ENTRY, entryFingerprintAt, fingerprintOf } from "./vault-changes";
 import type { EntryFingerprint, VaultMutation } from "./vault-changes";
+import type { ReadStall } from "./slow-reads";
 import { resolveVaultPath } from "./vault-paths";
 
 // VAULT_REFUSALS is total over this union, so a code added here without a wire class fails to
@@ -199,6 +200,8 @@ export interface VaultServiceArgs {
   onMutated?: (mutations: readonly VaultMutation[]) => void;
   // told on every walk that meets the folder; deduplicating is the sink's call.
   onUnreadableFolder?: UnreadableFolderSink;
+  // awaited before a file's bytes are opened
+  stallRead?: ReadStall;
 }
 
 type ConditionalWriteResult =
@@ -441,12 +444,14 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
         );
       }
+      await args.stallRead?.(relPath);
       const content = await readOrNotFound(relPath, async () => await readFile(absPath, "utf-8"));
       return { content, path: relPath };
     },
 
     async readBytes(requestedPath) {
       const { relPath, absPath, etag } = await resolveAsset(requestedPath);
+      await args.stallRead?.(relPath);
       const buffer = await readOrNotFound(relPath, async () => await readFile(absPath));
       // a copy, not the read's Buffer: its backing store is node's shared pool, which a
       // Response body will not take.

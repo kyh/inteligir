@@ -8,10 +8,11 @@ import type { EnsureVaultRepoArgs } from "./git-bootstrap";
 import { createGitEngine } from "./git-engine";
 import type { GitEngine, GitEngineArgs } from "./git-engine";
 import { seedVault } from "./seed-vault";
+import type { ReadStall } from "./slow-reads";
 import { entryFingerprintAt, sameEntryFingerprint } from "./vault-changes";
 import type { EntryFingerprint, VaultFilesChange, VaultMutation } from "./vault-changes";
 import { createVaultService, sweepStaleTmpFiles } from "./vault-service";
-import type { VaultService } from "./vault-service";
+import type { VaultService, VaultServiceArgs } from "./vault-service";
 import { createVaultWatcher } from "./watcher";
 import type { VaultWatcher, VaultWatcherArgs } from "./watcher";
 import type { ParcelWatcherBackend } from "./watcher/parcel-backend";
@@ -34,6 +35,7 @@ export interface VaultRuntimeArgs {
   gitEnv?: Record<string, string>;
   watcherBackend?: ParcelWatcherBackend;
   spawnWatcherChannel?: () => ChildChannel;
+  stallRead?: ReadStall;
 }
 
 export interface VaultRuntime {
@@ -153,7 +155,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
 
   // once per folder: every client re-walks the vault on each files-changed.
   const reportedUnreadable = new Set<string>();
-  const service = createVaultService({
+  const serviceArgs: VaultServiceArgs = {
     lock: async (work) => await git.runExclusive(work),
     notifier: args.notifier,
     onMutated: (mutations) => {
@@ -170,7 +172,11 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       console.warn(`vault: ${relPath} cannot be read (${code}); listing it empty`);
     },
     root,
-  });
+  };
+  if (args.stallRead !== undefined) {
+    serviceArgs.stallRead = args.stallRead;
+  }
+  const service = createVaultService(serviceArgs);
 
   let disposed = false;
   const deliverWatched = async (paths: readonly string[]): Promise<void> => {

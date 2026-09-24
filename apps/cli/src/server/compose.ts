@@ -38,6 +38,7 @@ import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
+import { slowReadStall } from "./vault/slow-reads";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
 import { VaultPrefsStore } from "./vault/vault-prefs-store";
@@ -143,6 +144,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   if (ports.vault?.spawnWatcherChannel !== undefined) {
     vaultArgs.spawnWatcherChannel = ports.vault.spawnWatcherChannel;
+  }
+  if (config.slowReads !== null) {
+    vaultArgs.stallRead = slowReadStall(config.slowReads);
   }
   const vault = await createVaultRuntime(vaultArgs);
   const vaultPrefs = new VaultPrefsStore(config.dataDir);

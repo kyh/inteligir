@@ -34,6 +34,7 @@ export const makeVaultDirs = (prefix: string): VaultDirs => {
 interface IndexedVaultOptions {
   reader?: (service: VaultService) => KnowledgeRuntimeArgs["vault"];
   projector?: Projector;
+  readDeadlineMs?: number;
 }
 
 interface IndexedVault {
@@ -44,7 +45,11 @@ interface IndexedVault {
 
 export const bootIndexedVault = (
   dirs: VaultDirs,
-  { reader = (service) => service, projector = createInlineProjector() }: IndexedVaultOptions = {},
+  {
+    reader = (service) => service,
+    projector = createInlineProjector(),
+    readDeadlineMs,
+  }: IndexedVaultOptions = {},
 ): IndexedVault => {
   // the service announces to a runtime built after it, over that same service
   let sink: KnowledgeRuntime | null = null;
@@ -55,12 +60,16 @@ export const bootIndexedVault = (
       sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
     root: dirs.root,
   });
-  const knowledge = createKnowledgeRuntime({
+  const runtimeArgs: KnowledgeRuntimeArgs = {
     dataDir: dirs.dataDir,
     projector,
     vault: reader(service),
     vaultRoot: dirs.root,
-  });
+  };
+  if (readDeadlineMs !== undefined) {
+    runtimeArgs.readDeadlineMs = readDeadlineMs;
+  }
+  const knowledge = createKnowledgeRuntime(runtimeArgs);
   sink = knowledge;
   onTestFinished(async () => {
     await knowledge.dispose();

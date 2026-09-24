@@ -12,6 +12,7 @@ import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
 import { errnoCode } from "./errno";
 import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
 import { stagedWriteFileSync } from "./staged-write";
+import type { SlowReads } from "./vault/slow-reads";
 
 type RuntimeMode = "dev" | "prod";
 
@@ -141,6 +142,20 @@ const parseVoiceModeValue = (name: string, rawValue: string): VoiceMode => {
   return trimmed;
 };
 
+// `<ms>:<vault path>`, split at the first colon, since a path may hold one and a count never does.
+const parseSlowReadsValue = (name: string, rawValue: string): SlowReads => {
+  const trimmed = rawValue.trim();
+  const colon = trimmed.indexOf(":");
+  const rawDelay = colon === -1 ? trimmed : trimmed.slice(0, colon);
+  const delayMs = Number(rawDelay);
+  if (colon === -1 || String(delayMs) !== rawDelay || !Number.isInteger(delayMs) || delayMs <= 0) {
+    throw new Error(
+      `${name} must be <milliseconds>:<vault path>, an empty path naming the whole vault (got "${trimmed}")`,
+    );
+  }
+  return { delayMs, path: trimmed.slice(colon + 1) };
+};
+
 const parseNonEmptyValue = (name: string, rawValue: string): string => {
   const trimmed = rawValue.trim();
   if (trimmed.length === 0) {
@@ -207,6 +222,12 @@ const ENV_VARS = {
       "Git remote URL the vault syncs against. Unset, a SIGNED-IN install derives the hosted remote from its device credential; unset and signed out means local-only.",
     name: "INTELIGIR_VAULT_REMOTE",
     parse: ({ name, value }) => parseRemoteUrlValue(name, value),
+  }),
+  slowReads: defineEnvVar({
+    description:
+      "Delays every vault read of one path and everything under it by some milliseconds, as `<ms>:<vault path>`; an empty path is the whole vault. A stand-in for storage that answers an open late, for e2e.",
+    name: "INTELIGIR_SLOW_READS",
+    parse: ({ name, value }) => parseSlowReadsValue(name, value),
   }),
   vaultSyncIntervalMs: defineEnvVar({
     description:
@@ -338,6 +359,8 @@ export interface AppConfig {
   vaultSyncIntervalMs?: number | null;
   // under the prod data dir in both modes: a model is a network cache keyed by id, so checkouts share one copy.
   modelDir: string;
+  // null outside the scenario suite
+  slowReads: SlowReads | null;
   voice: VoiceMode;
   agent: AgentMode;
   agentModels: HarnessModels;
@@ -469,6 +492,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     readEnvVar(ENV_VARS.modelDir, args.env, homeDir) ??
     path.join(homeDir, PROD_DATA_DIR_NAME, MODELS_DIR_NAME);
   assertModelDirOutsideVault(path.resolve(modelDir), path.resolve(vaultDir));
+  const slowReads = readEnvVar(ENV_VARS.slowReads, args.env, homeDir) ?? null;
   const voice = readEnvVar(ENV_VARS.voice, args.env, homeDir) ?? "auto";
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModels = resolveAgentModels(args, homeDir, managed);
@@ -486,6 +510,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     port,
     portSource: configSource(envPort, managed.port),
     rootDataDir,
+    slowReads,
     vaultDir,
     vaultDirSource,
     vaultRemote,

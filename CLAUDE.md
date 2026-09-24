@@ -623,11 +623,17 @@ to the END of its group.
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile
-  over 2000 notes is ~105ms off the critical path; a second persisted table in a
-  cache whose recovery primitive is deleting the file is a crash waiting for a
-  missed re-create. `KnowledgeIndex` in `@repo/notes` is not dead code: the
-  package carries no sqlite (`SqlDriver` is injected), so this in-memory
-  composition is how it tests its own engine.
+  over 2000 notes reads and hashes every doc in ~200ms on a local disk, off the
+  critical path; a second persisted table in a cache whose recovery primitive
+  is deleting the file is a crash waiting for a missed re-create. On storage
+  that fetches or wakes, the read deadline below keeps the reconcile to ~2s over
+  2000 notes whether one read stalls or all of them do, so the fingerprint is
+  not what makes slow storage usable. What only size+mtime buys is not opening
+  the file: a vault whose notes the OS evicts to placeholders is fetched again
+  on every boot. THE TRIGGER is a report of exactly that; the walk already
+  stats every file for `modifiedMs`. `KnowledgeIndex` in `@repo/notes` is not
+  dead code: the package carries no sqlite (`SqlDriver` is injected), so this
+  in-memory composition is how it tests its own engine.
 
 - **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
   then the scorer's rows with their reasons, then unlinked mentions
@@ -773,6 +779,26 @@ to the END of its group.
   resolver's tie-break. Every writer takes its bytes from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and a null from it writes nothing.
   Pinned by the round trip in `packages/notes/src/__tests__/link-resolve.test.ts`.
+
+- **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND READS
+  OUT STAY BELOW NODE'S FS POOL.** On storage that fetches or wakes (an
+  on-demand placeholder, a sleeping disk, a network mount) one open can block
+  for minutes, and every query settles the pass first. So the pass moves on,
+  the doc answers from its last entry, and the read lands in a later pass,
+  judged against the index only then. A read left running still holds a slot
+  of `READ_CONCURRENCY` (3): a stalled open holds one of node's four fs
+  threads, and a fourth stalls every fs call in the process, saves included,
+  which no deadline can free. Rejected: re-reading every path once its late
+  read lands, which loops on storage that is always slow (only a doc changed
+  while its read was out is read again), and a wider cap, which a local disk's
+  warm reconcile wanted and the pool cannot afford. No provider
+  path, bundle id or mount type appears anywhere; the scenario suite stalls a
+  path through `INTELIGIR_SLOW_READS` (`apps/cli/src/server/vault/slow-reads.ts`).
+  Residual: the listing's walk has no deadline, and a rename run before a
+  deferred doc lands misses a link the doc gained offline. The boot's one
+  timing line (`apps/cli/src/server/boot-report.ts`) counts what was deferred.
+  `apps/cli/src/server/knowledge/deferred-reads.ts`,
+  `tools/e2e/src/scenarios/slow-storage.ts`.
 
 ### Agents and threads
 
