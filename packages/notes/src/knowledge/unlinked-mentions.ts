@@ -8,9 +8,9 @@ import { frontmatterEnd } from "../markdown/frontmatter";
 import { serializeWikiBody } from "../markdown/remark-wiki-link";
 import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
 import type { VerbatimSpan } from "../markdown/verbatim-spans";
+import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { wikiLinkName } from "./doc-file";
 import { wikiTargetForPath } from "./link-resolve";
-import { splitLinesKeepingTerminators } from "./source-lines";
 import { anyWholeWordMatcher, excerptAround, findLineMatches } from "./text-matches";
 import type { DocText, TextMatch } from "./text-matches";
 

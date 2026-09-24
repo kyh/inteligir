@@ -4,7 +4,7 @@ import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument } from "yaml"
 import type { Scalar } from "yaml";
 import { z } from "zod";
 
-import { splitLines } from "../knowledge/source-lines";
+import { splitLines } from "../text/source-lines";
 import { BOM } from "./parsed-offsets";
 
 // yaml 1.2 core has no timestamp tag, so every value is json-shaped; `.nan`/`.inf` fail the

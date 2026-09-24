@@ -10,7 +10,7 @@ import { parseWikiBodyRange, serializeWikiBody } from "../markdown/remark-wiki-l
 import { wikiLinkName, wikiLinkPath } from "./doc-file";
 import type { ExtractedLink, Span } from "./link-extract";
 import { documentLinkSpans } from "./link-extract";
-import { buildResolver, wikiNameKeys } from "./link-resolve";
+import { buildResolver, wikiNameKeys, wikiTargetForPath } from "./link-resolve";
 import type { TargetResolver } from "./link-resolve";
 import { basenamePath, dirnamePath, extnamePath, normalizePath, relativePath } from "./vault-path";
 
@@ -32,10 +32,15 @@ interface DocPlace {
   movedDirs: boolean;
 }
 
-// back-to-front so earlier spans stay valid; spans come from one scan and never overlap
-const applyReplacements = (
+export interface SpanReplacement {
+  span: Span;
+  text: string;
+}
+
+// back-to-front so earlier spans stay valid; the spans must not overlap
+export const applyReplacements = (
   content: string,
-  replacements: { span: Span; text: string }[],
+  replacements: readonly SpanReplacement[],
 ): string => {
   const ordered = replacements.toSorted((a, b) => b.span.start - a.span.start);
   let out = content;
@@ -77,28 +82,55 @@ const answersOnly = (name: string, to: string, ctx: MoveContext): boolean =>
   ctx.postResolver.resolveWiki(name) === to &&
   (ctx.postNameOwners.get(name.toLowerCase()) ?? []).every((path) => path === to);
 
-// obsidian's shortest-form convention: the bare name when unique, else the full path; a written extension is preserved
+// the bare name that reaches `path` through the name tier's tie-break; a root file's name is also
+// its path, which the exact tier answers, so it has none
+const tieBreakName = (path: string): string | null => {
+  const name = wikiLinkName(path);
+  return name === wikiLinkPath(path) ? null : name;
+};
+
+// obsidian's shortest-form convention: the bare name when unique, else the shortest path that
+// resolves back; a written extension is preserved
 const wikiTargetText = (
   link: ExtractedLink,
   from: string,
   to: string,
   ctx: MoveContext,
 ): string | null => {
-  const keepExt = writesExtension(from, link);
-  const shortName = keepExt ? basenamePath(to) : wikiLinkName(to);
-  if (answersOnly(shortName, to, ctx)) {
-    return wikiSpanText(link, shortName);
+  if (writesExtension(from, link)) {
+    const name = basenamePath(to);
+    return wikiSpanText(link, answersOnly(name, to, ctx) ? name : to);
   }
-  return wikiSpanText(link, keepExt ? to : wikiLinkPath(to));
+  const name = tieBreakName(to);
+  return wikiSpanText(
+    link,
+    wikiTargetForPath(to, (target) =>
+      target === name && !answersOnly(target, to, ctx)
+        ? null
+        : ctx.postResolver.resolveWiki(target),
+    ),
+  );
 };
 
-const qualifiedWikiTarget = (path: string, link: ExtractedLink): string =>
-  writesExtension(path, link) ? path : wikiLinkPath(path);
+// never the tie-break name, which is what a qualified link stops leaning on
+const qualifiedWikiTarget = (path: string, link: ExtractedLink, ctx: MoveContext): string => {
+  if (writesExtension(path, link)) {
+    return path;
+  }
+  const name = tieBreakName(path);
+  return wikiTargetForPath(path, (target) =>
+    target === name ? null : ctx.postResolver.resolveWiki(target),
+  );
+};
 
 // the span sits before any `#anchor` and the body splits at the last pipe, so the written
 // target becomes the alias (to keep the visible word) only when the link had neither
-const aliasShadowText = (ownerPath: string, link: ExtractedLink): string | null => {
-  const qualified = qualifiedWikiTarget(ownerPath, link);
+const aliasShadowText = (
+  ownerPath: string,
+  link: ExtractedLink,
+  ctx: MoveContext,
+): string | null => {
+  const qualified = qualifiedWikiTarget(ownerPath, link, ctx);
   return link.alias === undefined && link.anchor === undefined
     ? serializeWikiBody({ alias: link.target, target: qualified })
     : wikiSpanText(link, qualified);
@@ -126,7 +158,7 @@ const shadowedText = (
     ctx.postResolver.resolveWiki(link.target) !== resolved;
   if (stolen) {
     // a moved file now wins this short name's tie-break; qualify so the link keeps its meaning
-    return wikiSpanText(link, qualifiedWikiTarget(resolved, link));
+    return wikiSpanText(link, qualifiedWikiTarget(resolved, link, ctx));
   }
   return null;
 };
@@ -141,7 +173,7 @@ const aliasShadowedText = (link: ExtractedLink, ctx: MoveContext): string | null
   const ownerPost = ctx.moves.get(aliasOwner) ?? aliasOwner;
   const postHit = ctx.postResolver.resolveWiki(link.target);
   if (postHit !== null && postHit !== ownerPost) {
-    return aliasShadowText(ownerPost, link);
+    return aliasShadowText(ownerPost, link, ctx);
   }
   return null;
 };
@@ -233,7 +265,7 @@ export const computeMoveEdits = ({
       path,
       postPath,
     };
-    const replacements: { span: Span; text: string }[] = [];
+    const replacements: SpanReplacement[] = [];
 
     for (const link of documentLinkSpans(content)) {
       const raw = content.slice(link.targetSpan.start, link.targetSpan.end);

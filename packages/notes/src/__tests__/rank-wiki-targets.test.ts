@@ -64,4 +64,19 @@ describe("rankWikiTargets", () => {
     ];
     expect(paths(rankWikiTargets(targets, "diagram.p"))).toEqual(["assets/diagram.png"]);
   });
+
+  it("ranks a non-md note by the name its link spells, extension included", () => {
+    const targets = [
+      doc("archive/todo.txt", "todo"),
+      doc("a/todo.txt.backup.md", "todo.txt.backup"),
+      doc("todo.txt-notes.md", "todo.txt-notes"),
+    ];
+    expect(paths(rankWikiTargets(targets, "todo.txt"))).toEqual([
+      "archive/todo.txt",
+      "a/todo.txt.backup.md",
+      "todo.txt-notes.md",
+    ]);
+    const typing = [doc("notes/tips.md", "Todo.txt tips"), doc("archive/todo.txt", "todo")];
+    expect(paths(rankWikiTargets(typing, "todo.t"))).toEqual(["archive/todo.txt", "notes/tips.md"]);
+  });
 });

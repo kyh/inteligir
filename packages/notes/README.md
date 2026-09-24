@@ -30,8 +30,6 @@ src/
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
                        # in-memory tiered lexical index (behavior pin)
-    source-lines.ts    # what a LINE is — content excludes its terminator,
-                       # whichever flavor — stated once, for every reader
     vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
                        # command palette and `inteligir search`
     search-query.ts, search-excerpt.ts  # the ONE literal+stem query policy
@@ -86,6 +84,8 @@ src/
   text/                # ONE Myers line diff under diff3 — the merge a 409'd
                        # write retries through; bounded by an edit budget,
                        # past which the changed span is one hunk
+    source-lines.ts    # what a LINE is — content excludes its terminator,
+                       # whichever flavor — stated once, for every reader
 ```
 
 ## Invariants

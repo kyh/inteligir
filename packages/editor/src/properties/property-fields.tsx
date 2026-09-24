@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";
 
-import { isTagName } from "@repo/notes/knowledge/tag-grammar";
+import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
 import { TAGS_KEY } from "@repo/notes/markdown/frontmatter";
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 import { Checkbox } from "@repo/ui/components/checkbox";
@@ -179,7 +179,7 @@ export const TagsField = ({
       />
       {refused ? (
         <p id={hintId} className="basis-full text-body text-destructive">
-          A tag starts with a letter and holds only letters, digits, -, _ and /.
+          {TAG_NAME_RULE}
         </p>
       ) : null}
     </div>

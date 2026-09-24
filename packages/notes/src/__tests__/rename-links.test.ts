@@ -112,6 +112,28 @@ describe("computeMoveEdits — wiki links", () => {
     expect(collided.get("hub.md")).toBe("[[a/new]]\n");
   });
 
+  it("writes the extension when an extensionless file holds the path a link would spell", () => {
+    const result = edits(
+      { "a/note.md": "", "b/other.md": "", "c/note.md": "", "x.md": "[[a/note]]\n" },
+      "a/note.md",
+      "b/note.md",
+      ["b/note"],
+    );
+    expect(result.get("x.md")).toBe("[[b/note.md]]\n");
+
+    const root = edits({ "hub.md": "[[old]]\n", "old.md": "" }, "old.md", "new.md", ["new"]);
+    expect(root.get("hub.md")).toBe("[[new.md]]\n");
+  });
+
+  it("keeps a root note's bare path, which no folder's note of that name can take", () => {
+    const result = edits(
+      { "hub.md": "[[old]]\n", "old.md": "", "sub/new.md": "" },
+      "old.md",
+      "new.md",
+    );
+    expect(result.get("hub.md")).toBe("[[new]]\n");
+  });
+
   it("preserves an explicitly written extension", () => {
     const result = edits({ "hub.md": "see [[old.md]]\n", "old.md": "" }, "old.md", "new.md");
     expect(result.get("hub.md")).toBe("see [[new.md]]\n");

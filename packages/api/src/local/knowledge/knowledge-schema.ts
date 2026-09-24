@@ -5,7 +5,7 @@
 // can disagree with the arrays.
 
 import { LINK_KINDS } from "@repo/notes/knowledge/link-kinds";
-import { isTagName } from "@repo/notes/knowledge/tag-grammar";
+import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
 import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";
 
@@ -279,9 +279,7 @@ export const knowledgeTagsResponseSchema = z
 export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
 
 // the inline grammar's own name rule, so a rename can only write a tag the scan would read back
-export const tagNameSchema = z.string().refine(isTagName, {
-  message: "a tag is letter-first: letters, digits, _ and -, with / between levels",
-});
+export const tagNameSchema = z.string().refine(isTagName, { message: TAG_NAME_RULE });
 
 export const KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT = 100;
 export const KNOWLEDGE_TAG_NOTES_MAX_LIMIT = 500;

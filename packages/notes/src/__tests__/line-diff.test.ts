@@ -100,7 +100,7 @@ describe("diffLines", () => {
     expect(hunks).toEqual([{ baseEnd: 2, baseStart: 1, sideEnd: 2, sideStart: 1 }]);
   });
 
-  // the hunks the walk answered before its trace was cut to the live diagonals.
+  // equal-cost inputs: the walk's tie-break is pinned so a merge's hunks stay stable
   it.each<[string[], string[], DiffHunk[]]>([
     [
       ["x", "y"],
@@ -137,7 +137,7 @@ describe("diffLines", () => {
         { baseEnd: 7, baseStart: 7, sideEnd: 7, sideStart: 4 },
       ],
     ],
-  ])("breaks ties as it always has: %j against %j", (base, side, expected) => {
+  ])("pins the tie-break between equal-cost diffs: %j against %j", (base, side, expected) => {
     expect(diffLines(base, side)).toEqual({ hunks: expected, kind: "minimal" });
   });
 

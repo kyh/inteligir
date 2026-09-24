@@ -2,7 +2,7 @@
 // line a hit sits, and a replace must touch exactly the bytes the rows showed. One matcher
 // serves the listing and the rewrite, so the two cannot disagree.
 
-import { splitLinesKeepingTerminators } from "./source-lines";
+import { splitLinesKeepingTerminators } from "../text/source-lines";
 
 export interface TextMatchOptions {
   caseSensitive: boolean;
@@ -106,15 +106,6 @@ export const findLineMatches = (parts: readonly string[], pattern: RegExp): Text
   return found;
 };
 
-export const findTextMatches = (
-  text: string,
-  needle: string,
-  options: TextMatchOptions,
-): TextMatch[] =>
-  needle === ""
-    ? []
-    : findLineMatches(splitLinesKeepingTerminators(text), matcher(needle, options));
-
 // a function replacement: a `$1` typed into the replace box is text, not a group reference
 export const replaceTextMatches = (
   text: string,
@@ -181,24 +172,24 @@ export const collectVaultMatches = (
   options: TextMatchOptions,
   limit: number,
 ): VaultMatches => {
-  const sorted = [...docs].toSorted(byPath);
+  if (needle === "") {
+    return { matches: [], total: 0 };
+  }
+  const pattern = matcher(needle, options);
   const matches: VaultMatch[] = [];
   let total = 0;
-  for (const doc of sorted) {
-    const found = findTextMatches(doc.body, needle, options);
-    if (found.length === 0) {
-      continue;
-    }
+  for (const doc of [...docs].toSorted(byPath)) {
+    const parts = splitLinesKeepingTerminators(doc.body);
+    const found = findLineMatches(parts, pattern);
     total += found.length;
-    if (matches.length >= limit) {
+    if (found.length === 0 || matches.length >= limit) {
       continue;
     }
-    const lines = splitLinesKeepingTerminators(doc.body);
     for (const [ordinal, match] of found.entries()) {
       if (matches.length >= limit) {
         break;
       }
-      const line = lines[(match.line - 1) * 2] ?? "";
+      const line = parts[(match.line - 1) * 2] ?? "";
       matches.push({
         ...match,
         ...excerptAround(line, match),

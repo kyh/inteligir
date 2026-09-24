@@ -1,4 +1,4 @@
-import { docStem } from "./doc-file";
+import { wikiLinkName } from "./doc-file";
 
 export interface RankableWikiTarget {
   readonly path: string;
@@ -23,18 +23,18 @@ const hasWordStart = (text: string, word: string): boolean => {
   return false;
 };
 
-// Lower ranks first. The stem is what a picked link spells, so a hit there beats the title,
-// which beats an alias; every typed word starting a word of those names beats a hit mid-word,
-// and a hit in the folder part of the path only qualifies the row.
+// Lower ranks first. A hit in the name a picked link spells beats the title, which beats an
+// alias; every typed word starting a word of those names beats a hit mid-word, and a hit in the
+// folder part of the path only qualifies the row.
 const tierOf = (
   target: RankableWikiTarget,
   needle: string,
   words: readonly string[],
 ): number | null => {
-  const stem = fold(docStem(target.path));
+  const name = fold(wikiLinkName(target.path));
   const title = fold(target.title);
   const aliases = (target.aliases ?? []).map(fold);
-  if (stem.startsWith(needle)) {
+  if (name.startsWith(needle)) {
     return 0;
   }
   if (title.startsWith(needle)) {
@@ -43,8 +43,8 @@ const tierOf = (
   if (aliases.some((alias) => alias.startsWith(needle))) {
     return 2;
   }
-  const names = [stem, title, ...aliases];
-  if (words.every((word) => names.some((name) => hasWordStart(name, word)))) {
+  const names = [name, title, ...aliases];
+  if (words.every((word) => names.some((text) => hasWordStart(text, word)))) {
     return 3;
   }
   if ([fold(target.path), title, ...aliases].some((text) => text.includes(needle))) {

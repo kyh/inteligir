@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { splitLines } from "../knowledge/source-lines";
+import { splitLines } from "../text/source-lines";
 
 describe("splitLines", () => {
   it("excludes every terminator flavor, mixed endings included", () => {
