@@ -6,7 +6,6 @@ import type {
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { and, desc, eq, isNotNull, isNull, like } from "drizzle-orm";
-import { writeTransaction } from "./connection";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -52,7 +51,8 @@ export interface EnsureThreadOutcome {
 }
 
 // created with the log's id, not `createThread`'s: a device minting its own turns one synced
-// conversation into two. title and origin stay default because the event log carries neither.
+// conversation into two. created bare: its title, origin and harness arrive as the log's
+// thread/meta rows, through `applyThreadMetaInTransaction`.
 export const ensureThreadInTransaction = (tx: DbTransaction, id: string): EnsureThreadOutcome => {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
   if (existing !== undefined) {
@@ -87,49 +87,44 @@ export const listThreads = (db: DbConnection): ThreadRow[] => {
   return [...live, ...archived];
 };
 
-// one transaction: a folder's threads move together or not at all, and the announcements follow
-// the commit.
-export const rebindThreadOrigins = (
-  db: DbConnection,
-  notifier: DbNotifier,
+export interface ReboundThread {
+  id: string;
+  originDocPath: string;
+}
+
+// takes the caller's transaction so a folder's threads move together or not at all.
+export const rebindThreadOriginsInTransaction = (
+  tx: DbTransaction,
   args: { from: string; to: string },
-): number => {
-  const moved = writeTransaction(db, (tx) => {
-    const ids = tx
-      .update(threads)
-      .set({ originDocPath: args.to, updatedAt: Date.now() })
-      .where(eq(threads.originDocPath, args.from))
-      .returning({ id: threads.id })
-      .all()
-      .map((row) => row.id);
-    // "/" appended so a sibling sharing the name's prefix (`Notes2/`) is never caught.
-    const prefix = `${args.from}/`;
-    const descendants = tx
-      .select({ id: threads.id, originDocPath: threads.originDocPath })
-      .from(threads)
-      // drizzle's `like` emits no ESCAPE clause, so escaping the prefix's own wildcards would match
-      // a literal backslash and find nothing; the pattern over-matches and `startsWith` filters.
-      .where(like(threads.originDocPath, `${prefix}%`))
-      .all();
-    for (const row of descendants) {
-      if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
-        continue;
-      }
-      tx.update(threads)
-        .set({
-          originDocPath: `${args.to}/${row.originDocPath.slice(prefix.length)}`,
-          updatedAt: Date.now(),
-        })
-        .where(eq(threads.id, row.id))
-        .run();
-      ids.push(row.id);
+): ReboundThread[] => {
+  const moved = tx
+    .update(threads)
+    .set({ originDocPath: args.to, updatedAt: Date.now() })
+    .where(eq(threads.originDocPath, args.from))
+    .returning({ id: threads.id })
+    .all()
+    .map((row): ReboundThread => ({ id: row.id, originDocPath: args.to }));
+  // "/" appended so a sibling sharing the name's prefix (`Notes2/`) is never caught.
+  const prefix = `${args.from}/`;
+  const descendants = tx
+    .select({ id: threads.id, originDocPath: threads.originDocPath })
+    .from(threads)
+    // drizzle's `like` emits no ESCAPE clause, so escaping the prefix's own wildcards would match
+    // a literal backslash and find nothing; the pattern over-matches and `startsWith` filters.
+    .where(like(threads.originDocPath, `${prefix}%`))
+    .all();
+  for (const row of descendants) {
+    if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
+      continue;
     }
-    return ids;
-  });
-  for (const id of moved) {
-    notifier.notifyThread(id, ["origin-changed"]);
+    const originDocPath = `${args.to}/${row.originDocPath.slice(prefix.length)}`;
+    tx.update(threads)
+      .set({ originDocPath, updatedAt: Date.now() })
+      .where(eq(threads.id, row.id))
+      .run();
+    moved.push({ id: row.id, originDocPath });
   }
-  return moved.length;
+  return moved;
 };
 
 // fills an empty title only: an explicit one, or one an earlier message already set, stays.
@@ -144,23 +139,61 @@ export const nameUntitledThreadInTransaction = (
     .returning({ id: threads.id })
     .get() !== undefined;
 
-export const archiveThread = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  id: string,
-): ThreadRow | null => {
+// true when this call archived it: a thread already archived keeps the time it was archived at.
+export const archiveThreadInTransaction = (tx: DbTransaction, id: string): boolean => {
   const now = Date.now();
-  const updated = db
-    .update(threads)
-    .set({ archivedAt: now, updatedAt: now })
-    .where(and(eq(threads.id, id), isNull(threads.archivedAt)))
-    .returning()
-    .get();
-  if (updated !== undefined) {
-    notifier.notifyThread(id, ["archived-changed"]);
-    return updated;
+  return (
+    tx
+      .update(threads)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(and(eq(threads.id, id), isNull(threads.archivedAt)))
+      .returning({ id: threads.id })
+      .get() !== undefined
+  );
+};
+
+export interface ThreadMetaFacts {
+  title?: string | undefined;
+  originDocPath?: string | undefined;
+  providerId?: string | undefined;
+}
+
+export interface ThreadMetaChange {
+  title: boolean;
+  origin: boolean;
+}
+
+// a title and an origin take the latest statement: a rename moves the origin, and a title a
+// skipping build pulls again lands after the first message already named the thread. a bound
+// harness stays, because this device's provider session was opened on it.
+export const applyThreadMetaInTransaction = (
+  tx: DbTransaction,
+  args: { threadId: string; facts: ThreadMetaFacts },
+): ThreadMetaChange => {
+  const row = getThread(tx, args.threadId);
+  if (row === null) {
+    return { origin: false, title: false };
   }
-  return getThread(db, id);
+  const { originDocPath, providerId, title } = args.facts;
+  const patch: Partial<typeof threads.$inferInsert> = {};
+  if (title !== undefined && title !== row.title) {
+    patch.title = title;
+  }
+  if (originDocPath !== undefined && originDocPath !== row.originDocPath) {
+    patch.originDocPath = originDocPath;
+  }
+  if (providerId !== undefined && row.providerId === null) {
+    patch.providerId = providerId;
+  }
+  const change = { origin: patch.originDocPath !== undefined, title: patch.title !== undefined };
+  if (!change.origin && !change.title && patch.providerId === undefined) {
+    return change;
+  }
+  tx.update(threads)
+    .set({ ...patch, updatedAt: Date.now() })
+    .where(eq(threads.id, args.threadId))
+    .run();
+  return change;
 };
 
 export interface SetThreadProviderSessionArgs {

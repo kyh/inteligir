@@ -63,7 +63,9 @@ and `threads.activeTurnId` is the one the current status describes — bound by
 (`setThreadProviderSession` in `@repo/db/threads`, the one writer), cached on
 the thread row so a later turn resumes into it. A session is disposable: it is
 reaped when idle, closed when the host abandons a turn on it, and dies with
-the provider process, while the thread and its events do not. Not to be
+the provider process, while the thread and its events do not. Only its
+`providerId` travels, in a `thread/meta` row: another device learns the
+harness, never the session id, and opens a session of its own. Not to be
 confused with the auth **session** in `apps/web` — a signed-in user's row in
 D1 — which shares only the word.
 
@@ -101,8 +103,10 @@ was asked rather than a statement about the screen, survives the queue.
 **lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
 thread's metadata row (`@repo/api/cloud/sync/sync-schema`). It is what makes
 the sync log double as a dispatch mailbox — a `desktop`-lane thread pokes the
-desktop sockets, an `any`-lane one only bumps sync. There is no lane in the
-local server; locally a thread is just a thread.
+desktop sockets, an `any`-lane one only bumps sync. A desktop's push fills the
+row from the titled `thread/meta` events it carries, always `any`, since a
+thread a desktop runs is no dispatch; nothing sets `desktop` yet. There is no
+lane in the local server; locally a thread is just a thread.
 
 ## "event" means four things
 

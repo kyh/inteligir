@@ -279,6 +279,28 @@ export const listStoredThreadEvents = (
   return stored;
 };
 
+type ThreadMetaEvent = Extract<ThreadEvent, { type: "thread/meta" }>;
+
+// the facts a thread's log has stated about it, oldest first.
+export const listThreadMetaEvents = (
+  db: DbConnection | DbTransaction,
+  threadId: string,
+): ThreadMetaEvent[] =>
+  db
+    .select({ data: events.data })
+    .from(events)
+    .where(and(eq(events.threadId, threadId), eq(events.type, "thread/meta")))
+    .orderBy(events.sequence)
+    .all()
+    .flatMap((row) => {
+      const event = readStoredEvent(row.data);
+      return event?.type === "thread/meta" ? [event] : [];
+    });
+
+export const threadHasEvents = (db: DbConnection | DbTransaction, threadId: string): boolean =>
+  db.select({ id: events.id }).from(events).where(eq(events.threadId, threadId)).limit(1).get() !==
+  undefined;
+
 // crash recovery asks this before failing a turn: a turn another device started is running
 // elsewhere, and failing it here would sync a fabricated failure back to it.
 export const turnStartOriginDeviceId = (

@@ -449,6 +449,11 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
         ({ tokenUsage } = event);
         break;
       }
+      // the thread row carries these; the transcript draws what was said and done.
+      case "thread/archived":
+      case "thread/meta": {
+        break;
+      }
       default: {
         return assertUnreachable(event);
       }

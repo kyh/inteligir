@@ -1,6 +1,7 @@
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
+import { MAX_THREAD_TITLE_LENGTH } from "@repo/domain/thread-title";
 import { viewContextSchema } from "@repo/domain/view-context";
 import type { ViewContext } from "@repo/domain/view-context";
 import { z } from "zod";
@@ -38,8 +39,6 @@ export const pendingInteractionSchema = z
   })
   .strict();
 export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
-
-const MAX_THREAD_TITLE_LENGTH = 200;
 
 export const createThreadRequestSchema = z
   .object({

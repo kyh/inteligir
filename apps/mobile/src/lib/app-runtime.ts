@@ -10,7 +10,7 @@ import type { LoginRequest, LoginState } from "../login/login-store";
 import { createExpoNoteCache } from "../notes/expo-note-cache";
 import type { CommentsRead, NoteRead, NotesTreeState } from "../notes/notes-store";
 import type { SyncStatus } from "../sync/sync-runtime";
-import { projectThread } from "../sync/thread-projection";
+import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
@@ -120,7 +120,7 @@ export const useLoginState = (): LoginState => {
 export const useThreads = (): readonly ThreadProjection[] => {
   const rt = getRuntime();
   const threads = useSyncExternalStore(rt.store.subscribeThreads, rt.store.snapshotThreads);
-  return useMemo(() => threads.map((thread) => projectThread(thread)), [threads]);
+  return useMemo(() => liveThreadsFirst(threads.map((thread) => projectThread(thread))), [threads]);
 };
 
 export const useThread = (threadId: string): ThreadProjection | null => {

@@ -1,6 +1,7 @@
 import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
+import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
@@ -365,6 +366,99 @@ describe("two installs against one account", () => {
       .map((event) => event.text);
     expect(texts).toContain("from A");
     expect(texts).toContain("from B");
+  });
+
+  it("carries a thread's title, note, harness and archive to the other install", async () => {
+    const cloud = new FakeCloud();
+    const a = await bootInstall(cloud);
+    const b = await bootInstall(cloud);
+    await login(a, "A");
+    await login(b, "B");
+
+    await a.client.vault.write({ content: "# Week\n", path: "Week.md" });
+    const { thread } = await a.client.threads.create({
+      originDocPath: "Week.md",
+      title: "Plan the week",
+    });
+    // the bind a real runtime makes before its first prompt; the scripted driver makes none.
+    setThreadProviderSession(a.db, {
+      providerId: "codex",
+      providerThreadId: "session_on_a",
+      threadId: thread.id,
+    });
+    await a.client.threads.send({ text: "draft a plan", threadId: thread.id });
+    await syncNow(a);
+    await syncNow(b);
+
+    const pulled = await b.client.threads.get({ threadId: thread.id });
+    expect(pulled.thread).toMatchObject({
+      archivedAt: null,
+      originDocPath: "Week.md",
+      providerId: "codex",
+      title: "Plan the week",
+    });
+    expect(getThread(b.db, thread.id)?.providerThreadId).toBeNull();
+    expect(cloud.threadMetaRow(thread.id)).toMatchObject({ lane: "any", title: "Plan the week" });
+
+    await a.client.vault.rename({ from: "Week.md", to: "Plans/Week.md" });
+    await a.client.threads.archive({ threadId: thread.id });
+    await syncNow(a);
+    await syncNow(b);
+
+    const moved = await b.client.threads.get({ threadId: thread.id });
+    expect(moved.thread.originDocPath).toBe("Plans/Week.md");
+    expect(moved.thread.archivedAt).not.toBeNull();
+    expect(eventOrder(b, thread.id)).toEqual(eventOrder(a, thread.id));
+  });
+
+  it("stops its own running turn when the other install archives the thread", async () => {
+    const cloud = new FakeCloud();
+    const a = await bootInstall(cloud);
+    // manual: B's turn stays open until something stops it.
+    const b = await bootThreadHarness(
+      { mode: "manual" },
+      { cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null } },
+    );
+    await login(a, "A");
+    await login(b, "B");
+
+    const { thread } = await a.client.threads.create({ title: "Shared" });
+    await a.client.threads.send({ text: "from A", threadId: thread.id });
+    await syncNow(a);
+    await syncNow(b);
+    const sent = await b.client.threads.send({ text: "from B", threadId: thread.id });
+    expect(sent.kind).toBe("started");
+
+    await a.client.threads.archive({ threadId: thread.id });
+    await syncNow(a);
+    await syncNow(b);
+
+    expect(b.driver.interruptedThreads).toEqual([thread.id]);
+    const detail = await b.client.threads.get({ threadId: thread.id });
+    expect(detail.thread.status).toBe("idle");
+    expect(detail.thread.archivedAt).not.toBeNull();
+  });
+
+  it("keeps a thread that never made a request on its own install, archived or moved", async () => {
+    const cloud = new FakeCloud();
+    const a = await bootInstall(cloud);
+    const b = await bootInstall(cloud);
+    await login(a, "A");
+    await login(b, "B");
+
+    await a.client.vault.write({ content: "# Draft\n", path: "Draft.md" });
+    const { thread } = await a.client.threads.create({ originDocPath: "Draft.md" });
+    await a.client.vault.rename({ from: "Draft.md", to: "Kept/Draft.md" });
+    await a.client.threads.archive({ threadId: thread.id });
+    await syncNow(a);
+    await syncNow(b);
+
+    expect(cloud.logSize()).toBe(0);
+    const onB = await b.client.threads.list();
+    expect(onB.threads).toEqual([]);
+    const local = await a.client.threads.get({ threadId: thread.id });
+    expect(local.thread.originDocPath).toBe("Kept/Draft.md");
+    expect(local.thread.archivedAt).not.toBeNull();
   });
 
   it("pulls a row an older build skipped once a build that reads it boots, and lands it once", async () => {

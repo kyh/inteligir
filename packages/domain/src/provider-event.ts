@@ -8,6 +8,7 @@ import {
   threadEventScopeSchema,
   validateThreadEventScope,
 } from "./thread-event-scope";
+import { MAX_THREAD_TITLE_LENGTH } from "./thread-title";
 import { viewContextSchema } from "./view-context";
 
 export const threadEventItemStatusSchema = z.enum([
@@ -192,6 +193,20 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     type: z.literal("client/turn/requested"),
     viewContext: viewContextSchema.optional(),
   }),
+  // local: a thread's own facts ride its log, so another device learns them the way it learns the
+  // conversation. bb's thread/name/updated is a provider naming its session, not the app's title.
+  // a field present is the thread's value as of this row; an absent one is left as it is.
+  z.object({
+    originDocPath: z.string().min(1).optional(),
+    providerId: z.string().min(1).optional(),
+    threadId: z.string(),
+    title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
+    type: z.literal("thread/meta"),
+  }),
+  z.object({
+    threadId: z.string(),
+    type: z.literal("thread/archived"),
+  }),
 ]);
 
 const scopedEventDataSchema = z.object({
@@ -234,6 +249,8 @@ export const getThreadEventItemRef = (event: ThreadEvent): ThreadEventItemRef =>
     }
     case "client/turn/requested":
     case "provider/error":
+    case "thread/archived":
+    case "thread/meta":
     case "thread/tokenUsage/updated":
     case "turn/completed":
     case "turn/started": {
@@ -258,6 +275,8 @@ export const isThreadEventDelta = (event: ThreadEvent): event is ThreadEventDelt
     case "item/completed":
     case "item/started":
     case "provider/error":
+    case "thread/archived":
+    case "thread/meta":
     case "thread/tokenUsage/updated":
     case "turn/completed":
     case "turn/started": {

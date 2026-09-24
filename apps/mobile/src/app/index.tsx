@@ -14,7 +14,11 @@ import { logout, submitCapture, syncNow, useSyncStatus, useThreads } from "@/lib
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
+import type { ThreadProjection } from "@/sync/thread-projection";
 import { describeCloudFailure } from "@repo/api/cloud/client";
+
+const threadCaption = (thread: ThreadProjection): string =>
+  [thread.archived ? "Archived" : "", thread.preview].filter((part) => part !== "").join(" · ");
 
 const styles = StyleSheet.create({
   bodyText: { fontSize: 16, textAlign: "center" },
@@ -228,27 +232,33 @@ const HomeScreen = () => {
             </Text>
           </View>
         }
-        renderItem={({ item: thread }) => (
-          <Pressable
-            style={({ pressed }) => [
-              styles.threadRow,
-              { backgroundColor: theme.card, borderColor: theme.border },
-              pressed && styles.pressed70,
-            ]}
-            onPress={() => {
-              router.push({ params: { id: thread.threadId }, pathname: "/thread/[id]" });
-            }}
-          >
-            <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
-              {thread.title}
-            </Text>
-            {thread.preview === "" ? null : (
-              <Text style={[styles.smallText, { color: theme.mutedForeground }]} numberOfLines={1}>
-                {thread.preview}
+        renderItem={({ item: thread }) => {
+          const caption = threadCaption(thread);
+          return (
+            <Pressable
+              style={({ pressed }) => [
+                styles.threadRow,
+                { backgroundColor: theme.card, borderColor: theme.border },
+                pressed && styles.pressed70,
+              ]}
+              onPress={() => {
+                router.push({ params: { id: thread.threadId }, pathname: "/thread/[id]" });
+              }}
+            >
+              <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
+                {thread.title}
               </Text>
-            )}
-          </Pressable>
-        )}
+              {caption === "" ? null : (
+                <Text
+                  style={[styles.smallText, { color: theme.mutedForeground }]}
+                  numberOfLines={1}
+                >
+                  {caption}
+                </Text>
+              )}
+            </Pressable>
+          );
+        }}
       />
 
       <View style={[styles.footer, { borderTopColor: theme.border }]}>

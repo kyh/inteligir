@@ -6,7 +6,6 @@ import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
-import { rebindThreadOrigins } from "@repo/db/threads";
 import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
@@ -257,7 +256,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
         from,
         knowledge,
         rebindThreads: (movedFrom, movedTo) => {
-          rebindThreadOrigins(db, bus, { from: movedFrom, to: movedTo });
+          threads.rebindOrigins({ from: movedFrom, to: movedTo });
         },
         service: vault.service,
         to,

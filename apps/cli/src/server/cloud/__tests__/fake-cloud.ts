@@ -29,7 +29,12 @@ import {
   pushRequestSchema,
   SYNC_API_PATHS,
 } from "@repo/api/cloud/sync/sync-schema";
-import type { PullResponse, PushResponse, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
+import type {
+  PullResponse,
+  PushResponse,
+  SyncEventRow,
+  ThreadLane,
+} from "@repo/api/cloud/sync/sync-schema";
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
@@ -56,6 +61,12 @@ interface LogRow {
   createdAt: number;
 }
 
+interface ThreadMetaRow {
+  lane: ThreadLane;
+  title: string | null;
+  updatedAt: number;
+}
+
 interface InboxRow {
   id: string;
   text: string;
@@ -73,6 +84,9 @@ export class FakeCloud {
     [FAKE_ACCOUNT.email, FAKE_ACCOUNT.password],
   ]);
   private readonly log: LogRow[] = [];
+  // the durable object's thread_meta: last writer wins on the client's clock, and a row with no
+  // title keeps the stored one.
+  private readonly threadMeta = new Map<string, ThreadMetaRow>();
   private readonly inbox: InboxRow[] = [];
   private nextDevice = 0;
   private nextSeq = 0;
@@ -110,6 +124,10 @@ export class FakeCloud {
 
   logSize(): number {
     return this.log.length;
+  }
+
+  threadMetaRow(threadId: string): ThreadMetaRow | null {
+    return this.threadMeta.get(threadId) ?? null;
   }
 
   deviceCount(): number {
@@ -220,6 +238,16 @@ export class FakeCloud {
           "Batch positions must strictly increase.",
           event.deviceSeq,
         );
+      }
+    }
+    for (const thread of parsed.data.threads ?? []) {
+      const stored = this.threadMeta.get(thread.threadId);
+      if (stored === undefined || thread.updatedAt > stored.updatedAt) {
+        this.threadMeta.set(thread.threadId, {
+          lane: thread.lane,
+          title: thread.title ?? stored?.title ?? null,
+          updatedAt: thread.updatedAt,
+        });
       }
     }
     const mine = this.log.filter((row) => row.deviceId === deviceId);

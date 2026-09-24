@@ -48,6 +48,14 @@ export const threadEventScopeDefinitionByType = {
     rationale:
       "Provider diagnostics use thread scope for provider setup/session failures; in-turn failures use turn scope.",
   },
+  "thread/archived": {
+    policy: "thread",
+    rationale: "A fact about the thread itself, stated outside any turn.",
+  },
+  "thread/meta": {
+    policy: "thread",
+    rationale: "A fact about the thread itself, stated outside any turn.",
+  },
   "thread/tokenUsage/updated": { policy: "turn" },
   "turn/completed": { policy: "turn" },
   "turn/started": { policy: "turn" },

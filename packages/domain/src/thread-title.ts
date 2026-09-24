@@ -3,6 +3,9 @@
 
 const THREAD_TITLE_MAX_CHARS = 60;
 
+// an explicit title's bound: the create route takes no longer one, and the log carries what it took.
+export const MAX_THREAD_TITLE_LENGTH = 200;
+
 // null when the message has no visible line: an untitled thread reads better than a blank one.
 export const deriveThreadTitle = (text: string): string | null => {
   const line = text

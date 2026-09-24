@@ -146,13 +146,16 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   match, so a settle validated against turn A cannot land after turn B bound.
   The loser is a typed `cas-conflict`, never a throw.
 - **Notifications follow the commit, never precede it.** A standalone writer
-  takes a `DbNotifier` and announces after its own write commits;
-  `rebindThreadOrigins` moves a folder's threads in one transaction and
-  announces each after it. An `*InTransaction` writer announces nothing: the
-  server composes it into one immediate transaction and its
-  `NotificationBuffer` announces after the commit, so a subscriber never sees
-  rolled-back state. `setThreadProviderSession` announces nothing on purpose:
-  the provider session is runtime plumbing, not a fact a client renders.
+  takes a `DbNotifier` and announces after its own write commits. An
+  `*InTransaction` writer announces nothing: the server composes it into one
+  immediate transaction and its `NotificationBuffer` announces after the
+  commit, so a subscriber never sees rolled-back state. That is how a folder's
+  threads move (`rebindThreadOriginsInTransaction`), an archive lands
+  (`archiveThreadInTransaction`) and a synced `thread/meta` row fills a thread
+  the log created bare (`applyThreadMetaInTransaction`), each beside the event
+  that tells other devices. `setThreadProviderSession` announces nothing on
+  purpose: the provider session is runtime plumbing, not a fact a client
+  renders.
 - **A claim has no TTL, so boot releases them all.** One server owns a data
   dir, so no claim can be live at boot; `releaseAllQueuedMessageClaims` runs
   in `ThreadService.boot()` (`apps/cli/src/server/threads/service.ts`).

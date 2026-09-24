@@ -7,13 +7,21 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import { openTempDb } from "./open-temp-db";
 import {
   applyThreadLifecycleEventInTransaction,
-  archiveThread,
+  applyThreadMetaInTransaction,
+  archiveThreadInTransaction,
   createThread,
+  ensureThreadInTransaction,
   getThread,
   listThreads,
-  rebindThreadOrigins,
+  rebindThreadOriginsInTransaction,
 } from "../threads";
-import type { ApplyThreadLifecycleEventArgs, ApplyThreadLifecycleEventOutcome } from "../threads";
+import type {
+  ApplyThreadLifecycleEventArgs,
+  ApplyThreadLifecycleEventOutcome,
+  ReboundThread,
+  ThreadMetaChange,
+  ThreadMetaFacts,
+} from "../threads";
 
 interface RecordedThreadChange {
   threadId: string;
@@ -45,6 +53,15 @@ const applyLifecycle = (
 ): ApplyThreadLifecycleEventOutcome =>
   writeTransaction(db, (tx) => applyThreadLifecycleEventInTransaction(tx, args));
 
+const archive = (db: DbConnection, threadId: string): boolean =>
+  writeTransaction(db, (tx) => archiveThreadInTransaction(tx, threadId));
+
+const rebind = (db: DbConnection, args: { from: string; to: string }): ReboundThread[] =>
+  writeTransaction(db, (tx) => rebindThreadOriginsInTransaction(tx, args));
+
+const applyMeta = (db: DbConnection, threadId: string, facts: ThreadMetaFacts): ThreadMetaChange =>
+  writeTransaction(db, (tx) => applyThreadMetaInTransaction(tx, { facts, threadId }));
+
 describe("thread CRUD", () => {
   it("creates idle threads and fires thread-created", () => {
     const db = openTempDb();
@@ -69,19 +86,89 @@ describe("thread CRUD", () => {
     const db = openTempDb();
     const first = createThread(db, noopNotifier, { title: "a" });
     const second = createThread(db, noopNotifier, { title: "b" });
-    archiveThread(db, noopNotifier, first.id);
+    archive(db, first.id);
     expect(listThreads(db).map((thread) => thread.id)).toEqual([second.id, first.id]);
   });
 
-  it("archives once, idempotently, and fires archived-changed", () => {
+  it("archives once, keeping the time it was first archived at", () => {
     const db = openTempDb();
-    const { notifier, threadChanges } = recordingNotifier();
     const thread = createThread(db, noopNotifier, {});
-    const archived = archiveThread(db, notifier, thread.id);
-    expect(archived?.archivedAt).not.toBeNull();
-    const again = archiveThread(db, notifier, thread.id);
-    expect(again?.archivedAt).toBe(archived?.archivedAt);
-    expect(threadChanges).toEqual([{ changes: ["archived-changed"], threadId: thread.id }]);
+    expect(archive(db, thread.id)).toBe(true);
+    const archivedAt = getThread(db, thread.id)?.archivedAt;
+    expect(archivedAt).not.toBeNull();
+    expect(archive(db, thread.id)).toBe(false);
+    expect(getThread(db, thread.id)?.archivedAt).toBe(archivedAt);
+    expect(archive(db, "thr_missing")).toBe(false);
+  });
+});
+
+describe("applyThreadMetaInTransaction", () => {
+  it("gives a thread the log created bare its title, origin and harness", () => {
+    const db = openTempDb();
+    writeTransaction(db, (tx) => ensureThreadInTransaction(tx, "thr_synced"));
+
+    expect(
+      applyMeta(db, "thr_synced", {
+        originDocPath: "Plans.md",
+        providerId: "codex",
+        title: "Plan the week",
+      }),
+    ).toEqual({ origin: true, title: true });
+    expect(getThread(db, "thr_synced")).toMatchObject({
+      originDocPath: "Plans.md",
+      providerId: "codex",
+      title: "Plan the week",
+    });
+  });
+
+  it("changes nothing when a replay states what the thread already holds", () => {
+    const db = openTempDb();
+    const thread = createThread(db, noopNotifier, { originDocPath: "Plans.md", title: "Plan" });
+    const before = getThread(db, thread.id);
+
+    expect(applyMeta(db, thread.id, { originDocPath: "Plans.md", title: "Plan" })).toEqual({
+      origin: false,
+      title: false,
+    });
+    expect(getThread(db, thread.id)).toEqual(before);
+  });
+
+  it("moves the title and the origin to the latest statement, and keeps a bound harness", () => {
+    const db = openTempDb();
+    const thread = createThread(db, noopNotifier, { originDocPath: "Plans.md" });
+    applyMeta(db, thread.id, { providerId: "claude", title: "Named from the first line" });
+
+    expect(
+      applyMeta(db, thread.id, {
+        originDocPath: "Archive/Plans.md",
+        providerId: "codex",
+        title: "Explicit",
+      }),
+    ).toEqual({ origin: true, title: true });
+    expect(getThread(db, thread.id)).toMatchObject({
+      originDocPath: "Archive/Plans.md",
+      providerId: "claude",
+      title: "Explicit",
+    });
+  });
+
+  it("leaves absent facts as they are, and a missing thread alone", () => {
+    const db = openTempDb();
+    const thread = createThread(db, noopNotifier, { originDocPath: "Plans.md", title: "Plan" });
+
+    expect(applyMeta(db, thread.id, { providerId: "codex" })).toEqual({
+      origin: false,
+      title: false,
+    });
+    expect(getThread(db, thread.id)).toMatchObject({
+      originDocPath: "Plans.md",
+      providerId: "codex",
+      title: "Plan",
+    });
+    expect(applyMeta(db, "thr_missing", { title: "Nobody" })).toEqual({
+      origin: false,
+      title: false,
+    });
   });
 });
 
@@ -146,7 +233,7 @@ describe("applyThreadLifecycleEventInTransaction", () => {
     });
     expect(missing).toMatchObject({ applied: false, reason: "not-found" });
 
-    archiveThread(db, noopNotifier, thread.id);
+    archive(db, thread.id);
     const superseded = applyLifecycle(db, {
       event: { type: "run.preparing" },
       threadId: thread.id,
@@ -208,7 +295,7 @@ describe("listThreads query plan", () => {
 describe("doc-attached threads", () => {
   it("rebinds a moved doc's threads from the origin index, not a table scan", () => {
     const db = openTempDb();
-    // rebindThreadOrigins' file-move UPDATE, spelled out because EXPLAIN needs raw sql.
+    // rebindThreadOriginsInTransaction's file-move UPDATE, spelled out because EXPLAIN needs raw sql.
     const plan = db.$client
       .prepare(
         "EXPLAIN QUERY PLAN UPDATE threads SET origin_doc_path = 'b.md' WHERE origin_doc_path = 'a.md'",
@@ -220,23 +307,20 @@ describe("doc-attached threads", () => {
   });
 });
 
-describe("rebindThreadOrigins", () => {
-  it("follows a renamed file and announces each moved thread", () => {
+describe("rebindThreadOriginsInTransaction", () => {
+  it("follows a renamed file and answers each moved thread with its new origin", () => {
     const db = openTempDb();
-    const { notifier, threadChanges } = recordingNotifier();
-    const first = createThread(db, notifier, { originDocPath: "Plans.md" });
-    const second = createThread(db, notifier, { originDocPath: "Plans.md" });
-    const elsewhere = createThread(db, notifier, { originDocPath: "Other.md" });
-    threadChanges.length = 0;
+    const first = createThread(db, noopNotifier, { originDocPath: "Plans.md" });
+    const second = createThread(db, noopNotifier, { originDocPath: "Plans.md" });
+    const elsewhere = createThread(db, noopNotifier, { originDocPath: "Other.md" });
 
-    expect(rebindThreadOrigins(db, notifier, { from: "Plans.md", to: "Archive/Moved.md" })).toBe(2);
+    expect(rebind(db, { from: "Plans.md", to: "Archive/Moved.md" })).toEqual([
+      { id: first.id, originDocPath: "Archive/Moved.md" },
+      { id: second.id, originDocPath: "Archive/Moved.md" },
+    ]);
     expect(getThread(db, first.id)?.originDocPath).toBe("Archive/Moved.md");
     expect(getThread(db, second.id)?.originDocPath).toBe("Archive/Moved.md");
     expect(getThread(db, elsewhere.id)?.originDocPath).toBe("Other.md");
-    expect(threadChanges.map((change) => change.changes[0])).toEqual([
-      "origin-changed",
-      "origin-changed",
-    ]);
   });
 
   it("follows a renamed DIRECTORY for every doc under it", () => {
@@ -244,7 +328,9 @@ describe("rebindThreadOrigins", () => {
     const nested = createThread(db, noopNotifier, { originDocPath: "Notes/deep/a.md" });
     const sibling = createThread(db, noopNotifier, { originDocPath: "Notes2/b.md" });
 
-    expect(rebindThreadOrigins(db, noopNotifier, { from: "Notes", to: "Archive" })).toBe(1);
+    expect(rebind(db, { from: "Notes", to: "Archive" })).toEqual([
+      { id: nested.id, originDocPath: "Archive/deep/a.md" },
+    ]);
     expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/deep/a.md");
     expect(getThread(db, sibling.id)?.originDocPath).toBe("Notes2/b.md");
   });
@@ -254,26 +340,21 @@ describe("rebindThreadOrigins", () => {
     const nested = createThread(db, noopNotifier, { originDocPath: "50%/a.md" });
     const sibling = createThread(db, noopNotifier, { originDocPath: "50x/b.md" });
 
-    expect(rebindThreadOrigins(db, noopNotifier, { from: "50%", to: "Archive" })).toBe(1);
+    expect(rebind(db, { from: "50%", to: "Archive" })).toHaveLength(1);
     expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/a.md");
     expect(getThread(db, sibling.id)?.originDocPath).toBe("50x/b.md");
   });
 
   it("is a no-op when nothing is bound to the moved path", () => {
     const db = openTempDb();
-    const { notifier, threadChanges } = recordingNotifier();
-    createThread(db, notifier, {});
-    threadChanges.length = 0;
-    expect(rebindThreadOrigins(db, notifier, { from: "Nothing.md", to: "Else.md" })).toBe(0);
-    expect(threadChanges).toEqual([]);
+    createThread(db, noopNotifier, {});
+    expect(rebind(db, { from: "Nothing.md", to: "Else.md" })).toEqual([]);
   });
 
-  it("moves nothing and announces nothing when a write fails partway through a folder", () => {
+  it("moves nothing when a write fails partway through a folder", () => {
     const db = openTempDb();
-    const { notifier, threadChanges } = recordingNotifier();
-    const exact = createThread(db, notifier, { originDocPath: "Notes" });
-    const nested = createThread(db, notifier, { originDocPath: "Notes/a.md" });
-    threadChanges.length = 0;
+    const exact = createThread(db, noopNotifier, { originDocPath: "Notes" });
+    const nested = createThread(db, noopNotifier, { originDocPath: "Notes/a.md" });
     // the exact-path UPDATE runs first and succeeds; the descendant's is the one refused.
     db.$client.exec(`
       CREATE TRIGGER refuse_rebind BEFORE UPDATE OF origin_doc_path ON threads
@@ -281,13 +362,12 @@ describe("rebindThreadOrigins", () => {
       BEGIN SELECT RAISE(ABORT, 'refused mid-rebind'); END;
     `);
 
-    expect(() => rebindThreadOrigins(db, notifier, { from: "Notes", to: "Archive" })).toThrow(
+    expect(() => rebind(db, { from: "Notes", to: "Archive" })).toThrow(
       expect.objectContaining({
         cause: expect.objectContaining({ message: "refused mid-rebind" }),
       }),
     );
     expect(getThread(db, exact.id)?.originDocPath).toBe("Notes");
     expect(getThread(db, nested.id)?.originDocPath).toBe("Notes/a.md");
-    expect(threadChanges).toEqual([]);
   });
 });

@@ -27,8 +27,10 @@ src/
                            status store the screens subscribe to (`restoring`
                            until the boot read ends), and lends that session to
                            every other read under the sign-in
-    thread-projection.ts   fold a thread's events into display rows, once per
-                           snapshot
+    thread-projection.ts   fold a thread's events into display rows, its
+                           stated title and its archive, once per snapshot;
+                           the list puts archived threads last, as the
+                           desktop does
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
