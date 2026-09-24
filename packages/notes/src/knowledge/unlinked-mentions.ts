@@ -5,6 +5,7 @@
 // there is not prose and a Link would rewrite something that is not a sentence.
 
 import { frontmatterEnd } from "../markdown/frontmatter";
+import { COMMENT_MARKER_STRIP_RE } from "../markdown/remark-inline-constructs";
 import { serializeWikiBody } from "../markdown/remark-wiki-link";
 import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
 import type { VerbatimSpan } from "../markdown/verbatim-spans";
@@ -79,7 +80,6 @@ const INLINE_CODE = /`+[^`\n]*`+/gu;
 const WIKI_LINK = /!?\[\[[^\]]*\]\]/gu;
 const MD_LINK = /!?\[[^\]\n]*\]\([^)\n]*\)/gu;
 const URL = /<?(?:https?|mailto):[^\s>]+>?/gu;
-const COMMENT_MARKER = /%%i:[^%]*%%/gu;
 const INLINE_MATH = /\$[^$\n]+\$/gu;
 const HTML_TAG = /<\/?[A-Za-z][^>\n]*>/gu;
 const INLINE_WITHHELD = [
@@ -87,7 +87,7 @@ const INLINE_WITHHELD = [
   WIKI_LINK,
   MD_LINK,
   URL,
-  COMMENT_MARKER,
+  COMMENT_MARKER_STRIP_RE,
   INLINE_MATH,
   HTML_TAG,
 ];
@@ -116,8 +116,7 @@ const withheldSpansOf = (body: string, parts: readonly string[]): VerbatimSpan[]
         }
       } else if (fenceStart === null) {
         for (const pattern of INLINE_WITHHELD) {
-          pattern.lastIndex = 0;
-          for (let hit = pattern.exec(part); hit !== null; hit = pattern.exec(part)) {
+          for (const hit of part.matchAll(pattern)) {
             spans.push({ end: offset + hit.index + hit[0].length, start: offset + hit.index });
           }
         }

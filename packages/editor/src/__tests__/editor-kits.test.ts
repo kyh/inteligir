@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createSlateEditor, ElementApi, KEYS } from "platejs";
+import { createSlateEditor, ElementApi, KEYS, TextApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
-import { serializeMd } from "@platejs/markdown";
 import { TogglePlugin } from "@platejs/toggle/react";
 
 import { insertColumnGroup } from "@repo/editor/kits/column-kit";
@@ -10,7 +9,7 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
-import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 const makeEditor = (md = "") => {
   const parsed = md === "" ? null : parseMarkdown(md);
@@ -18,8 +17,7 @@ const makeEditor = (md = "") => {
   return createSlateEditor({ plugins: EDITOR_KIT, value });
 };
 
-const out = (editor: ReturnType<typeof makeEditor>): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+const out = (editor: ReturnType<typeof makeEditor>): string => serializeNote(editor);
 
 const el = (node: Descendant | undefined): TElement => {
   if (node === undefined || !ElementApi.isElement(node)) {
@@ -278,6 +276,26 @@ describe("insert transforms serialize canonically", () => {
       ),
     ).toBe(true);
     expect(out(editor)).toBe("**ab**\n");
+  });
+
+  it.each([
+    ["a heading", "# **ab**\n"],
+    ["a list item", "- **ab**\n"],
+    ["a todo", "- [ ] **ab**\n"],
+  ])("an empty inline equation in %s leaves one run either side", (_where, md) => {
+    const editor = makeEditor(md);
+    const [text] = editor.api.nodes({ at: [0], match: (node) => TextApi.isText(node) });
+    if (text === undefined) {
+      throw new Error("the block holds no text");
+    }
+    editor.tf.select({ offset: 1, path: text[1] });
+    insertInlineEquation(editor);
+    expect(
+      [...editor.api.nodes({ at: [0], match: (node) => ElementApi.isElement(node) })].some(
+        ([node]) => node.type === KEYS.inlineEquation,
+      ),
+    ).toBe(true);
+    expect(out(editor)).toBe(md);
   });
 
   it("equation edits serialize to $$ blocks that round-trip", () => {

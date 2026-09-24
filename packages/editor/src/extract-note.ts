@@ -4,7 +4,6 @@
 // note that exists is truer than an edit that never happened. So the buffer is touched only
 // once the create made a new file and the blocks are still the bytes that file holds.
 
-import { serializeMd } from "@platejs/markdown";
 import { KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
@@ -19,7 +18,7 @@ import { isCommentMarker } from "@repo/editor/comments/comment-ranges";
 import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { getLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
-import { MD_STRINGIFY } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
 
 const HEADING_TYPES = new Set<string>([KEYS.h1, KEYS.h2, KEYS.h3, KEYS.h4, KEYS.h5, KEYS.h6]);
@@ -55,7 +54,7 @@ const blocksAt = (editor: SlateEditor, paths: readonly Path[]): TElement[] =>
   });
 
 const serializeBlocks = (editor: SlateEditor, blocks: TElement[]): string => {
-  const markdown = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: blocks });
+  const markdown = serializeNote(editor, blocks);
   return markdown.endsWith("\n") ? markdown : `${markdown}\n`;
 };
 

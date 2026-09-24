@@ -2,6 +2,7 @@
 
 import type { UnlinkedMentionWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import { COMMENT_MARKER_STRIP_RE } from "@repo/notes/markdown/remark-inline-constructs";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@repo/ui/components/button";
@@ -26,7 +27,7 @@ export const plainSnippet = (snippet: string): string =>
   snippet
     .replaceAll(/!?\[\[(?<body>[^\]]+)\]\]/gu, (_match, body: string) => wikiLinkLabel(body))
     .replaceAll(/\{\{(?<body>[^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
-    .replaceAll(/%%i:[^%]*%%/gu, "")
+    .replaceAll(COMMENT_MARKER_STRIP_RE, "")
     .replace(/^[\s>#*-]+/u, "")
     .replaceAll(/\s+/gu, " ")
     .trim();

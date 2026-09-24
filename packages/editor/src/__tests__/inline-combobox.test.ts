@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
-import { serializeMd } from "@platejs/markdown";
 
 import {
   absorbRacedComboboxText,
@@ -13,7 +12,7 @@ import {
 } from "@repo/editor/combobox-input";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_STRINGIFY } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 
 const makeEditor = (text: string) =>
@@ -24,8 +23,7 @@ const makeEditor = (text: string) =>
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+const out = (editor: Editor): string => serializeNote(editor);
 
 const findByType = (editor: Editor, type: string): TElement | null => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {

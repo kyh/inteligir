@@ -38,7 +38,7 @@ import { RichBlockCard } from "@repo/editor/nodes/rich-block-chrome";
 import { decideTransclusion } from "@repo/editor/transclusion-guard";
 import WikiChip from "@repo/editor/wiki-chip";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
-import { useLinkResolver, useVaultActions } from "@repo/editor/host";
+import { useLinkResolver, useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
 import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
 // The note an embed shows: a url inside it is relative to that note, not to the open one.
@@ -58,14 +58,33 @@ const EmbedChip = ({ body, note }: { body: string; note?: string | undefined }) 
   </span>
 );
 
+// only an http(s) url is the browser's: in the shell a vault url in a new tab is a dead page, so
+// it opens in the app, and any other url draws as text.
 const LinkStatic = (props: SlateElementProps) => {
   const url = stringProp(props.element, "url") ?? "";
-  return (
-    <SlateElement
-      {...props}
-      as="a"
-      attributes={{
-        ...props.attributes,
+  const notePath = useContext(EmbeddedNotePathContext);
+  const vaultPath = useVaultLinkTarget(url, notePath)?.path ?? null;
+  const { openFile } = useVaultActions();
+  if (vaultPath !== null) {
+    return (
+      <SlateElement
+        {...props}
+        as="a"
+        className="cursor-pointer"
+        attributes={{
+          ...props.attributes,
+          onClick: (event: MouseEvent) => {
+            event.preventDefault();
+            openFile(vaultPath);
+          },
+        }}
+      >
+        {props.children}
+      </SlateElement>
+    );
+  }
+  const external = isHttpUrl(url)
+    ? {
         ...getLinkAttributes(props.editor, {
           children: props.element.children,
           type: props.element.type,
@@ -73,8 +92,10 @@ const LinkStatic = (props: SlateElementProps) => {
         }),
         rel: "noreferrer",
         target: "_blank",
-      }}
-    >
+      }
+    : {};
+  return (
+    <SlateElement {...props} as="a" attributes={{ ...props.attributes, ...external }}>
       {props.children}
     </SlateElement>
   );
@@ -405,7 +426,7 @@ const TransclusionBody = ({ content }: { content: string }) => {
 const Transclusion = ({ body }: { body: string }) => {
   const { resolveWikiTarget } = useLinkResolver();
   const { openFile } = useVaultActions();
-  const hostPath = useOpenNote((s) => s.editor.path);
+  const hostPath = useOpenNote((s) => (s.editor.kind === "open" ? s.editor.path : null));
   const parsed = parseWikiBody(body);
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
   const content = useTargetContent(resolved);

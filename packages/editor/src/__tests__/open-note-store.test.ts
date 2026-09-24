@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { describeGateReason } from "@repo/editor/markdown/markdown-doc";
 import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
-import type { VaultEditorState } from "@repo/editor/vault-editor";
+import type { OpenEditorState, VaultEditorState } from "@repo/editor/vault-editor";
 import type { OpenNoteState } from "@repo/editor/note/open-note-store";
 
 vi.mock("@repo/ui/components/sonner", () => ({
@@ -58,6 +58,18 @@ const GATED_REASON = {
     "Unexpected closing tag `</Bar>`, expected corresponding closing tag for `<Foo>` (1:1-1:6)",
 } as const;
 
+type OpenPatch = Partial<Omit<OpenEditorState, "kind">>;
+
+// the open arm a patch lands on while the controller is still closed.
+const UNLOADED: OpenEditorState = {
+  content: "",
+  dirty: false,
+  diskSeq: 0,
+  kind: "open",
+  path: "",
+  saveError: null,
+};
+
 class FakeController {
   private state: VaultEditorState = EMPTY_EDITOR_STATE;
   private readonly subs = new Set<() => void>();
@@ -71,16 +83,20 @@ class FakeController {
     };
   };
 
-  emit(patch: Partial<VaultEditorState>): void {
-    this.state = { ...this.state, ...patch };
+  private get open(): OpenEditorState {
+    return this.state.kind === "open" ? this.state : UNLOADED;
+  }
+
+  emit(patch: OpenPatch): void {
+    this.state = { ...this.open, ...patch };
     for (const fn of this.subs) {
       fn();
     }
   }
 
   // bytes from the IO (an open, a reload, a save's merge), as the controller marks them.
-  load(patch: Partial<VaultEditorState>): void {
-    this.emit({ ...patch, diskSeq: this.state.diskSeq + 1 });
+  load(patch: OpenPatch): void {
+    this.emit({ ...patch, diskSeq: this.open.diskSeq + 1 });
   }
 
   // the buffer's own bytes: an edit, then the save that lands them unchanged.
@@ -125,7 +141,7 @@ const drain = async (): Promise<void> => {
 
 const expectGateInLockstep = (seen: readonly OpenNoteState[]): void => {
   for (const s of seen) {
-    if (s.editor.path === null) {
+    if (s.editor.kind === "closed") {
       continue;
     }
     expect(s.analyzed.path).toBe(s.editor.path);
@@ -140,8 +156,11 @@ const richSnapshotsFor = (seen: readonly OpenNoteState[], path: string): OpenNot
 
 // Plate re-seeds from whatever content a rich surface is handed, and its next keystroke saves
 // what it made of those bytes.
+const holds = (s: OpenNoteState, content: string): boolean =>
+  s.editor.kind === "open" && s.editor.content === content;
+
 const expectGatedWithItsBytes = (seen: readonly OpenNoteState[]): void => {
-  const landed = seen.find((s) => s.editor.content === GATED_MD);
+  const landed = seen.find((s) => holds(s, GATED_MD));
   expect(landed?.analyzed).toEqual({
     content: GATED_MD,
     path: RICH_PATH,
@@ -152,9 +171,7 @@ const expectGatedWithItsBytes = (seen: readonly OpenNoteState[]): void => {
     path: RICH_PATH,
     surface: { mode: "raw", reason: GATED_REASON },
   });
-  expect(richSnapshotsFor(seen, RICH_PATH).filter((s) => s.editor.content === GATED_MD)).toEqual(
-    [],
-  );
+  expect(richSnapshotsFor(seen, RICH_PATH).filter((s) => holds(s, GATED_MD))).toEqual([]);
 };
 
 describe("open-note-store publishEditor", () => {
@@ -193,7 +210,7 @@ describe("open-note-store publishEditor", () => {
 
       const landed = seen.at(-1);
       expect(landed).toBeDefined();
-      expect(landed?.editor.content).toBe(GATED_MD);
+      expect(landed?.editor).toMatchObject({ content: GATED_MD });
       expect(landed?.analyzed).toEqual({
         content: GATED_MD,
         path: OTHER_PATH,

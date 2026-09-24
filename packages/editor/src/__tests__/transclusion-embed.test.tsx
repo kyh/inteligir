@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Value } from "platejs";
 import { describe, expect, it } from "vitest";
 
@@ -10,10 +10,12 @@ import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-hos
 
 const TARGET_PATH = "notes/deep/target.md";
 
-const LISTING = ["hub.md", TARGET_PATH, "notes/assets/shot.png"];
+const LISTING = ["hub.md", TARGET_PATH, "notes/deep/other.md", "notes/assets/shot.png"];
 
 const TARGET = [
   "Total so far: {{2+2|4}} items.",
+  "",
+  "See [Other](other.md) and [Site](https://example.com/page).",
   "",
   "![shot](../assets/shot.png)",
   "",
@@ -25,12 +27,12 @@ const TARGET = [
   "",
 ].join("\n");
 
-// every asset path the embed asked the host for; each answers missing, since jsdom has no object
-// URLs to draw a real image with
-const mountEmbed = (): string[] => {
+// `fetched` is every asset path the embed asked the host for; each answers missing, since jsdom
+// has no object URLs to draw a real image with
+const mountEmbed = () => {
   const resolver = buildResolver(LISTING);
   const fetched: string[] = [];
-  installFakeEditorHost({
+  const { calls } = installFakeEditorHost({
     readVaultAsset: (path) => {
       fetched.push(path);
       return { error: "asset 404", ok: false };
@@ -52,7 +54,7 @@ const mountEmbed = (): string[] => {
     },
   ];
   render(<EditorHarness value={value} store={store} />);
-  return fetched;
+  return { calls, fetched };
 };
 
 describe("an embedded note's voids", () => {
@@ -67,9 +69,32 @@ describe("an embedded note's voids", () => {
   });
 
   it("resolve an image's url from the embedded note, not the open one", async () => {
-    const fetched = mountEmbed();
+    const { fetched } = mountEmbed();
     await waitFor(() => {
       expect(fetched).toEqual(["notes/assets/shot.png"]);
     });
+  });
+});
+
+describe("an embedded note's links", () => {
+  it("open a vault url in the app, resolved from the embedded note", async () => {
+    const { calls } = mountEmbed();
+    const label = await screen.findByText("Other");
+    const link = label.closest("a");
+    expect(link).not.toBeNull();
+    expect(link?.hasAttribute("href")).toBe(false);
+    expect(link?.hasAttribute("target")).toBe(false);
+    if (link !== null) {
+      fireEvent.click(link);
+    }
+    expect(calls).toContainEqual({ action: "openFile", args: ["notes/deep/other.md"] });
+  });
+
+  it("hand an http url to the browser", async () => {
+    mountEmbed();
+    const label = await screen.findByText("Site");
+    const link = label.closest("a");
+    expect(link?.getAttribute("href")).toBe("https://example.com/page");
+    expect(link?.getAttribute("target")).toBe("_blank");
   });
 });

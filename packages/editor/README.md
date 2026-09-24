@@ -35,8 +35,9 @@ src/
     md-to-slate.ts     # the ONE markdown→Slate conversion, so the gate, a paste
                        # and a template refuse the same inputs for the same reasons
     markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
-                       # a BOUNDED FIXPOINT so a second save is a no-op, and the
-                       # gate's verdict as one union (`DocAnalysis`)
+                       # a BOUNDED FIXPOINT so a second save is a no-op, the
+                       # gate's verdict as one union (`DocAnalysis`), and
+                       # `serializeNote`, the one way any save reaches bytes
   dialect-node-keys.ts # every dialect node's Slate type, spelled once; a leaf, so
                        # the kits, the rules and the walks import it without a cycle
   kits/
@@ -48,7 +49,8 @@ src/
     open-note-store.ts, open-note-context.tsx
                        # the open-note store (zustand) and React's door to it
     vault-session.ts   # the open note's ORDERING, drivable without React
-    note-runtime.ts    # controller + autosave debounce + save retry + vanish watcher
+    note-runtime.ts    # controller + autosave debounce + save retry + vanish
+                       # watcher + the hold a rename carries the note through
     open-doc.ts, markdown-gate.ts, open-note-flush.ts
                        # the open-document union, the raw/rich gate, the flush
                        # that visits every registered store

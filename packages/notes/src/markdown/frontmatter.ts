@@ -12,11 +12,7 @@ import { BOM } from "./parsed-offsets";
 const yamlValue = z.json();
 type YamlValue = z.infer<typeof yamlValue>;
 
-const propertiesSchema = z.record(z.string(), yamlValue);
-type Properties = z.infer<typeof propertiesSchema>;
-
 export interface SplitDoc {
-  properties: Properties;
   body: string;
 }
 
@@ -24,15 +20,6 @@ export interface SplitDoc {
 // is optional so an empty block matches. `eol` is the opener's terminator, which a rewrite keeps.
 const FRONTMATTER_RE =
   /^\uFEFF?---[ \t]*(?<eol>\r?\n)(?:(?<yaml>[\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/u;
-
-const parseYamlRecord = (source: string): Properties => {
-  try {
-    const parsed = propertiesSchema.safeParse(parseYaml(source));
-    return parsed.success ? parsed.data : {};
-  } catch {
-    return {};
-  }
-};
 
 export const frontmatterYaml = (text: string): string | null => {
   const match = FRONTMATTER_RE.exec(text);
@@ -53,14 +40,9 @@ export const frontmatterYamlStart = (text: string): number | null => {
   return match === null ? null : match[0].indexOf("\n") + 1;
 };
 
-export const splitFrontmatter = (text: string): SplitDoc => {
-  const match = FRONTMATTER_RE.exec(text);
-  if (!match) {
-    return { body: text, properties: {} };
-  }
-  const body = text.slice(match[0].length);
-  return { body, properties: parseYamlRecord(match.groups?.yaml ?? "") };
-};
+export const splitFrontmatter = (text: string): SplitDoc => ({
+  body: text.slice(frontmatterEnd(text) ?? 0),
+});
 
 // The one recomposition every key edit runs: the BOM and the note's line ending survive, the
 // body is sliced rather than re-read, and yaml with nothing in it drops the block. A note with
@@ -264,13 +246,29 @@ export const removeFrontmatterId = (content: string): string => {
   return kept.length === lines.length ? content : replaceFrontmatterYaml(content, kept.join("\n"));
 };
 
-const typedValue = (prop: TypedProperty) => (prop.type === "unsupported" ? undefined : prop.value);
+type TypedValue = Exclude<TypedProperty, { type: "unsupported" }>["value"];
 
-const valueEqual = (a: YamlValue | undefined, b: ReturnType<typeof typedValue>): boolean => {
+const typedValue = (prop: TypedProperty): TypedValue | undefined =>
+  prop.type === "unsupported" ? undefined : prop.value;
+
+const valueEqual = (a: TypedValue | undefined, b: TypedValue | undefined): boolean => {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => item === b[i]);
   }
   return a === b;
+};
+
+// an unsupported value has none to compare, so a typed one written over it is always set
+const typedValuesOf = (raw: string): Map<string, TypedValue> => {
+  const parsed = parseProperties(raw);
+  const values = new Map<string, TypedValue>();
+  for (const prop of parsed.kind === "valid" ? parsed.properties : []) {
+    const value = typedValue(prop);
+    if (value !== undefined) {
+      values.set(prop.key, value);
+    }
+  }
+  return values;
 };
 
 // edits the Document parsed from `priorRaw` rather than re-stringifying, so untouched keys
@@ -280,7 +278,7 @@ export const serializeProperties = (properties: TypedProperty[], priorRaw: strin
     return "";
   }
   const doc = parseDocument(priorRaw);
-  const priorValues = parseYamlRecord(priorRaw);
+  const priorValues = typedValuesOf(priorRaw);
   if (isMap(doc.contents)) {
     const desired = new Set(properties.map((prop) => prop.key));
     const removable = doc.contents.items
@@ -295,8 +293,7 @@ export const serializeProperties = (properties: TypedProperty[], priorRaw: strin
       continue;
     }
     const next = typedValue(prop);
-    const had = Object.hasOwn(priorValues, prop.key);
-    if (!had || !valueEqual(priorValues[prop.key], next)) {
+    if (!priorValues.has(prop.key) || !valueEqual(priorValues.get(prop.key), next)) {
       doc.set(prop.key, next);
     }
   }

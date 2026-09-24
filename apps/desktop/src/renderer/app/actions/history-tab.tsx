@@ -224,7 +224,7 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
   const [limit, setLimit] = useState(VAULT_HISTORY_DEFAULT_LIMIT);
   // a switch publishes the new path before its bytes arrive; only the loaded note's text may diff.
   const current = useOpenNote((state) =>
-    state.editor.path === docPath ? state.editor.content : null,
+    state.editor.kind === "open" && state.editor.path === docPath ? state.editor.content : null,
   );
   // `staleTime` is Infinity app-wide and a commit announces nothing, so this query re-asks per open.
   // no retries: an off-lock `git log` refusal is deterministic. A larger page keeps the rows it

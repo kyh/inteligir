@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
-import { serializeMd } from "@platejs/markdown";
 
 import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/combobox-input";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_STRINGIFY } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 
@@ -17,8 +16,7 @@ const makeEditor = (text: string) =>
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+const out = (editor: Editor): string => serializeNote(editor);
 
 const findByType = (editor: Editor, type: string): TElement | null => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {

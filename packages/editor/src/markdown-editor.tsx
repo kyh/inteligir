@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef } from "react";
 import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
-import { serializeMd } from "@platejs/markdown";
 
 import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
 import { announceLiveEditorEdit, registerLiveEditor } from "@repo/editor/live-editor";
 import { clearNoteStats, collectNoteStats, publishNoteStats } from "@repo/editor/note-stats";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import type { Debouncer } from "@repo/editor/lib/debounce";
 import {
@@ -47,10 +46,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
   const lastValueProp = useRef(value);
   // Seeding makes Plate emit onChange with the normalized text; that echo must not count as an
   // edit or it autosaves a normalized rewrite over the file.
-  const initialSeed = useMemo(
-    () => serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY }),
-    [editor],
-  );
+  const initialSeed = useMemo(() => serializeNote(editor), [editor]);
   const seeded = useRef<string | null>(initialSeed);
 
   const publishStats = useCallback(() => {
@@ -59,7 +55,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
 
   const onChangeRef = useRef(onChange);
   const doSerialize = useCallback(() => {
-    const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+    const md = serializeNote(editor);
     if (md === seeded.current) {
       return;
     }
@@ -102,7 +98,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
     getScheduler().flush();
     lastValueProp.current = value;
     editor.tf.setValue(seedValue(value));
-    seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+    seeded.current = serializeNote(editor);
     publishStats();
   }, [value, editor, getScheduler, publishStats]);
 

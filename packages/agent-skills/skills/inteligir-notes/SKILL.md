@@ -87,8 +87,8 @@ fences, callouts) cannot live in a cell; put it after the table.
 | Queue | Ana   | [[Queue Design]] |
 ```
 
-A literal pipe in a cell is `\|`. Pipes inside a complete formula pill are part
-of the pill and stay as they are.
+A literal pipe in a cell is `\|`. Inside a table cell, escape a pill's own pipes
+as `\|` (see inteligir-formulas § In Tables).
 
 ### Code
 

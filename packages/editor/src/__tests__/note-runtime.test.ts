@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
+import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
 import { FakeVault } from "./fake-vault";
 
 // fake timers leave microtasks alone, so a few hops drain the controller's chains.
@@ -47,7 +48,7 @@ describe("createNoteRuntime", () => {
     await settle();
 
     runtime.edit("same");
-    expect(runtime.controller.getState().dirty).toBe(false);
+    expect(runtime.controller.getState()).toMatchObject({ dirty: false });
     expect(vi.getTimerCount()).toBe(0);
 
     await runDebounce();
@@ -83,7 +84,7 @@ describe("createNoteRuntime", () => {
       },
     });
     await settle();
-    expect(runtime.controller.getState().path).toBe("a.md");
+    expect(runtime.controller.getState()).toMatchObject({ kind: "open", path: "a.md" });
     expect(vanished).toEqual([]);
 
     io.files.delete("a.md");
@@ -92,7 +93,7 @@ describe("createNoteRuntime", () => {
     expect(vanished).toEqual(["a.md"]);
   });
 
-  it("does NOT fire onVanished for a transient path:null before the first successful load", async () => {
+  it("does NOT fire onVanished for the closed state before the first successful load", async () => {
     const io = new FakeVault();
     io.hangReads = true;
     const vanished: string[] = [];
@@ -102,7 +103,7 @@ describe("createNoteRuntime", () => {
       },
     });
     await settle();
-    expect(runtime.controller.getState().path).toBe(null);
+    expect(runtime.controller.getState()).toEqual(EMPTY_EDITOR_STATE);
 
     runtime.controller.externalChange();
     await settle();

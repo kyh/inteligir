@@ -3,7 +3,7 @@
 
 import type { AlignType } from "mdast";
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
-import type { Descendant, TElement, TLinkElement, TText } from "platejs";
+import type { Descendant, TElement, TLinkElement, TText, Value } from "platejs";
 import {
   convertChildrenDeserialize,
   convertNodesSerialize,
@@ -14,7 +14,11 @@ import {
 } from "@platejs/markdown";
 import type {
   DeserializeMdOptions,
+  MDPhrasingContent,
   MdDecoration,
+  MdDelete,
+  MdEmphasis,
+  MdStrong,
   MdMdxJsxFlowElement,
   MdMdxJsxTextElement,
   MdRules,
@@ -143,6 +147,7 @@ const mediaSerializeWithoutId = (node: TElement, options: SerializeMdOptions) =>
 };
 
 const BARE_AUTOLINK_PROTOCOL_RE = /^https?:\/\//iu;
+const WWW_AUTOLINK_RE = /^www\./iu;
 
 // mirrors micromark-extension-gfm-autolink-literal's email tokenizer, so a match emitted as raw
 // bytes re-parses as the same autolink.
@@ -190,15 +195,18 @@ const inlineEquationRule: WideMdRule = {
       : { type: "inlineMath", value: stringProp(node, "texExpression") ?? "" },
 };
 
-// An empty equation leaves a paragraph before its text runs are converted, so its neighbours join
-// into one run rather than two whose marks collide (`**a****b**`), and a paragraph it alone
-// filled stays an empty paragraph instead of a blank line the next parse drops.
-const paragraphChildren = (children: Descendant[]): Descendant[] => {
-  const kept = pruneElementAdjacentEmptyTexts(children).filter(
-    (child) => !isEmptyInlineEquation(child),
-  );
-  return kept.length > 0 ? kept : [{ text: "" }];
+const prunedElement = (element: TElement): TElement => {
+  const kept = pruneElementAdjacentEmptyTexts(element.children)
+    .filter((child) => !isEmptyInlineEquation(child))
+    .map((child) => (ElementApi.isElement(child) ? prunedElement(child) : child));
+  return { ...element, children: kept.length > 0 ? kept : [{ text: "" }] };
 };
+
+// A pre-pass over the whole value rather than a paragraph rule's, since an empty equation sits in
+// a heading or a list item as readily: it leaves before any text run is converted, so its
+// neighbours join into one run rather than two whose marks collide (`**a****b**`), and an element
+// it alone filled keeps an empty text instead of a blank line the next parse drops.
+export const pruneForMarkdown = (value: Value): Value => value.map(prunedElement);
 
 const withoutEdgeBreak = (children: Descendant[], edge: "first" | "last"): Descendant[] => {
   const index = edge === "first" ? 0 : children.length - 1;
@@ -233,30 +241,49 @@ const paragraphRule: WideMdRule = {
       return children.length > 0 ? [{ ...block, children }] : [];
     });
   },
-  serialize: (node: TElement, options: SerializeMdOptions): MdParagraph =>
-    defaultParagraphSerialize({ ...node, children: paragraphChildren(node.children) }, options),
+  serialize: defaultParagraphSerialize,
+};
+
+// text a re-parse reads back as this same link: a bare url, a www literal (gfm prefixes its url
+// with `http://`), or a gfm email
+const isAutolinkText = (text: string, url: string): boolean =>
+  (text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
+  (url === `http://${text}` && WWW_AUTOLINK_RE.test(text)) ||
+  (`mailto:${text}` === url && GFM_EMAIL_RE.test(text));
+
+type MdMarkWrapper = MdDelete | MdEmphasis | MdStrong;
+
+const isMdMarkWrapper = (node: { type: string }): node is MdMarkWrapper =>
+  node.type === "emphasis" || node.type === "strong" || node.type === "delete";
+
+// a mark over the whole link text converts to wrappers around its one text node, and the literal
+// keeps them: `_https://x.cd_` re-parses as the same marked link.
+const autolinkLiteral = (node: { type: string }, url: string): MDPhrasingContent | null => {
+  if (isMdText(node)) {
+    return isAutolinkText(node.value, url)
+      ? ({ type: "opaqueInline", value: node.value } satisfies OpaqueInline)
+      : null;
+  }
+  if (!isMdMarkWrapper(node)) {
+    return null;
+  }
+  const [only, ...rest] = node.children;
+  const inner = only === undefined || rest.length > 0 ? null : autolinkLiteral(only, url);
+  return inner === null ? null : { ...node, children: [inner] };
 };
 
 // Plate's default lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink emits
-// `<a@b.cd>` — unparseable under MDX. Bare gfm emails emit their literal bytes; every other link
-// stays `[text](url)` under MD_STRINGIFY's resourceLink, which alone would also force bare https into resource form.
+// `<a@b.cd>` — unparseable under MDX. A link a re-parse would read from its literal bytes emits
+// them; every other link stays `[text](url)` under MD_STRINGIFY's resourceLink, which alone would
+// also force bare https into resource form, and a note holding one would open Raw.
 // The literal is an opaque inline, not `html`: mdast-util-to-markdown turns the line break before
 // an html node into a space, since html opening a line could read as a flow block, and that joins
 // a url on its own line to the line above.
 const linkRule: WideMdRule = {
   serialize: (node: TLinkElement, options: SerializeMdOptions) => {
-    const children = convertNodesSerialize(node.children, options);
-    const { url } = node;
-    const only = children.length === 1 ? children[0] : undefined;
-    const text = only !== undefined && isMdText(only) ? only.value : null;
-    const literal =
-      text !== null &&
-      ((text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
-        (`mailto:${text}` === url && GFM_EMAIL_RE.test(text)));
-    if (literal) {
-      return { type: "opaqueInline", value: text } satisfies OpaqueInline;
-    }
-    return defaultLinkSerialize(node, options);
+    const [only, ...rest] = convertNodesSerialize(node.children, options);
+    const literal = only === undefined || rest.length > 0 ? null : autolinkLiteral(only, node.url);
+    return literal ?? defaultLinkSerialize(node, options);
   },
 };
 

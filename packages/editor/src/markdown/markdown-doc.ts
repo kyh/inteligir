@@ -10,6 +10,7 @@ import { serializeMd } from "@platejs/markdown";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
+import { pruneForMarkdown } from "@repo/editor/markdown/md-rules";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
 import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
 
@@ -125,10 +126,15 @@ const convert = (md: string): Converted => {
 
 type Serialized = { ok: true; out: string } | { ok: false; reason: GateReason };
 
+// The one way a value becomes bytes, the live save's and an extract's as well as the gate's: the
+// rules expect the pre-pass to have run, and Plate's own serializeMd skips it.
+export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
+  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: pruneForMarkdown(value) });
+
 // stringify overflows the stack at the same depth the conversion does
 const serialize = (editor: SlateEditor, value: Value): Serialized => {
   try {
-    return { ok: true, out: serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value }) };
+    return { ok: true, out: serializeNote(editor, value) };
   } catch (error) {
     if (error instanceof RangeError) {
       return { ok: false, reason: { kind: "too-deep" } };

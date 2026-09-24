@@ -4,6 +4,7 @@ import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/reac
 
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Button } from "@repo/ui/components/button";
 
 import { stringProp } from "@repo/editor/node-props";
@@ -55,7 +56,8 @@ export const MediaToolbar = () => {
     <div
       contentEditable={false}
       className={cn(
-        "absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-0.5 shadow-surface-4 select-none",
+        "absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-lg p-0.5 select-none",
+        surfaceClasses(3),
         selected ? "opacity-100" : "pointer-events-none opacity-0",
         "transition-opacity",
       )}

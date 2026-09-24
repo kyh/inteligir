@@ -40,6 +40,11 @@ const MARKER_RE = new RegExp(
   "gu",
 );
 
+// Looser than MARKER_RE on purpose, so a half-typed or malformed marker still leaves a preview or
+// a snippet. Shared and global: hand it to replace, replaceAll, match or matchAll only, never to
+// test or exec, whose lastIndex would carry from one caller into the next.
+export const COMMENT_MARKER_STRIP_RE = /%%i:[^%]*%%/gu;
+
 // A marker's `ids` stays the joined spelling so the serializer re-emits its bytes; this is the
 // one place the list is read.
 export const splitMarkerIds = (ids: string): string[] => ids.split(",").filter((id) => id !== "");

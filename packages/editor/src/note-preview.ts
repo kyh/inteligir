@@ -1,12 +1,12 @@
 // regex-level on purpose: a hover tooltip earns a cheap approximation, not a parse.
 
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
+import { COMMENT_MARKER_STRIP_RE } from "@repo/notes/markdown/remark-inline-constructs";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
 const PREVIEW_MAX_LINES = 20;
 
-const COMMENT_MARKER_RE = /%%i:[^%]*%%/gu;
-const WIKI_LINK_RE = /\[\[(?<inner>[^\]]*)\]\]/gu;
+const WIKI_LINK_RE = /!?\[\[(?<inner>[^\]]*)\]\]/gu;
 const MD_LINK_RE = /!?\[(?<label>[^\]]*)\]\([^)]*\)/gu;
 const FORMULA_RE = /\{\{[^}]*\}\}/gu;
 const HEADING_RE = /^#{1,6}\s+/u;
@@ -21,7 +21,7 @@ export const notePreviewHead = (markdown: string): string => {
       break;
     }
     const line = raw
-      .replace(COMMENT_MARKER_RE, "")
+      .replace(COMMENT_MARKER_STRIP_RE, "")
       .replace(WIKI_LINK_RE, (_, inner: string) => wikiLinkLabel(inner))
       .replace(MD_LINK_RE, "$<label>")
       .replace(FORMULA_RE, "")

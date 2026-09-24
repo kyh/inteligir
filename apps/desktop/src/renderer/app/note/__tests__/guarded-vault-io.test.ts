@@ -63,7 +63,7 @@ const openRuntime = async (api: GuardedVaultApi) => {
     }
   });
   await vi.waitFor(() => {
-    expect(runtime.controller.getState().path).toBe(NOTE);
+    expect(runtime.controller.getState()).toMatchObject({ path: NOTE });
   });
   const surface = {
     type: (next: string): void => {
@@ -166,7 +166,7 @@ describe("the guarded vault io", () => {
     const merged = await readFile(path.join(vaultDir, NOTE), "utf-8");
     expect(controller.getState()).toMatchObject({ content: merged, dirty: false });
 
-    controller.edit(`${controller.getState().content}more\n`);
+    controller.edit(`${merged}more\n`);
     await controller.flush();
     const onDisk = await readFile(path.join(vaultDir, NOTE), "utf-8");
     expect(onDisk).toContain("intro rewritten");
@@ -182,13 +182,13 @@ describe("the guarded vault io", () => {
 
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
     runtime.controller.externalChange();
-    expect(runtime.controller.getState().dirty).toBe(true);
+    expect(runtime.controller.getState()).toMatchObject({ dirty: true });
 
     expect(await runtime.flush()).toBe(true);
     const onDisk = await readFile(path.join(vaultDir, NOTE), "utf-8");
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
-    expect(runtime.controller.getState().content).toBe(onDisk);
+    expect(runtime.controller.getState()).toMatchObject({ content: onDisk });
     runtime.dispose();
   });
 
@@ -204,13 +204,38 @@ describe("the guarded vault io", () => {
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
     gate.resolve();
     await vi.waitFor(() => {
-      expect(runtime.controller.getState().content).toContain("external-appended-line");
+      expect(runtime.controller.getState()).toMatchObject({
+        content: expect.stringContaining("external-appended-line"),
+      });
     });
 
     expect(await runtime.flush()).toBe(true);
     const onDisk = await readFile(path.join(vaultDir, NOTE), "utf-8");
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
+    runtime.dispose();
+  });
+
+  it("carries a keystroke typed during a rename to the new path, keeping the alias the move wrote", async () => {
+    const { client, vaultDir } = await bootTestApp();
+    await client.vault.write({ content: BASE, guard: { kind: "overwrite" }, path: NOTE });
+    const { runtime } = await openRuntime(recordingWrites(client).api);
+    const moved = "notes/roadmap.md";
+
+    runtime.suspend();
+    await client.vault.rename({ from: NOTE, to: moved });
+    runtime.edit(`${BASE}typed during the move\n`);
+    await runtime.resume(moved);
+
+    const onDisk = await readFile(path.join(vaultDir, moved), "utf-8");
+    expect(onDisk).toContain("typed during the move");
+    expect(onDisk).toContain("aliases:");
+    expect(runtime.controller.getState()).toMatchObject({
+      content: onDisk,
+      dirty: false,
+      path: moved,
+      saveError: null,
+    });
     runtime.dispose();
   });
 

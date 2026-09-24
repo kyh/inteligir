@@ -4,13 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
-import { serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { insertCommentMarkers, removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { blockHoldsCommentMarkers, commentSpans } from "@repo/editor/comments/comment-ranges";
-import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 const editorWith = (md: string) => {
   const parsed = parseMarkdown(md);
@@ -20,8 +18,7 @@ const editorWith = (md: string) => {
   return createSlateEditor({ plugins: BASE_KIT, value: parsed.value });
 };
 
-const bytes = (editor: ReturnType<typeof editorWith>): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+const bytes = (editor: ReturnType<typeof editorWith>): string => serializeNote(editor);
 
 describe("comment markers", () => {
   it("wraps the selection with a pair that serializes as the dialect", () => {

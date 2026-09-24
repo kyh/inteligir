@@ -80,6 +80,14 @@ const PREDICATES: Predicate[] = [
     question: "what does `git status --porcelain` say?",
     use: "parsePorcelain()",
   },
+  {
+    detect: (source) =>
+      source.includes("%%i:[^%]*%%") ? ["spells the loose comment-marker regex"] : [],
+    elsewhere: {},
+    home: "packages/notes/src/markdown/remark-inline-constructs.ts",
+    question: "where do comment markers, half-typed ones included, sit in raw bytes?",
+    use: "COMMENT_MARKER_STRIP_RE",
+  },
 ];
 
 // this file spells every shape it searches for and would otherwise always find itself.

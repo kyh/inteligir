@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { act, createRef } from "react";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
@@ -10,6 +10,7 @@ import {
   collectFindMatches,
   cycleFindMatch,
   getFindBarState,
+  jumpToFindMatch,
   openFindBar,
   setFindQuery,
 } from "@repo/editor/find-bar";
@@ -88,5 +89,30 @@ describe("find bar", () => {
       editor.tf.insertText(" alpha", { at: { offset: 22, path: [0, 0] } });
     });
     expect(view.getByText("1/3")).toBeDefined();
+  });
+
+  it("draws a jump's options as chips, and a chip drops them and recounts", () => {
+    const holder = createRef<PlateEditor>();
+    const view = render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
+    const editor = holder.current;
+    if (editor === null) {
+      throw new Error("the harness mounted no editor");
+    }
+
+    act(() => {
+      jumpToFindMatch(editor, "alpha", 0, { caseSensitive: true, wholeWord: false });
+    });
+    expect(view.getByText("1/1")).toBeDefined();
+    expect(view.queryByText("Whole word")).toBeNull();
+
+    act(() => {
+      fireEvent.click(view.getByText("Match case"));
+    });
+    expect(view.getByText("1/2")).toBeDefined();
+    expect(view.queryByText("Match case")).toBeNull();
+    expect(getFindBarState(editor).search).toEqual({
+      options: { caseSensitive: false, wholeWord: false },
+      query: "alpha",
+    });
   });
 });

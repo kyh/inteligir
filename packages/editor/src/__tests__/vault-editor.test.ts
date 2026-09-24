@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { VaultEditorController } from "@repo/editor/vault-editor";
+import { EMPTY_EDITOR_STATE, VaultEditorController } from "@repo/editor/vault-editor";
 import { FakeVault } from "./fake-vault";
 
 const tick = async (): Promise<void> => {
@@ -21,7 +21,7 @@ describe("VaultEditorController", () => {
     c.edit("hello world");
     expect(c.getState()).toMatchObject({ content: "hello world", dirty: true });
     await c.flush();
-    expect(c.getState().dirty).toBe(false);
+    expect(c.getState()).toMatchObject({ dirty: false });
     expect(io.files.get("a.md")).toBe("hello world");
   });
 
@@ -37,12 +37,11 @@ describe("VaultEditorController", () => {
     c.edit("v2");
     io.pendingWrites[0]?.resolve();
     await flush1;
-    expect(c.getState().dirty).toBe(true);
-    expect(c.getState().content).toBe("v2");
+    expect(c.getState()).toMatchObject({ content: "v2", dirty: true });
     io.manualWrite = false;
     await c.flush();
     expect(io.files.get("a.md")).toBe("v2");
-    expect(c.getState().dirty).toBe(false);
+    expect(c.getState()).toMatchObject({ dirty: false });
   });
 
   it("adopts the bytes a write landed when the host merged a concurrent change in", async () => {
@@ -65,7 +64,7 @@ describe("VaultEditorController", () => {
     io.files.set("a.md", "one\n");
     const c = new VaultEditorController(io);
     await c.open("a.md");
-    expect(c.getState().diskSeq).toBe(1);
+    expect(c.getState()).toMatchObject({ diskSeq: 1 });
 
     c.edit("one typed\n");
     await c.flush();
@@ -109,7 +108,7 @@ describe("VaultEditorController", () => {
     io.landAs = null;
     await c.flush();
     expect(io.files.get("a.md")).toBe("one typed more\ntwo\nthree\nexternal\n");
-    expect(c.getState().dirty).toBe(false);
+    expect(c.getState()).toMatchObject({ dirty: false });
   });
 
   it("drains a keystroke the surface still holds before adopting merged bytes", async () => {
@@ -245,8 +244,7 @@ describe("VaultEditorController", () => {
     io.pendingReads[1]?.resolve("B");
     io.pendingReads[0]?.resolve("A");
     await Promise.all([openA, openB]);
-    expect(c.getState().path).toBe("b.md");
-    expect(c.getState().content).toBe("B");
+    expect(c.getState()).toMatchObject({ content: "B", path: "b.md" });
   });
 
   it("a live reload does not clobber unsaved edits", async () => {
@@ -258,8 +256,7 @@ describe("VaultEditorController", () => {
     io.files.set("a.md", "external");
     c.externalChange();
     await tick();
-    expect(c.getState().content).toBe("typed");
-    expect(c.getState().dirty).toBe(true);
+    expect(c.getState()).toMatchObject({ content: "typed", dirty: true });
   });
 
   it("a live reload refreshes the buffer when clean", async () => {
@@ -270,7 +267,7 @@ describe("VaultEditorController", () => {
     io.files.set("a.md", "v1-external");
     c.externalChange();
     await tick();
-    expect(c.getState().content).toBe("v1-external");
+    expect(c.getState()).toMatchObject({ content: "v1-external" });
   });
 
   it("delete waits for an in-flight save then clears", async () => {
@@ -285,7 +282,7 @@ describe("VaultEditorController", () => {
     const removed = c.remove();
     io.pendingWrites[0]?.resolve();
     await Promise.all([flush, removed]);
-    expect(c.getState().path).toBe(null);
+    expect(c.getState()).toEqual(EMPTY_EDITOR_STATE);
     expect(io.files.has("a.md")).toBe(false);
   });
 
@@ -365,8 +362,7 @@ describe("VaultEditorController", () => {
     const io = new FakeVault();
     const c = new VaultEditorController(io);
     await c.open("gone.md");
-    expect(c.getState().path).toBe(null);
-    expect(c.getState().content).toBe("");
+    expect(c.getState()).toEqual(EMPTY_EDITOR_STATE);
   });
 
   it("drops the selection when the open file is deleted elsewhere", async () => {
@@ -377,7 +373,7 @@ describe("VaultEditorController", () => {
     io.files.delete("a.md");
     c.externalChange();
     await tick();
-    expect(c.getState().path).toBe(null);
+    expect(c.getState()).toEqual(EMPTY_EDITOR_STATE);
   });
 });
 
@@ -429,7 +425,7 @@ describe("a merge that kept the buffer's lines over a concurrent change", () => 
     c.edit("one typed more\ntwo\nthree\n");
     io.pendingWrites[0]?.resolve();
     await flushed;
-    expect(c.getState().content).toBe("one typed more\ntwo\nthree\nexternal\n");
+    expect(c.getState()).toMatchObject({ content: "one typed more\ntwo\nthree\nexternal\n" });
     expect(conflicts.count).toBe(0);
   });
 });

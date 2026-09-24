@@ -20,11 +20,13 @@ export type NoteRuntime = ReturnType<typeof createNoteRuntime>;
 
 // the caller disposes the previous runtime first; this one never checks.
 export const createNoteRuntime = (
-  path: string,
+  openedAt: string,
   io: VaultIO,
   cb: NoteRuntimeCallbacks,
   initial?: string,
 ) => {
+  // moves only when a rename carries the note.
+  let path = openedAt;
   let preFlush: (() => void) | null = null;
   const controller = new VaultEditorController(
     io,
@@ -39,7 +41,7 @@ export const createNoteRuntime = (
   const autosave = createDebouncer(() => {
     void controller.flush();
   }, AUTOSAVE_DEBOUNCE_MS);
-  // gates the vanish watcher so the initial path:null state doesn't close the note.
+  // gates the vanish watcher so the initial closed state doesn't close the note.
   let opened = false;
   // a still-pending open() resolving after dispose must not drop a runtime the
   // provider has already replaced.
@@ -82,22 +84,28 @@ export const createNoteRuntime = (
 
   const unsubscribe = controller.subscribe(() => {
     const st = controller.getState();
-    if (st.path === path) {
+    if (st.kind === "open" && st.path === path) {
       opened = true;
-    } else if (opened && st.path === null) {
+    } else if (opened && st.kind === "closed") {
       cb.onVanished(path);
     }
-    onSaveError(st.saveError);
+    onSaveError(st.kind === "open" ? st.saveError : null);
   });
 
   const openNote = async (): Promise<void> => {
     await controller.open(path, initial);
+    const st = controller.getState();
     // unreadable on first load: it never held content, so it closes silently.
-    if (!disposed && controller.getState().path !== path) {
+    if (!disposed && (st.kind === "closed" || st.path !== path)) {
       cb.onVanished(path);
     }
   };
   void openNote();
+
+  const dirty = (): boolean => {
+    const st = controller.getState();
+    return st.kind === "open" && st.dirty;
+  };
 
   return {
     controller,
@@ -110,8 +118,9 @@ export const createNoteRuntime = (
       unsubscribe();
     },
     edit(next: string): void {
+      const st = controller.getState();
       // teardown settles and re-seed echoes emit unchanged content; don't dirty the buffer for them.
-      if (controller.getState().content === next) {
+      if (st.kind === "closed" || st.content === next) {
         return;
       }
       controller.edit(next);
@@ -124,20 +133,35 @@ export const createNoteRuntime = (
         preFlush?.();
         autosave.cancel();
         await controller.flush();
-        if (controller.getState().saveError !== null) {
+        const st = controller.getState();
+        if (st.kind === "open" && st.saveError !== null) {
           break;
         }
         // the write's await let the surface hold a keystroke back; hand it over before calling
         // the buffer clean.
         preFlush?.();
-        if (!controller.getState().dirty) {
+        if (!dirty()) {
           break;
         }
       }
-      return !controller.getState().dirty;
+      return !dirty();
     },
-    // not the controller's path, which is null until the first load.
-    path,
+    // not the controller's path, which a closed controller does not have.
+    get path(): string {
+      return path;
+    },
+    // a rename carries the note: its edits keep landing in the buffer while the move runs, and
+    // resume names where the move left it, or where it still is when the move failed.
+    suspend(): void {
+      controller.suspend();
+    },
+    async resume(to: string): Promise<void> {
+      // the surface sends its edits under the path it opened at, so what it still holds back is
+      // handed over before the note answers to another
+      preFlush?.();
+      path = to;
+      await controller.resume(to);
+    },
     // the file was deleted under unsaved edits: create it again from the buffer.
     async recreate(): Promise<boolean> {
       autosave.cancel();

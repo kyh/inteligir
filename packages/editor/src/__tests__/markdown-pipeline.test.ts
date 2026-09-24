@@ -13,6 +13,7 @@ import {
   gateReasonFor,
   parseMarkdown,
   roundTrip,
+  serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
 import type { GateReason } from "@repo/editor/markdown/markdown-doc";
 import { parseMdast } from "@repo/notes/markdown/parse";
@@ -408,10 +409,7 @@ describe("gate API", () => {
     if (!parsed.ok) {
       return;
     }
-    const out = serializeMd(createSlateEditor({ plugins: BASE_KIT }), {
-      remarkStringifyOptions: MD_STRINGIFY,
-      value: parsed.value,
-    });
+    const out = serializeNote(createSlateEditor({ plugins: BASE_KIT }), parsed.value);
     expect(out).toBe(roundTrip(md));
   });
 

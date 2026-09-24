@@ -11,6 +11,7 @@ import type { TElement } from "platejs";
 import { useComposedRef, useEditorRef, useSelected } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
 import {
   absorbRacedComboboxText,
@@ -328,7 +329,8 @@ const InlineComboboxContent = ({
     <Combobox.Positioner align="start" className="z-50" side="bottom" sideOffset={4}>
       <Combobox.Popup
         className={cn(
-          "bloom-popup max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-surface-4",
+          "bloom-popup max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] origin-[var(--transform-origin)] overflow-y-auto rounded-lg text-popover-foreground",
+          surfaceClasses(3),
           variant === "slash" && "w-[320px]",
           className,
         )}

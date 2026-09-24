@@ -18,7 +18,7 @@ import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault
    the title heading is a contentEditable editing host: it carries real text at runtime (set
    imperatively, see below) and keydown belongs on the element being edited. jsx-a11y models neither. */
 const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) => {
-  const content = useOpenNote((s) => s.editor.content);
+  const content = useOpenNote((s) => (s.editor.kind === "open" ? s.editor.content : ""));
   const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
 
   const fileName = basenamePath(path);
@@ -85,8 +85,9 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
     return joinPath(dir, verdict.name);
   };
 
-  // `toBody` hands the caret on only once the note is where it will stay: typed into the body
-  // while a rename is in flight, a keystroke reaches an editor the session has already let go of.
+  // `toBody` hands the caret on only once the note is where it will stay: the carry remounts the
+  // note under its new path, so a caret placed while the rename is in flight lands in an editor
+  // about to be replaced.
   const commitTitle = async (raw: string, toBody: boolean): Promise<void> => {
     const dest = renameTarget(raw);
     if (dest === null) {
@@ -171,7 +172,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
         onKeyDown={onTitleKeyDown}
         className={cn(
           EDITOR_COLUMN_PX,
-          "mb-1 w-full break-words font-[family-name:var(--editor-font)] text-[28px] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
+          "mb-1 w-full break-words font-[family-name:var(--editor-font)] text-[calc(var(--editor-size)*2)] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
         )}
       />
       {showRich ? (

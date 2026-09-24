@@ -4,15 +4,14 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { serializeMd } from "@platejs/markdown";
 import { createSlateEditor } from "platejs";
 import { describe, expect, it } from "vitest";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import {
-  MD_STRINGIFY,
   describeGateReason,
   parseMarkdown,
+  serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
 import { safeGateReason } from "@repo/editor/note/markdown-gate";
 
@@ -67,10 +66,7 @@ const saveOnce = (md: string): string => {
   if (!parsed.ok) {
     throw new Error(describeGateReason(parsed.reason));
   }
-  return serializeMd(createSlateEditor({ plugins: BASE_KIT }), {
-    remarkStringifyOptions: MD_STRINGIFY,
-    value: parsed.value,
-  });
+  return serializeNote(createSlateEditor({ plugins: BASE_KIT }), parsed.value);
 };
 
 describe("the skills' markdown examples", () => {
