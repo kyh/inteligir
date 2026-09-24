@@ -530,7 +530,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     try {
       // --empty=drop: a local commit already landed upstream would otherwise halt the merge
       // backend as a conflict naming no files.
-      await run(["-c", "commit.gpgsign=false", "rebase", "--empty=drop", remoteRef]);
+      // a replayed commit is committed anew, and git refuses to guess a committer on a host
+      // whose name carries no domain (a Linux box, a container); the authors stay the originals.
+      await run(["-c", "commit.gpgsign=false", "rebase", "--empty=drop", remoteRef], {
+        env: identityEnv(),
+      });
     } catch (error) {
       if ((await recoverFailedRebase(branch, tips)) === "unhandled") {
         throw error;
