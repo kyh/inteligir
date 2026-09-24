@@ -3,6 +3,7 @@
 // compute it where it projects.
 
 import type { DocProjection } from "./projection";
+import type { SearchFields } from "./search-index";
 import { stemText } from "./search-query";
 
 export interface DocSearchColumns {
@@ -14,15 +15,22 @@ export interface DocSearchColumns {
   bodyStems: string;
 }
 
+// what both engines index a doc under; aliases ride the headings as a ranking boost
+export const searchFieldsOf = (projection: DocProjection, body: string): SearchFields => ({
+  body,
+  headings: [...projection.headings, ...projection.aliases],
+  title: projection.title,
+});
+
 export const docSearchColumns = (projection: DocProjection, body: string): DocSearchColumns => {
-  // aliases ride the headings column as a ranking boost; knowledge-index's setDoc must match
-  const headings = [...projection.headings, ...projection.aliases].join("\n");
+  const fields = searchFieldsOf(projection, body);
+  const headings = fields.headings.join("\n");
   return {
-    body,
-    bodyStems: stemText(body),
+    body: fields.body,
+    bodyStems: stemText(fields.body),
     headingStems: stemText(headings),
     headings,
-    title: projection.title,
-    titleStems: stemText(projection.title),
+    title: fields.title,
+    titleStems: stemText(fields.title),
   };
 };

@@ -1,7 +1,6 @@
 // Parsed, not regexed: a pill inside a code fence is literal in the editor and must be here too.
 
-import type { Node, Parent } from "mdast";
-import { z } from "zod";
+import type { Nodes } from "mdast";
 
 import { parseMdast } from "../markdown/parse";
 import { parseFormulaMeta } from "./formula-meta";
@@ -17,15 +16,6 @@ export interface CollectedFormula {
   expression: ExpressionNode | null;
 }
 
-const formulaNodeSchema = z.object({
-  display: z.string(),
-  meta: z.string().optional(),
-  source: z.string(),
-  type: z.literal("formulaPill"),
-});
-
-const isParent = (node: Node): node is Parent => "children" in node;
-
 // [] for an unparseable doc: a false "none" here only yields stale marks, never data loss
 export const collectFormulas = (markdown: string): CollectedFormula[] => {
   const parsed = parseMdast(markdown);
@@ -33,10 +23,9 @@ export const collectFormulas = (markdown: string): CollectedFormula[] => {
     return [];
   }
   const collected: CollectedFormula[] = [];
-  const walk = (node: Node): void => {
-    const formula = formulaNodeSchema.safeParse(node);
-    if (formula.success) {
-      const { source, display, meta } = formula.data;
+  const walk = (node: Nodes): void => {
+    if (node.type === "formulaPill") {
+      const { source, display, meta } = node;
       collected.push({
         display,
         expression: parseExpression(source),
@@ -45,7 +34,7 @@ export const collectFormulas = (markdown: string): CollectedFormula[] => {
       });
       return;
     }
-    if (isParent(node)) {
+    if ("children" in node) {
       for (const child of node.children) {
         walk(child);
       }

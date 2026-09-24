@@ -4,7 +4,7 @@
 
 import { DAILY_NOTES_FOLDER, TEMPLATES_FOLDER } from "../templates/placeholders";
 import { isDocPath, wikiLinkName } from "./doc-file";
-import type { LinkKind } from "./link-extract";
+import type { LinkKind } from "./link-kinds";
 import type { BacklinkEntry, ForwardLinkEntry, NoteIdEntry, WikiTarget } from "./link-graph-index";
 import { extnamePath } from "./vault-path";
 

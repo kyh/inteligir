@@ -4,7 +4,8 @@
 // response carries `total`, and `array.length < total` is the truncation test; no second flag
 // can disagree with the arrays.
 
-import { LINK_KINDS, isTagName } from "@repo/notes/knowledge/link-extract";
+import { LINK_KINDS } from "@repo/notes/knowledge/link-kinds";
+import { isTagName } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
 import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";
 

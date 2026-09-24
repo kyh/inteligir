@@ -7,7 +7,6 @@
 import nodePath from "node:path";
 import { setImmediate as yieldTurn } from "node:timers/promises";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import { LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
 import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
@@ -16,10 +15,11 @@ import { relatedNotes } from "@repo/notes/knowledge/related-notes";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import type { DocProjection } from "@repo/notes/knowledge/projection";
 import type { DocSearchColumns } from "@repo/notes/knowledge/search-columns";
+import type { SearchResult } from "@repo/notes/knowledge/search-query";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
-import { bodyPrefilter, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
+import { bodyPrefilters, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import type { TextMatchOptions, VaultMatches } from "@repo/notes/knowledge/text-matches";
 import {
   findUnlinkedMentions,
@@ -136,6 +136,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     createSqliteDriver(nodePath.join(args.dataDir, KNOWLEDGE_DB_FILE_NAME)),
     args.vaultRoot,
   );
+  if (store.opened.kind === "discarded") {
+    console.warn("[knowledge] discarding the index db (will rebuild):", store.opened.reason);
+  }
   const { projector } = args;
   const graph = new LinkGraphIndex();
   const hashes = new Map<string, string>();
@@ -604,7 +607,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async matches(params) {
       return await readThroughIndex("matches", () =>
         collectVaultMatches(
-          store.docTexts(bodyPrefilter(params.needle)),
+          store.docTexts(bodyPrefilters([params.needle])),
           params.needle,
           params.options,
           params.limit,
@@ -645,9 +648,12 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async relatedNotes(path, limit) {
       const normalized = normalizePath(path);
       return await readThroughIndex("related notes", () =>
-        relatedNotes(graph, (query, probe) => store.searchRanked(query, probe), normalized, {
-          limit,
-        }),
+        relatedNotes(
+          graph,
+          (query, probe, options) => store.searchRanked(query, probe, options),
+          normalized,
+          { limit },
+        ),
       );
     },
 
@@ -662,8 +668,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       return await readThroughIndex("search", () =>
         searchVaultNotes(
           {
-            notesWithTag: (tag) => graph.notesWithTag(tag),
+            notesInTag: (tag) => notesInTagFamily(graph, tag),
             search: (query, limit) => store.search(query, limit),
+            titleOf: (path) => graph.titleOf(path),
           },
           { limit: params.limit, query: params.query, tag: params.tag },
         ),
@@ -690,19 +697,17 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       return graph.tags();
     },
 
-    // the literal scan again, over the stem and the aliases; a single ascii name lets the
-    // store pre-narrow, several names read every doc
+    // the literal scan again, over the stem and the aliases; ascii names let the store
+    // pre-narrow to the docs holding one of them
     async unlinkedMentions(path, limit) {
       const normalized = normalizePath(path);
       return await readThroughIndex("unlinked mentions", () => {
-        const target = graph.wikiTargets().find((candidate) => candidate.path === normalized);
-        const names = mentionNames(normalized, target?.aliases ?? []);
+        const names = mentionNames(normalized, graph.aliasesOf(normalized));
         const exclude = new Set([
           normalized,
           ...graph.backlinks(normalized).map((backlink) => backlink.sourcePath),
         ]);
-        const only = names.length === 1 ? names[0] : undefined;
-        const docs = store.docTexts(only === undefined ? null : bodyPrefilter(only));
+        const docs = store.docTexts(bodyPrefilters(names));
         return {
           ...findUnlinkedMentions(docs, { exclude, limit, names }),
           linkTarget: mentionLinkTarget(normalized, (name) => graph.resolveWiki(name)),

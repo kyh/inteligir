@@ -5,15 +5,13 @@
 
 import { z } from "zod";
 
-import type { SearchResult } from "./knowledge-index";
 import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
 import { parseStoredProjection } from "./projection-row";
 import { searchExcerpt } from "./search-excerpt";
 import type { SearchHit } from "./search-index";
-import { planSearchQuery } from "./search-query";
-import type { SearchQueryPlan } from "./search-query";
-import { splitLines } from "./source-lines";
+import { planSearchQuery, SEARCH_FIELD_WEIGHTS, TYPED_QUERY } from "./search-query";
+import type { SearchQueryOptions, SearchQueryPlan, SearchResult } from "./search-query";
 import type { DocText } from "./text-matches";
 
 // bump on any DDL change; a mismatch wipes and rebuilds
@@ -42,8 +40,16 @@ interface HydrationCursor {
   next: () => HydrationPage;
 }
 
+// what open found: a cache it reuses, none, or one it discarded and why. The caller logs it:
+// this package names no console.
+export type StoreOpenVerdict =
+  | { kind: "created" }
+  | { kind: "reused" }
+  | { kind: "discarded"; reason: string };
+
 export type SqlKnowledgeStore = KnowledgeStore & {
   hydrate: (pageDocs: number) => HydrationCursor;
+  readonly opened: StoreOpenVerdict;
 };
 
 // `remove_diacritics 2` is stated, not defaulted: core's tokenize() folds the same
@@ -67,9 +73,14 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 );
 `;
 
-// the weights mirror search-index's title/heading/body, once for the literal columns and
-// once for the stem shadow; both reads share this so they differ in what they select, never in rank
-const BM25_RANK = "bm25(search_fts, 10.0, 4.0, 1.0, 10.0, 4.0, 1.0) AS rank";
+// the shared field weights, once for the literal columns and once for the stem shadow; both reads
+// share this so they differ in what they select, never in rank
+const COLUMN_WEIGHTS = [
+  SEARCH_FIELD_WEIGHTS.title,
+  SEARCH_FIELD_WEIGHTS.headings,
+  SEARCH_FIELD_WEIGHTS.body,
+].join(", ");
+const BM25_RANK = `bm25(search_fts, ${COLUMN_WEIGHTS}, ${COLUMN_WEIGHTS}) AS rank`;
 
 // the body comes back whole and search-excerpt.ts cuts it: fts5's snippet() cannot see a stem-only hit
 const SEARCH_SQL = `
@@ -99,8 +110,6 @@ SELECT path FROM files WHERE kind = 'other' AND path > ? ORDER BY path LIMIT ?
 `;
 
 const PATH_START = "";
-
-const HYDRATION_DRAIN_PAGE_DOCS = 1000;
 
 const LITERAL_COLUMNS = "{title headings body}";
 const STEM_COLUMNS = "{title_stems heading_stems body_stems}";
@@ -138,10 +147,13 @@ const columnString = (row: SqlRow, key: string): string => {
 const rankScore = (row: SqlRow): number => -columnNumber(row, "rank");
 
 // the literal scan's candidates: LIKE folds ascii case only, which is why text-matches hands
-// over a prefilter for ascii needles alone and asks for every doc otherwise
+// over prefilters for ascii needles alone and asks for every doc otherwise
 const DOC_TEXTS_SQL = "SELECT path, title, body FROM search_fts ORDER BY path";
-const DOC_TEXTS_LIKE_SQL =
-  "SELECT path, title, body FROM search_fts WHERE body LIKE ? ESCAPE '\\' ORDER BY path";
+const docTextsLikeSql = (count: number): string =>
+  `SELECT path, title, body FROM search_fts WHERE ${Array.from(
+    { length: count },
+    () => "body LIKE ? ESCAPE '\\'",
+  ).join(" OR ")} ORDER BY path`;
 
 const likePattern = (prefilter: string): string => `%${prefilter.replaceAll(/[\\%_]/gu, "\\$&")}%`;
 
@@ -173,16 +185,15 @@ export const createSqlKnowledgeStore = (
     );
   };
 
-  const open = (): void => {
+  const open = (): StoreOpenVerdict => {
     try {
       const userVersion = readSchemaVersion();
       const hasMeta =
         driver.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'", [])
           .length > 0;
       if (userVersion === 0 && !hasMeta) {
-        // brand-new file
         initSchema();
-        return;
+        return { kind: "created" };
       }
       if (userVersion !== KNOWLEDGE_SCHEMA_VERSION) {
         throw new Error(`schema version ${userVersion} != ${KNOWLEDGE_SCHEMA_VERSION}`);
@@ -193,11 +204,12 @@ export const createSqlKnowledgeStore = (
       if (metaGet("vault_root") !== vaultRoot) {
         throw new Error("vault root mismatch");
       }
+      return { kind: "reused" };
     } catch (error) {
       // not our current cache: wipe and rebuild
-      console.warn("[knowledge-store] discarding index db (will rebuild):", messageOf(error));
       driver.reset();
       initSchema();
+      return { kind: "discarded", reason: messageOf(error) };
     }
   };
 
@@ -228,8 +240,9 @@ export const createSqlKnowledgeStore = (
     sql: string,
     query: string,
     limit: number,
+    options: SearchQueryOptions,
   ): { plan: SearchQueryPlan; rows: SqlRow[] } | null => {
-    for (const plan of planSearchQuery(query)) {
+    for (const plan of planSearchQuery(query, options)) {
       const rows = driver.all(sql, [renderFtsMatch(plan), limit]);
       if (rows.length > 0) {
         return { plan, rows };
@@ -300,25 +313,21 @@ export const createSqlKnowledgeStore = (
     return { next };
   };
 
-  open();
+  const opened = open();
 
   return {
-    clear() {
-      transaction(() => {
-        driver.run("DELETE FROM search_fts", []);
-        driver.run("DELETE FROM files", []);
-      });
-    },
-
     dispose() {
       driver.close();
     },
 
-    docTexts(prefilter): DocText[] {
+    docTexts(prefilters): DocText[] {
+      if (prefilters?.length === 0) {
+        return [];
+      }
       const rows =
-        prefilter === null
+        prefilters === null
           ? driver.all(DOC_TEXTS_SQL, [])
-          : driver.all(DOC_TEXTS_LIKE_SQL, [likePattern(prefilter)]);
+          : driver.all(docTextsLikeSql(prefilters.length), prefilters.map(likePattern));
       return rows.map((row) => ({
         body: columnString(row, "body"),
         path: columnString(row, "path"),
@@ -328,27 +337,12 @@ export const createSqlKnowledgeStore = (
 
     hydrate,
 
-    loadAll() {
-      const cursor = hydrate(HYDRATION_DRAIN_PAGE_DOCS);
-      const docs: StoredDocRow[] = [];
-      const others: { path: string }[] = [];
-      for (;;) {
-        const page = cursor.next();
-        if (page.kind === "done") {
-          return { docs, others };
-        }
-        if (page.kind === "docs") {
-          docs.push(...page.docs);
-        } else {
-          others.push(...page.others);
-        }
-      }
-    },
-
     nuke() {
       driver.reset();
       initSchema();
     },
+
+    opened,
 
     remove(path) {
       transaction(() => {
@@ -365,13 +359,13 @@ export const createSqlKnowledgeStore = (
       if (limit <= 0) {
         return [];
       }
-      const answered = answerPlan(SEARCH_SQL, query, limit);
+      const answered = answerPlan(SEARCH_SQL, query, limit, TYPED_QUERY);
       if (answered === null) {
         return [];
       }
       return answered.rows.map((row) => {
         const title = columnString(row, "title");
-        const snippet = searchExcerpt(splitLines(columnString(row, "body")), answered.plan.terms);
+        const snippet = searchExcerpt(columnString(row, "body"), answered.plan.terms);
         return {
           path: columnString(row, "path"),
           score: rankScore(row),
@@ -381,11 +375,11 @@ export const createSqlKnowledgeStore = (
       });
     },
 
-    searchRanked(query, limit): SearchHit[] {
+    searchRanked(query, limit, options = TYPED_QUERY): SearchHit[] {
       if (limit <= 0) {
         return [];
       }
-      const answered = answerPlan(RANK_SQL, query, limit);
+      const answered = answerPlan(RANK_SQL, query, limit, options);
       if (answered === null) {
         return [];
       }

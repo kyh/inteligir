@@ -53,6 +53,21 @@ describe("the target a Link writes", () => {
   });
 });
 
+describe("names that overlap", () => {
+  it.each([
+    ["Plan", ["Plan", "Plan B"], "Our Plan B is ready.\n", "Plan B"],
+    ["New", ["New", "New York"], "Flying to New York soon.\n", "New York"],
+  ])("counts %s's site once, as the longer name", (_short, overlapping, body, longer) => {
+    const found = findUnlinkedMentions([{ body, path: "a.md", title: "a" }], {
+      exclude: new Set(),
+      limit: 10,
+      names: overlapping,
+    });
+    expect(found.mentions).toHaveLength(1);
+    expect(found.mentions[0]).toMatchObject({ count: 1, length: longer.length, text: longer });
+  });
+});
+
 describe("finding plain mentions", () => {
   it("lists a whole-word mention in any case, with its sentence and count", () => {
     const found = mentions({

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { documentTagSpans, isTagName, scanDoc } from "../knowledge/link-extract";
+import { documentTagSpans, scanDoc } from "../knowledge/link-extract";
+import { isTagName } from "../knowledge/tag-grammar";
 import { computeTagRenameEdits, renamedTag, renameTagsInDoc } from "../knowledge/rename-tags";
 
 describe("the tag name a rename accepts", () => {
@@ -70,11 +71,53 @@ describe("renaming a tag in one doc", () => {
     expect(renameTagsInDoc(src, "project", "work")).toBe(src);
   });
 
-  it("re-serializes a CRLF note's tags in CRLF, body byte-exact", () => {
+  it("splices a CRLF note's tags in place, every other byte kept", () => {
     const src = "---\r\ntitle: Plan\r\ntags:\r\n  - project\r\n---\r\n\r\nNo inline tag.\r\n";
     expect(renameTagsInDoc(src, "project", "work")).toBe(
       "---\r\ntitle: Plan\r\ntags:\r\n  - work\r\n---\r\n\r\nNo inline tag.\r\n",
     );
+  });
+
+  it("keeps a flow list flow, each scalar's quoting and every comment", () => {
+    const src = [
+      "---",
+      "title: Plan # the plan",
+      "tags:  [project,  \"project/alpha\", '#Project', other]  # kept",
+      "---",
+      "",
+    ].join("\n");
+    expect(renameTagsInDoc(src, "project", "work")).toBe(
+      [
+        "---",
+        "title: Plan # the plan",
+        "tags:  [work,  \"work/alpha\", '#work', other]  # kept",
+        "---",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("renames a lone string, and quotes a name yaml would read as another type", () => {
+    expect(renameTagsInDoc("---\ntags: project\n---\n", "project", "work")).toBe(
+      "---\ntags: work\n---\n",
+    );
+    expect(renameTagsInDoc("---\ntags: [project]\n---\n", "project", "true")).toBe(
+      '---\ntags: ["true"]\n---\n',
+    );
+  });
+
+  it("leaves a list entry no inline `#` could spell where it is", () => {
+    const src = "---\ntags: [2026, project list, project]\n---\n";
+    expect(renameTagsInDoc(src, "project", "work")).toBe(
+      "---\ntags: [2026, project list, work]\n---\n",
+    );
+  });
+
+  it("renames a tag inside a callout's body, which the index lists", () => {
+    const src = "```inteligir-callout\nnote\nSee #project/alpha here.\n```\n";
+    const out = renameTagsInDoc(src, "project", "work");
+    expect(out).toBe("```inteligir-callout\nnote\nSee #work/alpha here.\n```\n");
+    expect(scanDoc(out).tags).toEqual(["work/alpha"]);
   });
 
   it.each([

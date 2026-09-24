@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";
 
+import { isTagName } from "@repo/notes/knowledge/tag-grammar";
+import { TAGS_KEY } from "@repo/notes/markdown/frontmatter";
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
@@ -110,10 +112,20 @@ export const TagsField = ({
   onChange: (next: TypedProperty) => void;
 }) => {
   const [draft, setDraft] = useState("");
+  const [refused, setRefused] = useState(false);
+  const hintId = useId();
+  // the index reads a `tags` entry only when an inline `#` could spell it, so the panel writes
+  // no other; any other list key holds free text
+  const isTagList = prop.key === TAGS_KEY;
   const commitTag = () => {
-    const tag = draft.trim();
+    const tag = isTagList ? draft.trim().replace(/^#/u, "") : draft.trim();
     if (tag === "" || prop.value.includes(tag)) {
       setDraft("");
+      setRefused(false);
+      return;
+    }
+    if (isTagList && !isTagName(tag)) {
+      setRefused(true);
       return;
     }
     onChange({ ...prop, value: [...prop.value, tag] });
@@ -145,6 +157,7 @@ export const TagsField = ({
         value={draft}
         onChange={(e) => {
           setDraft(e.target.value);
+          setRefused(false);
         }}
         onBlur={commitTag}
         onKeyDown={(e) => {
@@ -160,8 +173,15 @@ export const TagsField = ({
         }}
         placeholder={prop.value.length === 0 ? "Add tag" : ""}
         aria-label={`${prop.key} tags`}
-        className="min-w-16 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+        aria-invalid={refused || undefined}
+        aria-describedby={refused ? hintId : undefined}
+        className="min-w-16 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 aria-invalid:text-destructive"
       />
+      {refused ? (
+        <p id={hintId} className="basis-full text-xs text-destructive">
+          A tag starts with a letter and holds only letters, digits, -, _ and /.
+        </p>
+      ) : null}
     </div>
   );
 };

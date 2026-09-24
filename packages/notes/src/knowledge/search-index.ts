@@ -1,8 +1,14 @@
 // The in-memory engine beside the SQL store's FTS5: search-query.ts decides what
-// both ask for, and the field weights and tiers here must match sql-knowledge-store's.
+// both ask for and how much each field weighs; the tiers here are the pure index's own.
 
-import { planSearchQuery, stemToken, tokenize } from "./search-query";
-import type { SearchQueryPlan, SearchQueryTerm } from "./search-query";
+import {
+  planSearchQuery,
+  SEARCH_FIELD_WEIGHTS,
+  stemToken,
+  tokenize,
+  TYPED_QUERY,
+} from "./search-query";
+import type { SearchQueryOptions, SearchQueryPlan, SearchQueryTerm } from "./search-query";
 
 export interface SearchFields {
   title: string;
@@ -21,17 +27,14 @@ interface FieldCounts {
   body: number;
 }
 
-const TITLE_WEIGHT = 10;
-const HEADING_WEIGHT = 4;
-const BODY_WEIGHT = 1;
 // the max body contribution (5) stays below one title hit
 const TF_CAP = 5;
 const PREFIX_FACTOR = 0.7;
 
 const weightOf = (counts: FieldCounts): number =>
-  TITLE_WEIGHT * Math.min(counts.title, TF_CAP) +
-  HEADING_WEIGHT * Math.min(counts.heading, TF_CAP) +
-  BODY_WEIGHT * Math.min(counts.body, TF_CAP);
+  SEARCH_FIELD_WEIGHTS.title * Math.min(counts.title, TF_CAP) +
+  SEARCH_FIELD_WEIGHTS.headings * Math.min(counts.heading, TF_CAP) +
+  SEARCH_FIELD_WEIGHTS.body * Math.min(counts.body, TF_CAP);
 
 type Postings = Map<string, Map<string, FieldCounts>>;
 
@@ -128,8 +131,8 @@ export class SearchIndex {
     return lo;
   }
 
-  search(query: string, limit: number): SearchHit[] {
-    for (const plan of planSearchQuery(query)) {
+  search(query: string, limit: number, options: SearchQueryOptions = TYPED_QUERY): SearchHit[] {
+    for (const plan of planSearchQuery(query, options)) {
       const hits = this.run(plan, limit);
       if (hits.length > 0) {
         return hits;

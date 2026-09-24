@@ -1,6 +1,6 @@
 // notes are phrased the way a person writes them, not the way a query does —
 // that gap is what is measured, so nothing here is tuned to make a query pass.
-// thirty notes, so recall@10 and recall@∞ are not the same number.
+// thirty-one notes, so recall@10 and recall@∞ are not the same number.
 
 export const EVAL_VAULT = {
   "health/burnout.md": `# Burnout
@@ -44,6 +44,13 @@ in a default fund doing nothing.
   "people/priya.md": `# Priya
 
 Reviews faster than anyone and is blunt about it. Owns the gateway.
+`,
+  "people/mo.md": `---
+aliases: [Morwenna]
+---
+# Mo
+
+Runs the design reviews and has no patience for long decks.
 `,
   "people/sam.md": `# Sam
 
@@ -165,6 +172,8 @@ export const EVAL_QUERIES: readonly EvalQuery[] = [
   { gold: ["work/standup-2026-03-10.md"], query: "gateway migration" },
   { gold: ["recipes/bread.md"], query: "sourdough" },
   { gold: ["health/dentist.md", "journal/2026-02-02.md"], query: "dentist" },
+  // reachable through an alias alone, which both engines index beside the headings
+  { gold: ["people/mo.md"], query: "morwenna" },
 
   // one inflected word: the case a prefix alone cannot answer.
   { gold: ["health/dentist.md", "journal/2026-02-02.md"], query: "dentists" },

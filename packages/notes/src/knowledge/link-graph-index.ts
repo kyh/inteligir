@@ -3,14 +3,13 @@
 // links alone; anything moving a path, alias or id rebuilds whole, because a
 // new `note.md` can re-point another doc's dangling `[[note]]`.
 
-import { isDocPath } from "./doc-file";
-import type { LinkKind } from "./link-extract";
+import type { LinkKind } from "./link-kinds";
 import { buildResolver } from "./link-resolve";
 import type { TargetResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex } from "./tag-index";
 import type { TagCount } from "./tag-index";
-import { basenamePath, extnamePath } from "./vault-path";
+import { basenamePath } from "./vault-path";
 
 export interface BacklinkEntry {
   sourcePath: string;
@@ -30,26 +29,6 @@ export interface ForwardLinkEntry {
   embed: boolean;
   alias?: string;
   anchor?: string;
-}
-
-export interface GraphNode {
-  id: string;
-  title: string;
-  path?: string;
-  phantom: boolean;
-  degree: number;
-}
-
-export interface GraphEdge {
-  source: string;
-  target: string;
-  kind: LinkKind;
-  count: number;
-}
-
-export interface LinkGraph {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
 }
 
 export interface NoteIdEntry {
@@ -213,6 +192,10 @@ export class LinkGraphIndex {
     return this.docs.get(path)?.title ?? null;
   }
 
+  aliasesOf(path: string): readonly string[] {
+    return this.docs.get(path)?.aliases ?? [];
+  }
+
   resolveWiki(target: string): string | null {
     return this.ensureResolved().resolver.resolveWiki(target);
   }
@@ -253,65 +236,6 @@ export class LinkGraphIndex {
       }
       return entry;
     });
-  }
-
-  graph(): LinkGraph {
-    const { forward } = this.ensureResolved();
-    const nodes = new Map<string, GraphNode>();
-    for (const [path, record] of this.docs) {
-      nodes.set(path, { degree: 0, id: path, path, phantom: false, title: record.title });
-    }
-    const edges: GraphEdge[] = [];
-    // scoped per source on purpose: one vault-wide map keyed on a path pair is ~50% slower at 400k links
-    const bySource = new Map<string, GraphEdge>();
-    for (const [sourcePath, links] of forward) {
-      bySource.clear();
-      const sourceNode = nodes.get(sourcePath);
-      for (const { link, targetPath } of links) {
-        // a notes graph: asset references stay out so it does not silt up with attachment leaves; backlinks() still answers them
-        if (link.kind === "image") {
-          continue;
-        }
-        let targetId: string;
-        if (targetPath === null) {
-          // a dangling target with a non-doc extension is an asset reference, not a phantom note
-          const ext = extnamePath(link.target);
-          if (ext !== "" && !isDocPath(link.target)) {
-            continue;
-          }
-          targetId = `phantom:${link.target.toLowerCase()}`;
-          if (!nodes.has(targetId)) {
-            nodes.set(targetId, { degree: 0, id: targetId, phantom: true, title: link.target });
-          }
-        } else {
-          // resolved asset target
-          if (!this.docs.has(targetPath)) {
-            continue;
-          }
-          targetId = targetPath;
-        }
-        const key = `${link.kind}\u0000${targetId}`;
-        const seen = bySource.get(key);
-        if (seen !== undefined) {
-          seen.count += 1;
-          continue;
-        }
-        const edge: GraphEdge = { count: 1, kind: link.kind, source: sourcePath, target: targetId };
-        bySource.set(key, edge);
-        edges.push(edge);
-        // degree counts edges, not link occurrences; a self-edge counts once
-        if (sourceNode) {
-          sourceNode.degree += 1;
-        }
-        if (targetId !== sourcePath) {
-          const targetNode = nodes.get(targetId);
-          if (targetNode) {
-            targetNode.degree += 1;
-          }
-        }
-      }
-    }
-    return { edges, nodes: [...nodes.values()] };
   }
 
   wikiTargets(): WikiTarget[] {

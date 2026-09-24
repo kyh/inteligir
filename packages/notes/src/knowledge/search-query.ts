@@ -14,6 +14,20 @@ const foldDiacritics = (text: string): string => text.normalize("NFD").replaceAl
 export const tokenize = (text: string): string[] =>
   foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
 
+// what either engine answers a search with, whichever store it came from
+export interface SearchResult {
+  path: string;
+  title: string;
+  snippet: string;
+  score: number;
+}
+
+export const SEARCH_DEFAULT_LIMIT = 20;
+
+// the fields both engines rank a doc by; the formulas around them differ by design (bm25 has an
+// idf, the pure index a capped tf), the weights do not
+export const SEARCH_FIELD_WEIGHTS = { body: 1, headings: 4, title: 10 } as const;
+
 // `stemmer` is imported here and nowhere else, so the engines and the snippet cut cannot diverge
 export const stemToken = (token: string): string => stemmer(token);
 
@@ -33,6 +47,15 @@ export interface SearchQueryPlan {
   terms: readonly SearchQueryTerm[];
   match: "all" | "any";
 }
+
+// `typing`: the query is a box still being typed into, so its last word also matches as a
+// prefix. a probe of finished words (Related's title words) is not, and `plan` must not
+// reach `planet`.
+export interface SearchQueryOptions {
+  typing: boolean;
+}
+
+export const TYPED_QUERY: SearchQueryOptions = { typing: true };
 
 // at or below, the query is a lookup and every term is required; above, a sentence the ranking decides
 const CONJUNCTION_MAX_TERMS = 2;
@@ -59,7 +82,12 @@ const STOPWORDS = new Set(
     .filter((word) => word !== ""),
 );
 
-export const planSearchQuery = (query: string): readonly SearchQueryPlan[] => {
+export const isStopword = (token: string): boolean => STOPWORDS.has(token);
+
+export const planSearchQuery = (
+  query: string,
+  options: SearchQueryOptions = TYPED_QUERY,
+): readonly SearchQueryPlan[] => {
   const raw = tokenize(query);
   const typing = raw.at(-1);
   if (typing === undefined) {
@@ -67,9 +95,9 @@ export const planSearchQuery = (query: string): readonly SearchQueryPlan[] => {
   }
 
   const unique = [...new Set(raw)];
-  const content = unique.filter((token) => !STOPWORDS.has(token));
+  const content = unique.filter((token) => !isStopword(token));
   const terms = (content.length > 0 ? content : unique).map((token) => ({
-    prefix: token === typing,
+    prefix: options.typing && token === typing,
     stem: stemToken(token),
     token,
   }));

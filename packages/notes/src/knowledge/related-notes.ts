@@ -1,7 +1,8 @@
 // Direct neighbours (linked to, linking here) are excluded: the panels already
 // surface them, and Related is the ring the user has not wired up.
 
-import { tokenize } from "./search-query";
+import { isStopword, tokenize } from "./search-query";
+import type { SearchQueryOptions } from "./search-query";
 
 export interface RelatedNoteEntry {
   path: string;
@@ -25,7 +26,11 @@ export interface RelatedNotesGraph {
 export type LexicalSearch = (
   query: string,
   limit: number,
+  options: SearchQueryOptions,
 ) => readonly { path: string; score: number }[];
+
+// a title word is finished, so it never matches as a prefix
+const TITLE_WORD: SearchQueryOptions = { typing: false };
 
 export const RELATED_DEFAULT_LIMIT = 8;
 
@@ -156,9 +161,9 @@ const collectLexical = (
   const title = sources.titleOf(path);
   const tokens = title === null ? [] : [...new Set(tokenize(title))];
   for (const token of tokens
-    .filter((t) => t.length >= LEXICAL_MIN_TOKEN_LENGTH)
+    .filter((t) => t.length >= LEXICAL_MIN_TOKEN_LENGTH && !isStopword(t))
     .slice(0, LEXICAL_MAX_TOKENS)) {
-    for (const hit of search(token, LEXICAL_PROBE_LIMIT)) {
+    for (const hit of search(token, LEXICAL_PROBE_LIMIT, TITLE_WORD)) {
       if (excluded(hit.path) || hit.score <= 0) {
         continue;
       }

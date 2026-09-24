@@ -1,4 +1,4 @@
-import { isTagName } from "@repo/notes/knowledge/link-extract";
+import { isTagName } from "@repo/notes/knowledge/tag-grammar";
 import { Button } from "@repo/ui/components/button";
 import {
   Dialog,

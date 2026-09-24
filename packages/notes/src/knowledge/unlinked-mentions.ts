@@ -11,7 +11,7 @@ import type { VerbatimSpan } from "../markdown/verbatim-spans";
 import { wikiLinkName } from "./doc-file";
 import { wikiTargetForPath } from "./link-resolve";
 import { splitLinesKeepingTerminators } from "./source-lines";
-import { excerptAround, findTextMatches } from "./text-matches";
+import { anyWholeWordMatcher, excerptAround, findLineMatches } from "./text-matches";
 import type { DocText, TextMatch } from "./text-matches";
 
 export interface UnlinkedMention {
@@ -53,8 +53,6 @@ export interface UnlinkedMentionQuery {
   exclude: ReadonlySet<string>;
   limit: number;
 }
-
-const MENTION_OPTIONS = { caseSensitive: false, wholeWord: true } as const;
 
 // Link keeps the prose as the link's alias, so a name no alias can carry (a bracket, a `|`) is
 // not a mention: its row would offer a Link that cannot be written
@@ -98,13 +96,12 @@ const INLINE_WITHHELD = [
 // markdown constructs the scan cannot mistake for prose. the regexes overlap the editor's
 // ranges on purpose: those come back empty for a doc its grammar refuses, and a refused doc
 // still has code and math the scan must not call a sentence
-export const withheldSpans = (body: string): VerbatimSpan[] => {
+const withheldSpansOf = (body: string, parts: readonly string[]): VerbatimSpan[] => {
   const spans = verbatimSpans(body);
   const header = frontmatterEnd(body);
   if (header !== null) {
     spans.push({ end: header, start: 0 });
   }
-  const parts = splitLinesKeepingTerminators(body);
   let offset = 0;
   let fenceStart: number | null = null;
   for (let index = 0; index < parts.length; index += 1) {
@@ -135,6 +132,9 @@ export const withheldSpans = (body: string): VerbatimSpan[] => {
   return spans;
 };
 
+export const withheldSpans = (body: string): VerbatimSpan[] =>
+  withheldSpansOf(body, splitLinesKeepingTerminators(body));
+
 const lineStarts = (parts: readonly string[]): number[] => {
   const starts: number[] = [];
   let offset = 0;
@@ -147,19 +147,18 @@ const lineStarts = (parts: readonly string[]): number[] => {
   return starts;
 };
 
-const plainMentions = (body: string, names: readonly string[]): TextMatch[] => {
-  const raw = names.flatMap((name) => findTextMatches(body, name, MENTION_OPTIONS));
+// in document order, since the one pattern scans each line left to right
+const plainMentions = (body: string, parts: readonly string[], pattern: RegExp): TextMatch[] => {
+  const raw = findLineMatches(parts, pattern);
   if (raw.length === 0) {
     return [];
   }
-  const withheld = withheldSpans(body);
-  const starts = lineStarts(splitLinesKeepingTerminators(body));
-  return raw
-    .filter((match) => {
-      const start = (starts[match.line - 1] ?? 0) + match.column;
-      return !insideVerbatim(withheld, start, start + match.length);
-    })
-    .toSorted((a, b) => a.line - b.line || a.column - b.column);
+  const withheld = withheldSpansOf(body, parts);
+  const starts = lineStarts(parts);
+  return raw.filter((match) => {
+    const start = (starts[match.line - 1] ?? 0) + match.column;
+    return !insideVerbatim(withheld, start, start + match.length);
+  });
 };
 
 const byPath = (a: DocText, b: DocText): number => {
@@ -177,17 +176,18 @@ export const findUnlinkedMentions = (
   docs: Iterable<DocText>,
   query: UnlinkedMentionQuery,
 ): UnlinkedMentions => {
-  const sorted = [...docs].toSorted(byPath);
   const mentions: UnlinkedMention[] = [];
   let total = 0;
-  if (query.names.length === 0) {
+  const pattern = anyWholeWordMatcher(query.names);
+  if (pattern === null) {
     return { mentions, total };
   }
-  for (const doc of sorted) {
+  for (const doc of [...docs].toSorted(byPath)) {
     if (query.exclude.has(doc.path)) {
       continue;
     }
-    const found = plainMentions(doc.body, query.names);
+    const parts = splitLinesKeepingTerminators(doc.body);
+    const found = plainMentions(doc.body, parts, pattern);
     const [first] = found;
     if (first === undefined) {
       continue;
@@ -196,7 +196,7 @@ export const findUnlinkedMentions = (
     if (mentions.length >= query.limit) {
       continue;
     }
-    const line = splitLinesKeepingTerminators(doc.body)[(first.line - 1) * 2] ?? "";
+    const line = parts[(first.line - 1) * 2] ?? "";
     mentions.push({
       ...first,
       ...excerptAround(line, first),
