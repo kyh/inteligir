@@ -215,3 +215,64 @@ export const generateDoc = (seed: number): string => {
   }
   return `${blocks.join("\n\n")}\n`;
 };
+
+const TAGS = ["#field", "#todo", "#idea/draft", "#ref"];
+
+// the dialect's marks inside prose, which only a pass over the whole note would find
+const dialectParagraph = (rng: Rng, anchor: number): string => {
+  switch (int(rng, 3)) {
+    case 0: {
+      return `${inlineText(rng, 3, 8)} ${pick(rng, TAGS)} ${inlineText(rng, 2, 6)}`;
+    }
+    case 1: {
+      const a = 1 + int(rng, 9);
+      const b = 1 + int(rng, 9);
+      return `${inlineText(rng, 3, 8)} {{${String(a)}+${String(b)}|${String(a + b)}}} ${inlineText(rng, 2, 6)}`;
+    }
+    default: {
+      const id = `c${String(anchor)}`;
+      return `${inlineText(rng, 2, 5)} %%i:${id}:start%%${words(rng, 3)}%%i:${id}:end%% ${inlineText(rng, 2, 5)}`;
+    }
+  }
+};
+
+const NOTE_BLOCKS: ((rng: Rng) => string)[] = [
+  paragraph,
+  paragraph,
+  paragraph,
+  paragraph,
+  listBlock,
+  listBlock,
+  table,
+  blockquote,
+  codeFence,
+  mathBlock,
+  image,
+  toggle,
+  columns,
+];
+
+const SECTION_BLOCKS = 6;
+
+const noteBlock = (rng: Rng, index: number): string => {
+  if (index % SECTION_BLOCKS === 0) {
+    return `## ${inlineText(rng, 2, 5)}`;
+  }
+  return chance(rng, 0.25) ? dialectParagraph(rng, index) : pick(rng, NOTE_BLOCKS)(rng);
+};
+
+const lineCount = (block: string): number => block.split("\n").length;
+
+// A note as one is written: sections of mostly prose under headings, every modelled construct
+// turning up now and then, and the dialect's marks inside the prose.
+export const generateLongNote = (seed: number, lines: number): string => {
+  const rng = mulberry32(seed);
+  const blocks = ["---\ntitle: Long note\ntags:\n  - field\n---", "# Long note"];
+  let count = blocks.reduce((sum, block) => sum + lineCount(block) + 1, 0);
+  while (count < lines) {
+    const block = noteBlock(rng, blocks.length);
+    blocks.push(block);
+    count += lineCount(block) + 1;
+  }
+  return `${blocks.join("\n\n")}\n`;
+};

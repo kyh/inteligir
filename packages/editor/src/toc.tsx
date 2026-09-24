@@ -43,19 +43,45 @@ const tweenScrollTo = (scroller: Element, el: HTMLElement): void => {
   requestAnimationFrame(step);
 };
 
-export const collectHeadings = (editor: SlateEditor): HeadingItem[] => {
-  const out: HeadingItem[] = [];
-  for (const [node, path] of editor.api.nodes<TElement>({
-    at: [],
-    match: (n) => ElementApi.isElement(n) && HEADING_DEPTH.has(n.type),
+interface BlockHeading {
+  // below the top-level block, whose index moves when a block is added above it
+  relative: Path;
+  depth: number;
+  title: string;
+}
+
+// The outline is asked on every change, a caret move included, and a keystroke replaces one
+// top-level block and keeps every other by identity, so only the block that changed is walked.
+const headingsByBlock = new WeakMap<TElement, readonly BlockHeading[]>();
+
+const blockHeadings = (editor: SlateEditor, block: TElement): readonly BlockHeading[] => {
+  const cached = headingsByBlock.get(block);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const found: BlockHeading[] = [];
+  // what editor.api.nodes leaves unwalked: a void's content and a read-only element's
+  for (const [node, relative] of NodeApi.nodes(block, {
+    pass: ([n]) =>
+      ElementApi.isElement(n) && (editor.api.isVoid(n) || editor.api.isElementReadOnly(n)),
   })) {
-    const title = NodeApi.string(node).trim();
-    if (title) {
-      out.push({ depth: HEADING_DEPTH.get(node.type) ?? 1, id: path.join("."), path, title });
+    const depth = ElementApi.isElement(node) ? HEADING_DEPTH.get(node.type) : undefined;
+    const title = depth === undefined ? "" : NodeApi.string(node).trim();
+    if (depth !== undefined && title) {
+      found.push({ depth, relative, title });
     }
   }
-  return out;
+  headingsByBlock.set(block, found);
+  return found;
 };
+
+export const collectHeadings = (editor: SlateEditor): HeadingItem[] =>
+  editor.children.flatMap((block, index) =>
+    blockHeadings(editor, block).map(({ depth, relative, title }) => {
+      const path = [index, ...relative];
+      return { depth, id: path.join("."), path, title };
+    }),
+  );
 
 // resolved through the row's own node, not by index among the editable's `<h*>`s: that dom
 // also holds headings the outline skips (empty ones) and never listed (a transclusion's).

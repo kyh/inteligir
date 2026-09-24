@@ -58,6 +58,22 @@ describe("outline targets", () => {
     expect(headingElement(editor, first)?.textContent).toBe("Mine");
   });
 
+  it("follows an edit, a heading inside a block, and a block added above", () => {
+    const editor = mountValue([
+      h("h1", "Top"),
+      { children: [h("h2", "Quoted")], type: "blockquote" },
+      h("h2", "Tail"),
+    ]);
+    const rows = () => collectHeadings(editor).map(({ id, title }) => `${id} ${title}`);
+    expect(rows()).toEqual(["0 Top", "1.0 Quoted", "2 Tail"]);
+
+    editor.tf.insertText("s", { at: { offset: 4, path: [2, 0] } });
+    expect(rows()).toEqual(["0 Top", "1.0 Quoted", "2 Tails"]);
+
+    editor.tf.insertNodes(p("lead"), { at: [0] });
+    expect(rows()).toEqual(["1 Top", "2.0 Quoted", "3 Tails"]);
+  });
+
   it("answers null for a path the document no longer holds", () => {
     const editor = mountValue([h("h2", "Only"), p("body")]);
     expect(headingElement(editor, { depth: 2, id: "99", path: [99], title: "gone" })).toBeNull();

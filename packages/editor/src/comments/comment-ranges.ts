@@ -130,3 +130,27 @@ export const commentSpans = (editor: SlateEditor): readonly CommentSpan[] => {
   spansByDocument.set(editor.children, spans);
   return spans;
 };
+
+const idsByDocument = new WeakMap<Value, ReadonlyMap<TElement, readonly string[]>>();
+
+// Every gutter asks for its own block on every change, so the spans are grouped once per document:
+// filtering them once per gutter would make a keystroke quadratic in the note's comments.
+export const commentIdsByBlock = (
+  editor: SlateEditor,
+): ReadonlyMap<TElement, readonly string[]> => {
+  const cached = idsByDocument.get(editor.children);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const grouped = new Map<TElement, Set<string>>();
+  for (const { block, ids } of commentSpans(editor)) {
+    const held = grouped.get(block) ?? new Set<string>();
+    for (const id of ids) {
+      held.add(id);
+    }
+    grouped.set(block, held);
+  }
+  const byBlock = new Map([...grouped].map(([block, ids]) => [block, [...ids]]));
+  idsByDocument.set(editor.children, byBlock);
+  return byBlock;
+};
