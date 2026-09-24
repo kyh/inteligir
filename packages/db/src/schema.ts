@@ -173,6 +173,9 @@ export const syncState = sqliteTable(
     // the reason on threads.provider_id.
     skippedFromSeq: integer("skipped_from_seq"),
     skippedByBuild: text("skipped_by_build"),
+    // outbox rows deleted without reaching the log. a count, not a message: the next good pass
+    // clears the last error, and the loss outlives it.
+    droppedEvents: integer("dropped_events").notNull().default(0),
   },
   (table) => [check("sync_state_singleton_check", sql`${table.id} = 1`)],
 );

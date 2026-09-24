@@ -11,7 +11,11 @@ import { createWorkspaceQueryClient } from "../../workspace-context";
 import { SyncRow } from "../sidebar";
 import { stubRpc } from "../../__tests__/rpc-stub";
 
-const SIGNED_OUT: CloudStatusResponse = { cloudUrl: "https://cloud.test", state: "signed-out" };
+const SIGNED_OUT: CloudStatusResponse = {
+  cloudUrl: "https://cloud.test",
+  revokeError: null,
+  state: "signed-out",
+};
 
 const SIGNED_IN: CloudStatusResponse = {
   accountEmail: "me@cloud.test",
@@ -19,6 +23,7 @@ const SIGNED_IN: CloudStatusResponse = {
   connected: true,
   cursor: 0,
   deviceId: "dev_1",
+  dropped: 0,
   lastError: null,
   lastSyncedAt: null,
   pending: 0,

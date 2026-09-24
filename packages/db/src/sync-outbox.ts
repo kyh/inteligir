@@ -12,9 +12,15 @@ export interface SyncState {
   lastDeviceSeq: number;
   cursor: number;
   lastSyncedAt: number | null;
+  droppedEvents: number;
 }
 
-const EMPTY_SYNC_STATE: SyncState = { cursor: 0, lastDeviceSeq: 0, lastSyncedAt: null };
+const EMPTY_SYNC_STATE: SyncState = {
+  cursor: 0,
+  droppedEvents: 0,
+  lastDeviceSeq: 0,
+  lastSyncedAt: null,
+};
 
 // lazy rather than seeded by a migration, so a database restored from a file predating the seed
 // still works.
@@ -27,7 +33,12 @@ export const readSyncState = (db: DbConnection): SyncState => {
   if (row === undefined) {
     return EMPTY_SYNC_STATE;
   }
-  return { cursor: row.cursor, lastDeviceSeq: row.lastDeviceSeq, lastSyncedAt: row.lastSyncedAt };
+  return {
+    cursor: row.cursor,
+    droppedEvents: row.droppedEvents,
+    lastDeviceSeq: row.lastDeviceSeq,
+    lastSyncedAt: row.lastSyncedAt,
+  };
 };
 
 export interface SyncOutboxEntry {
@@ -78,10 +89,41 @@ export const listSyncOutbox = (db: DbConnection, limit: number): SyncOutboxRow[]
 export const countSyncOutbox = (db: DbConnection): number =>
   db.select({ value: count() }).from(syncOutbox).get()?.value ?? 0;
 
+const deleteThrough = (tx: DbTransaction, throughDeviceSeq: number): number =>
+  tx.delete(syncOutbox).where(lte(syncOutbox.deviceSeq, throughDeviceSeq)).run().changes;
+
+const countDropped = (tx: DbTransaction, dropped: number): void => {
+  if (dropped === 0) {
+    return;
+  }
+  ensureSyncStateRow(tx);
+  tx.update(syncState)
+    .set({ droppedEvents: sql`${syncState.droppedEvents} + ${dropped}` })
+    .where(eq(syncState.id, SYNC_STATE_ID))
+    .run();
+};
+
 // bounded by the pushed batch's own high-water, so an enqueue that landed mid-push survives the
-// ack.
-export const deleteSyncOutboxThrough = (db: DbConnection, throughDeviceSeq: number): number =>
-  db.delete(syncOutbox).where(lte(syncOutbox.deviceSeq, throughDeviceSeq)).run().changes;
+// ack. `dropped` is how many of those rows never left, refused before the push: counted in the
+// delete's transaction, so a crash cannot delete a row it never counted.
+export const deleteSyncOutboxThrough = (
+  db: DbConnection,
+  throughDeviceSeq: number,
+  dropped: number,
+): void => {
+  writeTransaction(db, (tx) => {
+    deleteThrough(tx, throughDeviceSeq);
+    countDropped(tx, dropped);
+  });
+};
+
+// the log refused the queue at this position, so every row deleted is one it will never hold.
+export const dropSyncOutboxThrough = (db: DbConnection, throughDeviceSeq: number): number =>
+  writeTransaction(db, (tx) => {
+    const dropped = deleteThrough(tx, throughDeviceSeq);
+    countDropped(tx, dropped);
+    return dropped;
+  });
 
 // takes a transaction so a pulled event is appended and marked applied in one write; a crash
 // between the two replays the page into duplicates.

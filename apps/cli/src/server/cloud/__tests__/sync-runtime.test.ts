@@ -1,6 +1,7 @@
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
 import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
+import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
@@ -11,7 +12,7 @@ import { MissingTurnStartedError } from "@repo/db/events";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { threadScope } from "@repo/domain/thread-event-scope";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import nodePath from "node:path";
 import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -29,6 +30,12 @@ import { makeTempDir } from "../../__tests__/temp-dir";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
 const CLOUD_URL = "https://cloud.test";
+
+const SIGNED_OUT: CloudStatusResponse = {
+  cloudUrl: CLOUD_URL,
+  revokeError: null,
+  state: "signed-out",
+};
 
 afterEach(() => {
   vi.useRealTimers();
@@ -201,7 +208,7 @@ describe("sync is off until someone signs in", () => {
 
     expect(harness.cloud.requests).toEqual([]);
     expect(harness.socketOpens).toEqual([]);
-    expect(harness.runtime.status()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
+    expect(harness.runtime.status()).toEqual(SIGNED_OUT);
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
@@ -212,7 +219,7 @@ describe("sync is off until someone signs in", () => {
     await harness.runtime.syncNow();
     const requestsWhileSignedIn = harness.cloud.requests.length;
 
-    expect(harness.runtime.logout()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
+    expect(harness.runtime.logout()).toEqual(SIGNED_OUT);
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
     append(harness, [message("thr_1", "after")]);
     await harness.runtime.syncNow();
@@ -278,7 +285,7 @@ describe("signing in", () => {
       kind: "refused",
     });
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
-    expect(harness.runtime.status()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
+    expect(harness.runtime.status()).toEqual(SIGNED_OUT);
   });
 
   it("defaults the device name to this machine's hostname", async () => {
@@ -326,6 +333,73 @@ describe("a push interrupted mid-batch", () => {
     expect(countSyncOutbox(harness.db)).toBe(0);
     const status = harness.runtime.status();
     expect(status.state === "signed-in" ? status.lastError : "signed out").toBeNull();
+  });
+});
+
+// no payload text to clip: the envelope alone is past the contract's per-event byte ceiling.
+const unsendable = (threadId: string): ThreadEvent => ({
+  item: {
+    approvalStatus: null,
+    changes: Array.from({ length: 3000 }, (_, index) => ({
+      kind: "add",
+      path: `notes/renamed-in-bulk-${index}.md`,
+    })),
+    id: "item_f",
+    status: "completed",
+    type: "fileChange",
+  },
+  scope: turnScope("turn_1"),
+  threadId,
+  type: "item/completed",
+});
+
+// answers the next push with the log's refusal at `deviceSeq`, then lets the rest through.
+const refusingOnePush = (cloud: FakeCloud, deviceSeq: number): CloudFetch => {
+  let refusals = 1;
+  return async (input, init) => {
+    if (refusals > 0 && new URL(input).pathname === SYNC_API_PATHS.push) {
+      refusals -= 1;
+      return Response.json(
+        cloudError("sync-conflict", "That outbox position is already stored.", deviceSeq),
+        { status: CLOUD_ERROR_STATUS["sync-conflict"] },
+      );
+    }
+    return await cloud.fetch(input, init);
+  };
+};
+
+describe("an event the cloud will never hold", () => {
+  it("is counted when the contract refuses it, and the count outlives the next good pass", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+
+    append(harness, [unsendable("thr_1"), message("thr_1", "gets through")]);
+    expect(await harness.runtime.syncNow()).toMatchObject({ dropped: 1, pending: 0 });
+    expect(harness.cloud.logSize()).toBe(1);
+
+    append(harness, [message("thr_1", "a later pass with nothing refused")]);
+    expect(await harness.runtime.syncNow()).toMatchObject({ dropped: 1, lastError: null });
+  });
+
+  it("is counted for every queued row the log refuses a batch through", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({ cloud, fetch: refusingOnePush(cloud, 2), pollIntervalMs: null });
+    await signIn(harness);
+
+    append(harness, [message("thr_1", "one"), message("thr_1", "two"), message("thr_1", "three")]);
+    expect(await harness.runtime.syncNow()).toMatchObject({ dropped: 2, pending: 0 });
+    expect(cloud.logSize()).toBe(1);
+  });
+
+  it("is forgotten with the account at sign-out", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    append(harness, [unsendable("thr_1")]);
+    expect(await harness.runtime.syncNow()).toMatchObject({ dropped: 1 });
+
+    harness.runtime.logout();
+    await signIn(harness);
+    expect(harness.runtime.status()).toMatchObject({ dropped: 0, state: "signed-in" });
   });
 });
 
@@ -956,10 +1030,48 @@ describe("signing out", () => {
     });
     await signIn(harness);
 
-    expect(harness.runtime.logout()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
+    expect(harness.runtime.logout()).toEqual(SIGNED_OUT);
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
     await harness.runtime.dispose();
     expect(cloud.activeDeviceCount()).toBe(1);
+  });
+
+  it("says a revoke the cloud did not take on the signed-out status, until the next login", async () => {
+    const cloud = new FakeCloud();
+    let signOutDown = true;
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) =>
+        signOutDown && new URL(input).pathname === DEVICE_API_PATHS.signOut
+          ? new Response(null, { status: 503 })
+          : await cloud.fetch(input, init),
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+
+    expect(harness.runtime.logout()).toEqual(SIGNED_OUT);
+    await vi.waitFor(() => {
+      expect(harness.runtime.status()).toMatchObject({
+        revokeError: expect.stringMatching(/HTTP 503/u),
+        state: "signed-out",
+      });
+    });
+    expect(harness.statusNotices.at(-1)).toMatchObject({ revokeError: expect.any(String) });
+
+    signOutDown = false;
+    await signIn(harness);
+    harness.runtime.logout();
+    await activeDevicesSettle(cloud, 1);
+    expect(harness.runtime.status()).toEqual(SIGNED_OUT);
+  });
+
+  it("says nothing for a revoke the cloud refused because the device was already gone", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    harness.cloud.revoke(await signIn(harness));
+
+    harness.runtime.logout();
+    await harness.runtime.dispose();
+    expect(harness.runtime.status()).toEqual(SIGNED_OUT);
   });
 
   it("asks nothing of the cloud for a credential it already refused", async () => {

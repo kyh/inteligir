@@ -15,7 +15,7 @@ import { MissingTurnStartedError } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
 import {
   countSyncOutbox,
-  deleteSyncOutboxThrough,
+  dropSyncOutboxThrough,
   pruneAppliedCaptures,
   readSyncState,
   recordAppliedCaptures,
@@ -97,7 +97,7 @@ const drain = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutc
     if (!result.ok) {
       if (result.failure.kind === "refused" && SYNC_OUTBOX_CODES.has(result.failure.code)) {
         const through = result.failure.deviceSeq ?? batch.throughDeviceSeq;
-        const dropped = deleteSyncOutboxThrough(deps.db, through);
+        const dropped = dropSyncOutboxThrough(deps.db, through);
         deps.debug(
           `${result.failure.code} at position ${through}: dropped ${dropped} queued event(s) the log will not take`,
         );

@@ -182,6 +182,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         }
         return;
       }
+      // page 0 names head: a ready listing at that commit is still the whole tree.
+      const view = tree.get();
+      if (page === 0 && view.state === "ready" && view.commit === result.value.commit) {
+        if (view.refreshError !== null) {
+          tree.set({ ...view, refreshError: null });
+        }
+        return;
+      }
       ({ commit } = result.value);
       entries.push(...result.value.entries);
       after = result.value.next ?? undefined;

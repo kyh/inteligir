@@ -2,8 +2,10 @@
 // has a "Sync now" that pushes files. No on/off toggle: the credential on disk
 // is the switch, and a second value could disagree with it.
 
+import { cloudDevicesPageUrl } from "@repo/api/local/cloud/cloud-schema";
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
+import { plural } from "@repo/ui/lib/plural";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useCloudSession } from "../cloud-session";
 import { SignInForm } from "../sign-in-form";
@@ -37,6 +39,13 @@ export const SignedInDetails = ({ status, nowMs }: SignedInDetailsProps) => (
         {lastSyncedLabel(status.lastSyncedAt, nowMs)}
       </span>
     </Row>
+    {status.dropped === 0 ? null : (
+      <Row label="Dropped">
+        <span className="text-body text-muted-foreground">
+          {plural(status.dropped, "event")} never reached the cloud
+        </span>
+      </Row>
+    )}
     {status.lastError === null ? null : (
       <Row label="Last error">
         <span className="text-body text-muted-foreground">{status.lastError}</span>
@@ -44,6 +53,24 @@ export const SignedInDetails = ({ status, nowMs }: SignedInDetailsProps) => (
     )}
   </dl>
 );
+
+export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
+  const devicesUrl = cloudDevicesPageUrl(cloudUrl);
+  return (
+    <p className="text-body text-muted-foreground">
+      This device could not remove itself from your account. Remove it from Devices at{" "}
+      <a
+        href={devicesUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="underline underline-offset-2"
+      >
+        {devicesUrl}
+      </a>
+      .
+    </p>
+  );
+};
 
 export const SyncSection = () => {
   const { status, pending, refusal, signIn, signOut, syncThreads } = useCloudSession();
@@ -58,6 +85,7 @@ export const SyncSection = () => {
       return (
         <div className="space-y-2">
           <SecondVaultNote scope={scope} />
+          {status.revokeError === null ? null : <RevokeFailedNotice cloudUrl={status.cloudUrl} />}
           <SignInForm
             cloudUrl={status.cloudUrl}
             onSignIn={signIn}
