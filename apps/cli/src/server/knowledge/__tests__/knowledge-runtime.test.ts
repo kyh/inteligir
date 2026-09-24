@@ -527,8 +527,9 @@ describe("the knowledge runtime", () => {
   }, 120_000);
 });
 
-// short enough that a suite never waits on it, long past any read of a temp dir
-const SHORT_DEADLINE_MS = 50;
+// a stalled read never answers, so only the stalled docs ever wait it out; a second stays past
+// a temp-dir read on a loaded CI runner, where 50ms deferred most of a healthy batch
+const SHORT_DEADLINE_MS = 1000;
 const PACED_READ_MS = 5;
 const LANDING_TIMEOUT_MS = 10_000;
 const DEFERRAL_TEST_TIMEOUT_MS = 30_000;
