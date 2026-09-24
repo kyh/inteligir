@@ -1,4 +1,5 @@
-import { isThreadRunning } from "@repo/domain/thread-status";
+import { isThreadRunning, threadStopControlFor } from "@repo/domain/thread-status";
+import type { ThreadStopControl } from "@repo/domain/thread-status";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 
@@ -25,29 +26,9 @@ export const threadActivity = (thread: Thread): ThreadActivity => {
   }
 };
 
-// what a Stop control offers: a running turn to stop, a stop already requested, or nothing.
 // archived threads are not exempt: a turn still running on one is still writing the vault.
-export type ThreadStopControl = "stop" | "requested" | "none";
-
-export const threadStopControl = (thread: Thread): ThreadStopControl => {
-  switch (thread.status) {
-    case "starting":
-    case "active": {
-      return "stop";
-    }
-    case "stopping": {
-      return "requested";
-    }
-    case "idle":
-    case "error": {
-      return "none";
-    }
-    default: {
-      const exhaustive: never = thread.status;
-      return exhaustive;
-    }
-  }
-};
+export const threadStopControl = (thread: Thread): ThreadStopControl =>
+  threadStopControlFor(thread.status);
 
 export const THREAD_ACTIVITY_LABELS = {
   archived: "archived",

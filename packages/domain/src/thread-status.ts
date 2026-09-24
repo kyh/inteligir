@@ -24,3 +24,23 @@ export const isThreadRunning = (status: ThreadStatus): status is RunningThreadSt
     // no default
   }
 };
+
+// what a Stop control offers: a turn to stop, a stop already requested, or nothing
+export type ThreadStopControl = "stop" | "requested" | "none";
+
+export const threadStopControlFor = (status: ThreadStatus): ThreadStopControl => {
+  switch (status) {
+    case "starting":
+    case "active": {
+      return "stop";
+    }
+    case "stopping": {
+      return "requested";
+    }
+    case "idle":
+    case "error": {
+      return "none";
+    }
+    // no default
+  }
+};
