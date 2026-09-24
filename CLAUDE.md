@@ -238,10 +238,11 @@ pnpm format:fix && pnpm verify   # before committing — format FIRST, never aft
 
 `verify` is the STATIC gate (`typecheck && lint && knip && format && test &&
 build`, check-only on purpose). CI runs those six and then the scenario suite,
-so a green `verify` is not a green CI — run `pnpm e2e` too before claiming
-one. `tools/repo-guards/src/ci-verify-parity.test.ts` keeps that "plus a few
-more" an honest claim: every step on top of `verify` is a row in
-`DECLARED_CI_EXTRAS` with its reason.
+and a macOS job runs `test` where the app ships and `pnpm smoke:desktop` on an
+unsigned pack, so a green `verify` is not a green CI — run `pnpm e2e` too
+before claiming one. `tools/repo-guards/src/ci-verify-parity.test.ts` keeps
+that "plus a few more" an honest claim: every step on top of `verify` is a row
+in `DECLARED_CI_EXTRAS` with its reason.
 
 **There is no seeded login, and sign-up is invite-only.** `AGENTS.md` has the
 recipe. Never run `db:push:remote` or `db:studio:remote`: both hit production
@@ -1784,7 +1785,11 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   stays on because the server's watcher forks its child with `child_process`
   from inside the utility process, which runs this binary as Node, and the
   packaged smoke boots the server the same way; it goes off only once that
-  fork does. `apps/desktop/electron-builder.yml`.
+  fork does. The flip breaks Electron's own ad-hoc signature, and Apple Silicon
+  kills a binary whose signature does not match, so `resetAdHocDarwinSignature`
+  re-signs the app ad-hoc right after it: an unsigned pack (CI's macOS job, or
+  a tree with no Developer ID) runs, and a signed one is re-signed over it.
+  `apps/desktop/electron-builder.yml`.
 
 ### Desktop workspace surfaces
 

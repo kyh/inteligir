@@ -109,14 +109,17 @@ CI then runs a few more that `verify` cannot: it installs agent-browser
 (pinned) and runs the scenario suite. ONE run, because there is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
-run `pnpm e2e` too before claiming one.
+run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
+app ships: `pnpm test` again, since APFS, FSEvents and a tmpdir behind a
+symlink exist only there, and `pnpm smoke:desktop` on an unsigned pack
+(`CSC_IDENTITY_AUTO_DISCOVERY=false`).
 
 That "plus a few more" is a CLAIM, and
 `tools/repo-guards/src/ci-verify-parity.test.ts` is what keeps it one: every
-gate workflow runs `pnpm verify` or its chain in verify's own order, and every
-step on top of that is a row in `DECLARED_CI_EXTRAS` with its reason. A step
-nobody declared fails the guard rather than quietly becoming a build a
-developer cannot reproduce.
+gate workflow runs `pnpm verify` or every link of its chain, each job in
+verify's own order, and every step on top of that is a row in
+`DECLARED_CI_EXTRAS` with its reason. A step nobody declared fails the guard
+rather than quietly becoming a build a developer cannot reproduce.
 
 ## Tests
 

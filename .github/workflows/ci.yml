@@ -75,3 +75,36 @@ jobs:
         # the step above installed the browser, so one that cannot launch is a broken install:
         # --require-browser fails those scenarios instead of skipping them behind a green step
         run: pnpm e2e --require-browser
+
+  # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
+  # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the
+  # check job alone runs them
+  test-macos:
+    runs-on: macos-latest
+    # a backstop: neither the suites nor electron-builder carry a deadline of their own
+    timeout-minutes: 30
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        with:
+          runtime: node@24
+          cache: true
+          install: false
+
+      - name: Install
+        id: install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+      - name: Smoke desktop
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        # unsigned whatever the runner's keychain holds; it reaches electron-builder only because
+        # apps/desktop/turbo.json passes it through turbo's strict env
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: pnpm smoke:desktop

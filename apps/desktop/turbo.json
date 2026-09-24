@@ -22,7 +22,10 @@
       // Not a pure function of the source: the signature comes from the keychain and
       // the notarization ticket from Apple, and a cache hit would replay an unsigned
       // artifact over a signing key that has since appeared.
-      "cache": false
+      "cache": false,
+      // CI's macOS job sets it to pack unsigned; strict env mode would strip it before
+      // electron-builder reads it, and the keychain search would run anyway.
+      "passThroughEnv": ["CSC_IDENTITY_AUTO_DISCOVERY"]
     },
     "dev": {
       "cache": false,
