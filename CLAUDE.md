@@ -459,7 +459,8 @@ to the END of its group.
   top-level block, since an edit replaces the blocks it touched and keeps every
   other by identity (`packages/editor/src/toc.tsx`,
   `packages/editor/src/note-stats.ts`,
-  `packages/editor/src/comments/comment-ranges.ts`).
+  `packages/editor/src/comments/comment-ranges.ts`, the save's prune in
+  `packages/editor/src/markdown/md-rules.ts`).
   `packages/editor/src/__tests__/typing-budget.test.tsx`.
 
 - **EVERY SAVE SERIALIZES THROUGH `serializeNote`.** The live save, an extract
