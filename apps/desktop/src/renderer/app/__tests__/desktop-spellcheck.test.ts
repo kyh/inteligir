@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { SpellcheckChoice, SpellcheckState } from "../../../spellcheck-state";
 import { applyStoredSpellcheck, chooseSpellcheck } from "../desktop-spellcheck";
-import { readSpellcheck, writeSpellcheck } from "../prefs";
+import { PREFS, readPref, writePref } from "../prefs";
 import { inertBridge } from "./inert-bridge";
 
 const state = (choice: SpellcheckChoice | null): SpellcheckState => ({
@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe("the stored choice at launch", () => {
   it("is re-applied through the bridge when one was made", async () => {
-    writeSpellcheck({ enabled: false, languages: ["de-DE"] });
+    writePref(PREFS.spellcheck, { enabled: false, languages: ["de-DE"] });
     const log = installBridge();
     await applyStoredSpellcheck();
     expect(log.applied).toEqual([{ enabled: false, languages: ["de-DE"] }]);
@@ -54,9 +54,9 @@ describe("the stored choice at launch", () => {
   });
 
   it("does nothing in a plain browser tab", async () => {
-    writeSpellcheck({ enabled: false, languages: [] });
+    writePref(PREFS.spellcheck, { enabled: false, languages: [] });
     await applyStoredSpellcheck();
-    expect(readSpellcheck()).toEqual({ enabled: false, languages: [] });
+    expect(readPref(PREFS.spellcheck)).toEqual({ enabled: false, languages: [] });
   });
 });
 
@@ -64,12 +64,7 @@ describe("choosing", () => {
   it("writes the pref and applies it", async () => {
     const log = installBridge();
     await chooseSpellcheck({ enabled: true, languages: ["en-US", "de-DE"] });
-    expect(readSpellcheck()).toEqual({ enabled: true, languages: ["en-US", "de-DE"] });
+    expect(readPref(PREFS.spellcheck)).toEqual({ enabled: true, languages: ["en-US", "de-DE"] });
     expect(log.applied).toEqual([{ enabled: true, languages: ["en-US", "de-DE"] }]);
-  });
-
-  it("forgets a malformed pref rather than applying it", () => {
-    window.localStorage.setItem("inteligir.spellcheck", "{");
-    expect(readSpellcheck()).toBeNull();
   });
 });

@@ -62,17 +62,7 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
-import {
-  readPanelOpen,
-  readRailView,
-  readPanelWidth,
-  readSidebarWidth,
-  writePanelOpen,
-  writeRailView,
-  writePanelWidth,
-  writeSidebarWidth,
-} from "./prefs";
-import type { RailView } from "./prefs";
+import { PREFS, readPref, usePref, writePref } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
 
 export interface WorkspaceProps {
@@ -162,12 +152,8 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
-  const [panelOpen, setPanelOpen] = useState<boolean>(() => readPanelOpen());
+  const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
   const [panelTab, setPanelTab] = useState<PanelTab>("actions");
-  const setPanelOpenPersisted = useCallback((open: boolean): void => {
-    setPanelOpen(open);
-    writePanelOpen(open);
-  }, []);
   // Here, not in the panel: the top bar's badge counts while the panel is collapsed.
   const commentsQuery = useNoteComments(openPath);
   const openCommentCount = (commentsQuery.data?.threads ?? []).filter(
@@ -189,9 +175,9 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       if (show) {
         setZen(false);
       }
-      setPanelOpenPersisted(show);
+      setPanelOpen(show);
     },
-    [setPanelOpenPersisted],
+    [setPanelOpen],
   );
   // the toggles the providers own, since below the mobile breakpoint a side is a sheet whose open
   // state only its provider holds
@@ -284,16 +270,12 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   );
 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
+  const [initialSidebarWidth] = useState(() => `${String(readPref(PREFS.sidebarWidth))}px`);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [initialPanelWidth] = useState(() => `${String(readPanelWidth())}px`);
+  const [initialPanelWidth] = useState(() => `${String(readPref(PREFS.panelWidth))}px`);
   // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
   // sets both, and it reaches the shell through the editor's action registry
-  const [railView, setRailView] = useState<RailView>(readRailView);
-  const chooseRailView = useCallback((view: RailView): void => {
-    writeRailView(view);
-    setRailView(view);
-  }, []);
+  const [railView, chooseRailView] = usePref(PREFS.railView);
   // The breadcrumb's ask, keyed by a nonce so naming the same folder twice reveals it twice; the
   // tree consumes it, so the rail shows Files first. The nonce is counted here rather than off
   // the ask, which is cleared once the tree has focused it.
@@ -627,7 +609,9 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           open={railOpen && !zen}
           onOpenChange={showRail}
           shortcut={bindingFor("toggle-rail", shortcutModifier)}
-          onWidthCommitted={writeSidebarWidth}
+          onWidthCommitted={(px) => {
+            writePref(PREFS.sidebarWidth, px);
+          }}
           actionsRef={railActionsRef}
           peek="click"
           width={initialSidebarWidth}
@@ -660,7 +644,9 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               open={panelOpen && !zen}
               onOpenChange={showPanel}
               shortcut={bindingFor("toggle-panel", shortcutModifier)}
-              onWidthCommitted={writePanelWidth}
+              onWidthCommitted={(px) => {
+                writePref(PREFS.panelWidth, px);
+              }}
               actionsRef={panelActionsRef}
               width={initialPanelWidth}
             >

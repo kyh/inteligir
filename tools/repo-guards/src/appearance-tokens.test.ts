@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, sourceOf, styleFiles, workspaceSourceFiles, workspaces } from "./repo";
 
-const SETTER = "apps/desktop/src/renderer/app/appearance.tsx";
+const DIALS = "apps/desktop/src/renderer/app/appearance-options.ts";
 
 const DEFAULTS = "apps/desktop/src/renderer/styles/globals.css";
 
@@ -50,7 +50,7 @@ const readsIn = (file: string, text: string): TokenRead[] => {
 };
 
 const written = new Set(
-  [...sourceOf(SETTER).matchAll(/setToken\([^,]+,\s*"(?<token>--editor-[a-z-]+)"/gu)].map(
+  [...sourceOf(DIALS).matchAll(/\bdial\(\s*"(?<token>--editor-[a-z-]+)"/gu)].map(
     (match) => match.groups?.token ?? "",
   ),
 );
@@ -69,7 +69,7 @@ const readTokens = new Set(reads.map((entry) => entry.token));
 
 describe("the appearance funnel's tokens", () => {
   it("finds the funnel at all", () => {
-    expect(written.size, `no setToken() call in ${SETTER}`).toBeGreaterThan(0);
+    expect(written.size, `no dial() row in ${DIALS}`).toBeGreaterThan(0);
     expect(declared.size, `no --editor-* declaration in ${DEFAULTS}`).toBeGreaterThan(0);
     expect(reads.length, "no var(--editor-*) read anywhere in the repo").toBeGreaterThan(0);
   });
@@ -77,7 +77,7 @@ describe("the appearance funnel's tokens", () => {
   it("writes only tokens the document reads", () => {
     expect(
       [...written].filter((token) => !readTokens.has(token)).toSorted(),
-      `${SETTER} publishes a token nothing reads — the dial that sets it changes nothing on screen`,
+      `${DIALS} publishes a token nothing reads — the dial that sets it changes nothing on screen`,
     ).toEqual([]);
   });
 

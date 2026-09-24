@@ -39,42 +39,54 @@ export const EDITOR_MEASURES: readonly Option<EditorMeasure>[] = [
   { css: "44rem", label: "Wide", value: "wide" },
 ];
 
-export interface Appearance {
-  readonly font: EditorFont;
-  readonly size: EditorSize;
-  readonly leading: EditorLeading;
-  readonly measure: EditorMeasure;
+interface DialBinding {
+  readonly token: `--editor-${string}`;
+  readonly options: readonly Option<string>[];
 }
 
-export const APPEARANCE_DEFAULTS: Appearance = {
-  font: "sans",
-  leading: "normal",
-  measure: "normal",
-  size: "normal",
-};
+const dialBindings = z.registry<DialBinding>();
 
-// oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and a bare catch() is a type error
-const storedString = z.catch(z.string().optional(), undefined);
-// oxlint-disable-next-line promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's
-const storedAppearanceSchema = z.catch(
-  z.object({
-    font: storedString,
-    leading: storedString,
-    measure: storedString,
-    size: storedString,
-  }),
-  {},
-);
-
-const pick = <Value extends string>(
+// one row per dial: the stylesheet token it sets, its options, and what an unset or unknown stored
+// value reads as
+const dial = <Value extends string>(
+  token: DialBinding["token"],
   options: readonly Option<Value>[],
-  raw: string | undefined,
-  fallback: Value,
-): Value => options.find((option) => option.value === raw)?.value ?? fallback;
+  fallback: NoInfer<Value>,
+) =>
+  z
+    .enum(options.map((option) => option.value))
+    // oxlint-disable-next-line promise/prefer-await-to-then -- zod's catch, not a promise's
+    .catch(fallback)
+    .register(dialBindings, { options, token });
 
-export const appearanceSchema = storedAppearanceSchema.transform((stored): Appearance => ({
-  font: pick(EDITOR_FONTS, stored.font, APPEARANCE_DEFAULTS.font),
-  leading: pick(EDITOR_LEADINGS, stored.leading, APPEARANCE_DEFAULTS.leading),
-  measure: pick(EDITOR_MEASURES, stored.measure, APPEARANCE_DEFAULTS.measure),
-  size: pick(EDITOR_SIZES, stored.size, APPEARANCE_DEFAULTS.size),
-}));
+const dials = z.object({
+  font: dial("--editor-font", EDITOR_FONTS, "sans"),
+  leading: dial("--editor-line-height", EDITOR_LEADINGS, "normal"),
+  measure: dial("--editor-width", EDITOR_MEASURES, "normal"),
+  size: dial("--editor-size", EDITOR_SIZES, "normal"),
+});
+
+export type Appearance = z.infer<typeof dials>;
+
+export const APPEARANCE_DEFAULTS: Appearance = dials.parse({});
+
+// oxlint-disable-next-line promise/prefer-await-to-then -- zod's catch, not a promise's
+export const appearanceSchema = dials.catch(APPEARANCE_DEFAULTS);
+
+export interface AppearanceToken {
+  readonly token: DialBinding["token"];
+  // null leaves the stylesheet's default
+  readonly css: string | null;
+}
+
+export const appearanceTokens = (appearance: Appearance): AppearanceToken[] => {
+  const chosen: Readonly<Record<string, string>> = appearance;
+  return Object.entries(dials.shape).flatMap(([name, schema]) => {
+    const binding = dialBindings.get(schema);
+    if (binding === undefined) {
+      return [];
+    }
+    const option = binding.options.find((candidate) => candidate.value === chosen[name]);
+    return [{ css: option?.css ?? null, token: binding.token }];
+  });
+};
