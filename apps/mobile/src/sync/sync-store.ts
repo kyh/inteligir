@@ -2,11 +2,15 @@
 // claims rows the log never held.
 
 import type { PlannedLogRow } from "@repo/api/cloud/sync/plan-page";
-import type { ThreadEvent } from "@repo/domain/provider-event";
+import type { ThreadEvent, ThreadEventDelta } from "@repo/domain/provider-event";
+
+// a streamed turn is mostly deltas and the phone renders completed items only, which carry the
+// deltas' final text: a delta moves the cursor and the thread's recency, and is never held.
+export type StoredThreadEvent = Exclude<ThreadEvent, ThreadEventDelta>;
 
 export interface StoredThread {
   threadId: string;
-  events: readonly ThreadEvent[];
+  events: readonly StoredThreadEvent[];
   lastSeq: number;
 }
 
