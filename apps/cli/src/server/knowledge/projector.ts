@@ -88,10 +88,13 @@ const workerTransport = (): ProjectionTransport => {
     }
   };
 
+  // a dead worker reports twice ('error', then 'exit'); by the second, `waiting` holds only jobs
+  // posted to its replacement, which that failAll would reject with the dead worker's error.
   const retire = (spawned: Worker, error: Error): void => {
-    if (worker === spawned) {
-      worker = null;
+    if (worker !== spawned) {
+      return;
     }
+    worker = null;
     failAll(error);
     void spawned.terminate();
   };
