@@ -8,6 +8,7 @@ import { routeTree } from "../../routeTree.gen";
 import { routeRendererFetch } from "../actions/__tests__/booted-fetch";
 import { chord, sidebarState } from "./boot-workspace";
 import { InertSocket } from "./inert-socket";
+import { ScriptedSocket } from "./scripted-socket";
 
 // the rail opens on its Files view, whose row for the open note is the current page
 const highlighted = (): string | null =>
@@ -22,9 +23,12 @@ const railRow = (path: string): HTMLElement => {
   return row;
 };
 
-const bootAt = async (history: RouterHistory) => {
+const bootAt = async (
+  history: RouterHistory,
+  socket: typeof InertSocket | typeof ScriptedSocket = InertSocket,
+) => {
   const booted = await bootTestApp();
-  vi.stubGlobal("WebSocket", InertSocket);
+  vi.stubGlobal("WebSocket", socket);
   routeRendererFetch(booted);
   await booted.client.vault.write({
     content: "# Alpha\n",
@@ -41,7 +45,7 @@ const bootAt = async (history: RouterHistory) => {
   await waitFor(() => {
     expect(highlighted()).toBe("alpha.md");
   });
-  return router;
+  return { booted, router };
 };
 
 beforeEach(() => {
@@ -55,7 +59,7 @@ afterEach(() => {
 
 describe("the open note has one owner", () => {
   it("leaves the rail on the open note through a history Back; the top bar's Back moves both", async () => {
-    const router = await bootAt(
+    const { router } = await bootAt(
       createMemoryHistory({ initialEntries: ["/", "/?note=alpha.md"], initialIndex: 1 }),
     );
 
@@ -84,7 +88,7 @@ describe("the open note has one owner", () => {
 
 describe("Settings over the workspace", () => {
   it("covers it inert with its chords stood down, and the way back finds it as it was", async () => {
-    const router = await bootAt(createMemoryHistory({ initialEntries: ["/?note=alpha.md"] }));
+    const { router } = await bootAt(createMemoryHistory({ initialEntries: ["/?note=alpha.md"] }));
     await screen.findByRole("heading", { name: "Alpha" });
     fireEvent.keyDown(window, chord("f"));
     await screen.findByPlaceholderText("Find in note");
@@ -113,5 +117,39 @@ describe("Settings over the workspace", () => {
     expect(composer.closest("[inert]")).toBeNull();
     expect(composer).toHaveProperty("value", "half a thought");
     expect(highlighted()).toBe("alpha.md");
+  });
+
+  // a move from outside the window (an agent's `mv`, Finder, a pull) is the open note vanishing,
+  // so the url lets it go; only a rename the window makes carries the note to its new path
+  it("stays up when the open note moves out from under it, and the url lets the note go", async () => {
+    const { booted, router } = await bootAt(
+      createMemoryHistory({ initialEntries: ["/?note=alpha.md"] }),
+      ScriptedSocket,
+    );
+    await screen.findByRole("heading", { name: "Alpha" });
+    fireEvent.keyDown(window, chord(","));
+    await screen.findByRole("heading", { name: "Settings" });
+
+    await booted.client.vault.rename({ from: "alpha.md", to: "gamma.md" });
+    act(() => {
+      ScriptedSocket.deliverToAll({
+        changes: ["files-changed"],
+        entity: "vault",
+        paths: ["alpha.md", "gamma.md"],
+        type: "changed",
+      });
+    });
+
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({});
+    });
+    expect(router.state.location.pathname).toBe("/settings");
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to notes" }));
+    await waitFor(() => {
+      expect(railRow("gamma.md")).toBeDefined();
+    });
+    expect(document.querySelector('[role="treeitem"][data-path="alpha.md"]')).toBeNull();
   });
 });

@@ -249,7 +249,11 @@ spawned from inside an archive and a `.node` binary cannot be loaded from one.
 `electronFuses` in `electron-builder.yml` flips the binary's fuses before it is
 signed: `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are ignored, so
 no local process can run the signed app as a node interpreter, `file://` pages
-get no extra privileges, and cookies are encrypted at rest. The flip invalidates
+get no extra privileges, and cookies are encrypted at rest. The app loads only
+from `app.asar` and only when it matches the hash in `Info.plist`, so neither a
+tampered archive nor an `app/` folder planted beside it runs; the hash does not
+cover `app.asar.unpacked`, where the server runs, which the code signature
+guards instead. The flip invalidates
 Electron's own ad-hoc signature, which Apple Silicon kills at launch, so
 `resetAdHocDarwinSignature` re-signs the app ad-hoc right after it: an unsigned
 build (no Developer ID, `CSC_IDENTITY_AUTO_DISCOVERY=false` or

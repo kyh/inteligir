@@ -58,11 +58,13 @@ import {
   planVaultSwitch,
   readRecentVaults,
   rememberVault,
+  runVaultSwitch,
   switchBlockedBy,
   switchRefusalMessage,
   vaultRef,
   writeRecentVaults,
 } from "./vaults";
+import type { VaultSwitchOutcome } from "./vaults";
 import { forkRequestSchema } from "inteligir/server/child-host/fork-broker-wire";
 import { writeManagedVaultDir } from "inteligir/server/config";
 import { authorizationHeader } from "inteligir/server/server-file";
@@ -661,13 +663,6 @@ const bootVault = async (target: ServerTarget): Promise<void> => {
   mainWindow = createWindow(target);
 };
 
-// a refusal is decided before anything moves and answered as a value; a throw is a fault.
-// a rollback's refusal is `reported`: the window that asked is closed by then, so main said it
-type VaultSwitchOutcome =
-  | { ok: true }
-  | { ok: false; reason: string }
-  | { ok: false; reason: string; reported: true };
-
 const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
   const previous = requireTarget();
   const plan = planVaultSwitch({ current: previous, ownsServer: serverProcess !== null }, vaultDir);
@@ -685,44 +680,40 @@ const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
   switching = true;
   const previousWindow = mainWindow;
   try {
-    await stopOwnedServer();
-    // from here the old child is gone, so any throw must put the previous vault back
-    let selectorWritten = false;
-    try {
-      writeManagedVaultDir(previous.rootDataDir, candidate.target.vaultDir);
-      selectorWritten = true;
-      // re-read rather than reused: the child boots on what config.json now says, as the CLI would
-      const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
-      if (next.kind === "refused") {
-        throw new Error(next.error);
-      }
-      await bootVault(next.target);
-    } catch (error) {
-      console.error("[desktop] the vault did not open; returning to the previous one", error);
-      if (selectorWritten) {
-        writeManagedVaultDir(previous.rootDataDir, previous.vaultDir);
-      }
-      await stopOwnedServer();
-      try {
-        await bootVault(previous);
-      } catch (reopenError) {
-        dialog.showErrorBox(
-          "Inteligir could not reopen the vault",
-          `${toErrorMessage(reopenError)} Reopen Inteligir to continue.`,
-        );
-        app.quit();
-        throw reopenError;
-      }
-      previousWindow?.close();
-      const reason = `Could not open ${candidate.target.vaultDir}: ${toErrorMessage(error)}`;
-      dialog.showErrorBox("Could not open the vault", reason);
-      return { ok: false, reason, reported: true };
-    }
+    return await runVaultSwitch(
+      {
+        abandon: (reason) => {
+          dialog.showErrorBox("Inteligir could not reopen the vault", reason);
+          app.quit();
+        },
+        boot: bootVault,
+        closeRequestingWindow: () => {
+          previousWindow?.close();
+        },
+        log: (message, cause) => {
+          console.error(`[desktop] ${message}`, cause);
+        },
+        reportFailure: (reason) => {
+          dialog.showErrorBox("Could not open the vault", reason);
+        },
+        resolveTarget: () => {
+          const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
+          if (next.kind === "refused") {
+            throw new Error(next.error);
+          }
+          return next.target;
+        },
+        stopServer: stopOwnedServer,
+        writeSelector: (selected) => {
+          writeManagedVaultDir(previous.rootDataDir, selected);
+        },
+      },
+      previous,
+      candidate.target.vaultDir,
+    );
   } finally {
     switching = false;
   }
-  previousWindow?.close();
-  return { ok: true };
 };
 
 // the folder is the user's pick, made in main: the page never names a path it was not handed

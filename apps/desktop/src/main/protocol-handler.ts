@@ -75,7 +75,11 @@ export const createAppRequestHandler =
       if (request.method !== "GET" && request.method !== "HEAD") {
         init.body = await request.arrayBuffer();
       }
-      return await args.fetch(`${args.serverOrigin}${pathname}${search}`, init);
+      // a child going away drops the socket mid-request, and an unanswered rejection logs as unhandled.
+      const proxied = await args
+        .fetch(`${args.serverOrigin}${pathname}${search}`, init)
+        .catch(() => null);
+      return proxied ?? new Response("The inteligir server is not answering", { status: 502 });
     }
 
     if (args.renderer.kind === "dev") {

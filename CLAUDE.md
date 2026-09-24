@@ -545,7 +545,9 @@ to the END of its group.
   the data dir, so a second vault starts signed out, which also keeps it off
   the account's hosted remote. The shell switches only a child it started, puts
   the previous vault back on any failure, and opens a new window, since a
-  `BrowserWindow`'s session is fixed at creation.
+  `BrowserWindow`'s session is fixed at creation. A rollback that cannot write
+  the selector back quits rather than run beside a `config.json` naming the
+  vault that failed, which the next launch would open (`runVaultSwitch`).
   The folder is picked in main, so the page never names a path it was not
   handed. `inteligir vault open <dir>` runs the same plan
   (`apps/cli/src/server/vault-switch.ts`) and restarts nothing.
@@ -1356,7 +1358,9 @@ to the END of its group.
 - **THE PACKAGED BINARY'S FUSES ARE ALL FLIPPED, AND MAIN FORKS THE SERVER'S
   NODE CHILDREN.** electron-builder flips them before signing, so no local
   process can run the signed app as a node interpreter, `file://` pages get no
-  extra privileges, and the cookie store is encrypted. With `runAsNode` off a
+  extra privileges, the cookie store is encrypted, and only an `app.asar`
+  matching its embedded hash loads (the unpacked server is the signature's to
+  guard). With `runAsNode` off a
   utility process cannot fork one of its own, so the server asks main over its
   parent port for the vault watcher and each ACP adapter
   (`apps/desktop/src/main/fork-broker.ts`, `apps/cli/src/server/child-host/`).
