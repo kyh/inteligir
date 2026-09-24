@@ -16,12 +16,16 @@ export interface TurnDriver {
   onInteractionResolved?: (interaction: PendingInteraction) => void;
 }
 
-export interface TurnDriverStartArgs {
+// what a message asks its turn to carry, beside the text the user typed.
+export interface TurnRequest {
+  text: string;
+  contextPaths?: readonly string[] | undefined;
+  viewContext?: ViewContext | undefined;
+}
+
+export interface TurnDriverStartArgs extends TurnRequest {
   threadId: string;
   turnId: string;
-  text: string;
-  contextPaths?: readonly string[];
-  viewContext?: ViewContext;
 }
 
 export interface ProviderEventSink {

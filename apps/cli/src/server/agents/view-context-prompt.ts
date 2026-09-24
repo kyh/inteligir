@@ -5,6 +5,7 @@
 
 import type { PromptInput } from "@repo/agent-runtime/types";
 import type { ViewContext } from "@repo/domain/view-context";
+import type { TurnRequest } from "../threads/turn-driver";
 
 export const composeViewContextBlock = (context: ViewContext): string =>
   `The user sent this while looking at ${context.resource} in the editor — "this", "here" and "the note" refer to that file. It hashed to sha-256 ${context.revision} when they sent it; if it no longer does, it changed afterwards.`;
@@ -12,16 +13,8 @@ export const composeViewContextBlock = (context: ViewContext): string =>
 export const composeContextPathsBlock = (paths: readonly string[]): string =>
   `The user attached these notes to the message; read them before answering:\n${paths.map((path) => `- ${path}`).join("\n")}`;
 
-type TurnPromptText = Extract<PromptInput, { type: "text" }>;
-
-interface TurnPromptFacts {
-  text: string;
-  contextPaths?: readonly string[];
-  viewContext?: ViewContext;
-}
-
-export const turnPromptInput = (turn: TurnPromptFacts, instructions?: string): TurnPromptText[] => {
-  const blocks: TurnPromptText[] = [];
+export const turnPromptInput = (turn: TurnRequest, instructions?: string): PromptInput[] => {
+  const blocks: PromptInput[] = [];
   if (instructions !== undefined) {
     blocks.push({ text: instructions, type: "text" });
   }

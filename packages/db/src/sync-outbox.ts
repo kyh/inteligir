@@ -1,6 +1,6 @@
 import { asc, count, eq, inArray, lt, lte, sql } from "drizzle-orm";
 import { writeTransaction } from "./connection";
-import type { DbConnection, DbTransaction } from "./connection";
+import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createSyncOutboxId } from "./ids";
 import { syncAppliedCaptures, syncOutbox, syncOwnDevices, syncState } from "./schema";
 
@@ -16,11 +16,9 @@ export interface SyncState {
 
 const EMPTY_SYNC_STATE: SyncState = { cursor: 0, lastDeviceSeq: 0, lastSyncedAt: null };
 
-type SyncWriteConnection = DbConnection | DbTransaction;
-
 // lazy rather than seeded by a migration, so a database restored from a file predating the seed
 // still works.
-const ensureSyncStateRow = (db: SyncWriteConnection): void => {
+const ensureSyncStateRow = (db: DbExecutor): void => {
   db.insert(syncState).values({ id: SYNC_STATE_ID }).onConflictDoNothing().run();
 };
 
@@ -87,7 +85,7 @@ export const deleteSyncOutboxThrough = (db: DbConnection, throughDeviceSeq: numb
 
 // takes a transaction so a pulled event is appended and marked applied in one write; a crash
 // between the two replays the page into duplicates.
-export const writeSyncCursor = (db: SyncWriteConnection, cursor: number): void => {
+export const writeSyncCursor = (db: DbExecutor, cursor: number): void => {
   ensureSyncStateRow(db);
   db.update(syncState).set({ cursor }).where(eq(syncState.id, SYNC_STATE_ID)).run();
 };
@@ -156,11 +154,11 @@ export const resetSyncState = (db: DbConnection): void => {
   });
 };
 
-export const recordOwnDevice = (db: SyncWriteConnection, deviceId: string): void => {
+export const recordOwnDevice = (db: DbExecutor, deviceId: string): void => {
   db.insert(syncOwnDevices).values({ deviceId }).onConflictDoNothing().run();
 };
 
-export const ownDeviceIds = (db: SyncWriteConnection): ReadonlySet<string> =>
+export const ownDeviceIds = (db: DbExecutor): ReadonlySet<string> =>
   new Set(
     db
       .select({ deviceId: syncOwnDevices.deviceId })

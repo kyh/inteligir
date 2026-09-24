@@ -12,10 +12,9 @@ import type {
   SessionNotification,
   ToolCallContent,
   ToolCallLocation,
+  ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import { z } from "zod";
-import { jsonObjectSchema } from "../vocabulary/json-value.js";
-import type { JsonObject } from "../vocabulary/json-value.js";
 import type {
   ProviderEvent,
   ProviderEventItem,
@@ -37,6 +36,8 @@ export interface AcpTurnContext {
   turnId: string;
 }
 
+const jsonObjectSchema = z.record(z.string(), z.json());
+
 interface OpenToolCall {
   title: string;
   kind: string;
@@ -46,7 +47,7 @@ interface OpenToolCall {
   diffs: ThreadEventFileChange[];
   outputText: string;
   rawOutputText: string;
-  rawInput?: JsonObject;
+  rawInput?: z.infer<typeof jsonObjectSchema>;
 }
 
 // codex names every shell command this but kinds it by what the command does, so an `ls` arrives
@@ -130,10 +131,9 @@ const replaceContent = (
   }
 };
 
-const applyToolCallUpdate = (
-  open: OpenToolCall,
-  update: SessionUpdateOf<"tool_call_update">,
-): void => {
+// a tool_call is the first update of its call: every field it names lands as a later update's
+// would, over the defaults a call starts from.
+const applyToolCallUpdate = (open: OpenToolCall, update: ToolCallUpdate): void => {
   if (update.title !== undefined && update.title !== null) {
     open.title = update.title;
   }
@@ -356,22 +356,17 @@ export class AcpTurnMapper {
   }
 
   #openToolCall(update: SessionUpdateOf<"tool_call">): ProviderEvent[] {
-    const rawOutput = commandRawOutputSchema.safeParse(update.rawOutput);
     const open: OpenToolCall = {
       diffs: [],
-      kind: update.kind ?? "other",
-      locations: [...(update.locations ?? [])],
-      name: update.name ?? null,
+      kind: "other",
+      locations: [],
+      name: null,
       outputText: "",
-      rawOutputText: rawOutput.success ? rawOutput.data.formatted_output : "",
-      status: mapToolStatus(update.status),
+      rawOutputText: "",
+      status: "pending",
       title: update.title,
     };
-    const parsedInput = jsonObjectSchema.safeParse(update.rawInput);
-    if (update.rawInput !== undefined && parsedInput.success) {
-      open.rawInput = parsedInput.data;
-    }
-    replaceContent(open, update.content);
+    applyToolCallUpdate(open, update);
     this.#toolCalls.set(update.toolCallId, open);
     return [
       {

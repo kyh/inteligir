@@ -45,7 +45,6 @@ src/
                        # an auth refusal the login command
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
-    json-value.ts      # JsonValue/JsonObject, for tool arguments
   thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
   test-support/
     fake-acp-agent.mjs # a scripted ACP agent (FAKE_ACP_MODE) the server's

@@ -5,12 +5,12 @@
 
 import type {
   ThreadEventFileChange,
+  ThreadEventItem,
   ThreadEventItemApprovalStatus,
   ThreadEventItemStatus,
   ThreadEventTurnStatus,
 } from "@repo/domain/provider-event";
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
-import type { JsonObject } from "./json-value";
 
 export interface ProviderEventPlanStep {
   step: string;
@@ -39,7 +39,7 @@ interface ProviderEventToolCallItem {
   type: "toolCall";
   id: string;
   tool: string;
-  arguments?: JsonObject;
+  arguments?: Extract<ThreadEventItem, { type: "toolCall" }>["arguments"];
   status: ThreadEventItemStatus;
   result?: string;
 }

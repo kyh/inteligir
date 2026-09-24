@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   appendEventsInTransaction,
   listStoredThreadEvents,
+  listThreadMetaEvents,
   MissingTurnStartedError,
 } from "../events";
 import type { AppendEventsResult } from "../events";
@@ -154,6 +155,41 @@ describe("the event grammar at the write", () => {
       append(db, [turnStarted(thread.id, "turn_1"), turnStarted(thread.id, "")]),
     ).toThrow(/turnId/u);
     expect(lastSequence(db, thread.id)).toBe(0);
+  });
+});
+
+describe("reading a thread's own facts", () => {
+  it("seeks the (thread, turn, type, item) index rather than walking the thread", () => {
+    const { db } = openTempDbWithPath();
+    const thread = createThread(db, noopNotifier, {});
+    const meta: ThreadEvent = {
+      scope: threadScope(),
+      threadId: thread.id,
+      title: "Plans",
+      type: "thread/meta",
+    };
+    append(db, [turnStarted(thread.id, "turn_1"), meta, agentDelta(thread.id, "turn_1", "a")]);
+
+    const prepared: string[] = [];
+    const client = db.$client;
+    const original = client.prepare.bind(client);
+    const spy = vi.spyOn(client, "prepare").mockImplementation((source: string) => {
+      prepared.push(source);
+      return original(source);
+    });
+    expect(listThreadMetaEvents(db, thread.id)).toEqual([meta]);
+    spy.mockRestore();
+
+    const [source] = prepared;
+    expect(source).toBeDefined();
+    const plan = client
+      .prepare(`EXPLAIN QUERY PLAN ${source ?? ""}`)
+      .all(thread.id, "thread/meta")
+      .map((row) => JSON.stringify(row))
+      .join("\n");
+    expect(plan).toMatch(
+      /events_thread_turn_type_item_sequence_idx \(thread_id=\? AND turn_id=\? AND type=\? AND item_id=\?\)/u,
+    );
   });
 });
 

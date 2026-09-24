@@ -1,9 +1,8 @@
 // a kind the persisted grammar lacks is dropped with a reason, never re-shaped: re-vendor it into @repo/domain
-// when it earns a renderer. shared leaves are one type in @repo/domain, so a narrowing assigns them; a
-// field-by-field respelling here means the two drifted.
+// when it earns a renderer. a narrowing assigns shared leaves.
 
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
-import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 
 export type MapProviderEventResult =
@@ -11,61 +10,6 @@ export type MapProviderEventResult =
   | { kind: "dropped"; reason: string };
 
 const dropped = (reason: string): MapProviderEventResult => ({ kind: "dropped", reason });
-
-type ProviderItem = Extract<ProviderEvent, { type: "item/started" }>["item"];
-
-const mapItem = (item: ProviderItem): ThreadEventItem => {
-  switch (item.type) {
-    case "agentMessage": {
-      return { id: item.id, text: item.text, type: "agentMessage" };
-    }
-    case "reasoning": {
-      return { content: item.content, id: item.id, summary: item.summary, type: "reasoning" };
-    }
-    case "commandExecution": {
-      const mapped: Extract<ThreadEventItem, { type: "commandExecution" }> = {
-        approvalStatus: item.approvalStatus,
-        command: item.command,
-        cwd: item.cwd,
-        id: item.id,
-        status: item.status,
-        type: "commandExecution",
-      };
-      if (item.aggregatedOutput !== undefined) {
-        mapped.aggregatedOutput = item.aggregatedOutput;
-      }
-      return mapped;
-    }
-    case "fileChange": {
-      return {
-        approvalStatus: item.approvalStatus,
-        changes: item.changes,
-        id: item.id,
-        status: item.status,
-        type: "fileChange",
-      };
-    }
-    case "toolCall": {
-      const mapped: Extract<ThreadEventItem, { type: "toolCall" }> = {
-        id: item.id,
-        status: item.status,
-        tool: item.tool,
-        type: "toolCall",
-      };
-      if (item.arguments !== undefined) {
-        mapped.arguments = item.arguments;
-      }
-      if (item.result !== undefined) {
-        mapped.result = item.result;
-      }
-      return mapped;
-    }
-    default: {
-      const exhaustive: never = item;
-      return exhaustive;
-    }
-  }
-};
 
 const UNMAPPED_EVENT_TYPES = [
   "item/toolCall/progress",
@@ -124,7 +68,7 @@ const mapTurnEvent = (event: TurnProviderEvent, turnId: string): MapProviderEven
     case "item/completed": {
       return {
         event: {
-          item: mapItem(event.item),
+          item: event.item,
           scope: turnScope(turnId),
           threadId: event.threadId,
           type: event.type,

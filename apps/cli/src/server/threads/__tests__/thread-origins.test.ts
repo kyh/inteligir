@@ -1,9 +1,10 @@
-import { mkdir, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
+import { createThreadOrigins } from "../thread-origins";
 
 const PLANS = "notes/plans.md";
 
@@ -74,5 +75,18 @@ describe("an action's origin", () => {
 
     const { thread: unwritten } = await app.client.threads.create({ originDocPath: "later.md" });
     expect(unwritten.originDocPath).toBe("later.md");
+  });
+
+  it("never reads a file that is no doc for an id, so its bytes stay as they were", async () => {
+    const app = await bootTestApp();
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0xfe]);
+    await writeFile(path.join(app.vaultDir, "pic.png"), png);
+    const origins = createThreadOrigins(app.vault.service, app.composed.context.knowledge);
+
+    expect(await origins.noteIdAt("pic.png")).toBeNull();
+    expect(await origins.noteIdOf("pic.png")).toBeNull();
+    const { thread } = await app.client.threads.create({ originDocPath: "pic.png" });
+    expect(thread.originDocPath).toBe("pic.png");
+    expect(await readFile(path.join(app.vaultDir, "pic.png"))).toEqual(png);
   });
 });

@@ -46,9 +46,11 @@ import {
   applyThreadLifecycleEventInTransaction,
   applyThreadMetaInTransaction,
   archiveThreadInTransaction,
+  bindPathOnlyOrigins,
   createThread,
   ensureThreadInTransaction,
   getThread,
+  listPathOnlyOriginPaths,
   listRunningThreads,
   listThreads,
   nameUntitledThreadInTransaction,
@@ -57,7 +59,6 @@ import type { CreateThreadInput, ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { deriveThreadTitle } from "@repo/domain/thread-title";
-import type { ViewContext } from "@repo/domain/view-context";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { isThreadRunning } from "@repo/domain/thread-status";
 import type {
@@ -79,17 +80,13 @@ import {
 } from "@repo/api/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
 import { z } from "zod";
+import { mapWithConcurrency } from "../concurrency";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 import type { ThreadOrigins } from "./thread-origins";
 import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError } from "./turn-driver";
-import type {
-  CreateTurnDriver,
-  TurnDriver,
-  ProviderEventSink,
-  TurnDriverStartArgs,
-} from "./turn-driver";
+import type { CreateTurnDriver, TurnDriver, ProviderEventSink, TurnRequest } from "./turn-driver";
 
 // threads-router switches exhaustively over this, so a new member breaks there rather than becoming a 500.
 const SEND_CONFLICT_CODES = ["stale_turn", "archived"] as const;
@@ -106,12 +103,8 @@ export type SendOutcome =
 
 type QueuedSendOutcome = Extract<SendOutcome, { kind: "queued" }>;
 
-// what a message asks its turn to carry, beside the text the user typed.
-interface TurnRequest {
-  text: string;
-  contextPaths?: readonly string[] | undefined;
-  viewContext?: ViewContext | undefined;
-}
+// each path is a note read and maybe a write; a vault of old actions is not opened all at once.
+const ORIGIN_BACKFILL_CONCURRENCY = 4;
 
 type SendDecision =
   | {
@@ -250,7 +243,7 @@ const queueInTransaction = (
   buffer: NotificationBuffer,
 ): QueuedSendOutcome => {
   const queued = createQueuedThreadMessageInTransaction(tx, {
-    contextPaths: turn.contextPaths,
+    contextPaths: turn.contextPaths === undefined ? null : JSON.stringify(turn.contextPaths),
     text: turn.text,
     threadId,
   });
@@ -277,6 +270,14 @@ const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
     ? { contextPaths: parsed.data, text: claimed.text }
     : { text: claimed.text };
 };
+
+// a send's request also carries its routing (the thread, the turn it expects), which is no part of
+// what the turn carries to the driver.
+const requestedTurn = (request: SendMessageRequest): TurnRequest => ({
+  contextPaths: request.contextPaths,
+  text: request.text,
+  viewContext: request.viewContext,
+});
 
 // the first message a thread carries names it, whichever client sent it and on whichever device.
 const nameThreadFromRequestsInTransaction = (
@@ -435,6 +436,30 @@ export class ThreadService implements ProviderEventSink {
     // both the queue read and the next drain. a swept row does not auto-dispatch: the next send starts it first.
     releaseAllQueuedMessageClaims(this.db);
     this.recoverWedgedThreads();
+  }
+
+  // a thread bound by its path alone loses its note to a rename, so each such path takes the id its
+  // note carries, minted through the create's own guarded step; a note that is gone or cannot take
+  // one leaves its threads on the path. a bound row is never listed again, so a rerun reads only
+  // the paths still without one.
+  async backfillOriginNoteIds(): Promise<void> {
+    await mapWithConcurrency(
+      listPathOnlyOriginPaths(this.db),
+      ORIGIN_BACKFILL_CONCURRENCY,
+      async (path) => {
+        let noteId: string | null;
+        try {
+          noteId = await this.origins.noteIdAt(path);
+        } catch (error) {
+          // one note's fault costs its threads the id until the next boot, never the sweep.
+          console.warn(`thread origins: ${path} stays bound by path: ${messageOf(error)}`);
+          return;
+        }
+        if (noteId !== null) {
+          bindPathOnlyOrigins(this.db, { noteId, path });
+        }
+      },
+    );
   }
 
   // a copy's turn/started re-opened a turn its original had already settled, and when the
@@ -678,6 +703,7 @@ export class ThreadService implements ProviderEventSink {
       };
     }
 
+    const turn = requestedTurn(request);
     switch (thread.status) {
       case "idle":
       case "error": {
@@ -685,18 +711,18 @@ export class ThreadService implements ProviderEventSink {
         // first: starting this one ahead of it would run the older one after an unrelated turn.
         const head = claimNextQueuedThreadMessageInTransaction(tx, thread.id);
         if (head === null) {
-          return this.prepareTurnInTransaction(tx, thread, request, buffer);
+          return this.prepareTurnInTransaction(tx, thread, turn, buffer);
         }
         return {
           claimed: head,
           kind: "drain",
-          outcome: queueInTransaction(tx, thread.id, request, buffer),
+          outcome: queueInTransaction(tx, thread.id, turn, buffer),
         };
       }
       case "active":
       case "starting":
       case "stopping": {
-        return { kind: "done", outcome: queueInTransaction(tx, thread.id, request, buffer) };
+        return { kind: "done", outcome: queueInTransaction(tx, thread.id, turn, buffer) };
       }
       // no default
     }
@@ -757,20 +783,12 @@ export class ThreadService implements ProviderEventSink {
   }
 
   private dispatchTurn(decision: Extract<SendDecision, { kind: "dispatch" }>): SendOutcome {
-    const { turn } = decision;
-    const start: TurnDriverStartArgs = {
-      text: turn.text,
-      threadId: decision.threadId,
-      turnId: decision.turnId,
-    };
-    if (turn.contextPaths !== undefined) {
-      start.contextPaths = turn.contextPaths;
-    }
-    if (turn.viewContext !== undefined) {
-      start.viewContext = turn.viewContext;
-    }
     try {
-      this.driver.startTurn(start);
+      this.driver.startTurn({
+        ...decision.turn,
+        threadId: decision.threadId,
+        turnId: decision.turnId,
+      });
     } catch (error) {
       this.recordDispatchFailure(decision.threadId, error);
       return error instanceof TurnDriverUnavailableError

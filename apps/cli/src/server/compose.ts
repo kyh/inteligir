@@ -24,6 +24,7 @@ import type { ConnectorsService } from "./connectors/connectors-service";
 import { ConnectorsStore } from "./connectors/connectors-store";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
 import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
+import { messageOf } from "./error-message";
 import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
 import { FoldersStore } from "./folders/folders-store";
@@ -220,6 +221,15 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   // crash recovery writes (settles turns, frees claims, enqueues), so it runs in boot order, not in the constructor.
   threads.boot();
   cloud.attach(threads);
+  // off the critical path and guarded: it reads, and may write, a note per path-bound thread, and a
+  // failure costs only the bindings it did not reach, which the next boot retries.
+  void (async () => {
+    try {
+      await threads.backfillOriginNoteIds();
+    } catch (error) {
+      console.warn(`[threads] origin backfill skipped: ${messageOf(error)}`);
+    }
+  })();
 
   // scripted answers `ready` with no model and no native binding, so the scenario suite
   // drives everything above the decode for real.
