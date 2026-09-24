@@ -118,15 +118,7 @@ export const ensureVaultRepo = async (
   if (!(await hasHeadCommit(git))) {
     await run(
       args.root,
-      [
-        "-c",
-        "commit.gpgsign=false",
-        "commit",
-        "--allow-empty",
-        "--no-verify",
-        "-m",
-        "vault: initialize",
-      ],
+      ["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "vault: initialize"],
       { env: { ...args.env, ...identityEnv() } },
     );
   }

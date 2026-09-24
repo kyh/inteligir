@@ -1,8 +1,10 @@
 import { ORPCError } from "@orpc/server";
 
-import { base, refusals } from "../orpc";
+import { attributeWrites, base, refusals } from "../orpc";
+import type { AppContext } from "../orpc";
 import { vaultWireError } from "../vault/vault-refusals";
 import { CommentRefusedError } from "./comment-refused-error";
+import type { CommentsWrite } from "./comments-service";
 import { SidecarConflictError } from "./sidecar-conflict-error";
 import { SidecarInvalidError } from "./sidecar-invalid-error";
 
@@ -20,24 +22,34 @@ const asWireError = (cause: unknown) => {
 
 const refusing = refusals(asWireError);
 
+const attributed = <T>(context: AppContext, written: CommentsWrite<T>): T => {
+  attributeWrites(context, written.wrote);
+  return written.answer;
+};
+
 const list = base.comments.list.handler(
-  async ({ context, input }) => await refusing(async () => await context.comments.list(input.path)),
+  async ({ context, input }) =>
+    await refusing(async () => attributed(context, await context.comments.list(input.path))),
 );
 
 const add = base.comments.add.handler(
-  async ({ context, input }) => await refusing(async () => await context.comments.add(input)),
+  async ({ context, input }) =>
+    await refusing(async () => attributed(context, await context.comments.add(input))),
 );
 
 const reply = base.comments.reply.handler(
-  async ({ context, input }) => await refusing(async () => await context.comments.reply(input)),
+  async ({ context, input }) =>
+    await refusing(async () => attributed(context, await context.comments.reply(input))),
 );
 
 const resolve = base.comments.resolve.handler(
-  async ({ context, input }) => await refusing(async () => await context.comments.resolve(input)),
+  async ({ context, input }) =>
+    await refusing(async () => attributed(context, await context.comments.resolve(input))),
 );
 
 const remove = base.comments.remove.handler(
-  async ({ context, input }) => await refusing(async () => await context.comments.remove(input)),
+  async ({ context, input }) =>
+    await refusing(async () => attributed(context, await context.comments.remove(input))),
 );
 
 export const commentsRouter = {

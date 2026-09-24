@@ -974,6 +974,30 @@ describe("open", () => {
       url: browserHandoffUrl(`${server.baseUrl}/`, FIXTURE_HANDOFF_NONCE),
     });
   });
+
+  it("hands out no link from a server with no UI, saying why, and NOT_FOUND under --json", async () => {
+    const state = seededState();
+    state.servesUi = false;
+    const server = await boot(state);
+    const browser = recordingOpener(true);
+    const human = await runCliForTest({
+      argv: ["open"],
+      baseUrl: server.baseUrl,
+      openExternalUrl: browser.openExternalUrl,
+    });
+    expect(human.code).toBe(1);
+    expect(human.stdout).toBe("");
+    expect(human.stderr).toContain("serves no UI");
+    expect(browser.opened).toEqual([]);
+
+    const json = await runCliForTest({ argv: ["open", "--json"], baseUrl: server.baseUrl });
+    expect(json.code).toBe(1);
+    expect(json.stdout).toBe("");
+    expect(JSON.parse(json.stderr)).toEqual({
+      error: "NOT_FOUND",
+      message: "This server serves no UI (an unbuilt checkout).",
+    });
+  });
 });
 
 const sourcesOn = (state: FixtureState) =>

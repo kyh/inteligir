@@ -113,7 +113,9 @@ src/
 ## Seams
 
 - `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
-  better-sqlite3 in `apps/cli/src/server/knowledge/sqlite-driver.ts`.
+  better-sqlite3 in `apps/cli/src/server/knowledge/sqlite-driver.ts` — and
+  throws `KnowledgeStoreError` for every database failure, the one failure the
+  host rebuilds on.
 
 ## Testing
 

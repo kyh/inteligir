@@ -121,7 +121,7 @@ An image from the vault:
 
 ## Comments
 
-Select text and press `⌘⇧A` to comment on exactly that phrase. Comments live in a sidecar file beside the note, so they travel with the vault and never touch the sentence they annotate.
+Select text and press `⌘⇧A` to comment on exactly that phrase. Comments live in `.inteligir/comments/<note-id>.json`, keyed by the note's `id`, so they travel with the vault and never touch the sentence they annotate.
 
 - %%i:onboarding-user-comment:start%%Your own comments stay editable — leave yourself a review note and revise it later.%%i:onboarding-user-comment:end%%
 - %%i:onboarding-agent-comment:start%%The agent can leave comments too, and its own are labelled as its own.%%i:onboarding-agent-comment:end%%
@@ -156,13 +156,15 @@ Frontmatter at the top of a file is the only place properties live. Open **Prope
 
 ## Getting Around
 
+⌘ is Ctrl on Windows and Linux; the palette's Keyboard shortcuts page shows this machine's keys.
+
 | Action                        | Shortcut             |
 | ----------------------------- | -------------------- |
 | Ask the agent                 | `⌘K`                 |
 | Command palette and search    | `⌘P`                 |
 | Daily note                    | `⌘D`                 |
 | Comment on the selection      | `⌘⇧A`                |
-| Find in this note             | `⌘G`                 |
+| Find in this note             | `⌘F`                 |
 | Zen mode                      | `⌘\`                 |
 | Inline code                   | `⌘E`                 |
 | Checklist / bullets / numbers | `⌘⇧C` / `⌘L` / `⌘⇧L` |

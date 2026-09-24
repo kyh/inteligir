@@ -358,6 +358,26 @@ describe("the agent selection", () => {
     expect(layered.agent).toBe("scripted");
     expect(layered.agentModels).toEqual({ claude: "m3", codex: "m2" });
   });
+
+  it("warns on the one-model spellings, naming the per-harness ones, and reads neither", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
+    const configPath = path.join(dataDir, "config.json");
+    writeFileSync(configPath, JSON.stringify({ agentModel: "m-old" }));
+    const legacy = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_AGENT_MODEL: "m-env", INTELIGIR_DATA_DIR: dataDir },
+      homeDir,
+    });
+    expect(legacy.agentModels).toEqual({ claude: null, codex: null });
+    expect(legacy.warnings).toEqual([
+      "INTELIGIR_AGENT_MODEL is ignored: a model is per harness, so set INTELIGIR_CLAUDE_MODEL or INTELIGIR_CODEX_MODEL.",
+      `${configPath}'s agentModel is ignored: a model is per harness, so set agentModels.claude or agentModels.codex.`,
+    ]);
+
+    const current = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
+    expect(current.warnings).toEqual([]);
+  });
 });
 
 const resolveWithDebug = (value?: string) =>

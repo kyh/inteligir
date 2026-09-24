@@ -24,6 +24,7 @@ import {
   identityEnv,
   isMissingRemoteRef,
   NETWORK_GIT_TIMEOUT_MS,
+  packExceeds,
   redactRemoteUrl,
   runGit,
 } from "./git-run";
@@ -61,6 +62,8 @@ export interface GitEngineArgs {
   quietMs?: number;
   maxWaitMs?: number;
   env?: Record<string, string>;
+  // the account remote's push cap; unset, the hosted vault's own.
+  maxPushBytes?: number;
 }
 
 export interface GitEngine {
@@ -111,10 +114,10 @@ interface RefusedPush {
   remote: string | null;
 }
 
-const pushTooLargeMessage = (remote: VaultRemoteSpec): string =>
+const pushTooLargeMessage = (remote: VaultRemoteSpec, maxPushBytes: number): string =>
   remote.source === "account"
     ? `This vault's unsynced history is over the hosted vault's ` +
-      `${String(VAULT_GIT_MAX_PUSH_BYTES / (1024 * 1024))} MiB push limit.`
+      `${String(maxPushBytes / (1024 * 1024))} MiB push limit.`
     : "The git remote refused the push as too large.";
 
 // what the latest pass to reach a verdict concluded; a pass that ends before one (a pending
@@ -134,6 +137,7 @@ type SyncOutcome =
 export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const { root } = args;
   const extraEnv = args.env ?? {};
+  const maxPushBytes = args.maxPushBytes ?? VAULT_GIT_MAX_PUSH_BYTES;
 
   let lastSyncAt: number | null = null;
   let lastError: string | null = null;
@@ -188,10 +192,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const porcelain = async (paths: readonly string[] = []): Promise<PorcelainEntry[]> =>
     await readPorcelain(run, paths);
 
-  // --no-verify: a commit the user's hooks refuse leaves the tree dirty for good, and every
-  // sync pass behind it.
   const commit = async (subject: string, author?: CommitAuthor): Promise<void> => {
-    await run(["-c", "commit.gpgsign=false", "commit", "--no-verify", "-m", subject], {
+    await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
       env: identityEnv(author),
     });
   };
@@ -389,8 +391,33 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return false;
     }
     lastOutcome = { failure: "too-large", kind: "unreachable" };
-    lastError = pushTooLargeMessage(remote);
+    lastError = pushTooLargeMessage(remote, maxPushBytes);
     return true;
+  };
+
+  // off the lock, like the push it stands in front of: the hosted vault refuses a pack over its
+  // cap only once the whole body has arrived. the on-disk estimate is cheap and loose, so only a
+  // push near the cap pays for packing what it would send; a measurement that fails answers null
+  // and the push goes, with the remote's own 413 behind it. answers the tips it measured.
+  const measuredOverCap = async (
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<Omit<RefusedPush, "url"> | null> => {
+    const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
+    const revisions = tips.remote === null ? [tips.head] : [tips.head, `^${tips.remote}`];
+    try {
+      const { stdout } = await run(["rev-list", "--objects", "--disk-usage", ...revisions]);
+      if (Number(stdout.trim()) < maxPushBytes / 2) {
+        return null;
+      }
+      const over = await packExceeds(root, revisions, maxPushBytes, {
+        env: extraEnv,
+        timeoutMs: NETWORK_GIT_TIMEOUT_MS,
+      });
+      return over ? tips : null;
+    } catch {
+      return null;
+    }
   };
 
   // what a rebase from a clean tree rewrote on disk. --no-renames: a moved note is a path gone
@@ -581,6 +608,15 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return;
     }
 
+    if (remote.source === "account") {
+      const overCap = await measuredOverCap(branch, remoteHasBranch);
+      if (overCap !== null) {
+        recordNetworkFailure("too-large");
+        refusedPush = { url: remote.url, ...overCap };
+        throw new Error(pushTooLargeMessage(remote, maxPushBytes));
+      }
+    }
+
     try {
       await runNetwork(["push", "origin", branch], remote.env);
     } catch (error) {
@@ -593,7 +629,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       // holds the refused one is as large.
       const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
       refusedPush = { url: remote.url, ...tips };
-      throw new Error(pushTooLargeMessage(remote), { cause: error });
+      throw new Error(pushTooLargeMessage(remote, maxPushBytes), { cause: error });
     }
     refusedPush = null;
     if (remote.source === "account" && remote.account.state === "known") {

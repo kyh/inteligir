@@ -6,7 +6,8 @@ import { mintNoteId, withFrontmatterId } from "@repo/notes/markdown/frontmatter"
 import type { VaultService } from "./vault-service";
 
 export type EnsureNoteIdOutcome =
-  | { kind: "id"; id: string }
+  // `minted`: this call wrote the id into the note
+  | { kind: "id"; id: string; minted: boolean }
   // the frontmatter is not valid YAML, so no id can be written into it
   | { kind: "invalid" }
   // the note's `id` is not text; a minted one would replace something another reader may resolve
@@ -25,7 +26,7 @@ export const ensureNoteId = async (
     const verdict = withFrontmatterId(current, id);
     switch (verdict.kind) {
       case "unchanged": {
-        return { id: verdict.id, kind: "id" };
+        return { id: verdict.id, kind: "id", minted: false };
       }
       case "invalid":
       case "foreign-id": {
@@ -34,7 +35,7 @@ export const ensureNoteId = async (
       case "written": {
         const result = await vault.writeIfUnchanged(notePath, current, verdict.content);
         if (result.applied) {
-          return { id, kind: "id" };
+          return { id, kind: "id", minted: true };
         }
         ({ content: current } = await vault.read(notePath));
         break;

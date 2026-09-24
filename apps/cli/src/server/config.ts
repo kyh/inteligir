@@ -333,8 +333,31 @@ const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFil
 
 type ManagedConfig = z.infer<typeof managedConfigSchema>;
 
-const readManagedConfig = (dataDir: string): ManagedConfig =>
-  managedConfigSchema.parse(readManagedConfigFile(dataDir));
+// one model for every harness, a spelling nothing reads: a model id is vendor-specific. named in a
+// boot warning, never refused, since config the build does not act on must not brick the boot.
+const LEGACY_MODEL_ENV_VAR = "INTELIGIR_AGENT_MODEL";
+const LEGACY_MODEL_CONFIG_KEY = "agentModel";
+
+const legacyModelWarnings = (
+  env: NodeJS.ProcessEnv,
+  managedFile: z.infer<typeof managedConfigFileSchema>,
+  rootDataDir: string,
+): string[] => {
+  const warnings: string[] = [];
+  if (env[LEGACY_MODEL_ENV_VAR] !== undefined) {
+    warnings.push(
+      `${LEGACY_MODEL_ENV_VAR} is ignored: a model is per harness, so set ` +
+        `${MODEL_ENV_VARS.claude.name} or ${MODEL_ENV_VARS.codex.name}.`,
+    );
+  }
+  if (managedFile[LEGACY_MODEL_CONFIG_KEY] !== undefined) {
+    warnings.push(
+      `${path.join(rootDataDir, CONFIG_FILE_NAME)}'s ${LEGACY_MODEL_CONFIG_KEY} is ignored: a ` +
+        "model is per harness, so set agentModels.claude or agentModels.codex.",
+    );
+  }
+  return warnings;
+};
 
 // The root's config.json is the vault selector: it is what `inteligir serve` reads with no
 // shell around, so a switch made in the shell is the CLI's next boot too.
@@ -373,6 +396,8 @@ export interface AppConfig {
   agentModels: HarnessModels;
   cloudUrl: string;
   debug: ReadonlySet<DebugNamespace>;
+  // what the resolve found and will not act on, for the boot to say.
+  warnings: readonly string[];
 }
 
 export interface ResolveAppConfigArgs {
@@ -469,7 +494,8 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
       ? path.join(homeDir, PROD_DATA_DIR_NAME)
       : path.join(devInstanceDir, DEV_INSTANCE_DATA_DIR_NAME));
 
-  const managed = readManagedConfig(rootDataDir);
+  const managedFile = readManagedConfigFile(rootDataDir);
+  const managed = managedConfigSchema.parse(managedFile);
 
   const envPort = readEnvVar(ENV_VARS.port, args.env, homeDir);
   const port =
@@ -525,6 +551,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     vaultDirSource,
     vaultRemote,
     voice,
+    warnings: legacyModelWarnings(args.env, managedFile, rootDataDir),
   };
   if (envSyncIntervalMs !== undefined) {
     config.vaultSyncIntervalMs = envSyncIntervalMs === 0 ? null : envSyncIntervalMs;

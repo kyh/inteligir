@@ -18,7 +18,6 @@ import {
   formatAttachmentLocation,
   parseAttachmentLocation,
 } from "@repo/api/local/vault/attachment-location";
-import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import type { CommentStoreRestore } from "@repo/api/local/vault/restore-comment-store";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
@@ -437,10 +436,14 @@ export const vaultCommand = (deps: CliDeps) =>
             throw current.error;
           }
           const body = await api.vault.write({ content: revision.content, guard, path: args.path });
-          const comments: CommentStoreRestore =
-            guard.kind === "absent"
-              ? await restoreCommentStore(api, revision.content, args.sha)
-              : { kind: "none" };
+          let comments: CommentStoreRestore = { kind: "none" };
+          if (guard.kind === "absent") {
+            // dynamic import: it reads frontmatter, and a static one would load yaml before every
+            // client verb reads argv (the build refuses that, scripts/build.mjs).
+            const { restoreCommentStore } =
+              await import("@repo/api/local/vault/restore-comment-store");
+            comments = await restoreCommentStore(api, revision.content, args.sha);
+          }
           if (comments.kind === "failed") {
             // the note is back either way, so the failure keeps the store refusal's own class, like a send's.
             throw new CliExitError(

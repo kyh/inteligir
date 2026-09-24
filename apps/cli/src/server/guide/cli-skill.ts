@@ -75,7 +75,8 @@ rather than dropped. Quote an argument that holds spaces
   browser cannot carry the server's token, so it signs in through a one-time
   link that expires within minutes; a tab without one gets a page naming this
   command. Under \`--json\` it opens nothing and prints \`{"url": …}\`: hand
-  that link to the user rather than opening it yourself.
+  that link to the user rather than opening it yourself. A server with no UI
+  (an unbuilt checkout) refuses it as \`NOT_FOUND\`.
 
 ## Vault — files on disk
 

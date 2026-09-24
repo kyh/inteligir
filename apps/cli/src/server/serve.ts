@@ -137,6 +137,7 @@ const boot = async (
   // published only once the port is bound, so a reader never learns an address before it answers.
   const serverToken = mintServerToken();
   const children = resolveNodeChildren(readParentPort());
+  const clientDir = resolveUiDir();
 
   const composeArgs: ComposeRuntimeArgs = {
     // injected: it cannot be imported from the composed graph (cloud/cloud-socket.ts).
@@ -174,6 +175,7 @@ const boot = async (
       }
       return resolveAgentDriver(driverArgs);
     },
+    servesUi: clientDir !== null,
     teardown,
     version,
   };
@@ -183,7 +185,6 @@ const boot = async (
   const runtime = await composeRuntime(composeArgs);
   const composed = performance.now();
 
-  const clientDir = resolveUiDir();
   const { app, injectWebSocket, upgradedSockets } = createApp({
     bus: runtime.bus,
     clientDir,
@@ -253,6 +254,9 @@ const boot = async (
     `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "account" ? " (account)" : ""}`}`,
   );
   console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
+  for (const warning of config.warnings) {
+    console.warn(`config: ${warning}`);
+  }
   const uiUrl =
     clientDir === null
       ? null

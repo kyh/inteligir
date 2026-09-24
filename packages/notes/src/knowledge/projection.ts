@@ -3,7 +3,9 @@ import type { ExtractedLink } from "./link-extract";
 import { scanDoc } from "./link-extract";
 import { docStem } from "./doc-file";
 
-// bump whenever projectDoc's output shape or semantics change; a mismatch wipes and rebuilds, so there is no migration path
+// bump whenever projectDoc's output shape or semantics change, or it would now take a doc it
+// threw on (the store keeps that doc's hash, so nothing else retries it); a mismatch wipes and
+// rebuilds, so there is no migration path
 export const PROJECTION_VERSION = 12;
 
 const SNIPPET_MAX = 200;

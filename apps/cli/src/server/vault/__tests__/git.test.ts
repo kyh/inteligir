@@ -132,6 +132,14 @@ const refusingHook = async (hooksDir: string, name: string): Promise<void> => {
   await chmod(hook, 0o755);
 };
 
+// a hook that runs and succeeds, leaving the named file behind as its trace.
+const markingHook = async (hooksDir: string, name: string, marker: string): Promise<void> => {
+  await mkdir(hooksDir, { recursive: true });
+  const hook = path.join(hooksDir, name);
+  await writeFile(hook, `#!/bin/sh\ntouch '${marker}'\n`, "utf-8");
+  await chmod(hook, 0o755);
+};
+
 // a vault that is a linked worktree: its `.git` is a file, and its rebase state lives under the
 // main checkout's git dir. main parks on another branch so the worktree can take `main`.
 const makeWorktreeVault = async (): Promise<string> => {
@@ -605,6 +613,34 @@ describe("sync", { timeout: 30_000 }, () => {
 
     await expectCleanRepo(a.root);
     await expectCleanRepo(b.root);
+  });
+
+  it("runs none of the vault's own hooks through a commit, a rebase and a push", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    const b = await makeEngine({ remoteUrl: remote });
+    expect(await syncState(a.engine)).toBe("clean");
+    expect(await syncState(b.engine)).toBe("clean");
+
+    const markers = scratchDir("inteligir-git-hook-markers-");
+    // spelled out: runGit's own --git-path answers the hooks path it overrides.
+    const hooks = path.join(b.root, ".git", "hooks");
+    const hookNames = ["post-commit", "pre-rebase", "post-rewrite", "pre-push"];
+    for (const name of hookNames) {
+      await markingHook(hooks, name, path.join(markers, name));
+    }
+
+    await writeFile(path.join(a.root, "from-a.md"), "a\n", "utf-8");
+    await a.engine.commitNow();
+    expect(await syncState(a.engine)).toBe("clean");
+    await writeFile(path.join(b.root, "from-b.md"), "b\n", "utf-8");
+    expect(await b.engine.commitNow()).toEqual({ files: 1 });
+    expect(await syncState(b.engine)).toBe("clean");
+
+    expect(await trackedFiles(b.root)).toEqual(["from-a.md", "from-b.md"]);
+    for (const name of hookNames) {
+      expect(existsSync(path.join(markers, name))).toBe(false);
+    }
   });
 
   it("surfaces diverging edits as a typed conflict and leaves the repo clean", async () => {
@@ -1158,7 +1194,7 @@ describe("the clone path", () => {
   });
 });
 
-describe("the cross-account fence", () => {
+describe("the cross-account fence", { timeout: 30_000 }, () => {
   it("refuses a pass when the vault last synced with a different account", async () => {
     const remote = await makeBareRemote();
     const root = scratchDir("inteligir-git-fence-");
@@ -1345,6 +1381,34 @@ describe("a push too large for the remote", { timeout: 30_000 }, () => {
     expect(refused.lastError).toContain(
       `${String(VAULT_GIT_MAX_PUSH_BYTES / (1024 * 1024))} MiB push limit`,
     );
+    expect(remote.pushes()).toBe(1);
+  });
+
+  it("measures a push to the account remote first, and uploads nothing over the cap", async () => {
+    const remote = await makeTooLargeRemote();
+    const root = scratchDir("inteligir-git-over-cap-");
+    await ensureVaultRepo({ env, root });
+    const engine = createGitEngine({
+      env,
+      maxPushBytes: 64,
+      remote: () => ({
+        account: { id: "user-a", state: "known" },
+        source: "account",
+        url: remote.url,
+      }),
+      root,
+    });
+    onTestFinished(async () => {
+      await engine.dispose();
+    });
+    await writeFile(path.join(root, "scan.md"), "a history over a 64-byte cap\n", "utf-8");
+    await engine.commitNow();
+
+    const refused = await engine.syncNow();
+    expect(refused.state).toBe("too-large");
+    expect(refused.lastError).toContain("push limit");
+    expect(await syncState(engine)).toBe("too-large");
+    expect(remote.pushes()).toBe(0);
   });
 });
 

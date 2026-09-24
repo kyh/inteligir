@@ -17,7 +17,10 @@ import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import type { DocProjection } from "@repo/notes/knowledge/projection";
 import type { DocSearchColumns } from "@repo/notes/knowledge/search-columns";
 import type { SearchResult } from "@repo/notes/knowledge/search-query";
-import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
+import {
+  createSqlKnowledgeStore,
+  KnowledgeStoreError,
+} from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { bodyPrefilters, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
@@ -98,8 +101,9 @@ export interface KnowledgeRuntimeArgs {
 
 export interface KnowledgeRuntime {
   noteVaultChange: (change: VaultFilesChange) => void;
-  // a failed pass rebuilds before this resolves; rejects only if the rebuild failed too. a doc
-  // whose read is still out answers from its last entry meanwhile.
+  // a pass the store failed rebuilds before this resolves, and rejects only if the rebuild failed
+  // too; any other failure rejects and leaves the index standing. a doc whose read is still out
+  // answers from its last entry meanwhile.
   settle: () => Promise<void>;
   search: (params: { query: string; tag?: string; limit: number }) => Promise<SearchResult[]>;
   matches: (params: {
@@ -175,7 +179,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   // retries the path, since a permission fix announces nothing.
   const unreadable = new Set<string>();
   // the hash of bytes whose projection threw, so an unchanged doc is not re-projected by every
-  // reconcile; the path is indexed as an other meanwhile.
+  // reconcile, nor after a restart: the path is indexed as an other carrying it.
   const unprojectable = new Map<string, string>();
 
   // at most one pass runs and one is queued; later triggers fold into the queued one.
@@ -226,6 +230,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         for (const other of page.others) {
           graph.setOther(other.path);
           others.add(other.path);
+          if (other.unprojectableHash !== null) {
+            unprojectable.set(other.path, other.unprojectableHash);
+          }
         }
       }
       await yieldTurn();
@@ -250,16 +257,21 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     return true;
   };
 
-  const indexOther = (path: string): void => {
+  const indexOther = (path: string, unprojectableHash?: string): void => {
     // a path can change class (an oversized doc degrades to other and back);
     // a stale hash left behind would satisfy the reconcile diff forever.
     const wasDoc = hashes.delete(path);
-    if (!wasDoc && others.has(path)) {
+    if (!wasDoc && others.has(path) && unprojectable.get(path) === unprojectableHash) {
       return;
     }
-    store.upsertOther(path);
+    store.upsertOther(path, unprojectableHash);
     graph.setOther(path);
     others.add(path);
+    if (unprojectableHash === undefined) {
+      unprojectable.delete(path);
+    } else {
+      unprojectable.set(path, unprojectableHash);
+    }
   };
 
   interface ProjectedUpdate {
@@ -331,8 +343,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         continue;
       }
       console.warn(`[knowledge] cannot index ${update.path}: ${result.reason}`);
-      indexOther(update.path);
-      unprojectable.set(update.path, update.hash);
+      indexOther(update.path, update.hash);
     }
     await writeDocRows(projected);
   };
@@ -597,8 +608,14 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       if (disposed) {
         return;
       }
+      if (!(error instanceof KnowledgeStoreError)) {
+        // the next pass reconciles whole, since this one may have spent the paths it was handed.
+        console.warn("[knowledge] pass failed:", messageOf(error));
+        needsReconcile = true;
+        throw error;
+      }
       // rebuild before this pass resolves: a caller awaiting it must not read the nuked index as a success.
-      console.warn("[knowledge] pass failed — rebuilding the index:", messageOf(error));
+      console.warn("[knowledge] the index store failed — rebuilding it:", messageOf(error));
       recover();
       await passWork();
     }
@@ -656,6 +673,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     try {
       return run();
     } catch (error) {
+      if (!(error instanceof KnowledgeStoreError)) {
+        throw error;
+      }
       console.warn(`[knowledge] ${what} failed — rebuilding the index:`, messageOf(error));
       recover();
       await settle();

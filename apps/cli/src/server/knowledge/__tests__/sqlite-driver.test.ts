@@ -1,7 +1,14 @@
 import { chmodSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
-import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
-import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
+import {
+  createSqlKnowledgeStore,
+  KnowledgeStoreError,
+} from "@repo/notes/knowledge/sql-knowledge-store";
+import type {
+  SqlDriver,
+  SqlKnowledgeStore,
+  StoredOtherRow,
+} from "@repo/notes/knowledge/sql-knowledge-store";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
@@ -34,14 +41,14 @@ type StoredDocRow = Parameters<SqlKnowledgeStore["upsertDoc"]>[0];
 
 interface StoredRows {
   docs: StoredDocRow[];
-  others: { path: string }[];
+  others: StoredOtherRow[];
 }
 
 // every row the store holds, paged the way the runtime hydrates
 const drain = (store: SqlKnowledgeStore): StoredRows => {
   const cursor = store.hydrate(1000);
   const docs: StoredDocRow[] = [];
-  const others: { path: string }[] = [];
+  const others: StoredOtherRow[] = [];
   for (let page = cursor.next(); page.kind !== "done"; page = cursor.next()) {
     if (page.kind === "docs") {
       docs.push(...page.docs);
@@ -82,15 +89,15 @@ describe("the sqlite driver", () => {
     ]);
   });
 
-  it("propagates errors from bad SQL on every entry point", () => {
+  it("throws the store's own error from bad SQL on every entry point", () => {
     const driver = openDriver(makeDbPath());
     expect(() => {
       driver.exec("NOT SQL");
-    }).toThrow();
+    }).toThrow(KnowledgeStoreError);
     expect(() => {
       driver.run("INSERT INTO missing VALUES (?)", [1]);
-    }).toThrow();
-    expect(() => driver.all("SELECT * FROM missing", [])).toThrow();
+    }).toThrow(KnowledgeStoreError);
+    expect(() => driver.all("SELECT * FROM missing", [])).toThrow(KnowledgeStoreError);
   });
 
   it("reset() drops the file's contents and stays usable", () => {
@@ -137,7 +144,7 @@ describe("the better-sqlite3 knowledge store", () => {
     const { docs, others } = drain(store);
     expect(docs.map((d) => d.path)).toEqual(["alpha.md", "beta.md"]);
     expect(docs[0]?.projection.title).toBe("Alpha Note");
-    expect(others).toEqual([{ path: "img/pic.png" }]);
+    expect(others).toEqual([{ path: "img/pic.png", unprojectableHash: null }]);
 
     const hits = store.search("alpha", 10);
     expect(hits.map((h) => h.path)).toEqual(["alpha.md", "beta.md"]);
@@ -145,6 +152,20 @@ describe("the better-sqlite3 knowledge store", () => {
     store.remove("alpha.md");
     expect(store.search("zebras", 10)).toEqual([]);
     expect(drain(store).docs.map((d) => d.path)).toEqual(["beta.md"]);
+  });
+
+  it("keeps an unprojectable doc's hash on its other row, and drops it with the class", () => {
+    const store = openStore(makeDbPath());
+    const alpha = docRow("alpha.md", "# Alpha\n");
+    store.upsertDoc(alpha.row, alpha.search);
+    store.upsertOther("alpha.md", "hash-that-threw");
+    expect(drain(store)).toEqual({
+      docs: [],
+      others: [{ path: "alpha.md", unprojectableHash: "hash-that-threw" }],
+    });
+
+    store.upsertOther("alpha.md");
+    expect(drain(store).others).toEqual([{ path: "alpha.md", unprojectableHash: null }]);
   });
 
   it("persists across close and reopen from the same file", () => {
