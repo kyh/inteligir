@@ -5,6 +5,7 @@ import {
   parseWikiBody,
   parseWikiBodyRange,
   serializeWikiBody,
+  wikiLinkLabel,
 } from "../remark-wiki-link";
 
 describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
@@ -122,5 +123,29 @@ describe("isUuidWikiAlias", () => {
     expect(isUuidWikiAlias("friendly name")).toBe(false);
     expect(isUuidWikiAlias("9e64c3df-c1e2-4a4d-8c07")).toBe(false);
     expect(isUuidWikiAlias("")).toBe(false);
+  });
+});
+
+describe("wikiLinkLabel", () => {
+  const uuid = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
+
+  it("shows the alias, else the target with its anchor", () => {
+    expect(wikiLinkLabel("Plan")).toBe("Plan");
+    expect(wikiLinkLabel("Plan|the plan")).toBe("the plan");
+    expect(wikiLinkLabel("Note#Heading")).toBe("Note#Heading");
+    expect(wikiLinkLabel("Note#Heading|shown")).toBe("shown");
+    expect(wikiLinkLabel("#sec")).toBe("#sec");
+  });
+
+  it("never shows a resolved link's uuid", () => {
+    expect(wikiLinkLabel(`Plan|${uuid}`)).toBe("Plan");
+    expect(wikiLinkLabel(`Plan|${uuid.toUpperCase()}`)).toBe("Plan");
+    expect(wikiLinkLabel(`Plan#Goals|${uuid}`)).toBe("Plan#Goals");
+    expect(wikiLinkLabel(`A|B|${uuid}`)).toBe("A|B");
+  });
+
+  it("reads a # the way the parse does", () => {
+    expect(wikiLinkLabel("C# Notes")).toBe("C# Notes");
+    expect(wikiLinkLabel("C\\#Sharp")).toBe("C#Sharp");
   });
 });

@@ -13,18 +13,9 @@ import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
 const HOVER_PREVIEW_DELAY_MS = 350;
-
-// the resolved-link uuid alias is identity plumbing, not display text.
-export const wikiChipLabel = (body: string): string => {
-  const { alias, anchor, target } = parseWikiBody(body);
-  if (alias !== undefined && alias !== "" && !isUuidWikiAlias(alias)) {
-    return alias;
-  }
-  return anchor !== undefined && anchor !== "" ? `${target}#${anchor}` : target;
-};
 
 export const RESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm bg-primary/10 px-1 text-primary transition-colors hover:bg-primary/20";
@@ -52,7 +43,7 @@ const WikiChip = ({ body }: { body: string }) => {
   const previewFor = useRef<string | null>(null);
 
   const parsed = parseWikiBody(body);
-  const label = wikiChipLabel(body);
+  const label = wikiLinkLabel(body);
   // a pure-anchor link (`[[#sec]]`) points at the open note: nothing to resolve or create.
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
 

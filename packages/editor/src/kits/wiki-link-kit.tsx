@@ -10,7 +10,7 @@ import type { PlateElementProps } from "platejs/react";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
-import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
 const WikiChip = lazy(async () => await import("@repo/editor/wiki-chip"));
 const Transclusion = lazy(async () => await import("@repo/editor/transclusion"));
@@ -30,21 +30,13 @@ export const WikiLinkBaseKit = [wikiLinkBasePlugin, wikiEmbedBasePlugin];
 // mirrors the remark-wiki-link grammar so the chip and the bytes agree.
 const WIKI_COMPLETION_RE = /(?<bang>!?)\[\[(?<body>[^[\]\n]+)\]$/u;
 
-const chipLabel = (body: string): string => {
-  const parsed = parseWikiBody(body);
-  if (parsed.alias !== undefined) {
-    return parsed.alias;
-  }
-  return parsed.anchor === undefined ? parsed.target : `${parsed.target}#${parsed.anchor}`;
-};
-
 const FallbackChip = ({ body, embed }: { body: string; embed?: boolean }) => (
   <span
     contentEditable={false}
     className="cursor-default rounded-sm bg-primary/10 px-1 text-primary/80"
   >
     {embed === true && <span className="mr-0.5 font-semibold text-primary/50 select-none">!</span>}
-    {chipLabel(body)}
+    {wikiLinkLabel(body)}
   </span>
 );
 

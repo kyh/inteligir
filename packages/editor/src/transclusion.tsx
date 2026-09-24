@@ -24,10 +24,10 @@ import { alertPresentation } from "@repo/editor/nodes/blockquote-node";
 import { ImageFigure } from "@repo/editor/nodes/image-node";
 import { RichBlockCard } from "@repo/editor/nodes/rich-block-chrome";
 import { decideTransclusion } from "@repo/editor/transclusion-guard";
-import WikiChip, { wikiChipLabel } from "@repo/editor/wiki-chip";
+import WikiChip from "@repo/editor/wiki-chip";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { useLinkResolver, useVaultActions } from "@repo/editor/host";
-import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
 // The note an embed shows: a url inside it is relative to that note, not to the open one.
 const EmbeddedNotePathContext = createContext<string | null>(null);
@@ -407,7 +407,7 @@ const Transclusion = ({ body }: { body: string }) => {
   }
 
   const target = decision.path;
-  const title = wikiChipLabel(body);
+  const title = wikiLinkLabel(body);
   const onOpen = (e: MouseEvent) => {
     e.preventDefault();
     openFile(target);
