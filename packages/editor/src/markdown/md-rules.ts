@@ -202,11 +202,25 @@ const prunedElement = (element: TElement): TElement => {
   return { ...element, children: kept.length > 0 ? kept : [{ text: "" }] };
 };
 
+// An edit replaces the top-level blocks it touched and keeps every other by identity, so a save
+// prunes only those.
+const prunedByBlock = new WeakMap<TElement, TElement>();
+
+const prunedBlock = (block: TElement): TElement => {
+  const cached = prunedByBlock.get(block);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const pruned = prunedElement(block);
+  prunedByBlock.set(block, pruned);
+  return pruned;
+};
+
 // A pre-pass over the whole value rather than a paragraph rule's, since an empty equation sits in
 // a heading or a list item as readily: it leaves before any text run is converted, so its
 // neighbours join into one run rather than two whose marks collide (`**a****b**`), and an element
 // it alone filled keeps an empty text instead of a blank line the next parse drops.
-export const pruneForMarkdown = (value: Value): Value => value.map(prunedElement);
+export const pruneForMarkdown = (value: Value): Value => value.map(prunedBlock);
 
 const withoutEdgeBreak = (children: Descendant[], edge: "first" | "last"): Descendant[] => {
   const index = edge === "first" ? 0 : children.length - 1;

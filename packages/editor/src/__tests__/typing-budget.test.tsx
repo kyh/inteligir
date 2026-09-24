@@ -117,8 +117,9 @@ const CARET_BUDGET: readonly BudgetRow[] = [
   ROOT_DECORATIONS,
   SELECTOR_SUBSCRIPTIONS,
 ];
+// The save serializes the copy `pruneForMarkdown` keeps per top-level block, never the editor's own
+// blocks, so its walk never reaches the watched one: the settle-to-parse ratio holds its cost.
 const SETTLE_BUDGET: readonly BudgetRow[] = [
-  { module: "@platejs/markdown", name: "serializeMd", why: "the save is the whole note's bytes" },
   {
     module: "formulas/formula-recompute.ts",
     name: "formulaEntries",
