@@ -1,24 +1,18 @@
-import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { RouterProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
+import type { RouterHistory } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp } from "inteligir/server/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { routeTree } from "../../routeTree.gen";
 import { routeRendererFetch } from "../actions/__tests__/booted-fetch";
+import { chord, sidebarState } from "./boot-workspace";
 import { InertSocket } from "./inert-socket";
-
-const chord = (key: string): KeyboardEventInit =>
-  platformShortcutModifier() === "meta" ? { key, metaKey: true } : { ctrlKey: true, key };
 
 // the rail opens on its Files view, whose row for the open note is the current page
 const highlighted = (): string | null =>
   document.querySelector<HTMLElement>('[role="treeitem"][aria-current="page"]')?.dataset.path ??
   null;
-
-const sidebarState = (side: "left" | "right"): string | null =>
-  document.querySelector<HTMLElement>(`[data-slot="sidebar"][data-side="${side}"]`)?.dataset
-    .state ?? null;
 
 const railRow = (path: string): HTMLElement => {
   const row = document.querySelector<HTMLElement>(`[role="treeitem"][data-path="${path}"]`);
@@ -28,7 +22,7 @@ const railRow = (path: string): HTMLElement => {
   return row;
 };
 
-const bootAt = async (entry: string) => {
+const bootAt = async (history: RouterHistory) => {
   const booted = await bootTestApp();
   vi.stubGlobal("WebSocket", InertSocket);
   routeRendererFetch(booted);
@@ -42,10 +36,7 @@ const bootAt = async (entry: string) => {
     guard: { kind: "overwrite" },
     path: "beta.md",
   });
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: [entry] }),
-    routeTree,
-  });
+  const router = createRouter({ history, routeTree });
   render(<RouterProvider router={router} />);
   await waitFor(() => {
     expect(highlighted()).toBe("alpha.md");
@@ -64,7 +55,9 @@ afterEach(() => {
 
 describe("the open note has one owner", () => {
   it("leaves the rail on the open note through a history Back; the top bar's Back moves both", async () => {
-    const router = await bootAt("/?note=alpha.md");
+    const router = await bootAt(
+      createMemoryHistory({ initialEntries: ["/", "/?note=alpha.md"], initialIndex: 1 }),
+    );
 
     fireEvent.click(railRow("beta.md"));
     await waitFor(() => {
@@ -75,8 +68,11 @@ describe("the open note has one owner", () => {
     act(() => {
       router.history.back();
     });
-    await act(async () => {});
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({});
+    });
     expect(highlighted()).toBe("beta.md");
+    expect(screen.getByRole("navigation", { name: "Note location" }).textContent).toBe("beta");
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     await waitFor(() => {
@@ -88,7 +84,10 @@ describe("the open note has one owner", () => {
 
 describe("Settings over the workspace", () => {
   it("covers it inert with its chords stood down, and the way back finds it as it was", async () => {
-    const router = await bootAt("/?note=alpha.md");
+    const router = await bootAt(createMemoryHistory({ initialEntries: ["/?note=alpha.md"] }));
+    await screen.findByRole("heading", { name: "Alpha" });
+    fireEvent.keyDown(window, chord("f"));
+    await screen.findByPlaceholderText("Find in note");
     fireEvent.keyDown(window, chord("k"));
     const composer = await screen.findByLabelText("Ask the agent");
     fireEvent.change(composer, { target: { value: "half a thought" } });
@@ -97,6 +96,7 @@ describe("Settings over the workspace", () => {
     await screen.findByRole("heading", { name: "Settings" });
     expect(router.state.location.search).toEqual({ note: "alpha.md" });
     expect(composer.closest("[inert]")).not.toBeNull();
+    expect(screen.queryByPlaceholderText("Find in note")).toBeNull();
 
     fireEvent.keyDown(window, chord("p"));
     fireEvent.keyDown(document.body, { key: "[" });

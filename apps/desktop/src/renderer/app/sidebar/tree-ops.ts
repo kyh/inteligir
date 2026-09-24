@@ -1,19 +1,11 @@
 import { useMemo } from "react";
 import type { RefObject } from "react";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { toast } from "@repo/ui/components/sonner";
 import type { VaultActions } from "@repo/editor/host-io";
-import type { VaultMkdirRequest, VaultMkdirResponse } from "@repo/api/local/vault/vault-schema";
 import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
-import { refusalMessage } from "../api";
+import { client, failed } from "../api";
 import { desktopPaths, runPathAction } from "../desktop-paths";
 import type { TreeOps } from "./file-tree";
-
-interface TreeOpsApi {
-  vault: {
-    mkdir: (input: VaultMkdirRequest) => Promise<VaultMkdirResponse>;
-  };
-}
 
 // Ref-held: the vault session mounts below the component that owns these. The session carries
 // or closes the open note for a rename or delete of it or a folder above it, so nothing here does.
@@ -45,13 +37,12 @@ export const planMove = (from: string, toDir: string): MoveVerdict => {
 };
 
 interface TreeOpsDeps {
-  api: TreeOpsApi;
   actions: RefObject<TreeVaultActions | null>;
   createNote: (path: string, content?: string) => Promise<void>;
   setPinned: (path: string, pinned: boolean) => void;
 }
 
-export const useTreeOps = ({ api, actions, createNote, setPinned }: TreeOpsDeps): TreeOps =>
+export const useTreeOps = ({ actions, createNote, setPinned }: TreeOpsDeps): TreeOps =>
   useMemo<TreeOps>(() => {
     const paths = desktopPaths();
     // absent outside the shell, so the tree draws no row for them there
@@ -73,9 +64,9 @@ export const useTreeOps = ({ api, actions, createNote, setPinned }: TreeOpsDeps)
       createFolder: (path) => {
         void (async () => {
           try {
-            await api.vault.mkdir({ path });
+            await client.vault.mkdir({ path });
           } catch (error) {
-            toast.error(refusalMessage(error, `Could not create ${path}.`));
+            failed(error, `Could not create ${path}.`);
           }
         })();
       },
@@ -109,4 +100,4 @@ export const useTreeOps = ({ api, actions, createNote, setPinned }: TreeOpsDeps)
         })();
       },
     };
-  }, [api, actions, createNote, setPinned]);
+  }, [actions, createNote, setPinned]);

@@ -10,12 +10,12 @@ import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
-import { Badge } from "@repo/ui/components/badge";
 import { cn } from "@repo/ui/lib/cn";
 import { plural } from "@repo/ui/lib/plural";
-import { FileTextIcon } from "lucide-react";
 import { memo } from "react";
 import type { ReactNode } from "react";
+
+import { NoteBadge } from "./note-badge";
 
 const CHANGE_MARKS = {
   add: "+",
@@ -34,10 +34,7 @@ const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
 const ContextPathChips = ({ paths }: { paths: readonly string[] }) => (
   <div className="flex max-w-[85%] flex-wrap justify-end gap-1">
     {paths.map((path) => (
-      <Badge key={path} variant="outline" className="gap-1 bg-surface-raised">
-        <FileTextIcon className="size-3" />
-        {path}
-      </Badge>
+      <NoteBadge key={path} path={path} />
     ))}
   </div>
 );

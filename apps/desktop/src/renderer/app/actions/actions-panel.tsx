@@ -28,7 +28,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 
-import { client, failed, orpc, refusalMessage, safe } from "../api";
+import { client, failed, orpc, safe } from "../api";
 import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
 import { useFollowBottom } from "./follow-bottom";
@@ -297,9 +297,9 @@ const ActionDetail = ({
 
   const stop = (): void => {
     void (async () => {
-      const [error] = await safe(client.threads.interrupt({ threadId }));
+      const { error } = await safe(client.threads.interrupt({ threadId }));
       if (error !== null) {
-        toast.error(refusalMessage(error, "Could not stop the action."));
+        failed(error, "Could not stop the action.");
       }
       invalidate();
     })();

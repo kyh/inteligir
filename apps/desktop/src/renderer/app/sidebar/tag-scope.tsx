@@ -14,7 +14,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PencilIcon } from "lucide-react";
 import { useState } from "react";
 
-import { orpc, refusalMessage } from "../api";
+import { failed, orpc } from "../api";
 
 export interface TagScopeCount {
   // how many of the family the listing holds, and how many there are
@@ -73,7 +73,7 @@ export const RenameTagDialog = ({
   const rename = useMutation(
     orpc.knowledge.renameTag.mutationOptions({
       onError: (cause) => {
-        toast.error(refusalMessage(cause, "Could not rename the tag."));
+        failed(cause, "Could not rename the tag.");
       },
       onSuccess: (body) => {
         const count = body.rewritten.length;

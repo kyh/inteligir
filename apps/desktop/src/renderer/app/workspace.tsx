@@ -25,7 +25,7 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorColumn } from "@repo/editor/editor-column";
-import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
+import { hideFindBar, jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
 import { scrollToLinkTarget } from "@repo/editor/link-locate";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
@@ -49,6 +49,7 @@ import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
+import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { SidebarRailContent } from "./sidebar/sidebar";
 import { useTreeOps } from "./sidebar/tree-ops";
 import { useNavigate } from "@tanstack/react-router";
@@ -175,13 +176,34 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   useNoteCommentMeta(loadedPath);
 
+  const [railOpen, setRailOpen] = useState(true);
+  // a provider's own toggle and the table's key both land here: showing either side leaves zen
+  const showRail = useCallback((show: boolean): void => {
+    if (show) {
+      setZen(false);
+    }
+    setRailOpen(show);
+  }, []);
+  const showPanel = useCallback(
+    (show: boolean): void => {
+      if (show) {
+        setZen(false);
+      }
+      setPanelOpenPersisted(show);
+    },
+    [setPanelOpenPersisted],
+  );
+  // the toggles the providers own, since below the mobile breakpoint a side is a sheet whose open
+  // state only its provider holds
+  const railActionsRef = useRef<SidebarActions | null>(null);
+  const panelActionsRef = useRef<SidebarActions | null>(null);
+
   const [commentFocus, setCommentFocus] = useState<CommentFocus | null>(null);
   // One verb for every entry that shows something in the panel: it starts closed, so an entry
   // that only picks its tab or thread shows nothing.
   const revealPanel = useCallback(
     (target: PanelReveal): void => {
-      setZen(false);
-      setPanelOpenPersisted(true);
+      showPanel(true);
       setPanelTab(target.tab);
       if (target.tab === "actions") {
         setPanelThreadId(target.threadId);
@@ -190,7 +212,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         setCommentFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
       }
     },
-    [setPanelOpenPersisted],
+    [showPanel],
   );
 
   const openThread = useCallback(
@@ -244,43 +266,23 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   const actionsRef = useRef<VaultActions | null>(null);
   const noteColumnRef = useRef<HTMLElement | null>(null);
-  const setOpenNote = useCallback((path: string): void => {
-    actionsRef.current?.openFile(path);
-  }, []);
-
-  // Ordinary opens: the store's stacks recognize a back/forward move by value.
-  const goTo = useCallback((target: string | null): void => {
-    if (target === null) {
+  // Ordinary opens, Back and Forward included: the store's stacks recognize a back/forward move
+  // by value.
+  const setOpenNote = useCallback((path: string | null): void => {
+    if (path === null) {
       return;
     }
-    actionsRef.current?.openFile(target);
+    actionsRef.current?.openFile(path);
   }, []);
 
   const showHistory = useCallback(
     (path: string): void => {
-      goTo(path);
+      setOpenNote(path);
       revealPanel({ tab: "history" });
     },
-    [goTo, revealPanel],
+    [setOpenNote, revealPanel],
   );
 
-  const [railOpen, setRailOpen] = useState(true);
-  // a provider's own toggle and the table's key both land here: showing either side leaves zen
-  const showRail = useCallback((show: boolean): void => {
-    if (show) {
-      setZen(false);
-    }
-    setRailOpen(show);
-  }, []);
-  const showPanel = useCallback(
-    (show: boolean): void => {
-      if (show) {
-        setZen(false);
-      }
-      setPanelOpenPersisted(show);
-    },
-    [setPanelOpenPersisted],
-  );
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -293,15 +295,21 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     setRailView(view);
   }, []);
   // The breadcrumb's ask, keyed by a nonce so naming the same folder twice reveals it twice; the
-  // tree consumes it, so the rail shows Files first.
+  // tree consumes it, so the rail shows Files first. The nonce is counted here rather than off
+  // the ask, which is cleared once the tree has focused it.
   const [reveal, setReveal] = useState<{ path: string; nonce: number } | null>(null);
+  const revealNonce = useRef(0);
   const revealInTree = useCallback(
     (path: string): void => {
       chooseRailView("files");
-      setReveal((current) => ({ nonce: (current?.nonce ?? 0) + 1, path }));
+      revealNonce.current += 1;
+      setReveal({ nonce: revealNonce.current, path });
     },
     [chooseRailView],
   );
+  const clearReveal = useCallback((): void => {
+    setReveal(null);
+  }, []);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const createNote = useCallback(async (path: string, content = ""): Promise<void> => {
@@ -420,23 +428,27 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   const treeOps = useTreeOps({
     actions: actionsRef,
-    api: client,
     createNote,
     setPinned,
   });
 
   const navigate = useNavigate();
   // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
-  // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette is
-  // a portaled dialog, which the cover would not hide.
+  // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette and
+  // the find bar are portaled, so the cover would hide neither: both close here.
   const onOpenSettings = useCallback((): void => {
     closePalette();
+    const { openPath: path } = noteStore.state();
+    const editor = path === null ? null : getLiveEditor(path);
+    if (editor !== null) {
+      hideFindBar(editor);
+    }
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     void flushOpenNote();
     void navigate({ search: true, to: "/settings" });
-  }, [closePalette, navigate]);
+  }, [closePalette, noteStore, navigate]);
 
   useEffect(() => {
     setAgentRequestActions({
@@ -449,8 +461,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         setComposerOpen(true);
       },
       showTag: (tag) => {
-        setZen(false);
-        setRailOpen(true);
+        showRail(true);
         chooseRailView("recent");
         setSelectedTag(tag);
       },
@@ -458,7 +469,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     return () => {
       setAgentRequestActions(null);
     };
-  }, [chooseRailView]);
+  }, [chooseRailView, showRail]);
 
   useGlobalShortcuts({ enabled: !covered, modifier: shortcutModifier }, (action) => {
     switch (action) {
@@ -496,11 +507,11 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         break;
       }
       case "toggle-rail": {
-        showRail(zen || !railOpen);
+        railActionsRef.current?.toggle();
         break;
       }
       case "toggle-panel": {
-        showPanel(zen || !panelOpen);
+        panelActionsRef.current?.toggle();
         break;
       }
       default: {
@@ -617,6 +628,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           onOpenChange={showRail}
           shortcut={bindingFor("toggle-rail", shortcutModifier)}
           onWidthCommitted={writeSidebarWidth}
+          actionsRef={railActionsRef}
           peek="click"
           width={initialSidebarWidth}
         >
@@ -633,6 +645,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               selectedTag={selectedTag}
               onSelectTag={setSelectedTag}
               reveal={reveal}
+              onRevealConsumed={clearReveal}
               onOpenSearch={() => {
                 openPalette({ page: "root" });
               }}
@@ -648,6 +661,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               onOpenChange={showPanel}
               shortcut={bindingFor("toggle-panel", shortcutModifier)}
               onWidthCommitted={writePanelWidth}
+              actionsRef={panelActionsRef}
               width={initialPanelWidth}
             >
               <SidebarInset ref={noteColumnRef} className="relative bg-surface">
@@ -656,23 +670,21 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
                     path={openPath}
                     railOpen={railOpen && !zen}
                     onToggleRail={() => {
-                      setZen(false);
-                      setRailOpen((open) => !open);
+                      railActionsRef.current?.toggle();
                     }}
                     insetTitleBar={insetTitleBar}
                     canBack={back !== null}
                     canForward={forward !== null}
                     onBack={() => {
-                      goTo(back);
+                      setOpenNote(back);
                     }}
                     onForward={() => {
-                      goTo(forward);
+                      setOpenNote(forward);
                     }}
                     onFindInNote={findInNote}
                     onOpenFolder={(folder) => {
                       revealInTree(folder);
-                      setZen(false);
-                      setRailOpen(true);
+                      showRail(true);
                     }}
                     commentCount={openCommentCount}
                     onOpenComments={() => {

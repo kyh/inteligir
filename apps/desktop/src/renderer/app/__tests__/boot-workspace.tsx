@@ -12,6 +12,10 @@ import { InertSocket } from "./inert-socket";
 export const chord = (key: string): KeyboardEventInit =>
   platformShortcutModifier() === "meta" ? { key, metaKey: true } : { ctrlKey: true, key };
 
+export const sidebarState = (side: "left" | "right"): string | null =>
+  document.querySelector<HTMLElement>(`[data-slot="sidebar"][data-side="${side}"]`)?.dataset
+    .state ?? null;
+
 export interface BootWorkspaceOptions {
   // the socket is inert, so whatever the server should already hold is seeded before the mount
   seed?: (harness: ThreadHarness) => Promise<void>;

@@ -190,7 +190,7 @@ const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewCont
   return { ...value, resource: resource.data };
 });
 
-const MAX_CONTEXT_PATHS = 16;
+export const MAX_CONTEXT_PATHS = 16;
 
 // absent, never empty, when nothing is attached: one spelling of "none".
 const contextPathsSchema = z

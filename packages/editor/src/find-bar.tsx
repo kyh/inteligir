@@ -192,8 +192,14 @@ export const openFindBar = (editor: SlateEditor, options?: { replace?: boolean }
   });
 };
 
-const closeFindBar = (editor: SlateEditor): void => {
+// leaves focus where it is, for a surface drawn over the note: moving it to the editor would
+// close a non-modal popup holding it, since those close on focus-out
+export const hideFindBar = (editor: SlateEditor): void => {
   setFindBar(editor, { active: null, open: false });
+};
+
+const closeFindBar = (editor: SlateEditor): void => {
+  hideFindBar(editor);
   editor.tf.focus();
 };
 
