@@ -160,6 +160,51 @@ describe("VaultEditorController", () => {
     },
   );
 
+  it("shows an external write whose echo arrived mid-write once the write settles", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\n");
+    io.manualWrite = true;
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    c.edit("one typed\ntwo\n");
+    const flushed = c.flush();
+    await tick();
+    io.files.set("a.md", "one typed\ntwo\nexternal\n");
+    c.externalChange();
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    await tick();
+    expect(c.getState()).toMatchObject({
+      content: "one typed\ntwo\nexternal\n",
+      dirty: false,
+    });
+    expect(io.writes).toBe(1);
+  });
+
+  it("reads again once a write that overtook a reload's read settles", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\n");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    io.manualRead = true;
+    io.manualWrite = true;
+    c.externalChange();
+    c.edit("one typed\ntwo\n");
+    const flushed = c.flush();
+    await tick();
+    io.pendingReads[0]?.resolve("one\ntwo\n");
+    await tick();
+    io.files.set("a.md", "one typed\ntwo\nexternal\n");
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    io.pendingReads[1]?.resolve("one typed\ntwo\nexternal\n");
+    await tick();
+    expect(c.getState()).toMatchObject({
+      content: "one typed\ntwo\nexternal\n",
+      dirty: false,
+    });
+  });
+
   it("a slow open does not apply after a newer open", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
