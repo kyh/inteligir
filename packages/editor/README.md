@@ -29,6 +29,8 @@ src/
                        # shows the open note
   markdown/
     md-rules.ts        # the Slate↔mdast rules — one per node type
+    alert-marker.ts    # the `> [!NOTE]` alert grammar, spelled once: the
+                       # renderer, the serializer and turn-into read it alike
     markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
                        # a BOUNDED FIXPOINT so a second save is a no-op
   kits/
@@ -110,8 +112,8 @@ src/
   app installs it once (`apps/desktop/src/renderer/app/note/vault-provider.tsx`),
   and `host.ts` is React's door (`useVaultActions`, `useLinkResolver`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
-  resolves it from the open note, so an image or a link lands where the index
-  says it does).
+  resolves it from the note it is written in — the open note, or the one an
+  embed shows — so an image or a link lands where the index says it does).
 - `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
   is driven through: boot, list, rename, the `VaultIO` it reads and writes
   notes with (`vault-editor.ts`: read/write/create/remove), the

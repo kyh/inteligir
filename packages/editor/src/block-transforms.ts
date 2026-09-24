@@ -5,6 +5,7 @@ import type { Path, TElement, TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
+import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 
 // Callers name rows by id, never by label: a label lookup made renaming a menu entry a silent behaviour change.
@@ -71,8 +72,6 @@ export const TURN_INTO: readonly TurnIntoOption[] = TURN_INTO_ORDER.map((id) => 
 
 export const turnIntoOption = (id: TurnIntoId): TurnIntoOption => TURN_INTO_ROWS[id];
 
-const ALERT_MARKER_RE = /^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s?/u;
-
 const elementAt = (editor: PlateEditor, at: Path): TElement | null => {
   const entry = editor.api.node(at);
   if (!entry || !ElementApi.isElement(entry[0])) {
@@ -110,7 +109,8 @@ export const turnIntoOptionFor = (node: TElement): TurnIntoOption => {
   if (listStyleType !== undefined) {
     return TURN_INTO.find((opt) => opt.listStyleType === listStyleType) ?? TURN_INTO_ROWS.text;
   }
-  const isAlert = node.type === KEYS.blockquote && ALERT_MARKER_RE.test(NodeApi.string(node));
+  const isAlert =
+    node.type === KEYS.blockquote && leadingAlertMarker(NodeApi.string(node)) !== null;
   const match = TURN_INTO.find(
     (opt) =>
       opt.listStyleType === undefined && opt.type === node.type && Boolean(opt.marker) === isAlert,
@@ -128,12 +128,12 @@ const stripAlertMarker = (editor: PlateEditor, at: Path): void => {
   if (!leaf) {
     return;
   }
-  const match = ALERT_MARKER_RE.exec(leaf[0].text);
-  if (!match) {
+  const marker = leadingAlertMarker(leaf[0].text);
+  if (!marker) {
     return;
   }
   editor.tf.delete({
-    at: { anchor: start, focus: { offset: start.offset + match[0].length, path: start.path } },
+    at: { anchor: start, focus: { offset: start.offset + marker.end, path: start.path } },
   });
 };
 
@@ -174,7 +174,7 @@ const applyTarget = (editor: PlateEditor, at: Path, opt: TurnIntoOption): void =
   editor.tf.setNodes({ type: opt.type }, { at });
   if (opt.marker !== undefined) {
     const element = elementAt(editor, at);
-    const hasMarker = element !== null && ALERT_MARKER_RE.test(NodeApi.string(element));
+    const hasMarker = element !== null && leadingAlertMarker(NodeApi.string(element)) !== null;
     const start = editor.api.start(at);
     if (!hasMarker && start !== undefined) {
       editor.tf.insertText(opt.marker, { at: start });
@@ -228,47 +228,45 @@ export const turnIntoAt = (editor: PlateEditor, at: Path, opt: TurnIntoOption): 
   });
 };
 
-// Takes an explicit range so it does not depend on editor.selection being restored after a popover stole focus.
-export const turnIntoSelection = (editor: PlateEditor, opt: TurnIntoOption, at?: TRange): void => {
-  const entries = editor.api.blocks(at ? { at, mode: "lowest" } : { mode: "lowest" });
-  editor.tf.withoutNormalizing(() => {
-    const seen = new Set<string>();
-    for (const [node, path] of entries) {
-      if (!ElementApi.isElement(node)) {
-        continue;
-      }
-      const [, target] = retargetToggleSummary(editor, [node, path]);
-      const key = target.join(".");
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      turnIntoAt(editor, target, opt);
-    }
-  });
-};
-
+// Last to first: a code block splitting into lines or a toggle unwrapping shifts every path after
+// it, so a forward walk would convert a promoted child in place of the block the caller named.
 export const turnIntoBlocks = (editor: PlateEditor, paths: Path[], opt: TurnIntoOption): void => {
   editor.tf.withoutNormalizing(() => {
-    for (const path of paths) {
+    for (const path of paths.toSorted(PathApi.compare).toReversed()) {
       turnIntoAt(editor, path, opt);
     }
   });
 };
 
-export const moveBlocks = (editor: PlateEditor, paths: Path[], direction: "up" | "down"): void => {
-  if (paths.length === 0) {
-    return;
+// Takes an explicit range so it does not depend on editor.selection being restored after a popover stole focus.
+export const turnIntoSelection = (editor: PlateEditor, opt: TurnIntoOption, at?: TRange): void => {
+  const entries = editor.api.blocks(at ? { at, mode: "lowest" } : { mode: "lowest" });
+  const targets = new Map<string, Path>();
+  for (const [node, path] of entries) {
+    if (ElementApi.isElement(node)) {
+      const [, target] = retargetToggleSummary(editor, [node, path]);
+      targets.set(target.join("."), target);
+    }
   }
+  turnIntoBlocks(editor, [...targets.values()], opt);
+};
+
+// Moves one run of siblings; a gapped or cross-parent selection is no run, and moving its ends
+// would carry a neighbour across the unselected blocks between them.
+export const moveBlocks = (editor: PlateEditor, paths: Path[], direction: "up" | "down"): void => {
   const sorted = paths.toSorted(PathApi.compare);
   const [first] = sorted;
   const last = sorted.at(-1);
-  if (!first || !last) {
+  const firstIndex = first?.at(-1);
+  const lastIndex = last?.at(-1);
+  if (!first || !last || firstIndex === undefined || lastIndex === undefined) {
     return;
   }
-  const firstIndex = first.at(-1);
-  const lastIndex = last.at(-1);
-  if (firstIndex === undefined || lastIndex === undefined) {
+  const parent = PathApi.parent(first);
+  const isRun = sorted.every(
+    (path, i) => PathApi.equals(PathApi.parent(path), parent) && path.at(-1) === firstIndex + i,
+  );
+  if (!isRun) {
     return;
   }
   if (direction === "up") {

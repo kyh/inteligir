@@ -6,8 +6,10 @@ import {
   TURN_INTO,
   moveBlocks,
   turnIntoAt,
+  turnIntoBlocks,
   turnIntoOption as opt,
   turnIntoOptionFor,
+  turnIntoSelection,
 } from "@repo/editor/block-transforms";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
@@ -100,6 +102,16 @@ describe("turnIntoAt round-trips", () => {
     expect(out(editor)).toBe("## item\n");
   });
 
+  it("a lowercase alert reads as one, and → quote strips its marker", () => {
+    const inline = makeEditor("> [!note] hello\n");
+    turnIntoAt(inline, [0], opt("quote"));
+    expect(out(inline)).toBe("> hello\n");
+
+    const ownLine = makeEditor("> [!Tip]\n> body\n");
+    turnIntoAt(ownLine, [0], opt("quote"));
+    expect(out(ownLine)).toBe("> body\n");
+  });
+
   it("every conversion output stays canonical (round-trip stable)", () => {
     for (const target of TURN_INTO) {
       const editor = makeEditor("hello world\n");
@@ -124,6 +136,35 @@ describe("turnIntoOptionFor (toolbar type indicator)", () => {
     );
     expect(turnIntoOptionFor({ children: [{ text: "" }], type: "toggle" }).id).toBe("toggle");
   });
+
+  it("reads an alert in any case as a callout, as the renderer does", () => {
+    for (const text of ["[!note] hi", "[!Tip]\nbody", "[!warning]"]) {
+      expect(turnIntoOptionFor({ children: [{ text }], type: "blockquote" }).id).toBe("callout");
+    }
+  });
+});
+
+describe("multi-block turn into", () => {
+  it("converts every named block when a code block before them splits into lines", () => {
+    const editor = makeEditor("```\nl1\nl2\n```\n\np\n");
+    turnIntoBlocks(editor, [[0], [1]], opt("heading-1"));
+    expect(out(editor)).toBe("# l1\n\n# l2\n\n# p\n");
+  });
+
+  it("leaves a toggle's promoted child alone and converts the block after it", () => {
+    const editor = makeEditor("<toggle>\n  summary\n\n  child\n</toggle>\n\np\n");
+    turnIntoBlocks(editor, [[0], [1]], opt("heading-2"));
+    expect(out(editor)).toBe("## summary\n\nchild\n\n## p\n");
+  });
+
+  it("a selection across a toggle converts the toggle, its body and the block after it", () => {
+    const editor = makeEditor("<toggle>\n  summary\n\n  child\n</toggle>\n\np\n");
+    turnIntoSelection(editor, opt("heading-2"), {
+      anchor: { offset: 0, path: [0, 0, 0] },
+      focus: { offset: 1, path: [1, 0] },
+    });
+    expect(out(editor)).toBe("## summary\n\n## child\n\n## p\n");
+  });
 });
 
 describe("moveBlocks", () => {
@@ -145,5 +186,20 @@ describe("moveBlocks", () => {
     expect(out(editor)).toBe("two\n\nthree\n\none\n\nfour\n");
     moveBlocks(editor, [[0], [1]], "down");
     expect(out(editor)).toBe("one\n\ntwo\n\nthree\n\nfour\n");
+  });
+
+  it("no-ops on a gapped selection rather than carrying a neighbour across the gap", () => {
+    const editor = makeEditor("one\n\ntwo\n\nthree\n\nfour\n");
+    moveBlocks(editor, [[0], [2]], "down");
+    expect(out(editor)).toBe("one\n\ntwo\n\nthree\n\nfour\n");
+    moveBlocks(editor, [[1], [3]], "up");
+    expect(out(editor)).toBe("one\n\ntwo\n\nthree\n\nfour\n");
+  });
+
+  it("no-ops on a selection that spans two parents", () => {
+    const md = "<toggle>\n  summary\n\n  child\n</toggle>\n\nafter\n";
+    const editor = makeEditor(md);
+    moveBlocks(editor, [[0, 1], [1]], "up");
+    expect(out(editor)).toBe(md);
   });
 });

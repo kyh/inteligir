@@ -14,6 +14,7 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { useVaultLinkTarget } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
+import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
 
 const EXTERNAL_RE = /^https?:\/\//iu;
@@ -115,24 +116,39 @@ const ImageBody = ({
   );
 };
 
-export const ImageElement = (props: PlateElementProps) => {
-  const selected = useSelected();
-  const url = stringProp(props.element, "url") ?? "";
+// `notePath` is the note the url is written in, which for an embedded note is not the open one.
+export const ImageFigure = ({
+  element,
+  notePath,
+  selected,
+}: {
+  element: TElement;
+  notePath: string | null;
+  selected: boolean;
+}) => {
+  const url = stringProp(element, "url") ?? "";
   const external = EXTERNAL_RE.test(url);
-  const linked = useVaultLinkTarget(url);
+  const linked = useVaultLinkTarget(url, notePath);
   // a miss falls back to the url as a root path: a just-pasted asset is on disk before the
   // listing that would resolve it
   const vaultState = useVaultAsset(
     external || linked === null ? null : (linked.path ?? linked.target),
   );
   const state: VaultState = external ? { kind: "ready", url } : vaultState;
-  const alt = altText(props.element);
 
   return (
+    <figure className="group/image relative m-0 w-full" contentEditable={false}>
+      <ImageBody alt={altText(element)} selected={selected} state={state} url={url} />
+    </figure>
+  );
+};
+
+export const ImageElement = (props: PlateElementProps) => {
+  const selected = useSelected();
+  const notePath = useOpenNotePath();
+  return (
     <PlateElement {...props} className="py-2.5">
-      <figure className="group/image relative m-0 w-full" contentEditable={false}>
-        <ImageBody alt={alt} selected={selected} state={state} url={url} />
-      </figure>
+      <ImageFigure element={props.element} notePath={notePath} selected={selected} />
       {props.children}
     </PlateElement>
   );

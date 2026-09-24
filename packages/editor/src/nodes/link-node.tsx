@@ -9,6 +9,7 @@ import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
+import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
 
 const PopoverButton = ({
@@ -41,9 +42,10 @@ export const LinkElement = (props: PlateElementProps) => {
   const [draft, setDraft] = useState("");
 
   const url = stringProp(element, "url") ?? "";
+  const notePath = useOpenNotePath();
   // a vault url opens in the app, and one the listing does not hold offers no Open: the
   // browser has no route to a vault path
-  const linked = useVaultLinkTarget(url);
+  const linked = useVaultLinkTarget(url, notePath);
   const vaultPath = linked?.path ?? null;
   const { openFile } = useVaultActions();
 

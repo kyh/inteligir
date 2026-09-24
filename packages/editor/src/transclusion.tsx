@@ -14,19 +14,21 @@ import { getEditorHostIo, vaultChangeTouches } from "@repo/editor/host-io";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
+import { alertMarkerPrefix, parseAlertVariant } from "@repo/editor/markdown/alert-marker";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_ALERT } from "@repo/editor/style-hooks";
-import { alertMarkerPrefix, alertPresentation } from "@repo/editor/nodes/blockquote-node";
-import type { AlertVariant } from "@repo/editor/nodes/blockquote-node";
-import { decideTransclusion, nestedScope } from "@repo/editor/transclusion-guard";
-import type { TransclusionScope } from "@repo/editor/transclusion-guard";
+import { alertPresentation } from "@repo/editor/nodes/blockquote-node";
+import { ImageFigure } from "@repo/editor/nodes/image-node";
+import { RichBlockCard } from "@repo/editor/nodes/rich-block-chrome";
+import { decideTransclusion } from "@repo/editor/transclusion-guard";
 import WikiChip, { wikiChipLabel } from "@repo/editor/wiki-chip";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-const TransclusionScopeContext = createContext<TransclusionScope | null>(null);
+// The note an embed shows: a url inside it is relative to that note, not to the open one.
+const EmbeddedNotePathContext = createContext<string | null>(null);
 
 const EmbedChip = ({ body, note }: { body: string; note?: string | undefined }) => (
   <span className="inline-flex items-baseline gap-0.5">
@@ -65,6 +67,7 @@ const WikiLinkStatic = (props: SlateElementProps) => {
   );
 };
 
+// The nesting stop: an embed inside embedded content stays a chip, so no chain of notes recurses.
 const WikiEmbedStatic = (props: SlateElementProps) => {
   const body = stringProp(props.element, "body") ?? "";
   return (
@@ -117,6 +120,76 @@ const MediaStatic = (props: SlateElementProps) => {
   );
 };
 
+const ImageStatic = (props: SlateElementProps) => {
+  const notePath = useContext(EmbeddedNotePathContext);
+  return (
+    <SlateElement {...props} className="py-2.5">
+      <ImageFigure element={props.element} notePath={notePath} selected={false} />
+      {props.children}
+    </SlateElement>
+  );
+};
+
+const FormulaPillStatic = (props: SlateElementProps) => {
+  const source = stringProp(props.element, "source") ?? "";
+  const display = stringProp(props.element, "display") ?? "";
+  return (
+    <SlateElement {...props} as="span">
+      <span
+        title={source}
+        className="rounded-sm bg-accent px-1 font-medium text-accent-foreground tabular-nums"
+      >
+        {display === "" ? source : display}
+      </span>
+      {props.children}
+    </SlateElement>
+  );
+};
+
+// an interactive block cannot run in a static render; the card says what is there instead.
+const richBlockStatic = (label: string) =>
+  function RichBlockStatic(props: SlateElementProps) {
+    return (
+      <SlateElement {...props}>
+        <RichBlockCard label={label}>
+          <span className="block px-3 py-2 text-muted-foreground italic">
+            Open the note to see this block.
+          </span>
+        </RichBlockCard>
+        {props.children}
+      </SlateElement>
+    );
+  };
+
+const OpaqueBlockStatic = (props: SlateElementProps) => (
+  <SlateElement {...props} className="my-1">
+    <pre className="overflow-x-auto whitespace-pre text-muted-foreground">
+      {stringProp(props.element, "value") ?? ""}
+    </pre>
+    {props.children}
+  </SlateElement>
+);
+
+const OpaqueInlineStatic = (props: SlateElementProps) => (
+  <SlateElement {...props} as="span">
+    <code className="text-muted-foreground">{stringProp(props.element, "value") ?? ""}</code>
+    {props.children}
+  </SlateElement>
+);
+
+// the plugin's own tag is <hr>, which cannot hold the void's spacer child and throws.
+const HrStatic = (props: SlateElementProps) => (
+  <SlateElement {...props} className="py-2">
+    <div>
+      <hr className="my-0" />
+    </div>
+    {props.children}
+  </SlateElement>
+);
+
+// renders no text, as live; inline, because the default <div> would break the line it sits in.
+const CommentMarkerStatic = (props: SlateElementProps) => <SlateElement {...props} as="span" />;
+
 const FrontmatterStatic = (props: SlateElementProps) => (
   <SlateElement {...props} className="hidden">
     {props.children}
@@ -137,10 +210,6 @@ const TableRowStatic = (props: SlateElementProps) => <SlateElement {...props} as
 // instead. never reuse it on an editable path: it deletes bytes.
 export const ALERT_VARIANT_KEY = "transclusionAlertVariant";
 
-const ALERT_VARIANTS_SET = new Set(["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]);
-
-const isAlertVariant = (value: string): value is AlertVariant => ALERT_VARIANTS_SET.has(value);
-
 const alertLeaf = (quote: TElement): TText | null => {
   const [first] = quote.children;
   if (!ElementApi.isElement(first) || first.type !== KEYS.p) {
@@ -151,9 +220,8 @@ const alertLeaf = (quote: TElement): TText | null => {
 };
 
 const BlockquoteStatic = (props: SlateElementProps) => {
-  const variant = stringProp(props.element, ALERT_VARIANT_KEY);
-  const presentation =
-    variant !== undefined && isAlertVariant(variant) ? alertPresentation(variant) : null;
+  const variant = parseAlertVariant(stringProp(props.element, ALERT_VARIANT_KEY) ?? "");
+  const presentation = variant === null ? null : alertPresentation(variant);
   if (!presentation) {
     return (
       <SlateElement {...props} as="blockquote">
@@ -183,23 +251,35 @@ const BlockquoteStatic = (props: SlateElementProps) => {
   );
 };
 
-const STATIC_COMPONENTS = new Map<string, (props: SlateElementProps) => ReactNode>([
-  ["a", LinkStatic],
-  ["date", DateStatic],
-  ["equation", EquationStatic],
-  ["inline_equation", InlineEquationStatic],
-  ["video", MediaStatic],
-  ["media_embed", MediaStatic],
-  ["file", MediaStatic],
-  ["frontmatter", FrontmatterStatic],
-  ["table", TableStatic],
-  ["tr", TableRowStatic],
-  ["td", classNameSlateElement("td", TABLE_CELL_CLASS)],
-  ["th", classNameSlateElement("th", TABLE_HEADER_CELL_CLASS)],
-  ["wikiLink", WikiLinkStatic],
-  ["wikiEmbed", WikiEmbedStatic],
-  ["blockquote", BlockquoteStatic],
-]);
+// Every void needs a row: the default static element is a <div> or the plugin's own tag, which
+// draws the void empty, or throws for <hr>. __tests__/transclusion-static.test.ts pins it.
+export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) => ReactNode> =
+  new Map([
+    ["a", LinkStatic],
+    ["date", DateStatic],
+    ["equation", EquationStatic],
+    ["inline_equation", InlineEquationStatic],
+    ["video", MediaStatic],
+    ["media_embed", MediaStatic],
+    ["file", MediaStatic],
+    ["img", ImageStatic],
+    ["hr", HrStatic],
+    ["formulaPill", FormulaPillStatic],
+    ["commentMarker", CommentMarkerStatic],
+    ["chart_block", richBlockStatic("chart")],
+    ["canvas_block", richBlockStatic("canvas")],
+    ["html_block", richBlockStatic("html")],
+    ["opaqueBlock", OpaqueBlockStatic],
+    ["opaqueInline", OpaqueInlineStatic],
+    ["frontmatter", FrontmatterStatic],
+    ["table", TableStatic],
+    ["tr", TableRowStatic],
+    ["td", classNameSlateElement("td", TABLE_CELL_CLASS)],
+    ["th", classNameSlateElement("th", TABLE_HEADER_CELL_CLASS)],
+    ["wikiLink", WikiLinkStatic],
+    ["wikiEmbed", WikiEmbedStatic],
+    ["blockquote", BlockquoteStatic],
+  ]);
 
 const TRANSCLUSION_KIT = BASE_KIT.map((plugin) => {
   const component = STATIC_COMPONENTS.get(String(plugin.key));
@@ -303,25 +383,11 @@ const Transclusion = ({ body }: { body: string }) => {
   const { resolveWikiTarget } = useLinkResolver();
   const { openFile } = useVaultActions();
   const hostPath = useOpenNote((s) => s.editor.path);
-  const scope = useContext(TransclusionScopeContext);
   const parsed = parseWikiBody(body);
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
   const content = useTargetContent(resolved);
 
-  const effectiveScope: TransclusionScope = useMemo(
-    () =>
-      scope ?? {
-        chain: hostPath === null ? [] : [hostPath],
-        depth: 0,
-      },
-    [scope, hostPath],
-  );
-  const innerScope = useMemo(
-    () => (resolved === null ? null : nestedScope(effectiveScope, resolved)),
-    [effectiveScope, resolved],
-  );
-
-  const decision = decideTransclusion(effectiveScope, resolved);
+  const decision = decideTransclusion(hostPath, resolved);
   if (decision.kind === "chip") {
     return <EmbedChip body={body} note={decision.reason === "cycle" ? "circular" : undefined} />;
   }
@@ -353,12 +419,12 @@ const Transclusion = ({ body }: { body: string }) => {
         </button>
       </span>
       <span className="block overflow-x-auto px-3 py-2">
-        {content.status === "loading" || innerScope === null ? (
+        {content.status === "loading" ? (
           <span className="text-muted-foreground italic">Loading…</span>
         ) : (
-          <TransclusionScopeContext value={innerScope}>
+          <EmbeddedNotePathContext value={target}>
             <TransclusionBody content={content.content} />
-          </TransclusionScopeContext>
+          </EmbeddedNotePathContext>
         )}
       </span>
     </span>

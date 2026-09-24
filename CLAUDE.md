@@ -458,6 +458,18 @@ to the END of its group.
   reader, `noteIdOfProperties` in `@repo/notes/markdown/frontmatter`, which
   the index and the recompute share.
 
+- **AN EMBED IS ONE LEVEL OF STATIC RENDER, AND EVERY VOID HAS A STATIC ROW.**
+  `![[Note]]` in the open note draws its target through `PlateStatic` over
+  `BASE_KIT`; an embed inside that content stays a chip, which is the nesting
+  stop, so the only cycle left to refuse is a note embedding itself
+  (`packages/editor/src/transclusion-guard.ts`). PlateStatic's default element
+  is a `<div>` or the plugin's own tag, which draws a pill or an image empty,
+  breaks the line an inline void sits in, and throws on an `<hr>`, since every
+  void carries a spacer child; so `STATIC_COMPONENTS`
+  (`packages/editor/src/transclusion.tsx`) holds a row for every void, pinned
+  both ways by `packages/editor/src/__tests__/transclusion-static.test.ts`. A
+  url inside an embed resolves from the embedded note, not the open one.
+
 ### Vault: writes, git and containment
 
 - **The auto-commit stages what the window's writers named.** A scheduler that
@@ -861,8 +873,9 @@ rename`.
   RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the
   scan indexes an md url: a scheme, `//host` or bare `#anchor` names no vault
   path, the anchor is cut and the rest percent-decoded. The editor reads a
-  link's or an image's url through it and resolves the answer from the open
-  note with the index's own `buildResolver` (`resolveMdTarget` on the host's
+  link's or an image's url through it and resolves the answer from the note
+  the url is written in (the open note, or the one an embed shows) with the
+  index's own `buildResolver` (`resolveMdTarget` on the host's
   `LinkResolver`, filled in `vault-provider.tsx`): beside the note, then from
   the root. So an image a move re-based to `../assets/shot%201.png` still
   loads, an image Problems calls missing is the one drawn missing, a Problems

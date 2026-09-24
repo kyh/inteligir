@@ -43,6 +43,7 @@ import {
 } from "@repo/notes/markdown/fence-langs";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
 
+import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 
 const isPanelContent = (
@@ -84,8 +85,6 @@ const defaultParagraphSerialize = defaultRules.p?.serialize;
 if (!defaultParagraphSerialize) {
   throw new Error("@platejs/markdown defaultRules.p is missing — pipeline cannot start");
 }
-
-const ALERT_RE = /^\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/u;
 
 // `MdRules` narrows each keyed rule's return to that key's mdast node; rules emitting verbatim
 // bytes as a raw `html` node are declared against the index signature's wide serialize instead of casting.
@@ -183,7 +182,7 @@ const blockquoteRule: WideMdRule = {
   serialize: (node: TElement, options: SerializeMdOptions) => {
     const { editor } = options;
     // Plate keeps blockquote soft breaks as "\n" in text leaves, so the marker leads the concatenated text.
-    if (!editor || !ALERT_RE.test(NodeApi.string(node))) {
+    if (!editor || leadingAlertMarker(NodeApi.string(node)) === null) {
       return defaultBlockquoteSerialize(node, options);
     }
     const children: Descendant[] = node.children;

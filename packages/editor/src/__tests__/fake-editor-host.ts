@@ -19,6 +19,8 @@ export interface FakeEditorHostOptions {
   readonly resolveWikiTarget?: (target: string) => string | null;
   readonly resolveMdTarget?: (target: string, fromPath: string) => string | null;
   readonly readVaultAsset?: (path: string) => ReadVaultAssetResult;
+  // a note's bytes by path; a path it answers null for reads as missing
+  readonly readVaultFile?: (path: string) => string | null;
   readonly wikiTargets?: readonly WikiTarget[];
   // a create the session refuses answers null, as the real one does after it has said why
   readonly refuseCreates?: boolean;
@@ -70,7 +72,12 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>
       await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),
-    readVaultFile: async ({ path }) => await Promise.reject(new Error(`ENOENT ${path}`)),
+    readVaultFile: async ({ path }) => {
+      const content = options.readVaultFile?.(path) ?? null;
+      return await (content === null
+        ? Promise.reject(new Error(`ENOENT ${path}`))
+        : Promise.resolve(content));
+    },
     writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
   });
 
