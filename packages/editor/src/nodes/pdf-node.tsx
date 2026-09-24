@@ -4,13 +4,11 @@ import { FileTextIcon } from "lucide-react";
 import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { isHttpUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/wire";
 import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
-
-const PDF_RE = /\.pdf(?:[?#]|$)/iu;
 
 export const FileElement = (props: PlateElementProps) => {
   const selected = useSelected();
@@ -24,7 +22,7 @@ export const FileElement = (props: PlateElementProps) => {
   return (
     <PlateElement {...props} className="py-2.5">
       <figure className="group/media relative m-0 w-full" contentEditable={false}>
-        {PDF_RE.test(url) && isHttpUrl(url) ? (
+        {isPdfUrl(url) && isHttpUrl(url) ? (
           // oxlint-disable-next-line react/iframe-missing-sandbox
           <iframe
             className={cn(
