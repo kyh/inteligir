@@ -22,6 +22,7 @@ import {
 } from "./cloud-helpers";
 import { createDb } from "../db/client";
 import { account, device, session, user } from "../db/schema";
+import { LAST_SEEN_RESOLUTION_MS } from "../device/device-auth";
 
 const pull = async (credential: string): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
@@ -217,6 +218,50 @@ describe("device login", () => {
 
     const after = await pull(credential);
     expect(after.status).toBe(401);
+  });
+
+  it("writes last seen once per resolution window, and still refuses a revoked credential", async () => {
+    const { bearer } = await signUpUser("login-last-seen@example.test");
+    const { deviceId, credential } = await loginDevice(bearer, "Laptop");
+    const db = createDb(env.DB);
+    const lastSeen = async (): Promise<number | null> => {
+      const row = await db
+        .select({ lastSeenAt: device.lastSeenAt })
+        .from(device)
+        .where(eq(device.id, deviceId))
+        .get();
+      return row?.lastSeenAt?.getTime() ?? null;
+    };
+    const setLastSeen = async (msAgo: number): Promise<void> => {
+      await db
+        .update(device)
+        .set({ lastSeenAt: new Date(Date.now() - msAgo) })
+        .where(eq(device.id, deviceId));
+    };
+    const pullStatus = async (): Promise<number> => {
+      const response = await pull(credential);
+      return response.status;
+    };
+
+    expect(await lastSeen()).toBeNull();
+    expect(await pullStatus()).toBe(200);
+    expect(await lastSeen()).not.toBeNull();
+
+    await setLastSeen(LAST_SEEN_RESOLUTION_MS / 2);
+    const recent = await lastSeen();
+    expect(await pullStatus()).toBe(200);
+    expect(await lastSeen()).toBe(recent);
+
+    await setLastSeen(2 * LAST_SEEN_RESOLUTION_MS);
+    expect(await pullStatus()).toBe(200);
+    expect(await lastSeen()).toBeGreaterThan(Date.now() - LAST_SEEN_RESOLUTION_MS);
+
+    await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
+      body: JSON.stringify({ deviceId }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(await pullStatus()).toBe(401);
   });
 
   it("lists the account's devices, revoked ones included", async () => {

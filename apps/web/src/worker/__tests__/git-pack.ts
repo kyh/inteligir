@@ -153,12 +153,27 @@ const writeTree = async (node: DirNode, objects: GitObject[]): Promise<string> =
   return tree.oid;
 };
 
+// a body sent with no length is what a stock git client streams for a large push, and it is
+// what sends durable-git's pack bytes to R2 rather than the cell's SQLite
+const streamOf = (bytes: Uint8Array): ReadableStream<Uint8Array> =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+
+interface PushOptions {
+  readonly parent?: string;
+  readonly length?: "declared" | "undeclared";
+}
+
 export const pushVaultFiles = async (
   credential: string,
   message: string,
   files: readonly PushFile[],
   oldOid: string,
-  parent?: string,
+  { length = "declared", parent }: PushOptions = {},
 ): Promise<{ response: Response; commit: string }> => {
   const root = emptyDir();
   for (const file of files) {
@@ -185,7 +200,7 @@ export const pushVaultFiles = async (
   const command = pktLine(`${oldOid} ${commit.oid} refs/heads/main\0report-status`);
   const body = concat([command, encoder.encode("0000"), await buildPack(unique)]);
   const response = await SELF.fetch(`${REMOTE}/git-receive-pack`, {
-    body,
+    body: length === "declared" ? body : streamOf(body),
     headers: {
       ...deviceHeaders(credential),
       "content-type": "application/x-git-receive-pack-request",
@@ -194,3 +209,18 @@ export const pushVaultFiles = async (
   });
   return { commit: commit.oid, response };
 };
+
+// a v0 full clone over side-band-64k: the one fetch durable-git keeps a pack cache for
+export const cloneVault = async (credential: string, head: string): Promise<Response> =>
+  await SELF.fetch(`${REMOTE}/git-upload-pack`, {
+    body: concat([
+      pktLine(`want ${head} side-band-64k\n`),
+      encoder.encode("0000"),
+      pktLine("done\n"),
+    ]),
+    headers: {
+      ...deviceHeaders(credential),
+      "content-type": "application/x-git-upload-pack-request",
+    },
+    method: "POST",
+  });

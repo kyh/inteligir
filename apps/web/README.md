@@ -70,11 +70,17 @@ its own `tsconfig.json`.
 | `GET /v1/account`              | device  | Whose account this device credential syncs as              |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
-hash compare against D1 — never cached, so revocation is immediate. The
+hash compare against D1 — never cached, so revocation is immediate; its
+`last_seen_at` is written at most every five minutes
+(`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the sync and capture routes fan out to that user's own
-`ThreadSyncDO`, the git remote and the `/v1/vault/*` reads to that user's own
-durable-git `RepoCell`, and `/v1/account` reads D1 directly.
+`ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
+verified deviceId; only the socket upgrade is a forwarded request), the git
+remote and the `/v1/vault/*` reads to that user's own durable-git `RepoCell`,
+and `/v1/account` reads D1 directly. Every `/v1` refusal, an unknown route and
+an unhandled fault included, is the JSON error envelope; the git mount alone
+answers git clients in plain text.
 
 ## Auth
 
@@ -124,7 +130,9 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   the same table keyed on the DEVICE, never the address: a stolen credential
   moves between addresses, and the device row is what `/app/devices` revokes.
   Two families so a drained read budget never takes sync down; revocation and
-  account deletion drop the rows.
+  account deletion drop the rows. Better Auth prunes the shared table on its
+  own writes, every row past its 60s window with it, so every Worker window is
+  declared in `RATE_WINDOWS` and a guard holds each to 60s or less.
 - **No CORS**, deliberately: every browser client is served by this Worker from
   this origin, and a native client is not subject to CORS at all. If CORS is
   ever reintroduced, `access-control-allow-credentials` must stay absent — the

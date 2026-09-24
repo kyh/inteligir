@@ -1,10 +1,12 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-// Hand-written Better Auth core tables, column set per `@better-auth/cli generate` for the
-// current plugin set. Timestamps are `mode: "timestamp"` (seconds) where the generator now emits
-// "timestamp_ms": never flip it in place — both read the same INTEGER column, so without
+// Hand-written Better Auth core tables, column and index set per `@better-auth/cli generate` for
+// the current plugin set. Timestamps are `mode: "timestamp"` (seconds) where the generator now
+// emits "timestamp_ms": never flip it in place — both read the same INTEGER column, so without
 // `UPDATE <table> SET <col> = <col> * 1000` every stored date reads as 1970 and every session
-// expires. When a plugin needs columns, run the generator and port them, keeping this mode.
+// expires. When a plugin needs columns or indexes, run the generator and port them, keeping this
+// mode and its index names. A new index must reach D1 as a bare CREATE INDEX: check
+// `drizzle-kit push --explain` and refuse any plan that recreates a table.
 
 /* oxlint-disable sort-keys -- a table's column order is the CREATE TABLE order drizzle-kit
    emits, and it mirrors what `@better-auth/cli generate` prints; sorting it makes the next
@@ -43,7 +45,10 @@ export const session = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
-  (table) => [uniqueIndex("session_token_unique").on(table.token)],
+  (table) => [
+    uniqueIndex("session_token_unique").on(table.token),
+    index("session_userId_idx").on(table.userId),
+  ],
 );
 
 export const account = sqliteTable(
@@ -74,14 +79,18 @@ export const account = sqliteTable(
   ],
 );
 
-export const verification = sqliteTable("verification", {
-  id: text("id").primaryKey(),
-  identifier: text("identifier").notNull(),
-  value: text("value").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-});
+export const verification = sqliteTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  },
+  (table) => [index("verification_identifier_idx").on(table.identifier)],
+);
 
 // better-auth's own rate-limit store shape (lastRequest is epoch ms); regenerate rather than hand-edit
 export const rateLimit = sqliteTable(
@@ -118,5 +127,9 @@ export const device = sqliteTable(
     lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
     revokedAt: integer("revoked_at", { mode: "timestamp" }),
   },
-  (table) => [uniqueIndex("device_credential_hash_unique").on(table.credentialHash)],
+  // revoked_at too: every login counts the account's active rows against the cap
+  (table) => [
+    uniqueIndex("device_credential_hash_unique").on(table.credentialHash),
+    index("device_user_id_idx").on(table.userId, table.revokedAt),
+  ],
 );

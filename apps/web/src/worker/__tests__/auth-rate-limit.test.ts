@@ -1,7 +1,15 @@
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CALLER_IP_HEADER } from "../rate-limit";
+import { eq } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDb } from "../db/client";
+import { rateLimit } from "../db/schema";
+import {
+  AUTH_RATE_WINDOW_SECONDS,
+  CALLER_IP_HEADER,
+  callerRateKey,
+  RATE_WINDOWS,
+} from "../rate-limit";
 import { ORIGIN } from "./cloud-helpers";
 
 // two hops: Better Auth trusts a forwarded chain only when it holds exactly one address
@@ -51,12 +59,51 @@ describe("Better Auth's limiter", () => {
     expect(other.status).toBe(401);
   });
 
+  it("prunes the Worker's lapsed rows beside its own when one of its windows rolls over", async () => {
+    const db = createDb(env.DB);
+    const lapsed = Date.now() - 2 * AUTH_RATE_WINDOW_SECONDS * 1000;
+    const workerKey = callerRateKey(
+      "login",
+      new Request(ORIGIN, { headers: { [CALLER_IP_HEADER]: "203.0.113.30" } }),
+    );
+    await db.insert(rateLimit).values([
+      { count: 1, id: crypto.randomUUID(), key: workerKey, lastRequest: lapsed },
+      {
+        count: 1,
+        id: crypto.randomUUID(),
+        key: "203.0.113.31|/sign-in/email",
+        lastRequest: lapsed,
+      },
+    ]);
+
+    const rolledOver = await signInFrom("203.0.113.31");
+    expect(rolledOver.status).toBe(401);
+
+    await vi.waitFor(async () => {
+      const rows = await db.select().from(rateLimit).where(eq(rateLimit.key, workerKey)).all();
+      expect(rows).toEqual([]);
+    });
+  });
+
   it("never spends a window on a session read", async () => {
     for (let read = 0; read < ATTEMPT_CAP; read += 1) {
       const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
         headers: { [CALLER_IP_HEADER]: "203.0.113.20", origin: ORIGIN },
       });
       expect(response.status).toBe(200);
+    }
+  });
+});
+
+describe("the Worker's windows on Better Auth's table", () => {
+  it("never outlast Better Auth's own, whose prune would reset a longer one mid-count", () => {
+    for (const [family, window] of Object.entries(RATE_WINDOWS)) {
+      expect(
+        window.windowMs,
+        `RATE_WINDOWS.${family} in src/worker/rate-limit.ts is ${String(window.windowMs)}ms, past ` +
+          `Better Auth's ${String(AUTH_RATE_WINDOW_SECONDS)}s: its prune drops a rate_limit row ` +
+          "that old, so this window would reset early. Shorten it or give the Worker its own table.",
+      ).toBeLessThanOrEqual(AUTH_RATE_WINDOW_SECONDS * 1000);
     }
   });
 });
