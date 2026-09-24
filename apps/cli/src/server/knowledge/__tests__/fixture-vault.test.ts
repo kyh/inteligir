@@ -46,7 +46,8 @@ describe("a 300-file vault", () => {
     });
 
     await knowledge.settle();
-    expect(knowledge.lastReconcile).toEqual({
+    expect(knowledge.lastReconcile).toMatchObject({
+      deferred: 0,
       projected: FILE_COUNT,
       removed: 0,
       unchanged: 0,

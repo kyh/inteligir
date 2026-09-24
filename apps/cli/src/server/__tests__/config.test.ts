@@ -284,6 +284,27 @@ describe("the vault dir and remote", () => {
     expect(() => resolveWithInterval("fast")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/u);
     expect(() => resolveWithInterval("1.5")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/u);
   });
+
+  it("INTELIGIR_SLOW_READS: unset = none, `<ms>:<path>` = a stall, split at the first colon", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const resolveWithSlowReads = (value?: string) =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: value === undefined ? {} : { INTELIGIR_SLOW_READS: value },
+        homeDir,
+      });
+
+    expect(resolveWithSlowReads().slowReads).toBeNull();
+    expect(resolveWithSlowReads("30000:notes/slow.md").slowReads).toEqual({
+      delayMs: 30_000,
+      path: "notes/slow.md",
+    });
+    expect(resolveWithSlowReads("500:a:b.md").slowReads).toEqual({ delayMs: 500, path: "a:b.md" });
+    expect(resolveWithSlowReads("500:").slowReads).toEqual({ delayMs: 500, path: "" });
+    expect(() => resolveWithSlowReads("30000")).toThrow(/INTELIGIR_SLOW_READS/u);
+    expect(() => resolveWithSlowReads("0:slow.md")).toThrow(/INTELIGIR_SLOW_READS/u);
+    expect(() => resolveWithSlowReads("soon:slow.md")).toThrow(/INTELIGIR_SLOW_READS/u);
+  });
 });
 
 describe("the agent selection", () => {

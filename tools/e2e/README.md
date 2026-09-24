@@ -92,6 +92,9 @@ what each one is FOR.
 | ------------------------- | ------------------------------------------------------------------------- |
 | vault-crud                | write/read/rename/delete over the wire, bytes verified on disk; refused   |
 |                           | ops verified to leave the disk untouched                                  |
+| slow-storage              | a doc whose read stalls 30s (`INTELIGIR_SLOW_READS`): the reconcile       |
+|                           | finishes and search answers without it, the boot line counts it deferred, |
+|                           | and it is indexed once its read lands                                     |
 | vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):     |
 |                           | propagation, then a typed conflict + git-verified repo integrity          |
 | hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
@@ -169,6 +172,10 @@ Each feature issue lands with its scenario here.
 | `INTELIGIR_VOICE`            | `scripted` — a dictation session with no model and no  |
 |                              | native binding, so dictation-browser drives the whole  |
 |                              | streaming path on any machine                          |
+| `INTELIGIR_SLOW_READS`       | `<ms>:<vault path>` — every read of that path, and     |
+|                              | everything under it, answers that late (an empty path  |
+|                              | is the whole vault); slow-storage's stand-in for       |
+|                              | storage that fetches or wakes                          |
 
 Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
 /`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git

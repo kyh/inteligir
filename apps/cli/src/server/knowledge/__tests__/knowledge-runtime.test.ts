@@ -5,7 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createVaultService } from "../../vault/vault-service";
 import type { VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
@@ -173,7 +173,13 @@ describe("the knowledge runtime", () => {
 
     const first = bootIndexedVault(dirs);
     await first.knowledge.settle();
-    expect(first.knowledge.lastReconcile).toEqual({ projected: 3, removed: 0, unchanged: 0 });
+    expect(first.knowledge.lastReconcile).toMatchObject({
+      deferred: 0,
+      listed: 4,
+      projected: 3,
+      removed: 0,
+      unchanged: 0,
+    });
     await first.knowledge.dispose();
 
     writeFileSync(
@@ -185,7 +191,13 @@ describe("the knowledge runtime", () => {
 
     const second = bootIndexedVault(dirs);
     await second.knowledge.settle();
-    expect(second.knowledge.lastReconcile).toEqual({ projected: 2, removed: 1, unchanged: 1 });
+    expect(second.knowledge.lastReconcile).toMatchObject({
+      deferred: 0,
+      listed: 4,
+      projected: 2,
+      removed: 1,
+      unchanged: 1,
+    });
 
     expect(await searchPaths(second.knowledge, "axolotl")).toEqual(["changed.md"]);
     expect(await searchPaths(second.knowledge, "capybara")).toEqual(["created.md"]);
@@ -241,7 +253,11 @@ describe("the knowledge runtime", () => {
 
     const second = bootIndexedVault(dirs);
     await second.knowledge.settle();
-    expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
+    expect(second.knowledge.lastReconcile).toMatchObject({
+      projected: 1,
+      removed: 0,
+      unchanged: 0,
+    });
     const hits = await second.knowledge.search({ limit: 10, query: "pangolin" });
     expect(hits.map((h) => h.path)).toEqual(["note.md"]);
   });
@@ -262,7 +278,11 @@ describe("the knowledge runtime", () => {
 
     const second = bootIndexedVault(dirs);
     await second.knowledge.settle();
-    expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
+    expect(second.knowledge.lastReconcile).toMatchObject({
+      projected: 1,
+      removed: 0,
+      unchanged: 0,
+    });
     expect(await searchPaths(second.knowledge, "tapir")).toEqual(["note.md"]);
   });
 
@@ -352,7 +372,7 @@ describe("the knowledge runtime", () => {
 
     knowledge.noteVaultChange({ kind: "unknown" });
     await knowledge.settle();
-    expect(knowledge.lastReconcile).toEqual({ projected: 0, removed: 0, unchanged: 3 });
+    expect(knowledge.lastReconcile).toMatchObject({ projected: 0, removed: 0, unchanged: 3 });
   });
 
   it("stops a reconcile within a step of dispose, and never reopens the index after", async () => {
@@ -438,6 +458,177 @@ describe("the knowledge runtime", () => {
     expect(hits).toEqual(["field-notes.md"]);
     expect(loop.max / 1e6).toBeLessThan(EVENT_LOOP_CEILING_MS);
   }, 120_000);
+});
+
+// short enough that a suite never waits on it, long past any read of a temp dir
+const SHORT_DEADLINE_MS = 50;
+const PACED_READ_MS = 5;
+const LANDING_TIMEOUT_MS = 10_000;
+const DEFERRAL_TEST_TIMEOUT_MS = 30_000;
+
+// a read of a stalled path takes its bytes, then answers only once `opened` resolves: what it
+// lands is what the file held when it was opened.
+const stallingReads =
+  (stalled: ReadonlySet<string>, opened: Promise<void>, answered: string[] = []) =>
+  (service: VaultService): KnowledgeRuntimeArgs["vault"] => ({
+    ...service,
+    readBytes: async (path) => {
+      const read = await service.readBytes(path);
+      if (stalled.has(path)) {
+        await opened;
+      }
+      answered.push(path);
+      return read;
+    },
+  });
+
+describe("a read that has not answered by its deadline", () => {
+  it(
+    "is left out of the settle, and its doc is indexed once it lands",
+    async () => {
+      const dirs = makeDirs();
+      writeFileSync(nodePath.join(dirs.root, "a-slow.md"), "# Slow\n\nSloth notes.\n");
+      const fast = Array.from({ length: 30 }, (_, index) => `n${index}.md`);
+      for (const path of fast) {
+        writeFileSync(nodePath.join(dirs.root, path), `# ${path}\n\nIbis notes.\n`);
+      }
+      const opened: PromiseWithResolvers<void> = Promise.withResolvers();
+      const { knowledge } = bootIndexedVault(dirs, {
+        readDeadlineMs: SHORT_DEADLINE_MS,
+        // every other read takes a few ms, so the batch is still being read past the deadline
+        reader: (service) => {
+          const stalling = stallingReads(new Set(["a-slow.md"]), opened.promise)(service);
+          return {
+            ...stalling,
+            readBytes: async (path) => {
+              await delay(PACED_READ_MS);
+              return await stalling.readBytes(path);
+            },
+          };
+        },
+      });
+
+      await knowledge.settle();
+      expect(knowledge.lastReconcile).toMatchObject({
+        deferred: 1,
+        listed: fast.length + 1,
+        projected: fast.length,
+      });
+      const ibis = await knowledge.search({ limit: fast.length, query: "ibis" });
+      expect(ibis).toHaveLength(fast.length);
+      expect(await searchPaths(knowledge, "sloth")).toEqual([]);
+
+      opened.resolve();
+      await vi.waitFor(
+        async () => {
+          expect(await searchPaths(knowledge, "sloth")).toEqual(["a-slow.md"]);
+        },
+        { timeout: LANDING_TIMEOUT_MS },
+      );
+    },
+    DEFERRAL_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "opens no more docs once the stalled ones fill the budget, and reads the rest as they land",
+    async () => {
+      const dirs = makeDirs();
+      const paths = Array.from({ length: 12 }, (_, index) => `n${index}.md`);
+      for (const path of paths) {
+        writeFileSync(nodePath.join(dirs.root, path), `# ${path}\n\nMarmot notes.\n`);
+      }
+      const opened: PromiseWithResolvers<void> = Promise.withResolvers();
+      const reads: string[] = [];
+      const { knowledge } = bootIndexedVault(dirs, {
+        readDeadlineMs: SHORT_DEADLINE_MS,
+        reader: (service) => {
+          const stalling = stallingReads(new Set(paths), opened.promise)(service);
+          return {
+            ...stalling,
+            readBytes: async (path) => {
+              reads.push(path);
+              return await stalling.readBytes(path);
+            },
+          };
+        },
+      });
+
+      await knowledge.settle();
+      expect(knowledge.lastReconcile).toMatchObject({ deferred: paths.length, projected: 0 });
+      expect(reads.length).toBeLessThan(paths.length);
+
+      opened.resolve();
+      await vi.waitFor(
+        async () => {
+          const hits = await knowledge.search({ limit: paths.length, query: "marmot" });
+          expect(hits.map((hit) => hit.path).toSorted()).toEqual(paths.toSorted());
+        },
+        { timeout: LANDING_TIMEOUT_MS },
+      );
+    },
+    DEFERRAL_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "reads a doc again once it lands when the doc changed while the read was out",
+    async () => {
+      const dirs = makeDirs();
+      const slow = nodePath.join(dirs.root, "slow.md");
+      writeFileSync(slow, "# Slow\n\nSloth notes.\n");
+      const opened: PromiseWithResolvers<void> = Promise.withResolvers();
+      const { knowledge } = bootIndexedVault(dirs, {
+        readDeadlineMs: SHORT_DEADLINE_MS,
+        reader: stallingReads(new Set(["slow.md"]), opened.promise),
+      });
+      await knowledge.settle();
+
+      writeFileSync(slow, "# Slow\n\nOkapi notes.\n");
+      knowledge.noteVaultChange({ kind: "paths", paths: ["slow.md"] });
+      await knowledge.settle();
+
+      opened.resolve();
+      await vi.waitFor(
+        async () => {
+          expect(await searchPaths(knowledge, "okapi")).toEqual(["slow.md"]);
+        },
+        { timeout: LANDING_TIMEOUT_MS },
+      );
+      expect(await searchPaths(knowledge, "sloth")).toEqual([]);
+    },
+    DEFERRAL_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "never indexes what a read landed for a doc deleted while it was out",
+    async () => {
+      const dirs = makeDirs();
+      const slow = nodePath.join(dirs.root, "slow.md");
+      writeFileSync(slow, "# Slow\n\nSloth notes.\n");
+      const opened: PromiseWithResolvers<void> = Promise.withResolvers();
+      const answered: string[] = [];
+      const { knowledge } = bootIndexedVault(dirs, {
+        readDeadlineMs: SHORT_DEADLINE_MS,
+        reader: stallingReads(new Set(["slow.md"]), opened.promise, answered),
+      });
+      await knowledge.settle();
+
+      rmSync(slow);
+      knowledge.noteVaultChange({ kind: "paths", paths: ["slow.md"] });
+      await knowledge.settle();
+
+      opened.resolve();
+      await vi.waitFor(
+        () => {
+          expect(answered).toContain("slow.md");
+        },
+        { timeout: LANDING_TIMEOUT_MS },
+      );
+      expect(await searchPaths(knowledge, "sloth")).toEqual([]);
+      const targets = await knowledge.wikiTargets();
+      expect(targets.map((target) => target.path)).toEqual([]);
+    },
+    DEFERRAL_TEST_TIMEOUT_MS,
+  );
 });
 
 describe("unlinked mentions", () => {

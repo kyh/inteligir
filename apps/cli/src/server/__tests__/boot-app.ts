@@ -95,6 +95,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     port: options.port ?? 0,
     portSource: "env",
     rootDataDir: dataDir,
+    slowReads: null,
     vaultDir,
     vaultDirSource: "env",
     vaultRemote: null,

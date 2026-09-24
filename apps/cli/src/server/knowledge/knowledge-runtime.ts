@@ -1,8 +1,9 @@
 // announced paths are statted, never resolved through a listing of the whole
 // vault; a change naming no paths is a reconcile — a hash diff over the listing.
 // every query settles pending work first, which is why no `knowledge` ws change
-// kind exists. the scan behind every row runs in a worker; this thread reads the
-// bytes and writes the rows.
+// kind exists, and a doc whose read has not answered by its deadline is left out
+// of that settle until it lands. the scan behind every row runs in a worker; this
+// thread reads the bytes and writes the rows.
 
 import nodePath from "node:path";
 import { setImmediate as yieldTurn } from "node:timers/promises";
@@ -39,6 +40,7 @@ import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-changes";
 import { messageOf } from "../error-message";
+import { createDeferredReads } from "./deferred-reads";
 import type { RenameEditsJob, TagRenameEditsJob } from "./projection-protocol";
 import type { Projector } from "./projector";
 import { createSqliteDriver } from "./sqlite-driver";
@@ -56,12 +58,25 @@ const BATCH_DOCS = 200;
 // large docs commits and yields once a slice passes it.
 const WRITE_SLICE_MS = 16;
 
-const READ_CONCURRENCY = 8;
+// reads out at once, a pass's and the ones left running past their deadline together. node's fs
+// has four threads and a stalled open holds one until the storage answers, so a fourth would stall
+// every fs call in the process, the saves included; a local disk pays with a slower warm reconcile.
+const READ_CONCURRENCY = 3;
 
-interface ReconcileStats {
+// longer than any read a local disk answers, so a doc past it is on storage that fetches or wakes
+const READ_DEADLINE_MS = 2000;
+
+export interface ReconcileStats {
+  // every file the listing named, docs and others alike
+  listed: number;
   projected: number;
   removed: number;
   unchanged: number;
+  // docs whose read had not answered by the deadline: each is indexed once it does
+  deferred: number;
+  listMs: number;
+  // the reads, and the projections and row writes they feed
+  readMs: number;
 }
 
 type KnowledgeVaultReader = Pick<
@@ -75,11 +90,14 @@ export interface KnowledgeRuntimeArgs {
   vaultRoot: string;
   // owned: dispose() disposes it first, so a pass mid-projection is released, not waited out
   projector: Projector;
+  // a suite shortens it rather than stalling a read for seconds
+  readDeadlineMs?: number;
 }
 
 export interface KnowledgeRuntime {
   noteVaultChange: (change: VaultFilesChange) => void;
-  // a failed pass rebuilds before this resolves; rejects only if the rebuild failed too.
+  // a failed pass rebuilds before this resolves; rejects only if the rebuild failed too. a doc
+  // whose read is still out answers from its last entry meanwhile.
   settle: () => Promise<void>;
   search: (params: { query: string; tag?: string; limit: number }) => Promise<SearchResult[]>;
   matches: (params: {
@@ -119,8 +137,8 @@ export interface KnowledgeRuntime {
 
 const utf8 = new TextDecoder();
 
-const assertUnhandledVerdict = (verdict: never): never => {
-  throw new Error(`unhandled file verdict: ${JSON.stringify(verdict)}`);
+const assertUnhandledRead = (read: never): never => {
+  throw new Error(`unhandled file read: ${JSON.stringify(read)}`);
 };
 
 // thrown at a step boundary so a pass stops within one step of dispose().
@@ -317,87 +335,129 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     await writeDocRows(projected);
   };
 
-  type FileVerdict =
-    | { kind: "projected"; update: DocUpdate }
-    | { kind: "unchanged" }
+  // what a read found, judged against the index only when a pass applies it: a read left
+  // running past its deadline lands after the index may have moved.
+  type FileRead =
+    | { kind: "bytes"; bytes: Uint8Array<ArrayBuffer>; hash: string }
     | { kind: "other" }
     | { kind: "missing" }
     | { kind: "unreadable"; reason: string };
 
-  const readFileVerdict = async (path: string): Promise<FileVerdict> => {
-    if (!isDocPath(path)) {
-      return { kind: "other" };
-    }
-    let bytes: Uint8Array<ArrayBuffer>;
+  const OTHER: FileRead = { kind: "other" };
+
+  // total: a read left running has no pass to fail, so every outcome is an answer.
+  const readDocFile = async (path: string): Promise<FileRead> => {
     try {
-      ({ bytes } = await args.vault.readBytes(path));
+      const { bytes } = await args.vault.readBytes(path);
+      return { bytes, hash: await contentHashBytesHex(bytes), kind: "bytes" };
     } catch (error) {
       if (!(error instanceof VaultServiceError)) {
         return { kind: "unreadable", reason: messageOf(error) };
       }
       // over the read cap: unsearchable, but still in the link-resolution universe.
-      return error.code === "too_large" ? { kind: "other" } : { kind: "missing" };
+      return error.code === "too_large" ? OTHER : { kind: "missing" };
     }
-    // hash the bytes and decode only what moved; the common verdict is unchanged.
-    const hash = await contentHashBytesHex(bytes);
-    if (hashes.get(path) === hash || unprojectable.get(path) === hash) {
-      return { kind: "unchanged" };
-    }
-    return { kind: "projected", update: { content: utf8.decode(bytes), hash, path } };
   };
 
+  // late-bound: a landing arms the pass debounce, which is built over the passes that read here.
+  let wakeForLanded: (() => void) | null = null;
+  const docReads = createDeferredReads({
+    deadlineMs: args.readDeadlineMs ?? READ_DEADLINE_MS,
+    limit: READ_CONCURRENCY,
+    onLanded: () => {
+      wakeForLanded?.();
+    },
+    read: readDocFile,
+  });
+
+  const applyRead = (
+    path: string,
+    read: FileRead,
+    updates: DocUpdate[],
+    stats?: ReconcileStats,
+  ): void => {
+    const wasUnreadable = unreadable.delete(path);
+    switch (read.kind) {
+      case "bytes": {
+        // decode only what moved; the common answer is unchanged.
+        if (hashes.get(path) === read.hash || unprojectable.get(path) === read.hash) {
+          if (stats !== undefined) {
+            stats.unchanged += 1;
+          }
+          break;
+        }
+        updates.push({ content: utf8.decode(read.bytes), hash: read.hash, path });
+        if (stats !== undefined) {
+          stats.projected += 1;
+        }
+        break;
+      }
+      case "other": {
+        indexOther(path);
+        break;
+      }
+      case "missing": {
+        removeIndexed(path);
+        break;
+      }
+      case "unreadable": {
+        unreadable.add(path);
+        if (!wasUnreadable) {
+          console.warn(`[knowledge] cannot read ${path}, keeping its last entry: ${read.reason}`);
+        }
+        break;
+      }
+      default: {
+        assertUnhandledRead(read);
+      }
+    }
+  };
+
+  const applyLanded = async (): Promise<void> => {
+    const updates: DocUpdate[] = [];
+    for (const [path, read] of docReads.takeLanded()) {
+      applyRead(path, read, updates);
+    }
+    await applyDocUpdates(updates);
+  };
+
+  // a deferred doc keeps its last entry; its read lands in a later pass.
   const projectFiles = async (paths: readonly string[], stats?: ReconcileStats): Promise<void> => {
+    let deferred = 0;
     for (let start = 0; start < paths.length; start += BATCH_DOCS) {
       assertLive();
       const chunk = paths.slice(start, start + BATCH_DOCS);
-      const verdicts = await mapWithConcurrency(chunk, READ_CONCURRENCY, readFileVerdict);
+      const docs = chunk.filter((path) => isDocPath(path));
+      const reads = await docReads.readAll(docs);
       const updates: DocUpdate[] = [];
-      for (const [index, verdict] of verdicts.entries()) {
-        const path = chunk[index];
+      for (const path of chunk) {
+        if (!isDocPath(path)) {
+          applyRead(path, OTHER, updates, stats);
+        }
+      }
+      for (const [index, read] of reads.entries()) {
+        const path = docs[index];
         if (path === undefined) {
           continue;
         }
-        const wasUnreadable = unreadable.delete(path);
-        switch (verdict.kind) {
-          case "projected": {
-            updates.push(verdict.update);
-            if (stats !== undefined) {
-              stats.projected += 1;
-            }
-            break;
-          }
-          case "unchanged": {
-            if (stats !== undefined) {
-              stats.unchanged += 1;
-            }
-            break;
-          }
-          case "other": {
-            indexOther(path);
-            break;
-          }
-          case "missing": {
-            removeIndexed(path);
-            break;
-          }
-          case "unreadable": {
-            unreadable.add(path);
-            if (!wasUnreadable) {
-              console.warn(
-                `[knowledge] cannot read ${path}, keeping its last entry: ${verdict.reason}`,
-              );
-            }
-            break;
-          }
-          default: {
-            assertUnhandledVerdict(verdict);
-          }
+        if (read === null) {
+          deferred += 1;
+          continue;
         }
+        applyRead(path, read, updates, stats);
       }
       await applyDocUpdates(updates);
       if (start + BATCH_DOCS < paths.length) {
         await yieldTurn();
       }
+    }
+    // a reconcile's own line counts them
+    if (stats !== undefined) {
+      stats.deferred += deferred;
+    } else if (deferred > 0) {
+      console.warn(
+        `[knowledge] ${String(deferred)} doc(s) did not answer within the read deadline; each is indexed once it does`,
+      );
     }
   };
 
@@ -415,6 +475,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     store.transaction(() => {
       for (const path of gone) {
         unreadable.delete(path);
+        docReads.forget(path);
         // an indexed file has no indexed children, so only a folder pays for the prefix scan.
         if (removeIndexed(path)) {
           continue;
@@ -431,15 +492,26 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   };
 
   const reconcile = async (): Promise<ReconcileStats> => {
+    const began = performance.now();
     const files = await listFiles();
+    const listed = performance.now();
     const current = new Set(files);
-    const stats: ReconcileStats = { projected: 0, removed: 0, unchanged: 0 };
+    const stats: ReconcileStats = {
+      deferred: 0,
+      listMs: listed - began,
+      listed: files.length,
+      projected: 0,
+      readMs: 0,
+      removed: 0,
+      unchanged: 0,
+    };
 
     const stale = [...hashes.keys(), ...others].filter((path) => !current.has(path));
     removeGone(stale);
     stats.removed = stale.length;
 
     await projectFiles(files, stats);
+    stats.readMs = performance.now() - listed;
     return stats;
   };
 
@@ -478,6 +550,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     if (!hydrated) {
       await hydrateMirrors();
     }
+    // before anything read fresh, which supersedes it
+    await applyLanded();
     for (const path of unreadable) {
       pendingPaths.add(path);
     }
@@ -491,7 +565,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         throw error;
       }
       console.log(
-        `[knowledge] reconcile: projected ${lastReconcile.projected}, removed ${lastReconcile.removed}, unchanged ${lastReconcile.unchanged}`,
+        `[knowledge] reconcile: projected ${lastReconcile.projected}, removed ${lastReconcile.removed}, unchanged ${lastReconcile.unchanged}, deferred ${lastReconcile.deferred}`,
       );
     }
     if (pendingPaths.size > 0) {
@@ -557,6 +631,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   const debounce = createCoalescingTimer(CHANGE_DEBOUNCE_MS, () => {
     void enqueuePassQuietly();
   });
+  wakeForLanded = () => {
+    debounce.arm();
+  };
 
   const settle = async (): Promise<void> => {
     debounce.clear();
@@ -585,6 +662,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async dispose() {
       disposed = true;
       debounce.clear();
+      // a read still out may never land, so nothing waits on one
+      docReads.dispose();
       await projector.dispose();
       try {
         await queuedPass;

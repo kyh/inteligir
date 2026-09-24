@@ -10,6 +10,8 @@ import { resolveAgentDriver } from "./agents/agent-driver";
 import type { ResolveAgentDriverArgs } from "./agents/agent-driver";
 import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
 import { createApp } from "./app";
+import { bootReport } from "./boot-report";
+import type { BootPhases } from "./boot-report";
 import { readParentPort } from "./child-host/message-port";
 import { resolveNodeChildren } from "./child-host/node-children";
 import { openCloudSocket } from "./cloud/cloud-socket";
@@ -21,6 +23,7 @@ import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { resolveCheckoutRoot } from "./dev-instance";
 import { messageOf } from "./error-message";
+import type { ReconcileStats } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
 import { acquireServeLock, serveLockPath } from "./serve-lock";
@@ -121,9 +124,11 @@ const boot = async (
   env: NodeJS.ProcessEnv,
   teardown: ShutdownStep[],
 ): Promise<ServeResult> => {
+  const began = performance.now();
   const checkoutPath = resolveCheckoutRoot();
   const config = resolveAppConfig({ checkoutPath, env });
   await claimDataDir(config.dataDir, teardown);
+  const claimed = performance.now();
   if (config.mode === "dev" && config.dataDirSource === "default") {
     ensureDevDataDirOwnership(config.dataDir, checkoutPath);
   }
@@ -174,6 +179,7 @@ const boot = async (
     composeArgs.ports = { vault: { spawnWatcherChannel: children.watcherChannel } };
   }
   const runtime = await composeRuntime(composeArgs);
+  const composed = performance.now();
 
   const clientDir = resolveUiDir();
   const { app, injectWebSocket, upgradedSockets } = createApp({
@@ -204,13 +210,23 @@ const boot = async (
     version,
   });
   injectWebSocket(server);
+  const listening = performance.now();
   // kicked after listen: an unsettled index only delays the searches that ask for it.
   void (async () => {
+    let reconcile: ReconcileStats | null = null;
     try {
       await runtime.context.knowledge.settle();
+      reconcile = runtime.context.knowledge.lastReconcile;
     } catch {
       // logged inside the pass; a rebuild that fails again fails the query that needs it.
     }
+    const phases: BootPhases = {
+      claimMs: claimed - began,
+      composeMs: composed - claimed,
+      indexMs: performance.now() - listening,
+      listenMs: listening - composed,
+    };
+    console.log(bootReport(phases, reconcile));
   })();
   // after listen too, and guarded: a whole-vault walk ahead of the bind delays the readiness the
   // shell waits on, and a sweep that throws must not fail the boot. a note opened meanwhile folds

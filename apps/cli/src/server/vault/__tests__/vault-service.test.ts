@@ -14,6 +14,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
+import { slowReadStall } from "../slow-reads";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { identityLock } from "../../__tests__/identity-lock";
@@ -462,5 +463,46 @@ describe("what the filesystem throws at the vault", () => {
     expect(link).toHaveBeenCalled();
     expect(await readFile(path.join(root, "nested", "to.md"), "utf-8")).toBe("moved bytes");
     await expect(stat(path.join(root, "from.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
+
+// long enough that a local read never takes it, so answer order says which reads it held
+const STALL_MS = 500;
+
+describe("a read stall", () => {
+  it("holds the reads of its path and everything under it, and no other", async () => {
+    const root = makeTempDir("inteligir-vault-test-");
+    const service = createVaultService({
+      ignore: ignoreFromDisk(root),
+      lock: identityLock,
+      notifier: createNotifierRecorder(),
+      root,
+      stallRead: slowReadStall({ delayMs: STALL_MS, path: "slow" }),
+    });
+    for (const file of ["slow/a.md", "slow/b.md", "slow.md", "slower/c.md"]) {
+      await service.write(file, `# ${file}\n`);
+    }
+
+    const answered: string[] = [];
+    await Promise.all([
+      (async () => {
+        await service.readBytes("slow/a.md");
+        answered.push("slow/a.md");
+      })(),
+      (async () => {
+        await service.read("slow/b.md");
+        answered.push("slow/b.md");
+      })(),
+      (async () => {
+        await service.readBytes("slow.md");
+        answered.push("slow.md");
+      })(),
+      (async () => {
+        await service.read("slower/c.md");
+        answered.push("slower/c.md");
+      })(),
+    ]);
+    expect(answered.slice(0, 2).toSorted()).toEqual(["slow.md", "slower/c.md"]);
+    expect(answered.slice(2).toSorted()).toEqual(["slow/a.md", "slow/b.md"]);
   });
 });
