@@ -9,6 +9,7 @@ import {
   releaseAllQueuedMessageClaims,
 } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEventInTransaction } from "@repo/db/threads";
+import { turnScope } from "@repo/domain/thread-event-scope";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
 import { WS_PATH } from "@repo/api/local/routes";
@@ -613,6 +614,101 @@ describe("turn identity and crash recovery", () => {
       throw new Error("expected the recorded dispatch failure");
     }
     expect(errorRow.message).toBe("adapter exploded");
+  });
+});
+
+describe("stopping a turn", () => {
+  it("reads stopping until the provider reports the turn interrupted, and queues meanwhile", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    driver.settleOnInterrupt = false;
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "rewrite everything", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+
+    const stopped = await client.threads.interrupt({ threadId });
+    expect(stopped).toMatchObject({ stop: "requested", thread: { status: "stopping" } });
+    expect(driver.interruptedThreads).toEqual([threadId]);
+    const again = await client.threads.interrupt({ threadId });
+    expect(again.stop).toBe("requested");
+    const queued = await client.threads.send({ text: "do this instead", threadId });
+    expect(queued.kind).toBe("queued");
+
+    driver.completeTurn(threadId, started.turnId, "interrupted");
+    const turnRow = timelineRows(await fetchTimeline(client, threadId)).find(
+      (row) => row.kind === "turn" && row.turnId === started.turnId,
+    );
+    expect(turnRow).toMatchObject({ status: "interrupted" });
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual([
+      "rewrite everything",
+      "do this instead",
+    ]);
+  });
+
+  it("settles at once a stop whose turn never reached a provider", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "inert" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "start", threadId });
+    expect(await getThreadStatus(client, threadId)).toBe("starting");
+
+    const stopped = await client.threads.interrupt({ threadId });
+    expect(stopped).toMatchObject({
+      stop: "stopped",
+      thread: { activeTurnId: null, status: "idle" },
+    });
+    expect(driver.interruptedThreads).toEqual([threadId]);
+  });
+
+  it("answers not-running for a settled thread and NOT_FOUND for an unknown one", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const idle = await client.threads.interrupt({ threadId });
+    expect(idle).toMatchObject({ stop: "not-running", thread: { status: "idle" } });
+    expect(driver.interruptedThreads).toEqual([]);
+
+    const [missing] = await safe(client.threads.interrupt({ threadId: "thr_missing" }));
+    expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
+  });
+
+  it("refuses to stop a turn another device is running, and leaves it running", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const remote = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier: noopNotifier,
+    });
+    const threadId = "thr_remote";
+    remote.applySyncedEvents({
+      cursor: 1,
+      rows: [
+        {
+          event: { scope: turnScope("turn_remote"), threadId, type: "turn/started" },
+          origin: { deviceId: "dev_other", deviceSeq: 1 },
+        },
+      ],
+      threadId,
+    });
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+
+    const [refusal] = await safe(client.threads.interrupt({ threadId }));
+    expect(isDefinedError(refusal) && refusal.code).toBe("CONFLICT");
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+    expect(driver.interruptedThreads).toEqual([]);
+  });
+
+  it("stops the turn an archive leaves behind, and starts nothing queued on the archived thread", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "first", threadId });
+    await client.threads.send({ text: "queued", threadId });
+
+    const archived = await client.threads.archive({ threadId });
+    expect(archived.thread).toMatchObject({ status: "idle" });
+    expect(archived.thread.archivedAt).not.toBeNull();
+    expect(driver.interruptedThreads).toEqual([threadId]);
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first"]);
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
   });
 });
 

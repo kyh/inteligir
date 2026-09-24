@@ -14,7 +14,7 @@ and both speak ACP, so the seam between "the server's thread service" and "a
 vendor's CLI" is one adapter over one protocol, and adding a harness is a row
 in a table rather than a second runtime. What the server needs from that seam
 is small — an `AgentRuntime` with `startThread`, `resumeThread`, `runTurn`,
-`reapIdleProviderSessions`, `hasThread`, `closeThread`, `shutdown`
+`reapIdleProviderSessions`, `hasThread`, `cancelTurn`, `closeThread`, `shutdown`
 (`types.ts`) — and the interface carries only what the host calls, because a
 method kept for a re-vendor is a stub every test double must write.
 
@@ -140,6 +140,13 @@ scripts/
   `session/cancel` so the agent can stop its own tools, then SIGTERM once the
   prompt settles or `SESSION_SHUTDOWN_GRACE_MS` passes, then SIGKILL after the
   same grace.
+- **A cancel is an ask, and the turn still ends through its prompt.**
+  `cancelTurn` sends `session/cancel` and returns; the agent answers the prompt
+  `cancelled`, which the mapper turns into interrupted items and an interrupted
+  `turn/completed`, so a stopped turn settles through the same path as any
+  other. From the cancel on, every permission request the turn holds or raises
+  is answered `cancelled`, as the protocol requires, whatever the host's own
+  answer would have been. An agent that never answers is the host's to close.
 - **Nothing here remembers.** Claude Code and Codex carry their own memory; the
   repo's decision record retired a third beside them.
 
@@ -188,7 +195,8 @@ The recorder scrubs the vault path, the home dir, the session id and emails,
 empties the vendor's command list (the user's installed skills) and drops the
 adapters' `_`-prefixed extension notifications, which carry the signed-in
 account and which no handler reads. The process half — spawning, `initialize`,
-`session/new`, `session/load`, a close after the watchdog, an adapter crashing
+`session/new`, `session/load`, a cancel the agent answers and one it ignores, a
+close after the watchdog, an adapter crashing
 at boot or mid-prompt, an adapter refusing for auth as a session opens or at
 the prompt — is exercised by the server's
 `apps/cli/src/server/agents/__tests__/acp-manager.test.ts` against the fake

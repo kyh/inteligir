@@ -46,6 +46,7 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["action new", ["action", "new", "do a thing"]],
   ["action send", ["action", "send", "thr_1", "and then?"]],
   ["action show", ["action", "show", "thr_1"]],
+  ["action stop", ["action", "stop", "thr_1"]],
   ["action wait", ["action", "wait", "thr_1", "--timeout", "2", "--poll-interval", "20"]],
   ["action archive", ["action", "archive", "thr_1"]],
   ["comment list", ["comment", "list", "notes/hello.md"]],

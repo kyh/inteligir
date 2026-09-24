@@ -1,7 +1,12 @@
 import type { ThreadEventTurnStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { agentMessageEvents } from "../agents/agent-message-events";
-import type { ProviderEventSink, TurnDriver, TurnDriverStartArgs } from "../threads/turn-driver";
+import type {
+  ProviderEventSink,
+  TurnDriver,
+  TurnDriverStartArgs,
+  TurnInterrupt,
+} from "../threads/turn-driver";
 
 export interface FakeTurnDriverOptions {
   // scripted streams a whole turn synchronously; manual emits only turn/started; inert emits nothing.
@@ -10,7 +15,10 @@ export interface FakeTurnDriverOptions {
 
 export class FakeTurnDriver implements TurnDriver {
   readonly startedTurns: TurnDriverStartArgs[] = [];
+  readonly interruptedThreads: string[] = [];
   failNextStart: Error | null = null;
+  // a manual turn honours a stop at once; off, it stays stopping until a test completes it.
+  settleOnInterrupt = true;
   private readonly sink: ProviderEventSink;
   private readonly options: FakeTurnDriverOptions;
 
@@ -46,6 +54,19 @@ export class FakeTurnDriver implements TurnDriver {
     this.sink.ingestProviderEvents(args.threadId, [
       { scope, status: "completed", threadId: args.threadId, type: "turn/completed" },
     ]);
+  }
+
+  // an inert turn never reached a provider, so nothing will report its end.
+  interruptTurn(threadId: string): TurnInterrupt {
+    this.interruptedThreads.push(threadId);
+    if (this.options.mode === "inert") {
+      return "not-running";
+    }
+    const running = this.startedTurns.findLast((turn) => turn.threadId === threadId);
+    if (this.settleOnInterrupt && running !== undefined) {
+      this.completeTurn(threadId, running.turnId, "interrupted");
+    }
+    return "settling";
   }
 
   completeTurn(threadId: string, turnId: string, status: ThreadEventTurnStatus): void {

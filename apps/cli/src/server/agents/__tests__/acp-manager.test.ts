@@ -41,6 +41,7 @@ type FakeAcpMode =
   | "approval"
   | "promptEcho"
   | "silent"
+  | "slow"
   | "authOnSessionOpen"
   | "authOnPrompt"
   | "crashOnBoot";
@@ -50,6 +51,7 @@ interface ManagerOptions {
   skillsDir?: string;
   filePath?: string;
   turnIdleTimeoutMs?: number;
+  stopGraceMs?: number;
   // mutable on purpose: the Settings-edited fact, read per session open.
   connectedDirs?: string[];
   spawnedEnvs?: Record<string, string>[];
@@ -113,6 +115,9 @@ const bootWithManager = async (
       };
       if (options.turnIdleTimeoutMs !== undefined) {
         deps.turnIdleTimeoutMs = options.turnIdleTimeoutMs;
+      }
+      if (options.stopGraceMs !== undefined) {
+        deps.stopGraceMs = options.stopGraceMs;
       }
       const manager = createAcpRuntimeManager(deps);
       return {
@@ -551,6 +556,84 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(assistant).toMatchObject({ text: "hello from the fake agent", turnId });
     expect(children).toHaveLength(2);
     await awaitExited(children.slice(0, 1));
+  });
+
+  it("stops a running turn through session/cancel: its open command and the turn settle interrupted, and the session stays", async () => {
+    const children: ChildProcess[] = [];
+    const harness = await bootWithManager("slow", { children });
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "take your time");
+    await vi.waitFor(async () => {
+      const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+      expect(rows.find((row) => row.kind === "work")).toMatchObject({ status: "pending" });
+    }, PROVIDER_WAIT);
+
+    const stopped = await harness.client.threads.interrupt({ threadId });
+    expect(stopped.stop).toBe("requested");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.find((row) => row.kind === "turn")).toMatchObject({
+      status: "interrupted",
+      turnId,
+    });
+    expect(rows.find((row) => row.kind === "work")).toMatchObject({
+      command: "sleep 600",
+      status: "interrupted",
+    });
+    // the agent answered the cancel, so nothing needed closing.
+    expect(children).toHaveLength(1);
+    expect(children.filter(hasExited)).toEqual([]);
+  });
+
+  it("answers an approval the stop left open as cancelled, and clears its card", async () => {
+    const harness = await bootWithManager("approval");
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "please run it");
+    await awaitPendingInteraction(harness.client, threadId);
+
+    await harness.client.threads.interrupt({ threadId });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    // the fake answers end_turn to a deny; only a cancelled answer ends the turn interrupted.
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.find((row) => row.kind === "turn")).toMatchObject({
+      status: "interrupted",
+      turnId,
+    });
+    const detail = await getThreadDetail(harness.client, threadId);
+    expect(detail.pendingInteractions).toEqual([]);
+  });
+
+  it("closes the session of a turn that ignores the cancel, settles it interrupted, and runs the next on a fresh child", async () => {
+    const children: ChildProcess[] = [];
+    const managerOptions: ManagerOptions = { children, stopGraceMs: 200 };
+    const harness = await bootWithManager("silent", managerOptions);
+    const threadId = await createThread(harness.client);
+    const silentTurnId = await sendMessage(harness.client, threadId, "ignore me");
+    await vi.waitFor(async () => {
+      const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+      expect(rows.find((row) => row.kind === "turn")).toMatchObject({ turnId: silentTurnId });
+    }, PROVIDER_WAIT);
+
+    const requested = await harness.client.threads.interrupt({ threadId });
+    expect(requested).toMatchObject({ stop: "requested", thread: { status: "stopping" } });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    await awaitExited(children);
+
+    const stopped = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(stopped.find((row) => row.kind === "turn")).toMatchObject({
+      status: "interrupted",
+      turnId: silentTurnId,
+    });
+
+    managerOptions.mode = "message";
+    const turnId = await sendMessage(harness.client, threadId, "again");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
+    expect(assistant).toMatchObject({ text: "hello from the fake agent", turnId });
+    expect(children).toHaveLength(2);
   });
 
   it("spawns nothing for a dispatch that resumes after dispose", async () => {

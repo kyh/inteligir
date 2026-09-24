@@ -46,6 +46,10 @@ const fakeGitEngine = (): GitEngine => ({
 });
 
 const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>): AgentRuntime => ({
+  cancelTurn: async (threadId) => {
+    timeline.push(`cancelTurn ${threadId}`);
+    await Promise.resolve();
+  },
   closeThread: async (threadId) => {
     timeline.push(`closeThread ${threadId}`);
     await Promise.resolve();
@@ -241,6 +245,37 @@ describe("the silent-turn watchdog", () => {
     expect(turnFailed(harness.ingested)).toBe(false);
     await vi.advanceTimersByTimeAsync(BUDGET_MS * 2);
     expect(turnFailed(harness.ingested)).toBe(true);
+  });
+});
+
+describe("a stop before the provider started the turn", () => {
+  it("withdraws the turn, closes what the dispatch was opening, and prompts nothing", async () => {
+    vi.useFakeTimers();
+    const opening: PromiseWithResolvers<{ providerThreadId: string }>[] = [];
+    const prompted: string[] = [];
+    const harness = makeHarness({
+      hasThread: () => false,
+      runTurn: async (args) => {
+        prompted.push(args.threadId);
+      },
+      startThread: async () => {
+        const open = Promise.withResolvers<{ providerThreadId: string }>();
+        opening.push(open);
+        return await open.promise;
+      },
+    });
+    harness.driver.startTurn({ text: "go", threadId: harness.threadId, turnId: "turn_1" });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(harness.driver.interruptTurn(harness.threadId)).toBe("not-running");
+    expect(harness.timeline).toEqual([`closeThread ${harness.threadId}`]);
+
+    const [open] = opening;
+    open?.resolve({ providerThreadId: "pt_1" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(prompted).toEqual([]);
+    expect(harness.ingested).toEqual([]);
+    expect(harness.driver.interruptTurn(harness.threadId)).toBe("not-running");
   });
 });
 

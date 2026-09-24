@@ -493,6 +493,17 @@ const threadsRouter = {
       thread: entry.thread,
     };
   }),
+  interrupt: base.threads.interrupt.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
+    if (entry === undefined) {
+      throw errors.NOT_FOUND({ message: "Not found" });
+    }
+    if (entry.thread.status === "idle" || entry.thread.status === "error") {
+      return { stop: "not-running", thread: entry.thread };
+    }
+    entry.thread = { ...entry.thread, status: "stopping" };
+    return { stop: "requested", thread: entry.thread };
+  }),
   list: base.threads.list.handler(({ context }) => ({
     threads: context.threads.map((entry) => entry.thread),
   })),

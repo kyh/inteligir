@@ -26,6 +26,22 @@ const archive = base.threads.archive.handler(({ context, input, errors }) => {
   return { thread };
 });
 
+const interrupt = base.threads.interrupt.handler(({ context, input, errors }) => {
+  const outcome = context.threads.interrupt(input.threadId);
+  switch (outcome.kind) {
+    case "answered": {
+      return { stop: outcome.stop, thread: outcome.thread };
+    }
+    case "not-found": {
+      throw errors.NOT_FOUND({ message: THREAD_NOT_FOUND });
+    }
+    case "remote": {
+      throw errors.CONFLICT({ message: outcome.message });
+    }
+    // no default
+  }
+});
+
 const send = base.threads.send.handler(({ context, input, errors }) => {
   const outcome = context.threads.send(input);
   switch (outcome.kind) {
@@ -97,6 +113,7 @@ export const threadsRouter = {
   archive,
   create,
   get,
+  interrupt,
   list,
   listInteractions,
   send,

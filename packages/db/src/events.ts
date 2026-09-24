@@ -282,7 +282,7 @@ export const listStoredThreadEvents = (
 // crash recovery asks this before failing a turn: a turn another device started is running
 // elsewhere, and failing it here would sync a fabricated failure back to it.
 export const turnStartOriginDeviceId = (
-  db: DbConnection,
+  db: DbConnection | DbTransaction,
   args: { threadId: string; turnId: string },
 ): string | null => {
   const row = db

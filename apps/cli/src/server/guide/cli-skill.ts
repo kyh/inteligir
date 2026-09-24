@@ -173,7 +173,14 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   \`inteligir interactions answer\` command, and keeps waiting; a timeout names
   them too. \`--until-input\` stops instead, with exit 4
   (\`AWAITING_INTERACTION\`): answer, then \`wait\` again.
-- \`inteligir action archive <id>\` — archive an action.
+- \`inteligir action stop <id>\` — stop the action's running turn. The agent is
+  asked to stop and the action reads \`stopping\` until it does; one that does
+  not answer within a few seconds has its session closed. \`wait\` after it to
+  see the turn settle. A message queued behind the turn starts next. A turn
+  running on another signed-in device cannot be stopped from here
+  (\`CONFLICT\`).
+- \`inteligir action archive <id>\` — archive an action, stopping a turn it is
+  running.
 
 The spawn-and-wait loop an agent should use:
 
