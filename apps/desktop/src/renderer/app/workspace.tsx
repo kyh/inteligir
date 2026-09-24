@@ -159,6 +159,13 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const loadedPath = useStore(noteStore.store, (state) => openDocPath(state.openDoc));
   const back = useStore(noteStore.store, backTarget);
   const forward = useStore(noteStore.store, forwardTarget);
+  // walked as the headings page opens, never in render: nothing re-renders the workspace when the
+  // document changes.
+  const listOpenHeadings = useCallback((): readonly HeadingItem[] => {
+    const { openPath: path } = noteStore.state();
+    const editor = path === null ? null : getLiveEditor(path);
+    return editor === null ? [] : collectHeadings(editor);
+  }, [noteStore]);
 
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
@@ -491,7 +498,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         break;
       }
       case "open-headings": {
-        openPalette({ page: "headings" });
+        openPalette({ outline: listOpenHeadings(), page: "headings" });
         break;
       }
       case "open-settings": {
@@ -546,10 +553,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               },
               findInNote,
               insertTemplate: insertTemplateIntoNote,
-              listHeadings: () => {
-                const editor = getLiveEditor(openPath);
-                return editor === null ? [] : collectHeadings(editor);
-              },
+              listHeadings: listOpenHeadings,
               path: openPath,
               pinned: openPinned,
               togglePin: () => {
@@ -587,6 +591,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       noteStore,
       openProblemLink,
       chooseRailView,
+      listOpenHeadings,
     ],
   );
 

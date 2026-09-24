@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { THREADS_LIST_DEFAULT_LIMIT } from "@repo/api/local/threads/threads-schema";
 import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootThreadHarness } from "inteligir/server/testing";
 import type { ThreadHarness } from "inteligir/server/testing";
@@ -107,6 +108,32 @@ describe("the Stop button on an action", () => {
 
     await screen.findByText("Rewrite the intro");
     expect(screen.queryByRole("button", { name: "Stop action" })).toBeNull();
+  });
+
+  it("is not offered on a turn another device runs, which says so instead", async () => {
+    const harness = await bootThreadHarness({ mode: "manual" });
+    vi.stubGlobal("WebSocket", InertSocket);
+    routeRendererFetch(harness);
+    const threadId = "thr_remote";
+    harness.composed.context.threads.applySyncedEvents({
+      cursor: 1,
+      rows: [
+        {
+          event: { scope: threadScope(), threadId, title: "Elsewhere", type: "thread/meta" },
+          origin: { deviceId: "dev_other", deviceSeq: 1 },
+        },
+        {
+          event: { scope: turnScope("turn_remote"), threadId, type: "turn/started" },
+          origin: { deviceId: "dev_other", deviceSeq: 2 },
+        },
+      ],
+      threadId,
+    });
+    mountAction(threadId);
+
+    expect(await screen.findByText("Running on another device")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Stop action" })).toBeNull();
+    expect(harness.driver.interruptedThreads).toEqual([]);
   });
 });
 

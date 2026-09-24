@@ -8,7 +8,7 @@ import {
   makeActions,
   makeNote,
   renderWithQueries,
-  stubKnowledgeFetch,
+  stubPaletteFetch,
 } from "../palette/__tests__/palette-harness";
 import type { PaletteNote } from "../palette/command-palette";
 import { exportNoteAsPdf } from "../note/export-pdf";
@@ -72,7 +72,7 @@ describe("exportNoteAsPdf", () => {
 });
 
 const mount = (note: PaletteNote | null) => {
-  stubKnowledgeFetch({});
+  stubPaletteFetch({});
   return renderWithQueries({
     actions: { ...makeActions(), note },
     canSync: false,

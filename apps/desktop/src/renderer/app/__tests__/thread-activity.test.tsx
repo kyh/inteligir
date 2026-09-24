@@ -10,7 +10,7 @@ import {
   defaultRequest,
   makeActions,
   renderWithQueries,
-  stubKnowledgeFetch,
+  stubPaletteFetch,
 } from "../palette/__tests__/palette-harness";
 import { THREAD_ACTIVITY_LABELS, threadActivity, threadStopControl } from "../thread-activity";
 import { rendererSources } from "./renderer-sources";
@@ -24,6 +24,7 @@ const thread = (over: Partial<Thread> = {}): Thread => ({
   id: "thr_1",
   originDocPath: null,
   providerId: null,
+  runsElsewhere: false,
   status: "idle",
   title: null,
   updatedAt: 0,
@@ -64,12 +65,16 @@ describe("threadStopControl", () => {
   it("still offers a stop on an archived thread whose turn runs", () => {
     expect(threadStopControl(thread({ archivedAt: 1, status: "active" }))).toBe("stop");
   });
+
+  it("offers none on a turn another device runs", () => {
+    expect(threadStopControl(thread({ runsElsewhere: true, status: "active" }))).toBe("none");
+  });
 });
 
 describe("the palette renders that answer and no other", () => {
   it.each(threadStatusValues)("says what the derivation says for %s", (status) => {
     const subject = thread({ id: `thr_${status}`, status, title: "A thread" });
-    stubKnowledgeFetch({});
+    stubPaletteFetch({});
     renderWithQueries({
       actions: makeActions(),
       canSync: false,

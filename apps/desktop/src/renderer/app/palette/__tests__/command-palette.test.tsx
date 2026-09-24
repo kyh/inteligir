@@ -23,9 +23,9 @@ import {
   makeActions,
   makeNote,
   renderWithQueries,
-  stubKnowledgeFetch,
+  stubPaletteFetch,
 } from "./palette-harness";
-import type { KnowledgeFakes } from "./palette-harness";
+import type { PaletteFakes } from "./palette-harness";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -37,13 +37,13 @@ const ENTRIES: VaultEntry[] = [
 type PaletteProps = React.ComponentProps<typeof CommandPalette>;
 
 type RenderOverrides = Partial<PaletteProps> & {
-  fakes?: KnowledgeFakes;
+  fakes?: PaletteFakes;
   // the open note, folded into the actions the render hands back
   note?: PaletteNote;
 };
 
 const renderPalette = ({ fakes, note, ...overrides }: RenderOverrides = {}) => {
-  stubKnowledgeFetch(fakes ?? {});
+  stubPaletteFetch(fakes ?? {});
   const actions = { ...makeActions(), note: note ?? null };
   const onOpenChange = vi.fn<PaletteProps["onOpenChange"]>();
   const props: PaletteProps = {
@@ -93,8 +93,8 @@ describe("the headings page", () => {
 
   it("opens straight on the page a shortcut names, and filters by title", () => {
     renderPalette({
-      note: { ...makeNote(), listHeadings: () => OUTLINE },
-      request: { nonce: 1, page: "headings" },
+      note: makeNote(),
+      request: { nonce: 1, outline: OUTLINE, page: "headings" },
     });
     fireEvent.change(screen.getByPlaceholderText("Go to heading…"), {
       target: { value: "week" },
@@ -104,11 +104,23 @@ describe("the headings page", () => {
   });
 
   it("says so with no note open, and hides the root command", () => {
-    renderPalette({ request: { nonce: 1, page: "headings" } });
+    renderPalette({ request: { nonce: 1, outline: [], page: "headings" } });
     expect(rows().getByText("Open a note to jump to its headings.")).toBeDefined();
     cleanup();
     renderPalette();
     expect(rows().queryByText("Go to heading…")).toBeNull();
+  });
+
+  it("walks the outline once as the page opens, never as it renders", () => {
+    const note = { ...makeNote(), listHeadings: vi.fn<PaletteNote["listHeadings"]>(() => OUTLINE) };
+    renderPalette({ note });
+    expect(note.listHeadings).not.toHaveBeenCalled();
+    fireEvent.click(rows().getByText("Go to heading…"));
+    for (const value of ["w", "we", "wee", "week"]) {
+      fireEvent.change(screen.getByPlaceholderText("Go to heading…"), { target: { value } });
+    }
+    expect(rows().getByText("Week one")).toBeDefined();
+    expect(note.listHeadings).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -166,7 +178,7 @@ const deferred = <T,>(): Deferred<T> => {
 };
 
 beforeEach(() => {
-  stubKnowledgeFetch({});
+  stubPaletteFetch({});
 });
 
 afterEach(() => {
@@ -365,6 +377,7 @@ const ACTION: Thread = {
   id: "thr_1",
   originDocPath: "Welcome.md",
   providerId: null,
+  runsElsewhere: false,
   status: "idle",
   title: "Tidy the intro",
   updatedAt: 1,
@@ -378,7 +391,7 @@ describe("the actions page", () => {
     expect(actions.openThread).toHaveBeenCalledWith("thr_1");
   });
 
-  it("says there are none only when none are loaded, since it searches the recent ones alone", () => {
+  it("says there are none only for an empty field over no loaded actions", async () => {
     renderPalette();
     fireEvent.click(rows().getByText("Actions"));
     expect(rows().getByText("No actions yet.")).toBeDefined();
@@ -388,8 +401,29 @@ describe("the actions page", () => {
     fireEvent.change(screen.getByPlaceholderText("Find an action…"), {
       target: { value: "nowhere" },
     });
-    expect(rows().getByText("No recent action matches.")).toBeDefined();
+    expect(await rows().findByText("No action matches.")).toBeDefined();
     expect(rows().queryByText("No actions yet.")).toBeNull();
+  });
+
+  it("asks the server for typed text, so an action past the loaded pages is found", async () => {
+    const older: Thread = { ...ACTION, id: "thr_old", title: "Draft the budget" };
+    const asked: string[] = [];
+    const { actions } = renderPalette({
+      fakes: {
+        threads: (request) => {
+          asked.push(request.query);
+          return { nextCursor: null, threads: [older] };
+        },
+      },
+      threads: [ACTION],
+    });
+    fireEvent.click(rows().getByText("Actions"));
+    fireEvent.change(screen.getByPlaceholderText("Find an action…"), {
+      target: { value: " budget " },
+    });
+    fireEvent.click(await rows().findByText("Draft the budget"));
+    expect(asked).toEqual(["budget"]);
+    expect(actions.openThread).toHaveBeenCalledWith("thr_old");
   });
 });
 

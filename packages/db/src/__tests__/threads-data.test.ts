@@ -1,6 +1,7 @@
 import { createConnection, writeTransaction } from "../connection";
 import type { DbConnection } from "../connection";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
+import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -50,6 +51,7 @@ const recordingNotifier = (): RecordingNotifier => {
 
 const EVERY_LIVE_THREAD = {
   after: null,
+  contains: null,
   includeArchived: false,
   limit: 50,
   origin: null,
@@ -464,5 +466,38 @@ describe("listThreads paging", () => {
         .map((row) => row.id)
         .toSorted(),
     ).toEqual([running.id, archivedRunning.id].toSorted());
+  });
+
+  it("finds text on any page of the listing, reading LIKE's wildcards as themselves", () => {
+    const db = openTempDb();
+    const seeded = seedThreads(db, 3 * EVERY_LIVE_THREAD.limit, { archivedEvery: 0 });
+    const titled = (index: number, title: string): string => {
+      const row = seeded[index];
+      if (row === undefined) {
+        throw new Error(`expected seeded thread ${String(index)}`);
+      }
+      db.update(threads).set({ title }).where(eq(threads.id, row.id)).run();
+      return row.id;
+    };
+    const deep = titled(0, "Rewrite the Budget");
+    const percent = titled(1, "cut 50% of it");
+    titled(2, "cut 500 of it");
+    const underscore = titled(3, "snake_case");
+    titled(4, "snakeXcase");
+    const backslash = titled(5, String.raw`a\b`);
+    const onPath = createThread(db, noopNotifier, {
+      origin: { noteId: null, path: "projects/q3-plan.md" },
+    });
+
+    const ids = (contains: string): string[] =>
+      listThreads(db, { ...EVERY_LIVE_THREAD, contains }).rows.map((row) => row.id);
+    expect(walkPages(db, EVERY_LIVE_THREAD).indexOf(deep)).toBeGreaterThanOrEqual(
+      2 * EVERY_LIVE_THREAD.limit,
+    );
+    expect(ids("budget")).toEqual([deep]);
+    expect(ids("50%")).toEqual([percent]);
+    expect(ids("e_c")).toEqual([underscore]);
+    expect(ids("\\")).toEqual([backslash]);
+    expect(ids("q3-plan")).toEqual([onPath.id]);
   });
 });

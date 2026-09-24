@@ -94,6 +94,8 @@ export interface ThreadListQuery {
   // the note's path and, when it carries one, its frontmatter `id`: a thread bound to that id is
   // the note's wherever it was composed, so the caller re-checks each row's resolved origin.
   origin: ThreadOriginInput | null;
+  // text the title or the stored origin path holds, ascii case folded as LIKE folds it.
+  contains: string | null;
   running: boolean;
 }
 
@@ -119,6 +121,15 @@ const originPredicate = (origin: ThreadOriginInput | null): SQL | undefined => {
   return origin.noteId === null ? byPath : or(byPath, eq(threads.originNoteId, origin.noteId));
 };
 
+// LIKE's wildcards and its escape character match only themselves.
+const containsPredicate = (text: string | null): SQL | undefined => {
+  if (text === null) {
+    return undefined;
+  }
+  const pattern = `%${text.replaceAll(/[\\%_]/gu, "\\$&")}%`;
+  return sql`(${threads.title} LIKE ${pattern} ESCAPE '\\' OR ${threads.originDocPath} LIKE ${pattern} ESCAPE '\\')`;
+};
+
 const listSegment = (
   db: DbConnection,
   query: ThreadListQuery,
@@ -136,6 +147,7 @@ const listSegment = (
           ? undefined
           : sql`(${threads.updatedAt}, ${threads.id}) < (${after.updatedAt}, ${after.id})`,
         originPredicate(query.origin),
+        containsPredicate(query.contains),
         query.running ? inArray(threads.status, RUNNING_STATUSES) : undefined,
       ),
     )

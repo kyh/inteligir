@@ -308,14 +308,22 @@ describe("buildThreadTimeline", () => {
     }
   });
 
-  it("a streaming delta carries ONLY the row that streamed", () => {
+  it("a streaming delta carries ONLY what the streaming row gained", () => {
     const events = stored(streamedTurnEvents());
-    // between events 10 and 11 only the assistant row's text changes
+    // between events 10 and 11 only the assistant row's text grows
     const before = buildThreadTimeline(events.slice(0, 10));
     const after = buildThreadTimeline(events.slice(0, 11));
     const delta = computeTimelineDelta(before, after);
     expect(delta.rowOrder).toBeUndefined();
-    expect(delta.upsertRows.map((row) => row.id)).toEqual(["item:turn_1:item_a"]);
+    expect(delta.upsertRows).toEqual([]);
+    expect(delta.textAppends).toEqual([
+      {
+        fromLength: "Two commits ".length,
+        id: "item:turn_1:item_a",
+        sourceSeqEnd: 11,
+        text: "landed today.",
+      },
+    ]);
     expect(delta.turnPatches).toEqual([]);
   });
 
@@ -411,9 +419,12 @@ describe("a delta into a long turn", () => {
     expect(JSON.stringify(turnOf(after)).length).toBeGreaterThan(100_000);
     expect(JSON.stringify(delta).length).toBeLessThan(1000);
     expect(delta.upsertRows).toEqual([]);
-    expect(delta.turnPatches.map((patch) => patch.upsertChildren.map((child) => child.id))).toEqual(
-      [["item:turn_long:item_r"]],
-    );
+    expect(
+      delta.turnPatches.map((patch) => ({
+        appended: patch.textAppends.map((append) => [append.id, append.text]),
+        upserted: patch.upsertChildren,
+      })),
+    ).toEqual([{ appended: [["item:turn_long:item_r", "Checking the last step"]], upserted: [] }]);
     expect(applyTimelineDelta(before, delta)).toEqual(after);
   });
 
@@ -437,6 +448,99 @@ describe("a delta into a long turn", () => {
     }
     const unknownChild = { ...patch, childOrder: ["item:turn_long:item_gone"] };
     expect(applyTimelineDelta(before, { ...delta, turnPatches: [unknownChild] })).toBeNull();
+  });
+});
+
+const THOUGHT_TURN = turnScope("turn_thought");
+
+const streamedThought = (tokens: number): ThreadTimelineEvent[] =>
+  stored([
+    { scope: THOUGHT_TURN, threadId: THREAD_ID, type: "turn/started" },
+    {
+      item: { content: [], id: "item_t", summary: [], type: "reasoning" },
+      scope: THOUGHT_TURN,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    ...Array.from({ length: tokens }, (_, index): ThreadEvent => ({
+      delta: `token ${String(index)} of the thought `,
+      itemId: "item_t",
+      scope: THOUGHT_TURN,
+      threadId: THREAD_ID,
+      type: "item/reasoning/textDelta",
+    })),
+  ]);
+
+interface FollowedStream {
+  // every delta's wire length, summed
+  bytes: number;
+  held: ThreadTimeline;
+}
+
+// a client that asks after every event, applying each delta as it lands
+const followStream = (events: readonly ThreadTimelineEvent[]): FollowedStream => {
+  let held = buildThreadTimeline([]);
+  let bytes = 0;
+  for (let cut = 1; cut <= events.length; cut += 1) {
+    const next = buildThreadTimeline(events.slice(0, cut));
+    const delta = computeTimelineDelta(held, next);
+    bytes += JSON.stringify(delta).length;
+    const applied = applyTimelineDelta(held, delta);
+    expect(applied).toEqual(next);
+    held = applied ?? next;
+  }
+  return { bytes, held };
+};
+
+describe("a streamed text", () => {
+  it("costs bytes linear in its tokens: twice the tokens, about twice the bytes", () => {
+    const short = followStream(streamedThought(200));
+    const long = followStream(streamedThought(400));
+    expect(long.bytes / short.bytes).toBeLessThan(2.5);
+  });
+
+  it("lands every token as the full rebuild does", () => {
+    const events = streamedThought(50);
+    expect(followStream(events).held).toEqual(buildThreadTimeline(events));
+  });
+
+  it("refetches when the held text is not the length an append grew from", () => {
+    const thought = streamedThought(3);
+    const before = buildThreadTimeline(thought.slice(0, -1));
+    const delta = computeTimelineDelta(before, buildThreadTimeline(thought));
+    const [patch] = delta.turnPatches;
+    const [append] = patch?.textAppends ?? [];
+    if (patch === undefined || append === undefined) {
+      throw new Error("expected the thought to move as an append");
+    }
+    const misfit = { ...patch, textAppends: [{ ...append, fromLength: append.fromLength - 1 }] };
+    expect(applyTimelineDelta(before, { ...delta, turnPatches: [misfit] })).toBeNull();
+
+    const message = stored(streamedTurnEvents());
+    const held = buildThreadTimeline(message.slice(0, 10));
+    const streamed = computeTimelineDelta(held, buildThreadTimeline(message.slice(0, 11)));
+    const shorter = streamed.textAppends.map((row) => ({ ...row, fromLength: 0 }));
+    expect(applyTimelineDelta(held, { ...streamed, textAppends: shorter })).toBeNull();
+  });
+
+  it("moves a thought whole once more than its text changed", () => {
+    const thought = streamedThought(3);
+    const settled = stored([
+      ...thought.map((entry) => entry.event),
+      {
+        item: { content: [], id: "item_t", summary: ["settled"], type: "reasoning" },
+        scope: THOUGHT_TURN,
+        threadId: THREAD_ID,
+        type: "item/completed",
+      },
+    ]);
+    const delta = computeTimelineDelta(buildThreadTimeline(thought), buildThreadTimeline(settled));
+    expect(
+      delta.turnPatches.map((patch) => ({
+        appended: patch.textAppends,
+        upserted: patch.upsertChildren.map((child) => child.id),
+      })),
+    ).toEqual([{ appended: [], upserted: ["item:turn_thought:item_t"] }]);
   });
 });
 

@@ -43,7 +43,6 @@ import { bindingCapsFor } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";
 import { planMove } from "../sidebar/tree-ops";
 import { orpc } from "../api";
-import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
 import { vaultFolders } from "../vault-hooks";
 import { listedNotePaths, NOTE_SEARCH_LIMIT, searchNotesByFilename } from "./note-search";
 import type { NoteSearchHit } from "./note-search";
@@ -58,6 +57,7 @@ import {
 import { ProblemsPage } from "./problems-page";
 import { SearchPage } from "./search-page";
 import { ShortcutsPage } from "./shortcuts-page";
+import { ThreadsPage } from "./threads-page";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./vault-replace";
 
 // the open note and every verb that needs one, so no row can be offered without its note
@@ -68,7 +68,7 @@ export interface PaletteNote {
   findInNote: () => void;
   insertTemplate: (templatePath: string) => void;
   exportPdf: () => void;
-  // the outline, walked when the page asks
+  // the outline, walked once as its page opens
   listHeadings: () => readonly HeadingItem[];
 }
 
@@ -92,10 +92,13 @@ export interface PaletteActions {
   openProblemLink: (sourcePath: string, target: string) => void;
 }
 
-// the pages an entry point opens onto; ⌘P is the one that opens the root, and a move names the
-// entry it moves
+// the pages an entry point opens onto; ⌘P is the one that opens the root, a move names the entry
+// it moves, and the headings page carries the outline its opener walked. the workspace sits
+// outside the Plate provider and cannot subscribe to the document, so the outline is a snapshot
+// taken as the page opens, never a walk during render.
 export type PaletteEntry =
-  | { page: "root" | "search" | "headings" }
+  | { page: "root" | "search" }
+  | { page: "headings"; outline: readonly HeadingItem[] }
   | { page: "move-to-folder"; subject: string };
 
 // One channel for every way the palette opens. The workspace bumps `nonce` per open and keys the
@@ -200,13 +203,6 @@ const headingsEmptySentence = (note: PaletteNote | null, rowCount: number): stri
   return rowCount === 0 ? "This note has no headings." : "No heading matches.";
 };
 
-const threadRowLabel = (thread: Thread): string => thread.title ?? "Action";
-
-const threadRowDetail = (thread: Thread): string => {
-  const activity = THREAD_ACTIVITY_LABELS[threadActivity(thread)];
-  return thread.originDocPath === null ? activity : `${activity} · ${thread.originDocPath}`;
-};
-
 interface StaticCommand {
   id: string;
   label: string;
@@ -241,7 +237,7 @@ const noteCommands = (note: PaletteNote, goTo: (next: Page) => void): StaticComm
     keepOpen: true,
     label: "Go to heading…",
     run: () => {
-      goTo({ page: "headings" });
+      goTo({ outline: note.listHeadings(), page: "headings" });
     },
   },
   {
@@ -493,12 +489,11 @@ export const CommandPalette = ({
         );
       }
       case "headings": {
-        const { note } = actions;
-        const outline = note === null ? [] : note.listHeadings();
+        const { outline } = page;
         const visible = outline.filter((row) => matchesQuery(row.title, query));
         return (
           <PalettePage>
-            <CommandEmpty>{headingsEmptySentence(note, outline.length)}</CommandEmpty>
+            <CommandEmpty>{headingsEmptySentence(actions.note, outline.length)}</CommandEmpty>
             {visible.length > 0 ? (
               <CommandGroup heading="Headings">
                 {visible.map((row) => (
@@ -564,38 +559,17 @@ export const CommandPalette = ({
         );
       }
       case "threads": {
-        const visibleThreads = threads
-          .filter(
-            (thread) =>
-              matchesQuery(threadRowLabel(thread), query) ||
-              matchesQuery(thread.originDocPath ?? "", query),
-          )
-          .slice(0, 30);
         return (
-          <PalettePage>
-            <CommandEmpty>
-              {threads.length === 0 ? "No actions yet." : "No recent action matches."}
-            </CommandEmpty>
-            <CommandGroup heading="Recent">
-              {visibleThreads.map((thread) => (
-                <CommandItem
-                  key={thread.id}
-                  action={threadRowLabel(thread)}
-                  onSelect={() => {
-                    run(() => {
-                      actions.openThread(thread.id);
-                    });
-                  }}
-                >
-                  <MessagesSquareIcon />
-                  <span className="truncate">{threadRowLabel(thread)}</span>
-                  <span className="ml-auto truncate pl-3 text-body text-muted-foreground">
-                    {threadRowDetail(thread)}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </PalettePage>
+          <ThreadsPage
+            open={open}
+            query={query}
+            threads={threads}
+            onOpenThread={(threadId) => {
+              run(() => {
+                actions.openThread(threadId);
+              });
+            }}
+          />
         );
       }
       case "new-note-template": {
