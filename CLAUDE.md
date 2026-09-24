@@ -320,8 +320,9 @@ to the END of its group.
   `tools/repo-guards/src/type-roles.test.ts` holds that, since a scale held by
   convention drifts, and sweeps `packages/ui/src/ai` too, skipping files held
   in `AWAITING_CONSUMER` (owner decision). THE NOTE IS NOT CHROME: its prose
-  keeps the appearance dials and sizes in em, and a fixed size that is part of
-  the note (the title) is a reasoned `PROSE_SIZES` row in that guard.
+  keeps the appearance dials and sizes in em, the title as a multiple of
+  `--editor-size` (`packages/editor/src/editor-column.tsx`), and a fixed size
+  that is part of the note is a reasoned `PROSE_SIZES` row in that guard.
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE.** Slash items are grouped
   data (`GROUPS` in `packages/editor/src/slash-menu.tsx`), and every row's
@@ -377,7 +378,7 @@ to the END of its group.
   cannot subscribe to the document, so a render-time read is one nothing
   refreshes. "Extract
   to new note" (`packages/editor/src/extract-note.ts`) serializes the blocks
-  with the editor's own `MD_STRINGIFY` and creates the note through the
+  through the editor's own `serializeNote` and creates the note through the
   exclusive `createNewFileAt` before touching the buffer, because
   create-or-reuse would count an existing file as success and the blocks would
   leave for a note that never received them. Blocks anchoring a comment are
@@ -460,6 +461,15 @@ to the END of its group.
   `packages/editor/src/note-stats.ts`,
   `packages/editor/src/comments/comment-ranges.ts`).
   `packages/editor/src/__tests__/typing-budget.test.tsx`.
+
+- **EVERY SAVE SERIALIZES THROUGH `serializeNote`.** The live save, an extract
+  and the gate call it (`packages/editor/src/markdown/markdown-doc.ts`), since
+  the rule table expects its pre-pass over the whole value, `pruneForMarkdown`
+  (`packages/editor/src/markdown/md-rules.ts`): Slate's padding beside an
+  inline element and an empty inline equation leave every block before a run
+  is converted. A paragraph rule's prune was rejected, because a heading or a
+  list item then saved `**a****b**`; Plate's own `serializeMd` skips the
+  pre-pass and writes a ZWSP beside every chip.
 
 ### Vault: writes, git and containment
 
@@ -663,6 +673,16 @@ to the END of its group.
   Residual: a folder moved in whole with its own `.gitignore` is read at the
   next reload, and the hosted vault's listing honours only the floor.
 
+- **A RENAME HOLDS THE OPEN NOTE THROUGH THE MOVE, NEVER LETS GO OF IT.** The
+  session suspends the note's controller across `vault.rename`: edits still
+  land in the buffer while saves and reloads wait, and it resumes at the new
+  path, or the old one when the move failed (`suspend`/`resume` in
+  `packages/editor/src/vault-editor.ts`). Disposing it and opening the new path
+  was rejected: a keystroke typed during the move reached no controller. At a
+  new path the resume reads before it writes, because the guarded io holds no
+  base for a path it never read and the move writes the old name into the note
+  as an alias. `packages/editor/src/note/vault-session.ts`.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile
@@ -808,10 +828,12 @@ to the END of its group.
   through it and resolves it from the note it is written in with the index's
   own `buildResolver` (`vault-provider.tsx`), so the image Problems calls
   missing is the one drawn missing and a link's Open follows a vault url in the
-  app. An image the resolver misses falls back to a root path, because a
+  app, an embedded note's links included; only an http(s) url reaches the
+  browser. An image the resolver misses falls back to a root path, because a
   pasted asset is on disk before the listing that would resolve it.
   `useVaultLinkTarget` in `packages/editor/src/host.ts`,
-  `packages/editor/src/nodes/image-node.tsx` and `link-node.tsx`.
+  `packages/editor/src/nodes/image-node.tsx`, `link-node.tsx` and
+  `packages/editor/src/transclusion.tsx`.
 
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
   PARSER WRITES IT.** `.md` is the one extension a link leaves off

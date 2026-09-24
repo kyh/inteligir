@@ -5,10 +5,9 @@ import { describe, expect, it } from "vitest";
 import { ElementApi } from "platejs";
 import type { Descendant, Value } from "platejs";
 import { createPlateEditor } from "platejs/react";
-import { serializeMd } from "@platejs/markdown";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-menu";
 
 const OPAQUE_TYPES = new Set(["opaqueBlock", "opaqueInline"]);
@@ -36,7 +35,7 @@ describe("every slash row inserts a modeled construct", () => {
           const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
           editor.tf.select(editor.api.end([0]));
           item.onSelect(editor);
-          const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+          const md = serializeNote(editor);
 
           const parsed = parseMarkdown(md);
           expect(parsed.ok, md).toBe(true);

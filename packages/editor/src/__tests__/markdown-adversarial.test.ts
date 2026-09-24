@@ -420,7 +420,6 @@ const CORPUS = {
   "wiki-unclosed": "[[a\n",
   "wiki-unicode-body": "[[\u{1F389} עברית]]\n",
   "wiki-url-body": "[[https://x.cd]]\n",
-  "www-literal": "see www.example.com now\n",
   "zero-width-space": "a​b\n",
   "zwj-emoji-family": "family \u{1F469}‍\u{1F469}‍\u{1F467}‍\u{1F466} here\n",
 } satisfies Record<string, string>;

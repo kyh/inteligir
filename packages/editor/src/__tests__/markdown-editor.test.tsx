@@ -29,10 +29,6 @@ vi.mock("platejs/react", () => ({
   usePlateEditor: () => mocks.editor,
 }));
 
-vi.mock("@platejs/markdown", () => ({
-  serializeMd: vi.fn(() => mocks.currentMarkdown),
-}));
-
 vi.mock("@repo/editor/editor-chrome", () => ({
   Editor: () => null,
   EditorContainer: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
@@ -58,11 +54,11 @@ vi.mock("@repo/editor/kits/editor-kit", () => ({
 }));
 
 vi.mock("@repo/editor/markdown/markdown-doc", () => ({
-  MD_STRINGIFY: {},
   parseMarkdown: (markdown: string) => ({
     ok: true,
     value: [{ children: [{ text: markdown }], type: "p" }],
   }),
+  serializeNote: vi.fn(() => mocks.currentMarkdown),
 }));
 
 vi.mock("@repo/editor/toc", () => ({

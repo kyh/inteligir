@@ -28,16 +28,7 @@ interface ProseSize {
 
 // the note is not chrome, so a fixed size drawn as part of it is a row here; a row names the
 // literals it permits, so a new raw size in the same file still fails.
-const PROSE_SIZES = new Map<string, ProseSize>([
-  [
-    "packages/editor/src/editor-column.tsx",
-    {
-      reason:
-        "the note's title is the note's own name in the note's own font, above its prose; it is not a line of chrome and no role is a page title's size",
-      sizes: ["text-[28px]"],
-    },
-  ],
-]);
+const PROSE_SIZES = new Map<string, ProseSize>();
 
 const chromeFiles = workspaces()
   .flatMap((workspace) => workspaceFiles(workspace).shipped)

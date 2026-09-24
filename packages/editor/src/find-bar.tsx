@@ -26,6 +26,7 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
@@ -50,6 +51,14 @@ export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[
 
 // the bar's own field has no toggles: any case, anywhere in a word
 const FIELD_MATCHING: TextMatchOptions = { caseSensitive: false, wholeWord: false };
+
+// A jump's options are drawn, since the count answers to them and the field alone would not say
+// so; a chip only drops them, because the bar has no toggle to set one.
+const OPTION_CHIPS: readonly { readonly option: keyof TextMatchOptions; readonly label: string }[] =
+  [
+    { label: "Match case", option: "caseSensitive" },
+    { label: "Whole word", option: "wholeWord" },
+  ];
 
 // A jump from the vault search brings that search's options with its query, so the bar lights
 // the matches the palette listed and the ordinal counts among them; typing a query drops them.
@@ -381,6 +390,19 @@ const OpenFindBar = () => {
           }}
           className="w-40 bg-transparent text-subtitle outline-none placeholder:text-muted-foreground/60"
         />
+        {OPTION_CHIPS.filter(({ option }) => search.options[option]).map(({ label, option }) => (
+          <Tooltip key={option} content="Match any case, anywhere in a word">
+            <button
+              type="button"
+              onClick={() => {
+                setFindQuery(editor, search.query);
+              }}
+              className="shrink-0 rounded-sm bg-accent px-1 text-caption text-accent-foreground hover:bg-accent/70"
+            >
+              {label}
+            </button>
+          </Tooltip>
+        ))}
         <span className="shrink-0 text-body tabular-nums text-muted-foreground">
           {counter.count === 0 ? "0/0" : `${counter.index + 1}/${counter.count}`}
         </span>
@@ -464,7 +486,12 @@ const OpenFindBar = () => {
   // never over the panel beside it.
   if (anchor === null) {
     return (
-      <div className="absolute top-16 right-6 z-40 flex flex-col gap-1 rounded-md border border-border bg-popover px-2 py-1 shadow-md print:hidden">
+      <div
+        className={cn(
+          "absolute top-16 right-6 z-40 flex flex-col gap-1 rounded-md px-2 py-1 print:hidden",
+          surfaceClasses(3),
+        )}
+      >
         {body}
       </div>
     );

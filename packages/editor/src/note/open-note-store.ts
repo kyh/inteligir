@@ -123,14 +123,15 @@ export const createOpenNoteStore = (): OpenNoteStore => {
   ): void => {
     store.setState((s) => {
       const merged = { ...s, ...partial };
+      const loadedPath = merged.editor.kind === "open" ? merged.editor.path : null;
       const sameDocInputs =
         merged.openPath === s.openPath &&
-        merged.editor.path === s.editor.path &&
+        loadedPath === (s.editor.kind === "open" ? s.editor.path : null) &&
         merged.analyzed.rawReason === s.analyzed.rawReason;
       merged.openDoc = sameDocInputs
         ? s.openDoc
         : deriveOpenDoc({
-            loadedPath: merged.editor.path,
+            loadedPath,
             openPath: merged.openPath,
             rawReason: merged.analyzed.rawReason,
           });
@@ -152,9 +153,15 @@ export const createOpenNoteStore = (): OpenNoteStore => {
   // parse + serialize (up to 3 passes) and a microtask would still run it before
   // the settle's frame paints. a dirty edit keeps the last verdict.
   const publishEditor = (editor: VaultEditorState): void => {
+    if (editor.kind === "closed") {
+      dropPendingAnalysis();
+      apply({ analyzed: INITIAL_ANALYZED, editor });
+      return;
+    }
     const s = store.getState();
     const pathChanged = s.analyzed.path !== editor.path;
-    if (editor.diskSeq !== s.editor.diskSeq || (pathChanged && !editor.dirty)) {
+    const diskMoved = s.editor.kind === "closed" || s.editor.diskSeq !== editor.diskSeq;
+    if (diskMoved || (pathChanged && !editor.dirty)) {
       dropPendingAnalysis();
       const rawReason = verdictFor(editor.path, editor.content);
       toastRawFlip(s.analyzed, editor.path, rawReason);
@@ -174,6 +181,7 @@ export const createOpenNoteStore = (): OpenNoteStore => {
           // live state, not the snapshot captured at schedule time.
           const live = store.getState();
           if (
+            live.editor.kind === "closed" ||
             live.editor.path !== target.path ||
             live.editor.content !== target.content ||
             live.editor.dirty

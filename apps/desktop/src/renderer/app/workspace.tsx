@@ -242,17 +242,20 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   }, [queryClient, noteStore, revealPanel]);
 
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
-    const { path } = noteStore.state().editor;
-    if (path === null) {
+    const { editor } = noteStore.state();
+    if (editor.kind === "closed") {
       return null;
     }
+    const { path } = editor;
     return await readNoteViewContext(path, {
       flush: async () => {
         await flushOpenNote();
       },
       read: () => {
         const current = noteStore.state().editor;
-        return current.path === path ? { content: current.content } : null;
+        return current.kind === "open" && current.path === path
+          ? { content: current.content }
+          : null;
       },
     });
   }, [noteStore]);

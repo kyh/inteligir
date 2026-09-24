@@ -3,15 +3,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
 import type { Descendant, TElement } from "platejs";
-import { MarkdownPlugin, serializeMd } from "@platejs/markdown";
+import { MarkdownPlugin } from "@platejs/markdown";
 
 import * as DIALECT_NODE_KEYS from "@repo/editor/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
 import { MODELED_JSX_FLOW_TAGS } from "@repo/notes/markdown/remark-opaque";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
-import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
 
@@ -57,8 +57,8 @@ describe("kit parity (Base half)", () => {
       if (!parsed.ok) {
         continue;
       }
-      const outA = serializeMd(a, { remarkStringifyOptions: MD_STRINGIFY, value: parsed.value });
-      const outB = serializeMd(b, { remarkStringifyOptions: MD_STRINGIFY, value: parsed.value });
+      const outA = serializeNote(a, parsed.value);
+      const outB = serializeNote(b, parsed.value);
       expect(outA, `${name} must serialize deterministically`).toBe(outB);
       expect(outA.trimEnd(), `${name} must match its canonical bytes`).toBe(src.trimEnd());
     }
@@ -132,7 +132,7 @@ describe("kit parity (live editor mirror)", () => {
       if (!parsed.ok) {
         continue;
       }
-      const out = serializeMd(live, { remarkStringifyOptions: MD_STRINGIFY, value: parsed.value });
+      const out = serializeNote(live, parsed.value);
       expect(out.trimEnd(), `${name} must match its canonical bytes via the live editor`).toBe(
         src.trimEnd(),
       );

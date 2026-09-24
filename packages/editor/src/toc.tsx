@@ -7,6 +7,7 @@ import type { Path, SlateEditor, TElement } from "platejs";
 import { useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
 export interface HeadingItem {
   id: string;
@@ -214,7 +215,10 @@ export const TableOfContents = () => {
         </div>
         <nav
           aria-label="Table of contents"
-          className="absolute top-0 right-0 max-h-96 w-56 translate-x-2 overflow-auto rounded-2xl border border-border bg-popover p-2 text-popover-foreground opacity-0 shadow-surface-4 transition-all duration-300 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100"
+          className={cn(
+            "absolute top-0 right-0 max-h-96 w-56 translate-x-2 overflow-auto rounded-2xl p-2 text-popover-foreground opacity-0 transition-all duration-300 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100",
+            surfaceClasses(3),
+          )}
         >
           {headings.map((h, i) => (
             <button

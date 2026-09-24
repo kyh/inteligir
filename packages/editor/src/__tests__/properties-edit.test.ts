@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
-import { serializeMd } from "@platejs/markdown";
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -13,7 +12,7 @@ import {
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
 
 const seed = (md: string) => {
@@ -23,8 +22,7 @@ const seed = (md: string) => {
   }
   return createSlateEditor({ plugins: EDITOR_KIT, value: parsed.value });
 };
-const serialize = (editor: ReturnType<typeof seed>): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+const serialize = (editor: ReturnType<typeof seed>): string => serializeNote(editor);
 
 const editProperty = (
   editor: ReturnType<typeof seed>,

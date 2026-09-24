@@ -70,6 +70,10 @@ describe("notePreviewHead", () => {
     expect(notePreviewHead(md)).toBe("See Plan and C#Sharp.");
   });
 
+  it("labels an embed as its target, without the bang", () => {
+    expect(notePreviewHead("Read ![[Plan]] first.")).toBe("Read Plan first.");
+  });
+
   it.each([
     ["a BOM", "\uFEFF---\nid: abc\n---\nBody\n"],
     ["CRLF", "---\r\nid: abc\r\n---\r\nBody\r\n"],

@@ -134,9 +134,9 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     const publish = (): void => {
       const state = created.controller.getState();
       ports.publishEditor(state);
-      const { saveError } = state;
+      const saveError = state.kind === "open" ? state.saveError : null;
       if (saveError !== null && saveError.kind !== failing) {
-        ports.notify(saveErrorMessage(path, saveError));
+        ports.notify(saveErrorMessage(created.path, saveError));
       }
       failing = saveError?.kind ?? null;
     };
@@ -179,7 +179,8 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
         if (seq !== navSeq) {
           return;
         }
-        if (leaving?.controller.getState().saveError?.kind !== "vanished") {
+        const left = leaving?.controller.getState();
+        if (leaving === null || left?.kind !== "open" || left.saveError?.kind !== "vanished") {
           ports.notify("Couldn't save the current file — resolve that before switching.");
           return;
         }
@@ -293,24 +294,24 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
       ports.notify("Couldn't save the open note — resolve that before renaming.");
       return false;
     }
-    // dispose before the call: the move's own broadcast otherwise reaches a controller still on
-    // the old path, which reloads the moved file and closes the note being carried over.
-    if (carry !== null) {
-      disposeRuntime();
-    }
+    // held, not let go: a keystroke typed during the move needs a buffer to land in, and the
+    // move's own broadcast would otherwise reload the moved file and close the note being carried.
+    const carried = carry === null ? null : runtime;
+    carried?.suspend();
     const result = await ports.rename(from, dest).catch(() => null);
     if (result === null || !result.ok) {
       ports.notify(result?.ok === false ? result.error : "Couldn't rename the file.");
-      // nothing moved: re-attach a controller to the still-open note.
-      if (carry !== null && openPath === carry.from) {
-        ensureRuntime(carry.from);
+      if (carry !== null) {
+        void carried?.resume(carry.from);
       }
       return false;
     }
     refreshList();
-    if (carry !== null && openPath === carry.from) {
-      ensureRuntime(carry.to);
-      applyOpenPath(carry.to, "carry");
+    if (carry !== null && carried !== null) {
+      void carried.resume(carry.to);
+      if (runtime === carried) {
+        applyOpenPath(carry.to, "carry");
+      }
     }
     return true;
   };

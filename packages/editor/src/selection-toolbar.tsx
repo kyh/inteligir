@@ -32,6 +32,7 @@ import type { PlateEditor } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
 import { useAgentRequestActions } from "@repo/editor/agent-request";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
@@ -54,8 +55,10 @@ import {
 } from "@repo/editor/block-transforms";
 import { extractBlocksToNote, selectedTopLevelPaths } from "@repo/editor/extract-note";
 
-const BAR_CLASS =
-  "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
+const BAR_CLASS = cn(
+  "z-50 flex items-center gap-0.5 rounded-lg p-1 text-popover-foreground animate-in fade-in-0 zoom-in-95",
+  surfaceClasses(3),
+);
 
 const Sep = () => <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
-import { serializeMd } from "@platejs/markdown";
 
 import {
   TURN_INTO,
@@ -13,7 +12,7 @@ import {
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 const makeEditor = (md: string) => {
   const parsed = parseMarkdown(md);
@@ -23,8 +22,7 @@ const makeEditor = (md: string) => {
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+const out = (editor: Editor): string => serializeNote(editor);
 
 describe("TURN_INTO menu (decision #8)", () => {
   it("offers exactly the locked target set, in menu order — no columns", () => {

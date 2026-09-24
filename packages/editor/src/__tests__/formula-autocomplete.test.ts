@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
-import { serializeMd } from "@platejs/markdown";
 
 import { commitComboboxInput, consumeTriggerLead } from "@repo/editor/combobox-input";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
 import { completeFormulaFromPicker, insertFormulaFromPicker } from "@repo/editor/formula-insert";
 import { formulaNodeFrom, rebuildRaw } from "@repo/editor/formulas/formula-entry";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { MD_STRINGIFY } from "@repo/editor/markdown/markdown-doc";
+import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 const makeEditor = (text: string) =>
   createSlateEditor({
@@ -18,8 +17,7 @@ const makeEditor = (text: string) =>
 
 type Editor = ReturnType<typeof makeEditor>;
 
-const out = (editor: Editor): string =>
-  serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+const out = (editor: Editor): string => serializeNote(editor);
 
 const findByType = (editor: Editor, type: string): TElement | null => {
   for (const [node] of editor.api.nodes({ at: [], match: { type } })) {
