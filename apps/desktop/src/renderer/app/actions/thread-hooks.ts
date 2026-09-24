@@ -3,18 +3,50 @@
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import type {
   GetThreadResponse,
+  ListThreadsQuery,
   ListThreadsResponse,
+  Thread,
 } from "@repo/api/local/threads/threads-schema";
 import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
-import { useQuery } from "@tanstack/react-query";
-import type { UseQueryResult } from "@tanstack/react-query";
+import { skipToken, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { InfiniteData, UseInfiniteQueryResult, UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 
-export const useThreads = (): UseQueryResult<ListThreadsResponse> =>
-  useQuery(orpc.threads.list.queryOptions());
+type ThreadListFilter = Omit<ListThreadsQuery, "cursor">;
+
+// module-level, so the flattened list keeps its identity until a page changes.
+const flattenPages = (data: InfiniteData<ListThreadsResponse, string | null>): Thread[] =>
+  data.pages.flatMap((page) => page.threads);
+
+const threadPages = (filter: ThreadListFilter | typeof skipToken) =>
+  orpc.threads.list.infiniteOptions({
+    getNextPageParam: (page) => page.nextCursor,
+    initialPageParam: null,
+    input:
+      filter === skipToken
+        ? skipToken
+        : (cursor: string | null) => (cursor === null ? filter : { ...filter, cursor }),
+    select: flattenPages,
+  });
+
+// live threads, most recently active first; `fetchNextPage` reads on past the pages held.
+export const useThreads = (): UseInfiniteQueryResult<Thread[]> => useInfiniteQuery(threadPages({}));
+
+// asked for by path, so a note's older actions are not lost below the recent pages.
+export const useNoteThreads = (docPath: string | null): UseInfiniteQueryResult<Thread[]> =>
+  useInfiniteQuery(threadPages(docPath === null ? skipToken : { originDocPath: docPath }));
+
+// archived or not: an archived thread still running is still the agent at work.
+const RUNNING_ANYWHERE: ListThreadsQuery = { includeArchived: true, limit: 1, running: true };
+
+const holdsAny = (page: ListThreadsResponse): boolean => page.threads.length > 0;
+
+export const useAgentWorking = (): boolean =>
+  useQuery(orpc.threads.list.queryOptions({ input: RUNNING_ANYWHERE, select: holdsAny })).data ??
+  false;
 
 export const useThreadDetail = (threadId: string | null): UseQueryResult<GetThreadResponse> =>
   useQuery({

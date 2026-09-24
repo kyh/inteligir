@@ -19,7 +19,7 @@ describe("action new", () => {
     });
     expect(created.code).toBe(0);
 
-    const { threads } = await client.threads.list();
+    const { threads } = await client.threads.list({});
     expect(threads.map((thread) => thread.title)).toEqual(["Tidy the intro"]);
 
     const listed = await runCliForTest({

@@ -20,6 +20,7 @@ import {
   interruptThreadResponseSchema,
   listInteractionsQuerySchema,
   listInteractionsResponseSchema,
+  listThreadsQuerySchema,
   listThreadsResponseSchema,
   sendMessageRequestSchema,
   sendMessageResponseSchema,
@@ -50,7 +51,7 @@ export const threadsContract = {
     .output(interruptThreadResponseSchema)
     .errors({ CONFLICT: {}, NOT_FOUND: {} }),
 
-  list: oc.output(listThreadsResponseSchema),
+  list: oc.input(listThreadsQuerySchema).output(listThreadsResponseSchema),
 
   listInteractions: oc.input(listInteractionsQuerySchema).output(listInteractionsResponseSchema),
 

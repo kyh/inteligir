@@ -1,12 +1,17 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ORPCError } from "@orpc/client";
+import {
+  THREADS_LIST_DEFAULT_LIMIT,
+  THREADS_LIST_MAX_LIMIT,
+} from "@repo/api/local/threads/threads-schema";
 import type {
   InterruptThreadResponse,
+  ListThreadsQuery,
   PendingInteraction,
   Thread,
 } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
-import { parsePositiveNumber } from "../args";
+import { parseBoundedInteger, parsePositiveNumber } from "../args";
 import { CliExitError, getErrorMessage } from "../cli-error";
 import type { CliFailure } from "../cli-error";
 import { apiFor } from "../context";
@@ -90,15 +95,52 @@ export const actionCommand = (deps: CliDeps) =>
       }),
 
       list: defineCommand({
-        args: { ...jsonArg },
-        meta: { description: "All actions with status", name: "list" },
+        args: {
+          archived: {
+            description: "Include archived actions, listed after the rest",
+            type: "boolean",
+          },
+          cursor: { description: "Continue where the previous page stopped", type: "string" },
+          doc: { description: "Only actions attached to this note", type: "string" },
+          limit: {
+            description: `Page size (1–${THREADS_LIST_MAX_LIMIT}, default ${THREADS_LIST_DEFAULT_LIMIT})`,
+            type: "string",
+          },
+          running: { description: "Only actions whose turn is running", type: "boolean" },
+          ...jsonArg,
+        },
+        meta: { description: "Actions with status, most recently active first", name: "list" },
         run: async ({ args }) => {
+          const request: ListThreadsQuery = {};
+          if (args.archived === true) {
+            request.includeArchived = true;
+          }
+          if (args.cursor !== undefined) {
+            request.cursor = args.cursor;
+          }
+          if (args.doc !== undefined) {
+            request.originDocPath = args.doc;
+          }
+          if (args.limit !== undefined) {
+            request.limit = parseBoundedInteger(args.limit, "--limit", {
+              max: THREADS_LIST_MAX_LIMIT,
+              min: 1,
+            });
+          }
+          if (args.running === true) {
+            request.running = true;
+          }
           const api = apiFor(deps);
-          const body = await api.threads.list();
+          const body = await api.threads.list(request);
           if (outputJson(args, body)) {
             return;
           }
-          writeLines(body.threads.map(threadLine));
+          writeLines([
+            ...body.threads.map(threadLine),
+            ...(body.nextCursor === null
+              ? []
+              : [`(more; pass --cursor ${body.nextCursor} for the next page)`]),
+          ]);
         },
       }),
 

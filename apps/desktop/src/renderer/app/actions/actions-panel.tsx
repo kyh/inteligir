@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 
 import { failed, orpc, refusalMessage, safe } from "../api";
 import { FoldSection } from "../fold-section";
@@ -33,7 +34,7 @@ import { useFollowBottom } from "./follow-bottom";
 import { THREAD_ACTIVITY_LABELS, threadActivity, threadStopControl } from "../thread-activity";
 import type { ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
-import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
+import { useNoteThreads, useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 import { NoteFacts } from "./note-facts";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
@@ -194,6 +195,29 @@ const ActionRow = ({
     </TaskItem>
   );
 };
+
+const ShowMoreActions = ({
+  pages,
+  label,
+}: {
+  pages: Pick<UseInfiniteQueryResult, "fetchNextPage" | "hasNextPage" | "isFetchingNextPage">;
+  label: string;
+}) =>
+  pages.hasNextPage ? (
+    <div className="px-2 py-1">
+      <Button
+        variant="ghost"
+        size="compact"
+        aria-label={label}
+        disabled={pages.isFetchingNextPage}
+        onClick={() => {
+          void pages.fetchNextPage();
+        }}
+      >
+        Show more
+      </Button>
+    </div>
+  ) : null;
 
 const ActionDetail = ({
   threadId,
@@ -369,11 +393,11 @@ export const ActionsPanel = ({
   modifier,
 }: ActionsPanelProps) => {
   const [propertiesOpen, setPropertiesOpen] = useState(true);
-  const threadsQuery = useThreads();
-  const threads = threadsQuery.data?.threads ?? [];
-
-  const noteActions = docPath === null ? [] : threads.filter((t) => t.originDocPath === docPath);
-  const otherActions = threads.filter((t) => docPath === null || t.originDocPath !== docPath);
+  const recentQuery = useThreads();
+  const noteQuery = useNoteThreads(docPath);
+  const recent = recentQuery.data ?? [];
+  const noteActions = noteQuery.data ?? [];
+  const otherActions = recent.filter((t) => docPath === null || t.originDocPath !== docPath);
 
   return (
     <Tabs
@@ -423,9 +447,10 @@ export const ActionsPanel = ({
                     <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
                   ))}
                 </TaskList>
+                <ShowMoreActions pages={noteQuery} label="Show more for this note" />
               </>
             ) : null}
-            {otherActions.length > 0 ? (
+            {otherActions.length > 0 || recentQuery.hasNextPage ? (
               <>
                 <p className="px-2 pt-2 pb-0.5 text-caption font-medium text-muted-foreground uppercase">
                   Recent
@@ -435,9 +460,10 @@ export const ActionsPanel = ({
                     <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
                   ))}
                 </TaskList>
+                <ShowMoreActions pages={recentQuery} label="Show more recent actions" />
               </>
             ) : null}
-            {threads.length === 0 ? (
+            {recent.length === 0 && noteActions.length === 0 ? (
               <p className="p-3 text-subtitle text-muted-foreground">
                 No actions yet. Press {bindingFor("open-action-composer", modifier)} to ask the
                 agent.

@@ -44,6 +44,7 @@ import {
   createThread,
   ensureThreadInTransaction,
   getThread,
+  listRunningThreads,
   listThreads,
   nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
@@ -58,12 +59,18 @@ import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
   GetThreadResponse,
+  ListThreadsResponse,
+  ParsedListThreadsQuery,
   PendingInteraction,
   SendMessageRequest,
   Thread,
   ThreadStop,
   TimelineQuery,
   TimelineResponse,
+} from "@repo/api/local/threads/threads-schema";
+import {
+  encodeThreadListCursor,
+  THREADS_LIST_DEFAULT_LIMIT,
 } from "@repo/api/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
 import { z } from "zod";
@@ -390,8 +397,18 @@ export class ThreadService implements ProviderEventSink {
     return toWireThread(createThread(this.db, this.notifier, created));
   }
 
-  list(): Thread[] {
-    return listThreads(this.db).map(toWireThread);
+  list(query: ParsedListThreadsQuery): ListThreadsResponse {
+    const page = listThreads(this.db, {
+      after: query.cursor ?? null,
+      includeArchived: query.includeArchived ?? false,
+      limit: query.limit ?? THREADS_LIST_DEFAULT_LIMIT,
+      originDocPath: query.originDocPath ?? null,
+      running: query.running ?? false,
+    });
+    return {
+      nextCursor: page.next === null ? null : encodeThreadListCursor(page.next),
+      threads: page.rows.map(toWireThread),
+    };
   }
 
   get(threadId: string): GetThreadResponse | null {
@@ -794,10 +811,7 @@ export class ThreadService implements ProviderEventSink {
   // "working" forever.
   private recoverWedgedThreads(): void {
     const message = "The server restarted while this turn was running";
-    for (const thread of listThreads(this.db)) {
-      if (!isThreadRunning(thread.status)) {
-        continue;
-      }
+    for (const thread of listRunningThreads(this.db)) {
       const { activeTurnId } = thread;
       if (
         activeTurnId !== null &&

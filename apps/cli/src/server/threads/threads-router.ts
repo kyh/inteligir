@@ -4,7 +4,7 @@ import { base } from "../orpc";
 
 const THREAD_NOT_FOUND = "Thread not found";
 
-const list = base.threads.list.handler(({ context }) => ({ threads: context.threads.list() }));
+const list = base.threads.list.handler(({ context, input }) => context.threads.list(input));
 
 const get = base.threads.get.handler(({ context, input, errors }) => {
   const detail = context.threads.get(input.threadId);

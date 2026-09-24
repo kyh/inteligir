@@ -83,7 +83,7 @@ export const dictationBrowser: Scenario = {
       stillThere === composed,
       `the composer changed after the transcript landed: ${JSON.stringify(stillThere)}`,
     );
-    const listed = await app.api.threads.list();
+    const listed = await app.api.threads.list({ includeArchived: true });
     expect(listed.threads.length === 0, `dictation created a thread: ${JSON.stringify(listed)}`);
 
     ctx.log("typing continues after the inserted text");

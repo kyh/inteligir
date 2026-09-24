@@ -38,11 +38,13 @@ afterEach(() => {
 
 describe("the rail's sign-in", () => {
   it("closes once the sign-in lands, so a later sign-out does not open it again", async () => {
-    stubRpc({ "cloud/login": () => SIGNED_IN });
+    stubRpc({
+      "cloud/login": () => SIGNED_IN,
+      "threads/list": () => ({ nextCursor: null, threads: [] }),
+    });
     const queryClient = createWorkspaceQueryClient();
     queryClient.setQueryData(orpc.cloud.status.queryKey(), SIGNED_OUT);
     queryClient.setQueryData(orpc.vault.status.queryKey(), NO_REMOTE);
-    queryClient.setQueryData(orpc.threads.list.queryKey(), { threads: [] });
     render(
       <QueryClientProvider client={queryClient}>
         <SyncRow onSyncNow={() => {}} />

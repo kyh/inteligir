@@ -1,3 +1,6 @@
+import { setTimeout as delay } from "node:timers/promises";
+import { THREADS_LIST_DEFAULT_LIMIT } from "@repo/api/local/threads/threads-schema";
+import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootThreadHarness } from "inteligir/server/testing";
 import type { ThreadHarness } from "inteligir/server/testing";
@@ -24,11 +27,17 @@ const bootRunningAction = async (): Promise<{ harness: ThreadHarness; threadId: 
   return { harness, threadId: thread.id };
 };
 
-const mountAction = (threadId: string): void => {
+const mountPanel = ({
+  docPath,
+  threadId,
+}: {
+  docPath: string | null;
+  threadId: string | null;
+}): void => {
   render(
     <WorkspaceProvider>
       <ActionsPanel
-        docPath={null}
+        docPath={docPath}
         tab="actions"
         onTabChange={noop}
         commentFocus={null}
@@ -40,6 +49,25 @@ const mountAction = (threadId: string): void => {
       />
     </WorkspaceProvider>,
   );
+};
+
+const mountAction = (threadId: string): void => {
+  mountPanel({ docPath: null, threadId });
+};
+
+// `oldest` lands a millisecond before the rest, so no tie can sort it into their page.
+const bootActions = async (count: number, oldest?: CreateThreadRequest): Promise<ThreadHarness> => {
+  const harness = await bootThreadHarness({ mode: "manual" });
+  vi.stubGlobal("WebSocket", InertSocket);
+  routeRendererFetch(harness);
+  if (oldest !== undefined) {
+    await harness.client.threads.create(oldest);
+    await delay(2);
+  }
+  for (let index = 0; index < count; index += 1) {
+    await harness.client.threads.create({ title: `Action ${String(index)}` });
+  }
+  return harness;
 };
 
 describe("the Stop button on an action", () => {
@@ -79,5 +107,49 @@ describe("the Stop button on an action", () => {
 
     await screen.findByText("Rewrite the intro");
     expect(screen.queryByRole("button", { name: "Stop action" })).toBeNull();
+  });
+});
+
+describe("the action list", () => {
+  const ROW = /^Action \d+$/u;
+
+  it("shows a page of actions, and Show more reads the next", async () => {
+    await bootActions(THREADS_LIST_DEFAULT_LIMIT + 1);
+    mountPanel({ docPath: null, threadId: null });
+
+    await waitFor(() => {
+      expect(screen.getAllByText(ROW)).toHaveLength(THREADS_LIST_DEFAULT_LIMIT);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Show more recent actions" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText(ROW)).toHaveLength(THREADS_LIST_DEFAULT_LIMIT + 1);
+    });
+    expect(screen.queryByRole("button", { name: "Show more recent actions" })).toBeNull();
+  });
+
+  it("lists the open note's action though a page of newer ones came after it", async () => {
+    await bootActions(THREADS_LIST_DEFAULT_LIMIT, {
+      originDocPath: "notes/a.md",
+      title: "The old one",
+    });
+    mountPanel({ docPath: "notes/a.md", threadId: null });
+
+    expect(await screen.findByText("The old one")).toBeDefined();
+    expect(screen.getByText("This note")).toBeDefined();
+  });
+
+  it("leaves an archived action out", async () => {
+    const harness = await bootActions(1, { title: "Archived action" });
+    const { threads } = await harness.client.threads.list({});
+    const archived = threads.find((thread) => thread.title === "Archived action");
+    if (archived === undefined) {
+      throw new Error("expected the action to archive");
+    }
+    await harness.client.threads.archive({ threadId: archived.id });
+    mountPanel({ docPath: null, threadId: null });
+
+    expect(await screen.findByText("Action 0")).toBeDefined();
+    expect(screen.queryByText("Archived action")).toBeNull();
   });
 });

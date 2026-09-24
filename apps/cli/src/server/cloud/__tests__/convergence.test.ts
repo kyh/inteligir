@@ -257,7 +257,7 @@ describe("two installs against one account", () => {
       notifier: new NotificationBuffer(),
     });
     rebooted.boot();
-    expect(rebooted.list().some((row) => row.id === thread.id)).toBe(true);
+    expect(rebooted.list({}).threads.some((row) => row.id === thread.id)).toBe(true);
     expect(eventOrder(b, thread.id).some((row) => row.startsWith("provider/error"))).toBe(false);
     const afterReboot = await b.client.threads.get({ threadId: thread.id });
     expect(afterReboot.thread.status).toBe("active");
