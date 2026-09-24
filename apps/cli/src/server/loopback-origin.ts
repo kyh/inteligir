@@ -1,6 +1,8 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { LOOPBACK_HOST } from "./server-file";
+// the one address the server binds and every client dials. never `localhost`: it resolves to ::1
+// or 127.0.0.1 per machine, and those are different origins to the desktop's pin.
+export const LOOPBACK_HOST = "127.0.0.1";
 
 const LOCAL_HOSTS = [LOOPBACK_HOST, "localhost"] as const;
 

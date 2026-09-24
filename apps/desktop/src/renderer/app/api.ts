@@ -10,7 +10,7 @@ import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import { toast } from "@repo/ui/components/sonner";
-import { observeRpcStatus } from "./signed-out-state";
+import { observeGateRefusal } from "./signed-out-state";
 
 export { isDefinedError, safe } from "@orpc/client";
 
@@ -18,11 +18,12 @@ const isAbort = (cause: unknown): boolean => cause instanceof Error && cause.nam
 
 // no `headers` thunk: the bearer is attached in main under `inteligir://app`, and by the same-origin cookie over plain HTTP.
 const link = new RPCLink({
-  // the raw status, below the codec: a 401 is the http gate's plain-text refusal, which the codec
-  // only sees as a malformed body.
+  // the raw response, below the codec: the http gate's refusal is plain text, which the codec only
+  // sees as a malformed body. its challenge is what marks it: a procedure's UNAUTHORIZED (a
+  // mistyped cloud password) is a 401 too, and says nothing about this page's credential.
   fetchInterceptors: [
     onSuccess((response: Response) => {
-      observeRpcStatus(response.status);
+      observeGateRefusal(response.status === 401 && response.headers.has("www-authenticate"));
     }),
   ],
   interceptors: [

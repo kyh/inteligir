@@ -8,16 +8,6 @@ import { errnoCode } from "./errno";
 
 export const serveLockPath = (dataDir: string): string => path.join(dataDir, "serve.lock");
 
-// EPERM is a live process this user may not signal; ESRCH is gone.
-export const processAlive = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return errnoCode(error) === "EPERM";
-  }
-};
-
 type ServeLockClaim =
   | { kind: "acquired"; release: () => void }
   // null when the holder's pid could not be read.

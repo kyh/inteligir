@@ -22,15 +22,10 @@ import { ensureDevDataDirOwnership } from "./data-dir";
 import { resolveCheckoutRoot } from "./dev-instance";
 import { messageOf } from "./error-message";
 import { closeServer, listenWithRetry } from "./listen";
-import { acquireServeLock, processAlive, serveLockPath } from "./serve-lock";
-import {
-  LOOPBACK_HOST,
-  loopbackOrigin,
-  mintServerToken,
-  removeServerFile,
-  writeServerFile,
-} from "./server-file";
-import { probeServerFile, silentOwnerSentence } from "./server-probe";
+import { LOOPBACK_HOST } from "./loopback-origin";
+import { acquireServeLock, serveLockPath } from "./serve-lock";
+import { loopbackOrigin, mintServerToken, removeServerFile, writeServerFile } from "./server-file";
+import { probeServerFile, processAlive, silentOwnerSentence } from "./server-probe";
 import type { ServerFileProbe } from "./server-probe";
 import {
   createGracefulShutdown,

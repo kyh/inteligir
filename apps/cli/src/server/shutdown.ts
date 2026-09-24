@@ -160,7 +160,10 @@ export const installShutdownSignals = (args: InstallShutdownSignalsArgs): void =
   for (const signal of SHUTDOWN_SIGNALS) {
     args.target.on(signal, () => {
       if (args.shutdown.started) {
-        args.onImpatient(signal);
+        // a closed terminal delivers SIGHUP twice (the shell's killpg, then the kernel's), and with no terminal left nobody can be impatient.
+        if (signal !== "SIGHUP") {
+          args.onImpatient(signal);
+        }
         return;
       }
       void (async () => {

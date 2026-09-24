@@ -17,7 +17,7 @@ import {
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { AGENT_THREAD_HEADER, agentThreadIdOf } from "./agent-thread-header";
 import { isSameOriginBrowserRequest } from "./browser-request";
@@ -97,10 +97,20 @@ export const createApp = (args: CreateAppArgs) => {
   });
 
   // each carrier has its own secret: the bearer never rides a cookie, and the browser's cookie is no bearer.
-  const credentialAccepted = (credential: PresentedCredential): boolean =>
-    credential.carrier === "header"
-      ? tokenAccepted(args.serverToken, credential.token)
-      : args.context.browserSession.cookieAccepted(credential.token);
+  const acceptedCredential = (c: Context): PresentedCredential | null => {
+    const credential = presentedCredential({
+      authorization: c.req.header("authorization"),
+      cookie: c.req.header("cookie"),
+    });
+    if (credential === null) {
+      return null;
+    }
+    const accepted =
+      credential.carrier === "header"
+        ? tokenAccepted(args.serverToken, credential.token)
+        : args.context.browserSession.cookieAccepted(credential.token);
+    return accepted ? credential : null;
+  };
 
   // one gate at the http boundary: three of the four surfaces it protects are not procedures.
   // /health stays outside (a supervisor's spawn probe holds no credential yet), and so does the
@@ -108,11 +118,9 @@ export const createApp = (args: CreateAppArgs) => {
   // stands in). a cookie is ambient and loopback "site" ignores the port, so a co-resident page
   // on another 127.0.0.1 port carries it: a cookie-authed request must also prove same-origin.
   const requireServerToken: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
-    const credential = presentedCredential({
-      authorization: c.req.header("authorization"),
-      cookie: c.req.header("cookie"),
-    });
-    if (credential === null || !credentialAccepted(credential)) {
+    const credential = acceptedCredential(c);
+    if (credential === null) {
+      c.header("WWW-Authenticate", 'Bearer realm="inteligir"');
       return c.text("This request carried no valid inteligir device token", 401);
     }
     if (
@@ -160,7 +168,7 @@ export const createApp = (args: CreateAppArgs) => {
       context: {
         ...args.context,
         agentThreadId: agentThreadIdOf(c.req.header(AGENT_THREAD_HEADER)),
-        requestHost: c.req.header("host"),
+        requestOrigin: c.get("requestOrigin"),
       },
       prefix: RPC_PREFIX,
     });
@@ -261,11 +269,7 @@ export const createApp = (args: CreateAppArgs) => {
       c,
       next,
     ): Promise<Response | undefined> => {
-      const credential = presentedCredential({
-        authorization: c.req.header("authorization"),
-        cookie: c.req.header("cookie"),
-      });
-      if (credential === null || !credentialAccepted(credential)) {
+      if (acceptedCredential(c) === null) {
         return c.body(SIGNED_OUT_PAGE, 401, INERT_PAGE_HEADERS);
       }
       // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit

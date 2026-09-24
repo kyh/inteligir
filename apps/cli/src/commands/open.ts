@@ -3,7 +3,6 @@ import { defineCommand } from "citty";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeOut } from "../output";
-import { systemOpenExternalUrl } from "../server/browser-opener";
 
 export const openCommand = (deps: CliDeps) =>
   defineCommand({
@@ -21,8 +20,7 @@ export const openCommand = (deps: CliDeps) =>
       if (outputJson(args, { url })) {
         return;
       }
-      const openExternalUrl = deps.openExternalUrl ?? systemOpenExternalUrl;
-      if (await openExternalUrl(url)) {
+      if (await deps.openExternalUrl(url)) {
         out.success(`Opened ${server.baseUrl} in your browser.`);
         return;
       }

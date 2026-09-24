@@ -48,8 +48,8 @@ export interface AppContext {
   // injected so a suite can watch an authorization begin without opening a window.
   openExternalUrl: OpenExternalUrl;
   // per request: a callback url must name the port the caller reached, since
-  // listen may have probed past the configured one.
-  requestHost: string | undefined;
+  // listen may have probed past the configured one. null when no request reached this context.
+  requestOrigin: string | null;
   recordAgentWrites: RecordAgentWrites;
   renameNote: RenameNote;
   renameTag: RenameTag;
@@ -60,7 +60,7 @@ export interface AppContext {
   voice: VoiceService;
 }
 
-export type AppServices = Omit<AppContext, "agentThreadId" | "requestHost">;
+export type AppServices = Omit<AppContext, "agentThreadId" | "requestOrigin">;
 
 export const base = implement(localContract).$context<AppContext>();
 
