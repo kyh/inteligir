@@ -30,16 +30,22 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
   const restore = useMutation({
     mutationFn: async (entry: VaultDeletedEntry) => {
       const { content } = await api.vault.revision({ path: entry.path, sha: entry.sha });
-      const restored = await api.vault.write({ content, ifAbsent: true, path: entry.path });
-      await restoreCommentStore(api, content, entry.sha);
-      return restored;
+      const { path } = await api.vault.write({ content, ifAbsent: true, path: entry.path });
+      const comments = await restoreCommentStore(api, content, entry.sha);
+      return { comments, path };
     },
     onError: (error, entry) => {
       toast.error(refusalMessage(error, `Could not restore ${entry.path}.`));
     },
-    onSuccess: (restored) => {
+    // the note is back whatever became of its comments, so it opens either way.
+    onSuccess: ({ comments, path }) => {
+      if (comments.kind === "failed") {
+        toast.warning(
+          `Restored ${path}, but not its comments: ${refusalMessage(comments.error, "the comment store was refused")}`,
+        );
+      }
       void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
-      onOpenNote(restored.path);
+      onOpenNote(path);
     },
   });
 

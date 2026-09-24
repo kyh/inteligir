@@ -4,6 +4,7 @@ import path from "node:path";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
 import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/api/local/routes";
+import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import {
   VAULT_ASSET_MAX_BYTES,
   VAULT_MAX_CONTENT_LENGTH,
@@ -339,11 +340,15 @@ describe("a note's comment store goes with the note", () => {
     const sha = entry?.sha ?? "";
     const note = await client.vault.revision({ path: "notes/keep.md", sha });
     await client.vault.write({ content: note.content, ifAbsent: true, path: "notes/keep.md" });
-    const store = await client.vault.revision({ path: STORE, sha });
-    await client.vault.write({ content: store.content, ifAbsent: true, path: STORE });
+    expect(await restoreCommentStore(client, note.content, sha)).toEqual({ kind: "restored" });
 
     const listed = await client.comments.list({ path: "notes/keep.md" });
     expect(listed.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
+
+    // the server's own refusals are the ones the composition reads as "kept" and "none".
+    expect(await restoreCommentStore(client, note.content, sha)).toEqual({ kind: "kept" });
+    const otherNote = note.content.replace(NOTE_ID, "never-commented");
+    expect(await restoreCommentStore(client, otherNote, sha)).toEqual({ kind: "none" });
   });
 
   it("stays while a copy still carries the id", async () => {
