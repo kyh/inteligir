@@ -5,29 +5,13 @@ import { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import { describe, expect, it, vi } from "vitest";
 import { brokeredAdapterProcess } from "../brokered-adapter";
-import type { BrokeredFork, ForkAttachment } from "../fork-broker-client";
+import type { BrokeredFork } from "../fork-broker-client";
 import { stdioOverPort, toChildFrameSchema } from "../stdio-frames";
 import type { ToChildFrame } from "../stdio-frames";
-import { fakeChannel } from "./fake-ports";
+import { fakeChannel, manualFork } from "./fake-ports";
 
 const require = createRequire(import.meta.url);
 const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-agent");
-
-interface ManualFork {
-  fork: BrokeredFork;
-  attach: (attachment: ForkAttachment) => void;
-  exit: (code: number | null) => void;
-}
-
-const manualFork = (): ManualFork => {
-  const attachment = Promise.withResolvers<ForkAttachment>();
-  const exit = Promise.withResolvers<number | null>();
-  return {
-    attach: attachment.resolve,
-    exit: exit.resolve,
-    fork: { attachment: attachment.promise, exit: exit.promise },
-  };
-};
 
 const noSignal = (): void => {
   /* empty */

@@ -3,20 +3,18 @@
 // classifies each surviving miss: ranking (reachable at some rank) or
 // vocabulary (no lexical query reaches it — the case only an embedding buys).
 
-import { createHash } from "node:crypto";
 import nodePath from "node:path";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
-import { projectDoc } from "@repo/notes/knowledge/projection";
-import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { planSearchQuery } from "@repo/notes/knowledge/search-query";
 import type { SearchQueryPlan } from "@repo/notes/knowledge/search-query";
-import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
 import { EVAL_QUERIES, EVAL_VAULT } from "./search-eval-vault";
 import type { EvalQuery } from "./search-eval-vault";
+import { seedDocs, storeWith } from "./seeded-store";
 import { z } from "zod";
 
 const K = 10;
@@ -128,16 +126,8 @@ beforeAll(() => {
   );
   store = createSqlKnowledgeStore(driver, "/vault");
   pure = new KnowledgeIndex();
+  seedDocs(store, EVAL_VAULT);
   for (const [path, content] of Object.entries(EVAL_VAULT)) {
-    const projection = projectDoc(path, content);
-    store.upsertDoc(
-      {
-        contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
-        path,
-        projection,
-      },
-      docSearchColumns(projection, content),
-    );
     pure.setDoc(path, content);
   }
 });
@@ -169,29 +159,7 @@ const unstemmed: Retrieve = (query, limit) => {
 
 const after: Retrieve = (query, limit) => store.search(query, limit).map((hit) => hit.path);
 
-// a store per test: a note added for one relation would change another's ranking.
-const storeOf = (docs: Readonly<Record<string, string>>): SqlKnowledgeStore => {
-  const built = createSqlKnowledgeStore(
-    createSqliteDriver(nodePath.join(makeTempDir("inteligir-search-tier-"), "knowledge.db")),
-    "/vault",
-  );
-  onTestFinished(() => {
-    built.dispose();
-  });
-  for (const [path, content] of Object.entries(docs)) {
-    const projection = projectDoc(path, content);
-    built.upsertDoc(
-      {
-        contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
-        path,
-        projection,
-      },
-      docSearchColumns(projection, content),
-    );
-  }
-  return built;
-};
-
+// an engine per test: a note added for one relation would change another's ranking.
 const pureOf = (docs: Readonly<Record<string, string>>): KnowledgeIndex => {
   const index = new KnowledgeIndex();
   for (const [path, content] of Object.entries(docs)) {
@@ -303,7 +271,7 @@ describe("vault search — the retrieval measurement", () => {
     const docs = { "exact.md": "loops", "stem-only.md": "loop" };
     const ranked = ["exact.md", "stem-only.md"];
     expect(
-      storeOf(docs)
+      storeWith(docs)
         .search("loops", 2)
         .map((hit) => hit.path),
     ).toEqual(ranked);
@@ -318,7 +286,7 @@ describe("vault search — the retrieval measurement", () => {
     // porter stems busy and business to one stem.
     const docs = { "business.md": "# Business\n", "busy.md": "# Busy\n" };
     expect(
-      storeOf(docs)
+      storeWith(docs)
         .search("business", 2)
         .map((hit) => hit.path)[0],
     ).toBe("business.md");
@@ -333,7 +301,7 @@ describe("vault search — the retrieval measurement", () => {
     // the title/body field gap is 10x; only idf could close this, and only bm25 has one.
     const docs = { "body.md": "# Notes\n\nThe business of the week.\n", "busy.md": "# Busy\n" };
     expect(
-      storeOf(docs)
+      storeWith(docs)
         .search("business", 2)
         .map((hit) => hit.path)[0],
     ).toBe("busy.md");
@@ -347,7 +315,7 @@ describe("vault search — the retrieval measurement", () => {
   it("folds diacritics the same way on both sides of the seam", () => {
     // FTS5's unicode61 strips diacritics itself, so the pure tokenizer must too.
     const docs = { "es.md": "# Acción\n\nUna acción pendiente.\n" };
-    const sql = storeOf(docs);
+    const sql = storeWith(docs);
     const index = pureOf(docs);
     for (const query of ["acción", "accion", "acciones"]) {
       expect(
@@ -366,7 +334,7 @@ describe("vault search — the retrieval measurement", () => {
     const docs = {
       "late.md": `# Late\n\n${"filler ".repeat(30)}\n\nI have been exhausted lately.\n`,
     };
-    for (const engine of [storeOf(docs), pureOf(docs)]) {
+    for (const engine of [storeWith(docs), pureOf(docs)]) {
       const [hit] = engine.search("exhausting", 5);
       expect(hit?.path).toBe("late.md");
       expect(hit?.snippet).toContain("exhausted");
@@ -378,7 +346,7 @@ describe("vault search — the retrieval measurement", () => {
     // policy and policies stem to one term, so either spelling satisfies the AND.
     const docs = { "policy.md": "# Policy\n\nOur policies are written down.\n" };
     expect(
-      storeOf(docs)
+      storeWith(docs)
         .search("policy policies", 5)
         .map((hit) => hit.path),
     ).toEqual(["policy.md"]);

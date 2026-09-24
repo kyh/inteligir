@@ -406,23 +406,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     return entries.filter((entry: VaultEntry) => entry.kind === "file").map((entry) => entry.path);
   };
 
-  const reconcile = async (): Promise<ReconcileStats> => {
-    const files = await listFiles();
-    const current = new Set(files);
-    const stats: ReconcileStats = { projected: 0, removed: 0, unchanged: 0 };
-
-    for (const path of [...hashes.keys(), ...others]) {
-      if (current.has(path)) {
-        continue;
-      }
-      removeIndexed(path);
-      stats.removed += 1;
-    }
-
-    await projectFiles(files, stats);
-    return stats;
-  };
-
   const removeGone = (gone: readonly string[]): void => {
     if (gone.length === 0) {
       return;
@@ -445,6 +428,19 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         }
       }
     });
+  };
+
+  const reconcile = async (): Promise<ReconcileStats> => {
+    const files = await listFiles();
+    const current = new Set(files);
+    const stats: ReconcileStats = { projected: 0, removed: 0, unchanged: 0 };
+
+    const stale = [...hashes.keys(), ...others].filter((path) => !current.has(path));
+    removeGone(stale);
+    stats.removed = stale.length;
+
+    await projectFiles(files, stats);
+    return stats;
   };
 
   const applyChangedPaths = async (paths: readonly string[]): Promise<void> => {

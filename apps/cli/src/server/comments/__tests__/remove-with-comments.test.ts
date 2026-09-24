@@ -1,14 +1,8 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import nodePath from "node:path";
-import { noopNotifier } from "@repo/domain/notifier";
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
-import { describe, expect, it, onTestFinished } from "vitest";
-import { identityLock } from "../../__tests__/identity-lock";
-import { makeTempDir } from "../../__tests__/temp-dir";
-import { createInlineProjector } from "../../knowledge/__tests__/inline-projector";
-import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
-import type { KnowledgeRuntime } from "../../knowledge/knowledge-runtime";
-import { createVaultService } from "../../vault/vault-service";
+import { describe, expect, it } from "vitest";
+import { bootIndexedVault, makeVaultDirs } from "../../knowledge/__tests__/indexed-vault";
 import { removeEntryWithComments } from "../remove-with-comments";
 
 const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
@@ -17,29 +11,9 @@ const NOTE = `---\nid: ${NOTE_ID}\n---\n%%i:c1:start%%x%%i:c1:end%%\n`;
 const STORE_BYTES = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
 
 const boot = () => {
-  const instanceDir = makeTempDir("inteligir-remove-with-comments-");
-  const root = nodePath.join(instanceDir, "vault");
-  const dataDir = nodePath.join(instanceDir, "data");
-  mkdirSync(root, { recursive: true });
-  mkdirSync(dataDir, { recursive: true });
-  let sink: KnowledgeRuntime | null = null;
-  const service = createVaultService({
-    lock: identityLock,
-    notifier: noopNotifier,
-    onMutated: (mutations) =>
-      sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
-    root,
-  });
-  const knowledge = createKnowledgeRuntime({
-    dataDir,
-    projector: createInlineProjector(),
-    vault: service,
-    vaultRoot: root,
-  });
-  sink = knowledge;
-  onTestFinished(async () => {
-    await knowledge.dispose();
-  });
+  const { knowledge, root, service } = bootIndexedVault(
+    makeVaultDirs("inteligir-remove-with-comments-"),
+  );
   const storeOnDisk = (): boolean => existsSync(nodePath.join(root, STORE));
   return { knowledge, service, storeOnDisk };
 };
@@ -51,15 +25,11 @@ describe("a delete takes a note's comment store only when no other note carries 
     await service.write("Plan copy.md", NOTE);
     await service.write(STORE, STORE_BYTES);
 
-    expect(await removeEntryWithComments(service, "Plan copy.md", knowledge)).toEqual({
-      keptStores: [STORE],
-    });
+    await removeEntryWithComments(service, "Plan copy.md", knowledge);
     const kept = await service.read(STORE);
     expect(kept.content).toBe(STORE_BYTES);
 
-    expect(await removeEntryWithComments(service, "Plan.md", knowledge)).toEqual({
-      keptStores: [],
-    });
+    await removeEntryWithComments(service, "Plan.md", knowledge);
     expect(storeOnDisk()).toBe(false);
   });
 
@@ -69,7 +39,7 @@ describe("a delete takes a note's comment store only when no other note carries 
     await service.write("box/deeper/Plan copy.md", NOTE);
     await service.write(STORE, STORE_BYTES);
 
-    expect(await removeEntryWithComments(service, "box", knowledge)).toEqual({ keptStores: [] });
+    await removeEntryWithComments(service, "box", knowledge);
     expect(storeOnDisk()).toBe(false);
   });
 
@@ -79,9 +49,7 @@ describe("a delete takes a note's comment store only when no other note carries 
     await service.write("Plan.md", NOTE);
     await service.write(STORE, STORE_BYTES);
 
-    expect(await removeEntryWithComments(service, "box", knowledge)).toEqual({
-      keptStores: [STORE],
-    });
+    await removeEntryWithComments(service, "box", knowledge);
     expect(storeOnDisk()).toBe(true);
   });
 });

@@ -47,7 +47,7 @@ export const removeEntryWithComments = async (
   service: VaultService,
   path: string,
   knowledge: Pick<KnowledgeRuntime, "noteIdOwners">,
-): Promise<{ keptStores: string[] }> => {
+): Promise<void> => {
   const docs = await docsUnder(service, path);
   const found = await mapWithConcurrency(docs, ID_READ_CONCURRENCY, async (doc) => {
     const content = await readForId(service, doc);
@@ -57,21 +57,17 @@ export const removeEntryWithComments = async (
   const ids = new Set(found.filter((id) => id !== null));
   await service.remove(path);
   const removed = new Set(docs);
-  const keptStores: string[] = [];
   for (const id of ids) {
-    const store = commentsStorePath(id);
     const owners = await knowledge.noteIdOwners(id);
     if (owners.some((owner) => !removed.has(owner))) {
-      keptStores.push(store);
       continue;
     }
     try {
-      await service.remove(store);
+      await service.remove(commentsStorePath(id));
     } catch (error) {
       if (!(error instanceof VaultServiceError && error.code === "not_found")) {
         throw error;
       }
     }
   }
-  return { keptStores };
 };

@@ -1,26 +1,9 @@
 import { setImmediate } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
-import type { BrokeredFork, ForkAttachment } from "../../child-host/fork-broker-client";
 import type { PortMessageEvent } from "../../child-host/message-port";
-import { fakeChannel } from "../../child-host/__tests__/fake-ports";
+import { fakeChannel, manualFork } from "../../child-host/__tests__/fake-ports";
 import type { ChildToParentMessage } from "../watcher/messages";
 import { createPortChannel } from "../watcher/port-channel";
-
-interface ManualFork {
-  fork: BrokeredFork;
-  attach: (attachment: ForkAttachment) => void;
-  exit: (code: number | null) => void;
-}
-
-const manualFork = (): ManualFork => {
-  const attachment = Promise.withResolvers<ForkAttachment>();
-  const exit = Promise.withResolvers<number | null>();
-  return {
-    attach: attachment.resolve,
-    exit: exit.resolve,
-    fork: { attachment: attachment.promise, exit: exit.promise },
-  };
-};
 
 // past every microtask, so an attachment already resolved has been taken up
 const settled = async (): Promise<void> => {
