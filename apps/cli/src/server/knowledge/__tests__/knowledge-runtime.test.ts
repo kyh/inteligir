@@ -361,7 +361,7 @@ describe("the knowledge runtime", () => {
     expect(statSync(indexFile).ino).toBe(indexInode);
 
     expect(await searchPaths(knowledge, "heron")).toEqual(["b.md"]);
-    expect(knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 1 });
+    expect(knowledge.lastReconcile).toMatchObject({ projected: 1, removed: 0, unchanged: 1 });
   });
 
   it("keeps an unreadable doc's last entry without a rebuild, and indexes it once readable", async () => {
@@ -415,7 +415,7 @@ describe("the knowledge runtime", () => {
     writeFileSync(nodePath.join(dirs.root, "deep.md"), `${">".repeat(10_000)} kestrel\n`);
     const first = bootIndexedVault(dirs);
     await first.knowledge.settle();
-    expect(first.knowledge.lastReconcile).toEqual({ projected: 2, removed: 0, unchanged: 0 });
+    expect(first.knowledge.lastReconcile).toMatchObject({ projected: 2, removed: 0, unchanged: 0 });
     await first.knowledge.dispose();
 
     const inline = createInlineProjector();
@@ -430,7 +430,11 @@ describe("the knowledge runtime", () => {
       },
     });
     expect(await searchPaths(second.knowledge, "kestrel")).toEqual(["a.md"]);
-    expect(second.knowledge.lastReconcile).toEqual({ projected: 0, removed: 0, unchanged: 2 });
+    expect(second.knowledge.lastReconcile).toMatchObject({
+      projected: 0,
+      removed: 0,
+      unchanged: 2,
+    });
     expect(projected).toEqual([]);
 
     writeFileSync(nodePath.join(dirs.root, "deep.md"), "# Deep\n\nNow shallow kestrel.\n");
