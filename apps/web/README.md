@@ -142,7 +142,9 @@ answers git clients in plain text.
   `x-forwarded-for`. `/api/auth/get-session` spends no window: a session read
   is no password oracle, and every route guard and hover preload makes one. A
   read that fails is unknown to the route guards, never signed out
-  (`src/lib/auth-client.ts`). The hosted
+  (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
+  that failed to load, as its message and a retry
+  (`src/routes/app/devices.tsx`). The hosted
   vault's two read budgets (`/v1/git/*` 600/min, `/v1/vault/*` 3,000/min) spend
   the same table keyed on the DEVICE, never the address: a stolen credential
   moves between addresses, and the device row is what `/app/devices` revokes.
