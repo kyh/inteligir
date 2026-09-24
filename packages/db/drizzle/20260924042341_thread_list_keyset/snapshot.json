@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "21dac365-8745-4150-80a1-1172bef5ba44",
-  "prevIds": ["7c121d92-b705-4468-9a1a-ffd4a1b4a015"],
+  "id": "917460bf-c0dc-4456-a295-43c07c0212c0",
+  "prevIds": ["2f62b03f-0b1a-4757-8b5e-2b5f32a57288"],
   "ddl": [
     {
       "name": "events",
@@ -611,6 +611,16 @@
       "table": "threads"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "origin_note_id",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
       "columns": ["thread_id"],
       "tableTo": "threads",
       "columnsTo": ["id"],
@@ -881,20 +891,6 @@
       "where": "\"threads\".\"archived_at\" IS NOT NULL",
       "origin": "manual",
       "name": "threads_archived_updated_id_idx",
-      "entityType": "indexes",
-      "table": "threads"
-    },
-    {
-      "columns": [
-        {
-          "value": "origin_doc_path",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "threads_origin_doc_idx",
       "entityType": "indexes",
       "table": "threads"
     },

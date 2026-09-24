@@ -17,30 +17,32 @@ export interface ThreadOrigins {
   pathForNoteId: KnowledgeRuntime["pathForNoteId"];
 }
 
+// the cli may name a note that is not there, or a path the vault refuses
+const orNull = async (read: () => Promise<string | null>): Promise<string | null> => {
+  try {
+    return await read();
+  } catch (error) {
+    if (error instanceof VaultServiceError || error instanceof VaultPathError) {
+      return null;
+    }
+    throw error;
+  }
+};
+
 export const createThreadOrigins = (
   vault: Pick<VaultService, "read" | "writeIfUnchanged">,
   knowledge: Pick<KnowledgeRuntime, "pathForNoteId">,
-): ThreadOrigins => {
-  // the cli may name a note that is not there, or a path the vault refuses
-  const orNull = async (read: () => Promise<string | null>): Promise<string | null> => {
-    try {
-      return await read();
-    } catch (error) {
-      if (error instanceof VaultServiceError || error instanceof VaultPathError) {
-        return null;
-      }
-      throw error;
-    }
-  };
-  return {
-    noteIdAt: async (path) =>
-      await orNull(async () => {
-        const { content } = await vault.read(path);
-        const outcome = await ensureNoteId(vault, path, content);
-        return outcome.kind === "id" ? outcome.id : null;
-      }),
-    noteIdOf: async (path) =>
-      await orNull(async () => frontmatterId((await vault.read(path)).content)),
-    pathForNoteId: knowledge.pathForNoteId,
-  };
-};
+): ThreadOrigins => ({
+  noteIdAt: async (path) =>
+    await orNull(async () => {
+      const { content } = await vault.read(path);
+      const outcome = await ensureNoteId(vault, path, content);
+      return outcome.kind === "id" ? outcome.id : null;
+    }),
+  noteIdOf: async (path) =>
+    await orNull(async () => {
+      const { content } = await vault.read(path);
+      return frontmatterId(content);
+    }),
+  pathForNoteId: knowledge.pathForNoteId,
+});
