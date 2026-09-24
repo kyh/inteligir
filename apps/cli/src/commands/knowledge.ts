@@ -12,7 +12,9 @@ import type {
   KnowledgeRelatedRequest,
   KnowledgeSearchRequest,
   KnowledgeUnlinkedMentionsRequest,
+  KnowledgeUnlinkedMentionsResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
+import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
 import { apiFor } from "../context";
@@ -21,6 +23,13 @@ import { jsonArg, out, outputJson, writeLines } from "../output";
 
 const parseLimit = (rawValue: string | undefined, max: number): number | undefined =>
   rawValue === undefined ? undefined : parseBoundedInteger(rawValue, "--limit", { max, min: 1 });
+
+// the bare stem may be another note's, so the rows are only actionable beside the link that names this one,
+// spelled as the writer escapes it (`[[Issue\#42]]`).
+const linkLine = (body: KnowledgeUnlinkedMentionsResponse): string => {
+  const wikiBody = body.linkTarget === null ? null : serializeWikiBody({ target: body.linkTarget });
+  return wikiBody === null ? `no wiki link can name ${body.path}` : `link as [[${wikiBody}]]`;
+};
 
 export const searchCommand = (deps: CliDeps) =>
   defineCommand({
@@ -148,6 +157,7 @@ export const unlinkedCommand = (deps: CliDeps) =>
       }
       // columns count from 1 here, as editors do; the wire's are offsets
       writeLines([
+        linkLine(body),
         ...body.mentions.map(
           (mention) =>
             `${mention.path}:${mention.line}:${mention.column + 1}  ${mention.before}${mention.text}${mention.after}${

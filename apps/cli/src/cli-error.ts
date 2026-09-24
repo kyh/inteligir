@@ -3,6 +3,7 @@
 // the error CLASSES are this CLI's own and are documented in the served
 // guide (cli-skill.ts).
 
+import { ORPCError } from "@orpc/client";
 import { z } from "zod";
 
 export const EXIT_ERROR = 1;
@@ -26,10 +27,17 @@ export const CLI_FAILURE_EXIT_CODES = {
   UNEXPECTED_RESPONSE: EXIT_ERROR,
   WAIT_TIMEOUT: EXIT_WAIT_TIMEOUT,
 } as const;
-type CliFailureCode = keyof typeof CLI_FAILURE_EXIT_CODES;
+export type CliFailureCode = keyof typeof CLI_FAILURE_EXIT_CODES;
 
 // a server refusal re-raised in the CLI's own words keeps the server's class and exits as the refusal itself would.
 export type CliFailure = { code: CliFailureCode } | { serverClass: string };
+
+// unparameterised, `instanceof ORPCError` narrows `code` to `any`.
+export const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
+  cause instanceof ORPCError;
+
+export const failureFrom = (cause: unknown, fallback: CliFailureCode): CliFailure =>
+  isOrpcError(cause) ? { serverClass: cause.code } : { code: fallback };
 
 // server refusals keep the server's own class (`NOT_FOUND`, …), so the CLI's own classes share that spelling.
 export class CliExitError extends Error {

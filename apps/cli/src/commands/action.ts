@@ -1,5 +1,4 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { ORPCError } from "@orpc/client";
 import {
   THREADS_LIST_DEFAULT_LIMIT,
   THREADS_LIST_MAX_LIMIT,
@@ -12,19 +11,18 @@ import type {
 } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger, parsePositiveNumber } from "../args";
-import { CliExitError, getErrorMessage } from "../cli-error";
-import type { CliFailure } from "../cli-error";
+import { CliExitError, failureFrom, getErrorMessage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
+import {
+  DEFAULT_WAIT_POLL_INTERVAL_MS,
+  DEFAULT_WAIT_TIMEOUT_SECONDS,
+  MAX_WAIT_POLL_INTERVAL_MS,
+  MAX_WAIT_TIMEOUT_SECONDS,
+} from "../server/guide/action-wait-bounds";
 import { describeInteraction } from "./describe-interaction";
 import { formatThreadTimeline } from "./format-thread-timeline";
-
-const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
-const DEFAULT_WAIT_POLL_INTERVAL_MS = 300;
-// node fires a timer set past 2^31-1 ms (about 24.8 days) after 1 ms, so an unbounded wait would give up at once.
-const MAX_WAIT_TIMEOUT_SECONDS = 86_400;
-const MAX_WAIT_POLL_INTERVAL_MS = 60_000;
 
 type SendOutcome =
   | { kind: "started"; turnId: string }
@@ -63,15 +61,27 @@ const describeStop = (body: InterruptThreadResponse): string => {
   }
 };
 
-// the re-wrap keeps the refusal's own class so a --json caller branches on the same vocabulary a bare send gives.
-const sendFailure = (cause: unknown): CliFailure =>
-  cause instanceof ORPCError ? { serverClass: String(cause.code) } : { code: "SEND_FAILED" };
-
 const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
   interactions.filter((row) => row.status === "pending").map((row) => row.id);
 
 const answerHint = (ids: readonly string[]): string =>
   `approval ${ids.join(", ")} (\`inteligir interactions answer <id> <decision>\`)`;
+
+// the hint is pasted back into a shell, so a value that is not one plain word is single-quoted.
+const shellWord = (word: string): string =>
+  /^[\w./@%+=:,-]+$/u.test(word) ? word : `'${word.replaceAll("'", String.raw`'\''`)}'`;
+
+// the cursor names a position, not the query, so the next page is only the same listing with the same flags.
+const nextPageHint = (cursor: string, request: ListThreadsQuery): string => {
+  const flags = [
+    `--cursor ${cursor}`,
+    ...(request.includeArchived === true ? ["--archived"] : []),
+    ...(request.originDocPath === undefined ? [] : [`--doc ${shellWord(request.originDocPath)}`]),
+    ...(request.running === true ? ["--running"] : []),
+    ...(request.limit === undefined ? [] : [`--limit ${String(request.limit)}`]),
+  ];
+  return `(more; pass ${flags.join(" ")} for the next page)`;
+};
 
 export const actionCommand = (deps: CliDeps) =>
   defineCommand({
@@ -136,9 +146,7 @@ export const actionCommand = (deps: CliDeps) =>
           }
           writeLines([
             ...body.threads.map(threadLine),
-            ...(body.nextCursor === null
-              ? []
-              : [`(more; pass --cursor ${body.nextCursor} for the next page)`]),
+            ...(body.nextCursor === null ? [] : [nextPageHint(body.nextCursor, request)]),
           ]);
         },
       }),
@@ -169,7 +177,7 @@ export const actionCommand = (deps: CliDeps) =>
             throw new CliExitError(
               `Action ${createdThread.id} was created but its first turn failed: ${getErrorMessage(error)}. ` +
                 `Retry with \`inteligir action send ${createdThread.id} …\` or archive it.`,
-              sendFailure(error),
+              failureFrom(error, "SEND_FAILED"),
             );
           }
           if (outputJson(args, { send: outcome, thread: createdThread })) {

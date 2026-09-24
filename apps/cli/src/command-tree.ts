@@ -122,8 +122,16 @@ const spellingsOf = (name: string, def: ArgDef): string[] => {
   return spellings;
 };
 
+// citty's two built-ins, which every command answers and no leaf declares itself.
+export const HELP_FLAGS: ReadonlySet<string> = new Set(["--help", "-h"]);
+export const VERSION_FLAGS: ReadonlySet<string> = new Set(["--version", "-v"]);
+
 export const declaredFlags = (argsDef: ArgsDef): Set<string> => {
-  const names = new Set(["help", "version"]);
+  const names = new Set(
+    [...HELP_FLAGS, ...VERSION_FLAGS]
+      .filter((flag) => flag.startsWith("--"))
+      .map((flag) => flag.slice(2)),
+  );
   for (const [name, def] of Object.entries(argsDef)) {
     if (def.type !== "positional") {
       for (const spelling of spellingsOf(name, def)) {
@@ -170,13 +178,13 @@ const splitArgv = (rawArgs: readonly string[], argsDef: ArgsDef): ArgvTokens => 
   return tokens;
 };
 
-// the short spellings of the two built-ins `declaredFlags` names, which no leaf declares itself.
-const BUILTIN_SHORT_FLAGS = new Set(["h", "v"]);
-
 const isDeclaredFlag = (raw: string, declared: ReadonlySet<string>): boolean => {
+  if (HELP_FLAGS.has(raw) || VERSION_FLAGS.has(raw)) {
+    return true;
+  }
   if (!raw.startsWith("--")) {
     const letters = raw.slice(1);
-    return BUILTIN_SHORT_FLAGS.has(letters) || (letters.length === 1 && declared.has(letters));
+    return letters.length === 1 && declared.has(letters);
   }
   const flag = raw.slice(2).split("=")[0] ?? "";
   // `--no-x` is citty's negation of the boolean `x`.

@@ -105,6 +105,12 @@ describe("restoring a revision from the history tab", () => {
     routeRendererFetch(booted);
     routeRendererSocket(booted);
     const oldest = await seedHistory(booted);
+    // another note's unflushed bytes, as a running turn's writes are: the checkpoint is not theirs.
+    await booted.client.vault.write({
+      content: "# Mid-turn\n",
+      guard: { kind: "overwrite" },
+      path: "other.md",
+    });
     const restored = vi.spyOn(toast, "success");
 
     await openRevision(oldest);
@@ -121,6 +127,7 @@ describe("restoring a revision from the history tab", () => {
       sha: revisions[0]?.sha ?? "",
     });
     expect(checkpoint.content).toBe(EDITED);
+    expect(await booted.client.vault.history({ path: "other.md" })).toEqual({ revisions: [] });
   });
 
   it("refuses a restore the note moved under after the diff was drawn, keeping what moved it", async () => {

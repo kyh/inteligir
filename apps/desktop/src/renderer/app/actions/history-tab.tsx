@@ -16,7 +16,7 @@ import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/reac
 import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { client, isDefinedError, orpc, refusalMessage, safe } from "../api";
+import { client, failed, isDefinedError, orpc, refusalMessage, safe } from "../api";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { diffRows } from "./history-diff";
 import type { DiffRow } from "./history-diff";
@@ -61,7 +61,7 @@ const RevisionRow = ({
 const DIFF_LINE = {
   added: { className: "bg-success/10 text-success", mark: "+" },
   context: { className: "text-muted-foreground", mark: " " },
-  removed: { className: "bg-red-500/10 text-red-700 dark:text-red-300", mark: "-" },
+  removed: { className: "bg-destructive/10 text-destructive", mark: "-" },
 } satisfies Record<"context" | "removed" | "added", { mark: string; className: string }>;
 
 const revisionBody = (unread: boolean, refused: boolean): string => {
@@ -130,8 +130,9 @@ const RevisionDetail = ({
           message: "The note could not be saved, so nothing was restored.",
         };
       }
-      // the auto-commit is session-shaped, so bytes saved seconds ago are in no revision yet.
-      await client.vault.commitNow();
+      // the auto-commit is session-shaped, so bytes saved seconds ago are in no revision yet. the
+      // note alone: a whole-tree checkpoint would sweep a running turn's writes into an auto-commit.
+      await client.vault.commitNow({ paths: [docPath] });
       const { error } = await safe(
         client.vault.write({
           content: bytes,
@@ -151,7 +152,7 @@ const RevisionDetail = ({
       return { kind: "refused", message: refusalMessage(error, RESTORE_REFUSED) };
     },
     onError: (cause: unknown) => {
-      toast.error(refusalMessage(cause, RESTORE_REFUSED));
+      failed(cause, RESTORE_REFUSED);
     },
     onSuccess: (outcome) => {
       if (outcome.kind === "refused") {
