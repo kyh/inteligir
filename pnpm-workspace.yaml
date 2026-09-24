@@ -126,3 +126,9 @@ overrides:
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
+
+# micromark merges a paragraph's text with one splice per line, so a long paragraph parses in time
+# quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
+# release carries it
+patchedDependencies:
+  micromark@4.0.2: patches/micromark@4.0.2.patch
