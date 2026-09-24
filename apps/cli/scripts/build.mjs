@@ -50,7 +50,8 @@ await build({
   splitting: true,
 });
 
-// the watcher is a forked child process, so it needs its own file beside the entry
+// the watcher is a child process (forked by node, or by the desktop shell's main), so it needs its
+// own file beside the entry
 await build({
   ...shared,
   entryPoints: [
@@ -58,6 +59,14 @@ await build({
   ],
   external: ["@parcel/watcher"],
   outfile: path.join(distDir, "parcel-watcher-child.mjs"),
+});
+
+// the desktop shell runs each ACP adapter under this host, in a utility process of its own
+// (src/server/child-host/node-children.ts)
+await build({
+  ...shared,
+  entryPoints: [path.join(packageRoot, "src", "server", "child-host", "stdio-port-host-entry.ts")],
+  outfile: path.join(distDir, "stdio-port-host.mjs"),
 });
 
 // the transcriber and the projector are worker threads, so each needs its own file beside the

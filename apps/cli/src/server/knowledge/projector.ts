@@ -143,7 +143,6 @@ const workerTransport = (): ProjectionTransport => {
       const answered = Promise.withResolvers<ProjectionResult>();
       waiting.set(id, { reject: answered.reject, resolve: answered.resolve });
       worker.ref();
-      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- node worker_threads, not a browser window
       worker.postMessage({ ...job, id });
       return await answered.promise;
     },

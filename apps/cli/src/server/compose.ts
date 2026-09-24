@@ -71,7 +71,7 @@ export interface ComposePorts {
   // a suite runs the scan inline: a worker booted from source costs every compose seconds
   knowledge?: Pick<KnowledgeRuntimeArgs, "projector">;
   openExternalUrl?: OpenExternalUrl;
-  vault?: Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">;
+  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote" | "spawnWatcherChannel">>;
 }
 
 export interface ComposeRuntimeArgs {
@@ -139,6 +139,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   if (ports.vault?.gitEnv !== undefined) {
     vaultArgs.gitEnv = ports.vault.gitEnv;
+  }
+  if (ports.vault?.spawnWatcherChannel !== undefined) {
+    vaultArgs.spawnWatcherChannel = ports.vault.spawnWatcherChannel;
   }
   const vault = await createVaultRuntime(vaultArgs);
   const vaultPrefs = new VaultPrefsStore(config.dataDir);

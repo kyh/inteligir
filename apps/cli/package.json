@@ -33,6 +33,7 @@
   "type": "module",
   "exports": {
     "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
+    "./server/child-host/fork-broker-wire": "./src/server/child-host/fork-broker-wire.ts",
     "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
     "./server/cloud/sync-cadence": "./src/server/cloud/sync-cadence.ts",
     "./server/config": "./src/server/config.ts",

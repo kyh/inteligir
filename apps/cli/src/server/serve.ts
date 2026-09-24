@@ -7,11 +7,15 @@ import { inspect } from "node:util";
 import { browserHandoffUrl } from "@repo/api/local/routes";
 import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
+import type { ResolveAgentDriverArgs } from "./agents/agent-driver";
 import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
 import { createApp } from "./app";
+import { readParentPort } from "./child-host/message-port";
+import { resolveNodeChildren } from "./child-host/node-children";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
+import type { ComposeRuntimeArgs } from "./compose";
 import { composeSessionMcpServers } from "./connectors/session-servers";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
@@ -131,8 +135,9 @@ const boot = async (
 
   // published only once the port is bound, so a reader never learns an address before it answers.
   const serverToken = mintServerToken();
+  const children = resolveNodeChildren(readParentPort());
 
-  const runtime = await composeRuntime({
+  const composeArgs: ComposeRuntimeArgs = {
     // injected: it cannot be imported from the composed graph (cloud/cloud-socket.ts).
     cloudTransport: { openSocket: openCloudSocket },
     config,
@@ -148,7 +153,7 @@ const boot = async (
     }) => {
       const cliBinDir = resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
-      return resolveAgentDriver({
+      const driverArgs: ResolveAgentDriverArgs = {
         config: driverConfig,
         db,
         mcpServers: async () => await composeSessionMcpServers(connectors, connectorsOauth),
@@ -161,11 +166,19 @@ const boot = async (
           skillsDir,
         }),
         vault,
-      });
+      };
+      if (children.spawnAdapter !== undefined) {
+        driverArgs.spawnAdapter = children.spawnAdapter;
+      }
+      return resolveAgentDriver(driverArgs);
     },
     teardown,
     version,
-  });
+  };
+  if (children.watcherChannel !== undefined) {
+    composeArgs.ports = { vault: { spawnWatcherChannel: children.watcherChannel } };
+  }
+  const runtime = await composeRuntime(composeArgs);
 
   const clientDir = resolveUiDir();
   const { app, injectWebSocket, upgradedSockets } = createApp({

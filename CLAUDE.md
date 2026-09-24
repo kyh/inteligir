@@ -45,7 +45,9 @@ apps/
                  pure + unit-tested): one origin, top-level navigation away
                  goes to the system browser, window.open denied
                  unconditionally, permissions denied except origin-scoped
-                 media. utilityProcess forks `inteligir serve`; a server
+                 media. utilityProcess forks `inteligir serve` and, through
+                 main's fork broker, every node child that server needs (the
+                 watcher, the ACP adapters); a server
                  already listening is ADOPTED once it answers this instance's
                  token at the bundled version, and only a child the shell
                  started is killed on quit.
@@ -1871,19 +1873,30 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   retracts another boot's address. `apps/cli/src/server/serve-lock.ts` and
   `claimDataDir` in `serve.ts`.
 
-- **THE PACKAGED BINARY'S FUSES ARE FLIPPED, EXCEPT RUN-AS-NODE.** electron-builder
-  flips them before signing: `NODE_OPTIONS` and `--inspect` are ignored,
-  `file://` pages get no extra privileges (the protocol handler's own
-  `net.fetch` of the bundle is not a page and still reads it), and the cookie
-  store is encrypted, a one-way change to an install's profile. `runAsNode`
-  stays on because the server's watcher forks its child with `child_process`
-  from inside the utility process, which runs this binary as Node, and the
-  packaged smoke boots the server the same way; it goes off only once that
-  fork does. The flip breaks Electron's own ad-hoc signature, and Apple Silicon
-  kills a binary whose signature does not match, so `resetAdHocDarwinSignature`
-  re-signs the app ad-hoc right after it: an unsigned pack (CI's macOS job, or
-  a tree with no Developer ID) runs, and a signed one is re-signed over it.
-  `apps/desktop/electron-builder.yml`.
+- **THE PACKAGED BINARY'S FUSES ARE ALL FLIPPED, AND MAIN FORKS THE SERVER'S
+  NODE CHILDREN.** electron-builder flips them before signing:
+  `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are ignored, so no
+  local process can run the signed app as a node interpreter, `file://` pages
+  get no extra privileges (the protocol handler's own `net.fetch` of the
+  bundle is not a page and still reads it), and the cookie store is encrypted,
+  a one-way change to an install's profile. With `runAsNode` off nothing runs
+  this binary as Node, and a utility process cannot fork one of its own, so
+  the server asks main over its parent port for the vault watcher and each
+  ACP adapter; main forks each as a utility process and hands both sides one
+  `MessageChannelMain` (`apps/desktop/src/main/fork-broker.ts`,
+  `apps/cli/src/server/child-host/`). An adapter speaks ACP over stdio, which
+  a utility process cannot be given, so its streams ride the port as frames;
+  codex-acp's own launcher needs `process.execPath` to be node, so its
+  harness row names the native codex as `CODEX_PATH`. Rejected: a bundled
+  node binary, which would ship a second signed interpreter and a second
+  runtime to patch; worker threads, which trade the watcher's sigkill
+  recovery and an adapter's own process. Under plain node (`serve`, npx) the
+  server forks both with `child_process` as before. The smoke therefore
+  launches the app itself, window and all. The flip breaks Electron's own
+  ad-hoc signature, and Apple Silicon kills a binary whose signature does not
+  match, so `resetAdHocDarwinSignature` re-signs the app ad-hoc right after
+  it: an unsigned pack (CI's macOS job, or a tree with no Developer ID) runs,
+  and a signed one is re-signed over it. `apps/desktop/electron-builder.yml`.
 
 ### Desktop workspace surfaces
 

@@ -31,6 +31,12 @@ export default defineConfig({
       },
     },
     {
+      // The server posts to MessagePorts and worker threads, never to a window, which is the
+      // only target that takes an origin.
+      files: ["apps/cli/src/server/**"],
+      rules: { "unicorn/require-post-message-target-origin": "off" },
+    },
+    {
       files: ["packages/notes/src/**"],
       rules: {
         "no-restricted-imports": [

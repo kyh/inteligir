@@ -29,9 +29,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // package that only writes rows.
     "@repo/db": ["@repo/domain"],
     // `inteligir` for the facts both processes must agree on: config resolution, the token's file
-    // and header spelling, the shutdown budget the stop grace must exceed, and the CSP and the
-    // html-block frame the protocol handler serves. forking its bundle as a child is the same
-    // dependency, declared once.
+    // and header spelling, the shutdown budget the stop grace must exceed, the CSP and the
+    // html-block frame the protocol handler serves, and the fork broker's frames. forking its
+    // bundle as a child is the same dependency, declared once.
     "@repo/desktop": [
       "@repo/api",
       "@repo/domain",
