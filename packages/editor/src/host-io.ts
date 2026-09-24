@@ -36,6 +36,8 @@ export interface LinkResolver {
   resolveWikiTarget: (target: string, alias?: string) => string | null;
   /** `target` is an md url as `mdLinkTarget` reads it; tried beside `fromPath`, then from the root. */
   resolveMdTarget: (target: string, fromPath: string) => string | null;
+  /** The index's wiki targets the resolver was built over: notes first, then attachments. */
+  targets: readonly WikiTarget[];
 }
 
 // The read half only: the app owns the writer. A store rather than a field because the resolver
@@ -69,8 +71,6 @@ export interface EditorHostIo {
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
   /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */
   writeVaultAsset: (payload: { baseName: string; file: Blob }) => Promise<{ path: string }>;
-  /** Notes first, then attachments. */
-  listWikiTargets: () => Promise<WikiTarget[]>;
   getBacklinks: (payload: { path: string }) => Promise<BacklinkEntry[]>;
   readNoteFormulas: (payload: { noteId: string }) => Promise<{
     path: string;

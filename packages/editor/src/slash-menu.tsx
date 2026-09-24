@@ -32,14 +32,13 @@ import {
 import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
-import { useEffect, useState } from "react";
 
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { isTemplatePath } from "@repo/notes/templates/placeholders";
 
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import type { TurnIntoId } from "@repo/editor/block-transforms";
-import { getEditorHostIo } from "@repo/editor/host-io";
+import { useWikiTargets } from "@repo/editor/host";
 import { insertTemplate } from "@repo/editor/insert-template";
 import {
   insertCanvasBlock,
@@ -367,8 +366,8 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
 
 const TEMPLATES_GROUP = "Templates";
 
-// a template is a row only while it exists: the list is read when the menu opens rather than
-// pinned in GROUPS, and the group is absent when the folder is.
+// a template is a row only while it exists: the rows follow the host's live listing rather than
+// being pinned in GROUPS, and the group is absent when the folder is.
 const templateItems = (targets: readonly WikiTarget[]): SlashItem[] =>
   targets
     .filter((target) => isTemplatePath(target.path))
@@ -383,27 +382,7 @@ const templateItems = (targets: readonly WikiTarget[]): SlashItem[] =>
       value: `template:${target.path}`,
     }));
 
-const useTemplateItems = (): SlashItem[] => {
-  const [items, setItems] = useState<SlashItem[]>([]);
-  useEffect(() => {
-    let live = true;
-    const load = async (): Promise<void> => {
-      try {
-        const targets = await getEditorHostIo().listWikiTargets();
-        if (live) {
-          setItems(templateItems(targets));
-        }
-      } catch {
-        // an unanswered listing is no group, not an error to show
-      }
-    };
-    void load();
-    return () => {
-      live = false;
-    };
-  }, []);
-  return items;
-};
+const useTemplateItems = (): SlashItem[] => templateItems(useWikiTargets());
 
 const SlashInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;

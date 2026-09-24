@@ -3,12 +3,16 @@ import { useStore } from "zustand";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { LinkResolver, VaultActions } from "@repo/editor/host-io";
 import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 // React's door to the host singleton; anything outside a component reads getEditorHostIo() itself.
 
 export const useVaultActions = (): VaultActions => getEditorHostIo().actions;
 
 export const useLinkResolver = (): LinkResolver => useStore(getEditorHostIo().linkResolver);
+
+export const useWikiTargets = (): readonly WikiTarget[] =>
+  useStore(getEditorHostIo().linkResolver, (resolver) => resolver.targets);
 
 export interface VaultLinkTarget {
   target: string;

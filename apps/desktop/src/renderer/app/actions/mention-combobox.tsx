@@ -1,4 +1,5 @@
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
+import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
 import { cn } from "@repo/ui/lib/cn";
 import { FileTextIcon } from "lucide-react";
 
@@ -29,19 +30,11 @@ export const filterMentionTargets = (
   targets: readonly WikiTargetWire[],
   query: string,
   attached: ReadonlySet<string>,
-): WikiTargetWire[] => {
-  const needle = query.toLowerCase();
-  return targets
-    .filter((target) => target.type === "doc" && !attached.has(target.path))
-    .filter(
-      (target) =>
-        needle === "" ||
-        target.path.toLowerCase().includes(needle) ||
-        target.title.toLowerCase().includes(needle) ||
-        (target.aliases ?? []).some((alias) => alias.toLowerCase().includes(needle)),
-    )
-    .slice(0, MENTION_MAX_ROWS);
-};
+): WikiTargetWire[] =>
+  rankWikiTargets(
+    targets.filter((target) => target.type === "doc" && !attached.has(target.path)),
+    query,
+  ).slice(0, MENTION_MAX_ROWS);
 
 // the textarea keeps focus and names the lit row through aria-activedescendant, so a row carries
 // an id the field can point at.

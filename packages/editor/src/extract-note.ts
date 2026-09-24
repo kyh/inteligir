@@ -81,8 +81,7 @@ export const extractBlocksToNote = async (
   const notePath = liveEditorPath(editor);
   const dir = notePath === null ? "" : dirnamePath(notePath);
   const stem = extractionStem(blocksAt(editor, sorted));
-  const targets = await host.listWikiTargets();
-  const existing = targets.map((target) => target.path);
+  const existing = host.linkResolver.getState().targets.map((target) => target.path);
   const planned = freeDocPath(dir, stem, existing);
   const body = linkBodyFor(planned, existing);
   if (body === null) {

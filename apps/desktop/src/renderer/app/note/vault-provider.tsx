@@ -13,10 +13,7 @@ import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { base64FromBytes } from "@repo/api/cloud/bytes";
-import type {
-  KnowledgeWikiTargetsResponse,
-  WikiTargetWire,
-} from "@repo/api/local/knowledge/knowledge-schema";
+import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
@@ -39,10 +36,13 @@ const noOpenPathMirror = (): void => {
   /* empty */
 };
 
-const NO_RESOLVER: LinkResolver = { resolveMdTarget: () => null, resolveWikiTarget: () => null };
+const NO_RESOLVER: LinkResolver = {
+  resolveMdTarget: () => null,
+  resolveWikiTarget: () => null,
+  targets: [],
+};
 
 type Api = WorkspaceRuntime["api"];
-type WikiTargets = KnowledgeWikiTargetsResponse["targets"];
 
 const listingEntries = (tree: VaultTreeResponse): VaultEntry[] =>
   tree.entries.flatMap((entry) =>
@@ -91,8 +91,7 @@ interface VaultPort {
   readonly session: VaultSession;
   readonly linkResolver: StoreApi<LinkResolver>;
   readonly formulas: NoteFormulas;
-  wikiTargets: () => WikiTargets;
-  setWikiTargets: (next: WikiTargets) => void;
+  setWikiTargets: (next: readonly WikiTarget[]) => void;
   setOnOpenPath: (next: (path: string | null) => void) => void;
 }
 
@@ -105,7 +104,7 @@ interface VaultPortInputs {
 
 const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs): VaultPort => {
   let entries: readonly VaultEntry[] = [];
-  let wikiTargets: WikiTargets = [];
+  let wikiTargets: readonly WikiTarget[] = [];
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
   const linkResolver = createStore<LinkResolver>()(() => NO_RESOLVER);
   // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
@@ -128,6 +127,7 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
     linkResolver.setState({
       resolveMdTarget: (target, fromPath) => resolver.resolveMd(target, fromPath),
       resolveWikiTarget: (target, alias) => resolver.resolveWiki(target, alias),
+      targets: wikiTargets,
     });
   };
   const io = createGuardedVaultIo(api);
@@ -203,7 +203,6 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
       wikiTargets = next;
       rebuildResolver();
     },
-    wikiTargets: () => wikiTargets,
   };
 };
 
@@ -221,8 +220,8 @@ export const VaultProvider = ({
   const queryClient = useQueryClient();
 
   const wikiTargetsQuery = useWikiTargets();
-  const wikiTargets = useMemo<WikiTargets>(
-    () => wikiTargetsQuery.data?.targets ?? [],
+  const wikiTargets = useMemo(
+    () => (wikiTargetsQuery.data?.targets ?? []).map(editorWikiTarget),
     [wikiTargetsQuery.data],
   );
 
@@ -267,7 +266,6 @@ export const VaultProvider = ({
         });
       },
       linkResolver: port.linkResolver,
-      listWikiTargets: () => Promise.resolve(port.wikiTargets().map(editorWikiTarget)),
       onVaultChanged: (listener) => vaultChanges.subscribe(listener),
       readNoteFormulas: port.formulas.read,
       // A plain fetch, not a procedure: the ETag and sandbox CSP do not
