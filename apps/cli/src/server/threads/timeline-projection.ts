@@ -1,6 +1,8 @@
-// rests on events being append-only per thread (nothing deletes an event row
-// or a thread): the parsed log only grows, so a refresh reads afterSequence,
-// and the projection served last is the base the next frame diffs against.
+// rests on events being append-only per thread while the server serves (nothing
+// deletes a thread, and the one event removal, of this install's own synced
+// copies, ends in boot before any read): the parsed log only grows, so a
+// refresh reads afterSequence, and the projection served last is the base the
+// next frame diffs against.
 
 import type { DbConnection } from "@repo/db/connection";
 import { listStoredThreadEvents } from "@repo/db/events";

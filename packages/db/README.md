@@ -49,6 +49,9 @@ src/
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
                       # cursor and its skipped-row marker, the applied-capture
                       # ledger, the own device ids
+  own-synced-copies.ts
+                      # the once-per-database removal of this install's own rows
+                      # a replay pulled back under a device id it never recorded
   __tests__/          # real files under a temp dir; schema-agreement.test.ts is
                       # the migration↔schema pin (reading sqlite_master through
                       # json-source.ts), legacy-migrations-table.test.ts the
@@ -133,6 +136,16 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   install signed in as, and the install holds those events locally with a
   null origin, which `events_origin_idx` cannot match. A pull skips a row under
   any of those ids; forgetting one doubles everything written under it.
+- **An id held before that table existed is learned once, with its copies
+  removed.** Signing in again before the planner skipped every id landed this
+  install's own rows a second time, under an id `sync_own_devices` never saw.
+  `removeOwnSyncedCopiesInTransaction`, first in `ThreadService.boot()`,
+  knows such an id by a `turn/started` it shares with a null-origin row — a
+  turn id is minted by the one install that runs the turn — records it, or
+  the next replay lands the rows again, and deletes each row under an own id
+  whose null-origin original with the same data is in the same thread. A row
+  with no original stays: it is the only record of what it says. The
+  `own_synced_copies_removed` meta row marks it done and counts what went.
 - **A pulled row this build cannot read is pulled again by the next build.**
   The planner moves the cursor past it, so `recordSkippedRow` writes the
   lowest such row and the running build into `sync_state` in the transaction
@@ -190,6 +203,8 @@ and bumps the version, upgrades a POPULATED v2 file in place with its child
 rows and foreign keys intact, refuses a newer build's file, opens with WAL and
 `synchronous=NORMAL`, hands a deleted row's pages back on close; the
 skipped-row marker keeps the lowest row and rewinds once per build change;
+the own-copy removal keeps the originals and another device's rows, learns
+the earlier id and runs once;
 contiguous sequences under interleaved writers, the turn/started gate, the
 scope CHECK at the database, a 20-event burst prepares two SELECTs and one
 INSERT, a stored row the grammar refuses left out and reported; the lifecycle

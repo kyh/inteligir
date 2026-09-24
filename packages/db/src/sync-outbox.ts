@@ -156,11 +156,11 @@ export const resetSyncState = (db: DbConnection): void => {
   });
 };
 
-export const recordOwnDevice = (db: DbConnection, deviceId: string): void => {
+export const recordOwnDevice = (db: SyncWriteConnection, deviceId: string): void => {
   db.insert(syncOwnDevices).values({ deviceId }).onConflictDoNothing().run();
 };
 
-export const ownDeviceIds = (db: DbConnection): ReadonlySet<string> =>
+export const ownDeviceIds = (db: SyncWriteConnection): ReadonlySet<string> =>
   new Set(
     db
       .select({ deviceId: syncOwnDevices.deviceId })

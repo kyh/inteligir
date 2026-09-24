@@ -10,6 +10,7 @@
     "./ids": "./src/ids.ts",
     "./meta": "./src/meta.ts",
     "./migrate": "./src/migrate.ts",
+    "./own-synced-copies": "./src/own-synced-copies.ts",
     "./pending-interactions": "./src/pending-interactions.ts",
     "./queued-messages": "./src/queued-messages.ts",
     "./sync-outbox": "./src/sync-outbox.ts",

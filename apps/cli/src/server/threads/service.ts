@@ -15,11 +15,13 @@ import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
   listThreadMetaEvents,
+  storedTurnCompletion,
   threadHasEvents,
   turnStartOriginDeviceId,
 } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
+import { removeOwnSyncedCopiesInTransaction } from "@repo/db/own-synced-copies";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import type { DbNotifier } from "@repo/domain/notifier";
 import {
@@ -426,10 +428,35 @@ export class ThreadService implements ProviderEventSink {
 
   // a method rather than constructor work because it writes.
   boot(): void {
+    // first: a removed copy can be all that holds a thread running, and the sweep would fail a
+    // turn that finished.
+    this.removeOwnSyncedCopies();
     // before the sweep: a claim held by the dead process hides its message from
     // both the queue read and the next drain. a swept row does not auto-dispatch: the next send starts it first.
     releaseAllQueuedMessageClaims(this.db);
     this.recoverWedgedThreads();
+  }
+
+  // a copy's turn/started re-opened a turn its original had already settled, and when the
+  // turn's end never came back under that id nothing settled it again: such a thread takes the
+  // end its own rows state. lifecycle is not folded from the rows whole, because a stop settled
+  // here and a start that never produced a turn move it without writing one.
+  private removeOwnSyncedCopies(): void {
+    const buffer = new NotificationBuffer();
+    writeTransaction(this.db, (tx) => {
+      for (const threadId of removeOwnSyncedCopiesInTransaction(tx).threadIds) {
+        const thread = getThread(tx, threadId);
+        if (thread === null || thread.activeTurnId === null || !isThreadRunning(thread.status)) {
+          continue;
+        }
+        const completion = storedTurnCompletion(tx, { threadId, turnId: thread.activeTurnId });
+        const settle = completion === null ? null : lifecycleEventFor(completion);
+        if (settle !== null) {
+          projectLifecycleInTransaction(tx, { drain: false, event: settle, threadId }, buffer);
+        }
+      }
+    });
+    buffer.flushTo(this.notifier);
   }
 
   // every local append goes through here so the outbox enqueue rides the same
