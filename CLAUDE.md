@@ -375,9 +375,14 @@ to the END of its group.
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE.** Slash items are grouped
   data (`GROUPS` in `packages/editor/src/slash-menu.tsx`). Every insertable
-  row's markdown must re-parse to a modeled construct
-  (`packages/editor/src/__tests__/slash-rows.test.ts`, which names each row not
-  yet its own fixpoint); the kit-parity vocabulary pins the set. Legacy
+  row's markdown, inserted after text or on an empty line, must re-parse to a
+  modeled construct and be its own fixpoint
+  (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row);
+  the kit-parity vocabulary pins the set. An empty inline equation writes no
+  bytes, by owner decision: markdown has no empty inline math and `$$$$`
+  re-parses as escaped text, so the rule table drops it and its paragraph
+  serializes as if it were never inserted
+  (`packages/editor/src/markdown/md-rules.ts`). Legacy
   `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
   preserved; nothing writes new ones.
 

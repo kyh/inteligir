@@ -19,6 +19,7 @@ import type {
   MdMdxJsxTextElement,
   MdRules,
   MdCode,
+  MdInlineMath,
   MdTableRow,
   MdText,
   MdYaml,
@@ -88,7 +89,8 @@ if (!defaultParagraphSerialize) {
 const ALERT_RE = /^\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/u;
 
 // `MdRules` narrows each keyed rule's return to that key's mdast node; rules emitting verbatim
-// bytes as a raw `html` node are declared against the index signature's wide serialize instead of casting.
+// bytes as a raw `html` node, or no node at all, are declared against the index signature's wide
+// serialize instead of casting.
 type WideMdRule = NonNullable<MdRules[string]>;
 
 // NodeIdPlugin is a core default (off only under NODE_ENV=test), so every live block carries an
@@ -156,6 +158,30 @@ const pruneElementAdjacentEmptyTexts = (children: Descendant[]): Descendant[] =>
     );
   });
   return pruned.length > 0 ? pruned : children;
+};
+
+// Markdown has no empty inline math: `$$$$` re-parses as text and saves escaped, so an empty
+// inline equation writes no bytes at all.
+const isEmptyInlineEquation = (node: Descendant): boolean =>
+  ElementApi.isElement(node) &&
+  node.type === "inline_equation" &&
+  (stringProp(node, "texExpression") ?? "") === "";
+
+const inlineEquationRule: WideMdRule = {
+  serialize: (node: TElement): MdInlineMath | undefined =>
+    isEmptyInlineEquation(node)
+      ? undefined
+      : { type: "inlineMath", value: stringProp(node, "texExpression") ?? "" },
+};
+
+// An empty equation leaves a paragraph before its text runs are converted, so its neighbours join
+// into one run rather than two whose marks collide (`**a****b**`), and a paragraph it alone
+// filled stays an empty paragraph instead of a blank line the next parse drops.
+const paragraphChildren = (children: Descendant[]): Descendant[] => {
+  const kept = pruneElementAdjacentEmptyTexts(children).filter(
+    (child) => !isEmptyInlineEquation(child),
+  );
+  return kept.length > 0 ? kept : [{ text: "" }];
 };
 
 // Plate's default lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink emits
@@ -382,6 +408,8 @@ export const MD_RULES: MdRules = {
     }),
   },
 
+  inline_equation: inlineEquationRule,
+
   media_embed: { serialize: mediaSerializeWithoutId },
 
   opaqueBlock: {
@@ -410,10 +438,7 @@ export const MD_RULES: MdRules = {
 
   p: {
     serialize: (node, options) =>
-      defaultParagraphSerialize(
-        { ...node, children: pruneElementAdjacentEmptyTexts(node.children) },
-        options,
-      ),
+      defaultParagraphSerialize({ ...node, children: paragraphChildren(node.children) }, options),
   },
 
   tabGroup: {

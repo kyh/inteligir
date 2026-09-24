@@ -268,6 +268,18 @@ describe("insert transforms serialize canonically", () => {
     ).toBe(true);
   });
 
+  it("an empty inline equation writes nothing, and the text either side stays one run", () => {
+    const editor = makeEditor("**ab**\n");
+    editor.tf.select({ offset: 1, path: [0, 0] });
+    insertInlineEquation(editor);
+    expect(
+      el(editor.children[0]).children.some(
+        (c) => ElementApi.isElement(c) && c.type === KEYS.inlineEquation,
+      ),
+    ).toBe(true);
+    expect(out(editor)).toBe("**ab**\n");
+  });
+
   it("equation edits serialize to $$ blocks that round-trip", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));

@@ -1,4 +1,5 @@
-// every item inserts through a kit transform so its bytes are the canonical fixture form.
+// every item inserts through a kit transform whose bytes re-parse to a modeled node and are their
+// own fixpoint; an inline equation writes none until it holds TeX.
 
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { insertTable } from "@platejs/table";
