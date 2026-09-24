@@ -207,6 +207,11 @@ before claiming one. `tools/repo-guards/src/ci-verify-parity.test.ts` keeps
 that "plus a few more" an honest claim: every step on top of `verify` is a row
 in `DECLARED_CI_EXTRAS` with its reason.
 
+**A change a user can notice updates `CHANGELOG.md` in the same task**: a line
+under `## Unreleased`, in the user's words rather than a commit subject, and a
+behaviour that changed or went away says what to do about it. A release's
+notes are that section (THE RELEASE NOTES ARE THE CHANGELOG, below).
+
 **There is no seeded login, and sign-up is invite-only.** `AGENTS.md` has the
 recipe. Never run `db:push:remote` or `db:studio:remote`: both hit production
 D1. The bare `db:push` and `db:studio` are the local ones.
@@ -1436,6 +1441,17 @@ to the END of its group.
   logger was rejected: the value is these few decisions, not more volume.
   `apps/cli/src/server/debug-log.ts`, end to end in
   `tools/e2e/src/scenarios/debug-log.ts`.
+
+- **THE RELEASE NOTES ARE THE CHANGELOG, WRITTEN FOR THE PERSON USING THE
+  APP.** A release's GitHub body is `CHANGELOG.md`'s top section, so the
+  release, the update it ships and the file say one thing. A list generated
+  from commit subjects or issue titles was rejected: both are written for
+  whoever builds the thing, and they describe an update as "something
+  changed". `apps/desktop/scripts/release-notes.mjs` prints the section for
+  `gh release create` and refuses one not titled for the package's version;
+  `tools/repo-guards/src/changelog.test.ts` holds the file's shape and makes a
+  version bump date its section. Settings › About links the file on main
+  (`apps/desktop/src/renderer/app/settings/version-row.tsx`).
 
 ### Desktop workspace surfaces
 

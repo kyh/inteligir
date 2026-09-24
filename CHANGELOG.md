@@ -1,0 +1,90 @@
+# Changelog
+
+What changed in Inteligir, the desktop app and the `inteligir` command line, newest first. Each release's notes on GitHub are its section here, word for word.
+
+## Unreleased
+
+Everything since 0.4.0 (September 4, 2026).
+
+### Before you update
+
+- **`inteligir vault write` no longer overwrites a note silently.** It now needs exactly one of `--if-absent` (create only), `--expected-hash <hash>` (replace only if the note still holds what you read; `inteligir vault read --json` prints the hash) or `--overwrite` (replace whatever is there). A script that relied on the old behaviour needs `--overwrite`. It also refuses an empty or interactive stdin: pass `--content ''` when you mean to empty a note.
+- **A browser tab signs in only through a one-time link.** Opening the server's address, or a bookmark of it, now shows a signed-out page instead of your notes. `inteligir serve --open` still opens a signed-in tab; for another one, run `inteligir open` or use File › Open in Browser in the app. Each link works once and expires after five minutes. The server also answers only requests addressed to `127.0.0.1` or `localhost`.
+- **The command line and the app must be the same release.** An `inteligir` installed from npm refuses to talk to a server of another version (exit code 3) and names both versions, and the app no longer takes over a running `inteligir serve` of another version. Update both together.
+- **Flags go after the command.** `inteligir --json vault read notes/a.md` is refused; write `inteligir vault read notes/a.md --json`. Extra words and unknown flags are refused too, where they used to be ignored.
+- **The model setting is per agent.** `INTELIGIR_AGENT_MODEL` and the `agentModel` key in `config.json` are no longer read, because one model name was handed to both agents. Set `INTELIGIR_CLAUDE_MODEL` or `INTELIGIR_CODEX_MODEL`, or `"agentModels": { "claude": "…", "codex": "…" }` in `config.json`.
+- **Comments moved into one folder in your vault.** A note's comments now live in `.inteligir/comments/`, in a file named after the note's `id`, so moving or renaming the note anywhere (in Finder, with git, by an agent) keeps them. Existing `<note>.comments.json` files move there on the first launch. Commenting on a note that has no `id`, or starting an action from it, adds one to the note's properties (its frontmatter). Deleting a note deletes its comments, and restoring the note brings them back.
+- **A pin is a property.** Pinning a note writes `pinned: true` into it, so the pin follows the note to your other devices and to the agent.
+- **Videos, posts and images from the web are no longer loaded inside a note.** YouTube, tweets, iframes and remote images or PDFs show a card with Open in browser. The installed app's security policy already blocked them, so they drew broken; now they say what they are.
+- **The app's own commits skip your vault's git hooks.** A `commit-msg` or `pre-commit` hook in the vault could refuse every automatic commit. Your own commits still run them.
+- **Two computers adding to `Inbox.md` no longer jam sync.** Captures from your phone are kept from both sides. One side effect: a line you delete from `Inbox.md` on one computer can come back if the other added a capture at the same moment.
+- **Signing out frees the device.** Signing a computer out now removes it from your account's devices, so it stops counting toward the limit.
+- **A second vault starts fresh.** Every vault besides the first keeps its own sign-in, connectors and default agent, so it starts signed out, with no connectors and no default agent chosen. Settings says so where it matters.
+
+### New
+
+- **Stop a running action.** A Stop button sits in the action's header while the agent works; `inteligir action stop` does the same, and archiving a running action stops it.
+- **More than one vault.** Open another folder as a vault from File › Open Vault…, the vault's name at the top of the sidebar, or Settings › Vault; recent vaults are one click away. `inteligir vault open <folder>` picks the vault the server opens next time it starts.
+- **Templates.** Notes in a `templates/` folder are templates: New note from template… and Insert template… in the command palette (⌘P), and a Templates group in the `/` menu. `{{date}}`, `{{time}}` and `{{title}}` are filled in, and `templates/Daily.md` shapes the daily note (⌘D).
+- **Search and replace across the vault.** Search across the vault… in ⌘P lists every match with its line, with match-case and whole-word options, and can replace them all. It shows its progress, can be stopped between notes, and leaves alone any note that changed while it ran, naming it. On the command line: `inteligir matches`.
+- **Find and replace in a note.** ⌘F opens the find bar under the Find button; ⌥⌘F opens it with Replace.
+- **Go to heading** with ⌘⇧O, and **Extract to new note** from the selection toolbar or a block's menu: the selected blocks become a new note and a link to it, and one undo puts them back.
+- **Problems.** A Problems page in ⌘P (and `inteligir problems`) lists links that lead nowhere, missing embeds, notes nothing links to, two notes with the same name and two notes sharing one `id`. Picking a row jumps to the link.
+- **Unlinked mentions.** Related, in the panel's Metadata tab, now lists notes that mention this one without linking to it, with a Link button that turns the mention into a link. On the command line: `inteligir unlinked`.
+- **Tags.** Clicking a `#tag` shows its notes in the sidebar with their count, and from there you can rename the tag across the whole vault, nested tags included. On the command line: `inteligir tag notes` and `inteligir tag rename`.
+- **Pin notes** from a right-click in the sidebar, the Metadata tab or ⌘P. Pinned notes sort to the top of Recent.
+- **Move notes and folders** by dragging them in Files, or with Move note to folder… in ⌘P. Links into and out of everything that moved are rewritten, whole folders included.
+- **Files** sorts by name or by newest, and a right-click offers Reveal in Finder, Open with default app, Copy path and Copy absolute path.
+- **Choose where pasted images go**: the top of the vault, beside the note, or a folder (`assets/` unless you pick another), in Settings › Vault or with `inteligir vault attachments`.
+- **Choose your default agent**, Claude Code or Codex, in Settings › Agents or with `inteligir agents default`. An action keeps the agent it started with.
+- **Add a connector by its address alone.** For an MCP server that signs in with OAuth, paste its URL; the app finds its sign-in page and registers itself.
+- **Spell check** can be turned off in Settings › Editor; outside macOS you can also pick its languages.
+- **A Keyboard shortcuts page** in ⌘P, spelled for your keyboard. ⌘, opens Settings, and `[` and `]` hide and show the sidebar and the panel while you are not typing.
+- **Facts about a note** in the Metadata tab's About section: where it lives, when it was changed and first created, its words, characters and reading time, and how many notes link to it. The word count and reading time also sit under the note.
+- **Link previews you can use.** Hovering a `[[link]]` shows a card you can move into, select text from, and open by its title.
+- **What's new** in Settings › About opens this changelog.
+- **On the command line:** `inteligir open` opens another signed-in browser tab; `inteligir action list` pages with `--limit` and `--cursor`, filters with `--doc` and `--running`, and leaves archived actions out unless you pass `--archived`; `inteligir action wait` names an approval it is waiting on, and `--until-input` exits 4 when one arrives; `inteligir agents list` shows which agents are installed and signed in.
+
+### Changed
+
+- **The sidebar is simpler.** The label at the top of the list switches between Recent, Files and Deleted, with New note beside it; everything else is a right-click. Deleted notes are a list there now, not a dialog, and a right-click restores one. The bottom row carries sync and your account (sign in, sync now, sign out), with Settings and the theme beside it. The vault's name at the top switches vaults.
+- **⌘P is the one search.** The sidebar's search box is gone; the search button beside the vault's name opens ⌘P, which finds notes and commands and leads on to vault-wide search, Problems and shortcuts.
+- **The top bar shows the folders above the note**; clicking one opens it in Files. Find, Comments and the panel toggle stay in the bar, and Copy link, Export and Share with agent moved under its ⋯ menu.
+- **Settings opens over your note** instead of replacing it. The note, its undo history and an open ⌘K composer are still there when you come back.
+- **The right panel** has four tabs: Actions, Comments, History and Metadata. A note's properties moved from above the tabs into Metadata, beside Related and Delete note. The panel now starts closed until you open it, and its width is remembered like the sidebar's.
+- **Actions** take their title from their first message wherever they start (the command line, the agent, another device) instead of "Untitled action". Notes you @-mention travel with the message and show as chips under it. An action's title, its note, its agent and whether it is archived now reach your other devices. The Actions list loads a page at a time, with Show more.
+- **The outline beside a note** appears once the note has three headings.
+- **One set of text sizes** across the app's menus, lists and panels. Popups now animate out as well as in, and the app follows your system's reduce-motion setting.
+- **Pushing more than 90 MB** to your account's hosted vault now says it is too large and stops retrying, instead of failing with git's raw error every minute.
+
+### Fixed
+
+- **An edit that lands while you type is kept.** When an agent or another app writes the open note, the change reaches the screen and the next save keeps it; before, it could stay hidden until you typed again, or be erased by the next save. When two edits truly clash, a message offers Open History.
+- **A save that fails says so** and is retried. A note deleted while it had unsaved edits asks whether to discard them or create the note again.
+- **Line breaks survive saving.** A line break right after a link, tag or formula no longer joins the two lines, and a note that could lose one opens as raw text instead of being rewritten.
+- **Saving no longer mangles** `> [!note]` alerts (saved as `\[!note]`), formulas picked from the `{{` menu (saved with a stray `\{`), an empty inline equation (turned into dollar signs), or `|` inside code, math or properties.
+- **Renames and moves keep links right.** A `[[Title|id]]` link follows its note, renaming a note to another note's alias no longer takes over that alias's links, a name containing `#` is written so it still resolves, a moved note keeps its images, and a note that starts with a byte-order mark renames cleanly.
+- **Comments** that span paragraphs, or start inside a callout or a table, now highlight and show their marker. A second comment on a note appears at once, and deleting a duplicated note no longer takes its twin's comments.
+- **Folding and dragging follow your edits.** A new heading gets its fold arrow, and a fold or a drop lands on the right block.
+- **Typing Chinese, Japanese or Korean** no longer submits half-composed text when Enter confirms a candidate.
+- **Run on an HTML block** runs the block's scripts, in a sandbox.
+- **Opening the app from Finder or the Dock finds Claude Code and Codex**, which were found before only when the app was launched from a terminal.
+- **Agent errors are readable.** "[object Object]" is gone, and an agent that is not signed in says so and names the command that signs it in.
+- **A stuck or crashed agent no longer wedges an action.** The next message starts cleanly, a crash ends the turn with its reason, a queued message keeps its place in line (after a failed turn too), and a refused approval can be answered again.
+- **Signing in again no longer duplicates your own actions**, and the duplicates an earlier sign-in left behind are removed once, on the first launch.
+- **Sync.** Saves no longer wait while the network is down; a refused push or a detached branch is reported as such instead of Offline or Synced; a failed automatic commit shows as the sync error; sync works where git has no name or email configured; and one bad entry no longer holds up your phone's captures.
+- **Big vaults and big notes.** A very large note no longer freezes the app while it is indexed, a folder with a thousand notes opens at once, a very long paragraph no longer slows every save, and new or deleted notes show up in ⌘P right away.
+- **An unreadable file** costs only that file, never the whole file list or the search index.
+- **One folder is one vault**, however its path is spelled: `~/Notes` and `~/notes`, or a path through a symlink, no longer open as two vaults with separate sign-ins and history.
+- **A browser tab whose sign-in stopped working**, say after the server restarted, shows one signed-out notice instead of an error for every request.
+- **Quitting during start-up** quits, and a vault switch that fails says so and goes back to the vault you had.
+- **`inteligir serve`** refuses to start a second server on the same data folder, and closing its terminal still saves pending changes to the vault.
+- **Settings.** Choice rows respond to the arrow keys, and a connector shows as connected as soon as its sign-in finishes.
+- **Dictation.** The microphone turns off when a hold ends, even when permission arrived late; two model downloads at once no longer spoil each other, and an interrupted one no longer leaves about 100 MB behind.
+- **A settings file the app cannot read** is reported by name instead of being treated as empty and overwritten.
+
+### Security
+
+- Content inside a note, such as an HTML block, can no longer reach the app's local server with the app's own access.
+- A link in a note opens only when it is an `http` or `https` address.
+- The installed app can no longer be started as a plain Node.js interpreter, and its cookies are encrypted on disk.
