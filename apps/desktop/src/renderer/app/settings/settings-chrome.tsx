@@ -1,6 +1,6 @@
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
+import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import { toast } from "@repo/ui/components/sonner";
-import { cn } from "@repo/ui/lib/cn";
 import { refusalMessage } from "../api";
 
 export const failed = (cause: unknown, fallback: string): void => {
@@ -32,8 +32,6 @@ export const SectionHeading = ({ children }: { children: React.ReactNode }) => (
   <h3 className="text-body font-medium tracking-wide text-muted-foreground">{children}</h3>
 );
 
-/* oxlint-disable jsx-a11y/prefer-tag-over-role -- a segmented control: the buttons carry the row's
-   layout and wear the radio roles a native input would bring with styling that cannot be reached */
 export const ChoiceRow = <T extends string>({
   label,
   options,
@@ -45,26 +43,11 @@ export const ChoiceRow = <T extends string>({
   value: T;
   onChange: (next: T) => void;
 }) => (
-  <div className="flex gap-1" role="radiogroup" aria-label={label}>
+  <RadioGroup aria-label={label} value={value} onValueChange={onChange}>
     {options.map((option) => (
-      <button
-        key={option.value}
-        type="button"
-        role="radio"
-        aria-checked={value === option.value}
-        className={cn(
-          "rounded-md border px-3 py-1 text-subtitle",
-          value === option.value
-            ? "border-ring bg-muted text-foreground"
-            : "border-border text-muted-foreground hover:bg-muted/50",
-        )}
-        onClick={() => {
-          onChange(option.value);
-        }}
-      >
+      <RadioGroupItem key={option.value} value={option.value}>
         {option.label}
-      </button>
+      </RadioGroupItem>
     ))}
-  </div>
+  </RadioGroup>
 );
-/* oxlint-enable jsx-a11y/prefer-tag-over-role */
