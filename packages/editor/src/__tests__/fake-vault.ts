@@ -1,5 +1,5 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-import type { VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
+import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `hangReads` never settles a read, so a runtime can be observed before its first
 // load; `manualRead`/`manualWrite` park each call in pendingReads/pendingWrites until the test settles it;
@@ -48,12 +48,12 @@ export class FakeVault implements VaultIO {
     return { conflicted: this.landsConflicted, content: landed, kind: "landed" };
   };
 
-  create = async (path: string, content: string): Promise<void> => {
+  create = async (path: string, content: string): Promise<CreateOutcome> => {
     if (this.files.has(path)) {
-      throw new Error("EEXIST");
+      return await Promise.resolve({ kind: "exists" });
     }
     this.files.set(path, content);
-    await Promise.resolve();
+    return await Promise.resolve({ kind: "created" });
   };
 
   remove = async (path: string): Promise<DeleteVaultEntryResult> => {

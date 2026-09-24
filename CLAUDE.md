@@ -457,12 +457,20 @@ to the END of its group.
   `goToHeading` (`packages/editor/src/toc.tsx`): the rail's own scroll, and the
   caret at the heading. "Extract to new note" (`packages/editor/src/extract-note.ts`,
   from the selection toolbar and the block menu) takes the top-level blocks the
-  selection touches, serializes them with the editor's own `MD_STRINGIFY`, so
+  selection touches, never the frontmatter (`isFrontmatterElement`, the block
+  menu's own rule), serializes them with the editor's own `MD_STRINGIFY`, so
   the new note holds the bytes the file would have, names it after the first
   heading among them, else the first line, else Untitled (a name the vault
   would refuse falls back rather than being sanitized), steps past what the
   host's wiki targets already hold like the rail's Untitled does, and creates it
-  through `createFileAt` before touching the buffer. The removal and the
+  through `createNewFileAt` before touching the buffer. That create is
+  exclusive: a name the listing lacked but the disk holds answers `exists` and
+  the extract tries the next, a few times, because open-or-create counts an
+  existing file as success, and the blocks would leave for a note that never
+  received them. Blocks anchoring a comment are refused: the thread lives in
+  this note's comment store and would stay behind. The blocks are held as path
+  refs across the create and must still be the bytes it wrote, in the note
+  still open, or the buffer is left alone and the file kept. The removal and the
   `[[link]]` that replaces it land in one flush, so one undo restores both; the
   created file stays, because the vault has no transaction and a note that
   exists is truer than an edit that never happened.
@@ -560,7 +568,11 @@ to the END of its group.
 - **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends `ifAbsent` and
   no hash; hashing bytes not yet on disk is a refusal every time. A guarded
   write with no recorded base throws rather than inferring one, because an
-  inferred base lets a concurrent edit win silently. The policy is
+  inferred base lets a concurrent edit win silently. A path already taken
+  answers `exists`, a `CreateOutcome` rather than a throw, and that answer is
+  the one existence check: open-or-create (`createFileAt`) opens the file,
+  and an exclusive create (`createNewFileAt`) hands it back for the caller to
+  step past (`packages/editor/src/note/vault-session.ts`). The policy is
   `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`.
 
 - **EVERY ERROR A VAULT ROW DECLARES HAS A PRODUCER.** A code no handler raises

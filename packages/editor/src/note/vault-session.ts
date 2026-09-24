@@ -2,7 +2,12 @@
 // so React 19's double-invoked initializer can build one and discard it.
 
 import { vaultChangeTouches } from "@repo/editor/host-io";
-import type { VaultActions, VaultChangedEvent, VaultEntry } from "@repo/editor/host-io";
+import type {
+  CreateNewFileResult,
+  VaultActions,
+  VaultChangedEvent,
+  VaultEntry,
+} from "@repo/editor/host-io";
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import type { NoteRuntime } from "@repo/editor/note/note-runtime";
@@ -23,7 +28,6 @@ export type VanishedChoice = "recreate" | "discard";
 export interface VaultSessionPorts {
   boot: () => Promise<WorkspaceBoot>;
   list: () => Promise<VaultEntry[]>;
-  exists: (path: string) => Promise<boolean>;
   rename: (from: string, to: string) => Promise<RenameResult>;
   note: VaultIO;
   publishListing: (entries: VaultEntry[]) => void;
@@ -238,32 +242,37 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     runtime.registerPreFlush(preFlush);
   };
 
-  const createFileAt = async (rawPath: string, seedContent = ""): Promise<string | null> => {
+  // the create is exclusive, so a file already at the path is answered, never overwritten.
+  const createNewFileAt = async (
+    rawPath: string,
+    seedContent: string,
+  ): Promise<CreateNewFileResult> => {
     const trimmed = rawPath.trim();
     if (trimmed === "") {
-      return null;
+      return { kind: "refused" };
     }
     const verdict = validNotePath(withDocExtension(trimmed));
     if (!verdict.ok) {
       ports.notify(verdict.message);
-      return null;
+      return { kind: "refused" };
     }
     const { path } = verdict;
-    // an existing file opens with no notice; the create below is exclusive, so a file landing
-    // between this check and the create is refused rather than overwritten.
-    if (await ports.exists(path)) {
-      return path;
-    }
-    const created = await ports.note
-      .create(path, seedContent)
-      .then(() => true)
-      .catch(() => false);
-    if (!created) {
+    const outcome = await ports.note.create(path, seedContent).catch(() => null);
+    if (outcome === null) {
       ports.notify(`Couldn't create ${path}.`);
-      return null;
+      return { kind: "refused" };
+    }
+    if (outcome.kind === "exists") {
+      return { kind: "exists", path };
     }
     refreshList();
-    return path;
+    return { kind: "created", path };
+  };
+
+  // an existing file opens with no notice.
+  const createFileAt = async (rawPath: string, seedContent = ""): Promise<string | null> => {
+    const result = await createNewFileAt(rawPath, seedContent);
+    return result.kind === "refused" ? null : result.path;
   };
 
   const createFile = async (rawPath: string, content = ""): Promise<void> => {
@@ -338,6 +347,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     actions: {
       createFile,
       createFileAt,
+      createNewFileAt,
       deleteEntry,
       editNote,
       flush,

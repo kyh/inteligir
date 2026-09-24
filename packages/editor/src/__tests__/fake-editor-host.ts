@@ -4,6 +4,7 @@ import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 import { setEditorHostIo } from "@repo/editor/host-io";
 import type {
+  CreateNewFileResult,
   EditorHostIo,
   LinkResolver,
   ReadVaultAssetResult,
@@ -22,10 +23,13 @@ export interface FakeEditorHostOptions {
   // a note's bytes by path; a path it answers null for reads as missing
   readonly readVaultFile?: (path: string) => string | null;
   readonly wikiTargets?: readonly WikiTarget[];
-  // a create the session refuses answers null, as the real one does after it has said why
+  // a create the session refuses answers null or `refused`, as the real one does after it has said why
   readonly refuseCreates?: boolean;
   // answers the rename in place of the immediate success, so a case can hold it in flight
   readonly renameEntry?: VaultActions["renameEntry"];
+  // answers the exclusive create in place of `created`, still recorded, so a case can hold it in
+  // flight or find a name taken that the listing lacks
+  readonly createNewFileAt?: VaultActions["createNewFileAt"];
   readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
 }
 
@@ -49,6 +53,15 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     createFileAt: async (path, seedContent) => {
       calls.push({ action: "createFileAt", args: [path, seedContent] });
       return await Promise.resolve(options.refuseCreates === true ? null : path);
+    },
+    createNewFileAt: async (path, seedContent) => {
+      calls.push({ action: "createNewFileAt", args: [path, seedContent] });
+      if (options.createNewFileAt !== undefined) {
+        return await options.createNewFileAt(path, seedContent);
+      }
+      const result: CreateNewFileResult =
+        options.refuseCreates === true ? { kind: "refused" } : { kind: "created", path };
+      return await Promise.resolve(result);
     },
     deleteEntry: record("deleteEntry", Promise.resolve()),
     editNote: recordVoid("editNote"),

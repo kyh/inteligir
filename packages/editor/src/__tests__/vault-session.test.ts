@@ -85,7 +85,6 @@ const harness = (options: HarnessOptions = {}) => {
           openAtBoot === undefined || content === undefined ? null : { content, path: openAtBoot },
       };
     },
-    exists: async (path) => await Promise.resolve(vault.files.has(path)),
     list: async () => {
       lists += 1;
       return await Promise.resolve(walk());
@@ -161,9 +160,35 @@ describe("createFileAt", () => {
 
   it("reports a refused create instead of opening a note that was not made", async () => {
     const { session, vault, notices } = await started();
-    vault.create = async () => await Promise.reject(new Error("A file already exists at Fresh.md"));
+    vault.create = async () => await Promise.reject(new Error("disk full"));
     await expect(session.actions.createFileAt("Fresh")).resolves.toBeNull();
     expect(notices).toEqual(["Couldn't create Fresh.md."]);
+  });
+});
+
+describe("createNewFileAt", () => {
+  it("answers a taken path as exists, silently, and leaves its bytes alone", async () => {
+    const { session, vault, notices } = await started({ files: { "Fresh.md": "kept" } });
+    await expect(session.actions.createNewFileAt("Fresh", "# Fresh\n")).resolves.toEqual({
+      kind: "exists",
+      path: "Fresh.md",
+    });
+    expect(vault.files.get("Fresh.md")).toBe("kept");
+    expect(notices).toEqual([]);
+  });
+
+  it("creates a free path, and says why it refused one", async () => {
+    const { session, vault, notices } = await started();
+    await expect(session.actions.createNewFileAt("notes/Fresh", "# Fresh\n")).resolves.toEqual({
+      kind: "created",
+      path: "notes/Fresh.md",
+    });
+    expect(vault.files.get("notes/Fresh.md")).toBe("# Fresh\n");
+    vault.create = async () => await Promise.reject(new Error("disk full"));
+    await expect(session.actions.createNewFileAt("Other", "")).resolves.toEqual({
+      kind: "refused",
+    });
+    expect(notices).toEqual(["Couldn't create Other.md."]);
   });
 });
 

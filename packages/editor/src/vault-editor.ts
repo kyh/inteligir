@@ -12,12 +12,15 @@ export type WriteOutcome =
   | { readonly kind: "landed"; readonly content: string; readonly conflicted: boolean }
   | { readonly kind: "vanished" };
 
+// `exists` is an exclusive create finding the path taken, which a caller may step past under
+// another name; every other failure rejects.
+export type CreateOutcome = { readonly kind: "created" } | { readonly kind: "exists" };
+
 export interface VaultIO {
   read: (path: string) => Promise<string>;
   // rejects on any failure a later attempt might get past.
   write: (path: string, content: string) => Promise<WriteOutcome>;
-  // refuses an existing path.
-  create: (path: string, content: string) => Promise<void>;
+  create: (path: string, content: string) => Promise<CreateOutcome>;
   // rejects when the host cannot say the file is gone, so the note stays open over it.
   remove: (path: string) => Promise<DeleteVaultEntryResult>;
 }
@@ -229,9 +232,8 @@ export class VaultEditorController {
       await this.writing.catch(ignoreRejection);
     }
     const snapshot = this.st.content;
-    try {
-      await this.io.create(path, snapshot);
-    } catch {
+    const outcome = await this.io.create(path, snapshot).catch(() => null);
+    if (outcome?.kind !== "created") {
       return false;
     }
     if (this.st.path === path) {
