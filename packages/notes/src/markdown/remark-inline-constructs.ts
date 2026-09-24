@@ -6,6 +6,8 @@ import type { Node, Parent, Parents, PhrasingContent, Root, Text } from "mdast";
 import type { Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
+import { COMMENT_ID_PATTERN } from "../comments/sidecar-schema";
+
 export interface FormulaPill extends Node {
   type: "formulaPill";
   raw: string;
@@ -32,7 +34,14 @@ declare module "mdast" {
 }
 
 const FORMULA_RE = /\{\{[^|{}\n]+(?:\|[^|{}\n]*)?(?:\|[^{}\n]*)?\}\}/gu;
-export const MARKER_RE = /%%i:(?<ids>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*):(?<edge>start|end)%%/gu;
+const MARKER_RE = new RegExp(
+  `%%i:(?<ids>${COMMENT_ID_PATTERN}(?:,${COMMENT_ID_PATTERN})*):(?<edge>start|end)%%`,
+  "gu",
+);
+
+// A marker's `ids` stays the joined spelling so the serializer re-emits its bytes; this is the
+// one place the list is read.
+export const splitMarkerIds = (ids: string): string[] => ids.split(",").filter((id) => id !== "");
 
 export const parseFormulaRaw = (raw: string): Pick<FormulaPill, "source" | "display" | "meta"> => {
   const first = raw.indexOf("|");

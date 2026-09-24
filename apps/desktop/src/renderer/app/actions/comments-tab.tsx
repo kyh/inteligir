@@ -112,7 +112,7 @@ const ThreadCard = ({
     }
     reply.mutate(
       {
-        id: mintCommentId(),
+        id: mintCommentId((length) => crypto.getRandomValues(new Uint8Array(length))),
         parentId: thread.rootId,
         path: docPath,
         text,
