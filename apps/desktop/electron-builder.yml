@@ -24,6 +24,15 @@ extraMetadata:
 # npmRebuild off: the three native modules are prebuilt Node-API addons (ABI-stable across
 # Node and Electron), and a rebuild would clobber the pnpm store's shared copy
 npmRebuild: false
+# flipped in the binary before signing. runAsNode stays on: the server's watcher forks its child
+# with child_process from inside the utility process, which runs this binary as Node, and the
+# packaged smoke boots the server the same way
+electronFuses:
+  runAsNode: true
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  grantFileProtocolExtraPrivileges: false
 mac:
   target:
     - target: dmg

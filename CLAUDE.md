@@ -1477,6 +1477,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   retracts another boot's address. `apps/cli/src/server/serve-lock.ts` and
   `claimDataDir` in `serve.ts`.
 
+- **THE PACKAGED BINARY'S FUSES ARE FLIPPED, EXCEPT RUN-AS-NODE.** electron-builder
+  flips them before signing: `NODE_OPTIONS` and `--inspect` are ignored,
+  `file://` pages get no extra privileges (the protocol handler's own
+  `net.fetch` of the bundle is not a page and still reads it), and the cookie
+  store is encrypted, a one-way change to an install's profile. `runAsNode`
+  stays on because the server's watcher forks its child with `child_process`
+  from inside the utility process, which runs this binary as Node, and the
+  packaged smoke boots the server the same way; it goes off only once that
+  fork does. `apps/desktop/electron-builder.yml`.
+
 ### Desktop workspace surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`

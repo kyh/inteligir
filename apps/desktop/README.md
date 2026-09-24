@@ -207,6 +207,15 @@ build.
 `node_modules` is unpacked from the asar because a child process cannot be
 spawned from inside an archive and a `.node` binary cannot be loaded from one.
 
+`electronFuses` in `electron-builder.yml` flips the binary's fuses before it is
+signed: `NODE_OPTIONS` and `--inspect` are ignored, `file://` pages get no
+extra privileges, and cookies are encrypted at rest. `runAsNode` stays on,
+because the server's watcher forks its child with `child_process` inside the
+utility process and the smoke boots the server as Node. An unsigned build
+(`-c.mac.identity=null`) is killed at launch on Apple Silicon: the flip
+invalidates Electron's ad-hoc signature, so re-sign it with
+`codesign --force --deep --sign -` before running it.
+
 ### The release path
 
 1. Bump `apps/cli/package.json` and `apps/desktop/package.json` together — the
