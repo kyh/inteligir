@@ -145,8 +145,25 @@ describe("a vault change", () => {
       [...orpc.vault.deleted.key()],
       [...orpc.knowledge.key()],
       [...orpc.comments.key()],
+      [...orpc.threads.list.key()],
+      [...orpc.threads.get.key()],
     ]);
     expect(applied.vaultChanges).toEqual([{ kind: "files", paths: ["a.md", "b.md"] }]);
+  });
+
+  it("re-reads every thread once, since a moved note re-points the actions it carries", () => {
+    const applied = apply(threadChanged("t1", ["status-changed"]), {
+      changes: ["files-changed"],
+      entity: "vault",
+      paths: ["notes/plans.md", "archive/plans.md"],
+      type: "changed",
+    });
+
+    const threadKeys = applied.invalidated.filter((key) =>
+      partialMatchKey(key, orpc.threads.key()),
+    );
+    expect(threadKeys).toEqual([[...orpc.threads.list.key()], [...orpc.threads.get.key()]]);
+    expect(applied.threads).toEqual([threadChanged("t1", ["status-changed"])]);
   });
 
   it("asserts nothing when it names no paths, so every note re-checks", () => {

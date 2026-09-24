@@ -365,6 +365,15 @@ export class LinkGraphIndex {
       .map((entry) => entry.path);
   }
 
+  // `lastPath` while it still carries the id: a copied file carries its original's and must not
+  // take a binding the original holds. else the id tier's own pick; null when no doc carries it.
+  pathForNoteId(id: string, lastPath: string): string | null {
+    if (this.docs.get(lastPath)?.noteId === id) {
+      return lastPath;
+    }
+    return this.ensureResolved().resolver.resolveNoteId(id);
+  }
+
   private dropResolution(): void {
     this.resolved = null;
     this.pendingDocs.clear();

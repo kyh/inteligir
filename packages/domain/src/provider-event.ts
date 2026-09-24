@@ -208,6 +208,8 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   // a field present is the thread's value as of this row; an absent one is left as it is.
   z.object({
     originDocPath: z.string().min(1).optional(),
+    // the origin note's frontmatter id, stated only beside its path: a move anywhere keeps it.
+    originNoteId: z.string().min(1).optional(),
     providerId: z.string().min(1).optional(),
     // a fact about the thread itself, stated outside any turn.
     scope: threadScopeSchema,

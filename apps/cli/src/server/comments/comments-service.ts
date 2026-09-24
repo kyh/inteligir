@@ -20,7 +20,7 @@ import {
   serializeSidecar,
 } from "@repo/notes/comments/sidecar-schema";
 import type { CommentSidecar, CommentSource } from "@repo/notes/comments/sidecar-schema";
-import { frontmatterId, mintNoteId, withFrontmatterId } from "@repo/notes/markdown/frontmatter";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import type {
   CommentEntryWire,
   CommentsAddRequest,
@@ -32,6 +32,7 @@ import type {
 } from "@repo/api/local/comments/comments-schema";
 import { COMMENTS_THREADS_MAX } from "@repo/api/local/comments/comments-schema";
 
+import { ensureNoteId } from "../vault/ensure-note-id";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 import { CommentRefusedError } from "./comment-refused-error";
@@ -129,38 +130,29 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
     return { content, id: frontmatterId(content) };
   };
 
-  // A note keeps the id it has. One without is minted one through a guarded write, re-read once
-  // if the note moved under it, because the user may be typing in it.
-  const ensureNoteId = async (notePath: string, note: NoteRead): Promise<string> => {
-    let current = note;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (current.id !== null) {
-        return keyOf(notePath, current.id);
+  const storeKeyOf = async (notePath: string, note: NoteRead): Promise<string> => {
+    const outcome = await ensureNoteId(vault, notePath, note.content);
+    switch (outcome.kind) {
+      case "id": {
+        return keyOf(notePath, outcome.id);
       }
-      const id = mintNoteId();
-      const verdict = withFrontmatterId(current.content, id);
-      if (verdict.kind === "unchanged") {
-        return keyOf(notePath, verdict.id);
-      }
-      if (verdict.kind === "invalid") {
+      case "invalid": {
         throw new CommentRefusedError(
           `${notePath}: the frontmatter is not valid YAML, so no id can be written into it`,
         );
       }
-      if (verdict.kind === "foreign-id") {
+      case "foreign-id": {
         throw new CommentRefusedError(
-          `${notePath}: its frontmatter id ${verdict.value} is not text, and a minted id would replace it`,
+          `${notePath}: its frontmatter id ${outcome.value} is not text, and a minted id would replace it`,
         );
       }
-      const result = await vault.writeIfUnchanged(notePath, current.content, verdict.content);
-      if (result.applied) {
-        return id;
+      case "changed": {
+        throw new SidecarConflictError(
+          `${notePath} changed under the id write twice; nothing was written`,
+        );
       }
-      current = await readNote(notePath);
+      // no default
     }
-    throw new SidecarConflictError(
-      `${notePath} changed under the id write twice; nothing was written`,
-    );
   };
 
   const readStore = async (noteId: string): Promise<StoreBase> => {
@@ -235,7 +227,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
     }
     let folded = note;
     if (Object.keys(parsed.sidecar).length > 0) {
-      const id = await ensureNoteId(notePath, note);
+      const id = await storeKeyOf(notePath, note);
       folded = { content: note.content, id };
       await commit(id, (store) => ({ ok: true, sidecar: { ...parsed.sidecar, ...store } }));
     }
@@ -258,7 +250,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
   return {
     async add({ path, id, text, source = DEFAULT_SOURCE }) {
       const note = await open(path);
-      const key = await ensureNoteId(path, note);
+      const key = await storeKeyOf(path, note);
       const added = await commit(key, (sidecar) =>
         addRoot(sidecar, { at: now(), id, source, text }),
       );

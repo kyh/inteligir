@@ -38,8 +38,6 @@ const boot = () => {
   return { knowledge, root, service };
 };
 
-const noRebind = (): void => {};
-
 describe("rename with link rewrite", () => {
   it("rewrites exactly the candidate docs and records the old stem as an alias", async () => {
     const { root, service, knowledge } = boot();
@@ -56,7 +54,6 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       from: "notes/target.md",
       knowledge,
-      rebindThreads: noRebind,
       service,
       to: "archive/moved.md",
     });
@@ -93,7 +90,6 @@ describe("rename with link rewrite", () => {
     await renameNoteWithLinkRewrite({
       from: "other.md",
       knowledge,
-      rebindThreads: noRebind,
       service,
       to: "note.md",
     });
@@ -117,7 +113,6 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       from: "misc.md",
       knowledge,
-      rebindThreads: noRebind,
       service,
       to: "Retro.md",
     });
@@ -144,20 +139,15 @@ describe("rename with link rewrite", () => {
     };
     expect(await unresolved()).toEqual([]);
 
-    const rebound: [string, string][] = [];
     const result = await renameNoteWithLinkRewrite({
       from: "proj",
       knowledge,
-      rebindThreads: (from, to) => {
-        rebound.push([from, to]);
-      },
       service,
       to: "archive/project",
     });
     expect(result.path).toBe("archive/project");
     expect(result.rewritten.toSorted()).toEqual(["archive/project/note.md", "hub.md"]);
     expect(result.skipped).toEqual([]);
-    expect(rebound).toEqual([["proj", "archive/project"]]);
 
     expect(readFileSync(path.join(root, "hub.md"), "utf-8")).toBe(
       "Read [the note](archive/project/note.md), [[note]], ![[sibling]].\n",
@@ -190,7 +180,6 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       from: "target.md",
       knowledge,
-      rebindThreads: noRebind,
       service: racing,
       to: "moved.md",
     });

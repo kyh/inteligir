@@ -12,7 +12,11 @@ import {
   listQueuedThreadMessages,
   releaseAllQueuedMessageClaims,
 } from "@repo/db/queued-messages";
-import { applyThreadLifecycleEventInTransaction, setThreadProviderSession } from "@repo/db/threads";
+import {
+  applyThreadLifecycleEventInTransaction,
+  getThread,
+  setThreadProviderSession,
+} from "@repo/db/threads";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
 import { WS_PATH } from "@repo/api/local/routes";
@@ -27,6 +31,7 @@ import { authorizationHeader } from "../server-file";
 import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import type { BootedTestApp } from "./boot-app";
 import { FakeTurnDriver } from "./fake-turn-driver";
+import { pathOnlyOrigins } from "./path-only-origins";
 
 type ThreadsClient = BootedTestApp["client"];
 
@@ -330,6 +335,7 @@ describe("a thread's title", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     service.applySyncedEvents({
       cursor: 1,
@@ -386,6 +392,7 @@ describe("a thread's own facts", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier,
+      origins: pathOnlyOrigins,
     });
     const threadId = "thr_remote";
     service.applySyncedEvents({
@@ -398,6 +405,7 @@ describe("a thread's own facts", () => {
         synced(
           {
             originDocPath: "Offsite.md",
+            originNoteId: "note-offsite",
             providerId: "codex",
             scope: threadScope(),
             threadId,
@@ -418,6 +426,7 @@ describe("a thread's own facts", () => {
       title: "Offsite",
     });
     expect(thread.archivedAt).not.toBeNull();
+    expect(getThread(db, threadId)?.originNoteId).toBe("note-offsite");
     for (const kind of ["title-changed", "origin-changed", "archived-changed"]) {
       expect(changes.filter((change) => change === `${threadId} ${kind}`)).toHaveLength(1);
     }
@@ -429,6 +438,7 @@ describe("a thread's own facts", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     const threadId = "thr_remote";
     const request: ThreadEvent = {
@@ -487,28 +497,30 @@ describe("a thread's own facts", () => {
     expect(stated).toEqual(["codex"]);
   });
 
-  it("follow a renamed note, and reach the log only for a thread that made a request", async () => {
+  it("state the origin's note id beside its path, so another device follows a move by id", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
-    const sent = await createThreadOver(client, "Plans.md");
+    await client.vault.write({ content: "---\nid: note-plans\n---\n# Plans\n", path: "Plans.md" });
+    const threadId = await createThreadOver(client, "Plans.md");
+    await client.threads.send({ text: "go", threadId });
+
+    const identity = listStoredThreadEvents(db, { threadId }).find(
+      ({ event }) => event.type === "thread/meta",
+    )?.event;
+    expect(identity).toMatchObject({ originDocPath: "Plans.md", originNoteId: "note-plans" });
+  });
+
+  it("reach the log only for a thread that made a request", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const sent = await createThread(client);
     await client.threads.send({ text: "go", threadId: sent });
-    const draft = await createThreadOver(client, "Plans.md");
-    const { changes, notifier } = recordingNotifier();
-    const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
-      db,
-      notifier,
-    });
+    const draft = await createThread(client);
 
-    service.rebindOrigins({ from: "Plans.md", to: "Moved.md" });
+    await client.threads.archive({ threadId: sent });
+    await client.threads.archive({ threadId: draft });
 
-    expect(changes.toSorted()).toEqual(
-      [`${draft} origin-changed`, `${sent} events-appended`, `${sent} origin-changed`].toSorted(),
-    );
-    const moved = listStoredThreadEvents(db, { threadId: sent }).at(-1)?.event;
-    expect(moved).toMatchObject({ originDocPath: "Moved.md", type: "thread/meta" });
+    const stated = listStoredThreadEvents(db, { threadId: sent }).map(({ event }) => event.type);
+    expect(stated).toContain("thread/archived");
     expect(listStoredThreadEvents(db, { threadId: draft })).toEqual([]);
-    const drafted = await client.threads.get({ threadId: draft });
-    expect(drafted.thread.originDocPath).toBe("Moved.md");
   });
 });
 
@@ -614,13 +626,15 @@ describe("the queue drain", () => {
       },
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     const [revivedDriver] = drivers;
     if (revivedDriver === undefined) {
       throw new Error("the revived driver was not constructed");
     }
     revived.boot();
-    expect(revived.get(threadId)?.thread.status).toBe("error");
+    const recovered = await revived.get(threadId);
+    expect(recovered?.thread.status).toBe("error");
     expect(revivedDriver.startedTurns).toEqual([]);
 
     expect(revived.send({ text: "later", threadId }).kind).toBe("queued");
@@ -667,11 +681,11 @@ describe("the queue drain", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     revived.boot();
-    expect(revived.get(threadId)?.queuedMessages.map((message) => message.text)).toEqual([
-      "queued",
-    ]);
+    const recovered = await revived.get(threadId);
+    expect(recovered?.queuedMessages.map((message) => message.text)).toEqual(["queued"]);
     expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
   });
 
@@ -724,6 +738,7 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     expect(() => {
       service.ingestProviderEvents(threadId, [
@@ -756,9 +771,11 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     revived.boot();
-    expect(revived.get(threadId)?.thread.status).toBe("error");
+    const recovered = await revived.get(threadId);
+    expect(recovered?.thread.status).toBe("error");
     expect(await getThreadStatus(client, threadId)).toBe("error");
     const rows = timelineRows(await fetchTimeline(client, threadId));
     const errorRow = rows.find((row) => row.kind === "error");
@@ -776,7 +793,8 @@ describe("turn identity and crash recovery", () => {
 
     // the request behind the orphan died with the process, so it settles interrupted rather than answerable.
     expect(getPendingInteraction(db, orphan.id)?.status).toBe("interrupted");
-    expect(revived.get(threadId)?.pendingInteractions).toEqual([]);
+    const settled = await revived.get(threadId);
+    expect(settled?.pendingInteractions).toEqual([]);
   });
 
   it("folds any dispatch throw into error status with a recorded provider/error", async () => {
@@ -855,6 +873,7 @@ describe("stopping a turn", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     const threadId = "thr_remote";
     remote.applySyncedEvents({

@@ -81,8 +81,9 @@ shown is the HOST id; the provider id is only ever spoken to the provider.
 **scope** — how far up an event's meaning reaches: `{ kind: "thread" }` or
 `{ kind: "turn", turnId }` (`@repo/domain/thread-event-scope`). Turn scope is
 the default reading; each event type carries its own scope in the
-`threadEventSchema` union, and the two exceptions (`client/turn/requested`,
-`provider/error`) state their reason beside it, so an event that escapes turn
+`threadEventSchema` union, and the exceptions (`client/turn/requested`,
+`provider/error`, and the thread's own facts `thread/meta` and
+`thread/archived`) state their reason beside it, so an event that escapes turn
 chronology has to justify it in writing and a consumer reads a turn event's
 `turnId` without a null branch. The rule is enforced twice — the zod grammar at
 parse, a CHECK constraint on the `events` table — because a turn-scoped row
@@ -94,10 +95,13 @@ and they are not interchangeable. A **view context**
 bytes hashed to, taken at submit and consumed by that turn's prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
 message left from, which is what "this" and "here" in it refer to — so nothing
 has to reconcile it when the user navigates away. A **thread origin**
-(`threads.originDocPath`) is the DURABLE binding an action makes: the note it
-was composed over, surviving renames, and the thing the panel's note-first
-ordering resolves. A message can carry a view context into a thread with no
-origin — a composer send with the note chip detached has none. Neither is a
+(`originDocPath` on the wire) is the DURABLE binding an action makes: the note
+it was composed over, found by the note's frontmatter id
+(`threads.origin_note_id`) so a move anywhere — Finder, a pull, an agent's
+`mv` — keeps it, the path at compose time answering for a note with no id; it
+is the thing the panel's note-first ordering resolves. A message can carry a
+view context into a thread with no origin — a composer send with the note chip
+detached has none. Neither is a
 **context path**: a note the user @-mentioned, which rides the message beside
 its text (`contextPaths` on `client/turn/requested`) and, being part of what
 was asked rather than a statement about the screen, survives the queue.

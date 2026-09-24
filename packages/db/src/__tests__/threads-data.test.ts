@@ -13,12 +13,10 @@ import {
   ensureThreadInTransaction,
   getThread,
   listThreads,
-  rebindThreadOriginsInTransaction,
 } from "../threads";
 import type {
   ApplyThreadLifecycleEventArgs,
   ApplyThreadLifecycleEventOutcome,
-  ReboundThread,
   ThreadMetaChange,
   ThreadMetaFacts,
 } from "../threads";
@@ -56,9 +54,6 @@ const applyLifecycle = (
 const archive = (db: DbConnection, threadId: string): boolean =>
   writeTransaction(db, (tx) => archiveThreadInTransaction(tx, threadId));
 
-const rebind = (db: DbConnection, args: { from: string; to: string }): ReboundThread[] =>
-  writeTransaction(db, (tx) => rebindThreadOriginsInTransaction(tx, args));
-
 const applyMeta = (db: DbConnection, threadId: string, facts: ThreadMetaFacts): ThreadMetaChange =>
   writeTransaction(db, (tx) => applyThreadMetaInTransaction(tx, { facts, threadId }));
 
@@ -74,12 +69,19 @@ describe("thread CRUD", () => {
     expect(threadChanges).toEqual([{ changes: ["thread-created"], threadId: thread.id }]);
   });
 
-  it("stores the doc attachment", () => {
+  it("stores the doc attachment, with the note's id when it has one", () => {
     const db = openTempDb();
-    const thread = createThread(db, noopNotifier, {
-      originDocPath: "notes/today.md",
+    const identified = createThread(db, noopNotifier, {
+      origin: { noteId: "note-today", path: "notes/today.md" },
     });
-    expect(thread.originDocPath).toBe("notes/today.md");
+    expect(identified).toMatchObject({
+      originDocPath: "notes/today.md",
+      originNoteId: "note-today",
+    });
+    const pathOnly = createThread(db, noopNotifier, {
+      origin: { noteId: null, path: "notes/draft.md" },
+    });
+    expect(pathOnly).toMatchObject({ originDocPath: "notes/draft.md", originNoteId: null });
   });
 
   it("lists live threads before archived ones", () => {
@@ -110,20 +112,45 @@ describe("applyThreadMetaInTransaction", () => {
     expect(
       applyMeta(db, "thr_synced", {
         originDocPath: "Plans.md",
+        originNoteId: "note-plans",
         providerId: "codex",
         title: "Plan the week",
       }),
     ).toEqual({ origin: true, title: true });
     expect(getThread(db, "thr_synced")).toMatchObject({
       originDocPath: "Plans.md",
+      originNoteId: "note-plans",
       providerId: "codex",
       title: "Plan the week",
     });
   });
 
+  it("takes an origin's path and note id as one statement", () => {
+    const db = openTempDb();
+    const thread = createThread(db, noopNotifier, {
+      origin: { noteId: "note-plans", path: "Plans.md" },
+    });
+
+    expect(applyMeta(db, thread.id, { originNoteId: "note-other" })).toEqual({
+      origin: false,
+      title: false,
+    });
+    expect(applyMeta(db, thread.id, { originDocPath: "Plans.md" })).toEqual({
+      origin: true,
+      title: false,
+    });
+    expect(getThread(db, thread.id)).toMatchObject({
+      originDocPath: "Plans.md",
+      originNoteId: null,
+    });
+  });
+
   it("changes nothing when a replay states what the thread already holds", () => {
     const db = openTempDb();
-    const thread = createThread(db, noopNotifier, { originDocPath: "Plans.md", title: "Plan" });
+    const thread = createThread(db, noopNotifier, {
+      origin: { noteId: null, path: "Plans.md" },
+      title: "Plan",
+    });
     const before = getThread(db, thread.id);
 
     expect(applyMeta(db, thread.id, { originDocPath: "Plans.md", title: "Plan" })).toEqual({
@@ -135,7 +162,9 @@ describe("applyThreadMetaInTransaction", () => {
 
   it("moves the title and the origin to the latest statement, and keeps a bound harness", () => {
     const db = openTempDb();
-    const thread = createThread(db, noopNotifier, { originDocPath: "Plans.md" });
+    const thread = createThread(db, noopNotifier, {
+      origin: { noteId: null, path: "Plans.md" },
+    });
     applyMeta(db, thread.id, { providerId: "claude", title: "Named from the first line" });
 
     expect(
@@ -154,7 +183,10 @@ describe("applyThreadMetaInTransaction", () => {
 
   it("leaves absent facts as they are, and a missing thread alone", () => {
     const db = openTempDb();
-    const thread = createThread(db, noopNotifier, { originDocPath: "Plans.md", title: "Plan" });
+    const thread = createThread(db, noopNotifier, {
+      origin: { noteId: null, path: "Plans.md" },
+      title: "Plan",
+    });
 
     expect(applyMeta(db, thread.id, { providerId: "codex" })).toEqual({
       origin: false,
@@ -289,85 +321,5 @@ describe("listThreads query plan", () => {
     for (const plan of plans) {
       expect(plan).not.toContain("TEMP B-TREE");
     }
-  });
-});
-
-describe("doc-attached threads", () => {
-  it("rebinds a moved doc's threads from the origin index, not a table scan", () => {
-    const db = openTempDb();
-    // rebindThreadOriginsInTransaction's file-move UPDATE, spelled out because EXPLAIN needs raw sql.
-    const plan = db.$client
-      .prepare(
-        "EXPLAIN QUERY PLAN UPDATE threads SET origin_doc_path = 'b.md' WHERE origin_doc_path = 'a.md'",
-      )
-      .all()
-      .map((step) => JSON.stringify(step))
-      .join("\n");
-    expect(plan).toContain("threads_origin_doc_idx");
-  });
-});
-
-describe("rebindThreadOriginsInTransaction", () => {
-  it("follows a renamed file and answers each moved thread with its new origin", () => {
-    const db = openTempDb();
-    const first = createThread(db, noopNotifier, { originDocPath: "Plans.md" });
-    const second = createThread(db, noopNotifier, { originDocPath: "Plans.md" });
-    const elsewhere = createThread(db, noopNotifier, { originDocPath: "Other.md" });
-
-    expect(rebind(db, { from: "Plans.md", to: "Archive/Moved.md" })).toEqual([
-      { id: first.id, originDocPath: "Archive/Moved.md" },
-      { id: second.id, originDocPath: "Archive/Moved.md" },
-    ]);
-    expect(getThread(db, first.id)?.originDocPath).toBe("Archive/Moved.md");
-    expect(getThread(db, second.id)?.originDocPath).toBe("Archive/Moved.md");
-    expect(getThread(db, elsewhere.id)?.originDocPath).toBe("Other.md");
-  });
-
-  it("follows a renamed DIRECTORY for every doc under it", () => {
-    const db = openTempDb();
-    const nested = createThread(db, noopNotifier, { originDocPath: "Notes/deep/a.md" });
-    const sibling = createThread(db, noopNotifier, { originDocPath: "Notes2/b.md" });
-
-    expect(rebind(db, { from: "Notes", to: "Archive" })).toEqual([
-      { id: nested.id, originDocPath: "Archive/deep/a.md" },
-    ]);
-    expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/deep/a.md");
-    expect(getThread(db, sibling.id)?.originDocPath).toBe("Notes2/b.md");
-  });
-
-  it("follows a directory whose name carries a LIKE wildcard", () => {
-    const db = openTempDb();
-    const nested = createThread(db, noopNotifier, { originDocPath: "50%/a.md" });
-    const sibling = createThread(db, noopNotifier, { originDocPath: "50x/b.md" });
-
-    expect(rebind(db, { from: "50%", to: "Archive" })).toHaveLength(1);
-    expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/a.md");
-    expect(getThread(db, sibling.id)?.originDocPath).toBe("50x/b.md");
-  });
-
-  it("is a no-op when nothing is bound to the moved path", () => {
-    const db = openTempDb();
-    createThread(db, noopNotifier, {});
-    expect(rebind(db, { from: "Nothing.md", to: "Else.md" })).toEqual([]);
-  });
-
-  it("moves nothing when a write fails partway through a folder", () => {
-    const db = openTempDb();
-    const exact = createThread(db, noopNotifier, { originDocPath: "Notes" });
-    const nested = createThread(db, noopNotifier, { originDocPath: "Notes/a.md" });
-    // the exact-path UPDATE runs first and succeeds; the descendant's is the one refused.
-    db.$client.exec(`
-      CREATE TRIGGER refuse_rebind BEFORE UPDATE OF origin_doc_path ON threads
-      WHEN NEW.origin_doc_path = 'Archive/a.md'
-      BEGIN SELECT RAISE(ABORT, 'refused mid-rebind'); END;
-    `);
-
-    expect(() => rebind(db, { from: "Notes", to: "Archive" })).toThrow(
-      expect.objectContaining({
-        cause: expect.objectContaining({ message: "refused mid-rebind" }),
-      }),
-    );
-    expect(getThread(db, exact.id)?.originDocPath).toBe("Notes");
-    expect(getThread(db, nested.id)?.originDocPath).toBe("Notes/a.md");
   });
 });

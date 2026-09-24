@@ -11,6 +11,7 @@ import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime } from "../sync-runtime";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
+import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
 // pollIntervalMs: null — the test triggers every pass itself.
 const bootInstall = async (
@@ -72,6 +73,7 @@ const rebootCloud = async (
       createTurnDriver: () => unavailableTurnDriver,
       db: install.db,
       notifier: new NotificationBuffer(),
+      origins: pathOnlyOrigins,
       sync: runtime,
     }),
   );
@@ -256,9 +258,11 @@ describe("two installs against one account", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db: b.db,
       notifier: new NotificationBuffer(),
+      origins: pathOnlyOrigins,
     });
     rebooted.boot();
-    expect(rebooted.list().some((row) => row.id === thread.id)).toBe(true);
+    const listed = await rebooted.list();
+    expect(listed.some((row) => row.id === thread.id)).toBe(true);
     expect(eventOrder(b, thread.id).some((row) => row.startsWith("provider/error"))).toBe(false);
     const afterReboot = await b.client.threads.get({ threadId: thread.id });
     expect(afterReboot.thread.status).toBe("active");
@@ -404,6 +408,10 @@ describe("two installs against one account", () => {
     await a.client.threads.archive({ threadId: thread.id });
     await syncNow(a);
     await syncNow(b);
+    // the move reaches B through git, never the log: B's vault takes A's bytes, the note's id with
+    // them, and B's thread follows that id.
+    const { content } = await a.client.vault.read({ path: "Plans/Week.md" });
+    await b.client.vault.write({ content, path: "Plans/Week.md" });
 
     const moved = await b.client.threads.get({ threadId: thread.id });
     expect(moved.thread.originDocPath).toBe("Plans/Week.md");

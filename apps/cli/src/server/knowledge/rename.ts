@@ -16,7 +16,6 @@ import type { KnowledgeRuntime } from "./knowledge-runtime";
 export interface RenameNoteArgs {
   service: VaultService;
   knowledge: KnowledgeRuntime;
-  rebindThreads: (from: string, to: string) => void;
   from: string;
   to: string;
 }
@@ -66,7 +65,6 @@ export const renameNoteWithLinkRewrite = async (
     tree.entries.find((entry) => entry.path.toLowerCase() === requested.toLowerCase());
   if (source === undefined) {
     const plain = await service.rename(requested, toPath);
-    args.rebindThreads(requested, plain.path);
     return { path: plain.path, rewritten: [], skipped: [] };
   }
   const fromPath = source.path;
@@ -82,7 +80,6 @@ export const renameNoteWithLinkRewrite = async (
   const { docs, skipped } = await snapshotDocs(service, candidates);
 
   const renamed = await service.rename(fromPath, toPath);
-  args.rebindThreads(fromPath, renamed.path);
   const moves = movesOf(source, allFiles, renamed.path);
 
   // a case-only retitle records nothing: the old spelling still resolves through the case-insensitive tiers.

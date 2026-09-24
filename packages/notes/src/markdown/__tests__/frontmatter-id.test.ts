@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { frontmatterId, mintNoteId, withFrontmatterId } from "../frontmatter";
+import {
+  frontmatterId,
+  frontmatterYamlWithId,
+  mintNoteId,
+  withFrontmatterId,
+} from "../frontmatter";
 
 describe("the note's frontmatter id", () => {
   it("reads a text id and nothing else", () => {
@@ -22,6 +27,16 @@ describe("the note's frontmatter id", () => {
       content: "---\nid: new\ntags:\n  - a\npinned: true\n---\nbody\n",
       kind: "written",
     });
+  });
+
+  it("makes the same cut over a block's own YAML, the form the editor's frontmatter node holds", () => {
+    expect(frontmatterYamlWithId(null, "new")).toEqual({ kind: "written", yaml: "id: new" });
+    expect(frontmatterYamlWithId("title: t\nid:", "new")).toEqual({
+      kind: "written",
+      yaml: "id: new\ntitle: t",
+    });
+    expect(frontmatterYamlWithId("id: mine", "new")).toEqual({ id: "mine", kind: "unchanged" });
+    expect(frontmatterYamlWithId(": [", "new")).toEqual({ kind: "invalid" });
   });
 
   it("keeps an id the note carries, replaces an empty one, and refuses invalid YAML", () => {

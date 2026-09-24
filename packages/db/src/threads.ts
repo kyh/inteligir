@@ -5,7 +5,7 @@ import type {
   ThreadLifecycleNoopReason,
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
-import { and, desc, eq, isNotNull, isNull, like } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -15,9 +15,16 @@ export type ThreadRow = typeof threads.$inferSelect;
 
 type ThreadWriteConnection = DbConnection | DbTransaction;
 
+// the note's path at compose time and its frontmatter `id`, null for a note that has none; the
+// columns are independent, so this shape is what keeps an id from arriving without its path.
+export interface ThreadOriginInput {
+  path: string;
+  noteId: string | null;
+}
+
 export interface CreateThreadInput {
   title?: string;
-  originDocPath?: string;
+  origin?: ThreadOriginInput;
 }
 
 export const createThread = (
@@ -33,7 +40,8 @@ export const createThread = (
       archivedAt: null,
       createdAt: now,
       id: createThreadId(),
-      originDocPath: input.originDocPath ?? null,
+      originDocPath: input.origin?.path ?? null,
+      originNoteId: input.origin?.noteId ?? null,
       providerId: null,
       status: "idle",
       title: input.title ?? null,
@@ -87,46 +95,6 @@ export const listThreads = (db: DbConnection): ThreadRow[] => {
   return [...live, ...archived];
 };
 
-export interface ReboundThread {
-  id: string;
-  originDocPath: string;
-}
-
-// takes the caller's transaction so a folder's threads move together or not at all.
-export const rebindThreadOriginsInTransaction = (
-  tx: DbTransaction,
-  args: { from: string; to: string },
-): ReboundThread[] => {
-  const moved = tx
-    .update(threads)
-    .set({ originDocPath: args.to, updatedAt: Date.now() })
-    .where(eq(threads.originDocPath, args.from))
-    .returning({ id: threads.id })
-    .all()
-    .map((row): ReboundThread => ({ id: row.id, originDocPath: args.to }));
-  // "/" appended so a sibling sharing the name's prefix (`Notes2/`) is never caught.
-  const prefix = `${args.from}/`;
-  const descendants = tx
-    .select({ id: threads.id, originDocPath: threads.originDocPath })
-    .from(threads)
-    // drizzle's `like` emits no ESCAPE clause, so escaping the prefix's own wildcards would match
-    // a literal backslash and find nothing; the pattern over-matches and `startsWith` filters.
-    .where(like(threads.originDocPath, `${prefix}%`))
-    .all();
-  for (const row of descendants) {
-    if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
-      continue;
-    }
-    const originDocPath = `${args.to}/${row.originDocPath.slice(prefix.length)}`;
-    tx.update(threads)
-      .set({ originDocPath, updatedAt: Date.now() })
-      .where(eq(threads.id, row.id))
-      .run();
-    moved.push({ id: row.id, originDocPath });
-  }
-  return moved;
-};
-
 // fills an empty title only: an explicit one, or one an earlier message already set, stays.
 export const nameUntitledThreadInTransaction = (
   tx: DbTransaction,
@@ -155,6 +123,7 @@ export const archiveThreadInTransaction = (tx: DbTransaction, id: string): boole
 export interface ThreadMetaFacts {
   title?: string | undefined;
   originDocPath?: string | undefined;
+  originNoteId?: string | undefined;
   providerId?: string | undefined;
 }
 
@@ -163,9 +132,10 @@ export interface ThreadMetaChange {
   origin: boolean;
 }
 
-// a title and an origin take the latest statement: a rename moves the origin, and a title a
-// skipping build pulls again lands after the first message already named the thread. a bound
-// harness stays, because this device's provider session was opened on it.
+// a title and an origin take the latest statement: a title a skipping build pulls again lands
+// after the first message already named the thread. an origin is stated as its path and its note's
+// id together, so an id never pairs with another statement's path. a bound harness stays, because
+// this device's provider session was opened on it.
 export const applyThreadMetaInTransaction = (
   tx: DbTransaction,
   args: { threadId: string; facts: ThreadMetaFacts },
@@ -179,8 +149,12 @@ export const applyThreadMetaInTransaction = (
   if (title !== undefined && title !== row.title) {
     patch.title = title;
   }
-  if (originDocPath !== undefined && originDocPath !== row.originDocPath) {
-    patch.originDocPath = originDocPath;
+  if (originDocPath !== undefined) {
+    const originNoteId = args.facts.originNoteId ?? null;
+    if (originDocPath !== row.originDocPath || originNoteId !== row.originNoteId) {
+      patch.originDocPath = originDocPath;
+      patch.originNoteId = originNoteId;
+    }
   }
   if (providerId !== undefined && row.providerId === null) {
     patch.providerId = providerId;

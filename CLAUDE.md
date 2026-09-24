@@ -1091,11 +1091,11 @@ rename`.
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (what it
   retired is the register on #645; do not bring any of it back). An action is an
-  ordinary thread attached to the note it was composed over
-  (`threads.originDocPath`). The agent edits the vault directly and anchored
-  comments are the review channel; the panel's Actions | Comments | History |
-  Metadata tabs are transcript, review, revision, and the note's own properties,
-  related notes and delete. ⌘P is the palette, ⌘F the find bar, ⌘\ is zen.
+  ordinary thread attached to the note it was composed over (its origin, below).
+  The agent edits the vault directly and anchored comments are the review
+  channel; the panel's Actions | Comments | History | Metadata tabs are
+  transcript, review, revision, and the note's own properties, related notes
+  and delete. ⌘P is the palette, ⌘F the find bar, ⌘\ is zen.
   "Ask agent" seeds the composer through
   `packages/editor/src/agent-request.ts`, so the editor never imports the shell.
   `apps/desktop/src/renderer/app/actions/actions-panel.tsx` and
@@ -1305,6 +1305,23 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   `apps/cli/src/server/agents/runtime-manager.ts` and `interrupt` in
   `apps/cli/src/server/threads/service.ts`.
 
+- **AN ACTION'S ORIGIN IS ITS NOTE'S ID, and the path is only the fallback.**
+  Rebinding the stored path on the rename route was rejected: Finder, an
+  agent's `mv` and a pull never reach that route, so the action dropped out of
+  its note's group and Open note named a missing file. The create stores the
+  note's frontmatter `id` (`threads.origin_note_id`) beside the path, minting
+  one through the comment store's own guarded step
+  (`apps/cli/src/server/vault/ensure-note-id.ts`); a note that cannot take one
+  keeps the path alone, never refuses the action. Every read resolves the id
+  through the index (`pathForNoteId`: the stored path while it still carries
+  the id, so a byte copy never takes the binding, else the id tier's pick), and
+  `originDocPath` on the wire is that answer; `files-changed` re-reads the
+  threads, since a move sends no thread frame. The composer gives the open
+  note its id through the live editor before the view context is read, as a
+  pin lands, because a server mint under the buffer made the revision name
+  bytes no longer on disk (`apps/desktop/src/renderer/app/note/open-note-id.ts`).
+  `apps/cli/src/server/threads/thread-origins.ts`.
+
 ### Dictation
 
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by
@@ -1471,10 +1488,11 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
 - **The THREAD channel carries thread events alone, and a thread's own facts
   are events on it** (owner decision). A thread with no events never reaches
   another device. Vault bytes ride the git remote, never this log. A thread
-  states its title and origin note in a `thread/meta` row beside its first
-  request, its harness in one with the first turn a provider starts on it (a
-  bind whose dispatch was withdrawn states nothing), a rename's new origin in
-  one more, and an archive as `thread/archived`
+  states its title and origin note (the path and the note's `id`, so another
+  device follows a move by the id as this one does, and no move is ever
+  stated) in a `thread/meta` row beside its first request, its harness in one
+  with the first turn a provider starts on it (a bind whose dispatch was
+  withdrawn states nothing), and an archive as `thread/archived`
   (`@repo/domain/provider-event`); a fact about a thread that never made a
   request stays local, since sent alone it would arrive as an empty action.
   Another device folds them through the same ingest: a title and an origin

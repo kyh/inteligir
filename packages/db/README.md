@@ -39,8 +39,9 @@ src/
                       # pint_, obx_) over a 32-letter alphabet minus the look-alikes
   events.ts           # the append-only log: contiguous per-thread sequence, the
                       # turn/started gate, synced-origin dedupe, one prepared insert
-  threads.ts          # thread rows, the lifecycle CAS, origin rebinding on rename (one
-                      # transaction per rename), setThreadProviderSession
+  threads.ts          # thread rows (an origin is the note's path and its frontmatter
+                      # id, resolved by the server on read), the lifecycle CAS,
+                      # setThreadProviderSession
   queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
@@ -149,12 +150,11 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   takes a `DbNotifier` and announces after its own write commits. An
   `*InTransaction` writer announces nothing: the server composes it into one
   immediate transaction and its `NotificationBuffer` announces after the
-  commit, so a subscriber never sees rolled-back state. That is how a folder's
-  threads move (`rebindThreadOriginsInTransaction`), an archive lands
-  (`archiveThreadInTransaction`) and a synced `thread/meta` row fills a thread
-  the log created bare (`applyThreadMetaInTransaction`), each beside the event
-  that tells other devices. `setThreadProviderSession` announces nothing on
-  purpose: the provider session is runtime plumbing, not a fact a client
+  commit, so a subscriber never sees rolled-back state. That is how an archive
+  lands (`archiveThreadInTransaction`) and a synced `thread/meta` row fills a
+  thread the log created bare (`applyThreadMetaInTransaction`), each beside the
+  event that tells other devices. `setThreadProviderSession` announces nothing
+  on purpose: the provider session is runtime plumbing, not a fact a client
   renders.
 - **A claim has no TTL, so boot releases them all.** One server owns a data
   dir, so no claim can be live at boot; `releaseAllQueuedMessageClaims` runs
@@ -185,8 +185,7 @@ skipped-row marker keeps the lowest row and rewinds once per build change;
 contiguous sequences under interleaved writers, the turn/started gate, the
 scope CHECK at the database, a 20-event burst prepares two SELECTs and one
 INSERT, a stored row the grammar refuses left out and reported; the lifecycle
-happy path and its typed no-ops, a folder rebind a write refuses partway
-moving nothing, `listThreads` answered from its partial indexes with no temp
-b-tree; FIFO claims across connections and same-millisecond bursts;
-interaction idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so
+happy path and its typed no-ops, `listThreads` answered from its partial
+indexes with no temp b-tree; FIFO claims across connections and
+same-millisecond bursts; interaction idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so
 it carries its own 30s budget.
