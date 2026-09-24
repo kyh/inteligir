@@ -111,7 +111,11 @@ export const desktopShell: Scenario = {
     });
 
     ctx.log("a write over the API reaches the open editor: the socket upgrade carried the bearer");
-    await shell.api.vault.write({ content: `# Shell\n\n${WRITTEN_TOKEN}\n`, path: NOTE });
+    await shell.api.vault.write({
+      content: `# Shell\n\n${WRITTEN_TOKEN}\n`,
+      guard: { kind: "overwrite" },
+      path: NOTE,
+    });
     await pollUntil(readEditor, (text) => text.includes(WRITTEN_TOKEN), {
       deadlineMs: EDITOR_DEADLINE_MS,
       describe: (text) => `the editor never heard the write; it holds:\n${text}`,

@@ -124,7 +124,11 @@ describe("an Enter in a reply", () => {
   it("commits an IME candidate rather than sending the half-composed reply", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
-    await booted.client.vault.write({ content: "# Plan\n", path: "plan.md" });
+    await booted.client.vault.write({
+      content: "# Plan\n",
+      guard: { kind: "overwrite" },
+      path: "plan.md",
+    });
     await booted.client.comments.add({ id: "c1", path: "plan.md", text: "Ship it?" });
 
     mountTab("plan.md");
