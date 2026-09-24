@@ -7,7 +7,7 @@ import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { loopbackOrigin } from "inteligir/server/server-file";
 import { SHUTDOWN_TIMEOUT_MS } from "inteligir/server/shutdown";
 import { skip } from "./assert";
-import { describeExecError, exec, hermeticProcessEnv } from "./exec";
+import { appLaunchEnv, describeExecError, exec } from "./exec";
 import { createInstanceApi } from "./instance";
 import type { InstanceApi } from "./instance";
 import { pollUntil } from "./poll";
@@ -111,20 +111,13 @@ const requireDisplay = (): void => {
 
 // HOME, not INTELIGIR_DATA_DIR/INTELIGIR_VAULT_DIR: the shell refuses a switch while either is
 // pinned, so the scratch is reached through the dev instance a home derives
-const shellEnv = (homeDir: string, serverPort: number): NodeJS.ProcessEnv => {
-  const env: NodeJS.ProcessEnv = Object.fromEntries(
-    Object.entries(hermeticProcessEnv()).filter(
-      ([key]) =>
-        !key.startsWith("INTELIGIR_") && key !== "NODE_ENV" && key !== "ELECTRON_RUN_AS_NODE",
-    ),
-  );
-  return Object.assign(env, {
+const shellEnv = (homeDir: string, serverPort: number): NodeJS.ProcessEnv =>
+  Object.assign(appLaunchEnv(), {
     HOME: homeDir,
     INTELIGIR_AGENT: "scripted",
     INTELIGIR_PORT: String(serverPort),
     INTELIGIR_SYNC_INTERVAL_MS: "0",
   });
-};
 
 export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<DesktopShell> => {
   requireDisplay();

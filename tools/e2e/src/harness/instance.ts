@@ -12,7 +12,7 @@ import {
   healthResponseSchema,
   RPC_PREFIX,
 } from "@repo/api/local/routes";
-import { hermeticProcessEnv } from "./exec";
+import { appLaunchEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
 
@@ -74,13 +74,7 @@ const buildChildEnv = (
       );
     }
   }
-  // the outer shell's own INTELIGIR_* and NODE_ENV must not leak into an instance: NODE_ENV picks
-  // the runtime mode, which is the launch mode's to state.
-  const env: NodeJS.ProcessEnv = Object.fromEntries(
-    Object.entries(hermeticProcessEnv()).filter(
-      ([key]) => !key.startsWith("INTELIGIR_") && key !== "NODE_ENV",
-    ),
-  );
+  const env = appLaunchEnv();
   // extraEnv merges first; the harness-owned keys below always win.
   Object.assign(env, args.extraEnv ?? {}, command.env);
   env.INTELIGIR_DATA_DIR = dataDir;

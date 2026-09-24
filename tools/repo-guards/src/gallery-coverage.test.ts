@@ -6,14 +6,17 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isTestFile, REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
-import {
-  componentRoots,
-  GALLERY_DIR,
-  NON_COMPONENT_ROOTS,
-  sweptRoots,
-  UI_DIR,
-  UI_PACKAGE,
-} from "./ui-package";
+import { GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
+import type { UiRoot } from "./ui-package";
+
+// roots that draw nothing on their own, so the gallery demos none of them.
+const NON_COMPONENT_ROOTS: ReadonlyMap<string, string> = new Map([
+  ["hooks", "Behaviour hooks and their providers — nothing to draw on its own."],
+  ["lib", "Context providers and helpers the components read — nothing to draw on its own."],
+]);
+
+const componentRoots = (): UiRoot[] =>
+  sweptRoots().filter((root) => !NON_COMPONENT_ROOTS.has(root.dir));
 
 // a row here is a decision, not a backlog.
 const NOT_DEMOED = new Map<string, string>([

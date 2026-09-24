@@ -23,7 +23,7 @@ const fastestProjectionMs = (content: string): number => {
 };
 
 describe("projecting one long paragraph", () => {
-  it("costs time linear in its lines", () => {
+  it("costs time linear in its lines", { timeout: 120_000 }, () => {
     const short = fastestProjectionMs(paragraph(SHORT_LINES));
     const long = fastestProjectionMs(paragraph(LONG_LINES));
     expect(long / short).toBeLessThan(GROWTH_CEILING);

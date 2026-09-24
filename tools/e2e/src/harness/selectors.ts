@@ -6,3 +6,5 @@ export const COMPOSER = 'textarea[aria-label="Ask the agent"]';
 export const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 // a note or folder in the rail's Files view, which a fresh profile opens on.
 export const treeRow = (vaultPath: string): string => `[role="tree"] [data-path="${vaultPath}"]`;
+export const OPTION = "[role=option]";
+export const OPTION_COUNT = `String(document.querySelectorAll('${OPTION}').length)`;

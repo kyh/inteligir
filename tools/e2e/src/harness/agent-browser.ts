@@ -20,8 +20,6 @@ interface ScenarioBrowserControls {
 
 export type ScenarioBrowser = AgentBrowser & ScenarioBrowserControls;
 
-export type HeadlessProbe = (log: (message: string) => void) => Promise<void>;
-
 const agentBrowserSession = (label: string): AgentBrowser => {
   // label keeps scenarios off each other's tabs; pid keeps two runs of the suite apart.
   const session = `inteligir-e2e-${label}-${process.pid}`;
@@ -51,7 +49,7 @@ const closeQuietly = async (browser: AgentBrowser): Promise<void> => {
 };
 
 // about:blank needs nothing of the product, so a failure here is an environment gap (skip), not an
-// assertion; a run that installed the browser passes --require-browser, and the runner fails it.
+// assertion; a run whose environment was provisioned passes --no-skip, and the runner fails it.
 const probeHeadlessOrSkip = async (log: (message: string) => void): Promise<void> => {
   const probe = agentBrowserSession("probe");
   log("probing the environment: can a headless browser launch at all?");
@@ -69,12 +67,11 @@ const probeHeadlessOrSkip = async (log: (message: string) => void): Promise<void
 
 // once per run, because whether a browser launches is the machine's answer; in a session of its
 // own, because a scenario's session must launch with that scenario's own flags.
-export const createHeadlessProbe = (): HeadlessProbe => {
-  let probed: Promise<void> | null = null;
-  return async (log) => {
-    probed ??= probeHeadlessOrSkip(log);
-    await probed;
-  };
+let probed: Promise<void> | null = null;
+
+export const requireHeadlessBrowser = async (log: (message: string) => void): Promise<void> => {
+  probed ??= probeHeadlessOrSkip(log);
+  await probed;
 };
 
 export const createScenarioBrowser = (label: string): ScenarioBrowser => {

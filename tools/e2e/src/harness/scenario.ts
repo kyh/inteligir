@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { createScenarioBrowser } from "./agent-browser";
-import type { HeadlessProbe, ScenarioBrowser } from "./agent-browser";
+import { createScenarioBrowser, requireHeadlessBrowser } from "./agent-browser";
+import type { ScenarioBrowser } from "./agent-browser";
 import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { launchDesktopShell } from "./desktop-shell";
@@ -47,8 +47,25 @@ export interface CreateScenarioContextArgs {
   scratchDir: string;
   log: (message: string) => void;
   instances: TrackedProcess[];
-  headlessProbe: HeadlessProbe;
+  isClosed: () => boolean;
 }
+
+// a run abandoned at its deadline keeps going, and what it starts once the teardown began would be
+// owned by nothing: it is stopped and refused instead.
+const own = (args: CreateScenarioContextArgs, instance: TrackedProcess): void => {
+  if (!args.isClosed()) {
+    args.instances.push(instance);
+    return;
+  }
+  void (async () => {
+    try {
+      await instance.stop();
+    } catch (error) {
+      args.log(`teardown: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  })();
+  throw new Error(`${instance.name} started after its scenario was torn down`);
+};
 
 export const createScenarioContext = (args: CreateScenarioContextArgs): ScenarioContext => ({
   async bareRemote(name = "remote") {
@@ -78,7 +95,7 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       name: options.name,
       onLog: args.log,
       register: (instance) => {
-        args.instances.push(instance);
+        own(args, instance);
       },
       repoRoot: args.repoRoot,
     };
@@ -92,16 +109,16 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     return await launchApp(launchArgs);
   },
   async browser(label) {
-    await args.headlessProbe(args.log);
+    await requireHeadlessBrowser(args.log);
     const browser = createScenarioBrowser(label);
-    args.instances.push({ name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
+    own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
     return browser;
   },
   async cloudWorker(options) {
     const launch: LaunchCloudWorkerArgs = {
       onLog: args.log,
       register: (process) => {
-        args.instances.push(process);
+        own(args, process);
       },
       repoRoot: args.repoRoot,
       scratchDir: args.scratchDir,
@@ -116,7 +133,7 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       ...options,
       onLog: args.log,
       register: (shell) => {
-        args.instances.push(shell);
+        own(args, shell);
       },
       repoRoot: args.repoRoot,
       scratchDir: args.scratchDir,

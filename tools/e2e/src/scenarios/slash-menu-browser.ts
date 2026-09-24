@@ -6,7 +6,7 @@ import { parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR } from "../harness/selectors";
+import { EDITOR, OPTION, OPTION_COUNT } from "../harness/selectors";
 
 const DOC_PATH = "Plans.md";
 const PARAGRAPH = "First paragraph.";
@@ -17,7 +17,6 @@ ${PARAGRAPH}
 
 const HEADING = "Slash heading";
 const SAVE_DEADLINE_MS = 15_000;
-const OPTION_COUNT = "String(document.querySelectorAll('[role=option]').length)";
 
 export const slashMenuBrowser: Scenario = {
   description: "a typed slash opens the menu, and the picked construct lands in the file",
@@ -72,7 +71,7 @@ export const slashMenuBrowser: Scenario = {
         parseEval(
           await agentBrowser([
             "eval",
-            "JSON.stringify([...document.querySelectorAll('[role=option]')].map((n) => n.textContent))",
+            `JSON.stringify([...document.querySelectorAll('${OPTION}')].map((n) => n.textContent))`,
           ]),
           z.array(z.string()),
         ),

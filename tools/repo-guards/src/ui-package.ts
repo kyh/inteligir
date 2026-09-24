@@ -57,13 +57,3 @@ export const sweptRoots = (): UiRoot[] => {
   }
   return roots;
 };
-
-// roots that draw nothing on their own: the gallery demos none of them, and the type-role guard
-// leaves them be, since lib declares the scale the roles come from
-export const NON_COMPONENT_ROOTS: ReadonlyMap<string, string> = new Map([
-  ["hooks", "Behaviour hooks and their providers — nothing to draw on its own."],
-  ["lib", "Context providers and helpers the components read — nothing to draw on its own."],
-]);
-
-export const componentRoots = (): UiRoot[] =>
-  sweptRoots().filter((root) => !NON_COMPONENT_ROOTS.has(root.dir));

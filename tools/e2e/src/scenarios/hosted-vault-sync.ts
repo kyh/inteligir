@@ -8,6 +8,7 @@ import {
 } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
 import { loginDevice, OWNER, revokeDevice, signUp } from "../harness/cloud-account";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
@@ -98,8 +99,7 @@ const expectNoTokenInGitConfig = async (
 export const hostedVaultSync: Scenario = {
   description: "two instances against a real dev Worker: sign in, converge, clone, revoke",
   name: "hosted-vault-sync",
-  // a cold wrangler dev boot alone may take its two-minute ready deadline.
-  timeoutMs: 360_000,
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const worker = await ctx.cloudWorker();
 

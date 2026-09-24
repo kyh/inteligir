@@ -79,10 +79,10 @@ jobs:
 
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # "E2E browser" installed the browser, so one that cannot launch is a broken install:
-        # --require-browser fails those scenarios instead of skipping them behind a green step.
-        # xvfb-run: the desktop shell opens a real window, and the runner has no display
-        run: xvfb-run -a pnpm e2e --require-browser
+        # "E2E browser" installed the browser, and xvfb-run gives the desktop shell's window the
+        # display the runner lacks, so a scenario that skips is a broken setup: --no-skip fails it
+        # instead of passing it behind a green step
+        run: xvfb-run -a pnpm e2e --no-skip
 
   # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
   # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the

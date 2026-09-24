@@ -8,7 +8,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { REPO_ROOT, manifestWorkspaceDeps, sourceOf, workspaces } from "./repo";
+import {
+  REPO_ROOT,
+  manifestWorkspaceDeps,
+  turboTaskBodies,
+  workspaceTurboConfig,
+  workspaces,
+} from "./repo";
 import type { Workspace } from "./repo";
 
 const ROOT_CONFIG = "turbo.json";
@@ -20,7 +26,6 @@ const EXTENDS_ROOT = "$TURBO_EXTENDS$";
 // a `^` edge or stops being a cached task.
 const WITHOUT_DEPENDENCY_EDGE = new Map<string, string>();
 
-const turboConfigSchema = z.looseObject({ tasks: z.record(z.string(), z.unknown()) });
 const turboTaskSchema = z.looseObject({
   cache: z.boolean().optional(),
   dependsOn: z.array(z.string()).optional(),
@@ -29,15 +34,9 @@ type TurboTask = z.infer<typeof turboTaskSchema>;
 
 const scriptsSchema = z.looseObject({ scripts: z.record(z.string(), z.string()).optional() });
 
-// turbo.json is JSONC; sourceOf drops full-line comments, which is every comment this repo's turbo
-// configs use.
 const turboTasks = (configPath: string): Map<string, TurboTask> => {
-  const parsed = turboConfigSchema.safeParse(JSON.parse(sourceOf(configPath)));
-  if (!parsed.success) {
-    throw new Error(`${configPath}: expected an object at "tasks"`);
-  }
   const tasks = new Map<string, TurboTask>();
-  for (const [name, body] of Object.entries(parsed.data.tasks)) {
+  for (const [name, body] of turboTaskBodies(configPath)) {
     const task = turboTaskSchema.safeParse(body);
     if (!task.success) {
       throw new Error(
@@ -61,11 +60,6 @@ const rootTasks = (): Map<string, TurboTask> => {
     }
   }
   return tasks;
-};
-
-const ownConfigOf = (workspace: Workspace): string | null => {
-  const relative = `${workspace.dir}/turbo.json`;
-  return fs.existsSync(path.join(REPO_ROOT, relative)) ? relative : null;
 };
 
 const scriptsOf = (workspace: Workspace): Set<string> => {
@@ -113,7 +107,7 @@ const cachedTasks = (): JudgedTask[] => {
     if (dependencies.length === 0) {
       continue;
     }
-    const ownConfig = ownConfigOf(workspace);
+    const ownConfig = workspaceTurboConfig(workspace);
     const own = ownConfig === null ? new Map<string, TurboTask>() : turboTasks(ownConfig);
     const scripts = scriptsOf(workspace);
     for (const name of new Set([...root.keys(), ...own.keys()])) {

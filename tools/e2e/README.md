@@ -16,17 +16,17 @@ pnpm e2e                      # every scenario (the runner builds the CLI first)
 pnpm e2e --only vault-sync    # one scenario (comma-separated, repeatable)
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # names + descriptions
-pnpm e2e --require-browser    # a browser that cannot launch FAILS, never skips
+pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and display
 ```
 
 Before the first scenario the runner builds the CLI bundle and the workspace
 UI it stages, through turbo (`--filter=inteligir`): a cache hit when nothing
 changed, and never a stale `dist/` booted as if it were this checkout.
 
-Every scenario runs under a deadline (`timeoutMs`, default 180s; the two that
-build or boot a Worker declare more). A run still going past it FAILS with
-its instances' output tails and is torn down, so a hang costs one scenario,
-not the whole job.
+Every scenario runs under a deadline (`timeoutMs`, default 180s; a scenario
+that builds or boots a Worker, or the desktop shell, declares more). A run
+still going past it FAILS with its instances' output tails and is torn down,
+so a hang costs one scenario, not the whole job.
 
 Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
 the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
@@ -138,6 +138,8 @@ what each one is FOR.
 | tree-ops-browser          | the tree's row menu pins a note into its frontmatter, and a drag moves it |
 | extract-note-browser      | the selection toolbar extracts the selected block to a new note and       |
 |                           | leaves a link                                                             |
+| remote-content-browser    | under the built bundle's CSP a remote embed is an unloaded card, and an   |
+|                           | html block's Run executes its script under its own policy                 |
 
 ## Adding a scenario
 
@@ -186,17 +188,17 @@ agent-browser install` (Linux: `--with-deps`), at the version
 The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
 after a sysctl that lets Chromium's namespace sandbox run under Ubuntu's
 AppArmor (the shell is never launched with `--no-sandbox`); with no display on
-Linux, `desktop-shell` skips, and under `--require-browser` that skip fails.
-The first browser a run asks for probes the environment with `about:blank`, once
-per run and in a session of its own, so every scenario's session still launches
-with its own flags. Only a failure THERE (the browser cannot launch at all)
+Linux, `desktop-shell` skips. The first browser a run asks for probes the
+environment with `about:blank`, once per run and in a session of its own, so
+every scenario's session still launches with its own flags. Only a failure THERE (the browser cannot launch at all)
 reports SKIP, for that scenario and every browser scenario after it, with the
 exact launcher error; opening the app and everything after is a real assertion.
-A SKIP still exits 0, which is right on a machine with no browser and wrong on
-one that just installed it: there a failed install passes as every browser
-scenario skipped behind a green step. So a run that installed the browser
-passes `--require-browser`, and every skip becomes a FAIL carrying the same
-launcher error.
+A SKIP still exits 0, which is right on a machine with no browser or no display
+and wrong on one provisioned for both: there a failed install or a missing
+display passes as skipped scenarios behind a green step. So a run whose
+environment was provisioned passes `--no-skip`, and every skip, the browser's
+and the display's alike, becomes a FAIL carrying the reason it would have
+skipped with.
 
 The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
 still refuses to boot without it, because a server with no workspace UI

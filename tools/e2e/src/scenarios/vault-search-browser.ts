@@ -6,7 +6,7 @@ import type { AgentBrowser } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, PALETTE_INPUT } from "../harness/selectors";
+import { EDITOR, OPTION_COUNT, PALETTE_INPUT } from "../harness/selectors";
 
 // sort before the seeded notes, so the virgin boot opens the first and the rows come in this order.
 const NOTE_ONE = "A1 zebrafish.md";
@@ -20,7 +20,6 @@ const REPLACE_INPUT = 'input[aria-label="Replace with"]';
 const FIND_BAR_INPUT = 'input[aria-label="Find in note"]';
 const ROWS_DEADLINE_MS = 20_000;
 const DISK_DEADLINE_MS = 30_000;
-const OPTION_COUNT = "String(document.querySelectorAll('[role=option]').length)";
 const NO_DIALOG = `document.querySelector('[data-slot="dialog-content"]') === null`;
 
 const waitForRows = async (

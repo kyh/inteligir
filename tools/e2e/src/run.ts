@@ -2,9 +2,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { createHeadlessProbe } from "./harness/agent-browser";
-import type { HeadlessProbe } from "./harness/agent-browser";
-import { describeExecError, exec, hermeticProcessEnv } from "./harness/exec";
+import { buildProcessEnv, describeExecError, exec } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
 import type { TrackedProcess } from "./harness/tracked-child";
@@ -58,13 +56,13 @@ const SCENARIOS: readonly Scenario[] = [
   remoteContentBrowser,
 ];
 
-const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--require-browser]
+const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]
 
-  --only <names>     comma-separated scenario names (repeatable)
-  --keep             keep the scratch dirs for post-mortem
-  --list             print the scenario names and exit
-  --require-browser  a scenario whose headless browser cannot launch FAILS instead of skipping;
-                     for a run that installed the browser, where a skip is a broken install
+  --only <names>  comma-separated scenario names (repeatable)
+  --keep          keep the scratch dirs for post-mortem
+  --list          print the scenario names and exit
+  --no-skip       every SKIP FAILS; for a run whose environment was provisioned, browser and
+                  display, so a skip is a broken setup
 `;
 
 // a hang backstop, far above any scenario's green run: they pass in seconds.
@@ -76,17 +74,17 @@ interface CliOptions {
   only: string[];
   keep: boolean;
   list: boolean;
-  requireBrowser: boolean;
+  noSkip: boolean;
 }
 
 const parseArgs = (argv: readonly string[]): CliOptions => {
-  const options: CliOptions = { keep: false, list: false, only: [], requireBrowser: false };
+  const options: CliOptions = { keep: false, list: false, noSkip: false, only: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--keep") {
       options.keep = true;
-    } else if (arg === "--require-browser") {
-      options.requireBrowser = true;
+    } else if (arg === "--no-skip") {
+      options.noSkip = true;
     } else if (arg === "--list") {
       options.list = true;
     } else if (arg === "--only") {
@@ -144,10 +142,10 @@ const runWithinDeadline = async (scenario: Scenario, context: ScenarioContext): 
   }
 };
 
-// a skip reaches here only under --require-browser; every other one is an outcome of its own.
+// a skip reaches here only under --no-skip; every other one is an outcome of its own.
 const describeFailure = (cause: unknown): string => {
   if (cause instanceof ScenarioSkipError) {
-    return `SKIP not allowed under --require-browser: ${cause.message}`;
+    return `SKIP not allowed under --no-skip: ${cause.message}`;
   }
   return cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
 };
@@ -157,18 +155,18 @@ const runScenario = async (
   options: CliOptions,
   repoRoot: string,
   scratchRoot: string,
-  headlessProbe: HeadlessProbe,
 ): Promise<{ outcome: ScenarioOutcome; teardownClean: boolean }> => {
   const startedAt = Date.now();
   const scratchDir = path.join(scratchRoot, scenario.name);
   await mkdir(scratchDir, { recursive: true });
   const instances: TrackedProcess[] = [];
+  let closed = false;
   const log = (message: string) => {
     console.log(`${timestamp()} [${scenario.name}] ${message}`);
   };
   const context = createScenarioContext({
-    headlessProbe,
     instances,
+    isClosed: () => closed,
     log,
     repoRoot,
     scratchDir,
@@ -180,7 +178,7 @@ const runScenario = async (
     await runWithinDeadline(scenario, context);
     outcome = { durationMs: Date.now() - startedAt, kind: "pass" };
   } catch (error) {
-    if (error instanceof ScenarioSkipError && !options.requireBrowser) {
+    if (error instanceof ScenarioSkipError && !options.noSkip) {
       outcome = { durationMs: Date.now() - startedAt, kind: "skip", reason: error.message };
     } else {
       const message = describeFailure(error);
@@ -200,6 +198,7 @@ const runScenario = async (
       };
     }
   } finally {
+    closed = true;
     for (const instance of instances.toReversed()) {
       try {
         await instance.stop();
@@ -246,7 +245,7 @@ const buildCli = async (repoRoot: string): Promise<void> => {
     await exec(
       "pnpm",
       ["turbo", "run", "build", "--filter=inteligir", "--output-logs=errors-only"],
-      { cwd: repoRoot, env: hermeticProcessEnv(), timeoutMs: CLI_BUILD_TIMEOUT_MS },
+      { cwd: repoRoot, env: buildProcessEnv(), timeoutMs: CLI_BUILD_TIMEOUT_MS },
     );
   } catch (error) {
     throw new Error(`the suite-start build failed:\n${describeExecError(error)}`, { cause: error });
@@ -269,18 +268,11 @@ const main = async (): Promise<number> => {
   const scratchRoot = await mkdtemp(path.join(tmpdir(), "inteligir-e2e-"));
   console.log(`e2e: ${selected.length} scenario(s), scratch=${scratchRoot}`);
 
-  const headlessProbe = createHeadlessProbe();
   const outcomes = new Map<string, ScenarioOutcome>();
   let everyTeardownClean = true;
   for (const scenario of selected) {
     console.log(`\n${timestamp()} ── ${scenario.name}: ${scenario.description}`);
-    const { outcome, teardownClean } = await runScenario(
-      scenario,
-      options,
-      repoRoot,
-      scratchRoot,
-      headlessProbe,
-    );
+    const { outcome, teardownClean } = await runScenario(scenario, options, repoRoot, scratchRoot);
     everyTeardownClean &&= teardownClean;
     outcomes.set(scenario.name, outcome);
     if (outcome.kind === "pass") {
@@ -333,3 +325,7 @@ try {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 }
+// a run abandoned at its deadline can still hold a timer or spawn a child after its teardown, and
+// either keeps the loop alive, so the job would hang past its own summary.
+killAllLiveGroups("SIGKILL");
+process.exit(process.exitCode);
