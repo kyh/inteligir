@@ -202,7 +202,7 @@ const boot = async (
     }
   })();
   const bootRemote = runtime.vaultRemote();
-  const { agent } = runtime.context.system;
+  const agent = runtime.context.system.agent();
   const serverUrl = loopbackOrigin(port);
   console.log(
     `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "account" ? " (account)" : ""}`}`,

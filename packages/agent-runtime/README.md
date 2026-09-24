@@ -80,12 +80,24 @@ scripts/
   every session) and the env keys to omit — the claude SDK
   refuses to run when it believes it is nested inside another claude session,
   so the nesting sentinel must not leak through from whatever launched this
-  app. `requireHarness` is the one gate from a `providerId` to a row.
+  app. `HARNESS_IDS` is the id set in preference order, and `harnessIdSchema`
+  and `isHarnessId` are the only ways in: an own-key check, since `in` admits
+  every `Object.prototype` name. `requireHarness` is the one gate from a
+  `providerId` to a row. A model is per harness (`models`, a `HarnessModels`),
+  because a model id is vendor-specific: one string for every adapter would
+  hand codex a claude model.
+- **A resume says whether the agent kept its history.** `resumeThread`
+  answers `loaded`: true only when `session/load` succeeded, false when the
+  agent could not load it and a fresh `session/new` stands in, so the host
+  hands a loaded session only the instructions that changed and a fresh one
+  all of them.
 - **`shellEnv` is a getter read at every spawn.** The host's session facts
   (`INTELIGIR_DATA_DIR`, `INTELIGIR_SKILLS_DIR`, the PATH carrying the
   `inteligir` bin) are one object projected into env and prompt, and reading it
   once froze it at the first turn — so the option is a function, called per
-  spawn, and `INTELIGIR_THREAD_ID` is stamped on top per thread.
+  spawn, and `INTELIGIR_THREAD_ID` is stamped on top per thread, its name
+  spelled once in `@repo/domain/agent-shell-env` because the CLI reads it back
+  in the same shell.
 - **`mcpServers` is a lazy, async getter for the same reason**: an enabled
   connector row edited in Settings reaches the next `session/new` or
   `session/load` without a reboot, and an OAuth row can refresh its token on

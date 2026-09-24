@@ -1,15 +1,15 @@
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
+import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import type { OpenExternalUrl } from "./server/browser-opener";
-import { PROD_DATA_DIR_NAME, runtimeModeOf } from "./server/config";
+import { DATA_DIR_ENV_VAR, PROD_DATA_DIR_NAME, runtimeModeOf } from "./server/config";
 import { resolveCheckoutRoot } from "./server/dev-instance";
 import { createLocalClient } from "./server/local-client";
-import { DATA_DIR_ENV_VAR, resolveServer } from "./server-discovery";
+import type { LocalClientArgs } from "./server/local-client";
+import { resolveServer } from "./server-discovery";
 import type { ResolvedServer } from "./server-discovery";
 
 export type Api = ContractRouterClient<LocalContract>;
-
-const THREAD_ID_ENV_VAR = "INTELIGIR_THREAD_ID";
 
 export interface CliDeps {
   env: NodeJS.ProcessEnv;
@@ -35,15 +35,6 @@ export const createCliDeps = (env: NodeJS.ProcessEnv = process.env): CliDeps => 
 // generous because `action wait` and a first-boot scan are slow; it exists so a wedged server cannot hang an agent's shell.
 const CALL_TIMEOUT_MS = 120_000;
 
-export const apiFor = (deps: CliDeps): Api => {
-  const server = deps.resolveServer();
-  return createLocalClient({
-    origin: server.baseUrl,
-    timeoutMs: CALL_TIMEOUT_MS,
-    token: server.token,
-  });
-};
-
 export const contextThreadId = (env: NodeJS.ProcessEnv): string | undefined => {
   const raw = env[THREAD_ID_ENV_VAR];
   if (raw === undefined) {
@@ -51,6 +42,22 @@ export const contextThreadId = (env: NodeJS.ProcessEnv): string | undefined => {
   }
   const trimmed = raw.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+};
+
+// from an agent's shell every call names its thread, so a vault write it makes joins that turn's
+// commit like one the agent's own tools made.
+export const apiFor = (deps: CliDeps): Api => {
+  const server = deps.resolveServer();
+  const client: LocalClientArgs = {
+    origin: server.baseUrl,
+    timeoutMs: CALL_TIMEOUT_MS,
+    token: server.token,
+  };
+  const threadId = contextThreadId(deps.env);
+  if (threadId !== undefined) {
+    client.agentThreadId = threadId;
+  }
+  return createLocalClient(client);
 };
 
 // the thread id is the only signal: the runtime injects it into agent shells and nowhere else.

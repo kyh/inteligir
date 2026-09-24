@@ -1,7 +1,27 @@
 import { defineCommand } from "citty";
+import { harnessReadiness } from "@repo/api/local/agents/agents-schema";
+import type { HarnessProbe } from "@repo/api/local/agents/agents-schema";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
+
+const readinessLine = (probe: HarnessProbe): string => {
+  switch (harnessReadiness(probe)) {
+    case "not-installed": {
+      return "not installed";
+    }
+    case "ready": {
+      return "ready";
+    }
+    case "needs-sign-in": {
+      return `needs sign-in (${probe.loginCommand})`;
+    }
+    case "unknown": {
+      return "sign-in state unknown";
+    }
+    // no default
+  }
+};
 
 export const agentsCommand = (deps: CliDeps) =>
   defineCommand({
@@ -41,16 +61,8 @@ export const agentsCommand = (deps: CliDeps) =>
           }
           writeLines(
             body.harnesses.map((probe) => {
-              let state = "sign-in state unknown";
-              if (probe.cliPath === null) {
-                state = "not installed";
-              } else if (probe.credentials === "present") {
-                state = "ready";
-              } else if (probe.credentials === "absent") {
-                state = `needs sign-in (${probe.loginCommand})`;
-              }
               const marker = probe.id === body.defaultId ? " (default)" : "";
-              return `${probe.id}${marker} — ${state}`;
+              return `${probe.id}${marker} — ${readinessLine(probe)}`;
             }),
           );
         },

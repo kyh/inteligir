@@ -1,8 +1,15 @@
 import { createRequire } from "node:module";
+import { z } from "zod";
 
 const require = createRequire(import.meta.url);
 
-export type HarnessId = "claude" | "codex";
+// preference order: with no stored default, the first one on PATH is where a new thread starts.
+export const HARNESS_IDS = ["claude", "codex"] as const;
+export type HarnessId = (typeof HARNESS_IDS)[number];
+export const harnessIdSchema = z.enum(HARNESS_IDS);
+
+// a model id is vendor-specific, so each harness carries its own; null runs the vendor's default.
+export type HarnessModels = Readonly<Record<HarnessId, string | null>>;
 
 export interface HarnessCredentialProbe {
   kind: "home-file";
@@ -60,9 +67,9 @@ export const HARNESSES = {
   },
 } satisfies Record<HarnessId, HarnessDefinition>;
 
-export const HARNESS_IDS: readonly HarnessId[] = ["claude", "codex"];
-
-export const isHarnessId = (value: string): value is HarnessId => value in HARNESSES;
+// not `in HARNESSES`, which admits every Object.prototype key: "constructor" would be a harness.
+export const isHarnessId = (value: string): value is HarnessId =>
+  HARNESS_IDS.some((id) => id === value);
 
 export const requireHarness = (providerId: string): HarnessDefinition => {
   if (!isHarnessId(providerId)) {

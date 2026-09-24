@@ -141,7 +141,7 @@ ambient `NODE_ENV`: a packaged install is the production one (`~/.inteligir`,
 
 An app opened from Finder or the Dock inherits launchd's PATH
 (`/usr/bin:/bin:/usr/sbin:/sbin`), which holds neither agent CLI, and the server
-turns the agent off when it cannot find one on PATH. So before the first fork
+refuses every send while it cannot find one on PATH. So before the first fork
 the packaged shell runs `$SHELL -ilc` once, reads the PATH it prints, and puts
 those entries ahead of the inherited ones on main's own environment, which every
 child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,

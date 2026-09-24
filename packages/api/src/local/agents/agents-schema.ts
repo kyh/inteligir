@@ -12,6 +12,28 @@ export const harnessProbeSchema = z
   .strict();
 export type HarnessProbe = z.infer<typeof harnessProbeSchema>;
 
+export type HarnessReadiness = "not-installed" | "ready" | "needs-sign-in" | "unknown";
+
+// the one verdict the CLI and Settings both draw from the probe's facts; an unreadable credential
+// store is "unknown", never a sign-in the user may not need.
+export const harnessReadiness = (probe: HarnessProbe): HarnessReadiness => {
+  if (probe.cliPath === null) {
+    return "not-installed";
+  }
+  switch (probe.credentials) {
+    case "present": {
+      return "ready";
+    }
+    case "absent": {
+      return "needs-sign-in";
+    }
+    case "unknown": {
+      return "unknown";
+    }
+    // no default
+  }
+};
+
 export const agentsStatusResponseSchema = z
   .object({
     // the harness a new thread starts on: the stored choice, else the one on PATH

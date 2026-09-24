@@ -5,17 +5,20 @@ import path from "node:path";
 import { setImmediate } from "node:timers/promises";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
+import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import { parseApprovalResolution } from "@repo/domain/pending-interactions";
 import type { PendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { getThread } from "@repo/db/threads";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
+import { apiFor } from "../../../context";
+import { loopbackOrigin } from "../../server-file";
 import type { TurnDriver } from "../../threads/turn-driver";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
 import { createAcpRuntimeManager } from "../runtime-manager";
 import type { AcpRuntimeManager, AcpRuntimeManagerDeps } from "../runtime-manager";
-import { bootTestApp } from "../../__tests__/boot-app";
+import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import {
   awaitPendingInteraction,
@@ -53,6 +56,8 @@ interface ManagerOptions {
   children?: ChildProcess[];
   // mutable on purpose: a sign-in between two sends, read at the next session open.
   mode?: FakeAcpMode;
+  // mutable on purpose: a CLI installed between two sends, read at the next send.
+  unavailableReason?: string | null;
 }
 
 interface ManagerHarness extends BootedTestApp {
@@ -93,7 +98,7 @@ const bootWithManager = async (
         git: vault.git,
         hostEnv: {},
         mcpServers: () => [],
-        model: null,
+        models: { claude: null, codex: null },
         notifier: bus,
         reapIntervalMs: null,
         sessionFacts: () =>
@@ -103,6 +108,7 @@ const bootWithManager = async (
             skillsDir: options.skillsDir ?? null,
           }),
         spawnAdapter: fakeSpawn(mode, options),
+        unavailableReason: () => options.unavailableReason ?? null,
         vaultDir,
       };
       if (options.turnIdleTimeoutMs !== undefined) {
@@ -118,6 +124,7 @@ const bootWithManager = async (
         dispose: async () => {
           await manager.dispose();
         },
+        recordAgentWrites: manager.recordAgentWrites,
       };
     },
   });
@@ -211,6 +218,57 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(echoed.text).not.toContain("hello agent");
   });
 
+  it("hands a loaded session only the instructions it does not already hold", async () => {
+    const children: ChildProcess[] = [];
+    const connectedDirs: string[] = [];
+    const harness = await bootWithManager("promptEcho", {
+      children,
+      cliBinDir: "/repo/apps/cli/bin",
+      connectedDirs,
+    });
+    const threadId = await createThread(harness.client);
+    const echoes = async (): Promise<string[]> =>
+      flattenTimelineRows(await fetchTimelineRows(harness.client, threadId)).flatMap((row) =>
+        row.kind === "conversation" && row.role === "assistant" ? [row.text] : [],
+      );
+    const sendAfterTheChildIsGone = async (text: string): Promise<void> => {
+      children.at(-1)?.kill("SIGKILL");
+      await awaitExited(children);
+      await sendMessage(harness.client, threadId, text);
+      await awaitThreadStatus(harness.client, threadId, "idle");
+    };
+
+    await sendMessage(harness.client, threadId, "first");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    await sendAfterTheChildIsGone("resumed");
+    connectedDirs.push("/ref/added-in-settings");
+    await sendAfterTheChildIsGone("resumed after a settings change");
+
+    const [first, resumed, changed] = await echoes();
+    expect(first).toContain(CLI_POINTER_INSTRUCTIONS);
+    // the fake echoes the prompt's first block: the user's own text, with nothing ahead of it.
+    expect(resumed).toBe("resumed");
+    expect(changed).toContain("/ref/added-in-settings");
+    expect(children).toHaveLength(3);
+  });
+
+  it("refuses a send while no agent CLI is installed, and runs the next once one is", async () => {
+    const managerOptions: ManagerOptions = { unavailableReason: "No agent CLI was found on PATH" };
+    const harness = await bootWithManager("message", managerOptions);
+    const threadId = await createThread(harness.client);
+    const [refusal] = await safe(harness.client.threads.send({ text: "too soon", threadId }));
+    expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
+    expect(refusal?.message).toBe("No agent CLI was found on PATH");
+
+    managerOptions.unavailableReason = null;
+    const turnId = await sendMessage(harness.client, threadId, "installed since");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(
+      rows.find((row) => row.kind === "conversation" && row.role === "assistant"),
+    ).toMatchObject({ text: "hello from the fake agent", turnId });
+  });
+
   it("reads the session facts at every session open: a folder added after the first turn reaches the next session's env AND prompt", async () => {
     const connectedDirs: string[] = [];
     const spawnedEnvs: Record<string, string>[] = [];
@@ -255,6 +313,42 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     }, PROVIDER_WAIT);
     expect(head.email).toBe("agent@inteligir.local");
     expect(head.files).toEqual(["agent-note.md"]);
+  });
+
+  it("stages a write the agent made through the CLI in its turn's commit, and nobody else's", async () => {
+    const harness = await bootWithManager("approval");
+    const { port } = await listenTestApp(harness);
+    const threadId = await createThread(harness.client);
+    await sendMessage(harness.client, threadId, "write through the cli");
+    const interaction = await awaitPendingInteraction(harness.client, threadId);
+
+    const resolveServer = () => ({
+      baseUrl: loopbackOrigin(port),
+      dataDir: harness.dataDir,
+      token: TEST_SERVER_TOKEN,
+      vaultDir: harness.vaultDir,
+    });
+    await apiFor({ env: { [THREAD_ID_ENV_VAR]: threadId }, resolveServer }).vault.write({
+      content: "written from the agent's shell\n",
+      path: "cli-note.md",
+    });
+    await apiFor({ env: {}, resolveServer }).vault.write({
+      content: "written by someone else\n",
+      path: "user-note.md",
+    });
+
+    await harness.client.threads.answerInteraction({
+      interactionId: interaction.id,
+      resolution: "allow_once",
+      threadId,
+    });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    const head = await vi.waitFor(() => {
+      const commit = headCommit(harness.vaultDir);
+      expect(commit.author).toBe("inteligir-agent");
+      return commit;
+    }, PROVIDER_WAIT);
+    expect(head.files).toEqual(["cli-note.md"]);
   });
 
   it("round-trips an approval through pending_interactions and the answer route", async () => {

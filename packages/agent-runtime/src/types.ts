@@ -48,6 +48,9 @@ export interface ResumeThreadArgs {
 
 export interface ResumeThreadResult {
   providerThreadId: string;
+  // true when the agent loaded the persisted session, history included; false when it could not
+  // and opened a fresh one, which remembers nothing it was told.
+  loaded: boolean;
 }
 
 export interface RunTurnArgs {

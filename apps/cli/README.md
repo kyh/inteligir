@@ -127,6 +127,13 @@ instructions drop the CLI pointer — instructions never promise a command the
 shell cannot run. The e2e `cli-drive` scenario invokes the bare name through
 that same composed env.
 
+Under `INTELIGIR_THREAD_ID` every call names its thread in an
+`x-inteligir-thread` header (`src/server/agent-thread-header.ts`), so a note the
+agent writes, renames, re-tags or attaches through the CLI lands in that turn's
+agent-authored commit, like an edit its own tools reported, rather than in the
+next auto-commit. The header is attribution, not authority: the bearer already
+admitted the call, and a thread with no turn running records nothing.
+
 ## Doc-sync discipline
 
 The served manual (`src/server/guide/cli-skill.ts`) must name every leaf

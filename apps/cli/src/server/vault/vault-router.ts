@@ -6,7 +6,7 @@ import {
 } from "@repo/api/local/vault/vault-schema";
 import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
 import { removeEntryWithComments } from "../comments/remove-with-comments";
-import { base, refusals } from "../orpc";
+import { attributeWrites, base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
 import type { GuardedWriteGuard } from "./vault-service";
 
@@ -39,7 +39,9 @@ const write = base.vault.write.handler(
   async ({ context, input, errors }) =>
     await refusing(async () => {
       if (input.expectedHash === undefined && input.ifAbsent === undefined) {
-        return await context.vault.service.write(input.path, input.content);
+        const written = await context.vault.service.write(input.path, input.content);
+        attributeWrites(context, [written.path]);
+        return written;
       }
       const guard: GuardedWriteGuard =
         input.expectedHash === undefined
@@ -47,6 +49,7 @@ const write = base.vault.write.handler(
           : { expectedHash: input.expectedHash };
       const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
       if (result.applied) {
+        attributeWrites(context, [result.path]);
         return { path: result.path };
       }
       if (result.reason === "exists") {
@@ -73,14 +76,20 @@ const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors
     });
   }
   const bytes = new Uint8Array(Buffer.from(input.bytesBase64, "base64"));
-  return await refusing(
-    async () => await context.vault.service.writeAsset(input.dir, input.baseName, bytes),
-  );
+  return await refusing(async () => {
+    const written = await context.vault.service.writeAsset(input.dir, input.baseName, bytes);
+    attributeWrites(context, [written.path]);
+    return written;
+  });
 });
 
 const rename = base.vault.rename.handler(
   async ({ context, input }) =>
-    await refusing(async () => await context.renameNote(input.from, input.to)),
+    await refusing(async () => {
+      const renamed = await context.renameNote(input.from, input.to);
+      attributeWrites(context, [input.from, renamed.path, ...renamed.rewritten]);
+      return renamed;
+    }),
 );
 
 const mkdir = base.vault.mkdir.handler(

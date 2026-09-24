@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { defaultHarnessId } from "../agent-driver";
@@ -41,6 +42,11 @@ describe("the stored default", () => {
     const dir = scratch();
     writeFileSync(path.join(dir, "agent-prefs.json"), JSON.stringify({ defaultHarness: "gemini" }));
     expect(() => new AgentPrefsStore(dir).read()).toThrow(JsonFileStoreError);
+    writeFileSync(
+      path.join(dir, "agent-prefs.json"),
+      JSON.stringify({ defaultHarness: "constructor" }),
+    );
+    expect(() => new AgentPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 });
 
@@ -69,6 +75,16 @@ describe("the agents service", () => {
     const store = new AgentPrefsStore(scratch());
     const agents = createAgentsService({ env: NOTHING_ON_PATH, store });
     await expect(agents.setDefault("gemini")).rejects.toThrow(UnknownHarnessError);
+    expect(store.read()).toEqual({});
+  });
+
+  it("refuses a name every object answers to", async () => {
+    const store = new AgentPrefsStore(scratch());
+    const agents = createAgentsService({ env: NOTHING_ON_PATH, store });
+    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(isHarnessId(name)).toBe(false);
+      await expect(agents.setDefault(name)).rejects.toThrow(UnknownHarnessError);
+    }
     expect(store.read()).toEqual({});
   });
 });

@@ -1,15 +1,7 @@
 import { z } from "zod";
 
-import { isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import { harnessIdSchema } from "@repo/agent-runtime/acp/harness-registry";
 import { JsonFileStore } from "../json-file-store";
-
-const harnessIdSchema = z.string().transform((value, ctx) => {
-  if (!isHarnessId(value)) {
-    ctx.addIssue({ code: "custom", message: `${value} is not a harness` });
-    return z.NEVER;
-  }
-  return value;
-});
 
 const agentPrefsSchema = z.object({ defaultHarness: harnessIdSchema.optional() }).strict();
 

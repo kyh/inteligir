@@ -128,7 +128,8 @@ state.
 - **filesystem event** — what the vault watcher reports
   (`apps/cli/src/server/vault/watcher`). Related but distinct: `fileChange` is a
   thread event ITEM type, the agent's own report of what it wrote, which is
-  what an agent commit stages.
+  what an agent commit stages, beside what the agent wrote through the
+  `inteligir` CLI from its own shell.
 
 The local realtime bus is deliberately NOT in this list. It carries **change
 kinds** — `events-appended`, `content-changed`, `status-changed`

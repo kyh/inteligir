@@ -41,8 +41,9 @@
       // which derives its scope from who calls that function.
       "passThroughEnv": [
         "INTELIGIR_AGENT",
-        "INTELIGIR_AGENT_MODEL",
+        "INTELIGIR_CLAUDE_MODEL",
         "INTELIGIR_CLOUD_URL",
+        "INTELIGIR_CODEX_MODEL",
         "INTELIGIR_DATA_DIR",
         "INTELIGIR_MODEL_DIR",
         "INTELIGIR_PORT",

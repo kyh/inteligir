@@ -19,6 +19,11 @@ const FRONTMATTER_NAME = /^name:\s*(?<name>\S+)\s*$/mu;
 const FRONTMATTER_DESCRIPTION = /^description:\s*(?<description>\S.*)$/mu;
 const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 
+// read as text: @repo/notes is no dependency of this package, and the constants are plain literals.
+const FENCE_LANGS = "packages/notes/src/markdown/fence-langs.ts";
+const EXPORTED_LANG = /^export const \w+_LANG = "(?<lang>[^"]+)";$/gmu;
+const TAUGHT_FENCE = /^\s*`{3,}(?<lang>inteligir-[a-z-]+)\s*$/u;
+
 const skillDirs = (): string[] =>
   fs
     .readdirSync(path.join(REPO_ROOT, SKILLS_DIR), { withFileTypes: true })
@@ -30,6 +35,30 @@ const skillText = (dir: string): string | null => {
   const file = path.join(REPO_ROOT, SKILLS_DIR, dir, "SKILL.md");
   return fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : null;
 };
+
+interface TaughtLang {
+  lang: string;
+  site: string;
+}
+
+const taughtFenceLangs = (): TaughtLang[] =>
+  skillDirs().flatMap((dir) =>
+    (skillText(dir) ?? "").split("\n").flatMap((line, index) => {
+      const lang = TAUGHT_FENCE.exec(line)?.groups?.lang;
+      return lang === undefined
+        ? []
+        : [{ lang, site: `${SKILLS_DIR}/${dir}/SKILL.md:${String(index + 1)}` }];
+    }),
+  );
+
+const fenceLangDrift = (exported: readonly string[], taught: readonly TaughtLang[]): string[] => [
+  ...taught
+    .filter(({ lang }) => !exported.includes(lang))
+    .map(({ lang, site }) => `${site} — teaches \`${lang}\`, which ${FENCE_LANGS} does not export`),
+  ...exported
+    .filter((lang) => !taught.some((entry) => entry.lang === lang))
+    .map((lang) => `${FENCE_LANGS} — exports \`${lang}\`, which no skill's example fence uses`),
+];
 
 describe("the agent skills", () => {
   it("finds the set at all", () => {
@@ -96,5 +125,34 @@ describe("the agent skills", () => {
       `THE HUB'S INDEX DISAGREES WITH THE SKILL SET\n` +
         `  rule: the first turn points the agent at ${HUB} and the hub is where it learns the rest exist — a skill it does not list is never read, a name it lists that has no directory is a dead end`,
     ).toEqual([]);
+  });
+
+  describe("the fence languages the skills teach", () => {
+    const exported = [...sourceOf(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
+      (match) => match.groups?.lang ?? "",
+    );
+
+    it("finds both sides at all", () => {
+      expect(exported.length, `${FENCE_LANGS} exports no *_LANG literal`).toBeGreaterThan(1);
+      expect(taughtFenceLangs().length).toBeGreaterThan(1);
+    });
+
+    it("are exactly the ones the parser spells", () => {
+      const drift = fenceLangDrift(exported, taughtFenceLangs());
+      expect(
+        drift,
+        drift.length === 0
+          ? ""
+          : `SKILLS AND THE PARSER SPELL THE FENCES DIFFERENTLY\n${drift.map((line) => `  ${line}`).join("\n")}\n` +
+              `  rule: a fence the parser does not know opens as plain code, so a skill that teaches it has the agent write blocks nobody sees; a fence no skill teaches is a construct the agent never writes`,
+      ).toEqual([]);
+    });
+
+    it("catches a renamed spelling from both sides", () => {
+      const [first = "", ...rest] = exported;
+      const drift = fenceLangDrift([`${first}s`, ...rest], taughtFenceLangs());
+      expect(drift.some((line) => line.includes(`teaches \`${first}\``))).toBe(true);
+      expect(drift.some((line) => line.includes(`exports \`${first}s\``))).toBe(true);
+    });
   });
 });
