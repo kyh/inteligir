@@ -3,7 +3,6 @@
 // message waits in the host's queue.
 
 import { spawn } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import { finished } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
@@ -55,8 +54,23 @@ const definedProcessEnv = (): AgentRuntimeShellEnvironment => {
   return env;
 };
 
+// the slice of a child process the runtime drives: node's own ChildProcess, or a host's stand-in
+// for a process it cannot start with child_process (the desktop shell's utility-process adapters).
+export interface AdapterProcess {
+  readonly stdin: Writable | null;
+  readonly stdout: Readable | null;
+  readonly stderr: Readable | null;
+  readonly exitCode: number | null;
+  readonly signalCode: NodeJS.Signals | null;
+  kill: (signal: NodeJS.Signals) => boolean;
+  once: (
+    event: "exit",
+    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
+  ) => void;
+}
+
 export interface AcpSpawnedAdapter {
-  child: ChildProcess;
+  child: AdapterProcess;
 }
 
 export type AcpMcpServerConfig =
@@ -68,7 +82,11 @@ export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   // a getter, so a registry edit reaches the next session; async so an OAuth row can refresh its
   // token.
   mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
-  spawnAdapter?: (harness: HarnessDefinition, env: Record<string, string>) => AcpSpawnedAdapter;
+  spawnAdapter?: (
+    harness: HarnessDefinition,
+    env: Record<string, string>,
+    cwd: string,
+  ) => AcpSpawnedAdapter;
 }
 
 interface AdapterExit {
@@ -82,7 +100,7 @@ interface AcpAdapter {
   threadId: string;
   providerId: string;
   harness: HarnessDefinition;
-  child: ChildProcess;
+  child: AdapterProcess;
   connection: ClientConnection;
   gone: Promise<AdapterExit>;
   // set once the runtime ends the child itself: a session/new answering during the kill registers
@@ -187,7 +205,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
   };
 
-  const sessionOf = (threadId: string, child: ChildProcess): AcpSession | undefined => {
+  const sessionOf = (threadId: string, child: AdapterProcess): AcpSession | undefined => {
     const session = sessions.get(threadId);
     return session?.adapter.child === child ? session : undefined;
   };
@@ -203,12 +221,16 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       env,
       buildThreadShellEnvironment({ baseShellEnv: options.shellEnv?.(), threadId }),
     );
+    // a value the host already set wins: it names an install the user chose.
+    for (const [key, value] of Object.entries(harness.adapterEnv)) {
+      env[key] ??= value;
+    }
     const model = options.models?.[harness.id] ?? null;
     if (model !== null) {
       harness.applyModel(model, env);
     }
     if (options.spawnAdapter !== undefined) {
-      return options.spawnAdapter(harness, env);
+      return options.spawnAdapter(harness, env, options.workspacePath);
     }
     const child = spawn(process.execPath, [harness.adapterEntry], {
       cwd: options.workspacePath,

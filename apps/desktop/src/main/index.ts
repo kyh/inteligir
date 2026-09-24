@@ -9,6 +9,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  MessageChannelMain,
   nativeImage,
   nativeTheme,
   session,
@@ -16,7 +17,7 @@ import {
   Tray,
   utilityProcess,
 } from "electron";
-import type { MenuItemConstructorOptions } from "electron";
+import type { ForkOptions, MenuItemConstructorOptions, UtilityProcess } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
 import { socketCredentialFilter } from "./credential-scope";
 import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
@@ -31,6 +32,7 @@ import {
 } from "./origin-pin";
 import { registerAppProtocol, registerAppScheme } from "./protocol";
 import { APP_ORIGIN, carriesBearer } from "./protocol-handler";
+import { createForkBroker } from "./fork-broker";
 import { createServerProcess } from "./server-process";
 import type { ServerProcess } from "./server-process";
 import { createSpellcheck, senderIsWindow } from "./spellcheck";
@@ -61,6 +63,7 @@ import {
   vaultRef,
   writeRecentVaults,
 } from "./vaults";
+import { forkRequestSchema } from "inteligir/server/child-host/fork-broker-wire";
 import { writeManagedVaultDir } from "inteligir/server/config";
 import { authorizationHeader } from "inteligir/server/server-file";
 import { INVOKE_ROUTES, SOCKET_ORIGIN_CHANNEL, UPDATE_STATE_PUSH } from "../ipc-contract";
@@ -121,6 +124,32 @@ const judgeServer = async (
   return verdict;
 };
 
+// the server forks nothing itself: each node child it needs, main forks through the broker.
+const forkServer = (modulePath: string, args: string[], options: ForkOptions): UtilityProcess => {
+  const server = utilityProcess.fork(modulePath, args, options);
+  const broker = createForkBroker({
+    createChannel: () => new MessageChannelMain(),
+    fork: (childPath, childArgs, childOptions) =>
+      utilityProcess.fork(childPath, childArgs, childOptions),
+    log: (message) => {
+      console.warn(`[desktop] ${message}`);
+    },
+    reply: (message, transfer) => {
+      server.postMessage(message, transfer);
+    },
+  });
+  server.on("message", (message) => {
+    const request = forkRequestSchema.safeParse(message);
+    if (request.success) {
+      broker.fork(request.data);
+    }
+  });
+  server.once("exit", () => {
+    broker.dispose();
+  });
+  return server;
+};
+
 const startServer = async (target: ServerTarget): Promise<void> => {
   const expectedVersion = bundledServerVersion(app.getAppPath());
   const plan = planServerStart(await judgeServer(target, expectedVersion), target.dataDir);
@@ -140,7 +169,7 @@ const startServer = async (target: ServerTarget): Promise<void> => {
   const child = createServerProcess({
     entryPath,
     env: serverProcessEnv(target, app.isPackaged),
-    fork: (modulePath, forkArgs, options) => utilityProcess.fork(modulePath, forkArgs, options),
+    fork: forkServer,
     // a child that lost the port race must not be reported up about a stranger.
     isReady: async () => {
       const verdict = await judgeServer(target, expectedVersion);

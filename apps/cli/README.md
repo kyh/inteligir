@@ -175,11 +175,28 @@ server `serve` loads. The chunks sit FLAT beside the entry: `src/paths.ts` and
 the two sibling lookups below resolve from whichever file they landed in, so
 every file in `dist/` has to answer them the same way.
 
-Three bundles cannot ride inside the entry and each says why beside itself: the
-vault watcher is a forked CHILD PROCESS, and the transcriber and the knowledge
-projector are WORKER THREADS, so each needs a real file on disk resolved as a
-sibling of the running entry. In a checkout the two workers run their `.ts`
-source under tsx's hook instead (`src/server/worker-entry.ts`).
+Four bundles cannot ride inside the entry and each says why beside itself: the
+vault watcher is a CHILD PROCESS, the stdio host runs each ACP adapter in the
+desktop shell, and the transcriber and the knowledge projector are WORKER
+THREADS, so each needs a real file on disk resolved as a sibling of the running
+entry. In a checkout the two workers run their `.ts` source under tsx's hook
+instead (`src/server/worker-entry.ts`).
+
+**Who starts a node child depends on who runs the server**
+(`src/server/child-host/node-children.ts`). Run by node (`serve`, npx, a suite),
+it forks the watcher and spawns each adapter with `child_process` over its own
+`process.execPath`. Run by the desktop shell, it is an Electron utility process:
+its `execPath` is Electron's helper, which the packaged binary's `runAsNode`
+fuse keeps from running JavaScript, and a utility process cannot fork one of its
+own. So it asks main over `process.parentPort` (`fork-broker-wire.ts`, parsed on
+both ends), main forks the child as a utility process of its own and hands each
+side one end of a MessageChannel, and the two talk directly. The watcher's IPC
+rides that port; an adapter speaks ACP over stdin and stdout, which a utility
+process cannot be given, so `stdio-port-host` carries its three streams over the
+port as frames and `brokered-adapter.ts` stands in for its `ChildProcess`. codex
+is the one adapter that runs a node script of its own (its bundled launcher,
+through `process.execPath`), so the harness row names the native binary that
+launcher would start as `CODEX_PATH`.
 
 Four trees are staged as CONTENT rather than code: the committed SQL
 migrations, the dialect skills the agent reads with its own shell, the

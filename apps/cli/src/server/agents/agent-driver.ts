@@ -7,7 +7,10 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
-import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
+import type {
+  AcpAgentRuntimeOptions,
+  AcpMcpServerConfig,
+} from "@repo/agent-runtime/acp/acp-runtime";
 import { HARNESSES, HARNESS_IDS } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
@@ -31,6 +34,8 @@ export interface ResolveAgentDriverArgs {
   // the stored choice, read per thread start for the same reason; null falls back to what PATH holds
   preferredProviderId?: () => HarnessId | null;
   env?: NodeJS.ProcessEnv;
+  // absent: the runtime forks each adapter with child_process
+  spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
 }
 
 // a write the agent made through the server rather than its own tools, named by the thread whose
@@ -104,6 +109,9 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     unavailableReason,
     vaultDir: args.config.vaultDir,
   };
+  if (args.spawnAdapter !== undefined) {
+    acp.spawnAdapter = args.spawnAdapter;
+  }
   const manager = createAcpRuntimeManager(acp);
   return {
     createTurnDriver: manager.createTurnDriver,

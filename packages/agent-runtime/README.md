@@ -168,8 +168,12 @@ scripts/
   answered with a `PendingInteractionResolution`), `onStderr`, and the two
   getters above.
 - `AcpAgentRuntimeOptions.spawnAdapter` (`acp/acp-runtime.ts`) — the one
-  injection point for a fake child: the server's suites spawn
-  `test-support/fake-acp-agent.mjs` through it.
+  injection point for how an adapter starts, handed the harness, its env and
+  the workspace to run in, and answering an `AdapterProcess`: node's own
+  `ChildProcess` or a host's stand-in. The server's suites spawn
+  `test-support/fake-acp-agent.mjs` through it, and the desktop shell's server
+  has main fork each adapter as a utility process through it. A harness row's
+  `adapterEnv` rides every spawn unless the host's env names it already.
 - `HARNESSES` — read by the server's status probe for "is the CLI on PATH, is a
   credential present, what is the login command"; the prompt and env are the
   host's own projections of its session facts.

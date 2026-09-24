@@ -89,9 +89,22 @@ Two more, on the window's session:
 argument: `serve`.
 
 Why a child rather than in-process: the server opens `better-sqlite3`
-synchronously, forks a `@parcel/watcher` child and shells out to `git`.
+synchronously, runs a `@parcel/watcher` child and shells out to `git`.
 In-process, all of that would share the event loop that paints the window and
 the lifetime of the compositor.
+
+**Main forks the server's node children too** (`src/main/fork-broker.ts`). A
+utility process cannot fork one of its own, and the packaged binary's
+`runAsNode` fuse is off, so `child_process` cannot run node under it either:
+nothing runs this binary as a plain Node interpreter. The server asks over its
+parent port for the vault watcher and for each ACP adapter; main forks each as a
+utility process, hands the server and the child the two ends of one
+`MessageChannelMain` so they talk directly, reports the child's exit, and kills
+whatever is still running once the server exits. The frames are the CLI's
+(`inteligir/server/child-host/fork-broker-wire`), parsed on both ends; how the
+server rides them is `apps/cli/README.md` § What ships. Nothing here polices
+what the server asks for: it is this app's own child and already runs whatever
+it likes.
 
 Why `utilityProcess` rather than a supervisor of our own: it IS a managed Node
 child with owned bookkeeping, so the process handle, the piped stdio and the
@@ -149,8 +162,8 @@ those entries ahead of the inherited ones on main's own environment, which every
 child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,
 fails or prints nothing leaves the usual install dirs that exist
 (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`) in its place. A dev
-launch skips it: its terminal already has the user's PATH. The smoke never runs
-main, so the unit tests are what cover this.
+launch skips it: its terminal already has the user's PATH. The unit tests pin
+the parse; the smoke's launches run it for real.
 
 ## Running it
 
@@ -205,16 +218,23 @@ before the task begins. A tree with no cert or no `.release/` still packages
 — both steps are skipped with a warning — but that artifact opens only on the
 machine that built it.
 
-The smoke boots the packaged server exactly as the shell does — the app's own
-Electron binary with `ELECTRON_RUN_AS_NODE=1` — and checks that the native
-modules load under Electron's runtime, that the SPA and API answer, that the
-bundled CLI is executable where the agent's PATH resolver looks for it, and that
-SIGTERM exits 0. **It does not open the window**: `BrowserWindow` needs a
-display, so the window, the protocol handler, the bridge and the vault switch
-are the `desktop-shell` scenario's, over the checkout's build.
-CI's `test-macos` job runs it on every push and pull request, unsigned:
-`CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through to the
-`package` task, because turbo's strict env mode would strip it.
+The smoke LAUNCHES the packaged app — the binary runs no JavaScript as plain
+Node, so main is the only way in — on its own `--user-data-dir` (an installed
+Inteligir neither blocks it nor sees it) and a mock keychain (an unsigned pack
+must not stop on a prompt for the installed app's cookie key), with the data and
+vault dirs pinned by environment. It checks that the native modules load under
+Electron's runtime, that the SPA and API answer, that the watcher main forked
+reports an external write, that an agent turn reaches a live adapter (codex, on
+a scratch `CODEX_HOME`: main forks the adapter, the adapter starts its bundled
+native codex, and codex refuses the session for want of a sign-in, which only a
+live adapter can say), that the bundled CLI is executable where the agent's PATH
+resolver looks for it, and that SIGTERM to main stops the server cleanly and
+exits 0. **The window opens, and the smoke checks nothing in it**: the origin
+pin is proven by its unit tests, and the window, the protocol handler, the
+bridge and the vault switch are the `desktop-shell` scenario's, over the
+checkout's build. CI's `test-macos` job runs it on every push and pull request,
+unsigned: `CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through
+to the `package` task, because turbo's strict env mode would strip it.
 
 There is no native-rebuild step, and that is a fact rather than an omission: the
 three native modules are Node-API addons shipping per-platform prebuilds, and
@@ -227,10 +247,9 @@ build.
 spawned from inside an archive and a `.node` binary cannot be loaded from one.
 
 `electronFuses` in `electron-builder.yml` flips the binary's fuses before it is
-signed: `NODE_OPTIONS` and `--inspect` are ignored, `file://` pages get no
-extra privileges, and cookies are encrypted at rest. `runAsNode` stays on,
-because the server's watcher forks its child with `child_process` inside the
-utility process and the smoke boots the server as Node. The flip invalidates
+signed: `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are ignored, so
+no local process can run the signed app as a node interpreter, `file://` pages
+get no extra privileges, and cookies are encrypted at rest. The flip invalidates
 Electron's own ad-hoc signature, which Apple Silicon kills at launch, so
 `resetAdHocDarwinSignature` re-signs the app ad-hoc right after it: an unsigned
 build (no Developer ID, `CSC_IDENTITY_AUTO_DISCOVERY=false` or
