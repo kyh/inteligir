@@ -34,6 +34,7 @@ describe("pull-apply by global seq", () => {
   it("applies idempotently — the same page twice lands each row once", () => {
     const store = createMemorySyncStore();
     const rows = [
+      logRow({ deviceId: SELF, deviceSeq: 0, event: userRequest("thr_1", "mine"), seq: 4 }),
       logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "one"), seq: 5 }),
       logRow({
         deviceId: OTHER,

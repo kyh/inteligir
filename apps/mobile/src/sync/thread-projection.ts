@@ -3,7 +3,7 @@
 import type { StoredThread, StoredThreadEvent } from "./sync-store";
 import { settledReasoningText } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { deriveThreadTitle } from "@repo/domain/thread-title";
+import { deriveThreadTitle, firstVisibleLine } from "@repo/domain/thread-title";
 
 export type ThreadDisplayItem =
   | { kind: "user"; id: string; text: string }
@@ -20,13 +20,6 @@ export interface ThreadProjection {
   preview: string;
 }
 
-const LINE_MAX = 60;
-
-const firstLine = (text: string): string => {
-  const line = text.split("\n", 1)[0] ?? "";
-  return line.length > LINE_MAX ? `${line.slice(0, LINE_MAX - 1)}…` : line;
-};
-
 const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): string | null => {
   const { item } = event;
   switch (item.type) {
@@ -34,7 +27,7 @@ const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): str
       return item.server === undefined ? item.tool : `${item.server}/${item.tool}`;
     }
     case "commandExecution": {
-      return firstLine(item.command);
+      return firstVisibleLine(item.command) ?? item.command;
     }
     case "fileChange": {
       const paths = item.changes.map((change) => change.path);
@@ -122,7 +115,7 @@ const foldThread = (thread: StoredThread): ThreadProjection => {
   return {
     archived,
     items,
-    preview: lastText === undefined ? "" : firstLine(lastText.text),
+    preview: lastText === undefined ? "" : (firstVisibleLine(lastText.text) ?? ""),
     threadId: thread.threadId,
     title: statedTitle ?? firstLineTitle ?? "Untitled thread",
   };
@@ -134,16 +127,17 @@ export const liveThreadsFirst = (threads: readonly ThreadProjection[]): ThreadPr
   ...threads.filter((thread) => thread.archived),
 ];
 
-// a snapshot is never mutated, so its fold is final: a change to one thread re-folds that thread
-// alone, not every thread the list holds.
-const projections = new WeakMap<StoredThread, ThreadProjection>();
+// keyed on the held events, not the snapshot: the fold reads nothing else, and a step of deltas
+// alone publishes a new snapshot over the same array, so a streaming page re-folds nothing. an
+// array is never mutated, so a change to one thread re-folds that thread alone.
+const projections = new WeakMap<readonly StoredThreadEvent[], ThreadProjection>();
 
 export const projectThread = (thread: StoredThread): ThreadProjection => {
-  const cached = projections.get(thread);
+  const cached = projections.get(thread.events);
   if (cached !== undefined) {
     return cached;
   }
   const projection = foldThread(thread);
-  projections.set(thread, projection);
+  projections.set(thread.events, projection);
   return projection;
 };
