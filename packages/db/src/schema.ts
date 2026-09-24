@@ -38,12 +38,13 @@ export const threads = sqliteTable(
   (table) => [
     // two partial indexes: one (archived_at, updated_at) index cannot serve
     // `IS NOT NULL … ORDER BY updated_at` without a temp b-tree, since IS NOT NULL is a range
-    // over the leading column.
-    index("threads_live_updated_idx")
-      .on(table.updatedAt)
+    // over the leading column. `id` is the listing's tie-break, so a page cursor's
+    // `(updated_at, id) <` seeks the index rather than sorting a millisecond's ties.
+    index("threads_live_updated_id_idx")
+      .on(table.updatedAt, table.id)
       .where(sql`${table.archivedAt} IS NULL`),
-    index("threads_archived_updated_idx")
-      .on(table.updatedAt)
+    index("threads_archived_updated_id_idx")
+      .on(table.updatedAt, table.id)
       .where(sql`${table.archivedAt} IS NOT NULL`),
   ],
 );

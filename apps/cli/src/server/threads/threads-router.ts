@@ -4,9 +4,9 @@ import { base } from "../orpc";
 
 const THREAD_NOT_FOUND = "Thread not found";
 
-const list = base.threads.list.handler(async ({ context }) => ({
-  threads: await context.threads.list(),
-}));
+const list = base.threads.list.handler(
+  async ({ context, input }) => await context.threads.list(input),
+);
 
 const get = base.threads.get.handler(async ({ context, input, errors }) => {
   const detail = await context.threads.get(input.threadId);

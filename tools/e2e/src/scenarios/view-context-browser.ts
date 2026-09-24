@@ -52,7 +52,7 @@ export const viewContextBrowser: Scenario = {
     ctx.log("waiting for the turn to settle");
     const { rows } = await pollUntil(
       async () => {
-        const listed = await app.api.threads.list();
+        const listed = await app.api.threads.list({});
         // the composer attaches the open note by default.
         const chat = listed.threads.find(
           (thread) => thread.originDocPath === DOC_PATH && thread.archivedAt === null,

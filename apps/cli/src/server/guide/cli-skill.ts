@@ -13,6 +13,10 @@ import {
   KNOWLEDGE_UNLINKED_MAX_LIMIT,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import {
+  THREADS_LIST_DEFAULT_LIMIT,
+  THREADS_LIST_MAX_LIMIT,
+} from "@repo/api/local/threads/threads-schema";
+import {
   VAULT_HISTORY_DEFAULT_LIMIT,
   VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
@@ -160,7 +164,12 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
 
 ## Actions — the agent
 
-- \`inteligir action list\` — all actions with status.
+- \`inteligir action list\` — actions with status, most recently active
+  first, a page at a time: \`--limit <n>\` is the page (1–${THREADS_LIST_MAX_LIMIT}, default
+  ${THREADS_LIST_DEFAULT_LIMIT}) and a cut listing ends with the \`--cursor <c>\` that
+  continues it. Archived actions are left out unless \`--archived\` is given,
+  and then listed after the rest; \`--doc <path>\` keeps the actions attached
+  to that note and \`--running\` those whose turn is running.
 - \`inteligir action new [--doc <path>] <prompt>\` — start an action
   (optionally attached to a note) and send the first turn. If the action is
   created but its first turn fails, the failure names the new id so you can

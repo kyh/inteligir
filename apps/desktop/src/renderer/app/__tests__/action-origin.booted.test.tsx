@@ -47,7 +47,7 @@ describe("an action composed over a note with no id", () => {
     // the id the editor wrote is the one the thread holds: a move the rename route never saw
     // still finds the note
     await harness.vault.service.rename(NOTE, "Archive/Plans.md");
-    const { threads } = await harness.client.threads.list();
+    const { threads } = await harness.client.threads.list({});
     expect(threads.map((thread) => thread.originDocPath)).toEqual(["Archive/Plans.md"]);
   });
 });

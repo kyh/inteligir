@@ -47,6 +47,7 @@ import {
   createThread,
   ensureThreadInTransaction,
   getThread,
+  listRunningThreads,
   listThreads,
   nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
@@ -61,12 +62,18 @@ import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
   GetThreadResponse,
+  ListThreadsResponse,
+  ParsedListThreadsQuery,
   PendingInteraction,
   SendMessageRequest,
   Thread,
   ThreadStop,
   TimelineQuery,
   TimelineResponse,
+} from "@repo/api/local/threads/threads-schema";
+import {
+  encodeThreadListCursor,
+  THREADS_LIST_DEFAULT_LIMIT,
 } from "@repo/api/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
 import { z } from "zod";
@@ -483,8 +490,22 @@ export class ThreadService implements ProviderEventSink {
     return await this.toWire(createThread(this.db, this.notifier, created));
   }
 
-  async list(): Promise<Thread[]> {
-    return await Promise.all(listThreads(this.db).map(async (row) => await this.toWire(row)));
+  async list(query: ParsedListThreadsQuery): Promise<ListThreadsResponse> {
+    const path = query.originDocPath ?? null;
+    const page = listThreads(this.db, {
+      after: query.cursor ?? null,
+      includeArchived: query.includeArchived ?? false,
+      limit: query.limit ?? THREADS_LIST_DEFAULT_LIMIT,
+      origin: path === null ? null : { noteId: await this.origins.noteIdOf(path), path },
+      running: query.running ?? false,
+    });
+    const threads = await Promise.all(page.rows.map(async (row) => await this.toWire(row)));
+    return {
+      nextCursor: page.next === null ? null : encodeThreadListCursor(page.next),
+      // the page is narrowed by the stored path or the note's id; the answer is where each row
+      // resolves now, so a row whose note moved away leaves the page short, never wrong.
+      threads: path === null ? threads : threads.filter((thread) => thread.originDocPath === path),
+    };
   }
 
   async get(threadId: string): Promise<GetThreadResponse | null> {
@@ -924,10 +945,7 @@ export class ThreadService implements ProviderEventSink {
   // "working" forever.
   private recoverWedgedThreads(): void {
     const message = "The server restarted while this turn was running";
-    for (const thread of listThreads(this.db)) {
-      if (!isThreadRunning(thread.status)) {
-        continue;
-      }
+    for (const thread of listRunningThreads(this.db)) {
       const { activeTurnId } = thread;
       if (
         activeTurnId !== null &&

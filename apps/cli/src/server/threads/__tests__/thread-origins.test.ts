@@ -16,7 +16,7 @@ const moveOutsideTheApp = async (app: BootedTestApp, from: string, to: string): 
 
 const originOf = async (app: BootedTestApp, threadId: string): Promise<string | null> => {
   const detail = await app.client.threads.get({ threadId });
-  const listed = await app.client.threads.list();
+  const listed = await app.client.threads.list({ includeArchived: true });
   expect(listed.threads.find((thread) => thread.id === threadId)?.originDocPath).toBe(
     detail.thread.originDocPath,
   );

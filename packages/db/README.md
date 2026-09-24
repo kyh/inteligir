@@ -40,7 +40,8 @@ src/
   events.ts           # the append-only log: contiguous per-thread sequence, the
                       # turn/started gate, synced-origin dedupe, one prepared insert
   threads.ts          # thread rows (an origin is the note's path and its frontmatter
-                      # id, resolved by the server on read), the lifecycle CAS,
+                      # id, resolved by the server on read), the keyset-paged
+                      # listing, the lifecycle CAS,
                       # setThreadProviderSession
   queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot
   pending-interactions.ts
@@ -141,6 +142,13 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   and the planner skips this install's own. The build is the CLI's version,
   not `meta.schema_version`, which counts migrations, and a new event type
   ships without one. A sign-out clears the marker with the positions.
+- **The thread listing is a keyset, never an offset.** A page continues after
+  the last row's `(updated_at, id)`, live rows before archived, so a thread
+  touched mid-walk jumps above the cursor rather than shifting every row behind
+  it into the page before; each segment is a partial index on `(updated_at,
+id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
+  recovery reads `listRunningThreads`, unpaged, because it must reach every
+  turn left running.
 - **The lifecycle CAS names the turn.**
   `applyThreadLifecycleEventInTransaction` evaluates `@repo/domain`'s
   transition table, then updates only where status AND `active_turn_id` still
@@ -185,7 +193,9 @@ skipped-row marker keeps the lowest row and rewinds once per build change;
 contiguous sequences under interleaved writers, the turn/started gate, the
 scope CHECK at the database, a 20-event burst prepares two SELECTs and one
 INSERT, a stored row the grammar refuses left out and reported; the lifecycle
-happy path and its typed no-ops, `listThreads` answered from its partial
-indexes with no temp b-tree; FIFO claims across connections and
-same-millisecond bursts; interaction idempotency. `schema-agreement.test.ts` spawns `drizzle-kit`, so
+happy path and its typed no-ops, `listThreads` walking a thousand threads a
+page at a time, each exactly once across millisecond ties and into the archived
+segment, every page answered from its partial index with no temp b-tree; FIFO
+claims across connections and same-millisecond bursts; interaction idempotency.
+`schema-agreement.test.ts` spawns `drizzle-kit`, so
 it carries its own 30s budget.

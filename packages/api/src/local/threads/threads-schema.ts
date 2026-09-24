@@ -52,7 +52,59 @@ export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 export const threadResponseSchema = z.object({ thread: threadSchema }).strict();
 export type ThreadResponse = z.infer<typeof threadResponseSchema>;
 
-export const listThreadsResponseSchema = z.object({ threads: z.array(threadSchema) }).strict();
+export const THREADS_LIST_DEFAULT_LIMIT = 50;
+export const THREADS_LIST_MAX_LIMIT = 200;
+
+// where a page left off: the last row's segment, updatedAt and id, the key the listing sorts by.
+export interface ThreadListCursor {
+  archived: boolean;
+  updatedAt: number;
+  id: string;
+}
+
+const CURSOR_PATTERN = /^(?<segment>[la])\.(?<updatedAt>\d{1,16})\.(?<id>.+)$/u;
+
+// a string, so a shell can hand back what `inteligir action list` printed.
+export const encodeThreadListCursor = (cursor: ThreadListCursor): string =>
+  `${cursor.archived ? "a" : "l"}.${String(cursor.updatedAt)}.${cursor.id}`;
+
+const threadListCursorSchema = z.string().transform((value, ctx): ThreadListCursor => {
+  const groups = CURSOR_PATTERN.exec(value)?.groups;
+  const updatedAt = Number(groups?.updatedAt);
+  if (
+    groups?.segment === undefined ||
+    groups.id === undefined ||
+    !Number.isSafeInteger(updatedAt)
+  ) {
+    ctx.addIssue({ code: "custom", message: "cursor is not one a thread listing answered" });
+    return z.NEVER;
+  }
+  return { archived: groups.segment === "a", id: groups.id, updatedAt };
+});
+
+export const listThreadsQuerySchema = z
+  .object({
+    // the previous page's `nextCursor`.
+    cursor: threadListCursorSchema.optional(),
+    includeArchived: z.boolean().optional(),
+    limit: z.number().int().min(1).max(THREADS_LIST_MAX_LIMIT).optional(),
+    originDocPath: vaultPathSchema.optional(),
+    // only threads whose turn is in flight; true or absent, one spelling of "any status".
+    running: z.literal(true).optional(),
+  })
+  .strict();
+export type ListThreadsQuery = z.input<typeof listThreadsQuerySchema>;
+export type ParsedListThreadsQuery = z.output<typeof listThreadsQuerySchema>;
+
+// live threads come first, newest first within each segment; no `total`, since a count would
+// cost the scan paging avoids.
+export const listThreadsResponseSchema = z
+  .object({
+    // null once the listing is exhausted.
+    nextCursor: z.string().nullable(),
+    threads: z.array(threadSchema).max(THREADS_LIST_MAX_LIMIT),
+  })
+  .strict();
 export type ListThreadsResponse = z.infer<typeof listThreadsResponseSchema>;
 
 export const threadIdQuerySchema = z

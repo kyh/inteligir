@@ -2,6 +2,7 @@
 // pull, an agent's `mv`) keeps; the path at compose time answers for a note that has none. a note
 // that cannot take an id costs the action its id, never the action.
 
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { ensureNoteId } from "../vault/ensure-note-id";
@@ -11,25 +12,35 @@ import type { VaultService } from "../vault/vault-service";
 export interface ThreadOrigins {
   // the note's id, minted into it when it has none; null when it has none and cannot take one
   noteIdAt: (path: string) => Promise<string | null>;
+  // the note's id as its bytes stand, minting nothing: a listing reads, it never writes
+  noteIdOf: (path: string) => Promise<string | null>;
   pathForNoteId: KnowledgeRuntime["pathForNoteId"];
 }
 
 export const createThreadOrigins = (
   vault: Pick<VaultService, "read" | "writeIfUnchanged">,
   knowledge: Pick<KnowledgeRuntime, "pathForNoteId">,
-): ThreadOrigins => ({
-  async noteIdAt(path) {
+): ThreadOrigins => {
+  // the cli may name a note that is not there, or a path the vault refuses
+  const orNull = async (read: () => Promise<string | null>): Promise<string | null> => {
     try {
-      const { content } = await vault.read(path);
-      const outcome = await ensureNoteId(vault, path, content);
-      return outcome.kind === "id" ? outcome.id : null;
+      return await read();
     } catch (error) {
-      // the cli may name a note that is not there, or a path the vault refuses
       if (error instanceof VaultServiceError || error instanceof VaultPathError) {
         return null;
       }
       throw error;
     }
-  },
-  pathForNoteId: knowledge.pathForNoteId,
-});
+  };
+  return {
+    noteIdAt: async (path) =>
+      await orNull(async () => {
+        const { content } = await vault.read(path);
+        const outcome = await ensureNoteId(vault, path, content);
+        return outcome.kind === "id" ? outcome.id : null;
+      }),
+    noteIdOf: async (path) =>
+      await orNull(async () => frontmatterId((await vault.read(path)).content)),
+    pathForNoteId: knowledge.pathForNoteId,
+  };
+};

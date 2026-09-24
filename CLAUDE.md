@@ -1339,6 +1339,24 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   bytes no longer on disk (`apps/desktop/src/renderer/app/note/open-note-id.ts`).
   `apps/cli/src/server/threads/thread-origins.ts`.
 
+- **THE THREAD LIST IS A KEYSET PAGE, AND A QUESTION A PAGE CANNOT ANSWER IS
+  ASKED OF THE SERVER.** `threads.list` answers `limit` threads (default 50)
+  after an opaque `cursor`, the last row's `(updated_at, id)` with its segment,
+  live before archived and newest first, each segment seeked on its own partial
+  index; archived threads come only with `includeArchived`. An offset was
+  rejected because a thread touched between two reads would shift every row
+  behind it. The panel pages its Recent list through `useInfiniteQuery` with a
+  Show more, and the palette's Actions page reads what the panel holds, but a
+  page is a window, so what must be whole is its own query rather than a filter
+  over it: the open note's actions are `originDocPath`, so an old one is not
+  lost below the recent pages (matched by the stored path or the note's `id`,
+  then kept only where each resolves now, so a page may come back short), and
+  the rail's agent spinner asks for one
+  `running` thread with archived ones included, since a turn still running on
+  an archived thread is still the agent at work. `inteligir action list`
+  prints the cursor that continues a cut listing. `packages/db/src/threads.ts`,
+  `apps/desktop/src/renderer/app/actions/thread-hooks.ts`.
+
 ### Dictation
 
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by
@@ -2020,8 +2038,7 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   on return. Thread kinds are weighed in two total tables beside the vault
   kinds' invalidations, `MOVES_THE_LIST` and `MOVES_THE_DETAIL`, next to
   thread-hooks' `MOVES_THE_TIMELINE`: `events-appended` moves neither, so a
-  streamed turn refetches the timeline's delta and never the unpaged thread
-  list. A `content-changed` under the comment store sweeps the comments, since
+  streamed turn refetches the timeline's delta and never the thread list. A `content-changed` under the comment store sweeps the comments, since
   a second comment rewrites an existing store and announces no row; every
   `content-changed` stamps the cached listing's `modifiedMs` with the frame's
   arrival instead of re-walking the vault, so the recents move while a note is

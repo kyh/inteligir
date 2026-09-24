@@ -600,7 +600,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     [noteStore, treeOps, setPinned, chooseRailView],
   );
 
-  const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
+  const threads = threadsQuery.data ?? EMPTY_THREADS;
 
   return (
     <VaultProvider

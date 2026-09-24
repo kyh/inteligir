@@ -511,8 +511,12 @@ const threadsRouter = {
     entry.thread = { ...entry.thread, status: "stopping" };
     return { stop: "requested", thread: entry.thread };
   }),
-  list: base.threads.list.handler(({ context }) => ({
-    threads: context.threads.map((entry) => entry.thread),
+  // one page whatever the limit: paging is the real composition's (action-list.test.ts).
+  list: base.threads.list.handler(({ context, input }) => ({
+    nextCursor: null,
+    threads: context.threads
+      .map((entry) => entry.thread)
+      .filter((thread) => input.includeArchived === true || thread.archivedAt === null),
   })),
   listInteractions: base.threads.listInteractions.handler(({ context, input }) => ({
     interactions: context.threads

@@ -28,7 +28,6 @@ import { Spinner } from "@repo/ui/components/spinner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useTheme } from "@repo/ui/lib/theme";
 import { cn } from "@repo/ui/lib/cn";
-import { isThreadRunning } from "@repo/domain/thread-status";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   ChevronDownIcon,
@@ -46,7 +45,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "@repo/ui/components/sonner";
-import { useThreads } from "../actions/thread-hooks";
+import { useAgentWorking } from "../actions/thread-hooks";
 import { useCloudSession } from "../cloud-session";
 import type { CloudSession } from "../cloud-session";
 import {
@@ -230,13 +229,9 @@ const SignInDialog = ({
 // it — a sync now, and the account this device does or does not have.
 export const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
   const statusQuery = useVaultStatus();
-  const threadsQuery = useThreads();
+  const agentWorking = useAgentWorking();
   const session = useCloudSession();
   const [signInOpen, setSignInOpen] = useState(false);
-  // archived or not: an archived thread still running is still the agent at work
-  const agentWorking = (threadsQuery.data?.threads ?? []).some((thread) =>
-    isThreadRunning(thread.status),
-  );
   const status = statusQuery.data;
   const canSync = canSyncNow(status);
   const blocked = status === undefined ? null : (status.lastError ?? syncBlockedReason(status));

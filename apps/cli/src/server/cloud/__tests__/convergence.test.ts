@@ -261,8 +261,8 @@ describe("two installs against one account", () => {
       origins: pathOnlyOrigins,
     });
     rebooted.boot();
-    const listed = await rebooted.list();
-    expect(listed.some((row) => row.id === thread.id)).toBe(true);
+    const listed = await rebooted.list({});
+    expect(listed.threads.some((row) => row.id === thread.id)).toBe(true);
     expect(eventOrder(b, thread.id).some((row) => row.startsWith("provider/error"))).toBe(false);
     const afterReboot = await b.client.threads.get({ threadId: thread.id });
     expect(afterReboot.thread.status).toBe("active");
@@ -462,7 +462,7 @@ describe("two installs against one account", () => {
     await syncNow(b);
 
     expect(cloud.logSize()).toBe(0);
-    const onB = await b.client.threads.list();
+    const onB = await b.client.threads.list({ includeArchived: true });
     expect(onB.threads).toEqual([]);
     const local = await a.client.threads.get({ threadId: thread.id });
     expect(local.thread.originDocPath).toBe("Kept/Draft.md");

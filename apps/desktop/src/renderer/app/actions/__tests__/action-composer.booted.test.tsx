@@ -44,7 +44,7 @@ describe("the composer under a refused first send", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(async () => {
-      const listed = await harness.client.threads.list();
+      const listed = await harness.client.threads.list({});
       expect(listed.threads).toHaveLength(1);
     });
     await waitFor(() => {
@@ -59,7 +59,7 @@ describe("the composer under a refused first send", () => {
       expect(onLaunched).toHaveBeenCalledTimes(1);
     });
 
-    const { threads } = await harness.client.threads.list();
+    const { threads } = await harness.client.threads.list({});
     expect(threads).toHaveLength(1);
     expect(onLaunched).toHaveBeenCalledWith(threads[0]?.id);
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -92,7 +92,7 @@ describe("the composer under a refused first send", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(async () => {
-      const listed = await harness.client.threads.list();
+      const listed = await harness.client.threads.list({});
       expect(listed.threads).toHaveLength(1);
     });
     await waitFor(() => {
@@ -106,7 +106,7 @@ describe("the composer under a refused first send", () => {
       expect(onLaunched).toHaveBeenCalledTimes(1);
     });
 
-    const { threads } = await harness.client.threads.list();
+    const { threads } = await harness.client.threads.list({});
     expect(threads).toHaveLength(2);
     const started = harness.driver.startedTurns.map((turn) => turn.threadId);
     expect(started).toHaveLength(1);
@@ -154,7 +154,7 @@ describe("the composer's @-mentions", () => {
     });
     expect(harness.driver.startedTurns[0]?.text).toBe("compare with the goals");
     expect(harness.driver.startedTurns[0]?.contextPaths).toEqual(["Plans.md"]);
-    const { threads } = await harness.client.threads.list();
+    const { threads } = await harness.client.threads.list({});
     const [thread] = threads;
     expect(thread?.title).toBe("compare with the goals");
     const timeline = await harness.client.threads.timeline({ threadId: thread?.id ?? "" });

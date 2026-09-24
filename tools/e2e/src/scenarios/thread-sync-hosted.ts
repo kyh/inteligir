@@ -110,7 +110,7 @@ export const threadSyncHosted: Scenario = {
     ctx.log(`B must hold the thread within ${windowMs}ms, before its poll could run`);
     await pollUntil(
       async () => {
-        const { threads } = await b.api.threads.list();
+        const { threads } = await b.api.threads.list({});
         return {
           rows: threads.some((listed) => listed.id === thread.id)
             ? await timelineLines(b.api, thread.id)
