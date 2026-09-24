@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { defineCommand } from "citty";
 
 import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
@@ -51,7 +52,7 @@ export const commentCommand = (deps: CliDeps) =>
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const id = mintCommentId();
+          const id = mintCommentId(randomBytes);
           const body = await api.comments.add({
             id,
             path: args.path,
@@ -125,7 +126,7 @@ export const commentCommand = (deps: CliDeps) =>
         meta: { description: "Reply inside a comment thread", name: "reply" },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const id = mintCommentId();
+          const id = mintCommentId(randomBytes);
           const body = await api.comments.reply({
             id,
             parentId: args.parent,

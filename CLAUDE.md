@@ -534,6 +534,25 @@ to the END of its group.
   a line but never join two (`keepsText` in
   `packages/editor/src/markdown/markdown-doc.ts`).
 
+- **COMMENT MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
+  DECORATION.** The dialect's block comment is a marker on its own line above
+  a fence and another below it, so markers pair in document order over the
+  whole note (`commentSpans` in `packages/editor/src/comments/comment-ranges.ts`)
+  and only an edge with no partner is an orphan, tinted over the element
+  holding it. Pairing per block, which drew every two-paragraph comment as two
+  orphans, is rejected, and so is refusing a selection that crosses blocks.
+  The pairing is cached on the document's identity and each top-level block's
+  markers on the block's, so a keystroke re-walks one block. The ranges are
+  returned for the root alone: Slate splits a root range across the blocks it
+  crosses and re-renders a block whose share moved, where a decoration
+  returned per text leaves an untouched middle block with the tint it last
+  rendered. The gutter draws a range's dot beside the block it starts in,
+  finding its spans by the element's identity through `useEditorSelector`,
+  since an edit elsewhere can orphan an edge in a block that did not change.
+  A create's save owns its markers while it is in flight: a dismissal is
+  ignored and the answer clears only its own pending create
+  (`clearPendingCreate`). `packages/editor/src/__tests__/comment-decorate.test.tsx`.
+
 ### Vault: writes, git and containment
 
 - **The auto-commit stages what the window's writers named.** A scheduler that
@@ -1044,7 +1063,9 @@ rename`.
   server signs `user` when a caller says nothing; the CLI signs `agent` under
   `INTELIGIR_THREAD_ID`. The store write retries once on a base mismatch, then
   answers `CONFLICT`. The comment-id grammar has one spelling in
-  `@repo/notes/comments/sidecar-schema`.
+  `@repo/notes/comments/sidecar-schema` (`COMMENT_ID_PATTERN`), which the body
+  marker's regex is built from, and `mintCommentId` takes its random bytes from
+  the caller, because `@repo/notes` names no platform.
   `apps/cli/src/server/comments/comments-service.ts` and
   `apps/cli/src/commands/comment.ts`.
 
