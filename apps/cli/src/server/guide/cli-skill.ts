@@ -81,8 +81,9 @@ spaces (\`inteligir search "two words"\`).
   is refused as \`CAS_MISMATCH\`: read it again, redo your edit on what it holds
   now, and retry. Without either, the last writer wins. The two cannot be
   combined.
-- \`inteligir vault rename <from> <to>\` — rename/move a note; wiki links into
-  it are rewritten and the old name is recorded as an alias.
+- \`inteligir vault rename <from> <to>\` — rename/move a note or a folder; the
+  links into it and out of it are rewritten, and a renamed note's old name is
+  recorded as an alias.
 - \`inteligir vault history <path> [--skip <n>] [--limit <n>]\` — the note's own
   commits, newest first, following renames; \`--limit\` is the page
   (1–${VAULT_HISTORY_MAX_LIMIT}, default ${VAULT_HISTORY_DEFAULT_LIMIT}). One tab-separated line per

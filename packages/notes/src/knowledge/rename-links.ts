@@ -1,26 +1,32 @@
 // Only verified target spans are spliced, so aliases, anchors, alts and `<>`
 // wrappers survive. The retarget branch keys on the path-only pre-resolver: a
-// link reaching the moved doc through one of its aliases still resolves after
-// the rename, and rewriting it would replace the author's word vault-wide.
+// link reaching a moved doc through one of its aliases still resolves after
+// the move, and rewriting it would replace the author's word vault-wide.
 
 import { parseWikiBodyRange, serializeWikiBody } from "../markdown/remark-wiki-link";
 import { wikiLinkName, wikiLinkPath } from "./doc-file";
 import type { ExtractedLink, Span } from "./link-extract";
 import { scanDoc } from "./link-extract";
-import { buildResolver } from "./link-resolve";
+import { buildResolver, wikiNameKeys } from "./link-resolve";
 import type { TargetResolver } from "./link-resolve";
 import { basenamePath, dirnamePath, extnamePath, normalizePath, relativePath } from "./vault-path";
 
-// the rename, plus the resolvers the branches read: before, after, after-without-the-renamed-
-// file (to prove a short name is unambiguous) and before-with-aliases
-interface RenameContext {
-  fromPath: string;
-  toPath: string;
-  movedDirs: boolean;
+// the moves, plus what the branches read: the resolvers before, after and before-with-aliases,
+// and every post-move file under each lowercased name key
+interface MoveContext {
+  moves: ReadonlyMap<string, string>;
   preResolver: TargetResolver;
   postResolver: TargetResolver;
-  othersResolver: TargetResolver;
   aliasPreResolver: TargetResolver;
+  postNameOwners: ReadonlyMap<string, readonly string[]>;
+}
+
+// where a linking doc sits before and after; a move that changes its folder re-bases its own
+// relative urls
+interface DocPlace {
+  path: string;
+  postPath: string;
+  movedDirs: boolean;
 }
 
 // back-to-front so earlier spans stay valid; spans come from one scan and never overlap
@@ -62,19 +68,22 @@ const writesExtension = (path: string, link: ExtractedLink): boolean => {
   return ext !== "" && normalizePath(link.target).toLowerCase().endsWith(ext);
 };
 
+// no file but `to` answers the name after the move: unambiguous, not merely winning a tie-break.
+// every file a bare name answers to is filed under that name's key, so the key is the whole set
+const answersOnly = (name: string, to: string, ctx: MoveContext): boolean =>
+  ctx.postResolver.resolveWiki(name) === to &&
+  (ctx.postNameOwners.get(name.toLowerCase()) ?? []).every((path) => path === to);
+
 // obsidian's shortest-form convention: the bare name when unique, else the full path; a written extension is preserved
 const wikiTargetText = (
   link: ExtractedLink,
-  to: string,
   from: string,
-  postResolver: TargetResolver,
-  othersResolver: TargetResolver,
+  to: string,
+  ctx: MoveContext,
 ): string | null => {
   const keepExt = writesExtension(from, link);
   const shortName = keepExt ? basenamePath(to) : wikiLinkName(to);
-  const unambiguous =
-    postResolver.resolveWiki(shortName) === to && othersResolver.resolveWiki(shortName) === null;
-  if (unambiguous) {
+  if (answersOnly(shortName, to, ctx)) {
     return wikiSpanText(link, shortName);
   }
   return wikiSpanText(link, keepExt ? to : wikiLinkPath(to));
@@ -92,40 +101,36 @@ const aliasShadowText = (ownerPath: string, link: ExtractedLink): string | null 
     : wikiSpanText(link, qualified);
 };
 
-// the link still resolves after the rename, but the rename moved where it lands
+// the link's target stays put, but the move may have changed where the link lands
 const shadowedText = (
   link: ExtractedLink,
   raw: string,
-  docPath: string,
-  postDocPath: string,
+  doc: DocPlace,
   resolved: string,
-  ctx: RenameContext,
+  ctx: MoveContext,
 ): string | null => {
   if (link.kind !== "wiki") {
-    // the moved doc's own relative urls re-base; elsewhere an md url changes only when the rename shadowed its resolution
-    if (
-      (docPath === ctx.fromPath && ctx.movedDirs) ||
-      ctx.postResolver.resolveMd(link.target, postDocPath) !== resolved
-    ) {
-      return mdUrlText(postDocPath, resolved, raw);
+    // a moved doc's own relative urls re-base; elsewhere an md url changes only when the move shadowed its resolution
+    if (doc.movedDirs || ctx.postResolver.resolveMd(link.target, doc.postPath) !== resolved) {
+      return mdUrlText(doc.postPath, resolved, raw);
     }
     return null;
   }
   if (ctx.postResolver.resolveWiki(link.target) !== resolved) {
-    // the renamed file now wins this short name's tie-break; qualify so the link keeps its meaning
+    // a moved file now wins this short name's tie-break; qualify so the link keeps its meaning
     return wikiSpanText(link, qualifiedWikiTarget(resolved, link));
   }
   return null;
 };
 
-// every path tier missed and the link reaches its target only through an alias the new
-// name now captures via a path tier; qualify it back to the alias owner
-const aliasShadowedText = (link: ExtractedLink, ctx: RenameContext): string | null => {
+// every path tier missed and the link reaches its target only through an alias a moved
+// file now captures via a path tier; qualify it back to the alias owner
+const aliasShadowedText = (link: ExtractedLink, ctx: MoveContext): string | null => {
   const aliasOwner = ctx.aliasPreResolver.resolveWiki(link.target);
   if (aliasOwner === null) {
     return null;
   }
-  const ownerPost = aliasOwner === ctx.fromPath ? ctx.toPath : aliasOwner;
+  const ownerPost = ctx.moves.get(aliasOwner) ?? aliasOwner;
   const postHit = ctx.postResolver.resolveWiki(link.target);
   if (postHit !== null && postHit !== ownerPost) {
     return aliasShadowText(ownerPost, link);
@@ -136,63 +141,81 @@ const aliasShadowedText = (link: ExtractedLink, ctx: RenameContext): string | nu
 const relinkText = (
   link: ExtractedLink,
   raw: string,
-  docPath: string,
-  postDocPath: string,
-  ctx: RenameContext,
+  doc: DocPlace,
+  ctx: MoveContext,
 ): string | null => {
   const resolved =
     link.kind === "wiki"
       ? ctx.preResolver.resolveWiki(link.target)
-      : ctx.preResolver.resolveMd(link.target, docPath);
-  if (resolved === ctx.fromPath) {
+      : ctx.preResolver.resolveMd(link.target, doc.path);
+  if (resolved === null) {
+    return link.kind === "wiki" ? aliasShadowedText(link, ctx) : null;
+  }
+  const movedTo = ctx.moves.get(resolved);
+  if (movedTo !== undefined) {
     return link.kind === "wiki"
-      ? wikiTargetText(link, ctx.toPath, ctx.fromPath, ctx.postResolver, ctx.othersResolver)
-      : mdUrlText(postDocPath, ctx.toPath, raw);
+      ? wikiTargetText(link, resolved, movedTo, ctx)
+      : mdUrlText(doc.postPath, movedTo, raw);
   }
-  if (resolved !== null) {
-    return shadowedText(link, raw, docPath, postDocPath, resolved, ctx);
-  }
-  if (link.kind === "wiki") {
-    return aliasShadowedText(link, ctx);
-  }
-  return null;
+  return shadowedText(link, raw, doc, resolved, ctx);
 };
 
-// `docs` and `aliasEntries` are keyed by pre-rename path; the result holds changed docs only,
-// keyed by post-rename path. The aliases are the whole vault's, never derived from `docs`:
-// those are the rewrite candidates, and an alias owner that links nowhere is never one.
-export const computeRenameEdits = (
+// `moves` maps each moved file's pre-move path to its post-move path: one entry for a note, one
+// per file under it for a folder. `docs` and `aliasEntries` are keyed by pre-move path; the
+// result holds changed docs only, keyed by post-move path. The aliases are the whole vault's,
+// never derived from `docs`: those are the rewrite candidates, and an alias owner that links
+// nowhere is never one.
+export const computeMoveEdits = (
   docs: ReadonlyMap<string, string>,
   allFiles: Iterable<string>,
   aliasEntries: Iterable<readonly [alias: string, path: string]>,
-  from: string,
-  to: string,
+  moves: ReadonlyMap<string, string>,
 ): Map<string, string> => {
   const edits = new Map<string, string>();
-  const fromPath = normalizePath(from);
-  const toPath = normalizePath(to);
-  if (fromPath === toPath || fromPath === "" || toPath === "") {
+  const normalizedMoves = new Map<string, string>();
+  for (const [from, to] of moves) {
+    const fromPath = normalizePath(from);
+    const toPath = normalizePath(to);
+    if (fromPath !== toPath && fromPath !== "" && toPath !== "") {
+      normalizedMoves.set(fromPath, toPath);
+    }
+  }
+  if (normalizedMoves.size === 0) {
     return edits;
   }
 
   const files = [...new Set([...allFiles].map(normalizePath))];
-  const postFiles = files.map((p) => (p === fromPath ? toPath : p));
+  const postFiles = files.map((p) => normalizedMoves.get(p) ?? p);
+  const postNameOwners = new Map<string, string[]>();
+  for (const path of postFiles) {
+    for (const key of wikiNameKeys(path)) {
+      const lower = key.toLowerCase();
+      const owners = postNameOwners.get(lower);
+      if (owners === undefined) {
+        postNameOwners.set(lower, [path]);
+      } else {
+        owners.push(path);
+      }
+    }
+  }
 
-  const ctx: RenameContext = {
+  const ctx: MoveContext = {
     // alias-shadow detection only; the retarget branch must stay path-only
     aliasPreResolver: buildResolver(files, aliasEntries),
-    fromPath,
-    movedDirs: dirnamePath(fromPath) !== dirnamePath(toPath),
-    // everything except the renamed file: proves a short name is unambiguous, not merely winning a tie-break
-    othersResolver: buildResolver(postFiles.filter((p) => p !== toPath)),
+    moves: normalizedMoves,
+    postNameOwners,
     postResolver: buildResolver(postFiles),
     preResolver: buildResolver(files),
-    toPath,
   };
 
   for (const [docPath, content] of docs) {
     const path = normalizePath(docPath);
-    const postDocPath = path === fromPath ? toPath : path;
+    const postPath = normalizedMoves.get(path) ?? path;
+    const doc: DocPlace = {
+      movedDirs: dirnamePath(path) !== dirnamePath(postPath),
+      path,
+      postPath,
+    };
     const replacements: { span: Span; text: string }[] = [];
 
     for (const link of scanDoc(content).links) {
@@ -200,7 +223,7 @@ export const computeRenameEdits = (
         continue;
       }
       const raw = content.slice(link.targetSpan.start, link.targetSpan.end);
-      const text = relinkText(link, raw, path, postDocPath, ctx);
+      const text = relinkText(link, raw, doc, ctx);
       if (text !== null && text !== raw) {
         replacements.push({ span: link.targetSpan, text });
       }
@@ -209,7 +232,7 @@ export const computeRenameEdits = (
     if (replacements.length === 0) {
       continue;
     }
-    edits.set(postDocPath, applyReplacements(content, replacements));
+    edits.set(postPath, applyReplacements(content, replacements));
   }
   return edits;
 };

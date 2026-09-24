@@ -10,7 +10,7 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import { LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
 import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
+import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { notesInTagFamily } from "@repo/notes/knowledge/tag-notes";
 import { relatedNotes } from "@repo/notes/knowledge/related-notes";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
@@ -103,7 +103,8 @@ export interface KnowledgeRuntime {
     limit: number,
     offset: number,
   ) => Promise<{ paths: string[]; total: number }>;
-  renameCandidates: (from: string, to: string) => Promise<string[]>;
+  // pre-move path to post-move path: one entry for a note, one per file under a folder
+  renameCandidates: (moves: ReadonlyMap<string, string>) => Promise<string[]>;
   // every doc holding the tag or one nested under it, computed with no reads
   tagRenameCandidates: (from: string) => Promise<string[]>;
   // the rewrite sets' byte surgery scans every candidate, so it runs where projection does
@@ -642,9 +643,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       );
     },
 
-    async renameCandidates(from, to) {
+    async renameCandidates(moves) {
       await settle();
-      return renameCandidates(graph, from, to);
+      return moveCandidates(graph, moves);
     },
 
     renameEdits: projector.renameEdits,

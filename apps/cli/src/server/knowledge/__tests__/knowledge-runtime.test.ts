@@ -336,7 +336,7 @@ describe("the knowledge runtime", () => {
     expect(await searchPaths(knowledge, "kestrel")).toEqual(["a.md"]);
     const backlinks = await knowledge.backlinks("b.md");
     expect(backlinks.map((b) => b.sourcePath)).toEqual(["a.md"]);
-    expect(await knowledge.renameCandidates("b.md", "c.md")).toContain("a.md");
+    expect(await knowledge.renameCandidates(new Map([["b.md", "c.md"]]))).toContain("a.md");
     const readsAfterFirstPass = reads.length;
     expect(await searchPaths(knowledge, "kestrel")).toEqual(["a.md"]);
     expect(reads).toHaveLength(readsAfterFirstPass);

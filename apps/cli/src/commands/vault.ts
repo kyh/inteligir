@@ -375,7 +375,7 @@ export const vaultCommand = (deps: CliDeps) =>
           ...jsonArg,
         },
         meta: {
-          description: "Rename/move a note; wiki links into it are rewritten",
+          description: "Rename/move a note or folder; links into and out of it are rewritten",
           name: "rename",
         },
         run: async ({ args }) => {

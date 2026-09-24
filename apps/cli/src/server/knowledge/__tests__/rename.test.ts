@@ -48,7 +48,9 @@ describe("rename with link rewrite", () => {
     await service.write("b.md", "See [details](notes/target.md) for more.\n");
     await service.write("unrelated.md", "No links, though target is a word here.\n");
 
-    const candidates = await knowledge.renameCandidates("notes/target.md", "archive/moved.md");
+    const candidates = await knowledge.renameCandidates(
+      new Map([["notes/target.md", "archive/moved.md"]]),
+    );
     expect(candidates.toSorted()).toEqual(["a.md", "b.md", "notes/target.md"]);
 
     const result = await renameNoteWithLinkRewrite({
@@ -85,7 +87,7 @@ describe("rename with link rewrite", () => {
     await service.write("other.md", "# Other\n");
     await knowledge.settle();
 
-    const candidates = await knowledge.renameCandidates("other.md", "note.md");
+    const candidates = await knowledge.renameCandidates(new Map([["other.md", "note.md"]]));
     expect(candidates.toSorted()).toEqual(["other.md", "s.md"]);
 
     await renameNoteWithLinkRewrite({
@@ -109,7 +111,7 @@ describe("rename with link rewrite", () => {
     await service.write("misc.md", "# Misc\n");
     await knowledge.settle();
 
-    const candidates = await knowledge.renameCandidates("misc.md", "Retro.md");
+    const candidates = await knowledge.renameCandidates(new Map([["misc.md", "Retro.md"]]));
     expect(candidates.toSorted()).toEqual(["hub.md", "misc.md"]);
 
     const result = await renameNoteWithLinkRewrite({
@@ -125,20 +127,48 @@ describe("rename with link rewrite", () => {
     expect(backlinks.map((entry) => entry.sourcePath)).toEqual(["hub.md"]);
   });
 
-  it("passes a directory rename straight through", async () => {
+  it("rewrites the links a folder move would break, and records no alias", async () => {
     const { root, service, knowledge } = boot();
-    await service.write("dir/inner.md", "# Inner\n");
-    await knowledge.settle();
+    await service.write(
+      "hub.md",
+      "Read [the note](proj/note.md), [[proj/note]], ![[proj/sibling]].\n",
+    );
+    await service.write(
+      "proj/note.md",
+      "# Note\n\nUp to [hub](../hub.md), across [sib](sibling.md) and [[proj/sibling]].\n",
+    );
+    await service.write("proj/sibling.md", "# Sibling\n\nBack to [[note]].\n");
+    const unresolved = async () => {
+      const problems = await knowledge.problems({ limit: 10 });
+      return [...problems.unresolvedLinks.rows, ...problems.missingEmbeds.rows];
+    };
+    expect(await unresolved()).toEqual([]);
 
+    const rebound: [string, string][] = [];
     const result = await renameNoteWithLinkRewrite({
-      from: "dir",
+      from: "proj",
       knowledge,
-      rebindThreads: noRebind,
+      rebindThreads: (from, to) => {
+        rebound.push([from, to]);
+      },
       service,
-      to: "moved-dir",
+      to: "archive/project",
     });
-    expect(result).toEqual({ path: "moved-dir", rewritten: [], skipped: [] });
-    expect(readFileSync(path.join(root, "moved-dir", "inner.md"), "utf-8")).toBe("# Inner\n");
+    expect(result.path).toBe("archive/project");
+    expect(result.rewritten.toSorted()).toEqual(["archive/project/note.md", "hub.md"]);
+    expect(result.skipped).toEqual([]);
+    expect(rebound).toEqual([["proj", "archive/project"]]);
+
+    expect(readFileSync(path.join(root, "hub.md"), "utf-8")).toBe(
+      "Read [the note](archive/project/note.md), [[note]], ![[sibling]].\n",
+    );
+    expect(readFileSync(path.join(root, "archive", "project", "note.md"), "utf-8")).toBe(
+      "# Note\n\nUp to [hub](../../hub.md), across [sib](sibling.md) and [[sibling]].\n",
+    );
+    expect(readFileSync(path.join(root, "archive", "project", "sibling.md"), "utf-8")).toBe(
+      "# Sibling\n\nBack to [[note]].\n",
+    );
+    expect(await unresolved()).toEqual([]);
   });
 
   it("skips a candidate edited between snapshot and rewrite, and still records the alias", async () => {

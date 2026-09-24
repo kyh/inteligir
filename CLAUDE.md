@@ -607,10 +607,13 @@ to the END of its group.
   source is
   component state, not `dataTransfer`, so a file dragged in from the desktop
   has no source here and is ignored. No second write path: the move rides
-  `vault.rename`, which rewrites links, and the vault session carries the open
-  note whether the move named it or a folder above it, and closes it only once
-  a delete of its folder removed it (`packages/editor/src/note/vault-session.ts`),
-  so the tree never navigates on a move's or a delete's answer.
+  `vault.rename`, which rewrites links for a folder as for a note: one move per
+  file under it, one rewrite set over all of them, and no alias, since no name
+  changes (`apps/cli/src/server/knowledge/rename.ts`). The vault session
+  carries the open note whether the move named it or a folder above it, and
+  closes it only once a delete of its folder removed it
+  (`packages/editor/src/note/vault-session.ts`), so the tree never navigates on
+  a move's or a delete's answer.
 
 - **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
   the editor.** `<dataDir>/vault-prefs.json` holds `attachments`: the vault

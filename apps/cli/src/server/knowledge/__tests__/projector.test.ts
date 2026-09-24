@@ -1,7 +1,7 @@
 // the real worker, booted from source under tsx: seconds per boot, so one projector serves the
 // suite and only the dispose case pays for its own.
 
-import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
+import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { computeTagRenameEdits } from "@repo/notes/knowledge/rename-tags";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createProjectionWorker } from "../projector";
@@ -45,7 +45,8 @@ describe("the projection worker", () => {
         ["b.md", "---\ntags: [project]\n---\nNothing linked.\n"],
       ]);
       const allFiles = ["a.md", "b.md", "Old.md"];
-      const renamed = computeRenameEdits(docs, allFiles, [], "Old.md", "New.md");
+      const moves = new Map([["Old.md", "New.md"]]);
+      const renamed = computeMoveEdits(docs, allFiles, [], moves);
       const retagged = computeTagRenameEdits(docs, "project", "work");
       expect([...renamed.keys()]).toEqual(["a.md"]);
       expect([...retagged.keys()]).toEqual(["a.md", "b.md"]);
@@ -55,8 +56,7 @@ describe("the projection worker", () => {
           aliasEntries: [],
           allFiles,
           docs,
-          from: "Old.md",
-          to: "New.md",
+          moves,
         }),
       ).toEqual(renamed);
       expect(await projector.tagRenameEdits({ docs, from: "project", to: "work" })).toEqual(

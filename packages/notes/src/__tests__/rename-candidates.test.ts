@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
-import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
+import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 
 const indexOf = (docs: Record<string, string>): KnowledgeIndex => {
   const index = new KnowledgeIndex();
@@ -10,7 +10,7 @@ const indexOf = (docs: Record<string, string>): KnowledgeIndex => {
   return index;
 };
 
-describe("renameCandidates", () => {
+describe("moveCandidates", () => {
   it("names the moved doc and its backlink sources", () => {
     const index = indexOf({
       "a.md": "Links to [[target]].\n",
@@ -18,7 +18,7 @@ describe("renameCandidates", () => {
       "notes/target.md": "# Target\n",
       "unrelated.md": "No links, though target is a word.\n",
     });
-    const candidates = renameCandidates(index, "notes/target.md", "archive/moved.md");
+    const candidates = moveCandidates(index, new Map([["notes/target.md", "archive/moved.md"]]));
     expect(candidates.toSorted()).toEqual(["a.md", "b.md", "notes/target.md"]);
   });
 
@@ -28,7 +28,7 @@ describe("renameCandidates", () => {
       "other.md": "# Other\n",
       "s.md": "Ref [[note]] here.\n",
     });
-    const candidates = renameCandidates(index, "other.md", "note.md");
+    const candidates = moveCandidates(index, new Map([["other.md", "note.md"]]));
     expect(candidates.toSorted()).toEqual(["other.md", "s.md"]);
   });
 
@@ -38,7 +38,7 @@ describe("renameCandidates", () => {
       "owner.md": "---\naliases:\n  - Bar\n---\n# Owner\n",
       "x.md": "# X\n",
     });
-    const candidates = renameCandidates(index, "x.md", "Bar.md");
+    const candidates = moveCandidates(index, new Map([["x.md", "Bar.md"]]));
     expect(candidates.toSorted()).toEqual(["l.md", "x.md"]);
   });
 
@@ -50,8 +50,32 @@ describe("renameCandidates", () => {
       "target.md": "---\naliases:\n  - Nickname\n---\n# Target\n",
       "via-alias.md": "Ref [[Nickname]].\n",
     });
-    const candidates = renameCandidates(index, "target.md", "moved.md");
+    const candidates = moveCandidates(index, new Map([["target.md", "moved.md"]]));
     expect(candidates).not.toContain("clean.md");
     expect(candidates).toContain("target.md");
+  });
+
+  it("names every file a folder move carries, their backlinks, and the links it would steal", () => {
+    const index = indexOf({
+      "deep/proj/note.md": "Up to [[hub]].\n",
+      "deep/proj/sub/inner.md": "# Inner\n",
+      "hub.md": "See [n](deep/proj/sub/inner.md).\n",
+      "loose.md": "Ref [[note]] here.\n",
+      "unrelated.md": "No links.\n",
+      "x/note.md": "# X note\n",
+    });
+    const candidates = moveCandidates(
+      index,
+      new Map([
+        ["deep/proj/note.md", "a/note.md"],
+        ["deep/proj/sub/inner.md", "a/sub/inner.md"],
+      ]),
+    );
+    expect(candidates.toSorted()).toEqual([
+      "deep/proj/note.md",
+      "deep/proj/sub/inner.md",
+      "hub.md",
+      "loose.md",
+    ]);
   });
 });

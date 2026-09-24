@@ -33,6 +33,15 @@ const pickBest = (candidates: readonly string[]): string | null => {
   return best;
 };
 
+// the keys the name tier files a path under: its basename, and that without the extension a link
+// may leave off. a bare name (no `/`) answers to exactly the paths filed under it, case aside: the
+// exact tiers reach only root files, which are filed there too
+export const wikiNameKeys = (path: string): readonly string[] => {
+  const base = basenamePath(path);
+  const name = wikiLinkName(path);
+  return name === base ? [base] : [base, name];
+};
+
 const push = (map: Map<string, string[]>, key: string, path: string): void => {
   const list = map.get(key);
   if (list) {
@@ -63,13 +72,9 @@ export const buildResolver = (
     }
     exact.add(path);
     push(exactLower, path.toLowerCase(), path);
-    const base = basenamePath(path);
-    push(byName, base, path);
-    push(byNameLower, base.toLowerCase(), path);
-    const name = wikiLinkName(path);
-    if (name !== base) {
-      push(byName, name, path);
-      push(byNameLower, name.toLowerCase(), path);
+    for (const key of wikiNameKeys(path)) {
+      push(byName, key, path);
+      push(byNameLower, key.toLowerCase(), path);
     }
   }
 

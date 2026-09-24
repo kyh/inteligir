@@ -12,13 +12,12 @@ export interface DocSource {
   content: string;
 }
 
-// computeRenameEdits' arguments, by name
+// computeMoveEdits' arguments, by name
 export interface RenameEditsJob {
   docs: ReadonlyMap<string, string>;
   allFiles: readonly string[];
   aliasEntries: readonly (readonly [alias: string, path: string])[];
-  from: string;
-  to: string;
+  moves: ReadonlyMap<string, string>;
 }
 
 // computeTagRenameEdits' arguments, by name
@@ -61,10 +60,9 @@ export const projectionRequestSchema = z.discriminatedUnion("kind", [
     aliasEntries: z.array(z.tuple([z.string(), z.string()])),
     allFiles: z.array(z.string()),
     docs,
-    from: z.string(),
     id: requestId,
     kind: z.literal("rename-edits"),
-    to: z.string(),
+    moves: z.map(z.string(), z.string()),
   }),
   z.object({
     docs,
