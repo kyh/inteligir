@@ -2200,6 +2200,18 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   emphasis (attention's resolver splices per pair) or with inline nodes
   (mdast-util-find-and-replace looks each text node up by `indexOf`).
 
+- **NO TYPE ASSERTION, AND NO ESCAPE COMMENT** (owner decision).
+  `typescript/consistent-type-assertions` at `assertionStyle: "never"` refuses
+  every `as T` and `<T>x`, tests included; `as const` and `satisfies` stay
+  legal. anti-slop's `require-safety-comment-for-type-assertion` is off: it
+  admitted a cast behind a `// SAFETY:` comment, so a green lint read as
+  permission and the rule eroded one justified cast at a time. Documenting that
+  escape was the rejected alternative. A library's wide type is narrowed by its
+  own guard (`ElementApi.isElementList` in
+  `packages/editor/src/markdown/markdown-doc.ts`) or parsed by the schema that
+  names it; the type-aware `no-unsafe-type-assertion` cannot stand in, since
+  the lint runs no type-aware pass. `oxlint.config.ts`.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The `note` issues are

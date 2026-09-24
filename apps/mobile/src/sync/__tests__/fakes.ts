@@ -3,6 +3,7 @@ import type {
   CaptureRequest,
   CaptureResponse,
 } from "@repo/api/cloud/captures/captures-schema";
+import { syncEventRowSchema } from "@repo/api/cloud/sync/sync-schema";
 import type {
   PullQuery,
   PullResponse,
@@ -50,18 +51,15 @@ export const logRow = (args: {
   deviceId: string;
   deviceSeq: number;
   event: ThreadEvent;
-}): SyncEventRow => {
-  // SAFETY: a ThreadEvent is valid JSON; planPage re-parses the opaque field at the boundary.
-  const event = args.event as SyncEventRow["event"];
-  return {
+}): SyncEventRow =>
+  syncEventRowSchema.parse({
     createdAt: 0,
     deviceId: args.deviceId,
     deviceSeq: args.deviceSeq,
-    event,
+    event: args.event,
     seq: args.seq,
     threadId: args.event.threadId,
-  };
-};
+  });
 
 export const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
 

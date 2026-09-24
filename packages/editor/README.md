@@ -94,8 +94,9 @@ src/
   JSX, `{…}` expressions, raw HTML — are opaque nodes
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte. Only a real parse failure (a mismatched tag, an
-  unbalanced brace), or a round trip that would lose a letter or join two
-  lines (a serializer bug), opens Raw, byte-exact.
+  unbalanced brace, nesting too deep to convert), a conversion that leaves
+  text outside any block, or a round trip that would lose a letter or join two
+  lines (a rule or serializer bug), opens Raw, byte-exact.
 - **View state keys by note path.** The workspace holds ONE open-note store
   (an instance, `note/open-note-context.tsx`), and every module holding view
   state — heading folds included — keys by the note's own path: a module

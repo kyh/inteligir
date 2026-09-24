@@ -3,7 +3,7 @@
 // Plate's deserializeMd is banned: its htmlToJsx pre-pass corrupts code fences and it swallows
 // parse errors into degraded models.
 
-import { createSlateEditor } from "platejs";
+import { createSlateEditor, ElementApi } from "platejs";
 import type { Descendant, Value } from "platejs";
 import { getMergedOptionsDeserialize, mdastToSlate, serializeMd } from "@platejs/markdown";
 
@@ -91,7 +91,7 @@ const keepsText = (source: string, saved: string): boolean => {
 };
 
 type Converted =
-  | { ok: true; value: Descendant[]; editor: ReturnType<typeof makeEditor> }
+  | { ok: true; value: Value; editor: ReturnType<typeof makeEditor> }
   | { ok: false; reason: RawReason };
 
 // mdast→Slate→stringify overflows the stack around nesting depth ~1250 (micromark survives to
@@ -100,6 +100,14 @@ const DEPTH_REASON: RawReason = {
   kind: "parse-error",
   line: null,
   message: "Document nests too deeply to convert",
+};
+
+// mdast root children are flow content, so every rule yields a block; a text at the root would be
+// a rule bug that Slate's normalizer drops, so the note opens raw rather than losing it.
+const TOP_LEVEL_TEXT_REASON: RawReason = {
+  kind: "parse-error",
+  line: null,
+  message: "Text converted outside any block",
 };
 
 const convert = (md: string): Converted => {
@@ -113,6 +121,9 @@ const convert = (md: string): Converted => {
   const editor = makeEditor();
   try {
     const value = mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
+    if (!ElementApi.isElementList(value)) {
+      return { ok: false, reason: TOP_LEVEL_TEXT_REASON };
+    }
     return { editor, ok: true, value };
   } catch (error) {
     if (error instanceof RangeError) {
@@ -201,9 +212,7 @@ export const parseMarkdown = (
   if (!converted.ok) {
     return { ok: false, reason: converted.reason };
   }
-  // SAFETY: mdast root children are flow nodes, so every converted descendant
-  // is an element; Plate's own deserializeMd performs this exact widening.
-  return { ok: true, value: converted.value as Value };
+  return { ok: true, value: converted.value };
 };
 
 export const roundTrip = (md: string): string => {
