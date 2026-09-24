@@ -10,6 +10,7 @@ import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -202,6 +203,9 @@ const CommentCreateHost = () => {
             setText(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               save();

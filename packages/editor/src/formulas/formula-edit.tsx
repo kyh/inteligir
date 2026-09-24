@@ -4,6 +4,7 @@ import type { NodeEntry, SlateEditor, TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
 
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { entryTextOf, formulaPropsFromEntry } from "@repo/editor/formulas/formula-entry";
@@ -107,6 +108,9 @@ export const FormulaEditPopover = ({
             setEntry(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter") {
               event.preventDefault();
               save();

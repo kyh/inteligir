@@ -10,6 +10,7 @@ import type {
 } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 const ChatPanel = ({
   className,
@@ -190,7 +191,7 @@ const ChatComposer = ({
         )}
         onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
           onKeyDown?.(event);
-          if (event.defaultPrevented || event.key !== "Enter") {
+          if (event.defaultPrevented || event.key !== "Enter" || isImeComposing(event)) {
             return;
           }
           event.preventDefault();

@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import type { ChartPayload } from "./chart-node";
 
@@ -171,6 +172,9 @@ const CellInput = ({
       }}
       onBlur={commit}
       onKeyDown={(event) => {
+        if (isImeComposing(event)) {
+          return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           event.currentTarget.blur();

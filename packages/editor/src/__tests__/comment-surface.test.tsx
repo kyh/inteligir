@@ -2,7 +2,7 @@
 
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import type { Value } from "platejs";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { findCommentMarker } from "@repo/editor/comments/comment-markers";
 import {
@@ -162,5 +162,34 @@ describe("a comment create while its save is in flight", () => {
       await Promise.resolve();
     });
     expect(useCommentSurface.getState().pendingCreate?.id).toBe("later");
+  });
+});
+
+describe("an Enter in the comment field", () => {
+  beforeEach(() => {
+    setPendingCreate(null);
+    clearCommentMeta(OPEN_PATH);
+  });
+  afterEach(() => {
+    cleanup();
+    setCommentActions(null);
+  });
+
+  it("commits an IME candidate rather than saving the half-composed comment", async () => {
+    const create = vi.fn<(id: string, text: string) => Promise<boolean>>(async () => true);
+    setCommentActions({ create, open: () => {} });
+    setPendingCreate({ id: "abc", path: OPEN_PATH, rect: ARMED_RECT });
+    const field = renderOpenNote().getByLabelText("Comment");
+    fireEvent.change(field, { target: { value: "日本" } });
+
+    fireEvent.keyDown(field, { isComposing: true, key: "Enter" });
+    expect(create).not.toHaveBeenCalled();
+
+    fireEvent.change(field, { target: { value: "日本語" } });
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Enter" });
+      await Promise.resolve();
+    });
+    expect(create).toHaveBeenCalledExactlyOnceWith("abc", "日本語");
   });
 });

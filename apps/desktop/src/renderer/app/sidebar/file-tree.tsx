@@ -12,6 +12,7 @@ import {
 } from "@repo/ui/components/sidebar-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
@@ -190,6 +191,10 @@ const InlineNameInput = ({
         aria-label="Name"
         className="w-full rounded-md border border-ring bg-background px-1.5 py-0.5 text-[length:inherit] outline-none"
         onKeyDown={(event) => {
+          event.stopPropagation();
+          if (isImeComposing(event)) {
+            return;
+          }
           if (event.key === "Enter") {
             event.preventDefault();
             commit();
@@ -198,7 +203,6 @@ const InlineNameInput = ({
             cancelledRef.current = true;
             onCancel();
           }
-          event.stopPropagation();
         }}
         onBlur={commit}
       />

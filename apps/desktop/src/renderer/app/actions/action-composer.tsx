@@ -5,6 +5,7 @@ import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogPopup } from "@repo/ui/components/dialog";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { toast } from "@repo/ui/components/sonner";
 import { FileTextIcon, XIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
@@ -318,6 +319,9 @@ export const ActionComposer = ({
                 setMention(null);
               },
               onKeyDown: (event) => {
+                if (isImeComposing(event)) {
+                  return;
+                }
                 if (mention !== null && mentionOptions.length > 0) {
                   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();

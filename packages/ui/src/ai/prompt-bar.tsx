@@ -13,6 +13,7 @@ import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
 const promptBarVariants = cva(
@@ -142,7 +143,7 @@ const PromptBarField = ({
       if (event.defaultPrevented) {
         return;
       }
-      if (event.key !== "Enter" || event.shiftKey) {
+      if (event.key !== "Enter" || event.shiftKey || isImeComposing(event)) {
         return;
       }
       if ((value ?? "").trim().length === 0) {

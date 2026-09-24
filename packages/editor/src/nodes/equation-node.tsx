@@ -7,6 +7,7 @@ import { PlateElement, useEditorRef, useElement, useReadOnly, useSelected } from
 import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
@@ -68,6 +69,9 @@ const EquationEditor = ({
           write(e.target.value);
         }}
         onKeyDown={(e) => {
+          if (isImeComposing(e)) {
+            return;
+          }
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             onClose();

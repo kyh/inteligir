@@ -8,6 +8,7 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -160,6 +161,9 @@ const ThreadCard = ({
             setDraft(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               sendReply();

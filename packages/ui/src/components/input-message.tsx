@@ -12,6 +12,7 @@ import type {
 } from "react";
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
@@ -190,7 +191,7 @@ const InputMessage = ({
 
   const handleKeyDown = useCallback(
     (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.nativeEvent.isComposing) {
+      if (isImeComposing(e)) {
         return;
       }
       if (e.key === "Enter" && !e.shiftKey) {

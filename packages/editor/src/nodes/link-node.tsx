@@ -5,6 +5,7 @@ import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/rea
 import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
@@ -112,6 +113,9 @@ export const LinkElement = (props: PlateElementProps) => {
                   setDraft(e.target.value);
                 }}
                 onKeyDown={(e) => {
+                  if (isImeComposing(e)) {
+                    return;
+                  }
                   if (e.key === "Enter") {
                     e.preventDefault();
                     applyDraft();

@@ -3,6 +3,7 @@ import type { KeyboardEvent } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
@@ -132,6 +133,9 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
   );
 
   const onTitleKeyDown = (e: KeyboardEvent<HTMLHeadingElement>) => {
+    if (isImeComposing(e)) {
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       toBodyRef.current = true;

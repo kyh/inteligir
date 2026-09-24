@@ -25,6 +25,7 @@ import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
@@ -359,6 +360,9 @@ const OpenFindBar = () => {
             setFindQuery(editor, event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (onEscape(event)) {
               return;
             }
@@ -401,6 +405,9 @@ const OpenFindBar = () => {
               setReplaceText(editor, event.target.value);
             }}
             onKeyDown={(event) => {
+              if (isImeComposing(event)) {
+                return;
+              }
               if (onEscape(event)) {
                 return;
               }

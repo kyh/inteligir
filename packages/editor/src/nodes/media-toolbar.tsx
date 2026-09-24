@@ -3,6 +3,7 @@ import { CheckIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 
 import { stringProp } from "@repo/editor/node-props";
@@ -67,6 +68,9 @@ export const MediaToolbar = () => {
             placeholder="https://…"
             className="h-6 w-56 rounded-md border border-border bg-background px-2 text-xs outline-none"
             onKeyDown={(e) => {
+              if (isImeComposing(e)) {
+                return;
+              }
               if (e.key === "Enter") {
                 commitUrl();
               }

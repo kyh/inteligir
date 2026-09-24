@@ -12,6 +12,7 @@ import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { toast } from "@repo/ui/components/sonner";
 import {
@@ -368,6 +369,9 @@ const ActionDetail = ({
             setText(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               submit();

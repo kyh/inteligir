@@ -34,6 +34,7 @@ import { animate, useReducedMotion } from "framer-motion";
 import { SearchIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
@@ -367,9 +368,7 @@ const CommandInput = ({
     if (event.defaultPrevented) {
       return;
     }
-    // Keys inside an IME composition belong to the composer: Enter commits a candidate and the
-    // arrows pick one. Safari reports the commit as keyCode 229 after compositionend.
-    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+    if (isImeComposing(event)) {
       return;
     }
     // Home and End are the caret's own once anything is typed.

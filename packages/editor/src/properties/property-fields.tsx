@@ -7,6 +7,7 @@ import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 const FIELD_CLASS =
   "h-7 border-transparent bg-transparent px-1.5 text-sm shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
@@ -31,6 +32,9 @@ const useBuffer = (value: string, commit: (next: string) => void) => {
       setLocal(e.target.value);
     },
     onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
+      if (isImeComposing(e)) {
+        return;
+      }
       if (e.key === "Enter") {
         e.preventDefault();
         e.currentTarget.blur();
@@ -144,6 +148,9 @@ export const TagsField = ({
         }}
         onBlur={commitTag}
         onKeyDown={(e) => {
+          if (isImeComposing(e)) {
+            return;
+          }
           if (e.key === "Enter" || e.key === ",") {
             e.preventDefault();
             commitTag();

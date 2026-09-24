@@ -14,6 +14,7 @@ import type {
   TypedProperty,
 } from "@repo/notes/markdown/frontmatter";
 import { Input } from "@repo/ui/components/input";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { subscribeLiveEditors } from "@repo/editor/live-editor";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
@@ -144,6 +145,9 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
     reset();
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(e)) {
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       submit();

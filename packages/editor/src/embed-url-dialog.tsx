@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 
@@ -70,6 +71,9 @@ export const EmbedUrlDialogHost = () => {
             }}
             placeholder="https://…"
             onKeyDown={(e) => {
+              if (isImeComposing(e)) {
+                return;
+              }
               if (e.key === "Enter") {
                 submit();
               }

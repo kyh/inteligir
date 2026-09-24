@@ -115,3 +115,27 @@ describe("a focus from the note", () => {
     expect(scrolled).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("an Enter in a reply", () => {
+  it("commits an IME candidate rather than sending the half-composed reply", async () => {
+    const booted = await bootTestApp();
+    routeRendererFetch(booted);
+    await booted.client.vault.write({ content: "# Plan\n", path: "plan.md" });
+    await booted.client.comments.add({ id: "c1", path: "plan.md", text: "Ship it?" });
+
+    mountTab("plan.md");
+    const field = await screen.findByLabelText("Reply to comment");
+    fireEvent.change(field, { target: { value: "日本" } });
+    fireEvent.keyDown(field, { isComposing: true, key: "Enter" });
+    fireEvent.change(field, { target: { value: "日本語" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(field).toHaveProperty("value", "");
+    });
+    const { threads } = await booted.client.comments.list({ path: "plan.md" });
+    expect(threads.flatMap((thread) => thread.replies.map((row) => row.entry.text))).toEqual([
+      "日本語",
+    ]);
+  });
+});
