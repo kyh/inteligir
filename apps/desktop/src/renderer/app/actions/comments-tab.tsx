@@ -1,4 +1,4 @@
-import { scrollToCommentMarker } from "@repo/editor/comments/comment-kit";
+import { ADD_COMMENT_SHORTCUT, scrollToCommentMarker } from "@repo/editor/comments/comment-kit";
 import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
@@ -7,6 +7,8 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+import { spellHotkey } from "@repo/ui/lib/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -207,9 +209,11 @@ const ThreadCard = ({
 export const CommentsTab = ({
   docPath,
   focus,
+  modifier,
 }: {
   docPath: string | null;
   focus: CommentFocus | null;
+  modifier: ShortcutModifier;
 }) => {
   const queryClient = useQueryClient();
   const query = useNoteComments(docPath);
@@ -251,7 +255,8 @@ export const CommentsTab = ({
     <div className="min-h-0 flex-1 overflow-y-auto p-2">
       {open.length === 0 && resolved.length === 0 ? (
         <p className="p-1 text-subtitle text-muted-foreground">
-          No comments yet. Select text and press ⌘⇧A.
+          No comments yet. Select text and press{" "}
+          {spellHotkey(ADD_COMMENT_SHORTCUT.hotkey, modifier)}.
         </p>
       ) : null}
       {open.map((thread) => (

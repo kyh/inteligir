@@ -3,6 +3,7 @@ import path from "node:path";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp } from "inteligir/server/testing";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommentsTab } from "../comments-tab";
@@ -17,10 +18,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const mountTab = (docPath: string): void => {
+const mountTab = (docPath: string, modifier: ShortcutModifier = "meta"): void => {
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
-      <CommentsTab docPath={docPath} focus={null} />
+      <CommentsTab docPath={docPath} focus={null} modifier={modifier} />
     </QueryClientProvider>,
   );
 };
@@ -40,13 +41,13 @@ describe("the comments tab under a refused read", () => {
     expect(screen.getByText(/note\.md\.comments\.json/u)).toBeTruthy();
   });
 
-  it("still tells a settled empty apart from a failure", async () => {
+  it("still tells a settled empty apart from a failure, spelling the chord for the keyboard", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
 
-    mountTab("note.md");
+    mountTab("note.md", "ctrl");
     await waitFor(() => {
-      expect(screen.getByText(/No comments yet/u)).toBeTruthy();
+      expect(screen.getByText("No comments yet. Select text and press Ctrl+Shift+A.")).toBeTruthy();
     });
     expect(screen.queryByText("The comments could not be read.")).toBeNull();
   });
@@ -61,7 +62,7 @@ describe("the comments tab over the live bus", () => {
 
     render(
       <WorkspaceProvider>
-        <CommentsTab docPath="note.md" focus={null} />
+        <CommentsTab docPath="note.md" focus={null} modifier="meta" />
       </WorkspaceProvider>,
     );
     await waitFor(() => {
@@ -97,7 +98,7 @@ describe("a focus from the note", () => {
     const queryClient = createWorkspaceQueryClient();
     const tabFocusedOn = (focus: CommentFocus) => (
       <QueryClientProvider client={queryClient}>
-        <CommentsTab docPath="plan.md" focus={focus} />
+        <CommentsTab docPath="plan.md" focus={focus} modifier="meta" />
       </QueryClientProvider>
     );
     const view = render(tabFocusedOn({ ids: ["c1"], nonce: 1 }));

@@ -27,9 +27,6 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-// bare keys: ⌘[ / ⌘] are the browser's history shortcuts
-const SIDEBAR_KEYBOARD_SHORTCUT = "[";
-const SIDEBAR_KEYBOARD_SHORTCUT_RIGHT = "]";
 // exported: every persisted width preference clamps to these
 export const SIDEBAR_MIN_WIDTH = 192;
 export const SIDEBAR_MAX_WIDTH = 360;
@@ -49,6 +46,7 @@ interface SidebarContextValue {
   toggleSidebar: () => void;
   width: string;
   setWidth: (width: string) => void;
+  commitWidth: (px: number) => void;
   widthMobile: string;
   mobileBreakpoint: number;
   side: SidebarSide;
@@ -60,10 +58,6 @@ interface SidebarContextValue {
   isResizing: boolean;
   setIsResizing: React.Dispatch<React.SetStateAction<boolean>>;
 }
-
-// the toggle listener is global (the key works without focus in the sidebar), so only one
-// provider may answer: the innermost containing focus, else the outermost mounted one
-const mountedProviders: HTMLElement[] = [];
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
@@ -96,7 +90,11 @@ interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  // the chord that toggles this sidebar, spelled for the keyboard in use, for the rail's tooltip
+  // alone: the app's own key table owns the binding, so no provider listens for a key
   shortcut?: string | null;
+  // once per resize, when the drag ends or collapses the sidebar, never per frame
+  onWidthCommitted?: (px: number) => void;
   mobileBreakpoint?: number;
   peek?: "hover" | "click" | "none";
   width?: string;
@@ -107,7 +105,8 @@ const SidebarProvider = ({
   defaultOpen = true,
   open: openProp,
   onOpenChange,
-  shortcut: shortcutProp,
+  shortcut = null,
+  onWidthCommitted,
   mobileBreakpoint = 768,
   peek = "none",
   width: widthProp = SIDEBAR_WIDTH,
@@ -121,21 +120,6 @@ const SidebarProvider = ({
   const isMobile = useIsMobile(mobileBreakpoint);
   const [openMobile, setOpenMobile] = useState(false);
   const [side, setSide] = useState<SidebarSide>("left");
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) {
-      return;
-    }
-    mountedProviders.push(el);
-    return () => {
-      const i = mountedProviders.indexOf(el);
-      if (i !== -1) {
-        mountedProviders.splice(i, 1);
-      }
-    };
-  }, []);
   const registerSide = useCallback((next: SidebarSide) => {
     setSide(next);
   }, []);
@@ -147,10 +131,12 @@ const SidebarProvider = ({
     setWidth(widthProp);
   }
   const [isResizing, setIsResizing] = useState(false);
-
-  const defaultShortcut =
-    side === "right" ? SIDEBAR_KEYBOARD_SHORTCUT_RIGHT : SIDEBAR_KEYBOARD_SHORTCUT;
-  const shortcut = shortcutProp === undefined ? defaultShortcut : shortcutProp;
+  const commitWidth = useCallback(
+    (px: number) => {
+      onWidthCommitted?.(px);
+    },
+    [onWidthCommitted],
+  );
 
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = openProp ?? internalOpen;
@@ -180,63 +166,9 @@ const SidebarProvider = ({
     setIsPeeking(false);
   }
 
-  useEffect(() => {
-    if (shortcut === null) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== shortcut.toLowerCase()) {
-        return;
-      }
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-      const { target } = event;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.tagName === "SELECT" ||
-        target.isContentEditable
-      ) {
-        return;
-      }
-      // providers nest, so containment alone is not enough: the innermost containing focus wins
-      const root = wrapperRef.current;
-      if (!root) {
-        return;
-      }
-      if (root.contains(target)) {
-        if (
-          mountedProviders.some((el) => el !== root && root.contains(el) && el.contains(target))
-        ) {
-          return;
-        }
-      } else {
-        if (mountedProviders.some((el) => el !== root && el.contains(target))) {
-          return;
-        }
-        // focus outside every provider: the outermost answers; mount order is unreliable
-        const outermost = mountedProviders.find(
-          (el) => !mountedProviders.some((other) => other !== el && other.contains(el)),
-        );
-        if (outermost !== root) {
-          return;
-        }
-      }
-      event.preventDefault();
-      toggleSidebar();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [shortcut, toggleSidebar]);
-
   const value = useMemo<SidebarContextValue>(
     () => ({
+      commitWidth,
       isMobile,
       isPeeking,
       isResizing,
@@ -264,6 +196,7 @@ const SidebarProvider = ({
       isMobile,
       toggleSidebar,
       width,
+      commitWidth,
       widthMobile,
       mobileBreakpoint,
       side,
@@ -278,7 +211,7 @@ const SidebarProvider = ({
   return (
     <SidebarContext.Provider value={value}>
       <div
-        ref={composeRefs(wrapperRef, ref)}
+        ref={ref}
         data-slot="sidebar-wrapper"
         className={cn("group/sidebar-wrapper relative flex min-h-svh w-full", className)}
         style={cssVars({
@@ -316,13 +249,6 @@ const ShortcutKbd = ({ children }: { children: ReactNode }) => (
   </kbd>
 );
 
-const useShortcutKey = (): string => {
-  const { side, shortcut } = useSidebar();
-  return (
-    shortcut ?? (side === "right" ? SIDEBAR_KEYBOARD_SHORTCUT_RIGHT : SIDEBAR_KEYBOARD_SHORTCUT)
-  );
-};
-
 type SidebarRailProps = HTMLAttributes<HTMLButtonElement>;
 
 const SidebarRail = ({
@@ -330,10 +256,15 @@ const SidebarRail = ({
   ref,
   ...props
 }: SidebarRailProps & RefAttributes<HTMLButtonElement>) => {
-  const { toggleSidebar, setOpen, setWidth, side, setIsResizing } = useSidebar();
-  const shortcutKey = useShortcutKey();
+  const { toggleSidebar, setOpen, setWidth, commitWidth, side, setIsResizing, shortcut } =
+    useSidebar();
   const railRef = useRef<HTMLButtonElement | null>(null);
-  const dragRef = useRef<{ startX: number; startWidth: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startWidth: number;
+    width: number;
+    moved: boolean;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -342,7 +273,12 @@ const SidebarRail = ({
     if (!panel) {
       return;
     }
-    dragRef.current = { moved: false, startWidth: panel.offsetWidth, startX: event.clientX };
+    dragRef.current = {
+      moved: false,
+      startWidth: panel.offsetWidth,
+      startX: event.clientX,
+      width: panel.offsetWidth,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -368,10 +304,12 @@ const SidebarRail = ({
       setDragging(false);
       setIsResizing(false);
       setWidth(`${SIDEBAR_MIN_WIDTH}px`);
+      commitWidth(SIDEBAR_MIN_WIDTH);
       setOpen(false);
       return;
     }
     const next = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, raw));
+    drag.width = next;
     setWidth(`${next}px`);
   };
 
@@ -381,7 +319,12 @@ const SidebarRail = ({
     event.currentTarget.releasePointerCapture(event.pointerId);
     setDragging(false);
     setIsResizing(false);
-    if (drag && !drag.moved) {
+    if (!drag) {
+      return;
+    }
+    if (drag.moved) {
+      commitWidth(drag.width);
+    } else {
       toggleSidebar();
     }
   };
@@ -403,7 +346,7 @@ const SidebarRail = ({
             <span className="[text-box:trim-both_cap_alphabetic]">
               <span style={semibold}>Click</span> to collapse
             </span>
-            <ShortcutKbd>{shortcutKey}</ShortcutKbd>
+            {shortcut === null ? null : <ShortcutKbd>{shortcut}</ShortcutKbd>}
           </span>
         </span>
       }

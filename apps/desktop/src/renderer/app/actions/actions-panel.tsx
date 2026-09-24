@@ -12,6 +12,7 @@ import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { toast } from "@repo/ui/components/sonner";
 import {
   ArchiveIcon,
@@ -39,6 +40,7 @@ import { HistoryTab } from "./history-tab";
 import { TimelineRowView } from "./timeline-rows";
 import { usePinnedPaths } from "../vault-hooks";
 import { useWorkspace } from "../workspace-context";
+import { bindingFor } from "../global-shortcuts";
 
 export type PanelTab = "actions" | "comments" | "history" | "metadata";
 
@@ -59,6 +61,8 @@ interface NoteMetadataActions {
 
 export interface ActionsPanelProps {
   docPath: string | null;
+  // the keyboard the workspace listens with, so the empty states spell its chords
+  modifier: ShortcutModifier;
   tab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
   commentFocus: CommentFocus | null;
@@ -336,6 +340,7 @@ export const ActionsPanel = ({
   onSelectThread,
   onOpenDoc,
   noteMetadata,
+  modifier,
 }: ActionsPanelProps) => {
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const threadsQuery = useThreads();
@@ -365,7 +370,7 @@ export const ActionsPanel = ({
         </TabsList>
       </div>
       <TabsContent value="comments">
-        <CommentsTab docPath={docPath} focus={commentFocus} />
+        <CommentsTab docPath={docPath} focus={commentFocus} modifier={modifier} />
       </TabsContent>
       <TabsContent value="history">
         <HistoryTab key={docPath} docPath={docPath} />
@@ -408,7 +413,8 @@ export const ActionsPanel = ({
             ) : null}
             {threads.length === 0 ? (
               <p className="p-3 text-subtitle text-muted-foreground">
-                No actions yet. Press ⌘K to ask the agent.
+                No actions yet. Press {bindingFor("open-action-composer", modifier)} to ask the
+                agent.
               </p>
             ) : null}
           </div>

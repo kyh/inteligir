@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { shortcutCaps } from "@repo/ui/components/command";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
-import { spellHotkey } from "@repo/editor/hotkey-spelling";
+import { hotkeyCaps } from "@repo/ui/lib/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../../global-shortcuts";
 import type {
@@ -65,12 +65,10 @@ const renderPalette = ({ fakes, note, ...overrides }: RenderOverrides = {}) => {
 const rows = () => within(screen.getByRole("listbox"));
 
 // A chord draws one box per key, so it is read off the row's own caps rather than as one string.
-const chords = (): string[] =>
-  [...screen.getByRole("listbox").querySelectorAll("[data-slot='command-shortcut']")].map(
-    (kbd) => kbd.textContent ?? "",
+const chords = (): string[][] =>
+  [...screen.getByRole("listbox").querySelectorAll("[data-slot='command-shortcut']")].map((kbd) =>
+    [...kbd.children].map((cap) => cap.textContent ?? ""),
   );
-
-const caps = (chord: string): string => shortcutCaps(chord).join("");
 
 const OUTLINE = [
   { depth: 1, id: "0", path: [0], title: "Plan" },
@@ -765,11 +763,16 @@ describe("the keyboard shortcuts page", () => {
     expect(screen.getByPlaceholderText("Filter shortcuts…")).toBeDefined();
     for (const row of GLOBAL_SHORTCUTS) {
       expect(rows().getByText(row.label)).toBeDefined();
-      expect(chords()).toContain(caps(spellHotkey(globalShortcutHotkey(row), "meta")));
+      expect(chords()).toContainEqual(hotkeyCaps(globalShortcutHotkey(row), "meta"));
     }
-    for (const row of [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS]) {
+    for (const row of [
+      ...MARK_SHORTCUTS,
+      ...EDITOR_SHORTCUTS,
+      ...FIND_BAR_SHORTCUTS,
+      ...COMMENT_SHORTCUTS,
+    ]) {
       expect(rows().getByText(row.label)).toBeDefined();
-      expect(chords()).toContain(caps(spellHotkey(row.hotkey, "meta")));
+      expect(chords()).toContainEqual(hotkeyCaps(row.hotkey, "meta"));
     }
   });
 
@@ -787,11 +790,11 @@ describe("the keyboard shortcuts page", () => {
 describe("a command's binding", () => {
   it("is the global table's row, not a literal", () => {
     renderPalette();
-    expect(chords()).toContain(caps("⌘D"));
-    expect(chords()).toContain(caps("⌘,"));
+    expect(chords()).toContainEqual(["⌘", "D"]);
+    expect(chords()).toContainEqual(["⌘", ","]);
     cleanup();
     renderPalette({ modifier: "ctrl" });
-    expect(chords()).toContain(caps("Ctrl+D"));
-    expect(chords()).toContain(caps("Ctrl+,"));
+    expect(chords()).toContainEqual(["Ctrl", "D"]);
+    expect(chords()).toContainEqual(["Ctrl", ","]);
   });
 });

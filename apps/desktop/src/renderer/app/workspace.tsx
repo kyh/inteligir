@@ -21,7 +21,7 @@ import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
 import { NoteFooter } from "./note-footer";
 import { useThreads } from "./actions/thread-hooks";
-import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorColumn } from "@repo/editor/editor-column";
@@ -47,7 +47,7 @@ import { CommandPalette } from "./palette/command-palette";
 import type { PaletteEntry, PaletteRequest } from "./palette/command-palette";
 import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
-import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
+import { Sidebar, SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
 import { useTreeOps } from "./sidebar/tree-ops";
 import { useNavigate } from "@tanstack/react-router";
@@ -114,19 +114,6 @@ const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Pro
   if (outcome.kind === "refused") {
     toast.error(outcome.message);
   }
-};
-
-// inside a provider: the rail's and the panel's each carry one, writing their own pref
-const SidebarWidthPersistence = ({ write }: { write: (px: number) => void }) => {
-  const { width } = useSidebar();
-  useEffect(() => {
-    // oxlint-disable-next-line unicorn/prefer-number-coercion -- the width carries its CSS unit; Number("256px") is NaN
-    const px = Number.parseInt(width, 10);
-    if (Number.isFinite(px)) {
-      write(px);
-    }
-  }, [width, write]);
-  return null;
 };
 
 export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
@@ -271,6 +258,22 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   }, []);
 
   const [railOpen, setRailOpen] = useState(true);
+  // a provider's own toggle and the table's key both land here: showing either side leaves zen
+  const showRail = useCallback((show: boolean): void => {
+    if (show) {
+      setZen(false);
+    }
+    setRailOpen(show);
+  }, []);
+  const showPanel = useCallback(
+    (show: boolean): void => {
+      if (show) {
+        setZen(false);
+      }
+      setPanelOpenPersisted(show);
+    },
+    [setPanelOpenPersisted],
+  );
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -480,6 +483,14 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         setZen((current) => !current);
         break;
       }
+      case "toggle-rail": {
+        showRail(zen || !railOpen);
+        break;
+      }
+      case "toggle-panel": {
+        showPanel(zen || !panelOpen);
+        break;
+      }
       default: {
         const exhaustive: never = action;
         return exhaustive;
@@ -590,16 +601,12 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         <SidebarProvider
           className="min-h-0 flex-1 overflow-hidden print:h-auto print:overflow-visible"
           open={railOpen && !zen}
-          onOpenChange={(nextOpen) => {
-            if (nextOpen) {
-              setZen(false);
-            }
-            setRailOpen(nextOpen);
-          }}
+          onOpenChange={showRail}
+          shortcut={bindingFor("toggle-rail", shortcutModifier)}
+          onWidthCommitted={writeSidebarWidth}
           peek="click"
           width={initialSidebarWidth}
         >
-          <SidebarWidthPersistence write={writeSidebarWidth} />
           <Sidebar variant="floating" className="h-full print:hidden">
             <SidebarRailContent
               openPath={openNote}
@@ -625,15 +632,11 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
             <SidebarProvider
               className="min-h-0 h-full flex-1"
               open={panelOpen && !zen}
-              onOpenChange={(nextOpen) => {
-                if (nextOpen) {
-                  setZen(false);
-                }
-                setPanelOpenPersisted(nextOpen);
-              }}
+              onOpenChange={showPanel}
+              shortcut={bindingFor("toggle-panel", shortcutModifier)}
+              onWidthCommitted={writePanelWidth}
               width={initialPanelWidth}
             >
-              <SidebarWidthPersistence write={writePanelWidth} />
               <SidebarInset className="relative bg-surface">
                 {zen ? null : (
                   <NoteTopbar
@@ -696,6 +699,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                   onSelectThread={setPanelThreadId}
                   onOpenDoc={setOpenNote}
                   noteMetadata={noteMetadata}
+                  modifier={shortcutModifier}
                 />
               </Sidebar>
             </SidebarProvider>

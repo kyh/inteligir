@@ -31,10 +31,10 @@ import {
 import type { PlateEditor } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 
 import { useAgentRequestActions } from "@repo/editor/agent-request";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
-import { platformShortcutModifier, spellHotkey } from "@repo/editor/hotkey-spelling";
 import { markShortcut } from "@repo/editor/mark-shortcuts";
 import { Button } from "@repo/ui/components/button";
 import {

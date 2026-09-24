@@ -4,7 +4,8 @@ import type { DecoratedRange, SlateEditor } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
 
-import { matchesHotkey } from "@repo/editor/editor-shortcuts";
+import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
+import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
@@ -17,6 +18,15 @@ import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
 import { findCommentMarker, insertCommentMarkers, removeCommentMarkers } from "./comment-markers";
 import { setPendingCreate, useCommentMeta, useCommentSurface } from "./comment-store";
+
+// exported alone as well: the empty Comments tab says how to make the first one
+export const ADD_COMMENT_SHORTCUT: EditorShortcut<"add-comment"> = {
+  action: "add-comment",
+  hotkey: "mod+shift+a",
+  label: "Comment on the selection",
+};
+
+export const COMMENT_SHORTCUTS: readonly EditorShortcut<"add-comment">[] = [ADD_COMMENT_SHORTCUT];
 
 const rangeClassName = (state: {
   orphan: boolean;
@@ -279,7 +289,7 @@ export const CommentKit = [
   }).extend(() => ({
     handlers: {
       onKeyDown: ({ editor, event }) => {
-        if (!matchesHotkey("mod+shift+a", event)) {
+        if (editorShortcutFor(COMMENT_SHORTCUTS, event)?.action !== "add-comment") {
           return;
         }
         if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) {

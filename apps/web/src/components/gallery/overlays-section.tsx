@@ -238,11 +238,11 @@ export const OverlaysSection = () => {
             <CommandGroup heading="Commands">
               <CommandItem action="New note">
                 New note
-                <CommandShortcut keys="⌘N" />
+                <CommandShortcut caps={["⌘", "N"]} />
               </CommandItem>
               <CommandItem action="Open settings">
                 Open settings
-                <CommandShortcut keys="⌘," />
+                <CommandShortcut caps={["⌘", ","]} />
               </CommandItem>
             </CommandGroup>
           </CommandList>
