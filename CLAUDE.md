@@ -436,6 +436,21 @@ to the END of its group.
   classes collapse to 1ms in `packages/ui/src/styles/globals.css`, so no class
   carries a `motion-reduce:` suffix.
 
+- **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
+  BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and
+  the settle after typing may each walk the whole note only through the passes
+  their rows name, each row with its reason; a keystroke's time is held to how
+  it grows with the note and the settle's to the parse of the same note, ratios
+  so a slow runner cannot fail them. A pass is found, never declared: a block
+  near the note's end records the stack of every read of it, so a new pass fails
+  named by the function that ran it, where instrumenting the known passes would
+  miss the one nobody instrumented. A pass a keystroke cannot afford caches by
+  top-level block, since an edit replaces the blocks it touched and keeps every
+  other by identity (`packages/editor/src/toc.tsx`,
+  `packages/editor/src/note-stats.ts`,
+  `packages/editor/src/comments/comment-ranges.ts`).
+  `packages/editor/src/__tests__/typing-budget.test.tsx`.
+
 ### Vault: writes, git and containment
 
 - **THE AUTO-COMMIT IS SESSION-SHAPED (15s quiet / 60s max) AND STAGES WHAT THE
@@ -1618,9 +1633,9 @@ to the END of its group.
   that provokes one on purpose silences it with its own spy. The booted suites
   are not gated: the server they boot logs every refused call by design.
 
-- **A PARSER COST WE CANNOT WAIT OUT UPSTREAM IS A pnpm PATCH, AND A TEST FAILS
-  WITHOUT IT.** micromark merges a paragraph's text with one splice per line,
-  and GFM's email autolink splits it at every word, so one long paragraph
+- **A DEPENDENCY'S COST WE CANNOT WAIT OUT UPSTREAM IS A pnpm PATCH, AND A TEST
+  FAILS WITHOUT IT.** micromark merges a paragraph's text with one splice per
+  line, and GFM's email autolink splits it at every word, so one long paragraph
   parsed in time quadratic in its lines. `patches/micromark@4.0.2.patch` is
   upstream's own open fix (micromark/micromark#233), applied through
   `patchedDependencies` in `pnpm-workspace.yaml`; a bump fails the install
@@ -1629,6 +1644,12 @@ to the END of its group.
   `packages/notes/src/__tests__/projection-cost.test.ts` compares a 20k-line
   paragraph's projection with an eighth of it. Residual: a paragraph dense with
   emphasis or inline nodes is still superlinear upstream, and not patched.
+  `patches/@platejs__core@53.3.14.patch` is the second: Plate resolved a
+  throwaway plugin (two deep merges) to answer the type of a key no plugin
+  registers, and the markdown serializer asks that of every mark rule on every
+  text node, four fifths of a long note's save; the patch answers from
+  `editor.plugins`, and `packages/editor/src/__tests__/typing-budget.test.tsx`
+  fails on a save that resolves one.
 
 - **THE SHELL'S GLUE RUNS IN E2E OVER DEVTOOLS, AND ITS BRIDGE IS A GUARD.**
   The shell's policies are pure and unit-tested; what joins them (the protocol

@@ -7,8 +7,10 @@ import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
-import { blockHoldsCommentMarkers, commentSpans } from "./comment-ranges";
+import { blockHoldsCommentMarkers, commentIdsByBlock } from "./comment-ranges";
 import { useCommentMeta, useCommentSurface } from "./comment-store";
+
+const NO_IDS: readonly string[] = [];
 
 // A range spanning blocks draws its dot beside the block it starts in, not the one it ends in.
 // Subscribed rather than read in render: an edit elsewhere can orphan an edge here without
@@ -19,13 +21,7 @@ const CommentGutterBlock = (props: PlateElementProps) => {
   const notePath = useOpenNotePath();
   const { resolvedIds } = useCommentMeta(notePath);
   const ids = useEditorSelector(
-    (editor) => [
-      ...new Set(
-        commentSpans(editor)
-          .filter((span) => span.block === element)
-          .flatMap((span) => span.ids),
-      ),
-    ],
+    (editor) => commentIdsByBlock(editor).get(element) ?? NO_IDS,
     [element],
     { equalityFn: shallow },
   );
@@ -49,7 +45,7 @@ const CommentGutterBlock = (props: PlateElementProps) => {
             event.preventDefault();
           }}
           onClick={() => {
-            actions?.open(ids);
+            actions?.open([...ids]);
           }}
           className="absolute top-[0.35em] -left-6 flex size-4 cursor-pointer items-center justify-center rounded-sm select-none hover:bg-accent print:hidden"
         >

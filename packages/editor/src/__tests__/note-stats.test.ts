@@ -42,6 +42,20 @@ describe("the count beside the outline", () => {
       words: 0,
     });
   });
+
+  it("follows an edit, and a block added above the ones it counted", () => {
+    const editor = editorOver([
+      { children: [{ text: "one two" }], type: "p" },
+      { children: [{ text: "three" }], type: "p" },
+    ]);
+    expect(collectNoteStats(editor)).toEqual({ characters: 12, words: 3 });
+
+    editor.tf.insertText(" four", { at: { offset: 5, path: [1, 0] } });
+    expect(collectNoteStats(editor)).toEqual({ characters: 17, words: 4 });
+
+    editor.tf.insertNodes({ children: [{ text: "zero" }], type: "p" }, { at: [0] });
+    expect(collectNoteStats(editor)).toEqual({ characters: 21, words: 5 });
+  });
 });
 
 describe("reading time", () => {

@@ -106,6 +106,12 @@ src/
   round trip that never settles, or one that would lose a letter or join two
   lines (a rule or serializer bug) — opens Raw, byte-exact, and the gate's
   reason says which (`GateReason` in `markdown/markdown-doc.ts`).
+- **Typing walks a long note only through its budget.**
+  `__tests__/typing-budget.test.tsx` types into a generated 10k-line note
+  (`generateLongNote`) and fails on a whole-note pass no row names, on a
+  keystroke, a caret move or the settle after typing. A pass a keystroke cannot
+  afford caches by top-level block (the outline, the count, the gutter's ids),
+  which an edit replaces while keeping every other by identity.
 - **View state keys by note path.** The workspace holds ONE open-note store
   (an instance, `note/open-note-context.tsx`), and every module holding view
   state — heading folds included — keys by the note's own path: a module

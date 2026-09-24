@@ -1,0 +1,16 @@
+diff --git a/dist/withSlate-CGuPv-qn.js b/dist/withSlate-CGuPv-qn.js
+index 673e337d5119dcf647dc0a6f09828fa97bfe51f2..8775ac3252f26a93e344a57e60b2709aa472c521 100644
+--- a/dist/withSlate-CGuPv-qn.js
++++ b/dist/withSlate-CGuPv-qn.js
+@@ -354,7 +354,10 @@ function getSlatePlugin(editor, p) {
+ }
+ /** Get editor plugin type by key or plugin object. */
+ function getPluginType(editor, key) {
+-	const p = editor.getPlugin({ key });
++	// A key no plugin registers resolves a throwaway plugin (two deep merges) only to answer its
++	// own key, and the markdown serializer asks that of every mark rule on every text node.
++	const p = editor.plugins[key];
++	if (!p) return key ?? "";
+ 	return p.node.type ?? p.key ?? "";
+ }
+ /** Get editor plugin types by key. */
