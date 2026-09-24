@@ -1,5 +1,13 @@
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
+import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+
+// main answers a refusal as a value, so a throw across the bridge is a fault, and Electron
+// wraps its message in words of its own: the row says its own sentence instead
+export const bridgeFailed = (cause: unknown, sentence: string): void => {
+  console.warn("[desktop] the shell did not answer", cause);
+  toast.error(sentence);
+};
 
 // The credential, the connectors and the agent default live in the data dir, and a second
 // vault has one of its own: one sentence, wherever a surface would otherwise look reset.

@@ -30,5 +30,5 @@ export const useDesktopUpdates = store.use;
 
 // each action answers with the state it left behind, adopted like a pushed frame
 export const runUpdateAction = async (action: UpdateAction): Promise<void> => {
-  await store.run(async (updates) => await updates[action]());
+  await store.run(async (updates) => await updates[action.action]());
 };

@@ -1,37 +1,14 @@
 // The bridge carries what the page cannot ask its server: the loopback origin
 // (a browser WebSocket cannot set a header and dials a different origin than
 // the page, so main hands it over and attaches the bearer to the upgrade
-// itself) and the updater, which lives in main because it replaces the app.
-// Everything else rides the protocol handler, so the renderer never holds the
-// token.
+// itself), and what lives in main: the updater, the spell checker, the vault
+// switch and Reveal/Open. Everything else rides the protocol handler, so the
+// renderer never holds the token. Each channel is one row in ipc-contract.ts.
 
-import { z } from "zod";
 import type { PathActionResult } from "./path-action";
 import type { SpellcheckChoice, SpellcheckState } from "./spellcheck-state";
 import type { UpdateState } from "./update-state";
-import type { VaultsState } from "./vaults-state";
-
-export const IPC_CHANNELS = {
-  OPEN_PATH: "desktop:open-path",
-  REVEAL_PATH: "desktop:reveal-path",
-  SOCKET_ORIGIN: "desktop:socket-origin",
-  SPELLCHECK_APPLY: "desktop:spellcheck-apply",
-  SPELLCHECK_GET_STATE: "desktop:spellcheck-get-state",
-  UPDATE_CHECK: "desktop:update-check",
-  UPDATE_DOWNLOAD: "desktop:update-download",
-  UPDATE_GET_STATE: "desktop:update-get-state",
-  UPDATE_INSTALL: "desktop:update-install",
-  UPDATE_STATE: "desktop:update-state",
-  VAULTS_FORGET: "desktop:vaults-forget",
-  VAULTS_GET_STATE: "desktop:vaults-get-state",
-  VAULTS_OPEN: "desktop:vaults-open",
-  VAULTS_PICK: "desktop:vaults-pick",
-} as const;
-
-export const socketOriginSchema = z.url();
-
-// what a page may send across a channel: plain JSON, structured-clone-safe
-export type IpcFrame = string | number | boolean | null | IpcFrame[] | { [key: string]: IpcFrame };
+import type { VaultSwitchAnswer, VaultsState } from "./vaults-state";
 
 // the preload parses every frame against update-state.ts before it reaches the page
 export interface DesktopUpdatesBridge {
@@ -55,11 +32,11 @@ export interface DesktopPathsBridge {
 }
 
 // the vault is the server's, so a switch restarts the child and replaces this window: `pick`
-// and `open` answer the state only when nothing changed (a cancelled picker, a refusal thrown)
+// and `open` answer only when nothing changed (a cancelled picker, a refusal)
 export interface DesktopVaultsBridge {
   getState: () => Promise<VaultsState>;
-  pick: () => Promise<VaultsState>;
-  open: (path: string) => Promise<VaultsState>;
+  pick: () => Promise<VaultSwitchAnswer>;
+  open: (path: string) => Promise<VaultSwitchAnswer>;
   forget: (path: string) => Promise<VaultsState>;
 }
 

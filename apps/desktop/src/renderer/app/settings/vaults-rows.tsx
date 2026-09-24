@@ -48,9 +48,7 @@ export const VaultsRow = () => {
                   disabled={busy !== null || !switchable}
                   className="min-w-0 flex-1 rounded-md px-1.5 py-1 text-left hover:bg-hover disabled:pointer-events-none disabled:opacity-50"
                   onClick={() => {
-                    run("opening", async () => {
-                      await openRecentVault(vault.path);
-                    });
+                    run("opening", async () => await openRecentVault(vault.path));
                   }}
                 >
                   <RecentVaultLabel vault={vault} />
@@ -61,9 +59,7 @@ export const VaultsRow = () => {
                   aria-label={`Forget ${vault.name}`}
                   disabled={busy !== null}
                   onClick={() => {
-                    run("forgetting", async () => {
-                      await forgetRecentVault(vault.path);
-                    });
+                    run("forgetting", async () => await forgetRecentVault(vault.path));
                   }}
                 >
                   <XIcon />

@@ -53,6 +53,20 @@ export const classifyWindowOpen = (url: string): WindowOpenVerdict =>
 // so the shell tracks `input-event` itself; without it a `window.open` loop is a loop of OS browser launches.
 export const USER_ACTIVATION_WINDOW_MS = 3000;
 
+// HTML's activation-triggering inputs: a press, a key, a tap. A pointer passing over the page
+// or a wheel turning is no gesture, and counting one would let a hover open the system browser.
+const ACTIVATION_INPUT_TYPES: ReadonlySet<Electron.InputEvent["type"]> = new Set([
+  "gestureTap",
+  "keyDown",
+  "mouseDown",
+  "pointerDown",
+  "rawKeyDown",
+  "touchEnd",
+]);
+
+export const grantsActivation = (type: Electron.InputEvent["type"]): boolean =>
+  ACTIVATION_INPUT_TYPES.has(type);
+
 export interface ExternalOpenDecision {
   allowed: boolean;
   reason: "allowed" | "not-http" | "no-user-activation";

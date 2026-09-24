@@ -3,8 +3,7 @@
 
 import { useState } from "react";
 import type { DesktopVaultsBridge } from "../../types";
-import type { VaultRef, VaultsState } from "../../vaults-state";
-import { refusalMessage } from "./api";
+import type { VaultRef, VaultSwitchAnswer, VaultsState } from "../../vaults-state";
 import { createBridgeStore } from "./bridge-store";
 
 const adoptInitial = async (
@@ -21,8 +20,10 @@ const adoptInitial = async (
   adopt(state);
 };
 
+const vaultsBridge = (): DesktopVaultsBridge | undefined => window.desktopBridge?.vaults;
+
 const store = createBridgeStore<DesktopVaultsBridge, VaultsState>({
-  bridge: () => window.desktopBridge?.vaults,
+  bridge: vaultsBridge,
   start: (vaults, adopt) => {
     void adoptInitial(vaults, adopt);
   },
@@ -30,18 +31,36 @@ const store = createBridgeStore<DesktopVaultsBridge, VaultsState>({
 
 export const useDesktopVaults = store.use;
 
-// each answers only when nothing moved: a cancelled picker, a forgotten row, or a refusal
-// thrown; a switch replaces the window before any answer could land
-export const pickVault = async (): Promise<void> => {
-  await store.run(async (vaults) => await vaults.pick());
+// main's refusal, in main's words, or null once the answer is adopted
+type VaultRefusal = string | null;
+
+const settleAnswer = async (
+  ask: (vaults: DesktopVaultsBridge) => Promise<VaultSwitchAnswer>,
+): Promise<VaultRefusal> => {
+  const vaults = vaultsBridge();
+  if (vaults === undefined) {
+    return null;
+  }
+  const answer = await ask(vaults);
+  if (!answer.ok) {
+    return answer.reason;
+  }
+  store.adopt(answer.state);
+  return null;
 };
 
-export const openRecentVault = async (path: string): Promise<void> => {
-  await store.run(async (vaults) => await vaults.open(path));
-};
+// each answers only when nothing moved: a cancelled picker, a forgotten row, or a refusal;
+// a switch replaces the window before any answer could land
+export const pickVault = async (): Promise<VaultRefusal> =>
+  await settleAnswer(async (vaults) => await vaults.pick());
 
-export const forgetRecentVault = async (path: string): Promise<void> => {
+export const openRecentVault = async (path: string): Promise<VaultRefusal> =>
+  await settleAnswer(async (vaults) => await vaults.open(path));
+
+// a row is forgotten whatever the list held, so there is nothing to refuse
+export const forgetRecentVault = async (path: string): Promise<null> => {
   await store.run(async (vaults) => await vaults.forget(path));
+  return null;
 };
 
 type VaultSwitchBusy = "picking" | "opening" | "forgetting";
@@ -49,18 +68,23 @@ type VaultSwitchBusy = "picking" | "opening" | "forgetting";
 export interface VaultSwitch {
   busy: VaultSwitchBusy | null;
   // the busy kind is what a surface shows while it waits; a refusal is toasted in main's words
-  run: (kind: VaultSwitchBusy, work: () => Promise<void>) => void;
+  run: (kind: VaultSwitchBusy, work: () => Promise<VaultRefusal>) => void;
 }
 
+// a throw across the bridge is a fault, worded by Electron, so it gets this sentence instead
 const settleSwitch = async (
-  work: () => Promise<void>,
+  work: () => Promise<VaultRefusal>,
   onRefused: (message: string) => void,
   onSettled: () => void,
 ): Promise<void> => {
   try {
-    await work();
+    const refusal = await work();
+    if (refusal !== null) {
+      onRefused(refusal);
+    }
   } catch (error) {
-    onRefused(refusalMessage(error, "Could not open that vault."));
+    console.warn("[vaults] the shell did not answer", error);
+    onRefused("Could not open that vault.");
   } finally {
     onSettled();
   }
