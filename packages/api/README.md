@@ -36,7 +36,8 @@ src/
                        # checked exhaustive: oRPC carries no status on an error,
                        # and a code with no entry would answer 500 silently
     local-routes.ts    # the paths that are NOT procedures: /health, /vault/asset
-                       # (bytes + etag + sandbox csp), /ws and /voice/stream
+                       # (bytes + etag + sandbox csp), /html-frame (the document
+                       # a note's html block runs in), /ws and /voice/stream
     notifications.ts   # the /ws frame grammar: subscribe/unsubscribe in, hello
                        # and `changed` pings out — never a payload
     thread-timeline.ts # the timeline row grammar, and the delta algebra

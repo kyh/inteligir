@@ -1,7 +1,8 @@
 // the paths outside the rpc handler, none of which may acquire a typed client: /health is an
 // unauthenticated supervisor probe, /vault/asset answers bytes with an etag, a 304 and a
-// sandbox csp, and the two sockets carry frames. the connector oauth callback, a browser
-// landing, is spelled by the flow that owns its state.
+// sandbox csp, /html-frame is the document a note's html block runs in under its own sandbox
+// csp, and the two sockets carry frames. the connector oauth callback, a browser landing, is
+// spelled by the flow that owns its state.
 
 import { z } from "zod";
 
@@ -10,6 +11,8 @@ export const RPC_PREFIX = "/rpc";
 export const HEALTH_PATH = "/health";
 
 export const VAULT_ASSET_PATH = "/vault/asset";
+
+export const HTML_FRAME_PATH = "/html-frame";
 
 export const WS_PATH = "/ws";
 

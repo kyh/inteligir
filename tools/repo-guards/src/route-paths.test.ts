@@ -5,6 +5,7 @@
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import {
   HEALTH_PATH,
+  HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   VOICE_STREAM_PATH,
@@ -16,7 +17,7 @@ import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 const NAMESPACES = [
   {
     home: "packages/api/src/local/local-routes.ts",
-    paths: [VOICE_STREAM_PATH, VAULT_ASSET_PATH, HEALTH_PATH, RPC_PREFIX],
+    paths: [VOICE_STREAM_PATH, VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
     use: "the constants in @repo/api/local/routes",
   },
   {

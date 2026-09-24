@@ -57,7 +57,8 @@ export const EmbedUrlDialogHost = () => {
         <DialogHeader>
           <DialogTitle>Embed from URL</DialogTitle>
           <DialogDescription>
-            YouTube video, tweet, PDF, or any page (renders as an iframe).
+            A video, tweet, PDF or page. Notes load nothing remote, so it shows as a card that opens
+            in your browser.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">

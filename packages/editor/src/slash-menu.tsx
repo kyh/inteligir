@@ -337,9 +337,9 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
     group: "Media",
     items: [
       {
-        description: "YouTube, tweet, PDF, or iframe by URL.",
+        description: "A video, tweet, PDF or page by URL, opened in your browser.",
         icon: <FilmIcon />,
-        keywords: ["youtube", "tweet", "twitter", "pdf", "iframe", "embed", "video"],
+        keywords: ["youtube", "tweet", "twitter", "pdf", "embed", "video", "link"],
         label: "Embed",
         onSelect: () => {
           openEmbedUrlDialog();

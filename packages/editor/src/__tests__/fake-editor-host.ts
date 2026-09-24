@@ -29,6 +29,8 @@ export interface FakeEditorHostOptions {
   readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
 }
 
+export const FAKE_HTML_FRAME_URL = "/html-frame-under-test";
+
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
@@ -67,6 +69,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   setEditorHostIo({
     actions,
     getBacklinks: async () => await Promise.resolve([]),
+    htmlFrameUrl: FAKE_HTML_FRAME_URL,
     linkResolver,
     onVaultChanged: () => () => {},
     readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),

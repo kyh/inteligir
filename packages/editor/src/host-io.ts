@@ -77,6 +77,8 @@ export interface EditorHostIo {
     formulas: CollectedFormula[];
   } | null>;
   onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
+  /** Where a note's html block runs: a same-origin document answered under its own sandbox policy, since a srcdoc frame inherits the page's and runs no inline script. */
+  htmlFrameUrl: string;
 }
 
 let installed: EditorHostIo | null = null;

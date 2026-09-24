@@ -1589,10 +1589,25 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   is served by the protocol handler and the server alike. `style-src` keeps
   `'unsafe-inline'`. `connect-src` earns the most: a script that cannot reach a
   third-party origin cannot exfiltrate the vault. `apps/cli/src/server/csp.ts`.
+  NOTHING REMOTE LOADS IN A NOTE: `img-src` and `frame-src` name no remote host,
+  because a remote embed is a beacon on every open, so a remote image, video,
+  tweet, page or PDF draws as a "Remote content, not loaded" card whose Open in
+  browser hands the url to the system browser
+  (`packages/editor/src/nodes/remote-content-card.tsx`); widening the policy is a
+  privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN: a
+  srcdoc frame inherits this one and runs no inline script, so Preview is srcdoc
+  with scripts off and Run navigates to `/html-frame`, a loader both stampers
+  answer under `sandbox allow-scripts; default-src 'none'` and hand the block's
+  bytes by postMessage (`apps/cli/src/server/html-block-frame.ts`). Dropping
+  Run was the rejected alternative: interaction is what the block is for.
+  `pnpm dev` stamps no CSP, so only
+  `tools/e2e/src/scenarios/remote-content-browser.ts`, over the built bundle,
+  sees either regress.
 
 - **THE RENDERER'S ONLY DOOR IS `inteligir://app`.** The protocol handler
-  carries the bundle, `/rpc/*` and `/vault/asset`, attaching the bearer in main,
-  so the page is same-origin with its API, there is no CORS, and the renderer
+  carries the bundle, `/rpc/*` and `/vault/asset`, attaching the bearer in main
+  (and answers `/html-frame` itself, under its own policy), so the page is
+  same-origin with its API, there is no CORS, and the renderer
   never holds the token (which is what keeps `<img src>` working). Websockets
   are the one exception: main attaches the bearer to those upgrades and the
   single preload hands the renderer the loopback origin. BOTH CARRIERS LEND THE

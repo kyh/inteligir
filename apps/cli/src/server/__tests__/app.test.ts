@@ -8,6 +8,7 @@ import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
   healthResponseSchema,
+  HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   VOICE_STREAM_PATH,
@@ -25,6 +26,7 @@ import type { VoiceStreamDownMessage } from "@repo/api/local/voice/voice-schema"
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { BROWSER_SESSION_COOKIE } from "../browser-session";
+import { HTML_FRAME_DOCUMENT } from "../html-block-frame";
 import { closeServer } from "../listen";
 import { authorizationHeader } from "../server-file";
 import { bootTestApp, listenTestApp, TEST_HOST, TEST_SERVER_TOKEN } from "./boot-app";
@@ -225,6 +227,20 @@ describe("the workspace UI this server ships", () => {
 
     const asset = await request("/assets/app-abc123.js");
     expect(asset.headers.get("content-security-policy")).toBeNull();
+  });
+
+  it("answers a note's html frame under its own sandbox policy, to a tab with no session", async () => {
+    const { clientDir } = makeUi();
+    const { bareRequest } = await bootTestApp({ clientDir });
+
+    const frame = await bareRequest(HTML_FRAME_PATH);
+    expect(frame.status).toBe(200);
+    expect(await frame.text()).toBe(HTML_FRAME_DOCUMENT);
+    const policy = frame.headers.get("content-security-policy") ?? "";
+    expect(policy).toContain("sandbox allow-scripts");
+    expect(policy).toContain("default-src 'none'");
+    expect(policy).toContain("script-src 'unsafe-inline'");
+    expect(policy).not.toContain("'self'");
   });
 
   it("refuses traversal out of the client dir", async () => {

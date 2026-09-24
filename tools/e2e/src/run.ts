@@ -21,6 +21,7 @@ import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { extractNoteBrowser } from "./scenarios/extract-note-browser";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
+import { remoteContentBrowser } from "./scenarios/remote-content-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
@@ -52,6 +53,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultSearchBrowser,
   treeOpsBrowser,
   extractNoteBrowser,
+  remoteContentBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--require-browser]

@@ -1,4 +1,4 @@
-// For third-party surfaces that bake the theme into their own DOM (mermaid, react-tweet) and cannot follow CSS variables.
+// For third-party surfaces that bake the theme into their own DOM (mermaid) and cannot follow CSS variables.
 
 import { useEffect, useState } from "react";
 

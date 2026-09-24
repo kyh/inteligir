@@ -17,6 +17,7 @@ import { getEditorHostIo } from "@repo/editor/host-io";
 import { isHttpUrl } from "@repo/editor/lib/wire";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
+import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";
 
 type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
@@ -133,11 +134,14 @@ export const ImageFigure = ({
   const vaultState = useVaultAsset(
     external || linked === null ? null : (linked.path ?? linked.target),
   );
-  const state: VaultState = external ? { kind: "ready", url } : vaultState;
 
   return (
     <figure className="group/image relative m-0 w-full" contentEditable={false}>
-      <ImageBody alt={altText(element)} selected={selected} state={state} url={url} />
+      {external ? (
+        <RemoteContentCard kind="image" selected={selected} url={url} />
+      ) : (
+        <ImageBody alt={altText(element)} selected={selected} state={vaultState} url={url} />
+      )}
     </figure>
   );
 };

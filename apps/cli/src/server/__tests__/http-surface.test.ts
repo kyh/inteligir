@@ -1,5 +1,6 @@
 import {
   HEALTH_PATH,
+  HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   VOICE_STREAM_PATH,
@@ -36,8 +37,12 @@ const DECLARED_ROUTES = new Map<string, string>([
 ]);
 
 // per method: `serveStatic` mounts GET and HEAD separately.
-const DECLARED_BUNDLE_ROUTES = new Map<string, string>(
-  ["GET", "HEAD"].flatMap((method) => [
+const DECLARED_BUNDLE_ROUTES = new Map<string, string>([
+  [
+    key("GET", HTML_FRAME_PATH),
+    "the document a note's html block runs in: public bytes like the shell, under a sandbox policy of its own, since a srcdoc frame inherits the page's `script-src 'self'` and runs no inline script",
+  ],
+  ...["GET", "HEAD"].flatMap((method) => [
     [
       key(method, "/assets/*"),
       "the built bundle's hashed files, the only ones that may be immutable — and a miss must 404 rather than answer the shell, which would hand the module loader HTML",
@@ -47,7 +52,7 @@ const DECLARED_BUNDLE_ROUTES = new Map<string, string>(
       "ONE answer per URL and it is the shell: the router reads the URL client-side, so every deep link is the same document",
     ] as const,
   ]),
-);
+]);
 
 // middleware on every path that answers only to refuse, so it is no surface of its own. its whole
 // claim is that it runs before any route, and hono runs handlers in registration order.

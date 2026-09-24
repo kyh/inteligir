@@ -46,11 +46,12 @@ describe("an image's src, read and resolved as the knowledge index does", () => 
     });
   });
 
-  it("draws an http(s) src as written and asks the host for nothing", async () => {
+  it("loads no http(s) src, which the page's CSP refuses, and asks the host for nothing", async () => {
     const url = "HTTPS://example.com/shot.png";
     const fetched = mountImage("b/c/doc.md", url);
-    const image = await screen.findByRole("img");
-    expect(image.getAttribute("src")).toBe(url);
+    expect(await screen.findByText("Remote content, not loaded")).toBeTruthy();
+    expect(screen.getByText(url)).toBeTruthy();
+    expect(screen.queryByRole("img")).toBeNull();
     expect(fetched).toEqual([]);
   });
 

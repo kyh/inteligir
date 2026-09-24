@@ -17,8 +17,10 @@ src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 The window loads `inteligir://app`, a scheme registered `standard` (so Chromium
 gives it a real origin), `secure`, `supportFetchAPI` and `stream`.
 `src/main/protocol.ts` registers it and `src/main/protocol-handler.ts` (pure,
-unit-tested over a fake fetch) answers everything on it: the built bundle, and
-— proxied to the loopback server — `/rpc/*` and `/vault/asset`.
+unit-tested over a fake fetch) answers everything on it: the built bundle,
+`/html-frame` (the document a note's html block runs in, under its own sandbox
+policy rather than the page's), and — proxied to the loopback server — `/rpc/*`
+and `/vault/asset`.
 
 That shape is what keeps the page same-origin with its own API without putting
 CORS on the loopback server, and **the renderer never holds the device token**:
