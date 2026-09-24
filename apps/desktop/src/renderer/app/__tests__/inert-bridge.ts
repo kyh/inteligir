@@ -39,7 +39,7 @@ export const inertBridge = (): DesktopBridge => ({
   vaults: {
     forget: async () => inertVaults,
     getState: async () => inertVaults,
-    open: async () => inertVaults,
-    pick: async () => inertVaults,
+    open: async () => ({ ok: true, state: inertVaults }),
+    pick: async () => ({ ok: true, state: inertVaults }),
   },
 });

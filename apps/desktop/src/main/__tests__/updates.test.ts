@@ -82,6 +82,7 @@ const harness = (disabledReason: string | null = null) => {
   const updater = fakeUpdater();
   const broadcasts: UpdateState[] = [];
   const log: string[] = [];
+  const installFailures: string[] = [];
   const updates = createUpdates({
     broadcast: (state) => {
       broadcasts.push(state);
@@ -92,6 +93,9 @@ const harness = (disabledReason: string | null = null) => {
       log.push(message);
     },
     now: () => "2026-09-04T10:00:00.000Z",
+    onInstallFailed: (message) => {
+      installFailures.push(message);
+    },
     stopServer: async () => {
       updater.calls.push("stopServer");
       await Promise.resolve();
@@ -108,7 +112,7 @@ const harness = (disabledReason: string | null = null) => {
       updater.handlers.updateDownloaded(updateInfo(version));
     };
   };
-  return { broadcasts, downloadsVersion, findsVersion, log, updater, updates };
+  return { broadcasts, downloadsVersion, findsVersion, installFailures, log, updater, updates };
 };
 
 beforeEach(() => {
@@ -149,18 +153,29 @@ describe("the updater policy", () => {
     const { updater, updates, broadcasts, findsVersion } = harness();
     findsVersion("0.5.0");
     const state = await updates.check("menu");
-    expect(state.status).toBe("available");
-    expect(state.availableVersion).toBe("0.5.0");
+    expect(state).toMatchObject({ status: "available", version: "0.5.0" });
     expect(broadcasts.map((b) => b.status)).toEqual(["checking", "available"]);
 
     updater.checkResult = () => {
       throw new Error("feed unreachable");
     };
     const failed = await updates.check("poll");
-    expect(failed.status).toBe("error");
-    expect(failed.message).toBe("feed unreachable");
     // the version already found is kept, so the next click retries the download
-    expect(failed.availableVersion).toBe("0.5.0");
+    expect(failed).toMatchObject({
+      message: "feed unreachable",
+      retry: { action: "download", version: "0.5.0" },
+      status: "error",
+    });
+  });
+
+  it("a failure with no words still says something", async () => {
+    const { updater, updates } = harness();
+    updater.checkResult = () => {
+      // oxlint-disable-next-line unicorn/error-message -- the updater's own rejection can carry no words; this reproduces it
+      throw new Error("");
+    };
+    const failed = await updates.check("menu");
+    expect(failed).toMatchObject({ message: "The updater gave no reason.", status: "error" });
   });
 
   it("one step at a time: a check during a download is skipped, not queued", async () => {
@@ -176,7 +191,7 @@ describe("the updater policy", () => {
     const checked = await updates.check("poll");
     expect(checked.status).toBe("downloading");
     updater.handlers.downloadProgress(progress(50.7));
-    expect(updates.state().downloadPercent).toBe(50);
+    expect(updates.state()).toMatchObject({ percent: 50, status: "downloading" });
     updater.handlers.updateDownloaded(updateInfo("0.5.0"));
     download.release();
     const downloaded = await downloading;
@@ -206,9 +221,31 @@ describe("the updater policy", () => {
     await updates.download();
     updater.installThrows = new Error("no update downloaded");
     const outcome = await updates.install();
-    expect(outcome.kind).toBe("failed");
-    expect(outcome.kind === "failed" && outcome.state.message).toBe("no update downloaded");
-    expect(updates.state().downloadedVersion).toBe("0.5.0");
+    expect(outcome).toEqual({ kind: "failed", message: "no update downloaded" });
+    expect(updates.state()).toMatchObject({ retry: { action: "install", version: "0.5.0" } });
+  });
+
+  it("an installer that fails after the hand-off reports it once and frees the next step", async () => {
+    const { updater, updates, findsVersion, downloadsVersion, installFailures } = harness();
+    findsVersion("0.5.0");
+    await updates.check("menu");
+    downloadsVersion("0.5.0");
+    await updates.download();
+    const installed = await updates.install();
+    expect(installed.kind).toBe("quitting");
+    // Squirrel installs after quitAndInstall returns, so its refusal is an event nobody awaits
+    updater.handlers.error(new Error("read-only volume"));
+    expect(installFailures).toEqual(["read-only volume"]);
+    expect(updates.state()).toMatchObject({
+      message: "read-only volume",
+      retry: { action: "install", version: "0.5.0" },
+      status: "error",
+    });
+    updater.handlers.error(new Error("a later background error"));
+    expect(installFailures).toHaveLength(1);
+    const calls = updater.calls.length;
+    await updates.check("poll");
+    expect(updater.calls.slice(calls)).toEqual(["check"]);
   });
 
   it("a background error lands as an error only when no step owns it", async () => {

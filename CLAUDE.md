@@ -583,9 +583,12 @@ to the END of its group.
   as a boot would, boots the new child, and opens a new window on the new data
   dir's session partition, since a `BrowserWindow`'s session is fixed at
   creation; a vault revisited in one launch re-registers the app protocol on its
-  old partition. A child that fails to boot puts the previous vault back. The
-  folder is picked in main, so the page never names a path it was not handed;
-  the recent-vaults list is the shell's own `userData`, never a vault's.
+  old partition. Anything that fails once the old child has stopped (the
+  selector write, the re-read, the new child's boot) puts the previous vault
+  back. The folder is picked in main, so the page never names a path it was
+  not handed; the recent-vaults list is the shell's own `userData`, never a
+  vault's, and the File menu and the page offer the same rows from it
+  (`offeredRecentVaults`: not the open vault, not a folder that is gone).
   `inteligir vault open <dir>` writes the same selector under the same plan
   and refusals (`apps/cli/src/server/vault-switch.ts`, the one spelling both
   run), and restarts nothing: the next `serve` is the switch.
@@ -1419,11 +1422,19 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   are off: a check 15s after launch and every 4 minutes, the download and the
   restart each a click, in Settings › About or the app menu. Install stops the
   server child first, so the vault's pending commit flushes before Squirrel
-  swaps the bundle. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS: the loopback
-  origin, the updater, the spell checker, the vault switch and Reveal/Open
-  (`IPC_CHANNELS` in `apps/desktop/src/types.ts`), because no server can
-  answer for any of them; every frame crosses as `unknown` and the page
-  parses it. Still no token in
+  swaps the bundle; Squirrel installs after `quitAndInstall` returns, so its
+  failure arrives as the updater's `error` event, which the install step owns
+  once handed off: the shell says so and quits, the server being down already.
+  The state is a union by status, each carrying only what it knows (an error
+  names the step a click retries), and the policy runs a step only where
+  `updateAction` offers it. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS: the loopback
+  origin, the updater, the spell checker, the vault switch and Reveal/Open,
+  because no server can answer for any of them. Each channel is one row
+  (`apps/desktop/src/ipc-contract.ts`): its name beside its request and answer
+  schemas, typing main's handler and the preload's invoke alike, and every
+  frame is parsed by the side that receives it. A refusal crosses as a value
+  (`{ ok: false, reason }`), never a throw, because Electron rewords a thrown
+  error; a throw is a fault, and the page words it itself. Still no token in
   the renderer. `apps/desktop/src/main/updates.ts` (the policy over an
   injectable port) and `apps/desktop/src/update-state.ts` (the one state).
 

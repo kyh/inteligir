@@ -61,6 +61,14 @@ export const rememberVault = (recent: readonly string[], vaultPath: string): str
 export const forgetVault = (recent: readonly string[], vaultPath: string): string[] =>
   recent.filter((each) => each !== vaultPath);
 
+// what the menu and the page both offer: never the vault already open, and never a folder that
+// is gone (an unmounted drive stays remembered, and is offered again once it is back)
+export const offeredRecentVaults = (
+  recent: readonly string[],
+  current: string | null,
+  exists: (vaultPath: string) => boolean,
+): string[] => recent.filter((vaultPath) => vaultPath !== current && exists(vaultPath));
+
 const recentVaultsFileSchema = z
   .object({ vaults: z.array(z.object({ path: z.string().min(1) }).strict()) })
   .strict();

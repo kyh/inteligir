@@ -157,9 +157,7 @@ const VaultRow = ({ vaultName }: { vaultName: string }) => {
                 key={vault.path}
                 className="h-auto py-1.5"
                 onClick={() => {
-                  run("opening", async () => {
-                    await openRecentVault(vault.path);
-                  });
+                  run("opening", async () => await openRecentVault(vault.path));
                 }}
               >
                 <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />

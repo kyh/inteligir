@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { z } from "zod";
+import type { z } from "zod";
 import path from "node:path";
 import { autoUpdater } from "electron-updater";
 import {
@@ -27,6 +27,7 @@ import {
   classifyPermission,
   classifyWindowOpen,
   decideExternalOpen,
+  grantsActivation,
 } from "./origin-pin";
 import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
 import { createServerProcess } from "./server-process";
@@ -50,6 +51,7 @@ import {
 import type { LiveServer, ServerTarget, ServerVerdict } from "./server-instance";
 import {
   forgetVault,
+  offeredRecentVaults,
   planVaultSwitch,
   readRecentVaults,
   rememberVault,
@@ -60,12 +62,11 @@ import {
 } from "./vaults";
 import { writeManagedVaultDir } from "inteligir/server/config";
 import { authorizationHeader } from "inteligir/server/server-file";
-import { pathActionRequestSchema } from "../path-action";
+import { INVOKE_ROUTES, SOCKET_ORIGIN_CHANNEL, UPDATE_STATE_PUSH } from "../ipc-contract";
+import type { InvokeRoute, PushRoute } from "../ipc-contract";
 import type { PathActionRequest, PathActionResult } from "../path-action";
-import { spellcheckChoiceSchema } from "../spellcheck-state";
-import { IPC_CHANNELS, toErrorMessage } from "../types";
-import { vaultPathSchema } from "../vaults-state";
-import type { VaultsState } from "../vaults-state";
+import { toErrorMessage } from "../types";
+import type { VaultSwitchAnswer, VaultsState } from "../vaults-state";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
 const RECENT_VAULTS_FILE_NAME = "recent-vaults.json";
@@ -272,8 +273,10 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
     width: 1200,
   });
 
-  window.webContents.on("input-event", () => {
-    lastInputAt = Date.now();
+  window.webContents.on("input-event", (_event, input) => {
+    if (grantsActivation(input.type)) {
+      lastInputAt = Date.now();
+    }
   });
 
   window.webContents.setWindowOpenHandler((details) => {
@@ -339,21 +342,21 @@ const fromMainWindow = (event: Electron.IpcMainInvokeEvent): boolean =>
 
 // every page-facing channel refuses a stranger's webContents before it reads a frame, and
 // the frame is parsed here, at the boundary, so a handler only ever sees a value it knows
-const handleFromMainWindow = <TFrame, TAnswer>(
-  channel: string,
-  frameSchema: z.ZodType<TFrame>,
-  handler: (frame: TFrame) => TAnswer | Promise<TAnswer>,
+const handle = <Request extends z.ZodType, Answer extends z.ZodType>(
+  route: InvokeRoute<Request, Answer>,
+  handler: (request: z.output<Request>) => z.input<Answer> | Promise<z.input<Answer>>,
 ): void => {
-  ipcMain.handle(channel, async (event, frame) => {
+  ipcMain.handle(route.channel, async (event, frame) => {
     if (!fromMainWindow(event)) {
       throw new Error("refused");
     }
-    return await handler(frameSchema.parse(frame));
+    return await handler(route.request.parse(frame));
   });
 };
 
-// a channel carrying no frame
-const noFrame = z.undefined();
+const push = <Frame extends z.ZodType>(route: PushRoute<Frame>, frame: z.input<Frame>): void => {
+  mainWindow?.webContents.send(route.channel, frame);
+};
 
 const resolveRequestedEntry = (request: PathActionRequest) =>
   resolveVaultEntry({
@@ -366,45 +369,38 @@ const resolveRequestedEntry = (request: PathActionRequest) =>
 // and hands the OS nothing the vault does not physically contain. registered once per
 // launch: a second `handle` on a channel throws, so the handlers read the current vault
 const configurePathActionsIpc = (): void => {
-  handleFromMainWindow(
-    IPC_CHANNELS.REVEAL_PATH,
-    pathActionRequestSchema,
-    (frame): PathActionResult => {
-      const verdict = resolveRequestedEntry(frame);
-      if (!verdict.ok) {
-        return verdict;
-      }
-      shell.showItemInFolder(verdict.absPath);
-      return { ok: true };
-    },
-  );
-  handleFromMainWindow(
-    IPC_CHANNELS.OPEN_PATH,
-    pathActionRequestSchema,
-    async (frame): Promise<PathActionResult> => {
-      const verdict = resolveRequestedEntry(frame);
-      if (!verdict.ok) {
-        return verdict;
-      }
-      // answers "" when the OS took the file, else its own words for why not
-      const refusal = await shell.openPath(verdict.absPath);
-      return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
-    },
-  );
+  handle(INVOKE_ROUTES.paths.reveal, (request): PathActionResult => {
+    const verdict = resolveRequestedEntry(request);
+    if (!verdict.ok) {
+      return verdict;
+    }
+    shell.showItemInFolder(verdict.absPath);
+    return { ok: true };
+  });
+  handle(INVOKE_ROUTES.paths.open, async (request): Promise<PathActionResult> => {
+    const verdict = resolveRequestedEntry(request);
+    if (!verdict.ok) {
+      return verdict;
+    }
+    // answers "" when the OS took the file, else its own words for why not
+    const refusal = await shell.openPath(verdict.absPath);
+    return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
+  });
 };
 
-// the server is already down when this fails, so the honest move is to say so and quit
+// the server is already down when an install fails, so the honest move is to say so and quit
+const reportInstallFailure = (message: string): void => {
+  dialog.showErrorBox("Update failed", `${message} Reopen Inteligir to continue.`);
+  app.quit();
+};
+
 const installUpdate = async (): Promise<void> => {
   if (updates === null) {
     return;
   }
   const outcome = await updates.install();
   if (outcome.kind === "failed") {
-    dialog.showErrorBox(
-      "Update failed",
-      `${outcome.state.message ?? "The installer refused."} Reopen Inteligir to continue.`,
-    );
-    app.quit();
+    reportInstallFailure(outcome.message);
   }
 };
 
@@ -452,7 +448,7 @@ const checkForUpdatesFromMenu = async (): Promise<void> => {
         buttons: ["Download", "Later"],
         cancelId: 1,
         defaultId: 0,
-        message: `Inteligir ${state.availableVersion ?? ""} is available.`,
+        message: `Inteligir ${state.version} is available.`,
         title: "Update available",
         type: "info",
       });
@@ -460,32 +456,37 @@ const checkForUpdatesFromMenu = async (): Promise<void> => {
         return;
       }
       const downloaded = await updates.download();
-      if (downloaded.status === "downloaded" && downloaded.downloadedVersion !== null) {
-        await askToRestart(downloaded.downloadedVersion);
+      if (downloaded.status === "downloaded") {
+        await askToRestart(downloaded.version);
       } else if (downloaded.status === "error") {
-        dialog.showErrorBox(
-          "Download failed",
-          downloaded.message ?? "The download did not finish.",
-        );
+        dialog.showErrorBox("Download failed", downloaded.message);
       }
       return;
     }
     case "downloaded": {
-      await askToRestart(state.downloadedVersion ?? "");
+      await askToRestart(state.version);
       return;
     }
-    case "disabled":
+    case "disabled": {
+      await dialog.showMessageBox({
+        buttons: ["OK"],
+        message: state.reason,
+        title: "Updates are off",
+        type: "warning",
+      });
+      return;
+    }
     case "error": {
       await dialog.showMessageBox({
         buttons: ["OK"],
-        message: state.message ?? "Could not check for updates.",
-        title: state.status === "disabled" ? "Updates are off" : "Update check failed",
+        message: state.message,
+        title: "Update check failed",
         type: "warning",
       });
       return;
     }
     default: {
-      const exhaustive: never = state.status;
+      const exhaustive: never = state;
       return exhaustive;
     }
   }
@@ -524,25 +525,22 @@ const configureUpdates = (): Updates => {
   };
   const created = createUpdates({
     broadcast: (state) => {
-      mainWindow?.webContents.send(IPC_CHANNELS.UPDATE_STATE, state);
+      push(UPDATE_STATE_PUSH, state);
     },
     currentVersion: app.getVersion(),
     disabledReason: updateFeedDisabledReason(),
     log: logUpdater,
+    onInstallFailed: reportInstallFailure,
     // an adopted server is nobody's to stop and outlives the shell
     stopServer: async () => {
       await serverProcess?.stop();
     },
     updater: electronUpdaterPort(),
   });
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_GET_STATE, noFrame, () => created.state());
-  handleFromMainWindow(
-    IPC_CHANNELS.UPDATE_CHECK,
-    noFrame,
-    async () => await created.check("settings"),
-  );
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_DOWNLOAD, noFrame, async () => await created.download());
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_INSTALL, noFrame, async () => {
+  handle(INVOKE_ROUTES.updates.getState, () => created.state());
+  handle(INVOKE_ROUTES.updates.check, async () => await created.check("settings"));
+  handle(INVOKE_ROUTES.updates.download, async () => await created.download());
+  handle(INVOKE_ROUTES.updates.install, async () => {
     await installUpdate();
     return created.state();
   });
@@ -559,13 +557,8 @@ const requireSpellcheck = (): Spellcheck => {
 // registered once per launch: a second `handle` on a channel throws, so every handler reads
 // the vault of the moment rather than closing over the first one
 const configureSpellcheckIpc = (): void => {
-  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_GET_STATE, noFrame, () =>
-    requireSpellcheck().state(),
-  );
-  // the frame is parsed here, at the boundary: the page's choice reaches the session typed or not at all
-  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_APPLY, spellcheckChoiceSchema, (frame) =>
-    requireSpellcheck().apply(frame),
-  );
+  handle(INVOKE_ROUTES.spellcheck.getState, () => requireSpellcheck().state());
+  handle(INVOKE_ROUTES.spellcheck.apply, (choice) => requireSpellcheck().apply(choice));
 };
 
 const vaultsState = (): VaultsState => {
@@ -574,10 +567,7 @@ const vaultsState = (): VaultsState => {
   return {
     blocked: blocked === null ? null : switchRefusalMessage(blocked),
     current: vaultRef(target.vaultDir),
-    // a folder that is gone (an unmounted drive) stays remembered and stays off the list
-    recent: recentVaults
-      .filter((vaultDir) => vaultDir !== target.vaultDir && existsSync(vaultDir))
-      .map(vaultRef),
+    recent: offeredRecentVaults(recentVaults, target.vaultDir, existsSync).map(vaultRef),
   };
 };
 
@@ -613,35 +603,43 @@ const bootVault = async (target: ServerTarget): Promise<void> => {
   mainWindow = createWindow(target);
 };
 
-const switchVault = async (vaultDir: string): Promise<void> => {
+// a refusal is decided before anything moves and answered as a value; a throw is a fault
+type VaultSwitchOutcome = { ok: true } | { ok: false; reason: string };
+
+const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
   const previous = requireTarget();
   const plan = planVaultSwitch({ current: previous, ownsServer: serverProcess !== null }, vaultDir);
   if (plan.kind === "refused") {
-    throw new Error(switchRefusalMessage(plan.reason));
+    return { ok: false, reason: switchRefusalMessage(plan.reason) };
   }
   // resolved and refused exactly as a boot would, before anything moves
   const candidate = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged, vaultDir });
   if (candidate.kind === "refused") {
-    throw new Error(candidate.error);
+    return { ok: false, reason: candidate.error };
   }
   if (switching) {
-    throw new Error("Another vault is already opening.");
+    return { ok: false, reason: "Another vault is already opening." };
   }
   switching = true;
   const previousWindow = mainWindow;
   try {
     await stopOwnedServer();
-    writeManagedVaultDir(previous.rootDataDir, candidate.target.vaultDir);
-    // re-read rather than reused: the child boots on what config.json now says, as the CLI would
-    const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
-    if (next.kind === "refused") {
-      throw new Error(next.error);
-    }
+    // from here the old child is gone, so any throw must put the previous vault back
+    let selectorWritten = false;
     try {
+      writeManagedVaultDir(previous.rootDataDir, candidate.target.vaultDir);
+      selectorWritten = true;
+      // re-read rather than reused: the child boots on what config.json now says, as the CLI would
+      const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
+      if (next.kind === "refused") {
+        throw new Error(next.error);
+      }
       await bootVault(next.target);
     } catch (error) {
       console.error("[desktop] the vault did not open; returning to the previous one", error);
-      writeManagedVaultDir(previous.rootDataDir, previous.vaultDir);
+      if (selectorWritten) {
+        writeManagedVaultDir(previous.rootDataDir, previous.vaultDir);
+      }
       await stopOwnedServer();
       try {
         await bootVault(previous);
@@ -662,6 +660,7 @@ const switchVault = async (vaultDir: string): Promise<void> => {
     switching = false;
   }
   previousWindow?.close();
+  return { ok: true };
 };
 
 // the folder is the user's pick, made in main: the page never names a path it was not handed
@@ -683,10 +682,14 @@ const pickVaultDir = async (): Promise<string | null> => {
 };
 
 const switchVaultFromMenu = async (vaultDir: string): Promise<void> => {
+  let outcome: VaultSwitchOutcome;
   try {
-    await switchVault(vaultDir);
+    outcome = await switchVault(vaultDir);
   } catch (error) {
-    dialog.showErrorBox("Could not open the vault", toErrorMessage(error));
+    outcome = { ok: false, reason: toErrorMessage(error) };
+  }
+  if (!outcome.ok) {
+    dialog.showErrorBox("Could not open the vault", outcome.reason);
   }
 };
 
@@ -709,40 +712,41 @@ const pickAndSwitchFromMenu = async (): Promise<void> => {
   }
 };
 
+const answerSwitch = (outcome: VaultSwitchOutcome): VaultSwitchAnswer =>
+  outcome.ok ? { ok: true, state: vaultsState() } : outcome;
+
 const configureVaultsIpc = (): void => {
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_GET_STATE, noFrame, () => vaultsState());
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_PICK, noFrame, async () => {
+  handle(INVOKE_ROUTES.vaults.getState, () => vaultsState());
+  handle(INVOKE_ROUTES.vaults.pick, async () => {
     const picked = await pickVaultDir();
-    if (picked !== null) {
-      await switchVault(picked);
-    }
-    return vaultsState();
+    return answerSwitch(picked === null ? { ok: true } : await switchVault(picked));
   });
   // only a path this process handed out comes back: the list is the page's whole vocabulary
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_OPEN, vaultPathSchema, async (vaultDir) => {
+  handle(INVOKE_ROUTES.vaults.open, async (vaultDir): Promise<VaultSwitchAnswer> => {
     if (!recentVaults.includes(vaultDir)) {
-      throw new Error("That vault is not one the app remembers.");
+      return { ok: false, reason: "That vault is not one the app remembers." };
     }
-    await switchVault(vaultDir);
-    return vaultsState();
+    return answerSwitch(await switchVault(vaultDir));
   });
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_FORGET, vaultPathSchema, (frame) => {
-    setRecentVaults(forgetVault(recentVaults, frame));
+  handle(INVOKE_ROUTES.vaults.forget, (vaultDir) => {
+    setRecentVaults(forgetVault(recentVaults, vaultDir));
     return vaultsState();
   });
 };
 
 const configureApplicationMenu = (): void => {
   const current = currentTarget?.vaultDir ?? null;
-  const recentItems: MenuItemConstructorOptions[] = recentVaults
-    .filter((vaultDir) => vaultDir !== current)
-    .map((vaultDir) => ({
-      click: () => {
-        void switchVaultFromMenu(vaultDir);
-      },
-      label: vaultRef(vaultDir).name,
-      sublabel: vaultDir,
-    }));
+  const recentItems: MenuItemConstructorOptions[] = offeredRecentVaults(
+    recentVaults,
+    current,
+    existsSync,
+  ).map((vaultDir) => ({
+    click: () => {
+      void switchVaultFromMenu(vaultDir);
+    },
+    label: vaultRef(vaultDir).name,
+    sublabel: vaultDir,
+  }));
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -859,7 +863,7 @@ const onAppReady = async (target: ServerTarget): Promise<void> => {
   recentVaults = readRecentVaults(recentVaultsPath, (message) => {
     console.warn(`[desktop] ${message}`);
   });
-  ipcMain.on(IPC_CHANNELS.SOCKET_ORIGIN, (event) => {
+  ipcMain.on(SOCKET_ORIGIN_CHANNEL, (event) => {
     event.returnValue = live?.origin ?? "";
   });
   configureSpellcheckIpc();

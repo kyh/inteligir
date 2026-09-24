@@ -7,6 +7,7 @@ import {
   classifyPermission,
   classifyWindowOpen,
   decideExternalOpen,
+  grantsActivation,
   isHttpUrl,
   isSameOriginNavigation,
   USER_ACTIVATION_WINDOW_MS,
@@ -162,6 +163,22 @@ describe("decideExternalOpen", () => {
       "not-http",
     );
   });
+});
+
+describe("grantsActivation", () => {
+  it.each(["mouseDown", "keyDown", "rawKeyDown", "pointerDown", "touchEnd", "gestureTap"] as const)(
+    "%s is a gesture",
+    (type) => {
+      expect(grantsActivation(type)).toBe(true);
+    },
+  );
+
+  it.each(["mouseMove", "mouseWheel", "mouseEnter", "pointerMove", "keyUp", "mouseUp"] as const)(
+    "%s is not: a pointer passing over the page opens nothing",
+    (type) => {
+      expect(grantsActivation(type)).toBe(false);
+    },
+  );
 });
 
 describe("classifyPermission", () => {

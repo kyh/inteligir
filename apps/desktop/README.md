@@ -64,7 +64,9 @@ Two more, on the window's session:
   window loads.
 - **A page-initiated URL reaches the system browser only with a recent user
   gesture.** Electron exposes no activation flag on `setWindowOpenHandler` or
-  `will-navigate`, so the shell measures it from `webContents`'s `input-event`;
+  `will-navigate`, so the shell measures it from `webContents`'s `input-event`,
+  counting only HTML's activation-triggering inputs (a press, a key, a tap —
+  `grantsActivation`), never a pointer passing over the page or a wheel;
   without it a script loop calling `window.open` becomes a loop of OS browser
   launches. Menu and tray items bypass the gate — the click IS the gesture.
 
@@ -230,12 +232,15 @@ after launch and every 4 minutes, and the download and the restart are each a
 button — in Settings › About, or the app menu's Check for Updates… with native
 dialogs. Install stops the server child first (the same SIGTERM + grace as
 quit, so the vault's pending commit flushes), then hands Squirrel a silent
-forced relaunch. One step at a time: a poll during a download is skipped, not
-queued. An unpackaged build, or one with no `app-update.yml`, reports itself
-disabled with the reason instead of checking a feed it does not have. The state
-is one plain value (`src/update-state.ts`) reduced in main and parsed off the
-bridge by the page; the policy is unit-tested against a fake updater
-(`src/main/__tests__/updates.test.ts`).
+forced relaunch. Squirrel installs after that call returns, so a failure there
+reaches the shell only as the updater's `error` event: the install step owns
+it, and the shell says so and quits, since the server is already down. One
+step at a time: a poll during a download is skipped, not queued. An unpackaged
+build, or one with no `app-update.yml`, reports itself disabled with the reason
+instead of checking a feed it does not have. The state is one plain value
+(`src/update-state.ts`), a union by status in which each status carries only
+what it knows, reduced in main and parsed off the bridge by the page; the
+policy is unit-tested against a fake updater (`src/main/__tests__/updates.test.ts`).
 
 ## What is deliberately not here
 
@@ -247,4 +252,6 @@ bridge by the page; the policy is unit-tested against a fake updater
   `WebSocket` cannot be proxied; the updater, the spell checker and the vault
   switch, because each lives in main; and Reveal/Open of a vault entry,
   because only main may hand the OS a path. Every other question the page
-  has, it asks its own server over `/rpc`.
+  has, it asks its own server over `/rpc`. Each channel is one row in
+  `src/ipc-contract.ts`, its name beside its request and answer schemas, and a
+  refusal crosses as a value rather than a throw, which Electron would reword.

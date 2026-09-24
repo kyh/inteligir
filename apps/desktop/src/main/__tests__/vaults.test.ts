@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { ServerTarget } from "../server-instance";
 import {
   forgetVault,
+  offeredRecentVaults,
   planVaultSwitch,
   readRecentVaults,
   RECENT_VAULTS_LIMIT,
@@ -93,6 +94,15 @@ describe("the remembered list", () => {
     expect(again[0]).toBe("/v/5");
     expect(again.filter((each) => each === "/v/5")).toHaveLength(1);
     expect(forgetVault(again, "/v/5")).not.toContain("/v/5");
+  });
+
+  it("offers neither the vault already open nor a folder that is gone, and keeps the order", () => {
+    const present = new Set(["/v/a", "/v/open", "/v/c"]);
+    const exists = (vaultPath: string): boolean => present.has(vaultPath);
+    const recent = ["/v/open", "/v/a", "/v/unmounted", "/v/c"];
+    expect(offeredRecentVaults(recent, "/v/open", exists)).toEqual(["/v/a", "/v/c"]);
+    // before the first boot there is no vault open to leave out
+    expect(offeredRecentVaults(recent, null, exists)).toEqual(["/v/open", "/v/a", "/v/c"]);
   });
 
   it("round-trips through its file and starts over on bytes that are not a list", () => {
