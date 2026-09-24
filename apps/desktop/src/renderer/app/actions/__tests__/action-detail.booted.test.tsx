@@ -36,6 +36,7 @@ const mountDetail = (threadId: string): void => {
         onSelectThread={noop}
         onOpenDoc={noop}
         noteMetadata={{ deleteNote: noop, openDeletedNotes: noop, setPinned: noop }}
+        modifier="meta"
       />
     </WorkspaceProvider>,
   );
@@ -58,7 +59,10 @@ describe("the action detail's transcript", () => {
     await harness.client.threads.send({ text: "first", threadId: thread.id });
 
     mountDetail(thread.id);
-    await screen.findByText("first");
+    // the server names the thread from its first message, so the header reads it as well
+    await waitFor(() => {
+      expect(screen.getAllByText("first")).toHaveLength(2);
+    });
     const field = screen.getByLabelText("Reply to the agent");
     fireEvent.change(field, { target: { value: "for later" } });
     fireEvent.keyDown(field, { key: "Enter" });
