@@ -202,20 +202,11 @@ export const parseDeletionLog = (stdout: string): DeletionRecord[] => {
   return records;
 };
 
-// docs no longer on disk, newest deletion first, one entry per path. two sources: the log's
-// deletions, and `ls-files --deleted` for the ones the session-shaped auto-commit has not
-// flushed, whose bytes HEAD still holds. a path back on disk is left out whichever source
-// named it — the entry would restore over the user's own re-creation.
-export const readDeletedNotes = async (
-  run: RunGitCommand,
-  exists: (path: string) => boolean,
-): Promise<VaultDeletedEntry[]> => {
-  const { stdout: headStdout } = await run(["rev-parse", "HEAD"]);
-  const head = headStdout.trim();
-  const { stdout: deletedStdout } = await run(["ls-files", "-z", "--deleted"]);
-  const unflushed = deletedStdout.split("\0").filter((path) => path.length > 0);
-  // -c diff.renames=true: a rename is a note that still exists, and a user's global config may
-  // turn detection off and report it as a deletion plus an addition.
+// -c diff.renames=true: a rename is a note that still exists, and a user's global config may
+// turn detection off and report it as a deletion plus an addition. the walk starts at a named
+// head rather than HEAD, so its records are a function of that sha; "--" keeps a vault file
+// named like it from reading as a path.
+const readDeletionLog = async (run: RunGitCommand, head: string): Promise<DeletionRecord[]> => {
   const { stdout } = await run([
     "-c",
     "diff.renames=true",
@@ -228,12 +219,55 @@ export const readDeletedNotes = async (
     `--format=${DELETION_LOG_FORMAT}`,
     "-n",
     String(VAULT_DELETED_MAX_ENTRIES),
+    head,
+    "--",
   ]);
+  return parseDeletionLog(stdout);
+};
+
+type DeletionLog = (head: string) => Promise<readonly DeletionRecord[]>;
+
+// the walk grows with the vault's age, and every files-changed frame re-asks while the Deleted
+// view is open, mostly at a head that has not moved. the slot holds the promise so a burst of
+// reads shares one git child; a failed walk is dropped so the next read retries it.
+export const cachedDeletionLog = (run: RunGitCommand): DeletionLog => {
+  let slot: { head: string; records: Promise<DeletionRecord[]> } | null = null;
+  return async (head) => {
+    if (slot?.head === head) {
+      return await slot.records;
+    }
+    const walk = { head, records: readDeletionLog(run, head) };
+    slot = walk;
+    try {
+      return await walk.records;
+    } catch (error) {
+      if (slot === walk) {
+        slot = null;
+      }
+      throw error;
+    }
+  };
+};
+
+// docs no longer on disk, newest deletion first, one entry per path. two sources: the log's
+// deletions, and `ls-files --deleted` for the ones the session-shaped auto-commit has not
+// flushed, whose bytes HEAD still holds. a path back on disk is left out whichever source
+// named it — the entry would restore over the user's own re-creation.
+export const readDeletedNotes = async (
+  run: RunGitCommand,
+  deletionLog: DeletionLog,
+  exists: (path: string) => boolean,
+): Promise<VaultDeletedEntry[]> => {
+  const { stdout: headStdout } = await run(["rev-parse", "HEAD"]);
+  const head = headStdout.trim();
+  const { stdout: deletedStdout } = await run(["ls-files", "-z", "--deleted"]);
+  const unflushed = deletedStdout.split("\0").filter((path) => path.length > 0);
+  const records = await deletionLog(head);
 
   const readAt = new Date().toISOString();
   const candidates: VaultDeletedEntry[] = [
     ...unflushed.map((path) => ({ deletedAt: readAt, path, sha: head })),
-    ...parseDeletionLog(stdout).flatMap((record) =>
+    ...records.flatMap((record) =>
       record.paths.map((path) => ({ deletedAt: record.deletedAt, path, sha: record.parent })),
     ),
   ];
