@@ -32,6 +32,8 @@ export const createExpoNoteCache = (): NoteCache => {
 
   let rows: { commit: string; count: number } | null = null;
 
+  let clears = 0;
+
   const rowFile = async (commit: string, path: string): Promise<File> => {
     let leaf = leafByPath.get(path);
     if (leaf === undefined) {
@@ -52,6 +54,7 @@ export const createExpoNoteCache = (): NoteCache => {
     // expo-file-system throws synchronously; the catch keeps that a rejection, which is the only
     // failure the store's best-effort wrapper can swallow.
     clear() {
+      clears += 1;
       try {
         rows = null;
         const root = cacheRoot();
@@ -82,8 +85,12 @@ export const createExpoNoteCache = (): NoteCache => {
     },
 
     async set(note) {
+      const clearsBefore = clears;
       // the hash await first: it keeps the synchronous native calls below off the caller's stack.
       const file = await rowFile(note.commit, note.path);
+      if (clears !== clearsBefore) {
+        return;
+      }
       if (rows?.commit !== note.commit) {
         const dir = file.parentDirectory;
         dir.create({ idempotent: true, intermediates: true });

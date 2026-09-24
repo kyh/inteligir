@@ -16,6 +16,7 @@ import { MarkdownBlocks } from "@/notes/markdown-view";
 import { projectNote } from "@/notes/note-projection";
 import type { NoteProjection } from "@/notes/note-projection";
 import type { VaultAssetSource } from "@repo/api/cloud/client";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 
 const styles = StyleSheet.create({
   body: { paddingBottom: 48, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
@@ -83,9 +84,8 @@ const NoteScreen = () => {
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const [screen, setScreen] = useState<ScreenState>({ state: "loading" });
   const [comments, setComments] = useState<CommentsRead | null>(null);
-  // subscribed, not read once: a deep link can mount this screen before the tree lands,
-  // and the subscription is what re-renders the embeds when it does.
-  useNotesTree();
+  const tree = useNotesTree();
+  const commit = tree.state === "ready" ? tree.commit : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +103,7 @@ const NoteScreen = () => {
       if (!read.ok) {
         return;
       }
-      const threads = await readNoteComments(path);
+      const threads = await readNoteComments(read);
       if (!cancelled) {
         setComments(threads);
       }
@@ -116,7 +116,8 @@ const NoteScreen = () => {
   const onWikiLink = useCallback(
     (target: string) => {
       const resolved = resolveWikiPath(target);
-      if (resolved === null) {
+      // an image or a pdf has no screen here, and read as a note it shows its bytes
+      if (resolved === null || !isDocPath(resolved)) {
         return;
       }
       router.push({ params: { path: resolved.split("/") }, pathname: "/notes/[...path]" });
@@ -124,10 +125,18 @@ const NoteScreen = () => {
     [router],
   );
 
-  const resolveAsset = useCallback((target: string) => {
-    const resolved = resolveWikiPath(target);
-    return resolved === null ? null : assetSource(resolved);
-  }, []);
+  // the commit is read so it is a dependency: a deep link mounts this screen before the tree
+  // lands, and the compiler keeps the body's element until this callback changes.
+  const resolveAsset = useCallback(
+    (target: string) => {
+      if (commit === null) {
+        return null;
+      }
+      const resolved = resolveWikiPath(target);
+      return resolved === null ? null : assetSource(resolved);
+    },
+    [commit],
+  );
 
   const title = screen.state === "ready" ? screen.projection.title : "…";
 

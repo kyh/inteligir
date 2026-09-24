@@ -2,7 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { refreshNotes, useNotesTree } from "@/lib/app-runtime";
 import type { NotesTreeState } from "@/notes/notes-store";
@@ -13,6 +13,7 @@ const styles = StyleSheet.create({
   caption: { fontSize: 13 },
   empty: { alignItems: "center", gap: SPACE.sm, paddingHorizontal: SPACE.xxl, paddingVertical: 96 },
   list: { paddingBottom: 32, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
+  notice: { marginBottom: SPACE.sm },
   pressed: { opacity: 0.7 },
   row: {
     borderRadius: RADIUS.md,
@@ -59,7 +60,11 @@ const NotesScreen = () => {
     setRefreshing(false);
   }, []);
 
-  const docs = tree.state === "ready" ? tree.entries.filter((entry) => isDocPath(entry.path)) : [];
+  const docs =
+    tree.state === "ready"
+      ? tree.entries.filter((entry) => isDocPath(entry.path) && !isVaultMetadataPath(entry.path))
+      : [];
+  const refreshError = tree.state === "ready" ? tree.refreshError : null;
   const emptyText = emptyLabel(tree);
 
   return (
@@ -81,6 +86,13 @@ const NotesScreen = () => {
         }
         data={docs}
         keyExtractor={(entry) => entry.path}
+        ListHeaderComponent={
+          refreshError === null ? null : (
+            <Text style={[styles.caption, styles.notice, { color: theme.mutedForeground }]}>
+              Refresh issue: {refreshError}
+            </Text>
+          )
+        }
         ListEmptyComponent={<Empty text={emptyText} />}
         renderItem={({ item: entry }) => {
           const dir = dirnamePath(entry.path);

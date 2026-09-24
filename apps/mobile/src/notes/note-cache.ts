@@ -10,6 +10,8 @@ export interface CachedNote {
 
 export interface NoteCache {
   get: (commit: string, path: string) => Promise<CachedNote | null>;
+  // a set that started before a clear never lands: a clear ends a sign-in, and the row is that
+  // sign-in's.
   set: (note: CachedNote) => Promise<void>;
   sweep: (keepCommit: string) => Promise<void>;
   clear: () => Promise<void>;

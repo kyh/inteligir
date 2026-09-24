@@ -10,7 +10,7 @@ import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createMemoryNoteCache } from "../note-cache";
 import type { NoteCache } from "../note-cache";
 import { createNotesStore } from "../notes-store";
-import type { SignInSource } from "../notes-store";
+import type { CommentsRead, NotesStore, SignInSource } from "../notes-store";
 
 const COMMIT = "c".repeat(40);
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
@@ -63,6 +63,13 @@ const fakeCloud = (extra: Record<string, string> = {}): FakeCloud => {
     },
     requests,
   };
+};
+
+const nextTask = async (): Promise<void> => {
+  // oxlint-disable-next-line promise/avoid-new -- a macrotask: every settled promise has run by then
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
 };
 
 const refusedAs = (code: string, message: string): Response =>
@@ -118,6 +125,7 @@ describe("the notes store", () => {
         { path: "notes/b.md", size: 4 },
         { path: "notes/deep/c.md", size: 4 },
       ],
+      refreshError: null,
       state: "ready",
     });
     const second = cloud.requests[1] ?? "";
@@ -173,7 +181,81 @@ describe("the notes store", () => {
 
     offline = true;
     await store.refresh();
-    expect(store.tree.get()).toBe(ready);
+    expect(store.tree.get()).toEqual({
+      ...ready,
+      refreshError: "Could not reach the cloud: offline",
+    });
+    expect(store.resolveWiki("b")).toBe("notes/b.md");
+    expect(store.assetSource("media/a.png")).not.toBeNull();
+
+    offline = false;
+    await store.refresh();
+    expect(store.tree.get()).toEqual(ready);
+  });
+
+  it("keeps a ready listing when the vault grows past what the list pages", async () => {
+    const cloud = fakeCloud();
+    let endless = false;
+    const { signIn, store } = notesOver(async (input, init) =>
+      endless && new URL(input).pathname === VAULT_API_PATHS.tree
+        ? Response.json({ commit: COMMIT, entries: [{ path: "a.md", size: 4 }], next: "a.md" })
+        : await cloud.fetch(input, init),
+    );
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+    const ready = store.tree.get();
+
+    endless = true;
+    await store.refresh();
+
+    expect(store.tree.get()).toEqual({
+      ...ready,
+      refreshError: "This vault is too large for the notes list.",
+    });
+  });
+
+  it("is an error only when there is no listing to keep", async () => {
+    const { signIn, store } = notesOver(async () => {
+      throw new Error("offline");
+    });
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+    expect(store.tree.get()).toEqual({
+      message: "Could not reach the cloud: offline",
+      state: "error",
+    });
+  });
+
+  it("a refresh asked while one runs joins it, and resolves once the listing lands", async () => {
+    const releases: (() => void)[] = [];
+    const inner = fakeCloud();
+    const { signIn, store } = notesOver(async (input, init) => {
+      // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the fetch by hand
+      await new Promise<void>((resolve) => {
+        releases.push(resolve);
+      });
+      return await inner.fetch(input, init);
+    });
+    signIn(CREDENTIAL, "restored");
+    const first = store.refresh();
+    let joinedSettled = false;
+    const joined = (async () => {
+      await store.refresh();
+      joinedSettled = true;
+    })();
+
+    await nextTask();
+    expect(joinedSettled).toBe(false);
+    while (store.tree.get().state !== "ready") {
+      releases.shift()?.();
+      await nextTask();
+    }
+    await joined;
+    await first;
+
+    expect(joinedSettled).toBe(true);
+    const treeRequests = inner.requests.filter((line) => line.startsWith(VAULT_API_PATHS.tree));
+    expect(treeRequests).toHaveLength(2);
   });
 
   it("a response from the previous sign-in never lands — the session fence", async () => {
@@ -330,6 +412,7 @@ describe("a worker newer than this build", () => {
     expect(store.tree.get()).toEqual({
       commit: COMMIT,
       entries: [{ path: "a.md", size: 4 }],
+      refreshError: null,
       state: "ready",
     });
     expect(await store.readNote("a.md")).toEqual({
@@ -516,6 +599,15 @@ const signedInStore = async (extra: Record<string, string>) => {
   return { cloud, store };
 };
 
+// the screen's order: the note first, then the comments folded against that read
+const commentsOf = async (store: NotesStore, path: string): Promise<CommentsRead> => {
+  const note = await store.readNote(path);
+  if (!note.ok) {
+    throw new Error(note.message);
+  }
+  return await store.readComments(note);
+};
+
 describe("a note's comments on the phone", () => {
   const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
   const NOTE = `---\nid: ${NOTE_ID}\n---\nThe %%i:c1:start%%plan%%i:c1:end%% holds.\n`;
@@ -524,12 +616,12 @@ describe("a note's comments on the phone", () => {
     "c1-r1": { createdAt: 2, parentId: "c1", source: "agent", text: "It does.", updatedAt: 2 },
   });
 
-  it("folds the store at the note's id against the note's own markers", async () => {
-    const { store } = await signedInStore({
+  it("folds the store at the note's id against the note's own markers, reading the note once", async () => {
+    const { cloud, store } = await signedInStore({
       "notes/d.md": NOTE,
       [`.inteligir/comments/${NOTE_ID}.json`]: STORE,
     });
-    const read = await store.readComments("notes/d.md");
+    const read = await commentsOf(store, "notes/d.md");
     expect(read.ok).toBe(true);
     if (!read.ok) {
       return;
@@ -537,12 +629,25 @@ describe("a note's comments on the phone", () => {
     expect(read.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
     expect(read.threads[0]?.anchored).toBe(true);
     expect(read.threads[0]?.replies.map((reply) => reply.entry.text)).toEqual(["It does."]);
+    const noteReads = cloud.requests.filter(
+      (line) => line.startsWith(VAULT_API_PATHS.file) && line.includes("notes%2Fd.md"),
+    );
+    expect(noteReads).toHaveLength(1);
   });
 
-  it("answers no comments for a note without an id, and for one whose store is absent", async () => {
+  it("answers no comments for a note without an id, and for one the tree holds no store for, without asking", async () => {
     const { store, cloud } = await signedInStore({ "notes/d.md": NOTE });
-    expect(await store.readComments("a.md")).toEqual({ ok: true, threads: [] });
-    expect(await store.readComments("notes/d.md")).toEqual({ ok: true, threads: [] });
+    expect(await commentsOf(store, "a.md")).toEqual({ ok: true, threads: [] });
+    expect(await commentsOf(store, "notes/d.md")).toEqual({ ok: true, threads: [] });
+    const storeRequests = cloud.requests.filter((line) => line.includes(".inteligir"));
+    expect(storeRequests).toEqual([]);
+  });
+
+  it("asks for the store while no tree has landed, and reads a missing one as none", async () => {
+    const cloud = fakeCloud({ "notes/d.md": NOTE });
+    const { signIn, store } = notesOver(cloud.fetch);
+    signIn(CREDENTIAL, "restored");
+    expect(await commentsOf(store, "notes/d.md")).toEqual({ ok: true, threads: [] });
     const storeRequests = cloud.requests.filter((line) => line.includes(".inteligir"));
     expect(storeRequests).toHaveLength(1);
   });
@@ -552,7 +657,7 @@ describe("a note's comments on the phone", () => {
       "notes/d.md": NOTE,
       [`.inteligir/comments/${NOTE_ID}.json`]: "{broken",
     });
-    const read = await store.readComments("notes/d.md");
+    const read = await commentsOf(store, "notes/d.md");
     expect(read.ok).toBe(false);
   });
 });

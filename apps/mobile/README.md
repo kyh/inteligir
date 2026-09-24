@@ -87,7 +87,10 @@ mirroring the desktop's `<dataDir>/device-credential`.
 moves the tree's commit makes old rows unreachable and sweeps them. The TREE
 stays in memory on purpose: the resolver and the commit must be current before
 any read is pinned, so a cold launch re-fetches the listing and then reads
-note bodies from disk. A sign-in, a sign-out and a revocation wipe the rows;
+note bodies from disk. A refresh that fails keeps the listing it has, still
+pinning every read and embed to its commit, and the list says why above it.
+A sign-in, a sign-out and a revocation wipe the rows, and a write that started
+before the wipe never lands;
 the boot RESTORE keeps them — that launch is what the cache exists for. Which
 transition it is comes from the composition root, which knows, rather than
 from comparing bearers inside the store. Image BYTES are the stated residual:
@@ -144,9 +147,10 @@ that is signed in.
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the sync client (pull applies by global seq
   idempotently, and a pass neither pushes a thread event nor claims a capture),
-  the credential codec, the sign-in store, the notes store, the capture
-  sender, and the composition's restore, sign-out, revocation and resume — all
-  against faked storage / fetch. Unit tests, no device.
+  the credential codec, the sign-in store, the notes store, the note cache's
+  clear fence (the expo adapter over stand-ins for its two native modules), the
+  capture sender, and the composition's restore, sign-out, revocation and
+  resume — all against faked storage / fetch. Unit tests, no device.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
   actually booting, the held splash and the route guard's redirects, the
   expo-secure-store Keychain round trip, the AppState resume, and a live
