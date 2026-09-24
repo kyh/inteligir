@@ -208,9 +208,10 @@ packages/
                  header on each file and its licence text in tools/licenses.
                  A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fifteen
                  components no surface draws on yet, kept by owner decision
-                 and listed one by one in the PER-EXPORT orphan guard
-                 (`tools/repo-guards/src/ui-orphan-exports.test.ts`), so a
-                 sixteenth still fails. Leaf.
+                 and listed one by one in `AWAITING_CONSUMER`
+                 (`tools/repo-guards/src/ui-package.ts`), which the PER-EXPORT
+                 orphan guard (`tools/repo-guards/src/ui-orphan-exports.test.ts`)
+                 reads, so a sixteenth still fails. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws
@@ -385,8 +386,11 @@ to the END of its group.
   default step would read the map instead. A sized control's text,
   `useSize().text`, is the body role: `text-body` at compact, the map's
   default number as a literal otherwise, pinned by the same test. THE NOTE IS NOT CHROME: the
-  editor's prose keeps the appearance dials below, and `@repo/ui/src/ai`
-  keeps its own sizes until a surface draws it.
+  editor's prose keeps the appearance dials below. The `@repo/ui/src/ai` files
+  a surface draws speak the roles too (owner decision); a file held in
+  `AWAITING_CONSUMER` keeps its own sizes until one does, and
+  `tools/repo-guards/src/ui-type-roles.test.ts` refuses a `text-[Npx]` literal
+  anywhere else in `@repo/ui`'s component roots.
 
 - **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
   The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`
@@ -2084,7 +2088,7 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   (`tools/repo-guards`), route-table completeness
   (`apps/cli/src/server/__tests__/http-surface.test.ts`), migration↔schema
   agreement (`packages/db/src/__tests__/schema-agreement.test.ts`), the
-  per-export orphan guard over `@repo/ui`, the CLI guide and its `--json` flags,
+  per-export orphan guard and the type-role guard over `@repo/ui`, the CLI guide and its `--json` flags,
   the editor's buffer invariant. If coverage is ever added, `coverage.include`
   is mandatory in Vitest 4, and gate only `@repo/notes`.
 

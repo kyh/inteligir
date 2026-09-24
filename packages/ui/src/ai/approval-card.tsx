@@ -3,6 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode, RefAttributes } from "react";
+import { ArrowUpIcon, CheckIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -131,21 +132,9 @@ const ApprovalCard = ({
         className={cn("flex w-full items-center gap-3 animate-in fade-in zoom-in-95", className)}
         {...props}
       >
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-inset py-1 pr-2.5 pl-1 text-[12.5px] font-medium text-ink">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-inset py-1 pr-2.5 pl-1 text-body font-medium text-ink">
           <span className="flex size-4.5 items-center justify-center rounded-full bg-ink text-background">
-            <svg
-              aria-hidden
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
+            <CheckIcon size={11} strokeWidth={3} />
           </span>
           {sentLabel}
         </span>
@@ -229,10 +218,8 @@ const ApprovalQuestion = ({
       >
         <div className="flex items-start justify-between gap-3">
           <span className="flex min-w-0 flex-col gap-1">
-            <span className="text-[13px] font-medium text-ink">{prompt}</span>
-            {detail === undefined ? null : (
-              <span className="text-[12.5px] text-ink-2">{detail}</span>
-            )}
+            <span className="text-subtitle font-medium text-ink">{prompt}</span>
+            {detail === undefined ? null : <span className="text-body text-ink-2">{detail}</span>}
           </span>
           {action}
         </div>
@@ -243,7 +230,8 @@ const ApprovalQuestion = ({
 };
 ApprovalQuestion.displayName = "ApprovalQuestion";
 
-interface ApprovalOptionProps extends HTMLAttributes<HTMLButtonElement> {
+// onClick is omitted: a forwarded one would replace the pick while aria-pressed still promised it
+interface ApprovalOptionProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onClick"> {
   optionId: string;
 }
 
@@ -290,23 +278,14 @@ const ApprovalOption = ({
             )}
           />
         ) : (
-          <svg
-            aria-hidden
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
+          <CheckIcon size={12} strokeWidth={3} />
         )}
       </span>
       <span
-        className={cn("text-[13px] transition-colors duration-200", on ? "text-ink" : "text-ink-2")}
+        className={cn(
+          "text-subtitle transition-colors duration-200",
+          on ? "text-ink" : "text-ink-2",
+        )}
       >
         {children}
       </span>
@@ -339,7 +318,7 @@ const ApprovalCustomAnswer = ({
         aria-label="Custom answer"
         data-slot="approval-custom-answer"
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3",
+          "min-w-0 flex-1 bg-transparent text-subtitle text-ink outline-none placeholder:text-ink-3",
           className,
         )}
         {...props}
@@ -376,19 +355,7 @@ const ApprovalActions = ({
           hasAnswer ? "bg-ink text-background" : "bg-muted text-ink-3",
         )}
       >
-        <svg
-          aria-hidden
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 19V5M5 12l7-7 7 7" />
-        </svg>
+        <ArrowUpIcon size={14} strokeWidth={2.5} />
       </button>
     </div>
   );

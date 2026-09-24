@@ -41,7 +41,7 @@ const HarnessRow = ({ probe }: { probe: HarnessProbe }) => {
       <span
         className={
           readiness === "ready"
-            ? "shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-body text-emerald-600"
+            ? "shrink-0 rounded-full bg-success/15 px-2 py-0.5 text-body text-success"
             : "shrink-0 rounded-full bg-muted px-2 py-0.5 text-body text-muted-foreground"
         }
       >

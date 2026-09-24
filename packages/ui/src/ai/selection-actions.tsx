@@ -2,6 +2,7 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
+import { ChevronRightIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -52,22 +53,7 @@ const SelectionAction = ({
   >
     {icon}
     {children}
-    {hasMenu ? (
-      <svg
-        aria-hidden
-        width="10"
-        height="10"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-ink-3"
-      >
-        <path d="M9 6l6 6-6 6" />
-      </svg>
-    ) : null}
+    {hasMenu ? <ChevronRightIcon size={10} strokeWidth={2.5} className="text-ink-3" /> : null}
   </button>
 );
 SelectionAction.displayName = "SelectionAction";

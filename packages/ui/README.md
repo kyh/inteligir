@@ -40,6 +40,9 @@ components.json  shadcn config: base-rhea, zinc, the @fluid registry
 - `MotionPolicy` is mounted once at each app root; nothing else configures
   reduced motion for framer.
 - `popover` keeps `anchor` passthrough.
+- "Added" and "done" draw the `success` / `success-foreground` tokens
+  (`styles/globals.css`), never a raw hue: each mode's `--success` reads as
+  text on a 15% tint of itself.
 - `command` keeps `initialFocus` and never filters (each palette page filters
   its own rows); title and description stay inside `DialogContent`.
 - `SidebarProvider` listens for no key: the app's own shortcut table owns the

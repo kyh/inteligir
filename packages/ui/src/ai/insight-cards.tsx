@@ -4,7 +4,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { HTMLAttributes, PointerEvent, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
-import type { VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -68,7 +67,7 @@ const insightDeltaVariants = cva("text-[12px] font-medium tabular-nums", {
     direction: {
       down: "text-destructive",
       flat: "text-ink-3",
-      up: "text-emerald-600 dark:text-emerald-400",
+      up: "text-success",
     },
   },
 });
@@ -126,7 +125,24 @@ const pathFor = (points: readonly number[], width: number, height: number, pad: 
     .join(" ");
 };
 
-export interface InsightChartProps extends Omit<HTMLAttributes<HTMLDivElement>, "onScrub"> {
+interface SeriesStyle {
+  stroke: string;
+  dash: string | undefined;
+}
+
+// the chart's lines and the legend's swatches read one spelling, so a swatch cannot drift from its line
+const PRIMARY_SERIES: SeriesStyle = { dash: undefined, stroke: "var(--ink)" };
+const COMPARED_SERIES: SeriesStyle = { dash: "4 3", stroke: "var(--ink-3)" };
+
+const seriesStyle = (index: number): SeriesStyle =>
+  index === 0 ? PRIMARY_SERIES : COMPARED_SERIES;
+
+// the pointer handlers are the scrub: a forwarded one would replace it, so the caller observes
+// through onScrub
+export interface InsightChartProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  "onPointerMove" | "onPointerDown" | "onPointerLeave" | "onPointerUp"
+> {
   series: readonly InsightSeries[];
   height?: number;
   onScrub?: (index: number | null) => void;
@@ -198,8 +214,8 @@ const InsightChart = ({
             strokeWidth={2.25}
             strokeLinecap="round"
             strokeLinejoin="round"
-            stroke={index === 0 ? "var(--ink)" : "var(--ink-3)"}
-            strokeDasharray={index === 0 ? undefined : "4 3"}
+            stroke={seriesStyle(index).stroke}
+            strokeDasharray={seriesStyle(index).dash}
           />
         ))}
       </svg>
@@ -268,8 +284,7 @@ const InsightChartTooltipRow = ({
 );
 InsightChartTooltipRow.displayName = "InsightChartTooltipRow";
 
-export interface InsightChartLegendItemProps
-  extends HTMLAttributes<HTMLSpanElement>, VariantProps<typeof insightDeltaVariants> {
+export interface InsightChartLegendItemProps extends HTMLAttributes<HTMLSpanElement> {
   index?: number;
 }
 
@@ -286,11 +301,18 @@ const InsightChartLegendItem = ({
     className={cn("flex items-center gap-1.5 text-[11.5px] text-ink-3", className)}
     {...props}
   >
-    <span
-      aria-hidden
-      className={cn("h-0.5 w-3 rounded-full", index === 0 ? "bg-ink" : "bg-ink-3")}
-      style={index === 0 ? undefined : { backgroundImage: "none", opacity: 0.7 }}
-    />
+    <svg aria-hidden width="12" height="2" className="shrink-0 overflow-visible">
+      <line
+        x1="1"
+        y1="1"
+        x2="11"
+        y2="1"
+        strokeWidth={2}
+        strokeLinecap="round"
+        stroke={seriesStyle(index).stroke}
+        strokeDasharray={seriesStyle(index).dash}
+      />
+    </svg>
     {children}
   </span>
 );

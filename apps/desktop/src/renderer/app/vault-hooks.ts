@@ -104,7 +104,7 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
       return "bg-muted-foreground/40";
     }
     case "clean": {
-      return "bg-emerald-500";
+      return "bg-success";
     }
     case "dirty": {
       return "bg-amber-500";

@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { ComponentProps, ReactNode, RefAttributes } from "react";
 import { Menu } from "@base-ui/react/menu";
+import { CheckIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
@@ -288,21 +289,11 @@ const DropdownMenuSeparator = ({
 
 DropdownMenuSeparator.displayName = "DropdownMenuSeparator";
 
-interface DropdownMenuItemProps extends ComponentProps<"div"> {
-  disabled?: boolean | undefined;
-  variant?: "default" | "destructive" | undefined;
-  closeOnClick?: boolean | undefined;
-}
+type MenuRowVariant = "default" | "destructive";
 
-const DropdownMenuItem = ({
-  className,
-  variant = "default",
-  disabled = false,
-  closeOnClick,
-  children,
-  ref,
-  ...props
-}: DropdownMenuItemProps) => {
+// every row registers with the popup, whichever Base UI part renders it: the popup alone orders
+// the rows the proximity pill lights
+const useMenuRow = (variant: MenuRowVariant, disabled: boolean) => {
   // state, not a ref: `isActive` compares it while rendering, and a ref read there is not reactive
   const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
   const { registerRow, highlight } = useDropdownItems();
@@ -317,30 +308,87 @@ const DropdownMenuItem = ({
 
   const isActive = useHighlighted(highlight, (active) => rowEl !== null && active === rowEl);
   const activeTone = isActive ? "text-foreground" : "text-muted-foreground";
+  const className = cn(
+    `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
+    sizeClasses.text,
+    "transition-colors duration-80",
+    variant === "destructive" ? "text-destructive" : activeTone,
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    disabled && "opacity-50 pointer-events-none",
+  );
+  return { className, setRowEl };
+};
 
+interface DropdownMenuItemProps extends ComponentProps<"div"> {
+  disabled?: boolean | undefined;
+  variant?: MenuRowVariant | undefined;
+  closeOnClick?: boolean | undefined;
+}
+
+const DropdownMenuItem = ({
+  className,
+  variant = "default",
+  disabled = false,
+  closeOnClick,
+  children,
+  ref,
+  ...props
+}: DropdownMenuItemProps) => {
+  const row = useMenuRow(variant, disabled);
   return (
     <Menu.Item
       disabled={disabled}
       closeOnClick={closeOnClick ?? true}
       render={
         <div
-          ref={composeRefs(setRowEl, ref)}
+          ref={composeRefs(row.setRowEl, ref)}
           data-dropdown-menu-item=""
-          className={cn(
-            `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
-            sizeClasses.text,
-            "transition-colors duration-80",
-            variant === "destructive" ? "text-destructive" : activeTone,
-            "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-            disabled && "opacity-50 pointer-events-none",
-            className,
-          )}
+          className={cn(row.className, className)}
           {...props}
         />
       }
     >
       {children}
     </Menu.Item>
+  );
+};
+
+interface DropdownMenuRadioItemProps extends ComponentProps<"div"> {
+  value: string;
+  disabled?: boolean | undefined;
+  closeOnClick?: boolean | undefined;
+}
+
+// the pick closes the menu like any other row's action; Base UI's radio default keeps it open
+const DropdownMenuRadioItem = ({
+  className,
+  value,
+  disabled = false,
+  closeOnClick,
+  children,
+  ref,
+  ...props
+}: DropdownMenuRadioItemProps) => {
+  const row = useMenuRow("default", disabled);
+  return (
+    <Menu.RadioItem
+      value={value}
+      disabled={disabled}
+      closeOnClick={closeOnClick ?? true}
+      render={
+        <div
+          ref={composeRefs(row.setRowEl, ref)}
+          data-dropdown-menu-item=""
+          className={cn(row.className, className)}
+          {...props}
+        />
+      }
+    >
+      {children}
+      <Menu.RadioItemIndicator className="ml-auto flex">
+        <CheckIcon />
+      </Menu.RadioItemIndicator>
+    </Menu.RadioItem>
   );
 };
 
@@ -354,12 +402,29 @@ const DropdownMenuGroup = ({ className, ...props }: DropdownMenuGroupProps) => (
   <Menu.Group className={cn("contents", className)} {...props} />
 );
 
+interface DropdownMenuRadioGroupProps extends Omit<
+  ComponentProps<typeof Menu.RadioGroup>,
+  "className" | "value" | "defaultValue" | "onValueChange"
+> {
+  className?: string | undefined;
+  value: string;
+  onValueChange: (value: string) => void;
+}
+
+// display: contents for the same reason as DropdownMenuGroup; every value Base UI hands back is a
+// DropdownMenuRadioItem's, which is a string
+const DropdownMenuRadioGroup = ({ className, ...props }: DropdownMenuRadioGroupProps) => (
+  <Menu.RadioGroup className={cn("contents", className)} {...props} />
+);
+
 export {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioItem,
   DropdownMenuGroup,
+  DropdownMenuRadioGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 };

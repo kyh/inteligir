@@ -28,8 +28,8 @@ import {
   SelectionResultHeader,
 } from "@repo/ui/ai/selection-actions";
 import {
-  SidebarGroup,
   SidebarNavFooter,
+  SidebarNavGroup,
   SidebarNavItem,
   SidebarRail,
   SidebarWorkspace,
@@ -129,8 +129,10 @@ export const EditingSection = () => {
               </InsightCardMetric>
               <InsightChart series={SERIES} height={72} />
               <div className="flex gap-3 px-3 pb-3">
-                {SERIES.map((line) => (
-                  <InsightChartLegendItem key={line.id}>{line.label}</InsightChartLegendItem>
+                {SERIES.map((line, index) => (
+                  <InsightChartLegendItem key={line.id} index={index}>
+                    {line.label}
+                  </InsightChartLegendItem>
                 ))}
               </div>
             </InsightCard>
@@ -147,24 +149,24 @@ export const EditingSection = () => {
       <Demo
         name="SidebarRail · SidebarNavItem"
         purpose="A compact navigation rail — the collapsed shape a workspace switcher takes."
-        note="Shown expanded and collapsed; `collapsed` is the caller's state, not the rail's."
+        note="Shown expanded and collapsed; `collapsed` is the caller's state, handed to the rail alone."
       >
         <SidebarRail className="w-52">
           <SidebarWorkspace monogram="I">inteligir</SidebarWorkspace>
-          <SidebarGroup label="Vault">
+          <SidebarNavGroup label="Vault">
             <SidebarNavItem active count={14}>
               All notes
             </SidebarNavItem>
             <SidebarNavItem count={1}>Trash</SidebarNavItem>
-          </SidebarGroup>
+          </SidebarNavGroup>
           <SidebarNavFooter>Local only</SidebarNavFooter>
         </SidebarRail>
         <SidebarRail collapsed className="w-14">
-          <SidebarWorkspace monogram="I" collapsed />
-          <SidebarGroup collapsed>
-            <SidebarNavItem active collapsed />
-            <SidebarNavItem collapsed />
-          </SidebarGroup>
+          <SidebarWorkspace monogram="I" />
+          <SidebarNavGroup label="Vault">
+            <SidebarNavItem active>All notes</SidebarNavItem>
+            <SidebarNavItem>Trash</SidebarNavItem>
+          </SidebarNavGroup>
         </SidebarRail>
       </Demo>
     </GallerySection>

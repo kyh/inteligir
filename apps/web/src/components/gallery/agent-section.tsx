@@ -52,6 +52,7 @@ const ANSWER_TEXT =
 
 export const AgentSection = () => {
   const [decision, setDecision] = useState<string | null>(null);
+  const [reply, setReply] = useState("");
 
   return (
     <GallerySection id="agent" title="Agent surfaces">
@@ -259,7 +260,16 @@ export const AgentSection = () => {
                 Two: Getting Started and Kitchen Sink.
               </ChatMessage>
             </ChatPanelBody>
-            <ChatComposer placeholder="Reply…" />
+            <ChatComposer
+              value={reply}
+              placeholder="Reply…"
+              onChange={(event) => {
+                setReply(event.target.value);
+              }}
+              onSend={() => {
+                setReply("");
+              }}
+            />
           </ChatPanel>
         </div>
       </Demo>

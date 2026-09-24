@@ -3,8 +3,7 @@
 
 import { useLayoutEffect, useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
-import { cva } from "class-variance-authority";
-import type { VariantProps } from "class-variance-authority";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
@@ -72,29 +71,20 @@ const Thinking = ({
         </svg>
         <output className="contents">
           {working ? (
-            <span className="bui-shimmer-text text-[13px] font-medium whitespace-nowrap">
+            <span className="bui-shimmer-text text-subtitle font-medium whitespace-nowrap">
               {label}
             </span>
           ) : (
-            <span className="animate-in fade-in text-[13px] font-medium whitespace-nowrap text-ink-2">
+            <span className="animate-in fade-in text-subtitle font-medium whitespace-nowrap text-ink-2">
               {doneLabel}
             </span>
           )}
         </output>
-        <svg
-          aria-hidden
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="var(--ink-3)"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={cn("transition-transform duration-300", expanded && "rotate-180")}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        <ChevronDownIcon
+          size={14}
+          strokeWidth={2.2}
+          className={cn("text-ink-3 transition-transform duration-300", expanded && "rotate-180")}
+        />
       </button>
 
       <Collapse open={expanded}>
@@ -118,29 +108,14 @@ const Thinking = ({
 };
 Thinking.displayName = "Thinking";
 
-const thinkingRowVariants = cva(
-  "flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left animate-in fade-in slide-in-from-bottom-1 fill-mode-both",
-  {
-    defaultVariants: { kind: "step", selectable: false },
-    variants: {
-      kind: {
-        reasoning: "",
-        step: "",
-        tool: "",
-      },
-      selectable: {
-        false: "",
-        true: "transition-colors duration-150",
-      },
-    },
-  },
-);
+const THINKING_ROW =
+  "flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left animate-in fade-in slide-in-from-bottom-1 fill-mode-both";
 
-interface ThinkingRowProps
-  // HTMLElement: a selectable row renders a <button>; onClick is omitted so it cannot replace onSelect
-  extends
-    Omit<HTMLAttributes<HTMLElement>, "onSelect" | "onClick">,
-    VariantProps<typeof thinkingRowVariants> {
+type ThinkingKind = "step" | "reasoning" | "tool";
+
+// HTMLElement: a selectable row renders a <button>; onClick is omitted so it cannot replace onSelect
+interface ThinkingRowProps extends Omit<HTMLAttributes<HTMLElement>, "onSelect" | "onClick"> {
+  kind?: ThinkingKind;
   secondary?: ReactNode;
   mono?: boolean;
   added?: number;
@@ -150,7 +125,7 @@ interface ThinkingRowProps
   selected?: boolean;
 }
 
-const RowIcon = ({ kind, pending }: { kind: "step" | "reasoning" | "tool"; pending: boolean }) => {
+const RowIcon = ({ kind, pending }: { kind: ThinkingKind; pending: boolean }) => {
   if (kind === "reasoning") {
     return null;
   }
@@ -162,22 +137,7 @@ const RowIcon = ({ kind, pending }: { kind: "step" | "reasoning" | "tool"; pendi
       />
     );
   }
-  return (
-    <svg
-      aria-hidden
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="var(--ink-3)"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0"
-    >
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
-  );
+  return <CheckIcon size={14} strokeWidth={2.5} className="shrink-0 text-ink-3" />;
 };
 
 const ThinkingRow = ({
@@ -194,14 +154,13 @@ const ThinkingRow = ({
   ref,
   ...props
 }: ThinkingRowProps & RefAttributes<HTMLElement>) => {
-  const rowKind = kind ?? "step";
   const body = (
     <>
-      <RowIcon kind={rowKind} pending={pending} />
+      <RowIcon kind={kind} pending={pending} />
       <span
         className={cn(
-          "min-w-0 truncate text-[12.5px]",
-          rowKind === "reasoning"
+          "min-w-0 truncate text-body",
+          kind === "reasoning"
             ? "whitespace-normal leading-relaxed text-ink-2"
             : "font-medium text-ink",
         )}
@@ -209,13 +168,13 @@ const ThinkingRow = ({
         {children}
       </span>
       {secondary === undefined ? null : (
-        <span className={cn("shrink-0 text-[11.5px] text-ink-3", mono && "font-mono")}>
+        <span className={cn("shrink-0 text-caption text-ink-3", mono && "font-mono")}>
           {secondary}
         </span>
       )}
       {added === undefined && removed === undefined ? null : (
-        <span className="shrink-0 font-mono text-[11px] tabular-nums">
-          <span className="text-emerald-500">+{added ?? 0}</span>{" "}
+        <span className="shrink-0 font-mono text-caption tabular-nums">
+          <span className="text-success">+{added ?? 0}</span>{" "}
           <span className="text-destructive">−{removed ?? 0}</span>
         </span>
       )}
@@ -226,8 +185,8 @@ const ThinkingRow = ({
     return (
       <div
         ref={composeRefs(ref)}
-        data-slot={`thinking-${rowKind}`}
-        className={cn(thinkingRowVariants({ kind: rowKind, selectable: false }), className)}
+        data-slot={`thinking-${kind}`}
+        className={cn(THINKING_ROW, className)}
         {...props}
       >
         {body}
@@ -240,9 +199,10 @@ const ThinkingRow = ({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      data-slot={`thinking-${rowKind}`}
+      data-slot={`thinking-${kind}`}
       className={cn(
-        thinkingRowVariants({ kind: rowKind, selectable: true }),
+        THINKING_ROW,
+        "transition-colors duration-150",
         selected ? "bg-surface-inset" : "hover:bg-hover",
         className,
       )}

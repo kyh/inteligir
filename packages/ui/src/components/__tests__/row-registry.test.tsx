@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Activity, Profiler } from "react";
 import type { ProfilerOnRenderCallback, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "../dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../sidebar-menu";
@@ -261,6 +263,32 @@ describe("a list hidden and shown again", () => {
     expect(observedRows()).toBe(3);
     runFrames();
     expect(activePillTop(menuList(container))).toBe(`${String(2 * ROW_HEIGHT)}px`);
+  });
+});
+
+describe("a dropdown's radio rows", () => {
+  it("register with the popup like its action rows, and hand a pick back as the row's value", () => {
+    const onValueChange = vi.fn<(value: string) => void>();
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>Sort</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Refresh</DropdownMenuItem>
+          <DropdownMenuRadioGroup value="name" onValueChange={onValueChange}>
+            <DropdownMenuRadioItem value="name">Name</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="modified">Modified</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+    runFrames();
+    expect(observedRows()).toBe(3);
+    expect(screen.getByRole("menuitemradio", { name: "Name" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Modified" }));
+    expect(onValueChange.mock.lastCall?.[0]).toBe("modified");
   });
 });
 
