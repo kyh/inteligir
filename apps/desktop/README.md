@@ -16,8 +16,9 @@ src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 
 The window loads `inteligir://app`, a scheme registered `standard` (so Chromium
 gives it a real origin), `secure`, `supportFetchAPI` and `stream`.
-`src/main/protocol.ts` answers everything on it: the built bundle, and — proxied
-to the loopback server — `/rpc/*` and `/vault/asset`.
+`src/main/protocol.ts` registers it and `src/main/protocol-handler.ts` (pure,
+unit-tested over a fake fetch) answers everything on it: the built bundle, and
+— proxied to the loopback server — `/rpc/*` and `/vault/asset`.
 
 That shape is what keeps the page same-origin with its own API without putting
 CORS on the loopback server, and **the renderer never holds the device token**:
@@ -32,6 +33,16 @@ stream dial the loopback origin directly, main attaches the bearer to those
 upgrades with `onBeforeSendHeaders`, and the preload hands the renderer that
 origin as `window.desktopBridge.socketOrigin` — because `window.location.origin`
 is now `inteligir://app` and names no server.
+
+**Both carriers lend the bearer to the page alone.** Chromium tells main which
+origin made each request (`initiatorOrigin`), and neither the page nor a frame
+inside it can forge it. The handler forwards a proxied path only when that is
+`inteligir://app`, or absent for a request the browser started itself, and
+answers anything else 403; the socket filter attaches the header under the same
+rule (`carriesBearer`). A note's own frame is the case it exists for: an
+`inteligir-html` block runs sandboxed, so its origin is opaque (`"null"`), and
+what a note carries must never act with the device token. The gate runs ahead
+of both renderers, because `pnpm dev` serves no CSP.
 
 ## The origin pin is the whole security surface
 

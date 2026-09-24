@@ -28,7 +28,8 @@ import {
   classifyWindowOpen,
   decideExternalOpen,
 } from "./origin-pin";
-import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
+import { registerAppProtocol, registerAppScheme } from "./protocol";
+import { APP_ORIGIN, carriesBearer } from "./protocol-handler";
 import { createServerProcess } from "./server-process";
 import type { ServerProcess } from "./server-process";
 import { createSpellcheck, senderIsWindow } from "./spellcheck";
@@ -192,6 +193,10 @@ const lockDownSession = (partition: string): Electron.Session => {
 const attachSocketCredential = (windowSession: Electron.Session, server: LiveServer): void => {
   const urls = socketCredentialFilter(server.origin);
   windowSession.webRequest.onBeforeSendHeaders({ urls }, (details, respond) => {
+    if (!carriesBearer(details.initiatorOrigin)) {
+      respond({});
+      return;
+    }
     respond({
       requestHeaders: {
         ...details.requestHeaders,

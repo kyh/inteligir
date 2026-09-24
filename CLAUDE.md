@@ -1403,10 +1403,16 @@ agents default`; unset falls back
   so the page is same-origin with its API, there is no CORS, and the renderer
   never holds the token (which is what keeps `<img src>` working). Websockets
   are the one exception: main attaches the bearer to those upgrades and the
-  single preload hands the renderer the loopback origin. The pin cannot use
-  `URL.origin`, which answers `"null"` for any non-special scheme; scheme and
-  host are compared as fields. A copied link names the server's loopback origin,
-  never the page's. `apps/desktop/src/main/protocol.ts`, `origin-pin.ts`,
+  single preload hands the renderer the loopback origin. BOTH CARRIERS LEND THE
+  BEARER ONLY TO THE PAGE: a request's `initiatorOrigin` must be
+  `inteligir://app`, or absent for one the browser started itself
+  (`carriesBearer`), so a sandboxed note frame, whose origin is opaque
+  (`"null"`), gets a 403 from the handler and a bare upgrade from main. The
+  gate runs ahead of both renderers, because `pnpm dev` serves no CSP. The pin
+  cannot use `URL.origin`, which answers `"null"` for any non-special scheme;
+  scheme and host are compared as fields. A copied link names the server's
+  loopback origin, never the page's. `apps/desktop/src/main/protocol.ts` (the Electron wiring)
+  over `protocol-handler.ts` (pure, tested), `origin-pin.ts`,
   `credential-scope.ts`, `apps/desktop/src/types.ts`,
   `apps/desktop/src/renderer/app/socket-origin.ts`.
 
