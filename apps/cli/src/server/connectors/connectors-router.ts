@@ -63,10 +63,13 @@ const oauthBegin = base.connectors.oauthBegin.handler(async ({ context, input, e
     });
   }
   return await refusing("not-found", async () => {
-    const url = await context.connectorsOauth.begin(input.name, callbackUrl);
+    const begun = await context.connectorsOauth.begin(input.name, callbackUrl);
+    if (!begun.ok) {
+      throw errors.PROVIDER_UNAVAILABLE({ message: begun.detail });
+    }
     // a failed open is an ordinary answer: the url works pasted anywhere.
-    const opened = input.open ? await context.openExternalUrl(url) : false;
-    return { opened, url };
+    const opened = input.open ? await context.openExternalUrl(begun.url) : false;
+    return { opened, url: begun.url };
   });
 });
 

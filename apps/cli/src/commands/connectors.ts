@@ -59,6 +59,11 @@ export const connectorsCommand = (deps: CliDeps) =>
             type: "string",
           },
           name: { description: "Registry name", required: true, type: "positional" },
+          oauth: {
+            description:
+              "Authorize the --url server with OAuth, its endpoints and client found from the URL",
+            type: "boolean",
+          },
           url: { description: "The server's http(s) URL", type: "string" },
           ...jsonArg,
         },
@@ -73,9 +78,14 @@ export const connectorsCommand = (deps: CliDeps) =>
           if ((args.url === undefined) === (stdioCommand === null)) {
             throw invalidUsage("provide exactly one of --url or -- <command> [args…]");
           }
+          if (args.oauth === true && (args.url === undefined || args.header !== undefined)) {
+            throw invalidUsage("--oauth is for a --url server, and takes no --header");
+          }
           let transport: ConnectorTransportInput;
           let header: HeaderArg | null = null;
-          if (args.url !== undefined) {
+          if (args.url !== undefined && args.oauth === true) {
+            transport = { kind: "oauth", scopes: [], url: args.url };
+          } else if (args.url !== undefined) {
             transport = { kind: "http", url: args.url };
             header = args.header === undefined ? null : parseHeaderArg(args.header);
           } else if (stdioCommand === null) {
@@ -101,7 +111,11 @@ export const connectorsCommand = (deps: CliDeps) =>
           if (outputJson(args, body)) {
             return;
           }
-          out.success(`Added ${args.name}; sessions get it from their next launch.`);
+          out.success(
+            transport.kind === "oauth"
+              ? `Added ${args.name}; connect it in Settings → Connectors, and sessions get it once connected.`
+              : `Added ${args.name}; sessions get it from their next launch.`,
+          );
         },
       }),
 

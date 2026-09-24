@@ -8,8 +8,9 @@ import { z } from "zod";
 import { ConnectorConflictError, createConnectorsService } from "../connectors-service";
 import { ConnectorsStore } from "../connectors-store";
 import { JsonFileStoreError } from "../../json-file-store";
-import { bootTestApp } from "../../__tests__/boot-app";
+import { bootTestApp, listenTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
+import { startFakeProvider } from "./fake-oauth-provider";
 
 const storeFileSchema = z.object({ servers: z.array(z.unknown()) });
 
@@ -112,6 +113,53 @@ describe("the connector procedures", () => {
 
     const [missing] = await safe(harness.client.connectors.remove({ name: "ghost" }));
     expect(missing instanceof ORPCError && missing.code).toBe("NOT_FOUND");
+  });
+
+  // the whole dance on a listening server: the callback it names is its own loopback address, and
+  // the fake consent page's redirect lands on it the way a browser's would.
+  it("adds a connector by its URL alone and completes OAuth against the provider it discovers", async () => {
+    const provider = await startFakeProvider();
+    const opened: string[] = [];
+    const { client, port } = await listenTestApp(
+      await bootTestApp({
+        openExternalUrl: async (url) => {
+          opened.push(url);
+          return await Promise.resolve(true);
+        },
+      }),
+    );
+    await client.connectors.add({
+      name: "linear",
+      transport: { kind: "oauth", scopes: [], url: provider.mcpUrl },
+    });
+
+    const begun = await client.connectors.oauthBegin({ name: "linear", open: true });
+    expect(opened).toEqual([begun.url]);
+    const consent = await fetch(begun.url, { redirect: "manual" });
+    const callback = consent.headers.get("location") ?? "";
+    expect(callback).toContain(`127.0.0.1:${String(port)}/connectors/oauth/callback`);
+    const landed = await fetch(callback);
+    expect(landed.status).toBe(200);
+    expect(await landed.text()).toContain("Connected");
+
+    const { servers } = await client.connectors.list();
+    expect(servers[0]?.transport).toMatchObject({ clientId: "dcr-1", status: "connected" });
+  });
+
+  it("says why when discovery finds nothing to authorize against", async () => {
+    const provider = await startFakeProvider();
+    provider.documents.clear();
+    const { client } = await listenTestApp(await bootTestApp());
+    await client.connectors.add({
+      name: "bare",
+      transport: { kind: "oauth", scopes: [], url: provider.mcpUrl },
+    });
+
+    const [refused] = await safe(client.connectors.oauthBegin({ name: "bare", open: false }));
+    expect(refused instanceof ORPCError && refused.code).toBe("PROVIDER_UNAVAILABLE");
+    expect(refused instanceof ORPCError && refused.message).toContain(
+      "publishes no OAuth metadata",
+    );
   });
 
   // over http, not the router client: the wire is where a bare 500 would lose the file's name.

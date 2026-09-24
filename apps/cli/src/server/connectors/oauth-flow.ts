@@ -5,8 +5,17 @@
 import { z } from "zod";
 
 import { createApprovalSlot } from "./approval-slot";
-import type { ConnectorsStore, StoredConnector, StoredOauthTokens } from "./connectors-store";
+import { namedOauthServerOf, oauthServerOf } from "./connectors-store";
+import type {
+  ConnectorsStore,
+  OauthServer,
+  StoredConnector,
+  StoredDiscoveredServer,
+  StoredOauthTokens,
+  StoredOauthTransport,
+} from "./connectors-store";
 import { ConnectorConflictError } from "./connectors-service";
+import { discoverOauthServer } from "./oauth-discovery";
 import { generatePkceVerifier, pkceChallengeS256 } from "./pkce";
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
@@ -29,21 +38,34 @@ export type OauthCompletion =
   | { kind: "removed" }
   | { kind: "refused"; detail: string };
 
-interface PendingAuthorize {
+// what a begin resolved rides the pending slot, so the code is spent at the token endpoint of the
+// authorization the user approved, and the discovery behind it lands with the grant.
+interface AuthorizeTarget {
+  server: OauthServer;
+  scopes: readonly string[];
+  // null when the row names its own server
+  discovered: StoredDiscoveredServer | null;
+}
+
+interface PendingAuthorize extends AuthorizeTarget {
   name: string;
+  // a remove and re-add under the name meanwhile is another server's row.
+  url: string;
   verifier: string;
   redirectUri: string;
 }
 
+type OauthBegin = { ok: true; url: string } | { ok: false; detail: string };
+
 export interface ConnectorOauthFlow {
-  begin: (name: string, redirectUri: string) => Promise<string>;
+  begin: (name: string, redirectUri: string) => Promise<OauthBegin>;
   complete: (args: { code: string; state: string }) => Promise<OauthCompletion>;
   freshAccessToken: (name: string) => Promise<string | null>;
   disconnect: (name: string) => void;
   dispose: () => void;
 }
 
-type OauthRow = Extract<StoredConnector["transport"], { kind: "oauth" }>;
+type OauthRow = StoredOauthTransport;
 
 // only a 400 or 401 is the token endpoint's verdict on the grant (rfc 6749 §5.2). no answer, a
 // 5xx, or a captive portal's page says nothing about it, and must not cost the user a re-consent.
@@ -73,6 +95,35 @@ const canonicalResourceUri = (url: string): string => {
 const oauthTransportIn = (servers: StoredConnector[], name: string): OauthRow | null => {
   const row = servers.find((candidate) => candidate.name === name);
   return row !== undefined && row.transport.kind === "oauth" ? row.transport : null;
+};
+
+const discoveredTarget = (
+  transport: OauthRow,
+  discovered: StoredDiscoveredServer,
+  clientId: string,
+): AuthorizeTarget => ({
+  discovered,
+  scopes: transport.scopes.length > 0 ? transport.scopes : discovered.scopes,
+  server: {
+    authorizationEndpoint: discovered.authorizationEndpoint,
+    clientId,
+    tokenEndpoint: discovered.tokenEndpoint,
+  },
+});
+
+// a stored discovery is reused, unless its client was registered for another redirect uri: a
+// provider may match a loopback redirect by its exact string, port and host spelling included.
+const reusableTarget = (transport: OauthRow, redirectUri: string): AuthorizeTarget | null => {
+  const { discovered } = transport;
+  if (discovered === undefined) {
+    return null;
+  }
+  if (transport.clientId !== undefined) {
+    return discoveredTarget(transport, discovered, transport.clientId);
+  }
+  return discovered.registration?.redirectUri === redirectUri
+    ? discoveredTarget(transport, discovered, discovered.registration.clientId)
+    : null;
 };
 
 export const createConnectorOauthFlow = (
@@ -116,13 +167,52 @@ export const createConnectorOauthFlow = (
     return true;
   };
 
-  const exchangeAtTokenEndpoint = async (
+  const resolveTarget = async (
+    name: string,
     transport: OauthRow,
+    redirectUri: string,
+  ): Promise<{ ok: true; target: AuthorizeTarget } | { ok: false; detail: string }> => {
+    const named = namedOauthServerOf(transport);
+    if (named !== null) {
+      return { ok: true, target: { discovered: null, scopes: transport.scopes, server: named } };
+    }
+    const reused = reusableTarget(transport, redirectUri);
+    if (reused !== null) {
+      return { ok: true, target: reused };
+    }
+    const discovery = await discoverOauthServer({
+      clientId: transport.clientId,
+      fetchImpl,
+      redirectUri,
+      scopes: transport.scopes,
+      url: transport.url,
+    });
+    if (!discovery.ok) {
+      return discovery;
+    }
+    // kept at once, so a Connect retried after a closed consent tab reuses the client rather than
+    // registering another; while a grant rests on the discovery before it, a refresh still needs
+    // that one, and this one lands with the grant it authorizes.
+    patchRow(
+      name,
+      (row) => {
+        row.discovered = discovery.discovered;
+      },
+      (row) => row.url === transport.url && row.tokens === undefined,
+    );
+    return {
+      ok: true,
+      target: discoveredTarget(transport, discovery.discovered, discovery.clientId),
+    };
+  };
+
+  const exchangeAtTokenEndpoint = async (
+    tokenEndpoint: string,
     body: URLSearchParams,
   ): Promise<TokenExchange> => {
     let response: Response;
     try {
-      response = await fetchImpl(transport.tokenEndpoint, {
+      response = await fetchImpl(tokenEndpoint, {
         body: body.toString(),
         headers: {
           accept: "application/json",
@@ -181,12 +271,13 @@ export const createConnectorOauthFlow = (
   const refresh = async (
     name: string,
     transport: OauthRow,
+    server: OauthServer,
     spent: string,
   ): Promise<string | null> => {
     const exchange = await exchangeAtTokenEndpoint(
-      transport,
+      server.tokenEndpoint,
       new URLSearchParams({
-        client_id: transport.clientId,
+        client_id: server.clientId,
         grant_type: "refresh_token",
         refresh_token: spent,
         resource: canonicalResourceUri(transport.url),
@@ -220,26 +311,31 @@ export const createConnectorOauthFlow = (
   };
 
   return {
-    async begin(name, redirectUri): Promise<string> {
+    async begin(name, redirectUri): Promise<OauthBegin> {
       if (disposed) {
         throw new ConnectorConflictError("not-found", "This app is shutting down");
       }
       const transport = requireOauthRow(name);
+      const resolved = await resolveTarget(name, transport, redirectUri);
+      if (!resolved.ok) {
+        return resolved;
+      }
+      const { target } = resolved;
       const verifier = generatePkceVerifier();
       const challenge = await pkceChallengeS256(verifier);
-      const state = pending.arm({ name, redirectUri, verifier });
-      const url = new URL(transport.authorizationEndpoint);
+      const state = pending.arm({ ...target, name, redirectUri, url: transport.url, verifier });
+      const url = new URL(target.server.authorizationEndpoint);
       url.searchParams.set("response_type", "code");
-      url.searchParams.set("client_id", transport.clientId);
+      url.searchParams.set("client_id", target.server.clientId);
       url.searchParams.set("redirect_uri", redirectUri);
-      if (transport.scopes.length > 0) {
-        url.searchParams.set("scope", transport.scopes.join(" "));
+      if (target.scopes.length > 0) {
+        url.searchParams.set("scope", target.scopes.join(" "));
       }
       url.searchParams.set("state", state);
       url.searchParams.set("code_challenge", challenge);
       url.searchParams.set("code_challenge_method", "S256");
       url.searchParams.set("resource", canonicalResourceUri(transport.url));
-      return url.toString();
+      return { ok: true, url: url.toString() };
     },
 
     async complete({ code, state }): Promise<OauthCompletion> {
@@ -251,19 +347,20 @@ export const createConnectorOauthFlow = (
         return { kind: claim.kind };
       }
       const claimed = claim.payload;
+      const isClaimedRow = (row: OauthRow): boolean => row.url === claimed.url;
       const transport = oauthTransportIn(store.read(), claimed.name);
-      if (transport === null) {
+      if (transport === null || !isClaimedRow(transport)) {
         return { kind: "removed" };
       }
       const exchange = await exchangeAtTokenEndpoint(
-        transport,
+        claimed.server.tokenEndpoint,
         new URLSearchParams({
-          client_id: transport.clientId,
+          client_id: claimed.server.clientId,
           code,
           code_verifier: claimed.verifier,
           grant_type: "authorization_code",
           redirect_uri: claimed.redirectUri,
-          resource: canonicalResourceUri(transport.url),
+          resource: canonicalResourceUri(claimed.url),
         }),
       );
       if (!exchange.ok) {
@@ -273,17 +370,29 @@ export const createConnectorOauthFlow = (
         // shutdown raced the exchange: store nothing after teardown.
         return { kind: "no-pending" };
       }
-      const landed = patchRow(claimed.name, (row) => {
-        row.tokens = exchange.tokens;
-        delete row.needsReauth;
-      });
+      const landed = patchRow(
+        claimed.name,
+        (row) => {
+          row.tokens = exchange.tokens;
+          if (claimed.discovered === null) {
+            delete row.discovered;
+          } else {
+            row.discovered = claimed.discovered;
+          }
+          delete row.needsReauth;
+        },
+        isClaimedRow,
+      );
       return landed ? { kind: "connected", name: claimed.name } : { kind: "removed" };
     },
 
+    // the discovery goes too, so the next authorize finds the server afresh: the way out when a
+    // provider has forgotten the client it registered.
     disconnect(name): void {
       requireOauthRow(name);
       patchRow(name, (row) => {
         delete row.tokens;
+        delete row.discovered;
         delete row.needsReauth;
       });
     },
@@ -303,7 +412,8 @@ export const createConnectorOauthFlow = (
         return tokens.accessToken;
       }
       const spent = tokens.refreshToken;
-      if (spent === undefined) {
+      const server = oauthServerOf(transport);
+      if (spent === undefined || server === null) {
         patchRow(name, (row) => {
           row.needsReauth = true;
         });
@@ -313,7 +423,10 @@ export const createConnectorOauthFlow = (
       if (inFlight !== undefined && inFlight.spent === spent) {
         return await inFlight.answer;
       }
-      const started: RefreshInFlight = { answer: refresh(name, transport, spent), spent };
+      const started: RefreshInFlight = {
+        answer: refresh(name, transport, server, spent),
+        spent,
+      };
       refreshing.set(name, started);
       try {
         return await started.answer;

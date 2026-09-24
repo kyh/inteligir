@@ -1,8 +1,4 @@
-import { createHash } from "node:crypto";
-import { once } from "node:events";
-import { createServer } from "node:http";
-import type { Server } from "node:http";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createConnectorsService } from "../connectors-service";
 import { ConnectorsStore } from "../connectors-store";
@@ -10,75 +6,8 @@ import { handleConnectorOauthCallback } from "../oauth-callback";
 import { createConnectorOauthFlow } from "../oauth-flow";
 import type { ConnectorOauthFlow, OauthCompletion } from "../oauth-flow";
 import { makeTempDir } from "../../__tests__/temp-dir";
-
-const REDIRECT_URI = "http://127.0.0.1:4664/connectors/oauth/callback";
-
-interface ProviderAnswer {
-  status: number;
-  body: unknown;
-}
-
-type ProviderResponder = ProviderAnswer | ((request: URLSearchParams) => ProviderAnswer);
-
-interface FakeProvider {
-  server: Server;
-  tokenEndpoint: string;
-  requests: URLSearchParams[];
-  respondWith: ProviderResponder;
-  close: () => Promise<void>;
-}
-
-const startFakeProvider = async (): Promise<FakeProvider> => {
-  const requests: URLSearchParams[] = [];
-  const provider: Pick<FakeProvider, "respondWith"> = {
-    respondWith: {
-      body: { access_token: "at-1", expires_in: 3600, refresh_token: "rt-1" },
-      status: 200,
-    },
-  };
-  const server = createServer((request, response) => {
-    let raw = "";
-    request.on("data", (chunk: Buffer) => {
-      raw += chunk.toString("utf-8");
-    });
-    request.on("end", () => {
-      const params = new URLSearchParams(raw);
-      requests.push(params);
-      const answer =
-        provider.respondWith instanceof Function
-          ? provider.respondWith(params)
-          : provider.respondWith;
-      response.writeHead(answer.status, { "content-type": "application/json" });
-      response.end(JSON.stringify(answer.body));
-    });
-  });
-  await once(server.listen(0, "127.0.0.1"), "listening");
-  const address = server.address();
-  const port = address !== null && address instanceof Object ? address.port : null;
-  if (port === null) {
-    throw new Error("fake provider did not bind");
-  }
-  const started: FakeProvider = {
-    close: async () => {
-      const closed = once(server, "close");
-      server.close();
-      await closed;
-    },
-    requests,
-    get respondWith() {
-      return provider.respondWith;
-    },
-    set respondWith(next) {
-      provider.respondWith = next;
-    },
-    server,
-    tokenEndpoint: `http://127.0.0.1:${String(port)}/oauth/token`,
-  };
-  onTestFinished(async () => {
-    await started.close();
-  });
-  return started;
-};
+import { beginUrl, REDIRECT_URI, s256, startFakeProvider } from "./fake-oauth-provider";
+import type { ProviderAnswer } from "./fake-oauth-provider";
 
 const storeWithOauthRow = (
   tokenEndpoint: string,
@@ -103,7 +32,8 @@ const storeWithOauthRow = (
 
 // the consent page's round trip, collapsed: the state begin armed comes straight back.
 const authorize = async (flow: ConnectorOauthFlow): Promise<OauthCompletion> => {
-  const state = new URL(await flow.begin("linear", REDIRECT_URI)).searchParams.get("state");
+  const url = await beginUrl(flow);
+  const state = url.searchParams.get("state");
   if (state === null) {
     throw new Error("begin armed no state");
   }
@@ -124,16 +54,13 @@ const STALE_GRANT: ProviderAnswer = {
   status: 200,
 };
 
-const s256 = (verifier: string): string =>
-  createHash("sha256").update(verifier, "ascii").digest("base64url");
-
 describe("the connector OAuth flow", () => {
   it("runs the whole dance: authorize URL, callback, PKCE-checked exchange, stored tokens", async () => {
     const provider = await startFakeProvider();
     const store = storeWithOauthRow(provider.tokenEndpoint);
     const flow = createConnectorOauthFlow(store);
 
-    const url = new URL(await flow.begin("linear", REDIRECT_URI));
+    const url = await beginUrl(flow);
     expect(url.origin + url.pathname).toBe("https://linear.example/oauth/authorize");
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("client_id")).toBe("client-123");
@@ -177,7 +104,7 @@ describe("the connector OAuth flow", () => {
   it("a wrong state consumes nothing — the real callback still lands", async () => {
     const provider = await startFakeProvider();
     const flow = createConnectorOauthFlow(storeWithOauthRow(provider.tokenEndpoint));
-    const url = new URL(await flow.begin("linear", REDIRECT_URI));
+    const url = await beginUrl(flow);
     const state = url.searchParams.get("state");
     if (state === null) {
       return;
@@ -198,7 +125,7 @@ describe("the connector OAuth flow", () => {
     provider.respondWith = { body: { error: "invalid_grant" }, status: 400 };
     const store = storeWithOauthRow(provider.tokenEndpoint);
     const flow = createConnectorOauthFlow(store);
-    const url = new URL(await flow.begin("linear", REDIRECT_URI));
+    const url = await beginUrl(flow);
     const state = url.searchParams.get("state");
     if (state === null) {
       return;
@@ -269,13 +196,13 @@ describe("the connector OAuth flow", () => {
     const cased = createConnectorOauthFlow(
       storeWithOauthRow(provider.tokenEndpoint, "HTTPS://MCP.Linear.App:8443/Mcp/#tools"),
     );
-    const casedUrl = new URL(await cased.begin("linear", REDIRECT_URI));
+    const casedUrl = await beginUrl(cased);
     expect(casedUrl.searchParams.get("resource")).toBe("https://mcp.linear.app:8443/Mcp");
 
     const bare = createConnectorOauthFlow(
       storeWithOauthRow(provider.tokenEndpoint, "https://mcp.example.com/"),
     );
-    const bareUrl = new URL(await bare.begin("linear", REDIRECT_URI));
+    const bareUrl = await beginUrl(bare);
     expect(bareUrl.searchParams.get("resource")).toBe("https://mcp.example.com");
   });
 
@@ -381,7 +308,7 @@ describe("the connector OAuth flow", () => {
     const provider = await startFakeProvider();
     const store = storeWithOauthRow(provider.tokenEndpoint);
     const flow = createConnectorOauthFlow(store);
-    const url = new URL(await flow.begin("linear", REDIRECT_URI));
+    const url = await beginUrl(flow);
     const state = url.searchParams.get("state");
     if (state === null) {
       return;
@@ -398,7 +325,7 @@ describe("the connector OAuth flow", () => {
   it("dispose makes a late callback inert", async () => {
     const provider = await startFakeProvider();
     const flow = createConnectorOauthFlow(storeWithOauthRow(provider.tokenEndpoint));
-    const url = new URL(await flow.begin("linear", REDIRECT_URI));
+    const url = await beginUrl(flow);
     const state = url.searchParams.get("state");
     if (state === null) {
       return;

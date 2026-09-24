@@ -239,9 +239,13 @@ launch, Claude Code and Codex alike.
   reads the value from stdin instead, which keeps the key out of the process
   list and the shell's history:
   \`printf '%s' "$KEY" | inteligir connectors add <name> --url <…> --header x-api-key=-\`.
+  A server that signs in with OAuth takes \`--oauth\` in place of a header:
+  \`inteligir connectors add <name> --url <https://…> --oauth\`; its endpoints
+  and client are found from the URL when the user connects it in Settings →
+  Connectors, and sessions get it once it reads \`connected\`.
   For a local stdio server, name the program after \`--\` instead:
   \`inteligir connectors add <name> -- <command> [args…]\`. Exactly one of the
-  two forms; \`--header\` is for the remote one.
+  two forms; \`--header\` and \`--oauth\` are for the remote one.
 - \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
   from their next launch.
 

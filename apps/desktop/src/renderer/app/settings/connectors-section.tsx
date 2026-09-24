@@ -99,20 +99,18 @@ export const EMPTY_DRAFT: AddConnectorDraft = {
   url: "",
 };
 
-interface CatalogEntry {
-  name: string;
-  description: string;
-  url: string;
-  authHeader?: string;
-  docsUrl: string;
-  oauth?: { authorizationEndpoint: string; tokenEndpoint: string; scopes: readonly string[] };
-}
+// an OAuth entry is its URL alone: the first Connect discovers the endpoints and registers a client.
+type CatalogEntry = { name: string; description: string; url: string; docsUrl: string } & (
+  | { kind: "http"; authHeader?: string }
+  | { kind: "oauth" }
+);
 
 const CATALOG: readonly CatalogEntry[] = [
   {
     authHeader: "CONTEXT7_API_KEY",
     description: "Up-to-date library documentation for coding questions",
     docsUrl: "https://context7.com/docs",
+    kind: "http",
     name: "context7",
     url: "https://mcp.context7.com/mcp",
   },
@@ -120,29 +118,22 @@ const CATALOG: readonly CatalogEntry[] = [
     authHeader: "x-api-key",
     description: "Web search and crawling",
     docsUrl: "https://docs.exa.ai/reference/exa-mcp",
+    kind: "http",
     name: "exa",
     url: "https://mcp.exa.ai/mcp",
   },
   {
-    description: "Issues and projects (OAuth — paste your app's client id)",
+    description: "Issues and projects (OAuth)",
     docsUrl: "https://linear.app/docs/mcp",
+    kind: "oauth",
     name: "linear",
-    oauth: {
-      authorizationEndpoint: "https://linear.app/oauth/authorize",
-      scopes: ["read", "write"],
-      tokenEndpoint: "https://api.linear.app/oauth/token",
-    },
     url: "https://mcp.linear.app/mcp",
   },
   {
-    description: "Pages and databases (OAuth — paste your integration's client id)",
+    description: "Pages and databases (OAuth)",
     docsUrl: "https://developers.notion.com/docs/mcp",
+    kind: "oauth",
     name: "notion",
-    oauth: {
-      authorizationEndpoint: "https://api.notion.com/v1/oauth/authorize",
-      scopes: [],
-      tokenEndpoint: "https://api.notion.com/v1/oauth/token",
-    },
     url: "https://mcp.notion.com/mcp",
   },
 ];
@@ -151,20 +142,37 @@ type DraftVerdict =
   | { ok: true; transport: ConnectorTransportInput }
   | { ok: false; problem: string };
 
+type OauthTransportInput = Extract<ConnectorTransportInput, { kind: "oauth" }>;
+
+// a blank field is left for discovery to fill, never sent as an empty value
+const draftOauthTransport = (draft: AddConnectorDraft): OauthTransportInput => {
+  const transport: OauthTransportInput = {
+    kind: "oauth",
+    scopes: draft.scopesText.split(/\s+/u).filter((scope) => scope.length > 0),
+    url: draft.url.trim(),
+  };
+  const authorizationEndpoint = draft.authorizationEndpoint.trim();
+  if (authorizationEndpoint !== "") {
+    transport.authorizationEndpoint = authorizationEndpoint;
+  }
+  const tokenEndpoint = draft.tokenEndpoint.trim();
+  if (tokenEndpoint !== "") {
+    transport.tokenEndpoint = tokenEndpoint;
+  }
+  const clientId = draft.clientId.trim();
+  if (clientId !== "") {
+    transport.clientId = clientId;
+  }
+  return transport;
+};
+
 const draftTransport = (draft: AddConnectorDraft): ConnectorTransportInput => {
   switch (draft.kind) {
     case "stdio": {
       return { args: argumentLines(draft.argsText), command: draft.command.trim(), kind: "stdio" };
     }
     case "oauth": {
-      return {
-        authorizationEndpoint: draft.authorizationEndpoint.trim(),
-        clientId: draft.clientId.trim(),
-        kind: "oauth",
-        scopes: draft.scopesText.split(/\s+/u).filter((scope) => scope.length > 0),
-        tokenEndpoint: draft.tokenEndpoint.trim(),
-        url: draft.url.trim(),
-      };
+      return draftOauthTransport(draft);
     }
     case "http": {
       const url = draft.url.trim();
@@ -447,16 +455,8 @@ export const ConnectorsSection = () => {
   };
 
   const prefill = (entry: CatalogEntry): void => {
-    if (entry.oauth !== undefined) {
-      setDraft({
-        ...EMPTY_DRAFT,
-        authorizationEndpoint: entry.oauth.authorizationEndpoint,
-        kind: "oauth",
-        name: entry.name,
-        scopesText: entry.oauth.scopes.join(" "),
-        tokenEndpoint: entry.oauth.tokenEndpoint,
-        url: entry.url,
-      });
+    if (entry.kind === "oauth") {
+      setDraft({ ...EMPTY_DRAFT, kind: "oauth", name: entry.name, url: entry.url });
       return;
     }
     setDraft({
@@ -564,7 +564,7 @@ export const ConnectorsSection = () => {
             <Input
               id={`${formId}-authz`}
               value={draft.authorizationEndpoint}
-              placeholder="https://provider.example/oauth/authorize"
+              placeholder="optional — found from the server URL"
               onChange={(event) => {
                 setDraft({ ...draft, authorizationEndpoint: event.target.value });
               }}
@@ -577,7 +577,7 @@ export const ConnectorsSection = () => {
             <Input
               id={`${formId}-token`}
               value={draft.tokenEndpoint}
-              placeholder="https://provider.example/oauth/token"
+              placeholder="optional — found from the server URL"
               onChange={(event) => {
                 setDraft({ ...draft, tokenEndpoint: event.target.value });
               }}
@@ -590,7 +590,7 @@ export const ConnectorsSection = () => {
             <Input
               id={`${formId}-client`}
               value={draft.clientId}
-              placeholder="from your OAuth app registration"
+              placeholder="optional — registered for you"
               onChange={(event) => {
                 setDraft({ ...draft, clientId: event.target.value });
               }}
@@ -598,7 +598,7 @@ export const ConnectorsSection = () => {
             <Input
               aria-label="Scopes"
               value={draft.scopesText}
-              placeholder="scopes (space-separated)"
+              placeholder="scopes (optional)"
               className="w-48"
               onChange={(event) => {
                 setDraft({ ...draft, scopesText: event.target.value });

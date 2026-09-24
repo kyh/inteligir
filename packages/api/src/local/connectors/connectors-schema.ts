@@ -48,17 +48,42 @@ export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
       url: connectorUrlSchema,
     })
     .strict(),
-  // tokens are never input: they arrive through the callback, live in the store, and read back as a status
+  // tokens are never input: they arrive through the callback, live in the store, and read back as a status.
+  // the url alone is a whole row: the first authorize discovers the endpoints and registers a client.
+  // endpoints named by hand come as a pair and with a client id, because discovery is what finds a
+  // registration endpoint.
   z
     .object({
-      authorizationEndpoint: connectorUrlSchema,
-      clientId: z.string().min(1),
+      authorizationEndpoint: connectorUrlSchema.optional(),
+      clientId: z.string().min(1).optional(),
       kind: z.literal("oauth"),
       scopes: z.array(z.string().min(1)).max(CONNECTOR_SCOPES_MAX),
-      tokenEndpoint: connectorUrlSchema,
+      tokenEndpoint: connectorUrlSchema.optional(),
       url: connectorUrlSchema,
     })
-    .strict(),
+    .strict()
+    .superRefine((value, ctx) => {
+      if (value.authorizationEndpoint === undefined && value.tokenEndpoint === undefined) {
+        return;
+      }
+      if (value.authorizationEndpoint === undefined || value.tokenEndpoint === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          message: "is required alongside the other endpoint",
+          path: [
+            value.authorizationEndpoint === undefined ? "authorizationEndpoint" : "tokenEndpoint",
+          ],
+        });
+        return;
+      }
+      if (value.clientId === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          message: "is required when the endpoints are named",
+          path: ["clientId"],
+        });
+      }
+    }),
 ]);
 export type ConnectorTransportInput = z.infer<typeof connectorTransportInputSchema>;
 
@@ -75,14 +100,15 @@ export const connectorTransportViewSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
   z.object({ hasAuth: z.boolean(), kind: z.literal("http"), url: z.string().min(1) }).strict(),
+  // the endpoints and client id the row authorizes with, named or discovered; absent until known
   z
     .object({
-      authorizationEndpoint: z.string().min(1),
-      clientId: z.string().min(1),
+      authorizationEndpoint: z.string().min(1).optional(),
+      clientId: z.string().min(1).optional(),
       kind: z.literal("oauth"),
       scopes: z.array(z.string()),
       status: connectorOauthStatusSchema,
-      tokenEndpoint: z.string().min(1),
+      tokenEndpoint: z.string().min(1).optional(),
       url: z.string().min(1),
     })
     .strict(),

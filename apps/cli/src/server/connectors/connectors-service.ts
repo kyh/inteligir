@@ -4,7 +4,13 @@ import type {
   ConnectorView,
 } from "@repo/api/local/connectors/connectors-schema";
 
-import type { ConnectorsStore, StoredConnector, StoredTransport } from "./connectors-store";
+import { oauthServerOf } from "./connectors-store";
+import type {
+  ConnectorsStore,
+  StoredConnector,
+  StoredOauthTransport,
+  StoredTransport,
+} from "./connectors-store";
 
 export class ConnectorConflictError extends Error {
   readonly kind: "already-exists" | "not-found";
@@ -30,7 +36,7 @@ export interface ConnectorsService {
 }
 
 const oauthStatus = (
-  transport: Extract<StoredTransport, { kind: "oauth" }>,
+  transport: StoredOauthTransport,
 ): "needs-reauth" | "needs-auth" | "connected" => {
   if (transport.needsReauth === true) {
     return "needs-reauth";
@@ -51,12 +57,10 @@ const toView = (row: StoredConnector): ConnectorView => {
       enabled: row.enabled,
       name: row.name,
       transport: {
-        authorizationEndpoint: row.transport.authorizationEndpoint,
-        clientId: row.transport.clientId,
+        ...oauthServerOf(row.transport),
         kind: "oauth",
         scopes: row.transport.scopes,
         status: oauthStatus(row.transport),
-        tokenEndpoint: row.transport.tokenEndpoint,
         url: row.transport.url,
       },
     };
@@ -77,14 +81,17 @@ const toStoredTransport = (input: ConnectorTransportInput): StoredTransport => {
     return { args: input.args, command: input.command, kind: "stdio" };
   }
   if (input.kind === "oauth") {
-    return {
-      authorizationEndpoint: input.authorizationEndpoint,
-      clientId: input.clientId,
-      kind: "oauth",
-      scopes: input.scopes,
-      tokenEndpoint: input.tokenEndpoint,
-      url: input.url,
-    };
+    const oauth: StoredOauthTransport = { kind: "oauth", scopes: input.scopes, url: input.url };
+    if (input.authorizationEndpoint !== undefined) {
+      oauth.authorizationEndpoint = input.authorizationEndpoint;
+    }
+    if (input.tokenEndpoint !== undefined) {
+      oauth.tokenEndpoint = input.tokenEndpoint;
+    }
+    if (input.clientId !== undefined) {
+      oauth.clientId = input.clientId;
+    }
+    return oauth;
   }
   const next: StoredTransport = { kind: "http", url: input.url };
   if (input.headers !== undefined && Object.keys(input.headers).length > 0) {

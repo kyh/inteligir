@@ -54,7 +54,29 @@ describe("draftToRequest", () => {
     });
     expect(draftToRequest({ ...OAUTH_DRAFT, clientId: " " })).toEqual({
       ok: false,
-      problem: "Fill in the client id.",
+      problem: "The client id is required when the endpoints are named.",
+    });
+    expect(draftToRequest({ ...OAUTH_DRAFT, tokenEndpoint: "" })).toEqual({
+      ok: false,
+      problem: "The token endpoint is required alongside the other endpoint.",
+    });
+  });
+
+  it("takes an OAuth server by its URL alone, leaving what is blank for discovery", () => {
+    expect(
+      draftToRequest({ ...EMPTY_DRAFT, kind: "oauth", name: "linear", url: OAUTH_DRAFT.url }),
+    ).toEqual({ ok: true, transport: { kind: "oauth", scopes: [], url: OAUTH_DRAFT.url } });
+    expect(
+      draftToRequest({
+        ...EMPTY_DRAFT,
+        clientId: " my-client ",
+        kind: "oauth",
+        name: "linear",
+        url: OAUTH_DRAFT.url,
+      }),
+    ).toEqual({
+      ok: true,
+      transport: { clientId: "my-client", kind: "oauth", scopes: [], url: OAUTH_DRAFT.url },
     });
   });
 
