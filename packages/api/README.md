@@ -158,10 +158,9 @@ src/
 `pnpm --filter @repo/api test` — vitest, no platform. `src/cloud/__tests__/`
 pins the contract shapes and refusals (and that every answer a newer Worker
 grows still reads), the login flow, the session fence and single-flight, the
-byte primitives, the sync clip (every
-event type fits the cap with its envelope untouched), and that the cloud
-vault-path grammar admits exactly what `parseVaultPath` returns unchanged;
-`src/local/__tests__/` the timeline fold and delta algebra (a clipped log
-folds to the same statuses, a thought streamed into a long turn sends that
-thought alone, a 10k-line output folds to a bounded row), the `/ws` strict/lenient pair, and the vault and
-comments schemas.
+byte primitives, the sync clip (every event type fits the cap with its envelope
+untouched), and that the cloud vault-path grammar admits exactly what
+`parseVaultPath` returns unchanged; `src/local/**/__tests__/` pin the timeline
+fold and delta algebra, the `/ws` strict/lenient pair, each domain's schemas and
+the restore composition; `knowledge/__tests__/engine-mirror.test.ts` is
+type-level and fails under `tsc`, not `vitest`.

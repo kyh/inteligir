@@ -2,7 +2,7 @@
 // from the bytes so the fixture and the pin cannot drift.
 
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -156,6 +156,33 @@ describe("downloadModel", () => {
       Object.values(resolveModelFiles(dir, spec)).map((file) => readFileSync(file));
     expect(read(modelDir)).toEqual(read(reference));
     expect(readdirSync(modelDir)).toEqual([spec.id]);
+  });
+
+  it("clears a staging dir a killed download abandoned, and spares one that may still be running", async () => {
+    const modelDir = makeTempDir("inteligir-models-");
+    const spec = specFor(FIXTURE);
+    const abandoned = `${modelDirFor(modelDir, spec)}.partial-killed`;
+    const running = `${modelDirFor(modelDir, spec)}.partial-running`;
+    const otherModel = `${modelDir}/other-model.partial-killed`;
+    const dayAndAnHourAgo = new Date(Date.now() - 25 * 60 * 60_000);
+    for (const dir of [abandoned, running, otherModel]) {
+      await mkdir(dir);
+      writeFileSync(`${dir}/download.tar.bz2`, "partial");
+    }
+    utimesSync(abandoned, dayAndAnHourAgo, dayAndAnHourAgo);
+    utimesSync(otherModel, dayAndAnHourAgo, dayAndAnHourAgo);
+
+    await downloadModel({
+      fetchImpl: fetchServing(FIXTURE),
+      modelDir,
+      onProgress: () => {},
+      signal: new AbortController().signal,
+      spec,
+    });
+
+    expect(readdirSync(modelDir).toSorted()).toEqual(
+      ["other-model.partial-killed", spec.id, `${spec.id}.partial-running`].toSorted(),
+    );
   });
 
   it("answers a non-2xx with its status", async () => {

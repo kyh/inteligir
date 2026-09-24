@@ -592,6 +592,44 @@ describe("a pass that did not reach the cloud", () => {
     expect(after).toMatchObject({ lastSyncedAt: 1_000_000, state: "signed-in" });
     expect(after.state === "signed-in" ? after.lastError : null).toMatch(/network is down/u);
   });
+
+  it("keeps a failed push's error when the pull after it succeeds", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    const cloud = new FakeCloud();
+    let pushDown = false;
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) =>
+        pushDown && new URL(input).pathname === SYNC_API_PATHS.push
+          ? new Response(null, { status: 503 })
+          : await cloud.fetch(input, init),
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+
+    pushDown = true;
+    append(harness, [message("thr_1", "the push cannot land")]);
+    vi.setSystemTime(2_000_000);
+    const after = await harness.runtime.syncNow();
+
+    expect(after).toMatchObject({ lastSyncedAt: 1_000_000, pending: 1, state: "signed-in" });
+    expect(after.state === "signed-in" ? after.lastError : null).toMatch(/HTTP 503/u);
+  });
+
+  it("says why a capture it claimed could not be written", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    harness.vault.writeGuarded = async () =>
+      await Promise.resolve({ applied: false, reason: "exists" });
+
+    harness.cloud.capture("buy oat milk");
+    const after = await harness.runtime.syncNow();
+
+    expect(after.state === "signed-in" ? after.lastError : null).toMatch(
+      /appeared under the capture write/u,
+    );
+  });
 });
 
 // pages of one row, so three passes' worth of pages is a few dozen rows rather than fifteen thousand.
@@ -881,6 +919,29 @@ describe("signing out", () => {
     expect(cloud.activeDeviceCount()).toBe(0);
   });
 
+  it("holds a shutdown for a sign-out the cloud never answers only until the grace runs out", async () => {
+    const cloud = new FakeCloud();
+    const gate = gatedFetch(cloud, DEVICE_API_PATHS.signOut);
+    const harness = makeHarness({ cloud, fetch: gate.fetch, pollIntervalMs: null });
+    await signIn(harness);
+
+    gate.arm();
+    harness.runtime.logout();
+    await gate.reached;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let disposed = false;
+    const disposing = (async () => {
+      await harness.runtime.dispose();
+      disposed = true;
+    })();
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(disposed).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await disposing;
+    expect(cloud.activeDeviceCount()).toBe(1);
+  });
+
   it("signs out here even when the cloud cannot hear it", async () => {
     const cloud = new FakeCloud();
     const harness = makeHarness({
@@ -996,6 +1057,30 @@ describe("applying the account's log", () => {
     await loginAs(harness.runtime, "Reader");
 
     expect(readSyncState(harness.db).cursor).toBe(1);
+    expect(harness.runtime.status()).toMatchObject({
+      lastError: "the disk is full",
+      lastSyncedAt: null,
+    });
+  });
+
+  it("still lands the captures while a row it cannot apply holds the cursor", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({ cloud, pollIntervalMs: null });
+    const writer = makeHarness({ cloud, pollIntervalMs: null });
+    await signIn(writer);
+    append(writer, [message("thr_1", "one")]);
+    await writer.runtime.syncNow();
+
+    harness.runtime.attach({
+      applySyncedEvents: () => {
+        throw new Error("the disk is full");
+      },
+    });
+    cloud.capture("buy oat milk");
+    await loginAs(harness.runtime, "Reader");
+
+    expect(readSyncState(harness.db).cursor).toBe(0);
+    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
     expect(harness.runtime.status()).toMatchObject({
       lastError: "the disk is full",
       lastSyncedAt: null,

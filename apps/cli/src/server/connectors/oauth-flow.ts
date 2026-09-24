@@ -16,6 +16,7 @@ import type {
 } from "./connectors-store";
 import { ConnectorConflictError } from "./connectors-service";
 import { discoverOauthServer } from "./oauth-discovery";
+import type { Refusal } from "./oauth-discovery";
 import { generatePkceVerifier, pkceChallengeS256 } from "./pkce";
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
@@ -55,7 +56,7 @@ interface PendingAuthorize extends AuthorizeTarget {
   redirectUri: string;
 }
 
-type OauthBegin = { ok: true; url: string } | { ok: false; detail: string };
+type OauthBegin = { ok: true; url: string } | Refusal;
 
 export interface ConnectorOauthFlow {
   begin: (name: string, redirectUri: string) => Promise<OauthBegin>;
@@ -171,7 +172,7 @@ export const createConnectorOauthFlow = (
     name: string,
     transport: OauthRow,
     redirectUri: string,
-  ): Promise<{ ok: true; target: AuthorizeTarget } | { ok: false; detail: string }> => {
+  ): Promise<{ ok: true; target: AuthorizeTarget } | Refusal> => {
     const named = namedOauthServerOf(transport);
     if (named !== null) {
       return { ok: true, target: { discovered: null, scopes: transport.scopes, server: named } };

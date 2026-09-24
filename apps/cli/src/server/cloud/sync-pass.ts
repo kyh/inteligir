@@ -107,7 +107,6 @@ const drain = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutc
       return failedOrFenced(deps, result.failure);
     }
     ackPushBatch(deps.db, batch);
-    deps.setLastError(null);
   }
   return countSyncOutbox(deps.db) > 0 ? "more" : "caught-up";
 };
@@ -161,29 +160,36 @@ const skipStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "skip" 
   });
 };
 
-const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> =>
-  await pullPages({
-    applyPlan: (steps) => {
-      for (const step of steps) {
-        if (step.kind === "apply") {
-          applyStep(deps, step);
-        } else {
-          skipStep(deps, step);
+// a throw is a row that did not land, and applyStep's refusal to move the cursor past it: this
+// step fails with the cursor where the last commit left it, and the captures still run.
+const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
+  try {
+    return await pullPages({
+      applyPlan: (steps) => {
+        for (const step of steps) {
+          if (step.kind === "apply") {
+            applyStep(deps, step);
+          } else {
+            skipStep(deps, step);
+          }
         }
-      }
-    },
-    client: context.client,
-    fenced: () => deps.fenced(context),
-    onPage: () => {
-      deps.setLastError(null);
-    },
-    onSkipped: (message) => {
-      deps.debug(message);
-    },
-    ownDeviceIds: context.ownDeviceIds,
-    readCursor: () => readSyncState(deps.db).cursor,
-    recordFailure: (failure) => deps.recordFailure(failure),
-  });
+      },
+      client: context.client,
+      fenced: () => deps.fenced(context),
+      onSkipped: (message) => {
+        deps.debug(message);
+      },
+      ownDeviceIds: context.ownDeviceIds,
+      readCursor: () => readSyncState(deps.db).cursor,
+      recordFailure: (failure) => deps.recordFailure(failure),
+    });
+  } catch (error) {
+    const message = messageOf(error);
+    deps.setLastError(message);
+    deps.debug(`applying the account's log failed: ${message}`);
+    return "failed";
+  }
+};
 
 // vault write, then ledger, then ack. the ledger closes the lapsed-claim window;
 // a crash between the write and the ledger (two stores, no shared transaction)
@@ -218,6 +224,7 @@ const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<
     if (!written.applied) {
       // nothing recorded, nothing acked: the claim lapses and these are redelivered.
       deps.debug(written.reason);
+      deps.setLastError(written.reason);
       return "failed";
     }
     recordAppliedCaptures(
@@ -263,6 +270,10 @@ export const runSyncPass = async (
   }
   if (!deps.fenced(context)) {
     return "fenced";
+  }
+  // cleared once per pass, never per step: a later step's success would hide an earlier one's failure.
+  if (!outcomes.includes("failed")) {
+    deps.setLastError(null);
   }
   if (outcomes.includes("more")) {
     return "more";
