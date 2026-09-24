@@ -73,6 +73,9 @@ export class VaultEditorController {
   // only the latest read applies, so a slow read can't land over a newer one.
   private readSeq = 0;
   private writing: Promise<void> | null = null;
+  // a reload a write pre-empted runs once the write settles: the bytes that write landed can
+  // predate the change that asked for it, and no other echo is coming to show that change.
+  private reloadDeferred = false;
   private readonly subs = new Set<() => void>();
   private readonly io: VaultIO;
   // hands over edits a surface still holds back (the rich editor's serialize debounce) before
@@ -194,6 +197,10 @@ export class VaultEditorController {
     await writing;
     if (this.writing === writing) {
       this.writing = null;
+      if (this.reloadDeferred) {
+        this.reloadDeferred = false;
+        void this.reloadOpen();
+      }
     }
   }
 
@@ -246,14 +253,22 @@ export class VaultEditorController {
   private async reloadOpen(): Promise<void> {
     this.drain();
     const { path, content: before } = this.st;
-    if (path === null || this.st.dirty || this.writing) {
+    if (this.writing !== null) {
+      this.reloadDeferred = true;
+      return;
+    }
+    if (path === null || this.st.dirty) {
       return;
     }
     this.readSeq += 1;
     const seq = this.readSeq;
     try {
       const text = await this.io.read(path);
-      if (this.readSeq !== seq || this.st.path !== path || this.writing !== null) {
+      if (this.readSeq !== seq || this.st.path !== path) {
+        return;
+      }
+      if (this.writing !== null) {
+        this.reloadDeferred = true;
         return;
       }
       // the read moved the IO's base to `text`: an edit made while it was in flight is rebased,

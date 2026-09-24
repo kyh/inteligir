@@ -632,7 +632,10 @@ to the END of its group.
   passes the next save's CAS without the external edit. A reload is the same
   hazard, so it drains the editor's serialize debounce before and after its
   read and rebases an edit made during it rather than skipping the bytes it
-  read. `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`,
+  read. A reload a write in flight pre-empts runs once that write settles:
+  the bytes the write lands can predate the change the echo announced, and no
+  second echo is coming to show it.
+  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`,
   `packages/editor/src/vault-editor.ts` and `@repo/notes/text/diff3`.
 
 - **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends `ifAbsent` and
