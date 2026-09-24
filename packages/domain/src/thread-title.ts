@@ -1,13 +1,13 @@
-// one reading of "what is this thread called", so the server naming a thread from its first
-// message and the phone projecting a synced one agree on every device.
+// one reading of a message's first line, so the server naming a thread from its first message
+// and the phone projecting a synced one agree on every device.
 
 const THREAD_TITLE_MAX_CHARS = 60;
 
 // an explicit title's bound: the create route takes no longer one, and the log carries what it took.
 export const MAX_THREAD_TITLE_LENGTH = 200;
 
-// null when the message has no visible line: an untitled thread reads better than a blank one.
-export const deriveThreadTitle = (text: string): string | null => {
+// null when the text has no visible line: an untitled thread reads better than a blank one.
+export const firstVisibleLine = (text: string): string | null => {
   const line = text
     .split("\n")
     .map((candidate) => candidate.trim())
@@ -21,3 +21,5 @@ export const deriveThreadTitle = (text: string): string | null => {
     ? `${chars.slice(0, THREAD_TITLE_MAX_CHARS - 1).join("")}…`
     : line;
 };
+
+export const deriveThreadTitle = (message: string): string | null => firstVisibleLine(message);

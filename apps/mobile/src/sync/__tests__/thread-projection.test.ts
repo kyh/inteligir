@@ -6,7 +6,7 @@ import { createMemorySyncStore } from "../memory-sync-store";
 import type { StoredThread, SyncStore } from "../sync-store";
 import { applyPlan } from "../thread-log";
 import { liveThreadsFirst, projectThread } from "../thread-projection";
-import { agentMessage, logRow, userRequest } from "./fakes";
+import { agentDelta, agentMessage, logRow, userRequest } from "./fakes";
 
 const OTHER = "dev_other";
 const OWN = new Set(["dev_self"]);
@@ -55,6 +55,63 @@ describe("the thread projection", () => {
     const refolded = projectThread(held(store, "thr_b"));
     expect(refolded).not.toBe(foldedB);
     expect(refolded.preview).toBe("answer");
+  });
+
+  it("keeps a thread's fold across a page of deltas, which moves only its recency", () => {
+    const store = createMemorySyncStore();
+    applyPlan(
+      store,
+      planPage(
+        [logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_a", "hi"), seq: 1 })],
+        OWN,
+      ).steps,
+    );
+    const before = projectThread(held(store, "thr_a"));
+
+    applyPlan(
+      store,
+      planPage(
+        [
+          logRow({
+            deviceId: OTHER,
+            deviceSeq: 1,
+            event: agentDelta("thr_a", "t1", "m1", "tok"),
+            seq: 2,
+          }),
+        ],
+        OWN,
+      ).steps,
+    );
+
+    expect(held(store, "thr_a").lastSeq).toBe(2);
+    expect(projectThread(held(store, "thr_a"))).toBe(before);
+  });
+
+  it("previews the last message's first visible line, cut by code point", () => {
+    const store = createMemorySyncStore();
+    applyPlan(
+      store,
+      planPage(
+        [
+          logRow({
+            deviceId: OTHER,
+            deviceSeq: 0,
+            event: agentMessage("thr_a", "t1", "m1", "\n\n  first words\nmore"),
+            seq: 1,
+          }),
+          logRow({
+            deviceId: OTHER,
+            deviceSeq: 1,
+            event: agentMessage("thr_b", "t1", "m2", "😀".repeat(61)),
+            seq: 2,
+          }),
+        ],
+        OWN,
+      ).steps,
+    );
+
+    expect(projectThread(held(store, "thr_a")).preview).toBe("first words");
+    expect(projectThread(held(store, "thr_b")).preview).toBe(`${"😀".repeat(59)}…`);
   });
 
   it("names a thread by the title its log states, over its first line, and reads its archive", () => {

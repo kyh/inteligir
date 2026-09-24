@@ -84,7 +84,7 @@ export const createMemorySyncStore = (): SyncStore => {
     },
 
     writeCursor(seq: number): void {
-      cursor = seq;
+      cursor = Math.max(cursor, seq);
     },
   };
 };
