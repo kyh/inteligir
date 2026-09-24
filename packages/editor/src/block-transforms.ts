@@ -80,28 +80,39 @@ const elementAt = (editor: PlateEditor, at: Path): TElement | null => {
   return entry[0];
 };
 
-const retargetToggleSummary = (editor: PlateEditor, entry: [TElement, Path]): [TElement, Path] => {
-  const [, path] = entry;
-  if (path.length > 1 && path.at(-1) === 0) {
-    const parent = editor.api.node(PathApi.parent(path));
-    if (
-      parent &&
-      ElementApi.isElement(parent[0]) &&
-      parent[0].type === editor.getType(KEYS.toggle)
-    ) {
-      return [parent[0], parent[1]];
-    }
+const parentElement = (editor: PlateEditor, path: Path): [TElement, Path] | null => {
+  if (path.length < 2) {
+    return null;
   }
-  return entry;
+  const parentPath = PathApi.parent(path);
+  const parent = elementAt(editor, parentPath);
+  return parent === null ? null : [parent, parentPath];
 };
 
-// A toggle's summary row (first child) stands for the toggle: "Toggle → Text" must unwrap it, not no-op on the inner paragraph.
+// Turn-into names the block the user sees, as the block menu does. A code line stands for its code
+// block: a line converted alone is reverted by the normalizer or nested inside the fence, losing its
+// text. A toggle's summary row (first child) stands for the toggle: "Toggle → Text" must unwrap it,
+// not no-op on the inner paragraph.
+const turnIntoTarget = (editor: PlateEditor, entry: [TElement, Path]): [TElement, Path] => {
+  const [node, path] = entry;
+  const block =
+    node.type === editor.getType(KEYS.codeLine) ? (parentElement(editor, path) ?? entry) : entry;
+  const [, blockPath] = block;
+  if (blockPath.at(-1) === 0) {
+    const toggle = parentElement(editor, blockPath);
+    if (toggle !== null && toggle[0].type === editor.getType(KEYS.toggle)) {
+      return toggle;
+    }
+  }
+  return block;
+};
+
 export const effectiveBlockEntry = (editor: PlateEditor, at?: TRange): [TElement, Path] | null => {
   const block = editor.api.block(at ? { at } : {});
   if (!block || !ElementApi.isElement(block[0])) {
     return null;
   }
-  return retargetToggleSummary(editor, [block[0], block[1]]);
+  return turnIntoTarget(editor, [block[0], block[1]]);
 };
 
 export const turnIntoOptionFor = (node: TElement): TurnIntoOption => {
@@ -244,7 +255,7 @@ export const turnIntoSelection = (editor: PlateEditor, opt: TurnIntoOption, at?:
   const targets = new Map<string, Path>();
   for (const [node, path] of entries) {
     if (ElementApi.isElement(node)) {
-      const [, target] = retargetToggleSummary(editor, [node, path]);
+      const [, target] = turnIntoTarget(editor, [node, path]);
       targets.set(target.join("."), target);
     }
   }
