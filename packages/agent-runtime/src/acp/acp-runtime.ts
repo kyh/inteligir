@@ -155,6 +155,14 @@ const drained = async (stream: Readable): Promise<void> => {
   }
 };
 
+// the host closed the thread while its adapter was still being opened.
+export class ThreadClosedError extends Error {
+  constructor(threadId: string) {
+    super(`Thread "${threadId}" was closed before its adapter opened`);
+    this.name = "ThreadClosedError";
+  }
+}
+
 const CANCELLED_PERMISSION: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
 
 const whenAborted = async (signal: AbortSignal): Promise<null> => {
@@ -169,6 +177,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   // prompted.
   const adapters = new Map<string, AcpAdapter>();
   const sessions = new Map<string, AcpSession>();
+  // bumped by every host close. a close landing while an open awaits the previous child's exit has
+  // no new child to stop yet, so the open checks this before it spawns one.
+  const closeGenerations = new Map<string, number>();
   let shuttingDown = false;
 
   const emit = (events: readonly ProviderEvent[]): void => {
@@ -317,7 +328,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     });
   };
 
-  const closeThread = async (threadId: string): Promise<void> => {
+  const closeAdapter = async (threadId: string): Promise<void> => {
     const adapter = adapters.get(threadId);
     if (adapter === undefined) {
       return;
@@ -344,13 +355,24 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     await kill(adapter);
   };
 
+  const closeGeneration = (threadId: string): number => closeGenerations.get(threadId) ?? 0;
+
+  const closeThread = async (threadId: string): Promise<void> => {
+    closeGenerations.set(threadId, closeGeneration(threadId) + 1);
+    await closeAdapter(threadId);
+  };
+
   const openAdapter = async (threadId: string, providerId: string): Promise<AcpAdapter> => {
     const harness = requireHarness(providerId);
+    const generation = closeGeneration(threadId);
     // a thread has one child: whatever it still holds goes first, so two adapters never write one
     // provider session's files.
-    await closeThread(threadId);
+    await closeAdapter(threadId);
     if (shuttingDown) {
       throw new Error("The agent runtime is shut down");
+    }
+    if (closeGeneration(threadId) !== generation) {
+      throw new ThreadClosedError(threadId);
     }
     const { child } = spawnAdapter(harness, threadId);
     const { stdin, stdout } = child;

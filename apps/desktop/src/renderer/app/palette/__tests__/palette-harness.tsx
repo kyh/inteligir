@@ -10,6 +10,7 @@ import type {
   KnowledgeSearchRequest,
   KnowledgeSearchResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
+import type { ListThreadsResponse } from "@repo/api/local/threads/threads-schema";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -25,7 +26,7 @@ import type {
 import { stubRpc } from "../../__tests__/rpc-stub";
 import { createWorkspaceQueryClient } from "../../workspace-context";
 
-export interface KnowledgeFakes {
+export interface PaletteFakes {
   matches?: (
     request: KnowledgeMatchesRequest,
   ) => KnowledgeMatchesResponse | Promise<KnowledgeMatchesResponse>;
@@ -35,6 +36,8 @@ export interface KnowledgeFakes {
     request: KnowledgeSearchRequest,
     signal: AbortSignal | undefined,
   ) => KnowledgeSearchResponse | Promise<KnowledgeSearchResponse>;
+  // unset, the server finds no action
+  threads?: (request: ThreadSearchRequest) => ListThreadsResponse;
 }
 
 const EMPTY_FAMILY = { rows: [], total: 0 };
@@ -54,9 +57,11 @@ const matchesRequestSchema = z.object({
   wholeWord: z.boolean(),
 });
 const searchRequestSchema = z.object({ limit: z.number(), q: z.string() });
+const threadSearchRequestSchema = z.object({ limit: z.number(), query: z.string() });
+type ThreadSearchRequest = z.infer<typeof threadSearchRequestSchema>;
 
 // every procedure the palette's pages call; anything else is a 404 the query reports as an error
-export const stubKnowledgeFetch = ({ matches, problems, search }: KnowledgeFakes): void => {
+export const stubPaletteFetch = ({ matches, problems, search, threads }: PaletteFakes): void => {
   stubRpc({
     "knowledge/matches":
       matches === undefined
@@ -66,6 +71,10 @@ export const stubKnowledgeFetch = ({ matches, problems, search }: KnowledgeFakes
     "knowledge/search": async (input, signal) => {
       const request = searchRequestSchema.parse(input);
       return search === undefined ? { results: [] } : await search(request, signal);
+    },
+    "threads/list": (input) => {
+      const request = threadSearchRequestSchema.parse(input);
+      return threads === undefined ? { nextCursor: null, threads: [] } : threads(request);
     },
   });
 };

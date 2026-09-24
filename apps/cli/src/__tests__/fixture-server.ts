@@ -105,6 +105,7 @@ export const makeThread = (overrides: Partial<Thread> & Pick<Thread, "id">): Thr
   createdAt: 1_700_000_000_000,
   originDocPath: null,
   providerId: null,
+  runsElsewhere: false,
   status: "idle",
   title: null,
   updatedAt: 1_700_000_000_000,

@@ -370,7 +370,12 @@ to the END of its group.
 
 - **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
   HISTORY BATCH.** ⌘⇧O opens the palette on the open note's outline and lands
-  through the TOC's own `goToHeading` (`packages/editor/src/toc.tsx`). "Extract
+  through the TOC's own `goToHeading` (`packages/editor/src/toc.tsx`). The
+  outline is walked once, by whatever opens the page, and rides the page
+  (`PaletteEntry` in `apps/desktop/src/renderer/app/palette/command-palette.tsx`),
+  never walked in render: the workspace sits outside the Plate provider and
+  cannot subscribe to the document, so a render-time read is one nothing
+  refreshes. "Extract
   to new note" (`packages/editor/src/extract-note.ts`) serializes the blocks
   with the editor's own `MD_STRINGIFY` and creates the note through the
   exclusive `createNewFileAt` before touching the buffer, because
@@ -972,7 +977,10 @@ to the END of its group.
   pending request and a crash fails the dispatch or the turn like a refused
   prompt. Rejected: an exit callback beside it, and per-thread exit
   generations, which fit a process shared by threads and would be a second
-  answer to "did this turn fail?".
+  answer to "did this turn fail?". A CLOSE counts, though: an open awaiting the
+  previous child's exit has no new child a close could stop yet, so every host
+  close bumps the thread's close generation and an open that sees it move
+  throws `ThreadClosedError` rather than spawn an orphan.
   `packages/agent-runtime/src/acp/acp-runtime.ts` and
   `apps/cli/src/server/agents/runtime-manager.ts`.
 
@@ -993,8 +1001,11 @@ to the END of its group.
   names its own contributors, not every turn-scoped event: a streaming
   assistant message lands as a top-level row, and counting it would move the
   turn row on every token. A command row carries its first
-  `COMMAND_OUTPUT_LINES` lines; the event log keeps every byte. Residual: a
-  reasoning row's text and a tool row's result still ride whole.
+  `COMMAND_OUTPUT_LINES` lines; the event log keeps every byte. A row whose
+  text only grew (a thought, a plan, a streamed message) travels as a
+  `textAppends` entry from the held text's length, since resending it whole
+  costs bytes quadratic in its tokens; an append onto a text of another length
+  refetches. Residual: a tool row's result still rides whole.
   `packages/api/src/local/thread-timeline.ts`.
 
 - **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER**, in the
@@ -1012,7 +1023,9 @@ to the END of its group.
   settles through its prompt's `cancelled` end like any turn; one silent past
   `stopGraceMs` has its session closed and is settled by the host. Archiving a
   running thread stops it. A turn another device runs is refused (`CONFLICT`):
-  only its own process can reach its provider.
+  only its own process can reach its provider. The wire thread says so
+  (`runsElsewhere`), so the panel draws no Stop there rather than one that
+  answers with a refusal (`apps/desktop/src/renderer/app/thread-activity.ts`).
   `apps/cli/src/server/agents/runtime-manager.ts`,
   `apps/cli/src/server/threads/service.ts`.
 
@@ -1027,7 +1040,8 @@ to the END of its group.
   stored path while it still carries the id, so a byte copy never takes the
   binding. The composer mints the open note's id through the live editor,
   because a server mint under the buffer would make the revision name bytes no
-  longer on disk (`apps/desktop/src/renderer/app/note/open-note-id.ts`).
+  longer on disk, and outside the undo history, because an undo would unbind
+  the action just sent (`apps/desktop/src/renderer/app/note/open-note-id.ts`).
   `apps/cli/src/server/threads/thread-origins.ts`.
 
 - **THE THREAD LIST IS A KEYSET PAGE, AND A QUESTION A PAGE CANNOT ANSWER IS
@@ -1035,10 +1049,12 @@ to the END of its group.
   after an opaque `cursor`, live before archived and newest first. An offset
   was rejected because a thread touched between two reads would shift every
   row behind it. A page is a window, so what must be whole is its own query:
-  the open note's actions (`originDocPath`), and the rail's agent spinner,
-  which asks for one `running` thread, archived ones included.
+  the open note's actions (`originDocPath`), the rail's agent spinner, which
+  asks for one `running` thread, archived ones included, and the palette's
+  Actions search (`query`, a LIKE over the title and the stored origin path).
   `packages/db/src/threads.ts`,
-  `apps/desktop/src/renderer/app/actions/thread-hooks.ts`.
+  `apps/desktop/src/renderer/app/actions/thread-hooks.ts`,
+  `apps/desktop/src/renderer/app/palette/threads-page.tsx`.
 
 ### Dictation
 

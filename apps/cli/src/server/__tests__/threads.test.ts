@@ -890,12 +890,21 @@ describe("stopping a turn", () => {
       ],
       threadId,
     });
-    expect(await getThreadStatus(client, threadId)).toBe("active");
+    const detail = await client.threads.get({ threadId });
+    expect(detail.thread).toMatchObject({ runsElsewhere: true, status: "active" });
 
     const [refusal] = await safe(client.threads.interrupt({ threadId }));
     expect(isDefinedError(refusal) && refusal.code).toBe("CONFLICT");
     expect(await getThreadStatus(client, threadId)).toBe("active");
     expect(driver.interruptedThreads).toEqual([]);
+  });
+
+  it("says a turn this device runs is not elsewhere", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "go", threadId });
+    const { thread } = await client.threads.get({ threadId });
+    expect(thread).toMatchObject({ runsElsewhere: false, status: "active" });
   });
 
   it("stops the turn an archive leaves behind, and starts nothing queued on the archived thread", async () => {

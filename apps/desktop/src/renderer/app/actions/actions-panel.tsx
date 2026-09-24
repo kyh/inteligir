@@ -323,6 +323,11 @@ const ActionDetail = ({
             {thread.originDocPath}
           </button>
         ) : null}
+        {thread?.runsElsewhere === true ? (
+          <span className="shrink-0 px-1 text-caption text-muted-foreground">
+            Running on another device
+          </span>
+        ) : null}
         {stopControl === "none" ? null : (
           <Button
             size="icon-compact"

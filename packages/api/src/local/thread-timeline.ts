@@ -140,6 +140,17 @@ export const threadTimelineSchema = z.object({
 });
 export type ThreadTimeline = z.infer<typeof threadTimelineSchema>;
 
+// a row whose text only grew moves by what it gained: a thought or a message streams a token at a
+// time, and resending the whole text for each would cost bytes quadratic in its length. fromLength
+// is the held text's length, so an append onto any other text refetches.
+const timelineTextAppendSchema = z.object({
+  fromLength: z.number().int().nonnegative(),
+  id: z.string(),
+  sourceSeqEnd: z.number().int(),
+  text: z.string(),
+});
+type TimelineTextAppend = z.infer<typeof timelineTextAppendSchema>;
+
 // a held turn moves by what its own events set and the children that changed, never whole: it
 // carries every command, tool call and thought of its turn, so one streamed token would resend all
 // of them. childOrder is omitted, like rowOrder, when order and membership held.
@@ -147,6 +158,7 @@ const timelineTurnPatchSchema = timelineTurnRowSchema
   .pick({ completedAt: true, id: true, sourceSeqEnd: true, status: true })
   .extend({
     childOrder: z.array(z.string()).optional(),
+    textAppends: z.array(timelineTextAppendSchema),
     upsertChildren: z.array(timelineTurnChildSchema),
   });
 type TimelineTurnPatch = z.infer<typeof timelineTurnPatchSchema>;
@@ -158,11 +170,37 @@ export const timelineDeltaSchema = z.object({
   fromSequence: z.number().int().nonnegative(),
   maxSequence: z.number().int().nonnegative(),
   rowOrder: z.array(z.string()).optional(),
+  textAppends: z.array(timelineTextAppendSchema),
   tokenUsage: threadEventTokenUsageSchema.nullable(),
   turnPatches: z.array(timelineTurnPatchSchema),
   upsertRows: z.array(timelineRowSchema),
 });
 export type TimelineDelta = z.infer<typeof timelineDeltaSchema>;
+
+type TimelineTextRow = TimelineConversationRow | TimelineReasoningWorkRow | TimelinePlanWorkRow;
+
+const isTextRow = (row: TimelineRow): row is TimelineTextRow =>
+  row.kind === "conversation" ||
+  (row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan"));
+
+// what a text row is besides its text and how far its events reached; key order is the fold's, the
+// same for both sides of one delta.
+const textRowRest = (row: TimelineTextRow): string =>
+  JSON.stringify({ ...row, sourceSeqEnd: 0, text: "" });
+
+const textAppend = (held: TimelineRow | undefined, row: TimelineRow): TimelineTextAppend | null =>
+  held !== undefined &&
+  isTextRow(held) &&
+  isTextRow(row) &&
+  row.text.startsWith(held.text) &&
+  textRowRest(held) === textRowRest(row)
+    ? {
+        fromLength: held.text.length,
+        id: row.id,
+        sourceSeqEnd: row.sourceSeqEnd,
+        text: row.text.slice(held.text.length),
+      }
+    : null;
 
 interface Identified {
   id: string;
@@ -192,20 +230,47 @@ const isUnchanged = (
   ((through !== null && row.sourceSeqEnd <= through) ||
     JSON.stringify(held) === JSON.stringify(row));
 
+// what moved since the base: a row whose text only grew as an append, any other as itself
+interface ChangedRows<Row> {
+  textAppends: TimelineTextAppend[];
+  upserts: Row[];
+}
+
+const changedRows = <Row extends TimelineRow>(
+  held: ReadonlyMap<string, TimelineRow>,
+  rows: readonly Row[],
+  through: number | null,
+): ChangedRows<Row> => {
+  const textAppends: TimelineTextAppend[] = [];
+  const upserts: Row[] = [];
+  for (const row of rows) {
+    const heldRow = held.get(row.id);
+    if (isUnchanged(heldRow, row, through)) {
+      continue;
+    }
+    const append = textAppend(heldRow, row);
+    if (append === null) {
+      upserts.push(row);
+    } else {
+      textAppends.push(append);
+    }
+  }
+  return { textAppends, upserts };
+};
+
 const turnPatch = (
   held: TimelineTurnRow,
   row: TimelineTurnRow,
   through: number,
 ): TimelineTurnPatch => {
-  const heldChildren = byId(held.children);
+  const { textAppends, upserts } = changedRows(byId(held.children), row.children, through);
   const patch: TimelineTurnPatch = {
     completedAt: row.completedAt,
     id: row.id,
     sourceSeqEnd: row.sourceSeqEnd,
     status: row.status,
-    upsertChildren: row.children.filter(
-      (child) => !isUnchanged(heldChildren.get(child.id), child, through),
-    ),
+    textAppends,
+    upsertChildren: upserts,
   };
   const childOrder = movedOrder(held.children, row.children);
   return childOrder === undefined ? patch : { ...patch, childOrder };
@@ -217,7 +282,7 @@ export const computeTimelineDelta = (
 ): TimelineDelta => {
   const through = current.maxSequence >= base.maxSequence ? base.maxSequence : null;
   const heldRows = byId(base.rows);
-  const upsertRows: TimelineRow[] = [];
+  const unpatched: TimelineRow[] = [];
   const turnPatches: TimelineTurnPatch[] = [];
   for (const row of current.rows) {
     const held = heldRows.get(row.id);
@@ -227,17 +292,17 @@ export const computeTimelineDelta = (
       }
       continue;
     }
-    if (!isUnchanged(held, row, through)) {
-      upsertRows.push(row);
-    }
+    unpatched.push(row);
   }
+  const { textAppends, upserts } = changedRows(heldRows, unpatched, through);
   const rowOrder = movedOrder(base.rows, current.rows);
   const delta = {
     fromSequence: base.maxSequence,
     maxSequence: current.maxSequence,
+    textAppends,
     tokenUsage: current.tokenUsage,
     turnPatches,
-    upsertRows,
+    upsertRows: upserts,
   };
   return rowOrder === undefined ? delta : { ...delta, rowOrder };
 };
@@ -264,8 +329,31 @@ const mergeRows = <Row extends Identified>(
   return merged;
 };
 
-// null means refetch in full: the base does not match, a patched turn is not held, or a row is
-// neither held nor sent
+// null when an append names a row the list lacks, or a text of another length than it grew from
+const appendTexts = <Row extends TimelineRow>(
+  rows: readonly Row[],
+  appends: readonly TimelineTextAppend[],
+): Row[] | null => {
+  const indexById = new Map(rows.map((row, index) => [row.id, index]));
+  const appended = [...rows];
+  for (const append of appends) {
+    const index = indexById.get(append.id);
+    const row = index === undefined ? undefined : appended[index];
+    if (
+      index === undefined ||
+      row === undefined ||
+      !isTextRow(row) ||
+      row.text.length !== append.fromLength
+    ) {
+      return null;
+    }
+    appended[index] = { ...row, sourceSeqEnd: append.sourceSeqEnd, text: row.text + append.text };
+  }
+  return appended;
+};
+
+// null means refetch in full: the base does not match, a patched turn is not held, a row is
+// neither held nor sent, or an append does not fit the held text
 export const applyTimelineDelta = (
   held: ThreadTimeline,
   delta: TimelineDelta,
@@ -280,7 +368,8 @@ export const applyTimelineDelta = (
     if (turn?.kind !== "turn") {
       return null;
     }
-    const children = mergeRows(turn.children, patch.upsertChildren, patch.childOrder);
+    const merged = mergeRows(turn.children, patch.upsertChildren, patch.childOrder);
+    const children = merged === null ? null : appendTexts(merged, patch.textAppends);
     if (children === null) {
       return null;
     }
@@ -292,7 +381,8 @@ export const applyTimelineDelta = (
       status: patch.status,
     });
   }
-  const rows = mergeRows(held.rows, [...patchedTurns, ...delta.upsertRows], delta.rowOrder);
+  const merged = mergeRows(held.rows, [...patchedTurns, ...delta.upsertRows], delta.rowOrder);
+  const rows = merged === null ? null : appendTexts(merged, delta.textAppends);
   return rows === null
     ? null
     : { maxSequence: delta.maxSequence, rows, tokenUsage: delta.tokenUsage };

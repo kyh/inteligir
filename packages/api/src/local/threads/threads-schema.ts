@@ -16,6 +16,8 @@ export const threadSchema = z
     id: z.string().min(1),
     originDocPath: z.string().nullable(),
     providerId: z.string().nullable(),
+    // the running turn is another device's, so only that device can stop it.
+    runsElsewhere: z.boolean(),
     status: threadStatusSchema,
     title: z.string().nullable(),
     updatedAt: z.number(),
@@ -89,6 +91,9 @@ export const listThreadsQuerySchema = z
     includeArchived: z.boolean().optional(),
     limit: z.number().int().min(1).max(THREADS_LIST_MAX_LIMIT).optional(),
     originDocPath: vaultPathSchema.optional(),
+    // text the title or the stored origin path holds, ascii case folded; a page of the whole
+    // listing cannot answer it.
+    query: z.string().trim().min(1).max(200).optional(),
     // only threads whose turn is in flight; true or absent, one spelling of "any status".
     running: z.literal(true).optional(),
   })

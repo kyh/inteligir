@@ -6,7 +6,8 @@ import { frontmatterYamlWithId, mintNoteId } from "@repo/notes/markdown/frontmat
 // lands, through the live editor's frontmatter node, so the flush that names a view context's
 // revision carries it and the server finds it there. Minted by the server instead, it would land
 // under the buffer after the revision was taken. Frontmatter that cannot take an id is left for
-// the server to refuse the same way.
+// the server to refuse the same way. The id stays off the undo history: the user never typed it,
+// and an undo that took it would unbind the action just sent.
 export const ensureOpenNoteId = (path: string): void => {
   const editor = getLiveEditor(path);
   if (editor === null) {
@@ -14,6 +15,8 @@ export const ensureOpenNoteId = (path: string): void => {
   }
   const verdict = frontmatterYamlWithId(readFrontmatterRaw(editor), mintNoteId());
   if (verdict.kind === "written") {
-    writeFrontmatterRaw(editor, verdict.yaml);
+    editor.tf.withoutSaving(() => {
+      writeFrontmatterRaw(editor, verdict.yaml);
+    });
   }
 };

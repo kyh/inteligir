@@ -10,7 +10,7 @@ import {
 } from "@repo/domain/pending-interactions";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { writeTransaction } from "@repo/db/connection";
-import type { DbConnection, DbTransaction } from "@repo/db/connection";
+import type { DbConnection, DbExecutor, DbTransaction } from "@repo/db/connection";
 import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
@@ -152,13 +152,24 @@ export interface ThreadServiceArgs {
   sync?: ThreadSyncHooks;
 }
 
-const toWireThread = (row: ThreadRow, originDocPath: string | null): Thread => ({
+// a turn another device started answers to that device's provider alone.
+const turnRunsElsewhere = (db: DbExecutor, row: ThreadRow): boolean =>
+  isThreadRunning(row.status) &&
+  row.activeTurnId !== null &&
+  turnStartOriginDeviceId(db, { threadId: row.id, turnId: row.activeTurnId }) !== null;
+
+const toWireThread = (
+  row: ThreadRow,
+  originDocPath: string | null,
+  runsElsewhere: boolean,
+): Thread => ({
   activeTurnId: row.activeTurnId,
   archivedAt: row.archivedAt,
   createdAt: row.createdAt,
   id: row.id,
   originDocPath,
   providerId: row.providerId,
+  runsElsewhere,
   status: row.status,
   title: row.title,
   updatedAt: row.updatedAt,
@@ -389,8 +400,7 @@ const requestStopInTransaction = (
     case "starting":
     case "active":
     case "stopping": {
-      const turnId = thread.activeTurnId;
-      if (turnId !== null && turnStartOriginDeviceId(tx, { threadId, turnId }) !== null) {
+      if (turnRunsElsewhere(tx, thread)) {
         return {
           kind: "done",
           outcome: { kind: "remote", message: "That turn is running on another device" },
@@ -404,7 +414,7 @@ const requestStopInTransaction = (
       if (requested.applied) {
         buffer.notifyThread(threadId, ["status-changed"]);
       }
-      return { kind: "interrupt", turnId };
+      return { kind: "interrupt", turnId: thread.activeTurnId };
     }
     // no default
   }
@@ -521,11 +531,12 @@ export class ThreadService implements ProviderEventSink {
   // the stored path answers for a note with no id, or one no indexed doc carries any more.
   private async toWire(row: ThreadRow): Promise<Thread> {
     const { originDocPath, originNoteId } = row;
+    const runsElsewhere = turnRunsElsewhere(this.db, row);
     if (originDocPath === null || originNoteId === null) {
-      return toWireThread(row, originDocPath);
+      return toWireThread(row, originDocPath, runsElsewhere);
     }
     const resolved = await this.origins.pathForNoteId(originNoteId, originDocPath);
-    return toWireThread(row, resolved ?? originDocPath);
+    return toWireThread(row, resolved ?? originDocPath, runsElsewhere);
   }
 
   async create(input: CreateThreadRequest): Promise<Thread> {
@@ -546,6 +557,7 @@ export class ThreadService implements ProviderEventSink {
     const path = query.originDocPath ?? null;
     const page = listThreads(this.db, {
       after: query.cursor ?? null,
+      contains: query.query ?? null,
       includeArchived: query.includeArchived ?? false,
       limit: query.limit ?? THREADS_LIST_DEFAULT_LIMIT,
       origin: path === null ? null : { noteId: await this.origins.noteIdOf(path), path },
