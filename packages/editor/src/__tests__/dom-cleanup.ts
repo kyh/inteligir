@@ -4,7 +4,11 @@
 // unmounting cancels it. Left mounted, it fires into an environment whose DOM globals are already
 // gone — an unhandled `ShadowRoot is not defined` that fails the run while every test still passes.
 
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 afterEach(cleanup);
+
+// a three-core CI runner running four suites at once misses testing-library's one-second default
+// on work a laptop finishes in a tenth of it.
+configure({ asyncUtilTimeout: 5000 });
