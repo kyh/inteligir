@@ -28,75 +28,53 @@ apps/
   desktop/       @repo/desktop — THE SHIPPED PRODUCT (issue #611). THREE
                  bundles under electron-vite: src/main/ (the window, the
                  inteligir:// protocol handler, the forked server),
-                 src/preload/ (the bridge: the loopback ws origin, because a
-                 browser WebSocket cannot be proxied and window.location.origin
-                 no longer names a server; the updater, the spell checker and
-                 the vault switch, because each lives in main; Reveal/Open of
-                 a vault entry, because only main may hand the OS a path;
-                 nothing that holds a token — every frame crosses as `unknown`
-                 and is parsed on both sides, the page mirroring each through
-                 one `bridge-store.ts`), and src/renderer/ (the SPA: TanStack
-                 Router file routes over @repo/api/local; `app/workspace.tsx`
-                 owns the note, the rail, the palette and the panel; `app/note/`
-                 the guarded writes; `app/palette/` the ⌘P pages; `app/sidebar/`
-                 the rail's Recent | Files | Deleted views, a tag being a
-                 scope on Recent). The whole
-                 security surface is the ORIGIN PIN (src/main/origin-pin.ts,
-                 pure + unit-tested): one origin, top-level navigation away
-                 goes to the system browser, window.open denied
-                 unconditionally, permissions denied except origin-scoped
-                 media. utilityProcess forks `inteligir serve` and, through
-                 main's fork broker, every node child that server needs (the
-                 watcher, the ACP adapters); a server
-                 already listening is ADOPTED once it answers this instance's
-                 token at the bundled version, and only a child the shell
-                 started is killed on quit.
-                 A vault switch (`main/vaults.ts` over the CLI's shared plan)
-                 stops that child, rewrites the root config.json's `vaultDir`
-                 and boots a new one on the new vault's own data dir.
+                 src/preload/ (the bridge: only what main owns — the loopback
+                 ws origin, the updater, the spell checker, the vault switch,
+                 Reveal/Open of a vault entry — and nothing that holds a
+                 token; every frame crosses as `unknown` and is parsed on both
+                 sides, the page mirroring each through one `bridge-store.ts`),
+                 and src/renderer/ (the SPA: TanStack Router file routes over
+                 @repo/api/local; `app/workspace.tsx` owns the note, the rail,
+                 the palette and the panel; `app/note/` the guarded writes;
+                 `app/palette/` the ⌘P pages; `app/sidebar/` the rail's
+                 Recent | Files | Deleted views). The whole security surface is
+                 the ORIGIN PIN (src/main/origin-pin.ts, pure + unit-tested):
+                 one origin, top-level navigation away goes to the system
+                 browser, window.open denied unconditionally, permissions
+                 denied except origin-scoped media. utilityProcess forks
+                 `inteligir serve` and, through main's fork broker, every node
+                 child that server needs; a server already listening is
+                 ADOPTED once it answers this instance's token at the bundled
+                 version, and only a child the shell started is killed on quit.
   cli/           inteligir — THE PUBLISHED BINARY, and THE SERVER (issues #553,
                  #611). `serve` is the whole local process — src/server/ owns
-                 the vault, the knowledge index, the agent runtime, the oRPC
-                 handler at /rpc, the /ws invalidation bus and the db, built
-                 by the ONE composition root (`compose.ts`); every
-                 other verb but `vault open` (which writes config.json's
-                 `vaultDir` and dials no server) is a citty leaf that is a
-                 CLIENT of a running one,
-                 with consola for the human path (raw writes for anything
-                 verbatim — consola rewrites `backtick` spans). Every leaf
-                 takes --json and is EXECUTED by the fitness test against the
-                 refusal path, except the rows in `EXCLUDED_COMMANDS`
-                 (`apps/cli/src/__tests__/json-flag-enforcement.test.ts`),
-                 each with its reason. src/server/cloud/ is the sync
-                 CLIENT (issue #572): the credential at rest, the frozen-body outbox, the
-                 pull/apply loop and the local cloud procedures Settings and
-                 `inteligir cloud` drive. src/server/voice/ is dictation (issue
-                 #578): the pinned model cache under ~/.inteligir/models/, and
-                 streaming Parakeet (sherpa-onnx) on a persistent session
-                 worker per hold, over a dedicated /voice/stream websocket.
-                 src/server/comments/ serves the anchored-comment sidecars
-                 through the vault (#583). src/server/knowledge/ runs the
-                 index and every route over it (search, matches, backlinks,
-                 related, unlinked mentions, problems, tags, tag notes) plus
-                 the two rewrite sets (note rename, tag rename) over one
-                 snapshot loop, with the scan behind both on a worker thread.
-                 Every app-written file in the data dir
-                 (connectors, connected folders, agent prefs, vault prefs) is a
-                 `json-file-store.ts` over `staged-write.ts`; `config.json` is
-                 the one file read at boot and never written by the app, except
-                 its `vaultDir`, the selector a switch rewrites
-                 (`vault-switch.ts`). Agent memory was REMOVED (#589
-                 reversed #575) — the harnesses carry their own. Discovery is
-                 ONE FILE: `<dataDir>/server.json` carries the bound port and
-                 the bearer together, so the address and the credential cannot
-                 disagree and nothing probes. The server serves the agent
-                 manual, and the ACP runtime injects INTELIGIR_DATA_DIR + a
-                 PATH carrying this bin dir into agent shells, so a model
-                 drives the product by typing `inteligir …` in bash. The build
-                 inlines every workspace package (they export TS source) and
-                 stages as CONTENT the migrations, the dialect skills, the
-                 vendored licence texts, and the desktop renderer's bundle as
-                 dist/ui, which `serve --open` answers over plain HTTP.
+                 the vault, the knowledge index (its scan on a worker thread),
+                 the agent runtime, the oRPC handler at /rpc, the /ws
+                 invalidation bus and the db, built by the ONE composition root
+                 (`compose.ts`); every other verb but `vault open` is a citty
+                 leaf that is a CLIENT of a running one, with consola for the
+                 human path (raw writes for anything verbatim — consola
+                 rewrites `backtick` spans). Every leaf takes --json and is
+                 EXECUTED by the fitness test against the refusal path, except
+                 the rows in `EXCLUDED_COMMANDS`
+                 (`apps/cli/src/__tests__/json-flag-enforcement.test.ts`), each
+                 with its reason. src/server/ splits by domain (vault/,
+                 knowledge/, agents/, threads/, comments/, cloud/ the sync
+                 client, voice/ dictation). Every app-written file in the data
+                 dir is a `json-file-store.ts` over `staged-write.ts`;
+                 `config.json` is read at boot and never written by the app
+                 except its `vaultDir`, the selector a switch rewrites
+                 (`vault-switch.ts`). Discovery is ONE FILE:
+                 `<dataDir>/server.json` carries the bound port and the bearer
+                 together, so the address and the credential cannot disagree
+                 and no port is scanned. The ACP runtime injects
+                 INTELIGIR_DATA_DIR + a PATH carrying this bin dir into agent
+                 shells, so a model drives the product by typing
+                 `inteligir …` in bash. The build inlines every workspace
+                 package (they export TS source) and stages as CONTENT the
+                 migrations, the dialect skills, the vendored licence texts,
+                 and the desktop renderer's bundle as dist/ui, which
+                 `serve --open` answers over plain HTTP.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
                  marketing site, the auth pages, the @repo/ui gallery at
                  /design (src/components/gallery), Better Auth on D1
@@ -123,42 +101,29 @@ packages/
                  `./local/*` is the oRPC contract the renderer and the CLI
                  compile against and `inteligir serve` implements: ONE folder
                  per domain, each a `<domain>-contract.ts` +
-                 `<domain>-schema.ts`, plus the ws notification protocol and
-                 the paths that are NOT procedures, and `build-thread-timeline`
-                 — the pure fold from stored events into the timeline rows the
-                 delta algebra beside it diffs. `./cloud/*` is the cloud wire:
-                 device login, device auth, sync push/pull, captures, the ws ping
-                 frames, the typed error envelope, and the ONE page planner
-                 every reader of the merged log runs (`cloud/sync/plan-page`) —
-                 two copies of that planner would be two answers to "did this
-                 row move the cursor?", and a mis-set cursor is a duplicated
-                 conversation — and, for the same reason, the CLIENT RUNTIME
-                 CORE both consumers run (the byte primitives, the login
-                 flow, the sync session; see "`@repo/api/cloud` IS THE
-                 CLIENT RUNTIME CORE" under Cloud, sync and accounts).
-                 apps/web SERVES every row; the CLI's sync client
-                 consumes all of them; apps/mobile consumes the read half alone
-                 — it pulls threads and produces captures, and never pushes or
-                 claims, because the desktop runs the turns and owns applying a
-                 capture to the vault. Two entries rather than one router
-                 because their compatibility obligations are OPPOSITE: /local's
-                 ends ship in one bundle and may break freely (a CLI installed
-                 apart from the app is not kept compatible: it refuses a server
-                 whose `server.json` names another release, before it dials,
-                 as `SERVER_VERSION_MISMATCH`), /cloud is a
-                 deployed Worker answering installs that may be months stale and
-                 may never break: the Worker may add a field and a client
-                 ignores what it does not know (see "A /CLOUD CLIENT IGNORES
-                 WHAT IT DOES NOT KNOW" under Cloud, sync and accounts). A
-                 dep-dag table (`CLOUD_ONLY_CLIENTS`) pins
-                 apps/web and apps/mobile to /cloud alone.
-                 src/ holds exactly those two buckets, and a dep-dag row refuses
-                 a third: the cloud-never-reaches-local guard populates itself
-                 from src/cloud, so a file outside both halves is one no guard
-                 reads. /cloud stays zod + REST paths (NOT oRPC, diverging from
-                 #611 phase 6 deliberately): oRPC addresses procedures by router
-                 position, so moving the deployed wire to it would break exactly
-                 the stale installs /cloud may never break.
+                 `<domain>-schema.ts`, plus the ws notification protocol, the
+                 paths that are NOT procedures, and `build-thread-timeline`,
+                 the pure fold the delta algebra beside it diffs. `./cloud/*`
+                 is the cloud wire, the ONE page planner every reader of the
+                 merged log runs (`cloud/sync/plan-page`) — two copies would be
+                 two answers to "did this row move the cursor?", and a mis-set
+                 cursor is a duplicated conversation — and, for the same
+                 reason, the CLIENT RUNTIME CORE both consumers run. apps/web
+                 SERVES every row; apps/mobile consumes the read half alone,
+                 because the desktop runs the turns and owns applying a capture
+                 to the vault. Two entries rather than one router because their
+                 compatibility obligations are OPPOSITE: /local's ends ship in
+                 one bundle and may break freely (a CLI installed apart refuses
+                 another release's server as `SERVER_VERSION_MISMATCH`),
+                 /cloud is a deployed Worker answering installs that may be
+                 months stale and may never break. A dep-dag table
+                 (`CLOUD_ONLY_CLIENTS`) pins apps/web and apps/mobile to /cloud
+                 alone, and a dep-dag row refuses a third bucket in src/, since
+                 the cloud-never-reaches-local guard populates itself from
+                 src/cloud. /cloud stays zod + REST paths (NOT oRPC, diverging
+                 from #611 phase 6 deliberately): oRPC addresses procedures by
+                 router position, so moving the deployed wire to it would break
+                 exactly the stale installs /cloud may never break.
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.
@@ -179,21 +144,16 @@ packages/
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note
                  runtime (vault-session/note-runtime/open-note-store) the app
-                 drives through two seams, plus the note-level verbs the shell
-                 reaches by path (find bar, headings, extract, insert template,
-                 note stats, link locate) and the action registry a deep
-                 node uses to ask the shell for something (`agent-request`;
-                 the comment surface keeps its own, `CommentActions` in
-                 `comments/comment-store.ts`, beside that store's per-note
-                 meta and pending create):
-                 `VaultSessionPorts`
+                 drives through two seams, `VaultSessionPorts`
                  (note/vault-session.ts) and the `EditorHostIo` singleton
-                 (host-io.ts), which host.ts opens to React.
-                 `node-props.ts` is the SLATE DECODE BOUNDARY, and it is the
-                 reason no walk here narrows structurally: a node's dialect
+                 (host-io.ts, opened to React by host.ts), plus the note-level
+                 verbs the shell reaches by path and the action registry a
+                 deep node asks the shell through (`agent-request`; the
+                 comment surface keeps its own, `CommentActions`).
+                 `node-props.ts` is the SLATE DECODE BOUNDARY: a node's dialect
                  fields ride `TElement`'s open index signature, so every read
                  arrives as `unknown` and this is the one place it becomes a
-                 domain value.
+                 domain value, which is why no walk narrows structurally.
   agent-runtime/ @repo/agent-runtime — the ACP runtime (#588): one adapter
                  speaks the Agent Client Protocol (@agentclientprotocol/sdk)
                  to claude-agent-acp and codex-acp children; harnesses are
@@ -204,10 +164,7 @@ packages/
   ui/            @repo/ui — the shared component vocabulary on Base UI:
                  shadcn in components/, the Fluid Functionalism sidebar and
                  system helpers beside it, and the Beautiful UI surfaces in
-                 ai/. All four origins were vendored and the code is now this
-                 repo's own — it obeys this repo's rules, not upstream's
-                 shape. What survives of the origin is the MIT attribution
-                 header on each file and its licence text in tools/licenses.
+                 ai/, all vendored and now this repo's own (see VENDORED CODE).
                  A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fifteen
                  components no surface draws on yet, kept by owner decision
                  and listed one by one in `AWAITING_CONSUMER`
@@ -261,7 +218,9 @@ local loop and the owner-only deploy. `AGENTS.md` is the runnable quickstart;
 ## Decisions
 
 Each bullet is the decision, what it rejected and why, and the file that
-carries the mechanism. The dangling-reference guard keeps the pointers honest.
+carries the mechanism. The mechanism itself is the code's and its tests' to
+state; a bullet names where it lives. The dangling-reference guard keeps the
+pointers honest.
 
 The list is grouped by the part of the system a decision governs; append a new bullet
 to the END of its group.
@@ -288,15 +247,15 @@ to the END of its group.
   assertion. `packages/editor/README.md` § Invariants and
   `packages/editor/src/markdown/markdown-doc.ts`.
 
-- **THE EDITOR SHIPS ITS BEHAVIOUR CSS.** `packages/editor/src/styles.css`
-  carries the toggle collapse, the callout marker swap, the code theme and the
-  prose scope (`.typeset-docs` and typeset's table rules; `@repo/ui` keeps only
-  the vendored typeset sheet), and reaches the app through the desktop
-  `globals.css` import. Every hook is
-  spelled once in `packages/editor/src/style-hooks.ts` and pinned to the sheet
-  in both directions by `packages/editor/src/__tests__/style-hooks.test.ts`,
-  because the editor once shipped with the stylesheet missing and no test
-  noticed.
+- **THE EDITOR SHIPS ITS BEHAVIOUR CSS, AND THE APPEARANCE DIALS ARE ONE
+  DECLARATION.** `packages/editor/src/styles.css` carries the toggle collapse,
+  the callout marker swap, the code theme and the prose scope (`.typeset-docs`),
+  and reaches the app through the desktop `globals.css` import. Every hook is
+  spelled once in `packages/editor/src/style-hooks.ts` and pinned both ways by
+  `packages/editor/src/__tests__/style-hooks.test.ts`, because a missing sheet
+  fails no other test. The appearance tokens are declared once in
+  `apps/desktop/src/renderer/styles/globals.css` and read, with no fallback, by
+  `.typeset-docs`. No accent axis: nothing in Plate consumes a hue.
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
@@ -304,61 +263,36 @@ to the END of its group.
   anchors, and `inteligir-callout` / `inteligir-chart` / `inteligir-canvas` /
   `inteligir-html` / `:::tabs` blocks, all valid markdown, all round-tripping.
   Every spelling lives in one place (`@repo/notes/markdown/fence-langs`,
-  `@repo/editor/nodes/canvas-header`) because the rule table and the knowledge
-  scan both read it, and so does each dialect node's Slate type
-  (`@repo/editor/dialect-node-keys`, a leaf the kits, the rule table and every
-  walk import, and the kit-parity vocabulary is built from). The file layout stays plain nested `.md`: no bundles, no
-  meta.json; frontmatter is the only property store and a note's UUID is
-  frontmatter `id:`. `{{` is reserved from MDX expressions by a tokenizer guard
-  on both braces. Comment thread bodies live in
-  `.inteligir/comments/<note-id>.json`, keyed by the note's frontmatter `id`.
+  `@repo/editor/nodes/canvas-header`, each node's Slate type in
+  `@repo/editor/dialect-node-keys`) because the rule table and the knowledge
+  scan both read it. Plain nested `.md`: no bundles, no meta.json. FRONTMATTER
+  IS THE ONLY PROPERTY STORE: no metadata table, a note's UUID is its `id:`, and
+  YAML the typing rules cannot represent is preserved byte-exactly. `{{` is
+  reserved from MDX expressions by a tokenizer guard on both braces.
 
 - **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**
   `Button` trims its text with `text-box`, which only a block container
-  honours, so the label is its own span; an inline svg in that span does not
-  size the block and the line box pushes it out, which drew the icon above the
-  label. `labelChildren` (`packages/ui/src/components/button.tsx`) keeps text
-  runs in the trimmed span and lifts every element child out beside them, and
-  the icon-only branch is a flex row for the same reason (an icon with a count
-  beside it). A caller may pass the icon either way — as `leadingIcon` or as a
-  child — and both lay out as one row. The one spelling of "which children are
-  text" is `@repo/ui/lib/text-children`, which the sidebar's rows read too.
+  honours, so an inline svg inside the label's span is pushed above it.
+  `labelChildren` (`packages/ui/src/components/button.tsx`) lifts every element
+  child out beside the trimmed text, however the icon was passed; "which
+  children are text" is spelled once, in `@repo/ui/lib/text-children`.
 
 - **EVERY FLOATING SURFACE IS A BASE UI PRIMITIVE THROUGH `@repo/ui`, never a
-  hand-positioned div.** A popup is `Popover`, `DropdownMenu`, `Tooltip`,
-  `HoverCard` or `Dialog` from `@repo/ui/components`, which own dismissal,
-  flipping, layering and focus; a `fixed`/`absolute` element at a measured
-  `left/top` owns none of them and drifts on scroll. A surface anchored to a
-  selection rather than an element hands the Positioner a virtual anchor
-  (`getBoundingClientRect` over the stored rect: `comments/comment-kit.tsx`,
-  `block-menu.tsx`). Base UI is reached only through `@repo/ui` (the one
-  exception is `inline-combobox.tsx`); a missing primitive is added there
-  first, with a gallery demo. In-flow chrome is not a popup and stays
-  positioned: the TOC rail (anchored to the note column on purpose), the
-  code-block language badge, the callout marker, the toggle chevron, the
-  table handle. The find bar IS a popup, hung under the top bar's Find
-  button: the shell registers the anchor through `setFindBarAnchor`
+  hand-positioned div**, which owns no dismissal, flipping, layering or focus
+  and drifts on scroll. A selection-anchored surface hands the Positioner a
+  virtual anchor (`comments/comment-kit.tsx`, `block-menu.tsx`). Base UI is
+  reached only through `@repo/ui` (the one exception is `inline-combobox.tsx`),
+  and a missing primitive is added there first, with a gallery demo. The find
+  bar hangs under the top bar's Find button through `setFindBarAnchor`
   (`packages/editor/src/find-bar.tsx`), since the editor never reaches the
-  shell, and with no button on screen — zen — it falls back to the note
-  column's corner. The wiki-link preview is the HoverCard (Base UI's
-  PreviewCard): the pointer can move into it, the text selects, the title
-  opens the note; Popover has no hover mode (`packages/editor/src/wiki-chip.tsx`).
-  The ⌘K composer is a non-modal `Dialog` whose bare `DialogPopup` mounts in
-  the note column, so it floats over the note and never the panel; Base UI
-  owns its Escape, outside press and focus, and its `finalFocus` hands focus
-  back through the editor's own `tf.focus()`, since a DOM focus on the
-  editable drops the caret at the note's start, after a `tf.blur()` that
-  only clears Slate's focus flag: a blur landing while Slate writes the DOM
-  selection leaves it set, and the focus then does nothing
-  (`apps/desktop/src/renderer/app/actions/action-composer.tsx`).
-  The selection toolbar (`packages/editor/src/selection-toolbar.tsx`) is the
-  one popup that is not a primitive: it is Plate's `@platejs/floating` toolbar,
-  anchored to the selection rect and kept there by floating-ui's `autoUpdate`,
-  the engine under the Positioner. It has no open/dismiss lifecycle — it shows
-  while the selection is expanded and focused — so a Popover would still need
-  that selection-driven `open` and the `frozen` hold while a menu or the link
-  input takes focus; the `ignore-click-outside/toolbar` class on its portaled
-  menus is the one seam between the two.
+  shell; the wiki-link preview is the HoverCard, because Popover has no hover
+  mode (`packages/editor/src/wiki-chip.tsx`). The ⌘K composer is a non-modal
+  `Dialog` mounted in the note column, and its `finalFocus` returns focus
+  through the editor rather than the DOM
+  (`apps/desktop/src/renderer/app/actions/action-composer.tsx` says why). The
+  selection toolbar (`packages/editor/src/selection-toolbar.tsx`) is the one
+  exception: it has no open/dismiss lifecycle, so a Popover would still need
+  its selection-driven `open` and its `frozen` hold.
 
 - **THE EDITOR COLUMN SHOWS ONE NOTE.** No second pane and no pane vocabulary:
   one `OpenNoteStore`, and every surface reads the open note. Registries keyed
@@ -368,539 +302,339 @@ to the END of its group.
 
 - **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
   body 12, subtitle 13, title 15, display 24 — the compact column of
-  `typeScale` (`packages/ui/src/lib/size-context.tsx`), which is where the
-  scale is declared, beside the control ladder it follows. The product draws
-  them as the `text-caption | body | subtitle | title | display` utilities
-  declared once in `packages/ui/src/styles/globals.css`, and
-  `lib/__tests__/type-scale.test.ts` derives the expected numbers from the
-  map, so the CSS and the map cannot drift. THE MERGE ENGINE HAS TO BE TOLD
-  THEY ARE SIZES: any unknown value after `text-` reads as a colour, so
-  `cn("text-body", "text-muted-foreground")` dropped the size and the line
-  fell back to the inherited 16px — every role class inside a `cn` call was
-  silently doing nothing. `cn` is therefore configured once
-  (`packages/ui/src/lib/cn.ts`, which names the roles from `typeScale`'s keys)
-  and imported from there by every file in the repo, reversing the drop-the-pass-through cleanup for a reason it did not
-  have: the wrapper now carries configuration, and a second unconfigured `cn`
-  beside it would be the bug again. Named in the font-size group, a role also
-  correctly replaces another role, which CSS ordering cannot do. `text-sm`,
-  `text-xs` and every px or rem literal are gone from the shell, from
-  `@repo/ui`'s components and from the chrome `@repo/editor` draws (its
-  pickers, find bar, toolbars, properties, and the cards, labels and buttons
-  around a node): a role says what a line IS, and four spellings of 12px said
-  nothing. `tools/repo-guards/src/type-roles.test.ts` holds all three, since a
-  scale held by convention alone drifts.
-  The utilities carry the compact step alone because the product
-  pins compact at its root (`app/workspace-context.tsx`); a region on the
-  default step would read the map instead. A sized control's text,
-  `useSize().text`, is the body role: `text-body` at compact, the map's
-  default number as a literal otherwise, pinned by the same test. THE NOTE IS NOT CHROME: the
-  editor's prose keeps the appearance dials below, so what it draws as text of
-  the note sizes in em or takes typeset's own size (an opaque block is
-  typeset's `pre`, the drag gutter a heading's em), and a fixed size that is
-  part of the note (the title) is a reasoned `PROSE_SIZES` row in that guard.
-  The `@repo/ui/src/ai` files a surface draws speak the roles too (owner
-  decision); a file held in `AWAITING_CONSUMER` keeps its own sizes until one
-  does, and `tools/repo-guards/src/ui-type-roles.test.ts` refuses a
-  `text-[Npx]` literal anywhere else in `@repo/ui`'s component roots.
-
-- **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
-  The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`
-  and read, with no fallback, by `.typeset-docs` in
-  `packages/editor/src/styles.css`. No accent axis: nothing in Plate consumes a
-  hue.
+  `typeScale` (`packages/ui/src/lib/size-context.tsx`), drawn as the
+  `text-caption | body | subtitle | title | display` utilities in
+  `packages/ui/src/styles/globals.css`, whose numbers
+  `lib/__tests__/type-scale.test.ts` derives from the map. THE MERGE ENGINE HAS
+  TO BE TOLD THEY ARE SIZES: any unknown value after `text-` reads as a colour,
+  so `cn("text-body", "text-muted-foreground")` drops the size. `cn` is
+  configured once (`packages/ui/src/lib/cn.ts`) and imported from there by
+  every file, reversing the drop-the-pass-through cleanup: a second,
+  unconfigured `cn` would be the bug again. No `text-sm`, `text-xs` or px/rem
+  literal in the chrome, because a role says what a line IS;
+  `tools/repo-guards/src/type-roles.test.ts` holds that, since a scale held by
+  convention drifts, and sweeps `packages/ui/src/ai` too, skipping files held
+  in `AWAITING_CONSUMER` (owner decision). THE NOTE IS NOT CHROME: its prose
+  keeps the appearance dials and sizes in em, and a fixed size that is part of
+  the note (the title) is a reasoned `PROSE_SIZES` row in that guard.
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE.** Slash items are grouped
-  data (`GROUPS` in `packages/editor/src/slash-menu.tsx`). Every insertable
-  row's markdown, inserted after text or on an empty line, must re-parse to a
-  modeled construct and be its own fixpoint
-  (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row);
-  the kit-parity vocabulary pins the set. An empty inline equation writes no
-  bytes, by owner decision: markdown has no empty inline math and `$$$$`
-  re-parses as escaped text, so the rule table drops it and its paragraph
-  serializes as if it were never inserted
-  (`packages/editor/src/markdown/md-rules.ts`). Legacy
+  data (`GROUPS` in `packages/editor/src/slash-menu.tsx`), and every row's
+  markdown must re-parse to a modeled construct and be its own fixpoint
+  (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row).
+  An empty inline equation writes no bytes, by owner decision: markdown has no
+  empty inline math (`packages/editor/src/markdown/md-rules.ts`). Legacy
   `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
   preserved; nothing writes new ones.
-
-- **Frontmatter is the ONLY property store.** No metadata table. YAML the typing
-  rules cannot represent is preserved byte-exactly.
 
 - **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON BYTES BEFORE ANY PARSER.**
   A template is a doc under `templates/` (a fixed convention like the daily
   folder, no setting); `templates/Daily.md` shapes the daily note. Exactly three
   placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced textually on the
   raw markdown, so the formula grammar never sees them and every other `{{…}}`
-  is a pill left byte-exact. Insert lands the body through the paste parser at
-  the selection and leaves the template's frontmatter behind; a note minted
-  from a template drops the template's `id:`, because two notes with one id
-  make the uuid link tier ambiguous. `@repo/notes/templates/placeholders`,
-  `packages/editor/src/insert-template.ts`.
+  is a pill left byte-exact. A note minted from a template drops the template's
+  `id:`, because two notes with one id make the uuid link tier ambiguous.
+  `@repo/notes/templates/placeholders`, `packages/editor/src/insert-template.ts`.
 
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
-  literal.** Five tables own every chord: `GLOBAL_SHORTCUTS`
-  (`apps/desktop/src/renderer/app/global-shortcuts.ts`, the window listener),
-  `MARK_SHORTCUTS` (`packages/editor/src/mark-shortcuts.ts`, which the marks
-  kit BUILDS Plate's `shortcuts` config from, so Plate's own defaults never
-  run), `EDITOR_SHORTCUTS` (`packages/editor/src/editor-shortcuts.ts`),
-  `FIND_BAR_SHORTCUTS` (`packages/editor/src/find-bar.tsx`) and
-  `COMMENT_SHORTCUTS` (`packages/editor/src/comments/comment-kit.tsx`), and
-  each handler matches by walking its table. The palette's "Keyboard
-  shortcuts" page, every `CommandShortcut`, the selection toolbar's tooltips,
-  the rail's hints and the panel's empty states are derived from those rows
-  through `@repo/ui/lib/hotkey-spelling` (⌃⌥⇧⌘ on a mac keyboard,
-  `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale label behind.
-  `shortcut-tables.test.ts` refuses a chord two tables share, because a key
-  both claim runs both. No listener lives outside the tables: the sidebar
-  provider listens for no key and only shows the chord it is handed, and the
-  rail's `[` and the panel's `]` are BARE rows in `GLOBAL_SHORTCUTS`, which
-  answer only when no modifier is held and focus is not in a field, since a
-  bare key is a character wherever text is typed. ⌘P is the one search
-  surface and ⌘, is Settings; a browser tab may keep either for itself, the
-  shell delivers both.
+  literal.** Five tables own every chord and each handler walks its own:
+  `GLOBAL_SHORTCUTS` (`apps/desktop/src/renderer/app/global-shortcuts.ts`),
+  `MARK_SHORTCUTS` (`packages/editor/src/mark-shortcuts.ts`, which builds
+  Plate's `shortcuts` config, so Plate's defaults never run), `EDITOR_SHORTCUTS`
+  (`packages/editor/src/editor-shortcuts.ts`), `FIND_BAR_SHORTCUTS`
+  (`packages/editor/src/find-bar.tsx`) and `COMMENT_SHORTCUTS`
+  (`packages/editor/src/comments/comment-kit.tsx`). Every label is derived from
+  those rows through `@repo/ui/lib/hotkey-spelling`, so a rebinding leaves no
+  stale label. `shortcut-tables.test.ts` refuses a chord two tables share,
+  because a key both claim runs both. A row claims shift explicitly, so an
+  unshifted row never fires on a shifted chord; ⌘⇧O is the one shifted row. The
+  rail's `[` and the panel's `]` are BARE rows, answering only with focus
+  outside a field, since a bare key is a character wherever text is typed.
 
 - **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
-  Pinning travels with the file, so the recents agree on every device and with
-  the agent. A pinned note sorts to the top of the recents and ends its row in
-  a filled pin; there is no Pinned heading, because a group label for a
-  handful of rows cost more height than it explained. The pin's slot is drawn
-  on every row, pinned or not, so one column holds every date. `pinnedFrontmatterYaml` in
-  `@repo/notes/markdown/frontmatter` cuts or appends the key's own lines like
-  `removeFrontmatterId` does, rather than re-serializing through
-  `serializeProperties`, which restyles every flow list it re-emits; unpinning
-  removes the key, never writes `false`, and a block it empties goes with it.
-  One desktop function behind the Metadata tab, the tree and list menus and
-  the palette (`apps/desktop/src/renderer/app/note/pin-note.ts`): the open
-  note takes the edit through the live editor's frontmatter node, the
-  properties panel's own path, so the buffer and the autosave carry it; any
-  other note is read, edited and written with the hash of what was read, and a
-  mismatch is reported, never merged. The pinned set every surface shows is
-  the index's (`usePinnedPaths`), so a pin appears after the sweep, not before.
+  Pinning travels with the file, so every device and the agent agree; a pinned
+  note tops the recents with no Pinned heading, which would cost more height
+  than it explains. `pinnedFrontmatterYaml` (`@repo/notes/markdown/frontmatter`)
+  cuts or appends the key's own lines rather than re-serializing through
+  `serializeProperties`, which restyles every flow list; unpinning removes the
+  key, never writes `false`. The open note takes the edit through the live
+  editor, so the autosave carries it; any other note is a guarded write whose
+  mismatch is reported, never merged
+  (`apps/desktop/src/renderer/app/note/pin-note.ts`). The pinned set is the
+  index's (`usePinnedPaths`), so a pin shows after the sweep.
 
 - **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
-  HISTORY BATCH.** ⌘⇧O (a shifted row in `GLOBAL_SHORTCUTS`) opens the palette
-  on the open note's outline, read through `collectHeadings` and landed through
-  `goToHeading` (`packages/editor/src/toc.tsx`): the rail's own scroll, and the
-  caret at the heading. "Extract to new note" (`packages/editor/src/extract-note.ts`,
-  from the selection toolbar and the block menu) takes the top-level blocks the
-  selection touches, never the frontmatter (`isFrontmatterElement`, the block
-  menu's own rule), serializes them with the editor's own `MD_STRINGIFY`, so
-  the new note holds the bytes the file would have, names it after the first
-  heading among them, else the first line, else Untitled (a name the vault
-  would refuse falls back rather than being sanitized), steps past what the
-  host's wiki targets already hold like the rail's Untitled does, and creates it
-  through `createNewFileAt` before touching the buffer. That create is
-  exclusive: a name the listing lacked but the disk holds answers `exists` and
-  the extract tries the next, a few times, because open-or-create counts an
-  existing file as success, and the blocks would leave for a note that never
-  received them. Blocks anchoring a comment are refused: the thread lives in
-  this note's comment store and would stay behind. The blocks are held as path
-  refs across the create and must still be the bytes it wrote, in the note
-  still open, or the buffer is left alone and the file kept. The removal and the
-  `[[link]]` that replaces it land in one flush, so one undo restores both; the
-  created file stays, because the vault has no transaction and a note that
-  exists is truer than an edit that never happened.
+  HISTORY BATCH.** ⌘⇧O opens the palette on the open note's outline and lands
+  through the TOC's own `goToHeading` (`packages/editor/src/toc.tsx`). "Extract
+  to new note" (`packages/editor/src/extract-note.ts`) serializes the blocks
+  with the editor's own `MD_STRINGIFY` and creates the note through the
+  exclusive `createNewFileAt` before touching the buffer, because
+  create-or-reuse would count an existing file as success and the blocks would
+  leave for a note that never received them. Blocks anchoring a comment are
+  refused: the thread would stay behind. The removal and the `[[link]]` land in
+  one flush, so one undo restores both; the created file stays, because the
+  vault has no transaction and a note that exists is truer than an edit that
+  never happened.
 
 - **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S NOTE IS FOUND BY
   ID.** `@(name#note-id#pill-id)` names its note by frontmatter `id`, which the
-  index's wiki-targets rows carry, so the desktop reads the one note that id
-  names, cached by path until a change event names that path
-  (`apps/desktop/src/renderer/app/note/note-formulas.ts`). Reading every doc to
-  find one id is rejected: a recompute runs after each typing pause. The walk
-  follows refs through the notes it reads, up to 64, so a chain resolves
-  (`loadFormulaGraph` in `@repo/notes/formulas/resolve-graph`). The display a
-  recompute rewrites lands outside the undo history: the user never typed it,
-  and one undo must reach their own last edit
-  (`packages/editor/src/formulas/formula-recompute.ts`). The id has one
-  reader, `noteIdOfProperties` in `@repo/notes/markdown/frontmatter`, which
-  the index and the recompute share.
+  index's wiki-targets rows carry, so the desktop reads only that note
+  (`apps/desktop/src/renderer/app/note/note-formulas.ts`); reading every doc to
+  find one id is rejected, since a recompute runs after each typing pause. The
+  walk follows refs up to 64 deep (`@repo/notes/formulas/resolve-graph`). The
+  display a recompute rewrites lands outside the undo history: the user never
+  typed it, and one undo must reach their own last edit
+  (`packages/editor/src/formulas/formula-recompute.ts`). The id has one reader,
+  `noteIdOfProperties` in `@repo/notes/markdown/frontmatter`.
 
 - **A BLOCK OVERLAY NAMES ITS BLOCK BY NODE ID AND SUBSCRIBES TO THE
   DOCUMENT.** The heading fold and the drag handle wrap each top-level block
-  through `aboveNodes`, whose `path` is the one the block last rendered with:
-  Plate re-renders a block only when its own node changes, so after an insert
-  above it every block below names the wrong index. Their providers sit in
-  `aboveEditable`, which an edit never re-renders, so each reads the document
-  through `useEditorSelector` with a value equality that moves only when what
-  it draws does (a fold's reach or a heading's key; a block joining, leaving
-  or moving), never per keystroke. Both key a block by its NodeIdPlugin id
-  (`blockId` in `packages/editor/src/node-props.ts`), which survives an edit
-  and a move, where the node object survives only the move. Plate turns the
-  plugin off under NODE_ENV=test, so a block without an id takes no part, and
-  a suite that drives either overlay mounts the harness with `nodeIds`.
+  through `aboveNodes`, whose `path` goes stale after an insert above, since
+  Plate re-renders a block only when its own node changes. So each keys a block
+  by its NodeIdPlugin id (`blockId` in `packages/editor/src/node-props.ts`) and
+  reads the document through `useEditorSelector` with an equality that moves
+  only when what it draws does. Plate turns the plugin off under
+  NODE_ENV=test, so such a suite mounts the harness with `nodeIds`.
   `packages/editor/src/heading-collapse.tsx`,
   `packages/editor/src/block-draggable.tsx`.
 
 - **AN EMBED IS ONE LEVEL OF STATIC RENDER, AND EVERY VOID HAS A STATIC ROW.**
-  `![[Note]]` in the open note draws its target through `PlateStatic` over
-  `BASE_KIT`; an embed inside that content stays a chip, which is the nesting
-  stop, so the only cycle left to refuse is a note embedding itself
+  An embed inside an embed stays a chip, the nesting stop, so the only cycle
+  left to refuse is a note embedding itself
   (`packages/editor/src/transclusion-guard.ts`). PlateStatic's default element
-  is a `<div>` or the plugin's own tag, which draws a pill or an image empty,
-  breaks the line an inline void sits in, and throws on an `<hr>`, since every
-  void carries a spacer child; so `STATIC_COMPONENTS`
+  draws a void empty or throws, so `STATIC_COMPONENTS`
   (`packages/editor/src/transclusion.tsx`) holds a row for every void, pinned
-  both ways by `packages/editor/src/__tests__/transclusion-static.test.ts`. A
-  url inside an embed resolves from the embedded note, not the open one.
+  by `packages/editor/src/__tests__/transclusion-static.test.ts`.
 
 - **A SAVE KEEPS EVERY LINE BREAK, AND ONE THAT WOULD JOIN TWO LINES OPENS
-  RAW.** Plate's default text rule drops a leading `"\n"`, which is exactly a
-  soft break after any inline node (a chip, a pill, a mark, a link), so it
-  would save `[[A]]\n[[B]]` as `[[A]][[B]]`; the rule table keeps it
+  RAW.** Plate's default text rule drops a leading `"\n"`, a soft break after
+  any inline node, so the rule table keeps it
   (`packages/editor/src/markdown/md-rules.ts`). A paragraph's soft break saves
-  as a hard break, because the editor's model holds both as one `"\n"`; a list
-  item keeps its soft break byte-exact, and an image Plate lifts out of its
-  paragraph ends the line itself, so the break beside it goes. The hard break
-  is spelled `\`, except after a bare url, which would read the `\` back as
-  its own last character: there it is two trailing spaces
-  (`@repo/notes/markdown/md-plugins`). A bare url is emitted as an opaque
-  inline, never `html`, because mdast-util-to-markdown turns the line break
-  before an html node into a space. The gate backs all of it: a round trip
-  must keep every letter and every line end between them, so a save may split
-  a line but never join two (`keepsText` in
+  as a hard break, since the editor's model holds both as one `"\n"`. The hard
+  break is `\`, except after a bare url, which would read it back as its own
+  (`@repo/notes/markdown/md-plugins`), and a bare url is an opaque inline,
+  never `html`, which would turn the break before it into a space. The gate
+  backs it: a save may split a line but never join two (`keepsText` in
   `packages/editor/src/markdown/markdown-doc.ts`).
 
 - **COMMENT MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
-  DECORATION.** The dialect's block comment is a marker on its own line above
-  a fence and another below it, so markers pair in document order over the
-  whole note (`commentSpans` in `packages/editor/src/comments/comment-ranges.ts`)
-  and only an edge with no partner is an orphan, tinted over the element
-  holding it. Pairing per block, which drew every two-paragraph comment as two
-  orphans, is rejected, and so is refusing a selection that crosses blocks.
-  The pairing is cached on the document's identity and each top-level block's
-  markers on the block's, so a keystroke re-walks one block. The ranges are
-  returned for the root alone: Slate splits a root range across the blocks it
-  crosses and re-renders a block whose share moved, where a decoration
-  returned per text leaves an untouched middle block with the tint it last
-  rendered. The gutter draws a range's dot beside the block it starts in,
-  finding its spans by the element's identity through `useEditorSelector`,
-  since an edit elsewhere can orphan an edge in a block that did not change.
-  A create's save owns its markers while it is in flight: a dismissal is
-  ignored and the answer clears only its own pending create
-  (`clearPendingCreate`). `packages/editor/src/__tests__/comment-decorate.test.tsx`.
+  DECORATION.** A block comment is a marker line above a fence and another
+  below it, so markers pair in document order over the whole note
+  (`commentSpans` in `packages/editor/src/comments/comment-ranges.ts`). Pairing
+  per block, which draws a two-paragraph comment as two orphans, is rejected,
+  and so is refusing a selection that crosses blocks. The ranges are returned
+  for the root alone, because Slate re-renders a block whose share of a root
+  range moved, where a per-text decoration leaves an untouched middle block
+  with a stale tint. `packages/editor/src/__tests__/comment-decorate.test.tsx`.
 
 - **A POPUP'S MOTION RIDES ITS POPUP ELEMENT, AND REDUCED MOTION IS ONE
   POLICY.** Base UI unmounts a closing popup once the Popup element's own
-  animations finish, so a framer popup (`DropdownMenu`, `Tooltip`, `Dialog`,
-  `AlertDialog`, the mobile sidebar sheet) renders its Popup as the motion
-  element, never inside a motion wrapper, and there is no `actionsRef` hold or
-  fallback timer. Base UI looks one frame after the close, before framer's own
-  frame starts a declarative animation, so each exit is wrapped in `PopupExit`
-  (`packages/ui/src/lib/popup-exit.tsx`), whose effect resolves framer's queued
-  exit in the closing commit; without it every framer exit is cut after one
-  frame. A popup that animates only transforms adds a near-1 opacity so there
-  is a compositor animation to wait on. `AlertDialog` draws `Dialog`'s backdrop
-  and card (`DialogCard`) rather than a second skin, and the card and the menus
-  are `Elevated`, so `--popover` aliases the menus' surface rung. Reduced
-  motion: `MotionPolicy` (`packages/ui/src/lib/motion-policy.tsx`,
-  `reducedMotion="user"`) is mounted once at each app root, which drops
-  framer's transforms and left/top/width/height travel and keeps the fades;
-  tw-animate's `animate-in`/`animate-out` collapse to 1ms through its own
-  timing variables in `packages/ui/src/styles/globals.css`, so no class
-  carries a `motion-reduce:` suffix for them.
+  animations finish, so a framer popup renders its Popup as the motion element,
+  with no `actionsRef` hold or fallback timer, each exit wrapped in `PopupExit`
+  (`packages/ui/src/lib/popup-exit.tsx`). Reduced motion is `MotionPolicy`
+  (`packages/ui/src/lib/motion-policy.tsx`) at each app root, and tw-animate's
+  classes collapse to 1ms in `packages/ui/src/styles/globals.css`, so no class
+  carries a `motion-reduce:` suffix.
 
 ### Vault: writes, git and containment
 
-- **The auto-commit stages what the window's writers named.** A scheduler that
-  names no paths makes the flush unscoped (the boot sweep, the post-sync drain),
-  and so does a window naming more than `MAX_SCOPED_COMMIT_PATHS` paths or the
-  flush after a failed one; otherwise a change nobody announced waits for a
-  whole-tree caller.
-  Unscoped `add -A` survives for a large vault's first commit, where a pathspec
-  would exceed ARG_MAX (`apps/cli/src/server/vault/git-engine.ts`).
+- **THE AUTO-COMMIT IS SESSION-SHAPED (15s quiet / 60s max) AND STAGES WHAT THE
+  WINDOW'S WRITERS NAMED**, so the log is answerable: a single-file commit names
+  its file and a fifteen-second pause ends an editing session. A scheduler that
+  names no paths (the boot sweep, the post-sync drain), a window past
+  `MAX_SCOPED_COMMIT_PATHS` or the flush after a failed one is unscoped; a
+  change nobody announced waits for one. Unscoped `add -A` survives for a large
+  vault's first commit, where a pathspec would exceed ARG_MAX.
+  `apps/cli/src/server/vault/git-engine.ts` says why the max wait is the sync
+  interval.
 
-- **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** The history surface reads
-  the vault's own git repo, so it works offline with no remote. Restoring
-  revision N writes its bytes through the ordinary write path under an
-  `expected` guard, never `git checkout` or `git revert`, which would bypass the
-  CAS, the re-index, the `/ws` notification and the open buffer's convergence.
-  There is no `vault.restore` procedure (a second server write path is a second
-  CAS), so both clients run the same composition: checkpoint with
-  `vault.commitNow`, then a guarded write. The desktop's base is the bytes its
-  diff was computed from, never a fresh read; the CLI, which shows no diff,
-  reads its base after the checkpoint, or writes under `absent` when the note is
-  gone. A restore's CAS refusal is reported, not diff3-merged: the user
-  named exact bytes. Reading the log is off the repo lock. The git flags and the
-  parse are `apps/cli/src/server/vault/git-history.ts`; the composition is
-  `apps/desktop/src/renderer/app/actions/history-tab.tsx` and `vault restore` in
-  `apps/cli/src/commands/vault.ts`. A deleted note comes back the same way: the
-  deleted-notes list is the git log's deletions plus the worktree's uncommitted
-  ones (a just-deleted note is not in the log for up to 60s), and restore is a
-  `revision` read plus an `absent` write. The log half is walked once per
-  HEAD, and overlapping reads share the walk (`cachedDeletionLog`): the
-  Deleted view re-reads on every `files-changed` frame, and the walk grows with
-  the vault's age. The renderer still re-reads on that frame, since the
-  unflushed half and the disk change with no commit. There is no trash folder
-  and no purge.
-
-- **THE AUTO-COMMIT IS SESSION-SHAPED (15s quiet / 60s max)** so the log is
-  answerable: a single-file commit names its file and a fifteen-second pause
-  ends an editing session. Why the max wait is the sync interval is
-  `apps/cli/src/server/vault/git-engine.ts`.
+- **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** History reads the
+  vault's own git repo, so it works offline. A restore writes the revision's
+  bytes through the ordinary guarded write, never `git checkout` or
+  `git revert`, which would bypass the CAS, the re-index, the `/ws`
+  notification and the open buffer's convergence; there is no `vault.restore`
+  procedure, since a second server write path is a second CAS. A CAS refusal is
+  reported, not diff3-merged, because the user named exact bytes
+  (`apps/cli/src/server/vault/git-history.ts`,
+  `apps/desktop/src/renderer/app/actions/history-tab.tsx`, `vault restore` in
+  `apps/cli/src/commands/vault.ts`). A deleted note comes back the same way,
+  from the log's deletions plus the worktree's uncommitted ones. There is no
+  trash folder and no purge.
 
 - **A write carries the base it was computed from, and NAMES ITS GUARD.**
   `vault.write`'s `guard` is a required union
-  (`packages/api/src/local/vault/vault-schema.ts`): `expected` carries the
-  hash of the bytes the write was computed from, `absent` is a create, and
-  `overwrite` is last-writer-wins spelled out. One required field rather than
-  two optional ones: an omitted field would make last-writer-wins the silent
-  default, and two optionals let a hash and a create travel together.
-  `inteligir vault write` refuses a call naming no guard for the same reason
-  (`--if-absent`, `--expected-hash` or `--overwrite`). The server branches on
-  the kind: `overwrite` is the plain write, the other two `writeGuarded`
-  (`apps/cli/src/server/vault/vault-router.ts`). `expected` is compared
-  under the repo lock; a mismatch answers 409 with the current content and the
-  client diff3-merges and retries. Creation uses `absent`. Without a base an agent
-  write landing between a read and a save is silently overwritten. diff3 rather
-  than active-user-wins, which discards concurrent body edits wholesale. A write
-  ANSWERS THE BYTES THAT LANDED and the open buffer takes them, an edit made
-  meanwhile rebased on top: once the merge is the base, a buffer kept over it
-  passes the next save's CAS without the external edit. A reload is the same
-  hazard, so it drains the editor's serialize debounce before and after its
-  read and rebases an edit made during it rather than skipping the bytes it
-  read. A reload a write in flight pre-empts runs once that write settles:
-  the bytes the write lands can predate the change the echo announced, and no
-  second echo is coming to show it.
+  (`packages/api/src/local/vault/vault-schema.ts`): `expected` carries the hash
+  the write was computed from, `absent` is a create, `overwrite` is
+  last-writer-wins spelled out. One required field rather than two optional
+  ones: an omitted field would make last-writer-wins the silent default, and
+  two optionals let a hash and a create travel together. `expected` is compared
+  under the repo lock (`apps/cli/src/server/vault/vault-router.ts`); a mismatch
+  answers 409 with the current content and the client diff3-merges and
+  retries, rather than active-user-wins, which discards concurrent body edits
+  wholesale. A write ANSWERS THE BYTES THAT LANDED and the open buffer rebases
+  onto them, because a buffer kept over a merged base passes the next CAS
+  without the external edit. Every error a vault row declares has a producer
+  (`apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`), since
+  a code no handler raises is a client branch that never runs.
   `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`,
   `packages/editor/src/vault-editor.ts` and `@repo/notes/text/diff3`.
 
 - **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends the `absent`
   guard, which carries no hash; hashing bytes not yet on disk is a refusal
   every time. A guarded write with no recorded base throws rather than
-  inferring one, because an inferred base lets a concurrent edit win
-  silently. A path already taken
-  answers `exists`, a `CreateOutcome` rather than a throw, and that answer is
-  the one existence check: open-or-create (`createFileAt`) opens the file,
-  and an exclusive create (`createNewFileAt`) hands it back for the caller to
-  step past (`packages/editor/src/note/vault-session.ts`). The policy is
+  inferring one, because an inferred base lets a concurrent edit win silently.
+  A path already taken answers `exists`, a `CreateOutcome` rather than a throw,
+  and that answer is the one existence check: create-or-reuse (`createFileAt`)
+  answers the existing file's path, and an exclusive create (`createNewFileAt`)
+  hands it back for the caller to step past
+  (`packages/editor/src/note/vault-session.ts`). The policy is
   `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`.
-
-- **EVERY ERROR A VAULT ROW DECLARES HAS A PRODUCER.** A code no handler raises
-  hands the client a branch that never runs while the real refusal falls
-  through. Derived from both sides:
-  `apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`.
 
 - **Containment is PHYSICAL, not lexical.** The vault realpaths the deepest
   existing ancestor and refuses symlinked leaves; a lexical check passes a
   `notes.md` that is a symlink to a private key, and a `git pull` from a hostile
   remote can plant one (`apps/cli/src/server/vault/vault-service.ts` over
-  `path-containment.ts`).
-
-- **The vault dir and the data dir must be disjoint**, refused at boot: a data
-  dir inside the vault gets committed and pushed, database and config included.
+  `path-containment.ts`). The vault dir and the data dir must be disjoint,
+  refused at boot: a data dir inside the vault gets committed and pushed.
 
 - **`runGit` PREPENDS `--literal-pathspecs` TO EVERY INVOCATION.** A pathspec is
-  a glob, so `[a].md` names `a.md` too and a commit scoped to one note staged
-  its neighbour. The one argv builder is `apps/cli/src/server/vault/git-run.ts`.
+  a glob, so `[a].md` names `a.md` too and a commit scoped to one note would
+  stage its neighbour. The one argv builder is
+  `apps/cli/src/server/vault/git-run.ts`.
 
 - **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
-  The tree's drop target and the palette's "Move note to folder…" page both ask
-  `planMove` (`apps/desktop/src/renderer/app/sidebar/tree-ops.ts`) and refuse for
-  the same three reasons: itself, its own descendant, the folder it is already
-  in. A drop on a note row means that note's folder; a drop on the tree's empty
-  area means the vault root, since the tree is the whole vault. The drag's
-  source is
-  component state, not `dataTransfer`, so a file dragged in from the desktop
-  has no source here and is ignored. No second write path: the move rides
-  `vault.rename`, which rewrites links for a folder as for a note: one move per
-  file under it, one rewrite set over all of them, and no alias, since no name
-  changes (`apps/cli/src/server/knowledge/rename.ts`). The vault session
-  carries the open note whether the move named it or a folder above it, and
-  closes it only once a delete of its folder removed it
-  (`packages/editor/src/note/vault-session.ts`), so the tree never navigates on
-  a move's or a delete's answer.
+  The tree's drop and the palette's "Move note to folder…" both ask `planMove`
+  (`apps/desktop/src/renderer/app/sidebar/tree-ops.ts`), so both refuse for the
+  same reasons. The drag's source is component state, not `dataTransfer`, so a
+  file dragged in from the desktop is ignored. No second write path: the move
+  rides `vault.rename`, which rewrites links for a folder as for a note
+  (`apps/cli/src/server/knowledge/rename.ts`), and the vault session carries
+  the open note through it (`packages/editor/src/note/vault-session.ts`).
 
 - **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
-  the editor.** `<dataDir>/vault-prefs.json` holds `attachments`: the vault
-  root, beside the note, or one named folder (default `assets/`), read per
-  paste so a Settings or `inteligir vault attachments` change reaches the next
-  one. The editor hands the host a base name alone; the host answers the folder
-  through `attachmentDir` (`@repo/api/local/vault/attachment-location`, also
-  the CLI's `root | beside-note | folder:<path>` spelling) from the open note.
-  The folder is created on the first write; `setPrefs` refuses only a path that
-  is a file today, which would refuse every paste. `""` is the root on the
-  asset write's wire, because a vault path is never empty. The bytes ride that
-  wire as a Blob, which the rpc link sends as a multipart part rather than
-  base64 inside the json, and the renderer refuses a file past
-  `VAULT_ASSET_MAX_BYTES` before uploading it.
+  the editor.** `<dataDir>/vault-prefs.json` holds `attachments` (the root,
+  beside the note, or one folder, default `assets/`), read per paste so a
+  Settings or CLI change reaches the next one; the editor hands the host a base
+  name and the host answers the folder through `attachmentDir`
+  (`@repo/api/local/vault/attachment-location`). `setPrefs` refuses only a path
+  that is a file, which would refuse every paste. The bytes ride as a
+  multipart Blob rather than base64 inside the json.
   `apps/cli/src/server/vault/vault-prefs-store.ts`.
 
 - **THE OS SEES A VAULT ENTRY THROUGH MAIN ALONE, and main checks physically.**
-  Reveal in Finder and Open with default app ride `desktop:reveal-path` /
-  `desktop:open-path`: the page sends a vault-relative path, main parses it
-  with the vault grammar, joins it under the current vault (main's target,
-  re-read per request so a switch moves it), realpaths
-  both sides and asks `pathContains` (`inteligir/server/path-containment`), so
-  a `..`, an absolute path or a symlink planted in the vault reaches no
-  `shell.*` call (`apps/desktop/src/main/vault-entry.ts`, tested). A browser
-  tab has no bridge and draws no row. Copy path and Copy absolute path need
-  no main: the listing already carries the root. The tree sorts folders first
-  either way and files by name or newest-first (`prefs.ts`, persisted).
+  Reveal in Finder and Open with default app send main a vault-relative path;
+  main parses it with the vault grammar, joins it under the current vault,
+  realpaths both sides and asks `pathContains`
+  (`inteligir/server/path-containment`), so a `..`, an absolute path or a
+  planted symlink reaches no `shell.*` call
+  (`apps/desktop/src/main/vault-entry.ts`). A browser tab has no bridge and
+  draws no row; Copy path needs no main, since the listing carries the root.
 
 - **A SECOND VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
-  SESSION AND A NEW WINDOW.** The default vault keeps the root data dir every
-  install already has; any other vault's db, index and `server.json` live in
-  `<root>/vaults/<sha256(path)[:16]>/`, derived once in `config.ts` so the
-  shell's child and `inteligir serve` name the same dir, and the root's
-  `config.json` is the selector both read. The root refuses a vault beneath it.
-  A folder is ONE vault however it is spelled: a selection stores its physical
-  spelling (`physicalVaultDir`, the native realpath, which follows every
-  symlink and answers a case-folding volume's own case), and "already open"
-  and "is the default" compare physically, so `~/inteligir` or a `~/Dropbox`
-  symlink never mints a signed-out twin with no threads. The hash stays over
-  the stored spelling: re-deriving it would move every selector already
-  written.
+  SESSION AND A NEW WINDOW.** The default vault keeps the root data dir; any
+  other lives in `<root>/vaults/<sha256(path)[:16]>/`, derived once in
+  `config.ts`, and the root's `config.json` is the selector the shell and
+  `inteligir serve` both read. A folder is ONE vault however it is spelled: a
+  selection stores its physical spelling (`physicalVaultDir`), except that it
+  keeps a spelling whose data dir already exists (`resolveVaultCandidate`), so
+  a symlinked spelling never mints a signed-out twin; the hash stays over the
+  stored spelling, since re-deriving it would move every selector written.
   Cost accepted: the credential, the connectors and the agent default live in
-  the data dir, so a second vault starts signed out and unconfigured, which is
-  also what keeps it off the account's hosted remote. The shell switches only a
-  child it started (an adopted server is nobody's to restart) and only when
-  neither the vault nor the data dir is env-pinned: it stops the child, whose
-  ordered shutdown flushes the pending commit, rewrites `vaultDir`, re-resolves
-  as a boot would, boots the new child, and opens a new window on the new data
-  dir's session partition, since a `BrowserWindow`'s session is fixed at
-  creation; a vault revisited in one launch re-registers the app protocol on its
-  old partition. Anything that fails once the old child has stopped (the
-  selector write, the re-read, the new child's boot) puts the previous vault
-  back. The folder is picked in main, so the page never names a path it was
-  not handed; the recent-vaults list is the shell's own `userData`, never a
-  vault's, and the File menu and the page offer the same rows from it
-  (`offeredRecentVaults`: not the open vault, not a folder that is gone).
-  `inteligir vault open <dir>` writes the same selector under the same plan
-  and refusals (`apps/cli/src/server/vault-switch.ts`, the one spelling both
-  run), and restarts nothing: the next `serve` is the switch.
-  `apps/desktop/src/main/vaults.ts` (the shell's policy over it),
-  `main/index.ts` (`switchVault`), `apps/desktop/src/vaults-state.ts`.
+  the data dir, so a second vault starts signed out, which also keeps it off
+  the account's hosted remote. The shell switches only a child it started, puts
+  the previous vault back on any failure, and opens a new window, since a
+  `BrowserWindow`'s session is fixed at creation.
+  The folder is picked in main, so the page never names a path it was not
+  handed. `inteligir vault open <dir>` runs the same plan
+  (`apps/cli/src/server/vault-switch.ts`) and restarts nothing.
+  `apps/desktop/src/main/vaults.ts`, `main/index.ts` (`switchVault`),
+  `apps/desktop/src/vaults-state.ts`.
 
-- **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fence and
-  the pre-fetch commit are one locked step, the commit and rebase a second,
-  the account marker a third; the fetch and the push run between them
-  unlocked. Held across the network, the lock made every save and every turn
-  start wait out a dropped connection's timeout. The price is that the world
-  moves during the fetch, so the rebase step re-checks first: a turn that took
-  its hold, or a dispose that ran the final flush, ends the pass there, and a
-  save that landed is committed before the rebase would refuse it. Saves now
-  land mid-pass, so the runtime strips their watcher echoes before asking
-  whether a pass is running. A recorded conflict keeps the two tips it was met
-  between, and a pass where neither moved skips the rebase rather than
-  rewriting the conflicted files every minute. Network git gives up early too:
-  under 1KB/s for 30s, or an ssh connect past 20s
+- **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fetch and
+  the push run unlocked between locked local steps: held across the network,
+  the lock made every save and every turn start wait out a dropped
+  connection's timeout. The price is that the world moves during the fetch, so
+  the rebase step re-checks first. A recorded conflict keeps the two tips it
+  was met between, so a pass where neither moved skips the rebase rather than
+  rewriting the conflicted files every minute. Network git gives up under
+  1KB/s for 30s, or an ssh connect past 20s
   (`apps/cli/src/server/vault/git-run.ts`). The split is
   `apps/cli/src/server/vault/git-engine.ts`.
 
 - **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS, AND A PASS REPORTS ONE
   OUTCOME.** Every engine commit passes `--no-verify` and every status read
-  `--untracked-files=normal`: a user's commit-msg hook or
-  `status.showUntrackedFiles=no` would refuse or hide each auto-commit, and a
-  tree that never commits holds every sync behind it. A commit that fails
-  anyway is the status's `lastError` until one lands. Git's own files are
-  asked for by `rev-parse --git-path` (`gitPath`), never joined under
-  `<root>/.git`, which is a file in a linked worktree or a submodule and has no
-  `info/` under a hooks-only template. Before the listen the bootstrap makes
-  only the empty `vault: initialize` commit a rebase needs
-  (`apps/cli/src/server/vault/git-bootstrap.ts`): staging a large folder there
-  outran the shell's readiness wait, and the runtime's boot sweep commits it
-  after. What a pass concluded is one `SyncOutcome`, the latest verdict
-  winning, except that a remote which did not answer leaves a recorded
-  conflict standing: a detached HEAD says `detached`, never `clean`; a push
-  the remote answered and refused says `rejected`, never `offline`, and one it
-  refused as too large (a 413) says `too-large`; a push
-  that lost a race to another device's is no failure and leaves the tree to
-  say `dirty` (`classifyNetworkFailure` in
-  `apps/cli/src/server/vault/git-run.ts`).
+  `--untracked-files=normal`, because a user's commit-msg hook or
+  `status.showUntrackedFiles=no` would refuse or hide each auto-commit and hold
+  every sync behind it. The bootstrap makes only the empty initial commit
+  before the listen (`apps/cli/src/server/vault/git-bootstrap.ts`), since
+  staging a large folder there outran the shell's readiness wait. A pass
+  concludes one `SyncOutcome`: a detached HEAD says `detached`, never `clean`;
+  a refused push says `rejected` (a 413 `too-large`), never `offline`
+  (`classifyNetworkFailure` in `apps/cli/src/server/vault/git-run.ts`).
 
-- **THE CAPTURE INBOX MERGES BY UNION.** Two signed-in desktops each append a
-  phone capture to the end of the root `Inbox.md` between syncs, and the
-  rebase that met both appends conflicted on a file the app wrote itself,
-  stopping that device's sync until someone ran git by hand. Every boot makes
-  sure `info/attributes` holds `/Inbox.md merge=union`: local like the exclude,
-  never a committed `.gitattributes`, because the vault's files are the
-  user's, and anchored, so a nested `Inbox.md` merges like any note. Residual:
-  a bullet one device deleted beside the other's append comes back.
+- **THE CAPTURE INBOX MERGES BY UNION.** Two desktops each appending a phone
+  capture to the root `Inbox.md` between syncs would conflict on a file the app
+  wrote itself and stop sync until someone ran git by hand. Every boot makes
+  sure `info/attributes` holds `/Inbox.md merge=union`: local, never a committed
+  `.gitattributes`, because the vault's files are the user's. Residual: a
+  bullet one device deleted beside the other's append comes back.
   `apps/cli/src/server/vault/git-bootstrap.ts`, over `CAPTURE_INBOX_PATH` in
   `apps/cli/src/server/cloud/captures.ts`.
 
 - **A SAVE THAT FAILS IS SAID ONCE AND RETRIED; ONE WHOSE FILE IS GONE IS ASKED
-  ABOUT.** A refused write leaves the buffer dirty with its reason as
-  `saveError` (`packages/editor/src/vault-editor.ts`). The session says so once
-  per failure, never per attempt, and the runtime retries on a backoff from 2s
-  to 30s, since nothing else re-arms the autosave until the next keystroke. A
-  guarded write that finds no file (`CAS_MISMATCH` with no `current`) answers
-  `vanished`, a `WriteOutcome` rather than a throw so the controller cannot
-  miss it, and is never retried, because it cannot land. Refusing to
-  leave it, as a switch refuses to leave any unsaved note, would hold the user
-  there for good, so leaving asks instead: discard the edits, or re-create the
-  note from the buffer through an `absent` create, refused if anything landed
-  at the path since. Discarding is the dialog's confirm, so an Escape keeps the
-  edits. `packages/editor/src/note/note-runtime.ts`,
+  ABOUT.** A refused write keeps the buffer dirty, said once per failure and
+  retried on a backoff, since nothing else re-arms the autosave. A guarded
+  write that finds no file answers `vanished` and is never retried; refusing to
+  leave it would hold the user there for good, so leaving asks: discard, or
+  re-create the note from the buffer. `packages/editor/src/note/note-runtime.ts`,
   `packages/editor/src/note/vault-session.ts` and
   `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`.
 
 - **A WATCHER EVENT IS A MUTATION'S ECHO ONLY WHILE THE ENTRY IS THE ONE IT
-  LEFT, AND A PULL NAMES ITS PATHS.** Every service mutation reports what an
-  lstat of its path answers right after it: inode, size and mtime, read off the
-  write's own handle before the rename, or absence for a delete. The runtime
-  drops a watcher event only when a fresh lstat matches exactly, and forgets
-  the record after 2s. Keyed on the path and the window alone, a foreign write
-  landing behind a save (an agent editing the open note) would be dropped with
-  the echo: no notification, no re-index. A pass whose rebase moved HEAD
-  reports `git diff --name-only --no-renames` between the two heads, and the
-  drain unions it with the watcher's batches held while the pass ran; only a
-  rebase that could not be aborted, or a diff that failed, asks for a
-  whole-vault reconcile, because a pass that names nothing makes every push
-  from another device re-read the whole vault.
+  LEFT, AND A PULL NAMES ITS PATHS.** The runtime drops a watcher event only
+  when a fresh lstat matches the one its mutation recorded: keyed on the path
+  and a window alone, a foreign write landing behind a save (an agent editing
+  the open note) would be dropped with the echo. A pass whose rebase moved
+  HEAD reports the diff's paths, because a pass that names nothing makes every
+  push from another device re-read the whole vault.
   `apps/cli/src/server/vault/vault-changes.ts`,
   `apps/cli/src/server/vault/vault-runtime.ts`.
 
 - **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT THE BUFFER OVER
   AN OVERLAP SAYS SO.** `diffLines` (`@repo/notes/text/line-diff`) runs inside
-  a save's CAS retry and the editor's rebase, where copying the whole frontier
-  every round cost gigabytes for two long, far-apart notes. Its trace keeps
-  each round's live diagonals alone, so memory grows with the edit distance
-  squared, and past `maxEditDistance` (2000) it answers `overBudget`: one hunk
-  over the span between the shared ends. diff3 reads that as one changed
-  region, so the other side's edits outside it still merge and one inside it
-  is an overlap, `conflicted` like any other. Conflicting on every
-  over-budget merge is rejected: it would warn when nothing was lost. A
-  conflicted merge anywhere in the save path (the guarded write's retry, the
-  rebase after a write or a reload) reaches the host through the session's
-  `notifyMergeConflict`, and the desktop's toast opens that note's History
-  (owner decision). History's own diff reads `overBudget` and says it could
-  not pair the lines. Residual: History holds the replaced lines only once
-  they were committed, and an agent's write mid-turn or an external edit
-  inside the auto-commit's quiet window never was. `@repo/notes` runs its
-  suites under a 512MB heap ceiling so an allocation that grows with a note
-  fails there. `packages/editor/src/vault-editor.ts`,
+  a save's CAS retry, where an unbounded trace cost gigabytes for two long,
+  far-apart notes; past `maxEditDistance` it answers `overBudget`, one hunk
+  diff3 reads as one changed region. Conflicting on every over-budget merge is
+  rejected: it would warn when nothing was lost. A conflicted merge's toast
+  opens that note's History (owner decision).
+  `packages/editor/src/vault-editor.ts`,
   `apps/desktop/src/renderer/app/note/vault-provider.tsx`.
 
 - **WHAT THE FILESYSTEM REFUSES COSTS THAT ENTRY, NEVER THE CALL.** A
-  subfolder the walk cannot open (no permission, or gone mid-walk) keeps its
-  row and lists empty, logged once, because one such folder failed the listing
-  and the boot with it; the root still throws. A file standing where a folder
-  must is `conflict` on every write, rename, mkdir and paste, whichever of
-  EEXIST or ENOTDIR the mkdir answered. A move where the filesystem refuses a
-  hard link (exFAT, some SMB mounts) falls back to the check-then-rename a
-  folder move already accepts. An overwrite keeps the file's mode, and a
-  compare-and-swap read failing for any reason but absence is a fault, never
-  "the file is gone". A paste's free name comes from one read of its folder,
-  with no cap. `apps/cli/src/server/vault/vault-service.ts`.
+  subfolder the walk cannot open lists empty, logged once, because one such
+  folder would fail the listing and the boot; the root still throws. A move
+  where the filesystem refuses a hard link (exFAT, some SMB mounts) falls back
+  to the check-then-rename a folder move already accepts. A compare-and-swap
+  read failing for any reason but absence is a fault, never "the file is
+  gone". `apps/cli/src/server/vault/vault-service.ts`.
 
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile
   over 2000 notes is ~105ms off the critical path; a second persisted table in a
   cache whose recovery primitive is deleting the file is a crash waiting for a
-  missed re-create.
+  missed re-create. `KnowledgeIndex` in `@repo/notes` is not dead code: the
+  package carries no sqlite (`SqlDriver` is injected), so this in-memory
+  composition is how it tests its own engine.
 
 - **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
-  then the scorer's rows with their reasons, then unlinked mentions with a Link
-  action, no dedup between the families
+  then the scorer's rows with their reasons, then unlinked mentions
   (`apps/desktop/src/renderer/app/actions/related-section.tsx`). Outgoing links
-  stay absent (they are on screen as wiki-links); no graph view; the route stays
-  search-shaped (a `limit`, no `total`); suggestions and mentions are fetched
-  only while the section is unfolded; refresh rides the existing `files-changed`
-  and `content-changed` kinds, which sweep `orpc.knowledge.key()` whole because
-  a link into a note lives in another note's bytes, except that
-  `content-changed` skips `knowledge.unlinkedMentions`, a vault-wide prose scan
-  (`app/workspace-context.tsx`).
+  stay absent (they are on screen); no graph view; the route is search-shaped
+  (a `limit`, no `total`) and fetched only while unfolded. A change sweeps
+  `orpc.knowledge.key()` whole, because a link into a note lives in another
+  note's bytes, except that `content-changed` skips the vault-wide
+  `knowledge.unlinkedMentions` (`app/workspace-context.tsx`).
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Literal
   and stem columns at equal bm25 weight; `@repo/notes/knowledge/search-query`
@@ -912,10 +646,6 @@ to the END of its group.
   stem-only hit. Residual: the title/body gap is 10x, so a title collision still
   beats a body exact match. `search-query.ts` and `knowledge/search-excerpt.ts`.
 
-- **`KnowledgeIndex` in @repo/notes is not dead code.** `@repo/notes` carries no
-  sqlite dependency (`SqlDriver` is injected), so this in-memory composition is
-  the only way the package tests its own engine.
-
 - **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.** `@repo/notes/knowledge/doc-file`
   is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
   `docStem`. A private `.md` rule in a client hides every `.txt` note and
@@ -923,218 +653,126 @@ to the END of its group.
   `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` walks the
   renderer for either shape.
 
-- **The knowledge scan disables `codeIndented` and `htmlFlow`**
-  (`@repo/notes/markdown/scan-parse`) because the editor's plugin list disables
-  both: the index must read as prose what the editor draws as prose, and
-  indented code would hide a 4-space line's links and tags while flow html
-  would let one `<div>x</div>` swallow every line under it. Pinned against the
-  editor's own parse by "the scan reads as prose what the editor draws as
-  prose" in `packages/notes/src/__tests__/link-extract.test.ts`. The scan
-  projects no task list: nothing read one.
+- **THE SCAN READS AS PROSE WHAT THE EDITOR DRAWS AS PROSE, BUT ITS GRAMMAR IS
+  NOT THE EDITOR'S, and `verbatim-spans` is the one bridge.** The scan disables
+  `codeIndented` and `htmlFlow` (`@repo/notes/markdown/scan-parse`) because the
+  editor's plugin list does, pinned in
+  `packages/notes/src/__tests__/link-extract.test.ts`. The scan is total, so a
+  malformed tag cannot cost a note its index row, where the editor's MDX
+  tokenizer throws; unifying the grammars is rejected for exactly that. A
+  rename's span is a licence to rewrite bytes, so a rename's scan runs the
+  editor's plugin list as a bare parse (`@repo/notes/markdown/verbatim-spans`)
+  and withholds spans inside those ranges (`@repo/notes/knowledge/link-extract`);
+  the index path emits no spans and never pays for that parse on every save.
 
-- **THE SCAN'S GRAMMAR IS NOT THE EDITOR'S, and `verbatim-spans` is the one
-  bridge.** The scan is total so a malformed tag cannot cost a note its index
-  row; the editor's MDX tokenizer throws. A `targetSpan` is a licence to rewrite
-  bytes, so the scan runs the editor's plugin list as a bare parse
-  (`@repo/notes/markdown/verbatim-spans`) and withholds the span inside those
-  ranges. Only a rename's scan asks for spans (`documentLinkSpans`,
-  `documentTagSpans` in `@repo/notes/knowledge/link-extract`): the index path
-  (`scanDoc`) emits none and never pays for that second parse, which it would
-  otherwise run on every save of every doc. Unifying the grammars is rejected:
-  one malformed tag would stop a note indexing. A doc the editor refuses yields
-  no ranges, correctly: it opens raw.
-
-- **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW, AND A TAG RENAME IS THE
-  LINK RENAME'S SURGERY.** There is no tag browser in the app: `knowledge.tags`
-  answers `inteligir tags` alone. A `#tag` chip asks the shell through the
-  editor host registry's `showTag` (`packages/editor/src/agent-request.ts`,
-  a node's channel to the shell beside the comment surface's own
-  `CommentActions`), never the palette, and the rail
-  answers with the Recent view scoped to that tag: the scope row (the count,
-  `listed of total` while cut, Rename) and the tag's paged listing. The
-  selected tag is the workspace's state, like the rail's view, and everything
-  only the scope holds (the rename dialog, the paged
-  query) is `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`, mounted
-  only while a tag is selected. A Tags tab was built and removed by owner
-  decision: the rail's views are Recent, Files and Deleted.
-  `knowledge.renameTag` moves a tag and everything nested under it, matched
-  case-insensitively because the index is: inline spans are the scan's own,
-  a callout's body included, verified against the raw bytes and withheld
-  inside verbatim ranges (`documentTagSpans`); a frontmatter `tags` entry is
-  spliced over its own yaml scalar in the style it was written in
-  (`frontmatterTags`, `yamlScalarText` in `@repo/notes/markdown/frontmatter`),
-  because re-serializing the block restyles a flow list and rewrites every
-  line of a CRLF one; and every write is `writeIfUnchanged` from a snapshot, so
-  a note that changed mid-rename is reported `changed`, never overwritten. The
-  one name grammar is `isTagName` in `@repo/notes/knowledge/tag-grammar`, a
-  module with no imports so the contract that validates against it loads no
-  markdown parser (the dep-dag suite walks the contract's notes imports for
-  one). The chip, the scan, the contract and the properties panel share it:
-  the scan indexes a frontmatter entry, a list's or a lone string, only when
-  an inline `#` could spell it (`tags: [2026, reading list, ok]` is `ok`), and
-  the panel refuses a `tags` entry outside it rather than write one the index
-  would drop.
-  `@repo/notes/knowledge/rename-tags.ts`,
+- **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
+  NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
+  (a Tags tab was built and removed by owner decision): a `#tag` chip asks the
+  shell through `showTag` (`packages/editor/src/agent-request.ts`), and the
+  rail answers with Recent scoped to the tag
+  (`apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`).
+  `knowledge.tagNotes` answers the tag's family with the whole count, paged,
+  from the index alone, because the search route stops at its ceiling with no
+  sign of a cut; the family is one predicate, `notesInTagFamily`
+  (`@repo/notes/knowledge/tag-notes`). `knowledge.renameTag` splices a
+  frontmatter entry over its own yaml scalar (`@repo/notes/markdown/frontmatter`),
+  because re-serializing restyles a flow list and rewrites every line of a CRLF
+  one, and every write is `writeIfUnchanged`, so a note that changed
+  mid-rename is reported, never overwritten. The one name grammar is
+  `isTagName` (`@repo/notes/knowledge/tag-grammar`, import-free so the
+  contract loads no markdown parser). `@repo/notes/knowledge/rename-tags.ts`,
   `apps/cli/src/server/knowledge/rename-tag.ts`,
-  `apps/desktop/src/renderer/app/sidebar/tag-scope.tsx`, and `inteligir tag
-rename`.
+  `apps/desktop/src/renderer/app/sidebar/tag-scope.tsx`.
 
 - **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
   rewrites exactly what the rows showed.** FTS5 cannot say where inside a line
-  a hit sits, so `knowledge.matches` (the palette's "Search across the vault…"
-  page, `inteligir matches`) scans doc
-  bodies with ONE matcher, `@repo/notes/knowledge/text-matches`, that the
-  listing and the rewrite both run; the store only pre-narrows to the docs
-  holding one of a list of ascii substrings (`docTexts`), because LIKE folds
-  ascii case alone, and reads every doc when any needle is not ascii. A replace across
-  notes is a per-file write with the hash of the bytes it read, and a mismatch
-  is REPORTED by name, never diff3-merged: the user named exact bytes
-  (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing
-  cannot replace: it does not name every note. Nor can a listing that no longer
-  answers the box and the toggles — a toggle's or a keystroke's read still in
-  flight behind the rows on screen — and the request is built from the input
-  that listing was read with, never the live box
-  (`apps/desktop/src/renderer/app/palette/search-page.tsx`). The run reports a
-  count after every note and honours a cancel between notes, never inside one,
-  and the summary counts what a stop left untouched; the palette stays open on
-  the run so it can show the count and offer the cancel, and a close, however
-  it comes, is that cancel. The jump lands by ordinal among
-  the note's matches, because a markdown column is not a Slate offset, and it
-  carries the listing's needle and toggles into the find bar, which counts with
-  the same matcher over each text leaf (`findTextOffsets`), so the ordinal
-  names the match the row showed. ⌘⇧O (Go
-  to heading) is the one shifted row in `global-shortcuts.ts`; a row claims
-  shift explicitly, so an unshifted row never fires on a shifted chord.
+  a hit sits, so `knowledge.matches` (the palette's "Search across the vault…",
+  `inteligir matches`) scans bodies with ONE matcher,
+  `@repo/notes/knowledge/text-matches`, which the listing, the rewrite and the
+  find bar's jump all run; the store only pre-narrows by ascii substrings
+  (`docTexts`), because LIKE folds ascii case alone. A replace is a per-file
+  write with the hash of the bytes it read, and a mismatch is REPORTED by name,
+  never diff3-merged: the user named exact bytes
+  (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing, or
+  one that no longer answers the box, cannot replace
+  (`apps/desktop/src/renderer/app/palette/search-page.tsx`), and a run honours
+  a cancel between notes, never inside one. The jump lands by ordinal among
+  the note's matches, because a markdown column is not a Slate offset.
 
 - **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
   bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
-  runs the literal scan's matcher over the target's names as whole words, any
-  case, as one longest-first alternation, so where two names overlap (`Plan`
-  inside `Plan B`) the longer takes the site and it counts once; one row per
-  note on its first mention, excluding the note itself and
-  every note that already links here; a hit inside code, math, a link, a url,
-  frontmatter, an html tag or a comment marker is withheld by the scan's own
-  regexes as well as the editor's verbatim ranges, because those ranges come
-  back empty for a doc the editor's grammar refuses. Not the H1: `[[H1 text]]`
-  resolves to nothing unless it is the stem or an alias. Link wraps exactly
-  that site as `[[Target]]`, or `[[Target|as written]]` when the prose differs,
-  through a write with the hash of the bytes it read; a mismatch is reported,
-  never merged. The target is the route's `linkTarget`, answered beside the
-  rows from the index's resolver, because the bare stem may be another note's;
-  a name no alias can carry is no mention, and a note no link can name offers
-  no Link. `@repo/notes/knowledge/unlinked-mentions.ts`,
+  runs the literal matcher over the target's names as whole words, longest
+  first; one row per note, excluding notes already linking here. A hit inside
+  code, math, a link, a url, frontmatter, an html tag or a comment marker is
+  withheld by the scan's own regexes as well as the editor's verbatim ranges,
+  because those come back empty for a doc the editor refuses. Not the H1:
+  `[[H1 text]]` resolves to nothing. Link wraps exactly that site through a
+  guarded write, targeting the route's `linkTarget`, because the bare stem may
+  be another note's. `@repo/notes/knowledge/unlinked-mentions.ts`,
   `apps/desktop/src/renderer/app/actions/link-mention.ts`.
 
 - **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
   (the palette's Problems page, `inteligir problems`) reads the resolved graph
-  alone: a wiki or md link the resolver answered null is an unresolved link
-  (once per source and target, on its first line), one that is embedded or
-  names a file is a missing embed, a doc no other doc links to is an orphan,
-  and a link name (`wikiLinkName`) spelled at two paths or a frontmatter `id` two docs carry (a byte
-  copy keeps its original's) is a duplicate the resolver is quietly breaking a
-  tie on; a shared id shares the comment store too. Every row disappears with
-  the sweep that fixes it, so no row is ever stale against the index. Daily
-  notes and templates are orphans by
-  design and are left out unless asked (`includeConventionFolders`); the two
-  folders are spelled once, in `@repo/notes/templates/placeholders`. A row lands
-  on the link ELEMENT (`packages/editor/src/link-locate.ts`), not the find bar:
-  a wiki chip is an inline void whose label is a prop, so the find bar cannot
-  see it; the find bar is the fallback when the note no longer carries the
-  link. Each family is capped on its own with its own total.
+  alone: unresolved links, missing embeds, orphans, and a link name
+  (`wikiLinkName`) or frontmatter `id` two docs share, a tie the resolver is
+  quietly breaking. Every row disappears with the sweep that fixes it, so none
+  is stale. Daily notes and templates are orphans by design and left out
+  unless asked (`@repo/notes/templates/placeholders` spells the folders). A row
+  lands on the link ELEMENT (`packages/editor/src/link-locate.ts`), since the
+  find bar cannot see a wiki chip's label, a prop of an inline void.
   `@repo/notes/knowledge/vault-problems.ts`.
 
-- **A TAG'S NOTES ARE A LISTING, NOT A SEARCH.** `knowledge.tagNotes`
-  (`inteligir tag notes <tag>`) answers the tag's family by path with the
-  whole count, paged by `limit` and `offset`, from the index alone: the search
-  route ranks and stops at its ceiling, so a tag on more notes than that showed
-  a hundred with no sign of a cut. The family is one predicate,
-  `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`), which the rename's
-  candidate list and search's `tag:` filter run too, so `tag:area` finds an
-  `#area/deep` note (and `tag:#area` reads as `tag:area`). The rail re-reads one growing page rather than
-  stitching pages, because the list it draws is sorted by recency after the
-  fact, and says `listed of total` while cut.
-  `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`.
-
 - **A DOC THE INDEX CANNOT READ OR PROJECT COSTS THAT DOC, NEVER THE INDEX.**
-  A read refused for any reason but not-found or over-the-cap (EACCES, EIO)
-  keeps the doc's last row and is retried by every pass, since a permission fix
-  announces nothing. A doc whose projection throws (nesting deep enough to
-  overflow the parser's stack) is indexed as an other, and the hash of those
-  bytes is kept so an unchanged doc is not re-projected by every reconcile;
-  projection runs outside the store transaction, one doc at a time, so one doc
-  cannot roll back its batch. Rebuilding on either is rejected: the rebuild
-  re-reads the same vault and fails the same way, so it loops. A disposed
-  runtime stops its pass at the next step boundary and never rebuilds, since a
-  rebuild would reopen the file dispose closed.
+  A refused read (EACCES, EIO) keeps the doc's last row and is retried every
+  pass, since a permission fix announces nothing. A doc whose projection
+  throws is indexed as an other, its hash kept so it is not re-projected every
+  reconcile, and projection runs one doc at a time outside the store
+  transaction. Rebuilding on either is rejected: the rebuild re-reads the same
+  vault and fails the same way, so it loops.
   `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
 
 - **THE SCAN RUNS ON A WORKER; THE SERVER'S LOOP READS BYTES AND WRITES ROWS.**
   Projecting a 20k-line note is seconds of synchronous CPU (2.9s measured),
-  every autosave of it re-projects it, and the server's thread also answers
-  every request, the ws bus and the watcher's liveness ping. So
-  `projectDoc`, the stem shadow (`docSearchColumns` in
-  `@repo/notes/knowledge/search-columns`, which the store's `upsertDoc` takes
-  ready-made) and both rewrite sets' byte surgery run on one worker per
-  knowledge runtime (`apps/cli/src/server/knowledge/projection-worker.ts`),
-  spawned on the first job and kept warm, unref'd while idle. What stays on the
-  loop is the read, the hash and the rows, which commit in 16ms slices with a
-  yield between; one doc's FTS insert cannot be split, and is the residual
-  stall. Every frame is parsed by zod on the side that receives it, the
-  projection through the store's own row schema. `dispose()` stops the worker
-  before it awaits the pass, so a pass mid-projection is released, not waited
-  out. No byte cap on what the index projects: by owner decision one is added
-  only if the worker cannot keep up. The build stages the worker as
-  `dist/projection-worker.mjs`; a checkout runs its source under tsx's hook,
-  named rather than inherited (`apps/cli/src/server/worker-entry.ts`, which the
-  transcriber shares), and most suites hand the runtime the same jobs inline
-  (`apps/cli/src/server/knowledge/__tests__/inline-projector.ts`) because a
-  worker booted from source costs seconds. Pinned by `monitorEventLoopDelay`
-  over a 20k-line note in
+  every autosave re-projects it, and the server's thread also answers every
+  request, the ws bus and the watcher's liveness ping. So projection, the stem
+  shadow (`@repo/notes/knowledge/search-columns`) and both rewrite sets' byte
+  surgery run on one warm worker
+  (`apps/cli/src/server/knowledge/projection-worker.ts`). No projection cap
+  below the vault's 10 MiB read cap (a doc over it indexes as an other:
+  resolvable, never searched): by owner decision a lower one is added only if
+  the worker cannot keep up. Most suites run the jobs inline
+  (`apps/cli/src/server/knowledge/__tests__/inline-projector.ts`), because a
+  worker booted from source (`apps/cli/src/server/worker-entry.ts`) costs
+  seconds. Pinned over a 20k-line note in
   `apps/cli/src/server/knowledge/__tests__/knowledge-runtime.test.ts`.
 
 - **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
   RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the
-  scan indexes an md url: a scheme, `//host` or bare `#anchor` names no vault
-  path, the anchor is cut and the rest percent-decoded. The editor reads a
-  link's or an image's url through it and resolves the answer from the note
-  the url is written in (the open note, or the one an embed shows) with the
-  index's own `buildResolver` (`resolveMdTarget` on the host's
-  `LinkResolver`, filled in `vault-provider.tsx`): beside the note, then from
-  the root. So an image a move re-based to `../assets/shot%201.png` still
-  loads, an image Problems calls missing is the one drawn missing, a Problems
-  row for a `%20` link lands (`link-locate.ts`), and a link's Open follows a
-  vault url in the app instead of handing the browser a path it cannot route.
-  An image the resolver misses falls back to its url as a root path, because a
+  scan reads an md url, and the editor reads a link's or an image's url
+  through it and resolves it from the note it is written in with the index's
+  own `buildResolver` (`vault-provider.tsx`), so the image Problems calls
+  missing is the one drawn missing and a link's Open follows a vault url in the
+  app. An image the resolver misses falls back to a root path, because a
   pasted asset is on disk before the listing that would resolve it.
   `useVaultLinkTarget` in `packages/editor/src/host.ts`,
   `packages/editor/src/nodes/image-node.tsx` and `link-node.tsx`.
 
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
   PARSER WRITES IT.** `.md` is the one extension a link leaves off
-  (`IMPLIED_LINK_EXTENSION` and `wikiLinkName` in
-  `@repo/notes/knowledge/doc-file`), and the resolver keys that same name, so a
-  `.txt` note links as `[[todo.txt]]`; letting every doc extension go was
-  rejected to keep Obsidian's reading and the pinned resolver, and `docStem`
-  stays the title. Every writer (the `[[` picker, Link, extract, a rename)
-  takes its target from `wikiTargetForPath` (`@repo/notes/knowledge/link-resolve`:
-  the name when it resolves back, else the path) and its bytes from
-  `serializeWikiBody` (`@repo/notes/markdown/remark-wiki-link`), which keeps the
-  plain spelling when it parses back (`[[C# Notes]]`), escapes every `\` and `#`
-  when it would not (`[[Issue\#42]]`), and answers null when nothing survives
-  the parse: a bracket, a line break, a `|` the last pipe would split. A null
-  writes nothing: the picker leaves that note out, Link is not offered, a rename
-  leaves the link for Problems. A rename span covers a target's escaped bytes,
-  so an escaped link renames like any other. `checkNoteName` refuses `[` and
-  `]`, and a name typed for a new note gets `.md` unless it already ends in a
-  doc extension (`withDocExtension`), so `Node.js` is a note. Pinned by the
-  round trip in `packages/notes/src/__tests__/link-resolve.test.ts`.
+  (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
+  that same name, so a `.txt` note links as `[[todo.txt]]`; letting every doc
+  extension go was rejected to keep Obsidian's reading and the pinned
+  resolver. The `[[` picker, Link and extract take their target from
+  `wikiTargetForPath` (`@repo/notes/knowledge/link-resolve`: the name when it
+  resolves back, else the path), and so does a rename, but its candidate
+  predicate refuses the bare name unless no other file answers to it
+  (`answersOnly` in `packages/notes/src/knowledge/rename-links.ts`), because a
+  rename rewrites links the user did not type and must not lean on the
+  resolver's tie-break. Every writer takes its bytes from `serializeWikiBody`
+  (`@repo/notes/markdown/remark-wiki-link`), and a null from it writes nothing.
+  Pinned by the round trip in `packages/notes/src/__tests__/link-resolve.test.ts`.
 
 ### Agents and threads
-
-- **A turn row's `sourceSeqEnd` names its own contributors**, not every
-  turn-scoped event. A streaming assistant message is turn-scoped but lands as a
-  top-level row; counting it moved the turn row and resent the whole subtree on
-  every token.
 
 - **Ingest is ONE transaction.** Append, lifecycle projection and queue touch
   happen in one immediate transaction; notifications flush after commit.
@@ -1142,16 +780,14 @@ rename`.
   turn A cannot settle turn B (`apps/cli/src/server/threads/service.ts`).
 
 - **Agent commits stage the turn's own write set**, from the fileChange events
-  and from the vault writes the agent makes through `inteligir` itself, under a
+  and the vault writes the agent makes through `inteligir` itself, under a
   counted commit hold that defers the vault debounce and blocks a sync.
   Committing the whole dirty tree attributes a concurrent turn's writes to
   whoever settles first (`apps/cli/src/server/agents/agent-commits.ts`). Under
   `INTELIGIR_THREAD_ID` the CLI names its thread on every call
-  (`apps/cli/src/server/agent-thread-header.ts`), and the write, asset, rename
-  and tag-rename handlers hand what they wrote to that thread's running turn
-  (`attributeWrites` in `apps/cli/src/server/orpc.ts`); the header is
-  attribution, not authority, and a thread with no turn running records
-  nothing.
+  (`apps/cli/src/server/agent-thread-header.ts`) and the write handlers hand
+  what they wrote to its running turn (`attributeWrites` in
+  `apps/cli/src/server/orpc.ts`); the header is attribution, not authority.
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (what it
   retired is the register on #645; do not bring any of it back). An action is an
@@ -1159,8 +795,7 @@ rename`.
   The agent edits the vault directly and anchored comments are the review
   channel; the panel's Actions | Comments | History | Metadata tabs are
   transcript, review, revision, and the note's own properties, related notes
-  and delete. ⌘P is the palette, ⌘F the find bar, ⌘\ is zen.
-  "Ask agent" seeds the composer through
+  and delete. "Ask agent" seeds the composer through
   `packages/editor/src/agent-request.ts`, so the editor never imports the shell.
   `apps/desktop/src/renderer/app/actions/actions-panel.tsx` and
   `action-composer.tsx`.
@@ -1168,69 +803,53 @@ rename`.
 - **COMMENTS CARRY THE AUTHOR'S `source`, AND THE STORE WRITE IS A CAS.** The
   server signs `user` when a caller says nothing; the CLI signs `agent` under
   `INTELIGIR_THREAD_ID`. The store write retries once on a base mismatch, then
-  answers `CONFLICT`. The comment-id grammar has one spelling in
-  `@repo/notes/comments/sidecar-schema` (`COMMENT_ID_PATTERN`), which the body
-  marker's regex is built from, and `mintCommentId` takes its random bytes from
-  the caller, because `@repo/notes` names no platform.
+  answers `CONFLICT`. The comment-id grammar has one spelling,
+  `COMMENT_ID_PATTERN` in `@repo/notes/comments/sidecar-schema`, which the body
+  marker's regex is built from.
   `apps/cli/src/server/comments/comments-service.ts` and
   `apps/cli/src/commands/comment.ts`.
 
 - **THE COMMENT STORE IS ONE DOT-FOLDER KEYED BY THE NOTE'S ID, and the cloud
-  was rejected for it.** `.inteligir/comments/<note-id>.json`, `<note-id>` the
+  was rejected for it.** `.inteligir/comments/<note-id>.json`, keyed by the
   note's frontmatter `id`, so a rename or move anywhere (Finder, a pull, an
-  agent's `mv`) strands nothing and one commit carries a note's anchors and its
+  agent's `mv`) strands nothing and one commit carries a note's anchors and
   bodies together. Bodies in a cloud table would drift from the anchors in the
-  note's bytes and would need an account, and accountless installs make zero
-  cloud requests. A comment on a note without an id mints one
-  (`withFrontmatterId`, a line cut like the pin's) through a guarded note
-  write; a read mints nothing. An `id` that is not text (a number, a date, a
-  list) is refused by name, never overwritten: it may be someone's identity
-  for the note. The beside-the-note `<note>.comments.json` older
-  vaults and agents wrote is folded into the store on first touch and over the
-  whole tree once the server listens (`comments-migration.ts`, kicked from
-  `serve.ts` and guarded, so it neither delays nor fails the boot); an
-  unparseable one is reported by its own name and left. A deleted note's store
-  goes with it (`remove-with-comments.ts`, a folder's with every note under
-  it; a doc past the read cap or gone mid-scan never refuses the delete) unless the
-  index names a note outside the deletion still carrying that id, a byte copy
-  whose delete would otherwise take the original's bodies; an index that has
-  not seen the copy yet errs toward removing, and the Problems page's
-  duplicate ids are where a shared id surfaces. The
-  deleted-notes restore brings both back from the same revision through
-  `@repo/api/local/vault/restore-comment-store`, the one composition the
-  rail's Deleted view and `vault restore` both run after the note's own
-  `absent` write. Only a store the revision never held is `none` and only one
-  already at that id is `kept`; any other refusal is `failed`, never folded
-  into either, because the note is back by then and a store silently left
-  behind strands its threads: the rail opens the note with a warning, and the
-  CLI exits 1 in the refusal's own class.
+  note's bytes and would need an account. A comment on a note without an id
+  mints one (`withFrontmatterId`) through a guarded note write; a read mints
+  nothing, and an `id` that is not text is refused, never overwritten. A legacy
+  `<note>.comments.json` is folded in on first touch and over the whole tree
+  once the server listens (`comments-migration.ts`, kicked from `serve.ts`, so
+  it neither delays nor fails the boot). A deleted note's store goes with it
+  (`remove-with-comments.ts`) unless a byte copy still carries that id, and a
+  restore brings both back through
+  `@repo/api/local/vault/restore-comment-store`, reporting a store it could not
+  restore, because one silently left behind strands its threads.
 
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at travels on the send (`@repo/domain/view-context`),
-  never as a thread column or a server-side "current view" that has no owner.
-  It describes the screen the message left from, so navigating away mid-turn
-  changes nothing. There is no tool: the agent can already read the file, and
-  the one thing a tool could add, a live selection, cannot be made honest. It is
-  a statement, not a grant. A queued send carries none. There is no selection
-  field; real offsets need a Slate to markdown offset map.
+  never as a thread column or a server-side "current view" that has no owner,
+  so navigating away mid-turn changes nothing. There is no tool: the agent can
+  already read the file, and the one thing a tool could add, a live selection,
+  cannot be made honest. A queued send carries none.
   `apps/cli/src/server/agents/view-context-prompt.ts`.
 
+- **AN @-MENTION RIDES THE SEND AS `contextPaths`, NEVER AS TEXT.** The stored
+  `client/turn/requested.text` is exactly what the user typed, so the
+  timeline, the phone and a thread's title read the message rather than a
+  prefix the desktop glued on; the server names the notes in a block of its
+  own (`composeContextPathsBlock`). UNLIKE the view context, a queued send
+  KEEPS them (`queued_thread_messages.context_paths`): a mention is part of
+  what the user asked, not a statement about a screen since left.
+  `@repo/api/local/threads/threads-schema`.
+
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
-  `<dataDir>/agent-prefs.json`, edited from Settings › Agents and `inteligir
-agents default`; unset falls back
-  to the first harness on PATH in `HARNESS_IDS` order (claude, then codex).
-  Not config.json, which is read once at boot and
-  never written by the app. A thread keeps the harness it started on
-  (`threads.providerId`); the choice reaches the next one. The store is
-  `apps/cli/src/server/agents/agent-prefs-store.ts`; the one fallback rule is
-  `defaultHarnessId` in `agent-driver.ts`. PATH is read per request, never
-  once at boot: a CLI installed after launch serves the next send and turns
-  `system.status`'s agent to `acp`, and with none there a send is refused
-  synchronously as `PROVIDER_UNAVAILABLE`. What the CLI and Settings call a
-  harness's readiness is one verdict, `harnessReadiness` in
-  `@repo/api/local/agents/agents-schema`. A model is per harness
-  (`INTELIGIR_CLAUDE_MODEL`, `INTELIGIR_CODEX_MODEL`, or config.json's
-  `agentModels`), because a model id is vendor-specific.
+  `<dataDir>/agent-prefs.json`, not config.json, which is read once at boot and
+  never written by the app; unset, the first harness on PATH. A thread keeps
+  the harness it started on. PATH is read per request, so a CLI installed after
+  launch serves the next send. A model is per harness, because a model id is
+  vendor-specific. `apps/cli/src/server/agents/agent-prefs-store.ts`,
+  `defaultHarnessId` in `agent-driver.ts`, `harnessReadiness` in
+  `@repo/api/local/agents/agents-schema`.
 
 - **CONNECTORS ARE AN APP-OWNED REGISTRY, injected per-session over ACP**
   (reversing the codex-owned registry, whose premise died with the ACP runtime).
@@ -1239,185 +858,110 @@ agents default`; unset falls back
   dir and are redacted on every read
   (`apps/cli/src/server/connectors/connectors-service.ts`).
 
+- **CONNECTOR OAUTH IS THE MCP AUTHORIZATION SPEC'S, AND A REFRESH TOKEN IS
+  SPENT ONCE** (owner decision). Every request carries RFC 8707's `resource`,
+  so a provider that binds audiences mints a token for that server alone. A
+  row needs only its URL: discovery (RFC 9728, RFC 8414, then OpenID) finds the
+  authorization server and registers a public client when the row has none
+  (RFC 7591), reading only https or loopback urls, and what it finds is kept
+  with the grant, so a refresh spends a token with the client that got it.
+  Client ID Metadata Documents are not built
+  (`apps/cli/src/server/connectors/oauth-discovery.ts`). A rotating provider
+  honours a refresh token once, so the refresh is single-flight per connector;
+  only a 400 or 401 marks the row needs-reauth, never a 5xx or a captive
+  portal. A callback for a row removed mid-flow answers the page, never a 500.
+  `apps/cli/src/server/connectors/oauth-flow.ts`.
+
 - **AGENT MEMORY IS REMOVED** (reversing #575). Claude Code and Codex carry
   their own; a third beside them was two answers to one question. What survived
   is the pattern: content the agent consumes lives in files it reads with its
   own shell. The dialect skills ride `INTELIGIR_SKILLS_DIR` with a
   three-sentence pointer on the first turn, never the spec inlined.
 
-- **ONE SET OF SESSION FACTS, TWO PROJECTIONS.** The shell env and the prompt
-  are pure functions of one `AgentSessionFacts`, and the runtime's `shellEnv` is
-  a getter read at every spawn, because read once `INTELIGIR_CONNECTED_DIRS`
-  froze at the first turn (`apps/cli/src/server/agents/agent-shell-env.ts`).
+- **ONE SET OF SESSION FACTS, TWO PROJECTIONS, AND A LOADED SESSION IS HANDED
+  ONLY THE INSTRUCTIONS IT DOES NOT HOLD.** The shell env and the prompt are
+  pure functions of one `AgentSessionFacts`, and `shellEnv` is a getter read at
+  every spawn, because read once `INTELIGIR_CONNECTED_DIRS` freezes at the first
+  turn (`apps/cli/src/server/agents/agent-shell-env.ts`). ACP's `session/new`
+  carries no instructions, so they ride a turn's prompt, and a loaded session
+  gets them again only when their hash differs from the last set its thread was
+  handed. Claude's `_meta.systemPrompt` is not used: it is one harness's
+  channel. `apps/cli/src/server/agents/runtime-manager.ts`.
 
 - **THE HOST CLOSES A PROVIDER SESSION IT GIVES UP ON, AND A CHILD'S DEATH
   FAILS ITS TURN THROUGH THE PROMPT.** The watchdog and a failed dispatch call
-  `closeThread` before they fail the turn, so the next send resumes on a fresh
-  child instead of meeting a session still holding the abandoned prompt; a
-  dispatch re-checks its turn after every await and stops once it was settled
-  or the manager disposed, so it neither fails the turn that replaced it nor
-  spawns a child nobody will close. The child's exit closes the ACP connection
-  with an error naming the exit status and the child's last stderr lines, and
-  the SDK rejects every pending request with it (stdout's end is kept from
-  closing it first with a bare "connection closed"): a crash at boot fails the
-  dispatch, a crash mid-turn fails the turn like a refused prompt. Rejected: an
-  exit callback beside it, and per-thread exit generations under it, which fit
-  a process shared by threads (one child per thread here) and would be a second
+  `closeThread` first, so the next send resumes on a fresh child rather than a
+  session holding the abandoned prompt. The child's exit closes the ACP
+  connection with its status and last stderr lines, so the SDK rejects every
+  pending request and a crash fails the dispatch or the turn like a refused
+  prompt. Rejected: an exit callback beside it, and per-thread exit
+  generations, which fit a process shared by threads and would be a second
   answer to "did this turn fail?".
   `packages/agent-runtime/src/acp/acp-runtime.ts` and
   `apps/cli/src/server/agents/runtime-manager.ts`.
 
 - **THE PROVIDER GRAMMAR IS WHAT THE ACP MAPPER EMITS, AND THE MAPPER IS PINNED
   TO THE ADAPTERS' REAL WIRE** (owner decision, reversing the kept-wide bb
-  vocabulary). `ProviderEvent` carries exactly the kinds and fields
-  `AcpTurnMapper` constructs; a kind nothing produces was a branch every
-  consumer carried and a test hand-built. `ThreadEvent` stays its own union:
-  only the emitted side shrank. The mapper is tested against turns the pinned
-  adapters really sent, recorded through the runtime into
-  `packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/` and
-  replayed through the SDK's own client, because the fake agent encodes what
-  the adapters were believed to send; the recording is what showed content
-  replaces rather than appends. The adapter and SDK pins are exact and move
-  together, and a bump re-records (`record:transcripts`,
-  `packages/agent-runtime/scripts/record-acp-transcripts.ts`).
+  vocabulary). `ProviderEvent` carries exactly what `AcpTurnMapper` constructs,
+  since a kind nothing produces is a branch every consumer carries. The mapper
+  is tested against turns the pinned adapters really sent
+  (`packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/`),
+  because a fake agent encodes what the adapters were believed to send. The
+  adapter and SDK pins are exact and move together, and a bump re-records
+  (`packages/agent-runtime/scripts/record-acp-transcripts.ts`).
 
 - **A TIMELINE DELTA MOVES A HELD TURN AS A PATCH, AND A ROW CARRIES WHAT THE
-  PANEL DRAWS.** A turn holds every command, tool call and thought of its turn,
-  so upserting it whole resent all of them for one streamed token; a held turn
-  travels in `turnPatches` as its status, completion, `sourceSeqEnd` and only
-  the children past the base, with `childOrder` sent when membership moved, and
-  `applyTimelineDelta` keeps every other child the same object, which the
-  panel's memoized chips skip on. A new turn, or any turn when the base is not
-  a prefix, still goes whole. A turn's children are work and error rows alone,
-  so the row grammar is a nested discriminated union and not recursive. A
-  command row carries its first `COMMAND_OUTPUT_LINES` lines, each cut at
-  `COMMAND_OUTPUT_LINE_CHARS`, and the count of the rest, never the output;
-  the event log keeps every byte. Residual: a reasoning row's text and a tool
-  row's result and arguments still ride whole.
+  PANEL DRAWS.** Upserting a turn whole resends every command, tool call and
+  thought for one streamed token, so a held turn travels in `turnPatches` as
+  its status and only the children past the base. A turn row's `sourceSeqEnd`
+  names its own contributors, not every turn-scoped event: a streaming
+  assistant message lands as a top-level row, and counting it would move the
+  turn row on every token. A command row carries its first
+  `COMMAND_OUTPUT_LINES` lines; the event log keeps every byte. Residual: a
+  reasoning row's text and a tool row's result still ride whole.
   `packages/api/src/local/thread-timeline.ts`.
 
-- **CONNECTOR OAUTH IS THE MCP AUTHORIZATION SPEC'S, AND A REFRESH TOKEN IS
-  SPENT ONCE** (owner decision). The authorize URL and both token requests
-  carry RFC 8707's `resource`, the row's MCP url in its canonical form
-  (lowercase scheme and host, no fragment, no trailing slash), so a provider
-  that binds audiences mints a token for that server alone. A row needs only
-  its URL: the first authorize takes the server's 401 challenge, reads its
-  protected resource metadata (RFC 9728: the challenge's `resource_metadata`,
-  else the path's well-known, else the root's), whose `resource` must be the
-  URL or a same-origin parent of it, then its first authorization server's
-  metadata (RFC 8414, then OpenID discovery, in the MCP spec's order), whose
-  `issuer` must echo the one named and which must advertise S256, and with no
-  client id on the row registers a public client for the redirect uri
-  (RFC 7591). Every url discovery reads or hands on is https or loopback. What
-  it finds is the row's `discovered`, kept at once while no grant rests on an
-  earlier one, so a Connect retried after a closed tab registers nothing new,
-  and otherwise with the grant it authorized, so a refresh always spends a
-  token with the client that got it. A registration is reused only for its own
-  redirect uri, and a disconnect forgets it: the way out when a provider has
-  forgotten the client. Endpoints named by hand come as a pair and with a
-  client id, since discovery is what finds a registration endpoint. A failed
-  discovery answers `PROVIDER_UNAVAILABLE` naming the step. Client ID Metadata
-  Documents, which the spec now prefers to registration, are not built
-  (`apps/cli/src/server/connectors/oauth-discovery.ts`). A rotating provider honours a refresh token once, so the refresh
-  is single-flight per connector: two sessions starting together share one
-  spend, and every write it makes holds only while the row still carries the
-  token it spent, so a disconnect or a re-authorize that lands meanwhile wins.
-  Only a 400 or 401 is the provider's verdict on the grant and marks the row
-  needs-reauth; no answer, a 5xx or a captive portal's page leaves the row as
-  it was and keeps it out of that one session. A callback for a row removed
-  mid-flow answers the page, never a 500.
-  `apps/cli/src/server/connectors/oauth-flow.ts`.
-
-- **AN @-MENTION RIDES THE SEND AS `contextPaths`, NEVER AS TEXT.** The
-  stored `client/turn/requested.text` is exactly what the user typed, so the
-  timeline, the phone and a thread's title all read the message rather than a
-  prefix the desktop glued on; the server names the notes to the agent in a
-  block of its own (`composeContextPathsBlock` in
-  `apps/cli/src/server/agents/view-context-prompt.ts`), like the view context.
-  The wire holds them to the vault path grammar, one to sixteen, no repeats,
-  absent rather than empty. UNLIKE the view context, a queued send KEEPS them
-  (`queued_thread_messages.context_paths`): a mention is part of what the user
-  asked, not a statement about a screen since left, and a drained "compare
-  these" with its notes dropped asks about nothing. The panel draws them as
-  chips under the user bubble. `@repo/api/local/threads/threads-schema`.
-
-- **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER.** A thread created
-  without a title takes one from the first `client/turn/requested` that lands
-  on it, local or synced, in the transaction that appends it, and announces
-  `title-changed`; an explicit title, or one an earlier message set, stays.
+- **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER**, in the
+  transaction that appends it, local or synced; an explicit title stays.
   Naming it in the desktop left every action the CLI, an agent or another
   device started as "Untitled action". The rule is `deriveThreadTitle`
-  (`@repo/domain/thread-title`: the first visible line, cut at 60 code points),
-  which the phone's projection runs too, so both agree. A title the log states
-  in a `thread/meta` row outranks it on every device, whichever lands first,
-  so an explicit title reaches the others too.
+  (`@repo/domain/thread-title`), which the phone runs too, and a title the log
+  states in a `thread/meta` row outranks it on every device.
   `apps/cli/src/server/threads/service.ts`.
-
-- **A LOADED SESSION IS HANDED ONLY THE INSTRUCTIONS IT DOES NOT HOLD.** ACP's
-  `session/new` carries no instructions field, so they ride a turn's prompt,
-  and a `session/load` replays that prompt in the agent's own history.
-  `resumeThread` says whether the load happened (`loaded`); a fresh session
-  gets the instructions, and a loaded one gets them again only when their hash
-  differs from the last set its thread was handed (a folder connected, an
-  `AGENTS.md` edited). The hashes are in memory, recorded once the prompt is on
-  the wire and dropped when the host abandons the session, so a restart or a
-  failed dispatch re-sends once rather than trusting a history that may lack
-  them. Claude's `_meta.systemPrompt` is not used: it is one harness's channel.
-  `apps/cli/src/server/agents/runtime-manager.ts`.
 
 - **A STOP IS A CANCEL WITH A CLOSE BEHIND IT, AND THE TURN STILL ENDS THROUGH
   ITS OWN PROMPT** (owner decision: an agent writing the vault the wrong way
   needs a brake; deleting the unreachable `stopping` state was the rejected
-  alternative). `threads.interrupt` (the action's Stop button, `inteligir
-action stop`) applies `stop.requested`, so the thread reads `stopping` and a
-  send queues, then asks the driver: a turn at a provider gets ACP's
-  `session/cancel` (`AgentRuntime.cancelTurn`), which the agent answers by
-  ending the prompt `cancelled`, the mapper's interrupted `turn/completed`
-  settling the thread like any turn; one that has not answered within
-  `stopGraceMs` has its session closed and is settled interrupted by the host,
-  as the watchdog settles a silent one. A turn whose dispatch never reached a
-  provider is withdrawn and its half-open session closed, and the service
-  settles the stop itself (`stop.settled`), since nothing will report it. A
-  queued message starts after a stop as after any settle. Archiving a running
-  thread stops it, after the archive, so the drain cannot start a turn on it.
-  A turn another device runs is refused (`CONFLICT`): only its own process can
-  reach its provider. `interruptTurn` in
-  `apps/cli/src/server/agents/runtime-manager.ts` and `interrupt` in
+  alternative). `threads.interrupt` sends ACP's `session/cancel`, and the turn
+  settles through its prompt's `cancelled` end like any turn; one silent past
+  `stopGraceMs` has its session closed and is settled by the host. Archiving a
+  running thread stops it. A turn another device runs is refused (`CONFLICT`):
+  only its own process can reach its provider.
+  `apps/cli/src/server/agents/runtime-manager.ts`,
   `apps/cli/src/server/threads/service.ts`.
 
 - **AN ACTION'S ORIGIN IS ITS NOTE'S ID, and the path is only the fallback.**
   Rebinding the stored path on the rename route was rejected: Finder, an
-  agent's `mv` and a pull never reach that route, so the action dropped out of
-  its note's group and Open note named a missing file. The create stores the
-  note's frontmatter `id` (`threads.origin_note_id`) beside the path, minting
-  one through the comment store's own guarded step
-  (`apps/cli/src/server/vault/ensure-note-id.ts`); a note that cannot take one
-  keeps the path alone, never refuses the action. Every read resolves the id
-  through the index (`pathForNoteId`: the stored path while it still carries
-  the id, so a byte copy never takes the binding, else the id tier's pick), and
-  `originDocPath` on the wire is that answer; `files-changed` re-reads the
-  threads, since a move sends no thread frame. The composer gives the open
-  note its id through the live editor before the view context is read, as a
-  pin lands, because a server mint under the buffer made the revision name
-  bytes no longer on disk (`apps/desktop/src/renderer/app/note/open-note-id.ts`).
+  agent's `mv` and a pull never reach that route. The create stores the note's
+  frontmatter `id` (`threads.origin_note_id`) beside the path, minting one
+  through the comment store's guarded step
+  (`apps/cli/src/server/vault/ensure-note-id.ts`), and threads whose origin was
+  recorded as a path alone are backfilled once after boot (`compose.ts`). Every
+  read resolves the id through the index (`pathForNoteId`), preferring the
+  stored path while it still carries the id, so a byte copy never takes the
+  binding. The composer mints the open note's id through the live editor,
+  because a server mint under the buffer would make the revision name bytes no
+  longer on disk (`apps/desktop/src/renderer/app/note/open-note-id.ts`).
   `apps/cli/src/server/threads/thread-origins.ts`.
 
 - **THE THREAD LIST IS A KEYSET PAGE, AND A QUESTION A PAGE CANNOT ANSWER IS
   ASKED OF THE SERVER.** `threads.list` answers `limit` threads (default 50)
-  after an opaque `cursor`, the last row's `(updated_at, id)` with its segment,
-  live before archived and newest first, each segment seeked on its own partial
-  index; archived threads come only with `includeArchived`. An offset was
-  rejected because a thread touched between two reads would shift every row
-  behind it. The panel pages its Recent list through `useInfiniteQuery` with a
-  Show more, and the palette's Actions page reads what the panel holds, but a
-  page is a window, so what must be whole is its own query rather than a filter
-  over it: the open note's actions are `originDocPath`, so an old one is not
-  lost below the recent pages (matched by the stored path or the note's `id`,
-  then kept only where each resolves now, so a page may come back short), and
-  the rail's agent spinner asks for one
-  `running` thread with archived ones included, since a turn still running on
-  an archived thread is still the agent at work. `inteligir action list`
-  prints the cursor that continues a cut listing. `packages/db/src/threads.ts`,
+  after an opaque `cursor`, live before archived and newest first. An offset
+  was rejected because a thread touched between two reads would shift every
+  row behind it. A page is a window, so what must be whole is its own query:
+  the open note's actions (`originDocPath`), and the rail's agent spinner,
+  which asks for one `running` thread, archived ones included.
+  `packages/db/src/threads.ts`,
   `apps/desktop/src/renderer/app/actions/thread-hooks.ts`.
 
 ### Dictation
@@ -1426,41 +970,27 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   owner decision; do not "fix" it back). whisper gave punctuation and capitals
   but made dictation batch; the owner chose live partials. So the engine is
   `sherpa-onnx-node` with a streaming Parakeet transducer, and the final has no
-  punctuation and no capitalization. That trade is the point.
+  punctuation and no capitalization. That trade is the point. English only.
 
-- **THE MODEL FILE IS THE SWITCH.** No `voiceEnabled` flag: `install` fetches
-  against the pinned sha, `remove` deletes, off is no model on disk. The mic
-  streams over a websocket; there is no batch procedure. The pick, the atomic
-  download and the pure-JS `.tar.bz2` extraction are
-  `apps/cli/src/server/voice/model-catalog.ts` and `model-store.ts`.
+- **THE MODEL FILE IS THE SWITCH, AND THE SHA GATE IS THE REAL GUARD.** No
+  `voiceEnabled` flag: `install` fetches against the pinned sha, `remove`
+  deletes, off is no model on disk (`apps/cli/src/server/voice/model-catalog.ts`
+  and `model-store.ts`). Only bytes matching the pin reach the recognizer:
+  onnxruntime does not turn a parse failure into a catchable error, so an
+  unparseable model would crash rather than reach the `modelUnusable` nuke, the
+  backstop the sha gate keeps unreachable.
 
-- **A PERSISTENT SESSION WORKER, not one per clip, and THE SESSION IS BOUNDED.**
-  The model loads once per hold and stays warm. The worker is not optional:
+- **A PERSISTENT SESSION WORKER PER HOLD, OVER A DEDICATED WEBSOCKET.** The
+  model loads once per hold and stays warm, and the worker is not optional:
   `better-sqlite3` is synchronous and the watcher's liveness ping rides a bare
   timer, so an inline native decode would stall a save, a query and the ping
-  together. A hold is capped at `VOICE_MAX_AUDIO_SECONDS`. Teardown on every
-  exit path is `apps/cli/src/server/voice/stream-session.ts`.
-
-- **A DEDICATED DICTATION WEBSOCKET, off the invalidation bus.** `/voice/stream`
-  carries PCM16 up and partial/final/error down; `/ws` carries pings and never a
-  payload. It sits behind the same loopback guard, is a declared row in the
-  route table (`http-surface.test.ts`) like `/ws`, and its sockets are closed
-  by name at teardown so a live hold cannot stall exit.
-
-- **THE RENDERER STREAMS WITH A `ScriptProcessorNode`, not an `AudioWorklet`.**
-  A worklet is fetched as a script and the prod CSP names `worker-src 'none'`;
-  ScriptProcessorNode is deprecated but loads no module. Partials render outside
-  the composer field and only the final splices in
+  together (`apps/cli/src/server/voice/stream-session.ts`). `/voice/stream`
+  carries PCM16 up and partials down, off the `/ws` bus, which never carries a
+  payload; there is no batch procedure, and no CLI verb, since holding a key
+  over a live microphone is not something a shell can express. The renderer
+  streams with a `ScriptProcessorNode`, not an `AudioWorklet`, which is fetched
+  as a script under a CSP naming `worker-src 'none'`
   (`apps/desktop/src/renderer/app/voice/dictation.ts`).
-
-- **THE SHA GATE IS THE REAL GUARD; the `modelUnusable` nuke is the backstop.**
-  Only bytes matching the pin reach the recognizer. onnxruntime does not
-  translate a parse failure into a catchable error, so an unparseable model
-  would crash rather than nuke; the sha gate is why that path is unreachable.
-  The probe actually loads the native binding, so an unsupported platform
-  answers `unavailable`. The shell grants `media` origin-scoped. No CLI verb:
-  holding a key over a live microphone is not something a shell can express.
-  English only.
 
 ### Cloud, sync and accounts
 
@@ -1468,90 +998,102 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   `<dataDir>/device-credential` at 0600: not in `inteligir.db` (the thread log it
   uploads) and not in the vault (a git repo pushed to a remote). No separate
   "sync enabled" flag: two values that must agree can disagree. Signed out, the
-  app opens no socket, arms no timer and makes no request, asserted at the
-  shipping cadence in `apps/cli/src/server/cloud/__tests__/sync-runtime.test.ts`.
-  Cost accepted: "pause sync" is signing out, which discards the queue.
+  sync client opens no socket, arms no timer and makes no request, asserted in
+  `apps/cli/src/server/cloud/__tests__/sync-runtime.test.ts`. Cost accepted:
+  "pause sync" is signing out, which discards the queue.
   `apps/cli/src/server/cloud/credential-store.ts` and `sync-runtime.ts`.
+
+- **SYNC IS PERMISSIONED BY ACCOUNT; the account IS the entitlement.**
+  Accountless, the app sends this project's cloud nothing; what does leave the
+  machine (the desktop's update check against GitHub, the agent's own
+  provider) is `docs/privacy.md`'s to list. Signed in, the credential alone
+  entitles threads, captures and the hosted vault, with no second flag. The
+  invite gate is account-creation policy. The BYO git remote
+  (`INTELIGIR_VAULT_REMOTE`) stays accountless.
+
+- **A DEVICE SIGNS IN WITH EMAIL + PASSWORD, and gets the same device
+  credential** (owner decision, the Obsidian model, reversing the
+  browser-approved pairing line). `POST /v1/device/login` verifies the password
+  through Better Auth, mints the device credential and deletes the session the
+  sign-in created, so a device holds exactly one secret. The route is throttled
+  per caller address: a login route with no throttle is a password oracle.
+  Rejected: the browser approve page, the one-time code, PKCE and the loopback
+  callback, a ceremony whose point was keeping the password out of the app.
+  Residual: the password passes through the app once over HTTPS. No social
+  providers: a login that must work inside the app can only be a password.
+  `@repo/api/cloud/device/login-flow.ts`, `apps/web/src/worker/device/login.ts`.
+
+- **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
+  never waited on.** Forgetting the file alone leaves the row active, and the
+  twenty-device cap counts active rows, so repeated sign-ins would lock the
+  account out. `POST /v1/device/sign-out` is the dashboard's revoke asked with
+  the device's own credential. The local server's `cloud.logout` (Sign out in
+  Settings or the rail; the CLI has no logout verb), a login that replaces a
+  live credential, and the phone's credential drop send it on a client of
+  their own, since closing the session aborts its client's requests, and clear
+  local state without waiting: an unreachable cloud must not hold a sign-out
+  open. `apps/web/src/worker/device/routes.ts`,
+  `apps/cli/src/server/cloud/sync-runtime.ts`,
+  `apps/mobile/src/sync/sync-runtime.ts`,
+  `packages/api/src/cloud/device/login-flow.ts`.
 
 - **THE HOSTED VAULT'S READ PATHS ARE BUDGETED PER DEVICE, and the budget buys
   time, not prevention.** `/v1/vault/*` and `/v1/git/*` consume a window keyed
   on the device, never the address: a stolen credential moves between addresses
   and the device row is what `/app/devices` revokes. Two families so a drained
-  read budget never takes sync down. It breaks a runaway loop and caps what one
-  credential costs per minute; revocation is the control. Both ceilings are set
-  from the worst legitimate minute (20 devices, every push pings all; one note's
-  embeds on the read side, which the format does not bound). Revocation and
-  account deletion drop the rows. A read-scoped credential is the deeper answer
-  and is not built; the trigger is a second party holding a credential for
-  someone else's account.
-
-- **A DEVICE SIGNS IN WITH EMAIL + PASSWORD, and gets the same device
-  credential** (owner decision, the Obsidian model, reversing the
-  browser-approved pairing line). `POST /v1/device/login` verifies the password
-  through Better Auth's server API, mints the device credential and deletes the
-  session the sign-in created, so a device holds exactly one secret and the
-  devices page, or the device's own sign-out, is what revokes it. The route is
-  unauthenticated and throttled per caller address: a login route with no
-  throttle is a password oracle.
-  Rejected: the browser approve page, the one-time code, PKCE and the loopback
-  callback, a ceremony whose point was keeping the password out of the app.
-  Residual: the password passes through the app once over HTTPS. Social
-  providers are gone with it: a login that must work inside the app can only be
-  a password. The one flow both the CLI and the phone run is
-  `@repo/api/cloud/device/login-flow.ts`; the route is
-  `apps/web/src/worker/device/login.ts`.
+  read budget never takes sync down; both ceilings are set from the worst
+  legitimate minute, and revocation is the control. A read-scoped credential
+  is the deeper answer and is not built; the trigger is a second party holding
+  a credential for someone else's account.
 
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
   `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
   phone inject only stores, timers and sockets; a security discipline with two
-  spellings is two to audit. The core is what BOTH clients run: connector
-  OAuth's one-slot approval is the CLI's alone, since the phone authorizes no
-  connector, so it sits beside its consumer
-  (`apps/cli/src/server/connectors/approval-slot.ts`); the system browser
-  opener, which `serve --open`, `inteligir open` and a connector's authorize
-  all run, sits at the server's root (`apps/cli/src/server/browser-opener.ts`),
-  not in the sync client. The cloud vault-path grammar is `parseVaultPath`
-  with the parse required to be the identity. The `[[Title|uuid]]` tier lives in
-  `buildResolver` (tier 0); the desktop reaches it through the `id` its
-  wiki-targets rows carry, a rename's surgery through the same rows' ids (so
-  a stale title follows the note its uuid names, never the note it spells),
-  and the mobile listing carries none yet.
+  spellings is two to audit. The core is what BOTH clients run, so the
+  CLI-only approval slot sits beside its consumer
+  (`apps/cli/src/server/connectors/approval-slot.ts`), as does the browser
+  opener (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path
+  grammar is `parseVaultPath` with the parse required to be the identity. The
+  `[[Title|uuid]]` tier lives in `buildResolver` (tier 0), reached through the
+  `id` the wiki-targets rows carry; the mobile listing carries none yet.
+
+- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
+  exactly what it declares** (owner decision, reversing "final at birth").
+  Every response schema under `@repo/api/cloud` strips an undeclared field, and
+  an unknown refusal code reads as `internal`, a fault to retry, never a
+  verdict on the credential. Strict readers made every additive change a new
+  route and turned a stale client's `unauthorized` into `malformed`, so a
+  revoked device kept retrying; for the same reason a 5xx, 408 or 429 with no
+  error envelope reads as `unreachable`. Requests stay `.strict()`, since only
+  the always-newest Worker parses them, and the Worker's tests parse every
+  answer through `emitted` (`apps/web/src/worker/__tests__/cloud-helpers.ts`),
+  because a stripping client would let a leaked column through. Two things
+  still close the wire: 0.4.0 and older parse strictly, and a field that
+  changes what a row MEANS reaches only a client whose request declares it.
+  `packages/api/src/cloud/cloud-client.ts`,
+  `packages/api/src/cloud/cloud-errors.ts`.
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime` and the login flow publish stores the screens subscribe to, so
-  a poll pass, a revocation or a refused login is shown. A refused capture keeps
-  its text and says why, and its retry carries the same idempotency key. A
-  sign-in is ONE session: the notes store reads under `SyncRuntime`'s session
-  rather than a client of its own, so a revocation any request hears ends the
-  sign-in for all of them, and the composition root idles the notes and wipes
-  their cache (`apps/mobile/src/lib/compose-runtime.ts`). Which screens exist
-  is the route guard's answer (`Stack.Protected` in
-  `apps/mobile/src/app/_layout.tsx`), never a per-screen branch, and a cold
-  launch is `restoring` under the held splash until the Keychain read ends.
+  a poll pass, a revocation or a refused login is shown; a refused capture
+  keeps its text and its idempotency key. A sign-in is ONE session: the notes
+  store reads under `SyncRuntime`'s session, so a revocation any request hears
+  ends the sign-in for all of them (`apps/mobile/src/lib/compose-runtime.ts`).
+  Which screens exist is the route guard's answer (`Stack.Protected` in
+  `apps/mobile/src/app/_layout.tsx`), never a per-screen branch.
   `apps/mobile/src/sync/sync-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
-  (`ThreadService.applySyncedEvents`). The origin changes three things: the
-  thread row takes the log's id, nothing is re-enqueued, and a settle does not
-  drain this device's queue. The cursor moves inside that transaction, which is
-  what makes the apply exactly-once. Signing in again resets the cursor, so a synced
-  row also carries `events.origin_device_id` / `origin_device_seq` under a
-  unique index, keyed `(device, position)` rather than the account-global `seq`.
-  A row this install wrote carries no origin, so that index cannot catch its own
-  rows coming back: the planner skips every device id the install has signed in
-  as (`sync_own_devices`, recorded at boot and at sign-in, kept by a sign-out),
-  not only the current one, because each sign-in mints a new id. An install
-  that signed in again before that table existed holds rows under an id it
-  never recorded, pulled back beside their null-origin originals: boot removes
-  those copies once (`@repo/db/own-synced-copies`, marked done in `meta`),
-  knowing the earlier id by a turn it pushed that this install ran, and
-  records the id, or the next replay would land them again. It does not
-  re-fold the lifecycle from the rows, because a stop settled here and a start
-  that never made a turn move it without writing one; a thread a copy's
-  `turn/started` left running takes the end its own rows state.
-  Lifecycle projects over what landed, never what arrived.
-  `apps/cli/src/server/cloud/sync-pass.ts`.
+  (`ThreadService.applySyncedEvents`): the thread row takes the log's id,
+  nothing is re-enqueued, and a settle does not drain this device's queue. The
+  cursor moves inside that transaction, which makes the apply exactly-once. A
+  synced row carries its origin `(device, position)` under a unique index,
+  since signing in again resets the cursor, and the planner skips every device
+  id the install has signed in as (`sync_own_devices`), because each sign-in
+  mints a new id and its own rows carry no origin (`@repo/db/own-synced-copies`
+  removes copies an older install pulled back). Lifecycle projects over what
+  landed, never what arrived. `apps/cli/src/server/cloud/sync-pass.ts`.
 
 - **Only the process that owns a provider may declare it dead.** Crash recovery
   reads the `turn/started` row's provenance and leaves a remote turn alone; a
@@ -1569,83 +1111,79 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   a different sign-in: an old ack deletes rows a later sign-in queued. `dispose`
   aborts too. The fence is `@repo/api/cloud/sync/sync-session.ts`.
 
+- **A SYNC PASS IS CAPPED, A CAPPED PASS IS FOLLOWED AT ONCE, AND "SYNCED"
+  MEANS EVERY STEP REACHED THE CLOUD AND LEFT NOTHING.** Each step answers
+  where it stopped (`SyncOutcome` in `@repo/api/cloud/sync/sync-session`). The
+  cap stays because a teardown waits out the pass in flight; on `more` the
+  next pass runs at once, so a backlog drains in one sync. Only a pass whose
+  every step caught up stamps `lastSyncedAt`. A throw other than a row the log
+  refuses fails the pass with the cursor unmoved, because moving past it would
+  lose the row for good. The status reaches the renderer on the bus's
+  `sync-status-changed`, so nothing polls it; the socket drops itself after two
+  silent keepalives, since a half-open connection neither answers nor closes.
+  `apps/cli/src/server/cloud/sync-pass.ts`, `sync-runtime.ts` and
+  `cloud-socket.ts`.
+
 - **The outbox stores the bytes it will send, once, at enqueue.** The log calls
-  a position replayed with a different body `sync-conflict`. `deviceSeq` is its
-  own counter in `sync_state`, not `MAX()` over a shrinking queue and not
-  `events.sequence`. A body over the row cap is CLIPPED before it is frozen,
-  never dropped for its size: a dropped `item/completed` leaves its item
-  pending on every other device forever. `clipThreadEventForSync`
-  (`@repo/api/cloud/sync/fit-sync-event`) elides the middle of the largest
-  payload texts and never a type, an id, a status or a scope, so a peer's fold
-  settles every row as this device's does and only the cut text reads short;
-  the local events row keeps every byte. The coalescer stores one item's
-  adjacent deltas as one row rather than one per token (`mergeAdjacentDeltas`
-  in `@repo/domain/provider-event`, a reset opening a new run), bounded by the
-  same cap so a merge never makes a row the clip must cut. An event the
-  contract still refuses (its envelope alone over the cap) is dropped rather
-  than stranding every event behind it (`takePushBatch` in
-  `apps/cli/src/server/cloud/outbox.ts`; the frozen-body store is
+  a position replayed with a different body `sync-conflict`; `deviceSeq` is its
+  own counter, not `MAX()` over a shrinking queue. A body over the row cap is
+  CLIPPED before it is frozen, never dropped, because a dropped
+  `item/completed` leaves its item pending on every other device forever:
+  `clipThreadEventForSync` (`@repo/api/cloud/sync/fit-sync-event`) elides the
+  middle of the largest texts and never a type, an id, a status or a scope. An
+  event the contract still refuses is dropped rather than stranding every event
+  behind it (`apps/cli/src/server/cloud/outbox.ts`,
   `packages/db/src/sync-outbox.ts`).
 
-- **SYNC IS PERMISSIONED BY ACCOUNT; the account IS the entitlement.**
-  Accountless, the app is local-only and makes zero cloud requests. Signed in, the
-  credential alone entitles threads, captures and the hosted vault, with no
-  second flag. The invite gate is account-creation policy. The BYO git remote
-  (`INTELIGIR_VAULT_REMOTE`) stays accountless.
+- **A PULLED ROW THIS BUILD CANNOT READ IS PULLED AGAIN BY THE NEXT BUILD.** The
+  planner moves the cursor past a foreign row its grammar refuses, because the
+  rows behind it must still land; the pass records the lowest such row with the
+  running build, and a session opened under a different build rewinds to it
+  (`takeRewindIfBuildChanged` in `packages/db/src/sync-outbox.ts`, from
+  `apps/cli/src/server/cloud/sync-runtime.ts`). Rejected: `meta.schema_version`
+  as the trigger, which counts migrations while a new event type ships without
+  one, and a table of raw skipped rows, a second store beside the log. The
+  phone's sync store is in memory, so every launch replays from 0.
 
 - **The THREAD channel carries thread events alone, and a thread's own facts
   are events on it** (owner decision). A thread with no events never reaches
-  another device. Vault bytes ride the git remote, never this log. A thread
-  states its title and origin note (the path and the note's `id`, so another
-  device follows a move by the id as this one does, and no move is ever
-  stated) in a `thread/meta` row beside its first request, its harness in one
-  with the first turn a provider starts on it (a bind whose dispatch was
-  withdrawn states nothing), and an archive as `thread/archived`
-  (`@repo/domain/provider-event`); a fact about a thread that never made a
-  request stays local, since sent alone it would arrive as an empty action.
-  Another device folds them through the same ingest: a title and an origin
-  take the latest statement, a bound harness stays (the session id never
-  travels, so that device opens a fresh session on it), and an archive stops
-  a turn that device runs, as a local one does. A stale install's planner
-  skips a type it cannot read and its next build pulls the row again, so a
-  new event type needs no new route. The push's `threads` half is read off
-  the batch's titled `thread/meta` rows, lane `any` since a thread a desktop
-  runs is no dispatch, so the Worker's `thread_meta` and the log cannot
-  disagree; keeping that lane with a producer, rather than deleting it, is the
-  owner's call, and nothing reads it back yet. Pre-existing threads, and one
-  whose first request was made signed out, carry no identity row: the first
-  line still names them. `apps/cli/src/server/threads/service.ts`,
-  `apps/cli/src/server/cloud/outbox.ts`.
+  another device; vault bytes ride the git remote. A thread states its title,
+  origin note (path and `id`, so no move is ever stated), harness and archive
+  as rows on its log (`thread/meta`, `thread/archived` in
+  `@repo/domain/provider-event`); a fact about a thread that never made a
+  request stays local, since alone it would arrive as an empty action. A stale
+  install skips a type it cannot read, so a new event type needs no new route.
+  The push's `threads` half is read off the batch's titled `thread/meta` rows,
+  so the Worker's `thread_meta` cannot disagree with the log; keeping that
+  lane, rather than deleting it, is the owner's call.
+  `apps/cli/src/server/threads/service.ts`.
 
 - **Cloud state names its Durable Object from a VERIFIED credential.** Account
   deletion revokes credentials first, then purges, then writes a tombstone every
   route refuses, because the reorder alone leaves an in-flight request able to
-  recreate state. The Worker parses each body and calls the object by RPC with
-  the verified deviceId as an argument, so no header it forwards carries
-  identity; the socket upgrade, which only fetch can carry, is the one
-  exception, and its identity lands in hibernation tags
-  (`apps/web/src/worker/sync/routes.ts`, `thread-sync-do.ts`).
+  recreate state. The Worker calls the object by RPC with the verified deviceId
+  as an argument, so no forwarded header carries identity; the socket upgrade,
+  which only fetch can carry, is the one exception, and its identity lands in
+  hibernation tags (`apps/web/src/worker/sync/routes.ts`, `thread-sync-do.ts`).
 
 - **Say the delivery guarantee you implement.** Captures are at-least-once
   delivery with exactly-once deletion by the owning claim, so the apply must be
   idempotent on the capture id (`@repo/api/cloud/captures/captures-schema`).
 
-- **Better Auth's `baseURL` is derived per-request from the request origin.**
-  Every hostname reaching this Worker is one the deployment owns, and Cloudflare
-  routes by hostname; a fixed fallback would mint reset links at the wrong
-  deployment. Revisit if a hostname the deployment does not control reaches the
-  Worker (`apps/web/src/worker/auth/auth.ts`).
-
-- **Sign-up is invite-gated by a Worker route in front of Better Auth**
-  (`apps/web/src/worker/auth/invite.ts`): claims the code atomically and
-  forwards into the one instance with `disableSignUp` off; every other instance
-  carries the flag. `apps/web/README.md` § Auth.
+- **Better Auth's `baseURL` is derived per-request from the request origin, and
+  sign-up is invite-gated by a Worker route in front of it.** Every hostname
+  reaching this Worker is one the deployment owns, and a fixed fallback would
+  mint reset links at the wrong deployment; revisit if a hostname the
+  deployment does not control reaches it (`apps/web/src/worker/auth/auth.ts`).
+  The invite route (`apps/web/src/worker/auth/invite.ts`) claims the code
+  atomically and forwards into the one instance with `disableSignUp` off;
+  every other instance carries the flag. `apps/web/README.md` § Auth.
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and an additive schema; `apps/web/vitest.config.ts`
   derives the test DDL by `drizzle-kit export`. A second deployer or a
   destructive column change is the trigger for migrations. Never flip the
-  timestamp mode in place: both modes read the same INTEGER column and a
+  timestamp mode in place: both modes read the same INTEGER column, so a
   redeploy without `UPDATE <table> SET <col> = <col> * 1000` reads every date as
   1970 and expires every session.
 
@@ -1661,153 +1199,63 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   `drizzle-kit push --explain` against a 0.31-shaped database reports no
   changes; refuse any plan that recreates a table.
 
-- **A SYNC PASS IS CAPPED, A CAPPED PASS IS FOLLOWED AT ONCE, AND "SYNCED"
-  MEANS EVERY STEP REACHED THE CLOUD AND LEFT NOTHING.** Each step answers
-  where it stopped (`SyncOutcome` in `@repo/api/cloud/sync/sync-session`):
-  caught up, `more` behind its per-pass cap (25 pull pages, 25 push batches, a
-  full capture claim), `failed` on a retryable refusal or an unreachable cloud,
-  or `fenced` when its session ended. The cap stays because a teardown waits
-  out the pass in flight; on `more` the single flight runs the next pass at
-  once, reading `repeat()` between them, so a backlog drains in one sync
-  rather than one pass per poll and a dispose still waits out at most one pass.
-  A failed step does not stop the rest, but only a pass whose every step
-  caught up stamps `lastSyncedAt` (the phone's too), so an offline pass never
-  reads as synced. A row the log refuses (`MissingTurnStartedError`,
-  `ThreadEventThreadIdMismatchError`) is skipped past; any other throw fails
-  the pass with the cursor where the last commit left it and lands in
-  `lastError`, because moving past it would lose the row for good. The status
-  reaches the renderer on the bus's `sync-status-changed` kind, fired at a
-  sign-in or out, a revocation, the learned identity, the socket and every
-  pass's end, never per enqueue, so nothing polls it. The socket drops itself
-  after two keepalive intervals of silence, since a half-open connection
-  neither answers nor closes, and every open runs a pass, since a ping sent
-  while it was down reached nothing. `apps/cli/src/server/cloud/sync-pass.ts`,
-  `sync-runtime.ts` and `cloud-socket.ts`.
-
-- **A PULLED ROW THIS BUILD CANNOT READ IS PULLED AGAIN BY THE NEXT BUILD.** The
-  planner moves the cursor past a foreign row its grammar refuses, because the
-  rows behind it must still land, and without a way back a newer device's
-  event type would be gone from this one for good. The skip step names the
-  lowest such row (`firstUnparsed`), the pass records it with the running
-  build, the CLI's version, in the transaction that moves the cursor, and a
-  session opened under a different build puts the cursor back to just before
-  it and clears the marker (`takeRewindIfBuildChanged` in
-  `packages/db/src/sync-outbox.ts`, from `openSession` in
-  `apps/cli/src/server/cloud/sync-runtime.ts`); a build that still cannot read
-  it records it again. The replay needs no dedupe of its own: a foreign row
-  lands once on its origin index and the planner skips this install's own.
-  Rejected: `meta.schema_version` as the trigger, which counts migrations
-  while a new event type ships without one, and a table of the raw skipped
-  rows, a second store beside the log. The phone keeps no marker: its sync
-  store is in memory, so every launch replays from 0.
-
-- **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
-  never waited on.** Forgetting the file alone leaves the row active, and the
-  twenty-device cap counts active rows, so about twenty sign-in cycles would
-  lock the account out with no in-app way back. `POST /v1/device/sign-out` is
-  the dashboard's revoke asked with the device's own credential (the app holds
-  no session): the row, its limiter rows, its sockets. The CLI's logout, a login
-  that replaces a live credential, and the phone's credential drop send it on a
-  client of their own, because closing the session aborts every request the
-  session's client carries, and clear local state without waiting: an
-  unreachable cloud must not hold a sign-out open, and the row it leaves is the
-  Devices page's to revoke. A shutdown waits for a sign-out in flight within
-  the cloud step's budget. A credential the cloud already refused asks nothing.
-  The login flow sends it for a credential its store could not keep. A 5xx,
-  408 or 429 with no error envelope reads as `unreachable`, never `malformed`:
-  every refusal the worker means rides the envelope.
-  `apps/web/src/worker/device/routes.ts`,
-  `apps/cli/src/server/cloud/sync-runtime.ts`,
-  `apps/mobile/src/sync/sync-runtime.ts`,
-  `packages/api/src/cloud/device/login-flow.ts`.
-
 - **THE HOSTED TREE IS WALKED ONCE PER HEAD, and kept in ONE SLOT PER REPO.**
   Every directory is a call into the repo cell a push also waits on, and the
-  phone pages the whole tree on every refresh. A tree read that resolved the
-  head walks the vault whole and keeps the listing in R2 at `listing/<repo>/`,
-  tagged with its commit, so every page pinned to that commit and every refresh
-  that finds the head unmoved is one bucket read. One slot, not a key per
-  commit, which would keep an object for every head any device ever listed
-  until the account died. A pinned read the slot does not hold (a newer head
-  took it) walks without filling, keeping only the page's `limit + 1` smallest
-  paths and skipping every directory that starts past the largest. A vault
-  past 50,000 entries is never kept: the fill holds the listing in memory. A
-  cache failure is a miss, never a refusal; account deletion purges the slot.
-  `apps/web/src/worker/vault/tree-walk.ts` (pure, over a `listTree` port) and
-  `tree-listing.ts`.
-
-- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
-  exactly what it declares** (owner decision, reversing "final at birth").
-  Every response schema under `@repo/api/cloud` strips a field it does not
-  declare, and a refusal code the build does not know reads as `internal`: a
-  fault to retry, in the Worker's own words, never a verdict on the
-  credential. Strict readers made every additive change a new route, and a
-  refusal that grew a field turned a stale client's `unauthorized` into
-  `malformed`, so a revoked device kept retrying. Requests stay `.strict()`,
-  since only the always-newest Worker parses them, and the Worker's tests
-  parse every answer through `emitted`
-  (`apps/web/src/worker/__tests__/cloud-helpers.ts`), which fails on a field
-  the contract does not declare, because a stripping client would let a leaked
-  column through. Two things still close the wire: 0.4.0 and older parse every
-  response strictly, so a field they must read rides a new route; and a field
-  that changes what a row MEANS, such as a new capture kind, reaches only a
-  client whose request declares it, because stripped, the row reads as the old
-  kind. `packages/api/src/cloud/cloud-client.ts`,
-  `packages/api/src/cloud/cloud-errors.ts`.
+  phone pages the whole tree on every refresh, so a head's listing is kept in
+  R2, tagged with its commit. One slot, not a key per commit, which would keep
+  an object for every head any device ever listed; a cache failure is a miss,
+  never a refusal. `apps/web/src/worker/vault/tree-walk.ts` (pure, over a
+  `listTree` port) and `tree-listing.ts`.
 
 - **THE HOSTED VAULT TAKES A PUSH OF AT MOST 90 MiB, AND A VAULT OVER IT SAYS
   `too-large`** (owner decision: a stated cap now, large files later).
-  `VAULT_GIT_MAX_PUSH_BYTES` in `packages/api/src/cloud/vault/vault-git.ts` is
-  the one spelling: under the 100 MB request body the edge takes on the Free
-  and Pro plans, so the refusal is always the Worker's own and never whatever
-  the edge does to a body past its limit, and far under durable-git's own
-  512 MiB. The Worker refuses a
-  declared length over it and counts an undeclared body (every push past git's
-  1 MiB postBuffer) in flight, ending it at the cap so durable-git fails the
-  cut pack and moves no ref, then answers 413
+  `VAULT_GIT_MAX_PUSH_BYTES` in `packages/api/src/cloud/vault/vault-git.ts` sits
+  under the edge's 100 MB request body, so the 413 is always the Worker's own
   (`apps/web/src/worker/vault/git-remote.ts`). Splitting the push into
-  commit-sized steps was rejected: a vault's first commit is the whole tree,
-  so there is nothing smaller to send. The engine reads any 413 as
-  `too-large`, whose reason names the cap on the account remote, and records
-  the tips it was refused at: while the remote tip stands and the branch still
-  holds the refused head, a pass skips the push, since every pack it could send
-  holds the refused one and each retry would upload the cap's worth again. A
-  rewritten history, a moved remote or a restart tries again
+  commit-sized steps was rejected: a vault's first commit is the whole tree.
+  The engine skips a push while the tips a 413 refused still stand, since each
+  retry would upload the cap's worth again
   (`apps/cli/src/server/vault/git-engine.ts`).
 
 ### Server process and the desktop shell
-
-- **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /
-  `git-porcelain` / `git-bootstrap` / `git-engine`; `cloud/sync-pass` /
-  `socket-link` / `sync-cadence`; `agents/interaction-waiters`
-  beside a watchdog that sweeps per-turn timestamps rather than re-arming a
-  timer per frame; `writeTransaction` in `@repo/db/connection` as the one
-  spelling of `BEGIN IMMEDIATE`. `ThreadService.boot()` is called from the
-  composition root because crash recovery writes.
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**
   (reversing the launcher-boots-in-process line). `npx inteligir serve --open`
   is the zero-install path with one exit code. The desktop shell still forks a
   child so the compositor never shares an event loop with better-sqlite3, a
-  watcher fork and `git`; `utilityProcess` supervises, with readiness, the
-  SIGKILL behind a grace and the deliberate absence of a restart in
-  `apps/desktop/src/main/server-process.ts`, where every wait ends on the
-  child's exit event rather than a poll. The shell adopts a listening server
-  and only kills the child it started. Whether `server.json`'s owner still
-  serves has ONE reading, `apps/cli/src/server/server-probe.ts`, which the
-  boot's guard and the shell's adoption both project: a silent owner is live
-  to both, so the shell refuses to start rather than spawn a child that
-  owner's lock refuses, and it refuses a server of another version too,
-  because `/local`'s two ends may break freely only while they ship together.
+  watcher fork and `git`, supervised with the deliberate absence of a restart
+  (`apps/desktop/src/main/server-process.ts`). Whether `server.json`'s owner
+  still serves has ONE reading, `apps/cli/src/server/server-probe.ts`, which
+  the boot's guard and the shell's adoption both project; the shell refuses a
+  server of another version, because `/local`'s two ends may break freely only
+  while they ship together.
 
-- **ONE COMPOSITION ROOT.** `apps/cli/src/server/compose.ts` builds every
-  service in boot order and returns `{ context, teardown }`; `createApp` is
-  route wiring, `serve.ts` is the data-dir claim + listen + `server.json` +
-  signals + exit code, and the booted suites call the same composition. The
-  two dials `serve.ts` injects (the cloud socket opener, the agent driver) are
-  injected because compose is reachable from the renderer's test program.
-  `dev-instance.ts` owns the per-checkout derivation; `config.ts` stays the
-  parser.
+- **A DATA DIR HAS ONE SERVER, AND THE LOCK, NOT THE ROW, DECIDES IT.**
+  `server.json` is published only after listen, so two boots started together
+  would both find no row and open one db. `serve` takes `<dataDir>/serve.lock`
+  (O_EXCL, holding its pid) before anything is composed; a live pid holds it
+  unless its published row is judged gone, because a crash's pid can be reused
+  and must not block boot forever. A server removes `server.json` only when
+  the row carries its own token, so a shutdown never retracts another boot's
+  address. `apps/cli/src/server/serve-lock.ts` and `claimDataDir` in `serve.ts`.
+
+- **ONE COMPOSITION ROOT, AND THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY
+  SEAMS.** `apps/cli/src/server/compose.ts` builds every service in boot order
+  and returns `{ context, teardown }`; `createApp` is route wiring, `serve.ts`
+  is the data-dir claim + listen + `server.json` + signals + exit code, and the
+  booted suites call the same composition. `ThreadService.boot()` is called
+  from it because crash recovery writes. The seams: `vault/git-run` /
+  `git-porcelain` / `git-bootstrap` / `git-engine`; `cloud/sync-pass` /
+  `socket-link` / `sync-cadence`; `agents/interaction-waiters` beside a
+  watchdog that sweeps per-turn timestamps rather than re-arming a timer per
+  frame; `writeTransaction` in `@repo/db/connection` as the one spelling of
+  `BEGIN IMMEDIATE`.
+  `serve.ts` injects the cloud socket opener and the agent driver because
+  compose is reachable from the renderer's test program, and, under the desktop
+  shell, the brokered watcher channel and adapter spawner
+  (`child-host/node-children.ts`), because only a utility-process child has a
+  parent port to ask main through. `dev-instance.ts` owns the per-checkout
+  derivation; `config.ts` stays the parser.
 
 - **THE BIN EXITS 128+n WHEN THE SERVER DIES BY SIGNAL, NEVER 0**
   (`apps/cli/bin/inteligir`). Re-raising the signal at the wrapper exited 0.
@@ -1815,178 +1263,107 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
 - **THE CREDENTIAL IS A FILE, NOT A CHALLENGE** (reversing the
   loopback-adoption-is-earned line). The server writes `<dataDir>/server.json`
   at 0600 and removes it on ordered shutdown; every caller reads it and sends
-  the bearer. No probing, no adoption ceremony. The bound is the honest one: it
-  proves the caller can read the data dir, not that it is this code. A BROWSER
-  CANNOT SEND A HEADER, so it holds its own per-boot secret in an HttpOnly
-  SameSite=Strict cookie, and nothing hands that out to a plain request: the
-  cookie is set only by trading a single-use, five-minute handoff nonce that a
-  holder of the bearer minted (`system.browserHandoff`; `serve --open`, the
-  link `serve` prints, `inteligir open` and the shell's Open in Browser) on a
-  document URL carrying `?handoff=`, which answers a 303 to the same URL
-  without it. A document request carrying neither credential gets a 401 page
-  that runs nothing and names those ways in (`signed-out-page.ts`), never the
-  shell, which would load and then fail every call with nothing saying why.
-  The renderer reads the same 401 off `/rpc`'s transport as signed out
-  (`apps/desktop/src/renderer/app/signed-out-state.ts`): one notice replaces
-  the toast host, the workspace stays mounted, and the next answer clears it,
-  so a tab signed in again from another recovers without a reload. Each
-  carrier accepts only its own secret, and the cookie, being ambient, must also
-  prove same-origin because loopback "site" ignores the port. EVERY REQUEST
-  MUST NAME 127.0.0.1 OR localhost AS ITS HOST, refused with a 421 ahead of
-  every route, /health and the sockets included: a page that rebinds its own
-  hostname onto the port gets nothing. Residual: a cookie is port-agnostic, so
-  a server on another loopback port the browser visits receives it; that is why
-  it is not the bearer, never touches disk and dies with the boot.
+  the bearer. No port scan and no challenge: the address is the row's, never a
+  guess; whether the row's owner still serves is one authenticated status call
+  (`server-probe.ts`, under ONE BINARY). The bound is the honest one: it proves
+  the caller can read the data dir, not that it is this code. A BROWSER CANNOT
+  SEND A HEADER, so it holds its own per-boot secret in an HttpOnly
+  SameSite=Strict cookie, set only by trading a single-use handoff nonce a
+  bearer holder minted (`system.browserHandoff`); a request with neither gets a
+  401 page that runs nothing and names the ways in, never the shell, which
+  would fail every call with nothing saying why
+  (`apps/desktop/src/renderer/app/signed-out-state.ts`). The cookie, being
+  ambient, must also prove same-origin, because loopback "site" ignores the
+  port, and EVERY REQUEST MUST NAME 127.0.0.1 OR localhost AS ITS HOST, so a
+  rebinding page gets nothing. Residual: a cookie is port-agnostic, which is
+  why it is not the bearer and dies with the boot.
   `apps/cli/src/server/server-file.ts`, `browser-session.ts`,
-  `browser-request.ts` and the guard at the top of `app.ts`.
+  `browser-request.ts` and the guard in `app.ts`.
 
 - **Shutdown is ORDERED, per-step TIME-BOXED, and its exit code is the truth.**
   Writers stop, the vault flush runs, handles close; each step has its own
   budget because one wedged step under a single budget starves the flush. The
-  listener step closes websockets by name, because an upgraded socket is
-  detached from the HTTP server's tracking and one open tab once stalled the
-  whole teardown; the names come from `ws`'s own client set (`wss.clients`,
-  which `createApp` hands out), not from a registry per socket route. SIGINT,
-  SIGTERM and SIGHUP (a closed terminal) all run it, and a write error from a
-  gone terminal or pipe is swallowed so it cannot turn the teardown into a
-  fatal. The step list is re-read before every step, so a boot still composing
-  when the signal lands adds what it brings up and each step runs once.
+  listener step closes websockets by name (`wss.clients`), because an upgraded
+  socket is detached from the HTTP server's tracking and one open tab can stall
+  the teardown. The step list is re-read before every step, so a boot still
+  composing when the signal lands adds what it brings up.
   `apps/cli/src/server/shutdown.ts` and `listen.ts`.
 
 - **THE CSP IS STATIC, and deleting TanStack Start from the product bought
-  that** (reversing the nonce CSP). Start injected per-render inline scripts; a
-  plain Vite SPA injects none, so `script-src` is `'self'` and one fixed header
-  is served by the protocol handler and the server alike. `style-src` keeps
-  `'unsafe-inline'`. `connect-src` earns the most: a script that cannot reach a
-  third-party origin cannot exfiltrate the vault. `apps/cli/src/server/csp.ts`.
-  NOTHING REMOTE LOADS IN A NOTE: `img-src` and `frame-src` name no remote host,
-  because a remote embed is a beacon on every open, so a remote image, video,
-  tweet, page or PDF draws as a "Remote content, not loaded" card whose Open in
-  browser hands the url to the system browser
-  (`packages/editor/src/nodes/remote-content-card.tsx`); widening the policy is a
-  privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN: a
-  srcdoc frame inherits this one and runs no inline script, so Preview is srcdoc
-  with scripts off and Run navigates to `/html-frame`, a loader both stampers
-  answer under `sandbox allow-scripts; default-src 'none'` and hand the block's
-  bytes by postMessage (`apps/cli/src/server/html-block-frame.ts`). Dropping
-  Run was the rejected alternative: interaction is what the block is for.
-  `pnpm dev` stamps no CSP, so only
-  `tools/e2e/src/scenarios/remote-content-browser.ts`, over the built bundle,
-  sees either regress.
+  that** (reversing the nonce CSP). A plain Vite SPA injects no inline script,
+  so `script-src` is `'self'` and one fixed header serves both the protocol
+  handler and the server; `connect-src` earns the most, since a script that
+  cannot reach a third-party origin cannot exfiltrate the vault
+  (`apps/cli/src/server/csp.ts`). NOTHING REMOTE LOADS IN A NOTE: a remote embed
+  is a beacon on every open, so it draws as a card
+  (`packages/editor/src/nodes/remote-content-card.tsx`); widening the policy is
+  a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN,
+  `sandbox allow-scripts; default-src 'none'`
+  (`apps/cli/src/server/html-block-frame.ts`); dropping Run was the rejected
+  alternative, since interaction is what the block is for. `pnpm dev` stamps no
+  CSP, so only `tools/e2e/src/scenarios/remote-content-browser.ts` sees either
+  regress.
 
 - **THE RENDERER'S ONLY DOOR IS `inteligir://app`.** The protocol handler
-  carries the bundle, `/rpc/*` and `/vault/asset`, attaching the bearer in main
-  (and answers `/html-frame` itself, under its own policy), so the page is
-  same-origin with its API, there is no CORS, and the renderer
-  never holds the token (which is what keeps `<img src>` working). Websockets
-  are the one exception: main attaches the bearer to those upgrades and the
-  single preload hands the renderer the loopback origin. BOTH CARRIERS LEND THE
-  BEARER ONLY TO THE PAGE: a request's `initiatorOrigin` must be
-  `inteligir://app`, or absent for one the browser started itself
-  (`carriesBearer`), so a sandboxed note frame, whose origin is opaque
-  (`"null"`), gets a 403 from the handler and a bare upgrade from main. The
-  gate runs ahead of both renderers, because `pnpm dev` serves no CSP. The pin
-  cannot use `URL.origin`, which answers `"null"` for any non-special scheme;
-  scheme and host are compared as fields. A copied link names the server's
-  loopback origin, never the page's. `apps/desktop/src/main/protocol.ts` (the Electron wiring)
-  over `protocol-handler.ts` (pure, tested), `origin-pin.ts`,
-  `credential-scope.ts`, `apps/desktop/src/types.ts`,
-  `apps/desktop/src/renderer/app/socket-origin.ts`.
+  carries the bundle, `/rpc/*` and `/vault/asset`, attaching the bearer in
+  main, so the page is same-origin with its API, there is no CORS, and the
+  renderer never holds the token (which keeps `<img src>` working). Websockets
+  are the one exception, since a browser WebSocket cannot be proxied: main
+  attaches the bearer to those upgrades and the preload hands the renderer the
+  loopback origin. BOTH CARRIERS LEND THE BEARER ONLY TO THE PAGE
+  (`carriesBearer`), so a sandboxed note frame gets a 403 and a bare upgrade.
+  The pin cannot use `URL.origin`, which answers `"null"` for any non-special
+  scheme. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS (the loopback origin, the
+  updater, the spell checker, the vault switch, Reveal/Open), because no server
+  can answer for any of them. Each channel is one row
+  (`apps/desktop/src/ipc-contract.ts`) typing both ends, every frame parsed by
+  the side that receives it, and its test holds both ends to every row
+  (`apps/desktop/src/main/__tests__/ipc-contract.test.ts`). A refusal crosses
+  as a value (`{ ok: false, reason }`), never a throw, because Electron rewords
+  a thrown error. `apps/desktop/src/main/protocol.ts` over
+  `protocol-handler.ts`, `origin-pin.ts`, `credential-scope.ts`,
+  `apps/desktop/src/types.ts`, `apps/desktop/src/renderer/app/socket-origin.ts`.
 
 - **UPDATES ARE electron-updater OVER THE GITHUB RELEASE, and nothing moves
-  without a click** (reversing "no update feed"). electron-builder's `publish`
-  row writes `app-update.yml` beside the app and `latest-mac.yml` into the
-  output; the release carries the dmg, the zip (Squirrel installs from the zip,
-  never the dmg), its blockmap and that manifest, uploaded by `gh release
-create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
-  are off: a check 15s after launch and every 4 minutes, the download and the
-  restart each a click, in Settings › About or the app menu. Install stops the
-  server child first, so the vault's pending commit flushes before Squirrel
-  swaps the bundle; Squirrel installs after `quitAndInstall` returns, so its
-  failure arrives as the updater's `error` event, which the install step owns
-  once handed off: the shell says so and quits, the server being down already.
-  The state is a union by status, each carrying only what it knows (an error
-  names the step a click retries), and the policy runs a step only where
-  `updateAction` offers it. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS: the loopback
-  origin, the updater, the spell checker, the vault switch and Reveal/Open,
-  because no server can answer for any of them. Each channel is one row
-  (`apps/desktop/src/ipc-contract.ts`): its name beside its request and answer
-  schemas, typing main's handler and the preload's invoke alike, and every
-  frame is parsed by the side that receives it; its test holds both ends to
-  every row (`apps/desktop/src/main/__tests__/ipc-contract.test.ts`). A refusal crosses as a value
-  (`{ ok: false, reason }`), never a throw, because Electron rewords a thrown
-  error; a throw is a fault, and the page words it itself. Still no token in
-  the renderer. `apps/desktop/src/main/updates.ts` (the policy over an
-  injectable port) and `apps/desktop/src/update-state.ts` (the one state).
+  without a click** (reversing "no update feed"). The release carries the dmg,
+  the zip Squirrel installs from, its blockmap and `latest-mac.yml`, uploaded
+  by `gh release create`, never by electron-builder. `autoDownload` and
+  `autoInstallOnAppQuit` are off: a check 15s after launch and every 4
+  minutes, the download and the restart each a click. Install stops the server
+  child first, so the vault's pending commit flushes before Squirrel swaps the
+  bundle. `apps/desktop/src/main/updates.ts` (the policy over an injectable
+  port) and `apps/desktop/src/update-state.ts` (a union by status).
 
 - **SPELL CHECK IS THE SESSION'S SWITCH, AND THE PAGE KEEPS THE CHOICE.** Only
-  main can flip Chromium's checker, so Settings › Editor asks through the bridge
-  (`desktop:spellcheck-*`, every frame parsed on both sides) and stores the
-  choice in the page's own prefs, re-applied before the first paint; no
-  main-side store, because the choice is a page preference like the theme. The
-  language list is offered only where Electron honours it: on macOS the OS
-  checker detects the language itself and the setter is a no-op, so the row
-  says so instead of pretending. Outside the shell there is no bridge and no
-  row. `apps/desktop/src/main/spellcheck.ts` (the policy over a port),
-  `apps/desktop/src/spellcheck-state.ts` (the one state),
+  main can flip Chromium's checker, so Settings asks through the bridge and
+  keeps the choice in the page's own prefs; no main-side store, because the
+  choice is a page preference like the theme. On macOS the OS checker detects
+  the language itself, so the row says so instead of pretending.
+  `apps/desktop/src/main/spellcheck.ts`,
+  `apps/desktop/src/spellcheck-state.ts`,
   `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
 
 - **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST FORK.** A Finder
-  or Dock launch inherits launchd's PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), and
-  the server decides whether the agent runs by finding `claude` or `codex` on
-  PATH (`binaryOnPath`), so the installed app opened the normal way reported
-  no agent while every terminal launch found one. A packaged macOS shell runs
-  `$SHELL -ilc` once (zsh when unset), reads PATH from between two markers so
-  rc-file noise cannot leak in, puts those entries ahead of the inherited ones
-  and assigns the union to main's own `process.env.PATH`: the first child and
-  every vault switch's spread it, so `serverProcessEnv` stays the one channel
-  for the child's own variables. It is asked while Electron readies and capped
-  at 5s; a timeout, a failure or an empty answer adds whichever of
-  `~/.local/bin`, `/opt/homebrew/bin` and `/usr/local/bin` exist instead. The
-  fixed list alone is rejected, as is an `LSEnvironment` PATH in the bundle:
-  neither can know a version manager's directory, and `codex` installed under
-  one is invisible to both. A dev launch is left alone: it comes from a
-  terminal whose PATH is already the user's. `apps/desktop/src/main/login-shell-path.ts`.
-
-- **A DATA DIR HAS ONE SERVER, AND THE LOCK, NOT THE ROW, DECIDES IT.**
-  `server.json` is published only after compose and listen, so two boots
-  started together both find no row and would both open one db. `serve` takes
-  `<dataDir>/serve.lock` (O_EXCL, holding its pid) before anything is composed
-  and releases it as the teardown's last step, after the db closes. A lock
-  whose pid is dead is broken and retaken once; a live pid holds it unless that
-  pid has published a row the guard judges gone (refused, or answering for
-  another data dir), because a crash's pid can be reused by an unrelated
-  process and must not block boot forever. An unreadable pid counts as held:
-  it is a boot between its create and its write. `assertNoLiveServer` still
-  runs first for the message that names the port. A server removes
-  `server.json` only when the row carries its own token, so a shutdown never
-  retracts another boot's address. `apps/cli/src/server/serve-lock.ts` and
-  `claimDataDir` in `serve.ts`.
+  or Dock launch inherits launchd's bare PATH, and the server finds the agent
+  on PATH, so the app opened the normal way would report no agent. A packaged
+  macOS shell runs `$SHELL -ilc` once, capped at 5s, and prepends its PATH to
+  main's own, which every child spreads. A fixed list of bin dirs alone is
+  rejected, as is an `LSEnvironment` PATH in the bundle: neither can know a
+  version manager's directory. `apps/desktop/src/main/login-shell-path.ts`.
 
 - **THE PACKAGED BINARY'S FUSES ARE ALL FLIPPED, AND MAIN FORKS THE SERVER'S
-  NODE CHILDREN.** electron-builder flips them before signing:
-  `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are ignored, so no
-  local process can run the signed app as a node interpreter, `file://` pages
-  get no extra privileges (the protocol handler's own `net.fetch` of the
-  bundle is not a page and still reads it), and the cookie store is encrypted,
-  a one-way change to an install's profile. With `runAsNode` off nothing runs
-  this binary as Node, and a utility process cannot fork one of its own, so
-  the server asks main over its parent port for the vault watcher and each
-  ACP adapter; main forks each as a utility process and hands both sides one
-  `MessageChannelMain` (`apps/desktop/src/main/fork-broker.ts`,
-  `apps/cli/src/server/child-host/`). An adapter speaks ACP over stdio, which
-  a utility process cannot be given, so its streams ride the port as frames;
-  codex-acp's own launcher needs `process.execPath` to be node, so its
-  harness row names the native codex as `CODEX_PATH`. Rejected: a bundled
-  node binary, which would ship a second signed interpreter and a second
-  runtime to patch; worker threads, which trade the watcher's sigkill
-  recovery and an adapter's own process. Under plain node (`serve`, npx) the
-  server forks both with `child_process` as before. The smoke therefore
-  launches the app itself, window and all. The flip breaks Electron's own
-  ad-hoc signature, and Apple Silicon kills a binary whose signature does not
-  match, so `resetAdHocDarwinSignature` re-signs the app ad-hoc right after
-  it: an unsigned pack (CI's macOS job, or a tree with no Developer ID) runs,
-  and a signed one is re-signed over it. `apps/desktop/electron-builder.yml`.
+  NODE CHILDREN.** electron-builder flips them before signing, so no local
+  process can run the signed app as a node interpreter, `file://` pages get no
+  extra privileges, and the cookie store is encrypted. With `runAsNode` off a
+  utility process cannot fork one of its own, so the server asks main over its
+  parent port for the vault watcher and each ACP adapter
+  (`apps/desktop/src/main/fork-broker.ts`, `apps/cli/src/server/child-host/`).
+  Rejected: a bundled node binary, a second signed interpreter to patch, and
+  worker threads, which trade the watcher's sigkill recovery and an adapter's
+  own process. Under plain node (`serve`, npx) the server forks both with
+  `child_process`. The flip breaks Electron's ad-hoc signature, which Apple
+  Silicon enforces, so `resetAdHocDarwinSignature` re-signs the app ad-hoc
+  right after. `apps/desktop/electron-builder.yml`.
 
 ### Desktop workspace surfaces
 
@@ -1995,187 +1372,115 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/desktop/src/renderer/routes/__root.tsx`; a host mounted by one route
   leaves another route's `confirm()` parked on a dialog that never opens.
 
-- **THE RAIL IS FLUID'S SIDEBAR ANATOMY; THE TOP BAR IS THE OPEN NOTE.** Header,
-  one group, footer, at the app's size step. The header line is the vault row
-  (its initial on a tile, the name semibold, the recent vaults and Open
-  another vault… behind the chevron) with Search beside it, a 24px button
-  that opens the palette. The one group's label names the view and opens the
-  view menu — Recent | Files | Deleted, one list each, drawn by the same
-  `SidebarMenu` rows so switching swaps rows and never the chrome around
-  them — with New note as the group's action at its trailing edge. Not tabs
-  and not stacked sections: a stack made every list short, and a tab row was
-  a third line of chrome. Every other verb is a right-click, as in an IDE: a
-  row's menu carries its own (the recents' Pin, the deleted's Restore, the
-  tree's rename, move and delete), and the tree's empty area carries New
-  note, New folder, the sort toggle and Collapse all. The footer is the
-  workspace's ambient row: the sync state as a menu row (its dot, its label,
-  the agent's spinner while a thread runs) over Sync now and the account —
-  Sign in… when this device has none, the account, Sync threads now and Sign
-  out when it does, through the one `useCloudSession`
-  (`app/cloud-session.ts`) Settings › Devices runs too. Settings and the
-  theme are the footer's 24px actions. Every row in the three views is a
-  `SidebarMenu` row (`@repo/ui/components/sidebar-menu`, Fluid's row on the
-  repo's proximity hover: the traveling hover pill, semibold while current
-  without the row widening, a `SidebarMenuAction` revealed on hover); the
-  tree's rows are those rows carrying `treeitem` and the drag handlers, so
-  its keyboard walk and the menu's arrow-key walk are one rhythm — the
-  menu's own walk stands down for a key the row already handled. The view is
-  the workspace's (`railView` in `app/prefs.ts`) because a `#tag` chip shows
-  Recent scoped to the tag, a create shows Files, and the palette's Deleted
-  notes and the Metadata tab's "Deleted notes…" show Deleted; the selected
-  tag is the workspace's for the same reason. THERE IS
-  NO FOLDER SCOPE: the top bar's breadcrumb REVEALS rather than narrows —
-  a segment shows Files, opens the way to that folder and selects it
-  (`useTreeState` in `sidebar/tree-state.ts`, applied where the fold state
-  lives, and the tree's one effect focuses the row that render drew, once,
-  and never over an open name input, whose blur would cancel it). A
-  second listing root was a second answer to "what is this list?" and made
-  the recents' folder hints relative to it. The tree's fold, selection and
-  name input are the rail's state (`sidebar/tree-state.ts`), not the
-  tree's: Collapse all clears that set and a create lands where an IDE's
-  would, in the tree's selected folder, else at the vault root, opening that
-  folder in the same update. What the state follows — the listing, the open
-  note, the reveal — is applied during the rail's own render; the tree only
-  reads it, because a component setting its owner's state while it renders
-  is a React error. Find in note, comments and the panel
-  toggle live above the note; copy link, export and share sit under its ⋯
-  menu. One `useVaultSwitch` and one `RecentVaultLabel`
-  (`app/desktop-vaults.tsx`) serve the rail's vault row and Settings alike.
-  The rail and the palette's note rows and folder pages hide what the user
-  did not write through one filter, `visibleEntries` in `app/vault-hooks.ts`
-  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment
-  sidecars, dot-entries); the server's listing stays complete because the
-  CLI and the agent read it. Under the macOS shell the rail reserves the
-  traffic-light corner (`apps/desktop/src/renderer/app/title-bar.ts`);
-  nothing else is a logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
+- **THE RAIL IS FLUID'S SIDEBAR ANATOMY; THE TOP BAR IS THE OPEN NOTE.** Header
+  (the vault row, and Search, which opens the palette), one group, and a
+  footer. The group's label names the view and opens the view menu — Recent |
+  Files | Deleted, one list each, drawn by the same `SidebarMenu` rows
+  (`@repo/ui/components/sidebar-menu`) so switching swaps rows and never the
+  chrome. Not tabs and not stacked sections: a stack made every list short,
+  and a tab row was a third line of chrome. Every other verb is a right-click,
+  as in an IDE. The footer's account row runs the one `useCloudSession`
+  (`app/cloud-session.ts`) Settings › Devices runs too. The view is the
+  workspace's (`railView` in `app/prefs.ts`), because a `#tag` chip, a create
+  and "Deleted notes…" each switch it. THERE IS NO FOLDER SCOPE: the top bar's
+  breadcrumb REVEALS rather than narrows — a segment shows Files, opens the way
+  to that folder and selects it. `revealInTree` (`app/workspace.tsx`) sets a
+  nonce-keyed request the rail applies in `useTreeState` and consumes once
+  applied — a prop, not a request store, since both ends are one hop away. A
+  second listing root was a second answer to "what is this list?". The tree's
+  fold, selection and name input are the rail's state
+  (`sidebar/tree-state.ts`), applied during the rail's own render, because a
+  component setting its owner's state while it renders is a React error. The
+  rail and the palette hide what the user did not write through one filter,
+  `visibleEntries` in `app/vault-hooks.ts`; the server's listing stays complete
+  because the CLI and the agent read it. Under the macOS shell the rail
+  reserves the traffic-light corner
+  (`apps/desktop/src/renderer/app/title-bar.ts`).
+  `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
-  and every command in one field, and the two searches that are not a lookup
-  reach the rest from inside it: "Search across the vault…" opens the literal
-  scan with its replace. ⌘F IS NOT ONE OF THEM: it searches within the open
-  note, not the vault, so it keeps its own chord and its own bar. ⌘O and ⌘⇧F are GONE, and with them the
-  palette's quick-open page (the root with its commands folded away) and the
-  rail's search field: four ways to type a note's name was three too many,
-  and each one was a different set of rows for the same question. The rail's
-  Search button opens the palette, and its tooltip spells ⌘P from the table
+  and every command in one field, and the search that is not a lookup opens
+  from inside it: "Search across the vault…" (the literal scan with its
+  replace). ⌘F IS NOT ONE OF THEM: it searches within the open note, not the
+  vault, so it keeps its own chord and its own bar. There is no ⌘O, no ⌘⇧F, no
+  quick-open page and no rail search field: four ways to type a note's name was
+  three too many, and each one was a different set of rows for the same
+  question. The rail's Search button's tooltip spells ⌘P from the table
   (`app/global-shortcuts.ts`), never as a literal.
 
 - **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
   serializer.** The Metadata tab's "About" block is folded by default because
-  unfolding it is what reads the git log for the created date (the oldest
-  revision, the last row of the last page of `vault.history`, re-read only
-  while it is still null). Words, characters and reading time are counted by
-  `@repo/editor/note-stats` over the editor's lowest blocks, beside the TOC's
-  walk so both agree on the document, and published by the serializer's
-  debounce, never per keystroke; the panel reads a path-keyed store like the
-  live editor's. The top bar's breadcrumb reveals a folder in the rail's tree
-  (`revealInTree`); the reveal request is the workspace's state, keyed by a
-  nonce, and a prop to both, not a request store: a store is for a surface
-  with no route to the owner, and both are one hop away.
+  unfolding it is what reads the git log for the created date. Words,
+  characters and reading time are counted by `@repo/editor/note-stats` beside
+  the TOC's walk, so both agree on the document, and published by the
+  serializer's debounce, never per keystroke.
   `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
-  `panelOpen` defaults off; its toggle opens it, and so does every entry
-  that shows something in it — a comment focus, the top bar's Comments, a
-  thread the composer launched or the palette picked — through one
-  `revealPanel` (`app/workspace.tsx`) that leaves zen, persists the open and
-  picks the tab, because an entry that only picks its tab or thread shows
-  nothing in a closed panel. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
-  the flat underline row; the pill switch went with its last consumer. Its width persists through the same Fluid resize handle the
-  rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
-  second resize mechanism would be a second answer to one drag; the provider
-  reports a width once, when a drag lets go or collapses the side
-  (`onWidthCommitted`), never per frame.
+  `panelOpen` defaults off, and every entry that shows something in it opens it
+  through one `revealPanel` (`app/workspace.tsx`), because an entry that only
+  picks its tab or thread shows nothing in a closed panel. Its tabs are the
+  flat underline row of `@repo/ui/components/tabs`. Its width persists through
+  the rail's own Fluid resize handle (`panelWidth` beside `sidebarWidth` in
+  `app/prefs.ts`), because a second resize mechanism would be a second answer
+  to one drag, and is reported once a drag lets go (`onWidthCommitted`), never
+  per frame.
 
 - **AMBIENT STATE LIVES IN THE RAIL'S FOOTER; THE NOTE KEEPS ITS COUNT.** A
   strip across the whole window was a second bar under a rail that already
-  had a bottom, so the sync state, the agent's spinner and Settings moved
-  into Fluid's `SidebarFooter` and the window-wide status bar
-  went. What stays under the note is `app/note-footer.tsx`: the open note's
-  word count and reading time alone, right-aligned, at `--app-status-h`
-  beside `--app-header-h`, and with no rule above it so it reads as the
-  note's last line rather than chrome. The count is the serializer's
-  published one, never a recount, and zen hides the strip with the rest. The
-  rail's and the panel's shells take `h-full` from the workspace because
-  Fluid's shell is viewport-height by class.
+  had a bottom, so the sync state, the agent's spinner and Settings live in
+  Fluid's `SidebarFooter`; there is no window-wide status bar. What stays under
+  the note is `app/note-footer.tsx`: the open note's word count and reading
+  time alone, right-aligned, at `--app-footer-h` beside `--app-header-h`, and
+  with no rule above it so it reads as the note's last line rather than
+  chrome. The count is the serializer's published one, never a recount, and
+  zen hides the strip with the rest. The rail's and the panel's shells take
+  `h-full` from the workspace because Fluid's shell is viewport-height by
+  class.
 
 - **THE PALETTE IS FLUID'S COMMAND MENU, AND IT HAS NO PRIMITIVE UNDER IT**
   (reversing the cmdk line; the dependency is gone). The field keeps DOM focus
-  and names the highlighted row through `aria-activedescendant`, so the list
-  is a `role="listbox"` of plain rows: the arrows and Enter are the field's
-  handlers, and the highlight is the one proximity pill every other popup here
-  draws (`ProximityOverlays` over `useProximityHover`), not a per-row
-  `data-selected` fill. cmdk's filter was already off on every page — each page
-  filters its own rows — so what it still owned was the keyboard, and one
-  keyboard beside the pill was two answers to "which row is live?". ROWS ARE
-  CHILDREN, NOT DATA, diverging from Fluid's `items` array deliberately: the
-  pages draw eight different row shapes (a heading's depth, a match's
-  before/hit/after, a problem's detail) and a data array would be a second
-  answer to what a row is. A row therefore does not answer for its own
-  position — the list reads document order through `useRowOrder`, like the
-  dropdown and the rail. The panel opens where a panel at its cap height
-  sits centered and KEEPS that top edge, so the field never moves as the rows
-  filter down. The footer names Enter after the highlighted row, read off that
-  row's own `data-command-action`, so nothing keeps a second copy of a label
-  the page already drew; a row without one leaves Enter unnamed rather than
-  guessing. A chord draws one box per key: `CommandShortcut` takes the caps
-  `hotkeyCaps` draws from the one modifier table `spellHotkey` joins
-  (`@repo/ui/lib/hotkey-spelling`), so ⌘ is spelled once and nothing cuts a
-  spelled string back into keys.
-  What went with cmdk is `input-group.tsx`: the palette's framed field was its
-  last consumer, and Fluid's field is frameless over a divider. ONE DIALOG FOR
-  EVERY PAGE: the dialog, the field and the footer are drawn once, their words
-  read from a per-page table, and a page draws only its toolbar and its list,
-  so a page switch never re-animates the backdrop or takes the caret out of
-  the field. A page the palette opens onto is a union member, so a move page
-  cannot exist without the entry it moves, and the open note's verbs are one
-  nullable `note`, so no row can be offered without its note.
+  and names the highlighted row through `aria-activedescendant`, and the
+  highlight is the one proximity pill every other popup draws; cmdk's filter
+  was already off on every page, and its keyboard beside the pill was two
+  answers to "which row is live?". ROWS ARE CHILDREN, NOT DATA, diverging from
+  Fluid's `items` array deliberately: eight row shapes in a data array would be
+  a second answer to what a row is. The panel KEEPS the top edge a panel at its
+  cap height would have, so the field never moves as rows filter down. A chord
+  draws one box per key from the one modifier table
+  (`@repo/ui/lib/hotkey-spelling`), so nothing cuts a spelled string back into
+  keys. ONE DIALOG FOR EVERY PAGE, so a page switch never re-animates the
+  backdrop; a page is a union member, so a move page cannot exist without the
+  entry it moves.
   `packages/ui/src/components/command.tsx`,
   `apps/desktop/src/renderer/app/palette/command-palette.tsx` and
   `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
 
 - **THE BUS IS APPLIED ONCE PER FRAME, AND A KIND REFETCHES ONLY WHAT IT
   MOVES.** `ChangeBatch` folds every ws frame since the last animation frame
-  and flushes once, so a K-note rename is one knowledge sweep rather than K,
-  and a hidden window, which runs no frames, folds a long turn into one flush
-  on return. Thread kinds are weighed in two total tables beside the vault
-  kinds' invalidations, `MOVES_THE_LIST` and `MOVES_THE_DETAIL`, next to
-  thread-hooks' `MOVES_THE_TIMELINE`: `events-appended` moves neither, so a
-  streamed turn refetches the timeline's delta and never the thread list. A `content-changed` under the comment store sweeps the comments, since
-  a second comment rewrites an existing store and announces no row; every
-  `content-changed` stamps the cached listing's `modifiedMs` with the frame's
-  arrival instead of re-walking the vault, so the recents move while a note is
-  edited. The note session hears the flush as `VaultChangedEvent`s
-  (`packages/editor/src/host-io.ts`): ONE `files` event however many paths
-  moved, which always re-lists, since a named path may have left the vault as
-  easily as joined it, or a `content` event per doc, which re-lists nothing.
-  Its listing is the rail's own tree query (`readVaultTree` in
-  `apps/desktop/src/renderer/app/vault-hooks.ts`), read after the flush
-  invalidates it, so it joins the rail's refetch and a K-path frame is one walk.
-  A reconnect sweeps every family the bus reaches, declared once and checked
-  against every frame's invalidations, and tells the session a `files` event
-  naming nothing; that sweep is why no window-focus re-walk backs it up.
+  and flushes once, so a K-note rename is one knowledge sweep rather than K.
+  Thread kinds are weighed in total tables (`MOVES_THE_LIST`,
+  `MOVES_THE_DETAIL`, `MOVES_THE_TIMELINE`), so a streamed turn never
+  refetches the thread list. The note session hears one `files` event however
+  many paths moved (`packages/editor/src/host-io.ts`) and lists through the
+  rail's own tree query (`apps/desktop/src/renderer/app/vault-hooks.ts`), so a
+  K-path frame is one walk. A reconnect sweeps every family the bus reaches,
+  which is why no window-focus re-walk backs it up.
   `apps/desktop/src/renderer/app/workspace-context.tsx` and
   `apps/desktop/src/renderer/app/__tests__/changed-message.test.ts`.
 
 - **THE NOTE STORE OWNS THE OPEN NOTE, THE URL MIRRORS IT, AND SETTINGS
   COVERS A WORKSPACE THAT STAYS MOUNTED** (owner decision). `?note=` is read
   once, at boot, as the deep link, and every open after that is mirrored into
-  it with `replace` on whichever route shows, so the store's back/forward
-  stacks are the one history and the rail, the top bar and the panel all read
-  the store's `openPath`: a pushed entry per open let a browser Back move the
-  rail's highlight off the note the editor still held. Settings is a child of
-  the pathless `_workspace` layout, drawn in a full-window layer over the
-  workspace rather than as a sibling route, which unmounted the note, its undo
-  history, the composer and zen, and re-walked the vault on the way back.
-  `search: true` carries `?note=` both ways. Covered, the workspace is `inert`
-  and its `GLOBAL_SHORTCUTS` listener, the rail's `[` and the panel's `]`
-  among its rows, is detached, because inert stops focus and pointer but not a
-  window listener; the
-  way in blurs the focused element and flushes the open note, since no unmount
-  settles a title mid-rename or an edit inside the debounce any more. The layer
-  is the layout's, not the page's, so a child's crash boundary lands inside it
-  rather than below a workspace it left inert.
+  it with `replace`, so the store's back/forward stacks are the one history: a
+  pushed entry per open let a browser Back move the rail's highlight off the
+  note the editor still held. Settings is a layer over the workspace in the
+  pathless `_workspace` layout, not a sibling route, which unmounted the note,
+  its undo history, the composer and zen. Covered, the workspace is `inert`
+  and its `GLOBAL_SHORTCUTS` listener detached, since inert does not stop a
+  window listener; the way in flushes the open note, since the workspace stays
+  mounted and nothing else settles a title mid-rename or an edit inside the
+  debounce.
   `apps/desktop/src/renderer/routes/_workspace.tsx`,
   `apps/desktop/src/renderer/app/__tests__/workspace-runtime-mount.test.tsx`
   and `apps/desktop/src/renderer/app/__tests__/workspace-routing.booted.test.tsx`.
@@ -2187,9 +1492,10 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   (`tools/repo-guards`), route-table completeness
   (`apps/cli/src/server/__tests__/http-surface.test.ts`), migration↔schema
   agreement (`packages/db/src/__tests__/schema-agreement.test.ts`), the
-  per-export orphan guard and the type-role guard over `@repo/ui`, the CLI guide and its `--json` flags,
-  the editor's buffer invariant. If coverage is ever added, `coverage.include`
-  is mandatory in Vitest 4, and gate only `@repo/notes`.
+  per-export orphan guard and the type-role guard over `@repo/ui`, the CLI guide
+  and its `--json` flags, the editor's buffer invariant. If coverage is ever
+  added, `coverage.include` is mandatory in Vitest 4, and gate only
+  `@repo/notes`.
 
 - **A structural guard states its own rule in the failure**, names the file, and
   derives every value it compares. The one hand-written list is
@@ -2200,10 +1506,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   reason. Every vendored file keeps its `// Vendored from X, MIT.` header and the
   licence texts live under `tools/licenses`, staged into the artifact as
   `dist/licenses`, with `pnpm smoke:cli` deriving the expected set from the
-  directory.
-
-- **`packages/ui/components.json` declares `rsc: true` and it is inert**: every
-  consumer is a plain Vite build.
+  directory. `packages/ui/components.json` declares `rsc: true` and it is
+  inert: every consumer is a plain Vite build.
 
 - **THE ORPHAN GUARD OVER `@repo/ui` IS PER EXPORT**: every named export under
   the wildcard-exported directories needs a consumer outside the gallery or a
@@ -2214,26 +1518,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
 - **A ROW DOES NOT ANSWER FOR ITS OWN POSITION; ITS CONTAINER DOES.** A
   conditional row changes where its siblings sit without re-rendering them, so
   a row deriving its index from the DOM needs an effect with no dependency
-  array — and a React rule suppression makes the compiler skip optimizing the
-  whole component. The list keeps the set instead and reads document order
-  itself, through the one registry the sidebar menu, the dropdown and the
-  palette share (`useRowOrder` in `packages/ui/src/hooks/use-row-order.ts`):
-  a row registers its element and asks only whether it is the lit one. A
-  registration only marks the set dirty, and one sync per commit reads the
-  order in the layout phase of the commit after, so a list of N rows mounts,
-  grows or empties in O(N); a sync per row re-registers every row for every
-  row, and mounts a thousand-row tree in tens of seconds. Not a microtask:
-  an update made outside the commit can render a frame late, and that frame
-  draws the pills at the old rects. A keyed reorder mounts no row, so a
-  MutationObserver on the list catches it and forces the resync with
-  `flushSync`, before paint, for the same reason. The lit row rides a store
-  the rows read through `useSyncExternalStore` (`useHighlighted`), so a hover
-  step re-renders the row it left and the row it reached, not the list.
-  `packages/ui/src/components/__tests__/row-registry.test.tsx` pins the
-  linear mount, the reorder and the two-row hover. No `exhaustive-deps` or
-  `rules-of-hooks` suppression is left in the renderer or `@repo/ui` — those
-  are the ones the compiler bails on, and `react/rule-suppression` refuses a
-  new one — so the compiler optimizes both.
+  array, and that rule suppression makes the compiler skip the whole
+  component. The list keeps the set and reads document order itself, through
+  one registry (`useRowOrder` in `packages/ui/src/hooks/use-row-order.ts`),
+  syncing once per commit in the layout phase: a sync per row mounts a
+  thousand-row tree in tens of seconds, and a microtask can render a frame
+  late with the pills at the old rects. The lit row rides a store, so a hover
+  step re-renders two rows, not the list
+  (`packages/ui/src/components/__tests__/row-registry.test.tsx`).
+  `react/rule-suppression` refuses a new `exhaustive-deps` or `rules-of-hooks`
+  suppression, the ones the compiler bails on.
 
 - **THE REACT COMPILER IS ON FOR ALL THREE APPS**: `compiler: true` on
   `@vitejs/plugin-react` in both vite configs and `reactCompiler: true` in
@@ -2243,7 +1537,7 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   minted in a factory is hoisted with no diagnostic), and a
   `compiled-under-test` suite in each fails when the plugin goes. A node
   suite, and the desktop's booted ones, cannot run compiled: the plugin skips
-  the ssr transform. The manual-memo sweep is a follow-up.
+  the ssr transform. The manual-memo sweep is #820.
 
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override
   because the catalog bound only the manifests that spell it; `@types/node`
@@ -2264,82 +1558,62 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/mobile`. An SDK upgrade moves all of them together.
 
 - **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit
-  replays the output with no error, and the e2e suite and `package:*` test and
-  ship what it replays. Another workspace's files enter a key only through a
-  `^` edge, so every cached task of a workspace with dependencies carries one
+  replays the output with no error, and the e2e suite and `package:*` ship what
+  it replays. Another workspace's files enter a key only through a `^` edge
   (`tools/repo-guards/src/turbo-cache-keys.test.ts`); the desktop build takes
-  `^topo`, the transit node, since `^build` would cycle through the CLI build
-  that stages its renderer (`apps/desktop/turbo.json`). A file in no
-  workspace is a named input (the licence texts on `apps/cli/turbo.json`), a
-  file a later command follows is a named output (the web build's
-  `.wrangler/deploy/**`, `apps/web/turbo.json`), and `NODE_ENV` is hashed
-  `globalEnv`, not a passthrough: vite emits React's dev build under
-  `development`, and the dev shell hands that value to every agent shell.
+  `^topo`, since `^build` would cycle through the CLI build that stages its
+  renderer (`apps/desktop/turbo.json`). A file in no workspace is a named input
+  (`apps/cli/turbo.json`), a followed file a named output
+  (`apps/web/turbo.json`), and `NODE_ENV` is hashed, not passed through: vite
+  emits React's dev build under `development`.
 
 - **A DESKTOP TEST THAT LOGS A console.error FAILS.** React reports a setState
-  during another component's render, a missing key or an update outside
-  `act` as a console.error and nothing else, so a suite that only logs it
-  stays green over a real defect. The gate
-  (`apps/desktop/src/renderer/app/__tests__/console-error-gate.ts`) fails the
-  test that logged; a test that provokes one on purpose (every refused call
-  is logged by the dev client in `app/api.ts`) silences it with its own
-  `vi.spyOn(console, "error")`. The booted suites are not gated: the server
-  they boot in-process logs every refused call by design.
+  during another component's render, a missing key or an update outside `act`
+  as a console.error and nothing else, so a suite that only logs it stays green
+  over a real defect
+  (`apps/desktop/src/renderer/app/__tests__/console-error-gate.ts`). A test
+  that provokes one on purpose silences it with its own spy. The booted suites
+  are not gated: the server they boot logs every refused call by design.
 
 - **A PARSER COST WE CANNOT WAIT OUT UPSTREAM IS A pnpm PATCH, AND A TEST FAILS
-  WITHOUT IT.** micromark merges a paragraph's text fragments with one splice
-  per line, and GFM's email autolink literal splits the text at every word, so
-  one long paragraph (a pasted log, prose with no blank lines) parsed in time
-  quadratic in its lines: 20k lines cost the scan seconds, and the editor's
-  grammar and the verbatim-span pass run the same parser.
-  `patches/micromark@4.0.2.patch` is upstream's own open fix
-  (micromark/micromark#233), applied through `patchedDependencies` in
-  `pnpm-workspace.yaml` to every consumer, the CLI's bundle included, which
-  inlines the patched copy; a micromark bump fails the install until the patch
-  is re-cut or dropped. A workaround in `@repo/notes` was rejected: the only
-  lever there is splitting the paragraph, which changes what it parses to.
+  WITHOUT IT.** micromark merges a paragraph's text with one splice per line,
+  and GFM's email autolink splits it at every word, so one long paragraph
+  parsed in time quadratic in its lines. `patches/micromark@4.0.2.patch` is
+  upstream's own open fix (micromark/micromark#233), applied through
+  `patchedDependencies` in `pnpm-workspace.yaml`; a bump fails the install
+  until the patch is re-cut or dropped. A workaround in `@repo/notes` was
+  rejected: splitting the paragraph changes what it parses to.
   `packages/notes/src/__tests__/projection-cost.test.ts` compares a 20k-line
-  paragraph's projection with an eighth of it, so losing the patch fails a
-  suite. Still superlinear upstream, and not patched: a paragraph dense with
-  emphasis (attention's resolver splices per pair) or with inline nodes
-  (mdast-util-find-and-replace looks each text node up by `indexOf`).
+  paragraph's projection with an eighth of it. Residual: a paragraph dense with
+  emphasis or inline nodes is still superlinear upstream, and not patched.
 
 - **THE SHELL'S GLUE RUNS IN E2E OVER DEVTOOLS, AND ITS BRIDGE IS A GUARD.**
   The shell's policies are pure and unit-tested; what joins them (the protocol
-  handler over `net.fetch`, the socket credential, the preload, every
-  `ipcMain` handler, the vault switch, the quit) is
-  `tools/e2e/src/scenarios/desktop-shell.ts`: the checkout's built shell,
-  launched with `--remote-debugging-port` and driven by agent-browser. It
-  reaches its scratch through `HOME` and `--user-data-dir`, never
-  `INTELIGIR_DATA_DIR` or `INTELIGIR_VAULT_DIR`, because the shell refuses a
-  switch while either pins the launch; the server port is pinned instead, so
-  one API client follows the switch, re-reading the bearer per call. Linux CI
-  runs the suite under `xvfb-run`, after a sysctl that lets Chromium's
-  namespace sandbox run under Ubuntu's AppArmor: launching with `--no-sandbox`
-  was rejected, because no user runs the shell that way. Not the packaged
-  `.app`: packing is minutes on the macOS job, and the fuses, the signature
-  and the login shell's PATH stay `pnpm smoke:desktop`'s and the unit tests'.
-  The cheap half is `apps/desktop/src/main/__tests__/ipc-contract.test.ts`:
-  every row `apps/desktop/src/ipc-contract.ts` declares is registered exactly
-  once in main and called from the preload, and neither end spells a channel
-  as a literal, because a row one end forgot fails only at runtime.
+  handler, the preload, every `ipcMain` handler, the vault switch, the quit) is
+  `tools/e2e/src/scenarios/desktop-shell.ts`: the built shell, driven over
+  `--remote-debugging-port` by agent-browser, never through the env pins,
+  since the shell refuses a switch while either pins the launch. Linux CI keeps
+  Chromium's sandbox on: `--no-sandbox` was rejected, because no user runs the
+  shell that way. Not the packaged `.app`: packing is minutes, and the fuses
+  and the signature stay `pnpm smoke:desktop`'s. The static half is the
+  ipc-contract test (THE RENDERER'S ONLY DOOR); neither end spells a channel as
+  a literal.
 
 - **NO TYPE ASSERTION, AND NO ESCAPE COMMENT** (owner decision).
   `typescript/consistent-type-assertions` at `assertionStyle: "never"` refuses
   every `as T` and `<T>x`, tests included; `as const` and `satisfies` stay
   legal. anti-slop's `require-safety-comment-for-type-assertion` is off: it
   admitted a cast behind a `// SAFETY:` comment, so a green lint read as
-  permission and the rule eroded one justified cast at a time. Documenting that
-  escape was the rejected alternative. A library's wide type is narrowed by its
-  own guard (`ElementApi.isElementList` in
-  `packages/editor/src/markdown/markdown-doc.ts`) or parsed by the schema that
-  names it; the type-aware `no-unsafe-type-assertion` cannot stand in, since
-  the lint runs no type-aware pass. `oxlint.config.ts`.
+  permission; documenting that escape was the rejected alternative. A
+  library's wide type is narrowed by its own guard (`ElementApi.isElementList`
+  in `packages/editor/src/markdown/markdown-doc.ts`) or parsed by the schema
+  that names it. `oxlint.config.ts`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The `note` issues are
-the declines register: #645 (the 2026-09-01 review) and #674 (the 2026-09-05
-simplify pass over the feature wave) name findings weighed and not fixed; the
-older ones (#446, #453, #472, #474) catalogue findings declined against the
-hosted Durable-Object architecture this rewrite replaced.
+the declines register: #788 (the 2026-09-22 architecture review's refuted
+findings), #645 (the 2026-09-01 review), #674 (the 2026-09-05 simplify pass),
+#603 (Moss parity) and #705 (the CodeMirror trade); the older ones (#446,
+#453, #472, #474) catalogue findings declined against the hosted
+Durable-Object architecture this rewrite replaced.

@@ -128,9 +128,10 @@ answers git clients in plain text.
   limiter rows, its live sockets — so the account's twenty-device cap counts
   only devices still signed in. It answers `{ revoked: true }` even when a
   dashboard revoke lands mid-request, and `unauthorized` to a credential
-  already revoked. The CLI and the phone send it best-effort as they drop the
-  credential, and the login flow sends it for a credential its store could not
-  keep; a sign-out the cloud never hears leaves the row for `/app/devices`.
+  already revoked. The desktop's local server and the phone send it best-effort
+  as they drop the credential, and the login flow sends it for a credential its
+  store could not keep; a sign-out the cloud never hears leaves the row for
+  `/app/devices`.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
   limiter on the auth routes, and the same table behind the invite gate's and
   the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The

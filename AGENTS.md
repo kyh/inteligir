@@ -11,8 +11,10 @@ Cloudflare Worker carrying the marketing site, Better Auth on D1, device
 login, cross-device thread sync, the capture inbox and the hosted vault git
 remote. This is the tool-agnostic guide for
 coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
-GitHub issues #542 and #611 the decision record, `CONTEXT.md` the domain
-glossary, `apps/web/README.md` the Worker's own routes and deploy.
+GitHub issues #542 and #611 the decision record, the `note` issues the declines
+register (#788, #645, #674, #603, #705; read them before raising a finding),
+`CONTEXT.md` the domain glossary, `apps/web/README.md` the Worker's own routes
+and deploy.
 
 ## Quickstart
 
