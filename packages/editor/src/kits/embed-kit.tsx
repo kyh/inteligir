@@ -12,6 +12,7 @@ import {
   parseVideoUrl,
 } from "@platejs/media";
 import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { isPdfUrl } from "@repo/editor/lib/wire";
@@ -91,8 +92,15 @@ const AutoEmbedPlugin = createPlatePlugin({ key: "embedAutoPill" })
   }))
   .extend(() => ({
     handlers: {
+      // Plate runs a plugin's keydown ahead of Slate's own composition check
       onKeyDown: ({ editor, event }) => {
-        if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey) {
+        if (
+          event.key !== "Enter" ||
+          event.shiftKey ||
+          event.metaKey ||
+          event.ctrlKey ||
+          isImeComposing(event)
+        ) {
           return;
         }
         if (editor.selection === null || !editor.api.isCollapsed()) {
