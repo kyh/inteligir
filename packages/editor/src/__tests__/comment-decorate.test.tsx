@@ -95,3 +95,20 @@ describe("comment range decoration", () => {
     expect(leafOf(view, "never closed")).toContain(ORPHAN);
   });
 });
+
+describe("comment gutter", () => {
+  beforeEach(() => {
+    setCommentMeta(NOTE_PATH, { knownIds: new Set(["abc"]), resolvedIds: new Set() });
+  });
+  afterEach(() => {
+    cleanup();
+    clearCommentMeta(NOTE_PATH);
+  });
+
+  it("draws the dot beside a callout whose body a range starts in", () => {
+    const { view } = renderNote(
+      "```inteligir-callout\ntype: info\nopening %%i:abc:start%%words\n```\n\nclosing%%i:abc:end%% tail\n",
+    );
+    expect(view.getAllByRole("button", { name: "Comments on this block" })).toHaveLength(1);
+  });
+});

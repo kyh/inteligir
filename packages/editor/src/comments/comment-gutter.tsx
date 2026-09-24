@@ -1,16 +1,14 @@
 import { ElementApi } from "platejs";
 import { createPlatePlugin, useEditorSelector } from "platejs/react";
 import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
+import { shallow } from "zustand/shallow";
 
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
-import { commentSpans, holdsCommentMarkers } from "./comment-ranges";
+import { blockHoldsCommentMarkers, commentSpans } from "./comment-ranges";
 import { useCommentMeta, useCommentSurface } from "./comment-store";
-
-const sameIds = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((id, index) => id === b[index]);
 
 // A range spanning blocks draws its dot beside the block it starts in, not the one it ends in.
 // Subscribed rather than read in render: an edit elsewhere can orphan an edge here without
@@ -24,12 +22,12 @@ const CommentGutterBlock = (props: PlateElementProps) => {
     (editor) => [
       ...new Set(
         commentSpans(editor)
-          .filter((span) => span.holder === element)
+          .filter((span) => span.block === element)
           .flatMap((span) => span.ids),
       ),
     ],
     [element],
-    { equalityFn: sameIds },
+    { equalityFn: shallow },
   );
 
   if (ids.length === 0) {
@@ -72,7 +70,7 @@ const CommentGutterWrapper: RenderNodeWrapper = ({ element, path }) => {
   if (path.length !== 1) {
     return;
   }
-  if (!ElementApi.isElement(element) || !holdsCommentMarkers(element)) {
+  if (!ElementApi.isElement(element) || !blockHoldsCommentMarkers(element)) {
     return;
   }
   return function CommentGutterAbove(props) {

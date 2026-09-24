@@ -11,9 +11,11 @@ import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
 
 export interface CommentSpan {
   ids: string[];
-  /** The element holding the start marker, or the lone edge. Compared by identity: an overlay's
-   * path is the one its block last rendered with, which an insert above leaves stale. */
-  holder: TElement;
+  /** The top-level block holding the start marker, or the lone edge, however deep in it the
+   * marker sits: a callout body or a table cell draws no gutter of its own. Compared by identity:
+   * an overlay's path is the one its block last rendered with, which an insert above leaves
+   * stale. */
+  block: TElement;
   /** What the tint covers: between a pair, or the whole holder around a lone edge. Null when a
    * pair encloses nothing. */
   extent: TRange | null;
@@ -23,8 +25,11 @@ export interface CommentSpan {
 interface MarkerEdge {
   ids: string[];
   edge: "start" | "end";
-  holder: TElement;
   path: Path;
+}
+
+interface PlacedEdge extends MarkerEdge {
+  block: TElement;
 }
 
 export const isCommentMarker = (node: TNode): node is TElement =>
@@ -32,9 +37,6 @@ export const isCommentMarker = (node: TNode): node is TElement =>
 
 export const commentMarkerIds = (marker: TElement): string[] =>
   splitMarkerIds(stringProp(marker, "ids") ?? "");
-
-export const holdsCommentMarkers = (element: TElement): boolean =>
-  element.children.some(isCommentMarker);
 
 // A keystroke replaces one top-level block and keeps every other one by identity, so only the
 // block that changed is walked again. Paths are relative to the block, whose index can move.
@@ -51,15 +53,16 @@ const blockEdges = (block: TElement): readonly MarkerEdge[] => {
       continue;
     }
     const ids = commentMarkerIds(node);
-    const holder = NodeApi.parent(block, path);
-    if (ids.length > 0 && ElementApi.isElement(holder)) {
+    if (ids.length > 0) {
       const edge = stringProp(node, "edge") === "end" ? "end" : "start";
-      edges.push({ edge, holder, ids, path });
+      edges.push({ edge, ids, path });
     }
   }
   edgesByBlock.set(block, edges);
   return edges;
 };
+
+export const blockHoldsCommentMarkers = (block: TElement): boolean => blockEdges(block).length > 0;
 
 const pairExtent = (editor: SlateEditor, start: Path, end: Path): TRange | null => {
   const anchor = editor.api.after(start);
@@ -77,15 +80,15 @@ const holderExtent = (editor: SlateEditor, markerPath: Path): TRange | null => {
 };
 
 const pairEdges = (editor: SlateEditor): CommentSpan[] => {
-  const open = new Map<string, MarkerEdge>();
+  const open = new Map<string, PlacedEdge>();
   const spans: CommentSpan[] = [];
-  const lone = ({ holder, ids, path }: MarkerEdge): void => {
-    spans.push({ extent: holderExtent(editor, path), holder, ids, orphan: true });
+  const lone = ({ block, ids, path }: PlacedEdge): void => {
+    spans.push({ block, extent: holderExtent(editor, path), ids, orphan: true });
   };
 
   for (const [index, block] of editor.children.entries()) {
     for (const relative of blockEdges(block)) {
-      const edge = { ...relative, path: [index, ...relative.path] };
+      const edge: PlacedEdge = { ...relative, block, path: [index, ...relative.path] };
       const key = edge.ids.join(",");
       const started = open.get(key);
       if (edge.edge === "start") {
@@ -101,8 +104,8 @@ const pairEdges = (editor: SlateEditor): CommentSpan[] => {
       }
       open.delete(key);
       spans.push({
+        block: started.block,
         extent: pairExtent(editor, started.path, edge.path),
-        holder: started.holder,
         ids: started.ids,
         orphan: false,
       });

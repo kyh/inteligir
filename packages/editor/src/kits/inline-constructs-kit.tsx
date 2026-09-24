@@ -11,7 +11,7 @@ import { COMMENT_MARKER_KEY, FORMULA_PILL_KEY } from "@repo/editor/dialect-node-
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
-import { formulaNodeFromTyped } from "@repo/editor/formulas/formula-entry";
+import { formulaNodeFromTyped, isFormulaPill } from "@repo/editor/formulas/formula-entry";
 
 const formulaPillBasePlugin = createSlatePlugin({
   key: FORMULA_PILL_KEY,
@@ -123,7 +123,7 @@ const selectedFormula = (editor: SlateEditor) => {
   }
   const entry = editor.api.above<TElement>({
     at: editor.selection,
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === FORMULA_PILL_KEY,
+    match: isFormulaPill,
   });
   return entry ?? null;
 };
@@ -135,9 +135,8 @@ export const InlineConstructsKit = [
       transforms: {
         deleteBackward(unit) {
           const entry = selectedFormula(editor);
-          const node = entry?.[0];
-          if (node !== undefined && "type" in node && node.type === FORMULA_PILL_KEY) {
-            convertFormulaToText(editor, node);
+          if (entry !== null) {
+            convertFormulaToText(editor, entry[0]);
             return;
           }
           deleteBackward(unit);
