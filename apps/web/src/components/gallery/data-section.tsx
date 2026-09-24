@@ -119,8 +119,7 @@ export const DataSection = () => {
           <DiffTable>
             <DiffTableHeader hint="2 of 3 fields changed" />
             <DiffTableGrid widths={DIFF_COLUMNS}>
-              <DiffTableHead>
-                <DiffTableHeadCell />
+              <DiffTableHead marks>
                 <DiffTableHeadCell>Current</DiffTableHeadCell>
                 <DiffTableHeadCell>Proposed</DiffTableHeadCell>
               </DiffTableHead>
