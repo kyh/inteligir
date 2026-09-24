@@ -94,7 +94,7 @@ export const FoldersSection = () => {
                   removeFolder.mutate({ path: folder });
                 }}
               >
-                Remove
+                Remove folder
               </Button>
             </li>
           ))}
@@ -122,7 +122,7 @@ export const FoldersSection = () => {
           size="compact"
           disabled={busy || draft.trim() === ""}
         >
-          Connect
+          Connect folder
         </Button>
       </form>
       {error === null ? null : <p className="text-body text-destructive">{error}</p>}
