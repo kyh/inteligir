@@ -59,13 +59,13 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const linkResolver = createStore<LinkResolver>()(() => ({
     resolveMdTarget: options.resolveMdTarget ?? (() => null),
     resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
+    targets: options.wikiTargets ?? [],
   }));
 
   setEditorHostIo({
     actions,
     getBacklinks: async () => await Promise.resolve([]),
     linkResolver,
-    listWikiTargets: async () => await Promise.resolve([...(options.wikiTargets ?? [])]),
     onVaultChanged: () => () => {},
     readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>

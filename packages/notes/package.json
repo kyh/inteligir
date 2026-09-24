@@ -23,6 +23,7 @@
     "./knowledge/note-name": "./src/knowledge/note-name.ts",
     "./knowledge/projection": "./src/knowledge/projection.ts",
     "./knowledge/projection-row": "./src/knowledge/projection-row.ts",
+    "./knowledge/rank-wiki-targets": "./src/knowledge/rank-wiki-targets.ts",
     "./knowledge/related-notes": "./src/knowledge/related-notes.ts",
     "./knowledge/rename-candidates": "./src/knowledge/rename-candidates.ts",
     "./knowledge/rename-links": "./src/knowledge/rename-links.ts",

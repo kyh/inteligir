@@ -437,8 +437,8 @@ to the END of its group.
   selection touches, serializes them with the editor's own `MD_STRINGIFY`, so
   the new note holds the bytes the file would have, names it after the first
   heading among them, else the first line, else Untitled (a name the vault
-  would refuse falls back rather than being sanitized), steps past what
-  `listWikiTargets` already holds like the rail's Untitled does, and creates it
+  would refuse falls back rather than being sanitized), steps past what the
+  host's wiki targets already hold like the rail's Untitled does, and creates it
   through `createFileAt` before touching the buffer. The removal and the
   `[[link]]` that replaces it land in one flush, so one undo restores both; the
   created file stays, because the vault has no transaction and a note that

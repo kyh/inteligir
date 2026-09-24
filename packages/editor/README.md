@@ -103,12 +103,14 @@ src/
 - `host-io.ts` — the injected host, `EditorHostIo`, as a MODULE SINGLETON
   because kit factories and paste handlers run outside React: the vault
   actions, the link resolver store (the knowledge index's own `buildResolver` over
-  the listing, for wiki targets and md urls alike — subscribed to rather than
-  read, because it moves with every refresh while the actions never do), vault
-  reads, asset bytes in and out, the knowledge queries, and the change events
-  that invalidate them. The editor never reaches the server for any of it; the
-  app installs it once (`apps/desktop/src/renderer/app/note/vault-provider.tsx`),
-  and `host.ts` is React's door (`useVaultActions`, `useLinkResolver`, and
+  the listing, for wiki targets and md urls alike, and the wiki targets it was
+  built over, which the `[[` picker and the slash menu's templates list —
+  subscribed to rather than read, because it moves with every refresh while the
+  actions never do), vault reads, asset bytes in and out, the knowledge queries,
+  and the change events that invalidate them. The editor never reaches the
+  server for any of it; the app installs it once
+  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), and `host.ts` is
+  React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
   resolves it from the open note, so an image or a link lands where the index
   says it does).

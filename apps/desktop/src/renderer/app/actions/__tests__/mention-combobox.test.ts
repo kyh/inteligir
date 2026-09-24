@@ -42,6 +42,19 @@ describe("filterMentionTargets", () => {
     ]);
   });
 
+  it("ranks a name the query starts above a folder hit before capping", () => {
+    const inFolder = Array.from({ length: MENTION_MAX_ROWS + 3 }, (_, i) =>
+      target(`road/${String(i)}.md`, `Note ${String(i)}`),
+    );
+    const rows = filterMentionTargets(
+      [...inFolder, target("zz/roadmap.md", "Roadmap")],
+      "road",
+      new Set(),
+    );
+    expect(rows[0]?.path).toBe("zz/roadmap.md");
+    expect(rows).toHaveLength(MENTION_MAX_ROWS);
+  });
+
   it("excludes already-attached paths and caps the rows", () => {
     const many = Array.from({ length: MENTION_MAX_ROWS + 3 }, (_, i) =>
       target(`n/${String(i)}.md`, `Note ${String(i)}`),

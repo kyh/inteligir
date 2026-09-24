@@ -76,8 +76,7 @@ export const extractBlocksToNote = async (
   const notePath = liveEditorPath(editor);
   const dir = notePath === null ? "" : dirnamePath(notePath);
   const stem = extractionStem(blocksAt(editor, sorted));
-  const targets = await host.listWikiTargets();
-  const existing = targets.map((target) => target.path);
+  const existing = host.linkResolver.getState().targets.map((target) => target.path);
   const created = await host.actions.createFileAt(freeDocPath(dir, stem, existing), markdown);
   // the session already said why
   if (created === null) {

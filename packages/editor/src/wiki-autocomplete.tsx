@@ -1,15 +1,14 @@
 // picking an attachment inserts `![[embed]]`: a bare link to a binary renders nothing useful.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { FilePlusIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
 import { KEYS, createTSlatePlugin } from "platejs";
 import type { PluginConfig } from "platejs";
 import { PlateElement, createPlatePlugin } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
-import { withTriggerCombobox, filterWords } from "@platejs/combobox";
+import { withTriggerCombobox } from "@platejs/combobox";
 import type { TriggerComboboxPluginOptions } from "@platejs/combobox";
 
-import { getEditorHostIo } from "@repo/editor/host-io";
 import { commitComboboxInput } from "@repo/editor/combobox-input";
 import {
   InlineCombobox,
@@ -20,55 +19,26 @@ import {
   InlineComboboxItem,
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
-import type { FilterFn } from "@repo/editor/inline-combobox";
 import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 import { composeWikiBody, wikiBodyForPath } from "@repo/editor/wiki-target";
-import { useLinkResolver, useVaultActions } from "@repo/editor/host";
+import { useLinkResolver, useVaultActions, useWikiTargets } from "@repo/editor/host";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const CREATE_VALUE = "__create__";
 
-// alias/anchor tails are passthrough, not search terms.
-const wikiFilter: FilterFn = (item, search) => {
-  if (item.value === CREATE_VALUE) {
-    return true;
-  }
-  const { target } = parseWikiBody(search);
-  if (target === "") {
-    return true;
-  }
-  const terms = [item.value, ...(item.keywords ?? []), item.label].filter(
-    (k): k is string => k !== undefined && k !== "",
-  );
-  return terms.some((keyword) => filterWords(keyword, target));
-};
+// Ranked and cut before any row mounts, never filtered per row: a row per vault entry is a mount
+// per note, each one re-filtering on every keystroke.
+export const WIKI_PICKER_MAX_ROWS = 50;
 
 const WikiInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
   const { resolveWikiTarget } = useLinkResolver();
   const { createFileAt } = useVaultActions();
+  const targets = useWikiTargets();
   const [value, setValue] = useState("");
-  const [targets, setTargets] = useState<WikiTarget[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async (): Promise<void> => {
-      try {
-        const list = await getEditorHostIo().listWikiTargets();
-        if (!cancelled) {
-          setTargets(list);
-        }
-      } catch {
-        // an unanswered listing is an empty picker, not an error to show
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const typed = parseWikiBody(value);
 
@@ -94,15 +64,15 @@ const WikiInputElement = (props: PlateElementProps) => {
 
   const showCreate = typed.target !== "" && resolveWikiTarget(typed.target) === null;
 
-  const notes = targets.filter((target) => target.type === "doc");
-  const assets = targets.filter((target) => target.type === "asset");
+  // alias/anchor tails are passthrough, not search terms.
+  const shown = rankWikiTargets(targets, typed.target).slice(0, WIKI_PICKER_MAX_ROWS);
+  const notes = shown.filter((target) => target.type === "doc");
+  const assets = shown.filter((target) => target.type === "asset");
 
   const itemFor = (target: WikiTarget) => (
     <InlineComboboxItem
       key={target.path}
       value={target.path}
-      label={target.title}
-      keywords={[target.title, ...(target.aliases ?? [])]}
       onClick={() => {
         complete(
           composeWikiBody(wikiBodyForPath(target.path, resolveWikiTarget), typed),
@@ -129,7 +99,7 @@ const WikiInputElement = (props: PlateElementProps) => {
         trigger="["
         value={value}
         setValue={onValueChange}
-        filter={wikiFilter}
+        filter={false}
       >
         <InlineComboboxInput />
         <InlineComboboxContent>
