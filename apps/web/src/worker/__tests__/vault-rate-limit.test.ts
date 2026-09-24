@@ -69,7 +69,7 @@ describe("the hosted vault's per-device budgets", () => {
     expect(refused.status).toBe(429);
   });
 
-  it("drops a revoked device's rows — nothing else ever deletes one", async () => {
+  it("drops a revoked device's rows at once, not on Better Auth's next prune", async () => {
     const { bearer } = await signUpUser("vault-budget-revoke@example.test");
     const device = await loginDevice(bearer, "Laptop");
     const key = deviceRateKey("vaultRead", device.deviceId);

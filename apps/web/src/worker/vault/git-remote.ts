@@ -3,8 +3,7 @@ import { createDurableGit } from "durable-git";
 import type { Registry } from "durable-git";
 import { createDb } from "../db/client";
 import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
-import { allowInWindow, deviceRateKey } from "../rate-limit";
-import type { RateWindow } from "../rate-limit";
+import { allowInWindow, deviceRateKey, RATE_WINDOWS } from "../rate-limit";
 import { pingVaultAdvanced } from "../sync/routes";
 import { treeListingPrefix } from "./tree-listing";
 
@@ -15,10 +14,6 @@ import { treeListingPrefix } from "./tree-listing";
 
 // stamped after verification; any inbound copy is stripped first
 const AUTHORIZED_HEADER = "x-vault-authorized";
-
-// set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
-// device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
-const VAULT_GIT_WINDOW: RateWindow = { max: 600, windowMs: 60_000 };
 
 const PROTOCOL_ROUTES = new Set([
   "GET /info/refs",
@@ -82,7 +77,12 @@ export const handleVaultGitRemote = async (
   }
 
   if (
-    !(await allowInWindow(env, db, deviceRateKey("vaultGit", verified.deviceId), VAULT_GIT_WINDOW))
+    !(await allowInWindow(
+      env,
+      db,
+      deviceRateKey("vaultGit", verified.deviceId),
+      RATE_WINDOWS.vaultGit,
+    ))
   ) {
     // plain text: a JSON envelope in a git client's stderr is noise
     return new Response("too many requests\n", { status: 429 });
@@ -123,6 +123,13 @@ export const handleVaultGitRemote = async (
   return response;
 };
 
+// durable-git's own R2 layout, private to it and copied here: pushed packs, then clone-cache packs
+// per ref version. vault-git.test.ts fills both before an account deletion, so a drift fails there
+export const packCachePrefixes = (repo: string): readonly string[] => [
+  `raw/${repo}/`,
+  `pack/${repo}/`,
+];
+
 // A non-OK answer throws so beforeDelete aborts and the account survives to retry; a never-pushed
 // repo wipes empty tables, so it is idempotent. Residual: a push whose pack is still uploading can
 // recreate the repo after the wipe (dgit has no tombstone), and a tree read still walking can
@@ -139,7 +146,7 @@ export const deleteVaultGitRepo = async (env: Env, userId: string): Promise<void
     throw new Error(`vault git repo delete failed: ${response.status}`);
   }
   // dgit's own R2 purge logs a failure and answers ok, which a deletion hook cannot trust; a throw aborts the deletion
-  for (const prefix of [`raw/${repo}/`, `pack/${repo}/`, treeListingPrefix(repo)]) {
+  for (const prefix of [...packCachePrefixes(repo), treeListingPrefix(repo)]) {
     let cursor: string | undefined;
     do {
       const listing = await env.PACK_CACHE.list(

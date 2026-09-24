@@ -13,8 +13,7 @@ import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
-import { allowInWindow, deviceRateKey } from "../rate-limit";
-import type { RateWindow } from "../rate-limit";
+import { allowInWindow, deviceRateKey, RATE_WINDOWS } from "../rate-limit";
 import { vaultRegistry, vaultRepoName } from "./git-remote";
 import { treeListingSlot } from "./tree-listing";
 import type { TreeListingSlot } from "./tree-listing";
@@ -26,10 +25,6 @@ const MAX_TREE_DIRS = 10_000;
 // the walk that fills the listing slot holds the whole listing in memory, so a vault past this
 // many entries is walked page by page and never kept.
 const MAX_KEPT_LISTING = 50_000;
-
-// the legitimate burst is one note's embeds, which the format does not bound; this breaks a runaway
-// loop, and a note past it sees its tail answered 429.
-const VAULT_READ_WINDOW: RateWindow = { max: 3000, windowMs: 60_000 };
 
 const resolveCommit = async (
   stub: DurableObjectStub<RepoCell>,
@@ -205,7 +200,7 @@ export const handleVaultReadRoutes = async (
       env,
       db,
       deviceRateKey("vaultRead", verified.deviceId),
-      VAULT_READ_WINDOW,
+      RATE_WINDOWS.vaultRead,
     ))
   ) {
     return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");

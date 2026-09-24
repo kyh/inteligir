@@ -1201,7 +1201,11 @@ agents default`; unset falls back
 - **Cloud state names its Durable Object from a VERIFIED credential.** Account
   deletion revokes credentials first, then purges, then writes a tombstone every
   route refuses, because the reorder alone leaves an in-flight request able to
-  recreate state.
+  recreate state. The Worker parses each body and calls the object by RPC with
+  the verified deviceId as an argument, so no header it forwards carries
+  identity; the socket upgrade, which only fetch can carry, is the one
+  exception, and its identity lands in hibernation tags
+  (`apps/web/src/worker/sync/routes.ts`, `thread-sync-do.ts`).
 
 - **Say the delivery guarantee you implement.** Captures are at-least-once
   delivery with exactly-once deletion by the owning claim, so the apply must be

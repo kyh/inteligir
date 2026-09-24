@@ -8,7 +8,7 @@ import type {
   ListDevicesResponse,
   RevokeDeviceResponse,
 } from "@repo/api/cloud/device/device-schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { verifyDeviceCredential } from "./device-auth";
 import { loginDevice } from "./login";
 import type { LoginFailure } from "./login";
@@ -16,16 +16,11 @@ import { createAuth } from "../auth/auth";
 import { jsonNoStore, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { device } from "../db/schema";
-import { allowInWindow, callerRateKey, forgetDeviceBudgets } from "../rate-limit";
-import type { RateWindow } from "../rate-limit";
+import { allowInWindow, callerRateKey, forgetDeviceBudgets, RATE_WINDOWS } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
 // session auth for everything except login, which IS the authentication, and sign-out, which a
 // device asks with its own credential: the local app holds no session
-
-// a login route with no throttle is a password oracle; the window is per address because
-// nothing else about the caller is known yet
-const LOGIN_WINDOW: RateWindow = { max: 10, windowMs: 60_000 };
 
 const sessionUserId = async (
   request: Request,
@@ -64,7 +59,6 @@ const revokeDevice = async (
   if (revoked === undefined) {
     return false;
   }
-  // nothing else deletes a limiter row
   await forgetDeviceBudgets(db, [target.deviceId]);
   // the credential is already dead in D1; this closes the sockets it still holds, which no per-request check reaches
   await severDeviceSockets(env, target.userId, target.deviceId);
@@ -80,7 +74,7 @@ export const handleDeviceRoutes = async (
   const route = `${request.method} ${url.pathname}`;
 
   if (route === `POST ${DEVICE_API_PATHS.login}`) {
-    if (!(await allowInWindow(env, db, callerRateKey("login", request), LOGIN_WINDOW))) {
+    if (!(await allowInWindow(env, db, callerRateKey("login", request), RATE_WINDOWS.login))) {
       return refuse("rate-limited", "Too many attempts — wait a minute.");
     }
     const body = deviceLoginRequestSchema.safeParse(await request.json().catch(() => null));
@@ -115,7 +109,8 @@ export const handleDeviceRoutes = async (
       .select()
       .from(device)
       .where(eq(device.userId, userId))
-      .orderBy(device.createdAt)
+      // created_at is whole seconds, so two sign-ins in one second tie; rowid is their arrival order
+      .orderBy(device.createdAt, sql`rowid`)
       .all();
     const body: ListDevicesResponse = {
       devices: rows.map((row) => ({

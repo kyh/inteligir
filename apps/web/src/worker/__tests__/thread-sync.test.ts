@@ -6,11 +6,12 @@ import {
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/api/cloud/sync/sync-schema";
 import type { PushRequest, ThreadMetaInput } from "@repo/api/cloud/sync/sync-schema";
-import { devicePlatformSchema, SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
+import { threadSyncStub } from "../sync/routes";
+import { SOCKET_IDENTITY_HEADERS } from "../sync/thread-sync-do";
 import {
   awaitFrames,
   deviceHeaders,
@@ -22,12 +23,6 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-
-// the attachment is the socket's whole identity across hibernation, so the test reads it as one
-const socketTagSchema = z.object({
-  deviceId: z.string().min(1),
-  platform: devicePlatformSchema,
-});
 
 const push = async (credential: string, body: PushRequest): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
@@ -289,18 +284,17 @@ describe("thread sync log", () => {
     desktopWs.socket.close();
   });
 
-  it("keeps its socket identity in the attachment, not in instance memory", async () => {
+  it("keeps its socket identity in the hibernation tags, not in instance memory", async () => {
     const { bearer } = await signUpUser("sync-hibernate@example.test");
     const desktop = await loginDevice(bearer, "Desktop");
     const phone = await loginDevice(bearer, "Phone");
     const desktopWs = await openSocket(desktop.credential, "desktop");
-    const userId = await userIdOf(bearer);
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+    const stub = threadSyncStub(env, await userIdOf(bearer));
 
     const tags = await runInDurableObject(stub, (_instance, state) =>
-      state.getWebSockets().map((ws) => socketTagSchema.parse(ws.deserializeAttachment())),
+      state.getWebSockets().map((ws) => state.getTags(ws)),
     );
-    expect(tags).toEqual([{ deviceId: desktop.deviceId, platform: "desktop" }]);
+    expect(tags).toEqual([[`device:${desktop.deviceId}`, "platform:desktop"]]);
 
     await push(phone.credential, {
       events: [event("th_x", 1, "after")],
@@ -397,7 +391,7 @@ describe("capture inbox", () => {
     expect(stale.captures).toHaveLength(1);
 
     const userId = await userIdOf(bearer);
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+    const stub = threadSyncStub(env, userId);
     await runInDurableObject(stub, (_instance, state) => {
       state.storage.sql.exec("UPDATE captures SET claimed_at = 0");
     });
@@ -470,7 +464,7 @@ describe("account deletion", () => {
     expect(after.status).toBe(401);
 
     // read off the SQL: every route refuses a tombstoned object, so a route answer would prove the tombstone, not the wipe
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+    const stub = threadSyncStub(env, userId);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
       captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
@@ -491,20 +485,36 @@ describe("account deletion", () => {
       method: "POST",
     });
 
-    // replays a request whose credential check passed before the purge, as the Worker would have forwarded it
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
-    const inFlight = await stub.fetch("https://thread-sync/push", {
-      body: JSON.stringify({ events: [event("th_1", 2, "after the purge")] }),
-      headers: { "content-type": "application/json", "x-device-id": deviceId },
-      method: "POST",
-    });
-    expect(inFlight.status).toBe(410);
-    expect(cloudErrorSchema.parse(await inFlight.json()).error.code).toBe("account-deleted");
+    // replays calls whose credential check passed before the purge, as the Worker would have made them
+    const stub = threadSyncStub(env, userId);
+    const late = [
+      await stub.push(deviceId, {
+        events: [{ createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" }],
+        threads: [],
+      }),
+      await stub.pull({ afterSeq: 0, limit: 10 }),
+      await stub.capture({ idempotencyKey: "key-after-purge", text: "after the purge" }),
+      await stub.claimCaptures({ limit: 10 }),
+      await stub.ackCaptures({ claimToken: "late-claim", ids: ["late-capture"] }),
+    ];
+    expect(late.map((result) => (result.ok ? "answered" : result.code))).toEqual([
+      "account-deleted",
+      "account-deleted",
+      "account-deleted",
+      "account-deleted",
+      "account-deleted",
+    ]);
 
-    const remaining = await runInDurableObject(
-      stub,
-      (_instance, state) => state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
-    );
-    expect(remaining).toBe(0);
+    const socket = await stub.fetch("https://thread-sync/ws", {
+      headers: { [SOCKET_IDENTITY_HEADERS.deviceId]: deviceId, upgrade: "websocket" },
+    });
+    expect(socket.status).toBe(410);
+    expect(cloudErrorSchema.parse(await socket.json()).error.code).toBe("account-deleted");
+
+    const remaining = await runInDurableObject(stub, (_instance, state) => ({
+      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
+      events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
+    }));
+    expect(remaining).toEqual({ captures: 0, events: 0 });
   });
 });

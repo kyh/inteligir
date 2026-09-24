@@ -2,6 +2,7 @@ import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
+import { packCachePrefixes, vaultRepoName } from "../vault/git-remote";
 import { treeListingPrefix } from "../vault/tree-listing";
 import {
   deviceHeaders,
@@ -12,7 +13,7 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-import { pushVaultFiles, ZERO_OID } from "./git-pack";
+import { cloneVault, pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
@@ -132,7 +133,7 @@ describe("vault git remote round-trip", () => {
       "vault: update welcome.md",
       [{ content: "# hello again\n", path: "welcome.md" }],
       first.commit,
-      first.commit,
+      { parent: first.commit },
     );
     expect(second.response.status).toBe(200);
     expect(await second.response.text()).toContain("unpack ok");
@@ -160,7 +161,7 @@ describe("vault git remote round-trip", () => {
 });
 
 describe("account deletion's vault half", () => {
-  it("wipes the repo cell and the registry row with the account", async () => {
+  it("wipes the repo cell, its R2 bytes and the registry row with the account", async () => {
     const { bearer, password } = await signUpUser("vault-git-delete@example.test");
     const { credential } = await loginDevice(bearer, "Laptop");
     const pushed = await pushVaultFiles(
@@ -168,17 +169,28 @@ describe("account deletion's vault half", () => {
       "vault: initialize",
       [{ content: "note bytes the deletion promise covers\n", path: "secret.md" }],
       ZERO_OID,
+      { length: "undeclared" },
     );
     expect(pushed.response.status).toBe(200);
+    expect(await pushed.response.text()).toContain("unpack ok");
+    const cloned = await cloneVault(credential, pushed.commit);
+    expect(cloned.status).toBe(200);
+    await cloned.arrayBuffer();
     const userId = await userIdOf(bearer);
+    const repo = vaultRepoName(userId);
 
-    const listingPrefix = treeListingPrefix(`vault-${userId}`);
+    const listingPrefix = treeListingPrefix(repo);
     const listed = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
       headers: deviceHeaders(credential),
     });
     expect(listed.status).toBe(200);
     const kept = await env.PACK_CACHE.list({ prefix: listingPrefix });
     expect(kept.objects).toHaveLength(1);
+    // the purge names durable-git's private layout; a spelling that drifted would list nothing here
+    for (const prefix of packCachePrefixes(repo)) {
+      const packs = await env.PACK_CACHE.list({ prefix });
+      expect(packs.objects.length, prefix).toBeGreaterThan(0);
+    }
 
     const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
       body: JSON.stringify({ password }),
@@ -192,12 +204,14 @@ describe("account deletion's vault half", () => {
     });
     expect(refused.status).toBe(401);
 
-    expect(await env.REGISTRY.getByName("registry").get(`vault-${userId}`)).toBeNull();
-    const purged = await env.PACK_CACHE.list({ prefix: listingPrefix });
-    expect(purged.objects).toEqual([]);
+    expect(await env.REGISTRY.getByName("registry").get(repo)).toBeNull();
+    for (const prefix of [listingPrefix, ...packCachePrefixes(repo)]) {
+      const purged = await env.PACK_CACHE.list({ prefix });
+      expect(purged.objects, prefix).toEqual([]);
+    }
 
     // read off the SQL: the wire refuses a revoked credential before it could prove the wipe
-    const stub = env.REPO.getByName(`vault-${userId}`);
+    const stub = env.REPO.getByName(repo);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
       objects: state.storage.sql.exec("SELECT COUNT(*) AS n FROM objects").one().n,
       refs: state.storage.sql.exec("SELECT COUNT(*) AS n FROM refs").one().n,

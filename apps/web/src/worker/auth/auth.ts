@@ -8,7 +8,7 @@ import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
-import { CALLER_IP_HEADER } from "../rate-limit";
+import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
 import { purgeThreadSync } from "../sync/routes";
 import { sendResetEmail } from "./reset-email";
 
@@ -61,7 +61,7 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       enabled: env.RATE_LIMIT_DISABLED !== "true",
       max: 10,
       storage: "database",
-      window: 60,
+      window: AUTH_RATE_WINDOW_SECONDS,
     },
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: trustedOrigins(env),
