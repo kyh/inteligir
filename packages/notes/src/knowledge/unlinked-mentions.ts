@@ -1,13 +1,15 @@
 // A plain-text mention is a name the wiki grammar would resolve, written without the brackets:
-// the doc's stem or one of its aliases, as a whole word, any case. Not its H1: `[[H1 text]]`
-// resolves to nothing unless that text is also the stem or an alias. Bytes the editor treats as
+// the doc's link name or one of its aliases, as a whole word, any case. Not its H1: `[[H1 text]]`
+// resolves to nothing unless that text is also the link name or an alias. Bytes the editor treats as
 // verbatim, code, links, urls, frontmatter and comment markers are withheld, because a "mention"
 // there is not prose and a Link would rewrite something that is not a sentence.
 
 import { frontmatterEnd } from "../markdown/frontmatter";
+import { serializeWikiBody } from "../markdown/remark-wiki-link";
 import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
 import type { VerbatimSpan } from "../markdown/verbatim-spans";
-import { docStem } from "./doc-file";
+import { wikiLinkName } from "./doc-file";
+import { wikiTargetForPath } from "./link-resolve";
 import { splitLinesKeepingTerminators } from "./source-lines";
 import { excerptAround, findTextMatches } from "./text-matches";
 import type { DocText, TextMatch } from "./text-matches";
@@ -32,6 +34,19 @@ export interface UnlinkedMentions {
   total: number;
 }
 
+// the rows beside the target every Link writes; null when no wiki link can name the note
+export interface LinkableMentions extends UnlinkedMentions {
+  linkTarget: string | null;
+}
+
+export const mentionLinkTarget = (
+  path: string,
+  resolveWiki: (target: string) => string | null,
+): string | null => {
+  const target = wikiTargetForPath(path, resolveWiki);
+  return serializeWikiBody({ target }) === null ? null : target;
+};
+
 export interface UnlinkedMentionQuery {
   names: readonly string[];
   // the target itself and every doc that already links to it
@@ -41,13 +56,18 @@ export interface UnlinkedMentionQuery {
 
 const MENTION_OPTIONS = { caseSensitive: false, wholeWord: true } as const;
 
+// Link keeps the prose as the link's alias, so a name no alias can carry (a bracket, a `|`) is
+// not a mention: its row would offer a Link that cannot be written
+const showableInLink = (name: string): boolean =>
+  serializeWikiBody({ alias: name, target: "" }) !== null;
+
 export const mentionNames = (path: string, aliases: readonly string[]): string[] => {
   const seen = new Set<string>();
   const names: string[] = [];
-  for (const raw of [docStem(path), ...aliases]) {
+  for (const raw of [wikiLinkName(path), ...aliases]) {
     const name = raw.trim();
     const key = name.toLowerCase();
-    if (name === "" || seen.has(key)) {
+    if (name === "" || seen.has(key) || !showableInLink(name)) {
       continue;
     }
     seen.add(key);
@@ -191,7 +211,8 @@ export const findUnlinkedMentions = (
 export type MentionSite = Pick<UnlinkedMention, "line" | "column" | "length" | "text">;
 
 // the exact bytes the row showed become the link, and nothing else moves; bytes that differ
-// mean the note changed since the row was read, and that is the caller's to re-read, not guess
+// mean the note changed since the row was read, and that is the caller's to re-read, not guess.
+// `target` is `mentionLinkTarget`'s, since the bare name may resolve to another note
 export const linkMention = (content: string, site: MentionSite, target: string): string | null => {
   const parts = splitLinesKeepingTerminators(content);
   const index = (site.line - 1) * 2;
@@ -204,7 +225,10 @@ export const linkMention = (content: string, site: MentionSite, target: string):
   if (found !== site.text) {
     return null;
   }
-  const link = found === target ? `[[${target}]]` : `[[${target}|${found}]]`;
-  parts[index] = `${line.slice(0, site.column)}${link}${line.slice(end)}`;
+  const body = serializeWikiBody(found === target ? { target } : { alias: found, target });
+  if (body === null) {
+    return null;
+  }
+  parts[index] = `${line.slice(0, site.column)}[[${body}]]${line.slice(end)}`;
   return parts.join("");
 };

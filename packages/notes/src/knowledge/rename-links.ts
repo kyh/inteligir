@@ -3,6 +3,8 @@
 // link reaching the moved doc through one of its aliases still resolves after
 // the rename, and rewriting it would replace the author's word vault-wide.
 
+import { parseWikiBodyRange, serializeWikiBody } from "../markdown/remark-wiki-link";
+import { wikiLinkName, wikiLinkPath } from "./doc-file";
 import type { ExtractedLink, Span } from "./link-extract";
 import { scanDoc } from "./link-extract";
 import { buildResolver } from "./link-resolve";
@@ -46,39 +48,48 @@ const mdUrlText = (sourcePath: string, targetPath: string, oldRaw: string): stri
   return encodeMdUrl(styled);
 };
 
+// the span covers the target alone, so its escapes are decided in the company of the link's own
+// anchor and alias, and the parser's range cuts the target back out. null when no body carries
+// the target (a bracket in a path): the link stays as written, for Problems to report
+const wikiSpanText = (link: ExtractedLink, target: string): string | null => {
+  const body = serializeWikiBody({ alias: link.alias, anchor: link.anchor, target });
+  const range = body === null ? undefined : parseWikiBodyRange(body).targetRange;
+  return body === null || range === undefined ? null : body.slice(range.start, range.end);
+};
+
+const writesExtension = (path: string, link: ExtractedLink): boolean => {
+  const ext = extnamePath(path).toLowerCase();
+  return ext !== "" && normalizePath(link.target).toLowerCase().endsWith(ext);
+};
+
 // obsidian's shortest-form convention: the bare name when unique, else the full path; a written extension is preserved
 const wikiTargetText = (
+  link: ExtractedLink,
   to: string,
   from: string,
   postResolver: TargetResolver,
   othersResolver: TargetResolver,
-  oldRaw: string,
-): string => {
-  const toExt = extnamePath(to).toLowerCase();
-  const fromExt = extnamePath(from).toLowerCase();
-  const explicitExt = fromExt !== "" && normalizePath(oldRaw).toLowerCase().endsWith(fromExt);
-  const dropExt = toExt === ".md" && !explicitExt;
-  const name = basenamePath(to);
-  const shortName = dropExt ? name.slice(0, -3) : name;
+): string | null => {
+  const keepExt = writesExtension(from, link);
+  const shortName = keepExt ? basenamePath(to) : wikiLinkName(to);
   const unambiguous =
     postResolver.resolveWiki(shortName) === to && othersResolver.resolveWiki(shortName) === null;
   if (unambiguous) {
-    return shortName;
+    return wikiSpanText(link, shortName);
   }
-  return dropExt ? to.slice(0, -3) : to;
+  return wikiSpanText(link, keepExt ? to : wikiLinkPath(to));
 };
 
-const qualifiedWikiText = (path: string, oldRaw: string): string => {
-  const ext = extnamePath(path).toLowerCase();
-  const explicitExt = ext !== "" && normalizePath(oldRaw).toLowerCase().endsWith(ext);
-  return ext === ".md" && !explicitExt ? path.slice(0, -3) : path;
-};
+const qualifiedWikiTarget = (path: string, link: ExtractedLink): string =>
+  writesExtension(path, link) ? path : wikiLinkPath(path);
 
-// the span sits before any `#anchor` and the body splits at the first pipe, so `|raw`
-// is appended (to keep the visible word) only when the link had neither
-const aliasShadowText = (ownerPath: string, raw: string, link: ExtractedLink): string => {
-  const qualified = qualifiedWikiText(ownerPath, raw);
-  return link.alias === undefined && link.anchor === undefined ? `${qualified}|${raw}` : qualified;
+// the span sits before any `#anchor` and the body splits at the last pipe, so the written
+// target becomes the alias (to keep the visible word) only when the link had neither
+const aliasShadowText = (ownerPath: string, link: ExtractedLink): string | null => {
+  const qualified = qualifiedWikiTarget(ownerPath, link);
+  return link.alias === undefined && link.anchor === undefined
+    ? serializeWikiBody({ alias: link.target, target: qualified })
+    : wikiSpanText(link, qualified);
 };
 
 // the link still resolves after the rename, but the rename moved where it lands
@@ -102,14 +113,14 @@ const shadowedText = (
   }
   if (ctx.postResolver.resolveWiki(link.target) !== resolved) {
     // the renamed file now wins this short name's tie-break; qualify so the link keeps its meaning
-    return qualifiedWikiText(resolved, raw);
+    return wikiSpanText(link, qualifiedWikiTarget(resolved, link));
   }
   return null;
 };
 
 // every path tier missed and the link reaches its target only through an alias the new
 // name now captures via a path tier; qualify it back to the alias owner
-const aliasShadowedText = (link: ExtractedLink, raw: string, ctx: RenameContext): string | null => {
+const aliasShadowedText = (link: ExtractedLink, ctx: RenameContext): string | null => {
   const aliasOwner = ctx.aliasPreResolver.resolveWiki(link.target);
   if (aliasOwner === null) {
     return null;
@@ -117,7 +128,7 @@ const aliasShadowedText = (link: ExtractedLink, raw: string, ctx: RenameContext)
   const ownerPost = aliasOwner === ctx.fromPath ? ctx.toPath : aliasOwner;
   const postHit = ctx.postResolver.resolveWiki(link.target);
   if (postHit !== null && postHit !== ownerPost) {
-    return aliasShadowText(ownerPost, raw, link);
+    return aliasShadowText(ownerPost, link);
   }
   return null;
 };
@@ -135,14 +146,14 @@ const relinkText = (
       : ctx.preResolver.resolveMd(link.target, docPath);
   if (resolved === ctx.fromPath) {
     return link.kind === "wiki"
-      ? wikiTargetText(ctx.toPath, ctx.fromPath, ctx.postResolver, ctx.othersResolver, raw)
+      ? wikiTargetText(link, ctx.toPath, ctx.fromPath, ctx.postResolver, ctx.othersResolver)
       : mdUrlText(postDocPath, ctx.toPath, raw);
   }
   if (resolved !== null) {
     return shadowedText(link, raw, docPath, postDocPath, resolved, ctx);
   }
   if (link.kind === "wiki") {
-    return aliasShadowedText(link, raw, ctx);
+    return aliasShadowedText(link, ctx);
   }
   return null;
 };

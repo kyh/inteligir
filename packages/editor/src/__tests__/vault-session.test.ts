@@ -139,6 +139,14 @@ describe("createFileAt", () => {
     expect(notices).toEqual([]);
   });
 
+  it("gives a title the default extension, whatever dots it holds, and keeps a doc extension", async () => {
+    const { session, vault } = await started();
+    await expect(session.actions.createFileAt("Node.js")).resolves.toBe("Node.js.md");
+    await expect(session.actions.createFileAt("todo.txt")).resolves.toBe("todo.txt");
+    await expect(session.actions.createFileAt("a.md")).resolves.toBe("a.md");
+    expect([...vault.files.keys()].toSorted()).toEqual(["Node.js.md", "a.md", "todo.txt"]);
+  });
+
   it("opens a note that already exists without writing anything", async () => {
     const { session, vault } = await started({ files: { "Fresh.md": "kept" } });
     await expect(session.actions.createFileAt("Fresh", "# Fresh\n")).resolves.toBe("Fresh.md");

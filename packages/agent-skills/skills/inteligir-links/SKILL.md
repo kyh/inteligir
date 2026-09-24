@@ -36,6 +36,8 @@ write toward a note that does not exist yet.
 Rules worth the keystrokes:
 
 - Match the target's real filename. Check it; do not guess from a heading.
+- `.md` is the one extension a link may leave off: a `todo.txt` note is
+  `[[todo.txt]]`, never `[[todo]]`.
 - `[[#Heading]]` stays inside the current note.
 - Escape a literal hash in a title as `\#`; a `#` surrounded by spaces is title
   text, not an anchor.

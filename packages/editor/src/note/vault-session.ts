@@ -7,6 +7,7 @@ import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import type { NoteRuntime } from "@repo/editor/note/note-runtime";
 import type { SaveError, VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
+import { withDocExtension } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -41,9 +42,6 @@ export interface VaultSession {
   stop: () => void;
   handleVaultChanged: (event: VaultChangedEvent) => void;
 }
-
-const withDefaultExtension = (name: string): string =>
-  /\.[a-z0-9]+$/iu.test(name) ? name : `${name}.md`;
 
 // only the basename is checked: `notes/foo` is foldering here, unlike a `/` typed into the title.
 const validNotePath = (
@@ -237,7 +235,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     if (trimmed === "") {
       return null;
     }
-    const verdict = validNotePath(withDefaultExtension(trimmed));
+    const verdict = validNotePath(withDocExtension(trimmed));
     if (!verdict.ok) {
       ports.notify(verdict.message);
       return null;

@@ -68,6 +68,19 @@ describe("the extract", () => {
     });
   });
 
+  it("links by path when the new note's name is already another note's", async () => {
+    installFakeEditorHost({
+      wikiTargets: [{ path: "Plan.md", title: "Plan", type: "doc" }],
+    });
+    const editor = editorOver([h2("Plan"), p("one")], "notes/Source.md");
+    editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 3, path: [1, 0] } });
+
+    expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBe("notes/Plan.md");
+    expect(
+      editor.api.nodes({ at: [0], match: { type: "wikiLink" } }).next().value?.[0],
+    ).toMatchObject({ body: "notes/Plan" });
+  });
+
   it("undoes the removal and the link together", async () => {
     installFakeEditorHost();
     const editor = editorOver([h2("Plan"), p("one"), p("two")], "Source.md");

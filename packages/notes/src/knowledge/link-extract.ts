@@ -295,9 +295,10 @@ const wikiToLink = (
     end: bodyStart + parsed.targetRange.end,
     start: bodyStart + parsed.targetRange.start,
   };
+  // the span may hold `\#` escapes the target does not: a rename writes its target back through
+  // serializeWikiBody, which escapes what the parse would otherwise split
   const verified =
     source.slice(pos.span.start, pos.span.end) === `${embed ? "!" : ""}[[${body}]]` &&
-    source.slice(targetSpan.start, targetSpan.end) === parsed.target &&
     !insideVerbatim(verbatim, targetSpan.start, targetSpan.end);
   const link: ExtractedLink = {
     embed,

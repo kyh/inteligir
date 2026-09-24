@@ -3,7 +3,7 @@
 // that fixes it. Each family is capped on its own; the totals say what the cap hid.
 
 import { DAILY_NOTES_FOLDER, TEMPLATES_FOLDER } from "../templates/placeholders";
-import { docStem, isDocPath } from "./doc-file";
+import { isDocPath, wikiLinkName } from "./doc-file";
 import type { LinkKind } from "./link-extract";
 import type { BacklinkEntry, ForwardLinkEntry, NoteIdEntry, WikiTarget } from "./link-graph-index";
 import { extnamePath } from "./vault-path";
@@ -124,7 +124,8 @@ export const collectVaultProblems = (
       }
     }
 
-    const stem = docStem(doc.path).toLowerCase();
+    // the name a bare link answers to, not the title: `a.md` and `a.txt` are `[[a]]` and `[[a.txt]]`
+    const stem = wikiLinkName(doc.path).toLowerCase();
     const paths = byStem.get(stem);
     if (paths === undefined) {
       byStem.set(stem, [doc.path]);
@@ -139,7 +140,7 @@ export const collectVaultProblems = (
     if (paths.length < 2 || first === undefined) {
       continue;
     }
-    duplicateStems.push({ paths, stem: docStem(first) });
+    duplicateStems.push({ paths, stem: wikiLinkName(first) });
   }
 
   const byId = new Map<string, string[]>();

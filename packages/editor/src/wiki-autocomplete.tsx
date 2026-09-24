@@ -23,10 +23,10 @@ import {
 import type { FilterFn } from "@repo/editor/inline-combobox";
 import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
-import { composeWikiBody, wikiBodyForPath } from "@repo/editor/wiki-target";
 import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
+import { parseWikiBody, serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const CREATE_VALUE = "__create__";
 
@@ -92,35 +92,42 @@ const WikiInputElement = (props: PlateElementProps) => {
     [editor, element, complete],
   );
 
-  const showCreate = typed.target !== "" && resolveWikiTarget(typed.target) === null;
+  const createBody =
+    typed.target === "" || resolveWikiTarget(typed.target) !== null
+      ? null
+      : serializeWikiBody(typed);
 
   const notes = targets.filter((target) => target.type === "doc");
   const assets = targets.filter((target) => target.type === "asset");
 
-  const itemFor = (target: WikiTarget) => (
-    <InlineComboboxItem
-      key={target.path}
-      value={target.path}
-      label={target.title}
-      keywords={[target.title, ...(target.aliases ?? [])]}
-      onClick={() => {
-        complete(
-          composeWikiBody(wikiBodyForPath(target.path, resolveWikiTarget), typed),
-          target.type === "asset",
-        );
-      }}
-    >
-      {target.type === "doc" ? (
-        <FileTextIcon className="mr-2 text-muted-foreground" />
-      ) : (
-        <PaperclipIcon className="mr-2 text-muted-foreground" />
-      )}
-      <span className="flex min-w-0 flex-1 items-baseline gap-2">
-        <span className="truncate">{target.title}</span>
-        <span className="truncate text-xs text-muted-foreground">{target.path}</span>
-      </span>
-    </InlineComboboxItem>
-  );
+  // a path holding a bracket has no wiki spelling, so it is not offered
+  const itemFor = (target: WikiTarget) => {
+    const body = serializeWikiBody({
+      ...typed,
+      target: wikiTargetForPath(target.path, resolveWikiTarget),
+    });
+    return body === null ? null : (
+      <InlineComboboxItem
+        key={target.path}
+        value={target.path}
+        label={target.title}
+        keywords={[target.title, ...(target.aliases ?? [])]}
+        onClick={() => {
+          complete(body, target.type === "asset");
+        }}
+      >
+        {target.type === "doc" ? (
+          <FileTextIcon className="mr-2 text-muted-foreground" />
+        ) : (
+          <PaperclipIcon className="mr-2 text-muted-foreground" />
+        )}
+        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span className="truncate">{target.title}</span>
+          <span className="truncate text-xs text-muted-foreground">{target.path}</span>
+        </span>
+      </InlineComboboxItem>
+    );
+  };
 
   return (
     <PlateElement {...props} as="span">
@@ -136,12 +143,12 @@ const WikiInputElement = (props: PlateElementProps) => {
           <InlineComboboxEmpty>No notes found</InlineComboboxEmpty>
           <InlineComboboxGroup>
             {notes.map(itemFor)}
-            {showCreate && (
+            {createBody !== null && (
               <InlineComboboxItem
                 value={CREATE_VALUE}
                 onClick={() => {
                   void createFileAt(typed.target);
-                  complete(composeWikiBody(typed.target, typed));
+                  complete(createBody);
                 }}
               >
                 <FilePlusIcon className="mr-2 text-muted-foreground" />

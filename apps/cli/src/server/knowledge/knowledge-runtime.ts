@@ -21,8 +21,12 @@ import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-stor
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { bodyPrefilter, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import type { TextMatchOptions, VaultMatches } from "@repo/notes/knowledge/text-matches";
-import { findUnlinkedMentions, mentionNames } from "@repo/notes/knowledge/unlinked-mentions";
-import type { UnlinkedMentions } from "@repo/notes/knowledge/unlinked-mentions";
+import {
+  findUnlinkedMentions,
+  mentionLinkTarget,
+  mentionNames,
+} from "@repo/notes/knowledge/unlinked-mentions";
+import type { LinkableMentions } from "@repo/notes/knowledge/unlinked-mentions";
 import { collectVaultProblems } from "@repo/notes/knowledge/vault-problems";
 import type { VaultProblems, VaultProblemsOptions } from "@repo/notes/knowledge/vault-problems";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
@@ -86,7 +90,7 @@ export interface KnowledgeRuntime {
   backlinks: (path: string) => Promise<BacklinkEntry[]>;
   wikiTargets: () => Promise<WikiTarget[]>;
   // notes naming this one in prose without a link, one row per note on its first mention
-  unlinkedMentions: (path: string, limit: number) => Promise<UnlinkedMentions>;
+  unlinkedMentions: (path: string, limit: number) => Promise<LinkableMentions>;
   // what the resolver cannot answer, from the index alone
   problems: (options: VaultProblemsOptions) => Promise<VaultProblems>;
   // every doc whose frontmatter `id` is this one, by path
@@ -690,7 +694,10 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         ]);
         const only = names.length === 1 ? names[0] : undefined;
         const docs = store.docTexts(only === undefined ? null : bodyPrefilter(only));
-        return findUnlinkedMentions(docs, { exclude, limit, names });
+        return {
+          ...findUnlinkedMentions(docs, { exclude, limit, names }),
+          linkTarget: mentionLinkTarget(normalized, (name) => graph.resolveWiki(name)),
+        };
       });
     },
 

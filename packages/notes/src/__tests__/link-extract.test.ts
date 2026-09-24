@@ -34,6 +34,13 @@ describe("scanDoc — wiki links", () => {
     expect(sliceTarget(src, link)).toBe("note");
   });
 
+  it("spans an escaped target over its escaped bytes", () => {
+    const src = "x [[Issue\\#42#sec]] y";
+    const link = only(src);
+    expect(link).toMatchObject({ anchor: "sec", target: "Issue#42" });
+    expect(sliceTarget(src, link)).toBe("Issue\\#42");
+  });
+
   it("keeps padding out of the target span", () => {
     const src = "a [[ padded ]] b";
     const link = only(src);

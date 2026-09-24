@@ -8,8 +8,6 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY } from "@repo/editor/markdown/markdown-doc";
 import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
-import { composeWikiBody, wikiBodyForPath } from "@repo/editor/wiki-target";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 
 const makeEditor = (text: string) =>
   createSlateEditor({
@@ -124,35 +122,5 @@ describe("picker completion", () => {
     cancelComboboxInput(editor, element, { cause: "escape", restoreText: "[quer" });
     expect(findByType(editor, WIKI_INPUT_KEY)).toBeNull();
     expect(editor.api.string([0])).toBe("see [[quer");
-  });
-});
-
-describe("body composition", () => {
-  const resolver = buildResolver([
-    "wiki/target note.md",
-    "wiki/hub.md",
-    "notes/hub.md",
-    "diagram.png",
-  ]);
-  const resolve = (target: string) => resolver.resolveWiki(target);
-
-  it("uses the bare stem when it round-trips to the path", () => {
-    expect(wikiBodyForPath("wiki/target note.md", resolve)).toBe("target note");
-    expect(wikiBodyForPath("diagram.png", resolve)).toBe("diagram.png");
-  });
-
-  it("falls back to the full (extension-less) path on ambiguity", () => {
-    // two hub.md files: the bare stem resolves to the shortest path, so the other must link by path.
-    expect(resolve("hub")).toBe("wiki/hub.md");
-    expect(wikiBodyForPath("wiki/hub.md", resolve)).toBe("hub");
-    expect(wikiBodyForPath("notes/hub.md", resolve)).toBe("notes/hub");
-    expect(resolve("notes/hub")).toBe("notes/hub.md");
-  });
-
-  it("passes typed anchor/alias through", () => {
-    expect(composeWikiBody("note", {})).toBe("note");
-    expect(composeWikiBody("note", { anchor: "sec" })).toBe("note#sec");
-    expect(composeWikiBody("note", { alias: "nice" })).toBe("note|nice");
-    expect(composeWikiBody("note", { alias: "nice", anchor: "sec" })).toBe("note#sec|nice");
   });
 });

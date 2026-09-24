@@ -125,8 +125,7 @@
     "./wiki-autocomplete": "./src/wiki-autocomplete.tsx",
     "./wiki-chip": "./src/wiki-chip.tsx",
     "./wiki-input-key": "./src/wiki-input-key.ts",
-    "./wiki-insert": "./src/wiki-insert.ts",
-    "./wiki-target": "./src/wiki-target.ts"
+    "./wiki-insert": "./src/wiki-insert.ts"
   },
   "scripts": {
     "test": "vitest run",

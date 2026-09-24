@@ -12,9 +12,9 @@ import {
 } from "@repo/ui/components/sidebar";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
-import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
-import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -690,13 +690,10 @@ export const FileTree = ({
 
   const commitCreate = (create: EditingState & { mode: "create" }, name: string): void => {
     stopEditing();
-    const fileName =
-      create.kind === "file" && extnamePath(name) === "" ? `${name}${DEFAULT_DOC_EXTENSION}` : name;
-    const path = joinPath(create.parentDir, fileName);
     if (create.kind === "file") {
-      ops.createNote(path);
+      ops.createNote(joinPath(create.parentDir, withDocExtension(name)));
     } else {
-      ops.createFolder(path);
+      ops.createFolder(joinPath(create.parentDir, name));
     }
   };
 

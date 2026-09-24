@@ -115,6 +115,9 @@ export type UnlinkedMentionWire = z.infer<typeof unlinkedMentionSchema>;
 
 export const knowledgeUnlinkedMentionsResponseSchema = z
   .object({
+    // the wiki target a Link writes, resolving back to `path` even where the bare name is
+    // another note's; null when no wiki link can name the note
+    linkTarget: z.string().min(1).nullable(),
     mentions: z.array(unlinkedMentionSchema).max(KNOWLEDGE_UNLINKED_MAX_LIMIT),
     path: z.string().min(1),
     total: z.number().int().min(0),

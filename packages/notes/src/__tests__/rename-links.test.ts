@@ -123,6 +123,35 @@ describe("computeRenameEdits — wiki links", () => {
     );
     expect(result.get("hub.md")).toBe("[[new]] but not [[older]] or [[missing]]\n");
   });
+
+  it("escapes a `#` the new name would split on, in the company of the link's anchor", () => {
+    const hub = "[[old]], [[old#sec]], [[old|shown]], [[C# old]]\n";
+    const result = edits({ "C# old.md": "", "hub.md": hub, "old.md": "" }, "old.md", "Issue#42.md");
+    expect(result.get("hub.md")).toBe(
+      "[[Issue\\#42]], [[Issue\\#42#sec]], [[Issue\\#42|shown]], [[C# old]]\n",
+    );
+    const plain = edits({ "hub.md": "[[old#sec]]\n", "old.md": "" }, "old.md", "C# Notes.md");
+    expect(plain.get("hub.md")).toBe("[[C# Notes#sec]]\n");
+  });
+
+  it("rewrites an escaped link like any other, keeping its anchor", () => {
+    const result = edits(
+      { "Issue#42.md": "", "hub.md": "[[Issue\\#42]] and [[Issue\\#42#sec]]\n" },
+      "Issue#42.md",
+      "Issue 42.md",
+    );
+    expect(result.get("hub.md")).toBe("[[Issue 42]] and [[Issue 42#sec]]\n");
+  });
+
+  it("writes a `.txt` note's name with its extension", () => {
+    const result = edits({ "hub.md": "[[old]]\n", "old.md": "" }, "old.md", "notes/todo.txt");
+    expect(result.get("hub.md")).toBe("[[todo.txt]]\n");
+  });
+
+  it("leaves a link no body can carry as written", () => {
+    const result = edits({ "hub.md": "[[old]]\n", "old.md": "" }, "old.md", "[draft].md");
+    expect(result.size).toBe(0);
+  });
 });
 
 describe("computeRenameEdits — md links", () => {

@@ -166,11 +166,12 @@ export const RelatedInline = ({
   const backlinkTotal = backlinksQuery.data?.total ?? 0;
   const related = relatedQuery.data?.related ?? [];
   const unlinked = unlinkedQuery.data?.mentions ?? [];
+  const linkTarget = unlinkedQuery.data?.linkTarget ?? null;
 
   // the sweep on files-changed moves the row to backlinks; the refetch here only shortens the wait
-  const link = (mention: UnlinkedMentionWire): void => {
+  const link = (mention: UnlinkedMentionWire, target: string): void => {
     void (async () => {
-      const outcome = await linkMentionInNote(api, mention, docStem(docPath));
+      const outcome = await linkMentionInNote(api, mention, target);
       toast[outcome.kind === "written" ? "success" : "error"](
         linkMentionMessage(outcome, mention.path),
       );
@@ -192,17 +193,22 @@ export const RelatedInline = ({
       label: entry.title,
       path: entry.path,
     })),
-    ...unlinked.map((mention) => ({
-      action: {
-        label: "Link",
-        run: () => {
-          link(mention);
-        },
-      },
-      detail: unlinkedMentionDetail(mention),
-      label: docStem(mention.path),
-      path: mention.path,
-    })),
+    ...unlinked.map((mention) => {
+      const row: RelatedRow = {
+        detail: unlinkedMentionDetail(mention),
+        label: docStem(mention.path),
+        path: mention.path,
+      };
+      if (linkTarget !== null) {
+        row.action = {
+          label: "Link",
+          run: () => {
+            link(mention, linkTarget);
+          },
+        };
+      }
+      return row;
+    }),
   ];
 
   const settledEmpty =

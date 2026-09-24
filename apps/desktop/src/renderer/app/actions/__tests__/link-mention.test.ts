@@ -48,6 +48,14 @@ describe("linking an unlinked mention", () => {
     ]);
   });
 
+  it("writes the target the index answered, which names the note even where the bare name does not", async () => {
+    const api = apiOver("We revisit the roadmap on Monday.\n");
+    await linkMentionInNote(api, mention, "zz/Roadmap");
+    expect(api.writes.map((write) => write.content)).toEqual([
+      "We revisit the [[zz/Roadmap|roadmap]] on Monday.\n",
+    ]);
+  });
+
   it("writes nothing when the note no longer holds those bytes there", async () => {
     const api = apiOver("Rewritten since.\n");
     expect(await linkMentionInNote(api, mention, "Roadmap")).toEqual({ kind: "changed" });

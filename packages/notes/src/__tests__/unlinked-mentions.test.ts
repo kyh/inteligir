@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { scanDoc } from "../knowledge/link-extract";
+import { buildResolver } from "../knowledge/link-resolve";
 import {
   findUnlinkedMentions,
   linkMention,
+  mentionLinkTarget,
   mentionNames,
   withheldSpans,
 } from "../knowledge/unlinked-mentions";
@@ -21,6 +24,32 @@ describe("the names a mention can spell", () => {
       "Roadmap",
       "The Plan",
     ]);
+  });
+
+  it("is the name a link resolves, so a `.txt` note keeps its extension", () => {
+    expect(mentionNames("notes/todo.txt", [])).toEqual(["todo.txt"]);
+  });
+
+  it("drops a name no link could show as its alias", () => {
+    expect(mentionNames("[draft] plan.md", ["a|b", "plan b"])).toEqual(["plan b"]);
+  });
+});
+
+describe("the target a Link writes", () => {
+  it("is the bare name when it is this note's, else the path that is", () => {
+    const resolver = buildResolver(["Plan.md", "zz/Plan.md", "zz/Solo.md"]);
+    expect(mentionLinkTarget("zz/Solo.md", resolver.resolveWiki)).toBe("Solo");
+    expect(mentionLinkTarget("zz/Plan.md", resolver.resolveWiki)).toBe("zz/Plan");
+    const site = { column: 4, length: 4, line: 1, text: "Plan" };
+    const linked = linkMention("See Plan.\n", site, "zz/Plan");
+    expect(linked).toBe("See [[zz/Plan|Plan]].\n");
+    const [link] = scanDoc(linked ?? "").links;
+    expect(resolver.resolveWiki(link?.target ?? "")).toBe("zz/Plan.md");
+  });
+
+  it("is null for a note no link can name", () => {
+    const resolver = buildResolver(["[draft].md"]);
+    expect(mentionLinkTarget("[draft].md", resolver.resolveWiki)).toBeNull();
   });
 });
 
@@ -101,6 +130,11 @@ describe("linking a mention", () => {
   it("spells the bare link when the prose already matches the target", () => {
     const site = { column: 4, length: 7, line: 1, text: "Roadmap" };
     expect(linkMention("See Roadmap.\n", site, "Roadmap")).toBe("See [[Roadmap]].\n");
+  });
+
+  it("escapes a `#` the target would otherwise split on", () => {
+    const site = { column: 4, length: 8, line: 1, text: "issue#42" };
+    expect(linkMention("See issue#42.\n", site, "Issue#42")).toBe("See [[Issue\\#42|issue#42]].\n");
   });
 
   it("refuses when the bytes moved", () => {

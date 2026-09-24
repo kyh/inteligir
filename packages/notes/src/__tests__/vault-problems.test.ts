@@ -75,6 +75,16 @@ describe("duplicate stems", () => {
     expect(duplicates.rows).toEqual([{ paths: ["Guide.md", "a/Guide.md"], stem: "Guide" }]);
     expect(duplicates.total).toBe(1);
   });
+
+  it("groups by the name a link spells, so only `.md` hides its extension", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("todo.md", "# a\n");
+    index.setDoc("todo.txt", "b\n");
+    index.setDoc("x/todo.txt", "c\n");
+    expect(index.problems({ limit: 50 }).duplicateStems.rows).toEqual([
+      { paths: ["todo.txt", "x/todo.txt"], stem: "todo.txt" },
+    ]);
+  });
 });
 
 describe("duplicate ids", () => {

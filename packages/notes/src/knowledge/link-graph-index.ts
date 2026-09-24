@@ -213,6 +213,10 @@ export class LinkGraphIndex {
     return this.docs.get(path)?.title ?? null;
   }
 
+  resolveWiki(target: string): string | null {
+    return this.ensureResolved().resolver.resolveWiki(target);
+  }
+
   backlinks(path: string): BacklinkEntry[] {
     const occurrences = this.ensureResolved().backlinks.get(path) ?? [];
     return occurrences.map(({ sourcePath, link }) => {

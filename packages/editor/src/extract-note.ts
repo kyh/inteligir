@@ -9,8 +9,10 @@ import type { Path, SlateEditor, TElement } from "platejs";
 
 import { toast } from "@repo/ui/components/sonner";
 import { docStem, freeDocPath } from "@repo/notes/knowledge/doc-file";
+import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { checkNoteName } from "@repo/notes/knowledge/note-name";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
+import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { liveEditorPath } from "@repo/editor/live-editor";
@@ -53,14 +55,17 @@ export const extractBlocksMarkdown = (editor: SlateEditor, paths: readonly Path[
   return markdown.endsWith("\n") ? markdown : `${markdown}\n`;
 };
 
-const linkParagraph = (editor: SlateEditor, stem: string): TElement => ({
-  children: [
-    { text: "" },
-    { body: stem, children: [{ text: "" }], type: "wikiLink" },
-    { text: "" },
-  ],
+const linkParagraph = (editor: SlateEditor, body: string): TElement => ({
+  children: [{ text: "" }, { body, children: [{ text: "" }], type: "wikiLink" }, { text: "" }],
   type: editor.getType(KEYS.p),
 });
+
+// the new note's name may already be another note's elsewhere in the vault, so the link is
+// resolved against the listing it joins; paths alone decide it, since a path beats any alias
+const linkBodyFor = (path: string, existing: readonly string[]): string | null =>
+  serializeWikiBody({
+    target: wikiTargetForPath(path, buildResolver([...existing, path]).resolveWiki),
+  });
 
 export const extractBlocksToNote = async (
   editor: SlateEditor,
@@ -78,7 +83,13 @@ export const extractBlocksToNote = async (
   const stem = extractionStem(blocksAt(editor, sorted));
   const targets = await host.listWikiTargets();
   const existing = targets.map((target) => target.path);
-  const created = await host.actions.createFileAt(freeDocPath(dir, stem, existing), markdown);
+  const planned = freeDocPath(dir, stem, existing);
+  const body = linkBodyFor(planned, existing);
+  if (body === null) {
+    toast.error("No link can name a note in this folder, so nothing was extracted.");
+    return null;
+  }
+  const created = await host.actions.createFileAt(planned, markdown);
   // the session already said why
   if (created === null) {
     return null;
@@ -87,7 +98,7 @@ export const extractBlocksToNote = async (
     for (const path of sorted.toReversed()) {
       editor.tf.removeNodes({ at: path });
     }
-    editor.tf.insertNodes(linkParagraph(editor, docStem(created)), { at: first });
+    editor.tf.insertNodes(linkParagraph(editor, body), { at: first });
   });
   const end = editor.api.end(first);
   if (end !== undefined) {

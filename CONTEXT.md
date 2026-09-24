@@ -17,13 +17,16 @@ not belong here.
 `.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
 "Doc" is a CLASSIFICATION, not a shape: it decides what the index projects and
 what a rename rewrites links in. It is deliberately WIDER than what the client
-writes — every note the UI creates is `.md`
-(`apps/desktop/src/renderer/app/vault-hooks.ts`,
-`packages/editor/src/note/vault-session.ts`), so a `.txt` in the vault is
-indexed and linkable but never minted here.
+writes — every note the UI creates is `.md` unless the name typed for it
+already ends in a doc extension (`withDocExtension`, read by
+`packages/editor/src/note/vault-session.ts` and the tree's inline create), so `Node.js` becomes
+`Node.js.md` and a `.txt` in the vault is indexed and linkable but minted only
+by name. It is also WIDER than what a link may leave off: `.md` alone, so a
+`.txt` note links as `[[todo.txt]]` (`wikiLinkName`, which the resolver keys).
 
 **note** — a doc as a user and the knowledge surfaces address it: the filename
-IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`).
+IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`). A
+name may not hold `[` or `]`, which would end a link to it.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor
 (`\r\n`, `\r`, `\n`). That rule is stated once, in `@repo/notes`'

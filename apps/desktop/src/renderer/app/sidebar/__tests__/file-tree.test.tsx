@@ -239,6 +239,22 @@ describe("inline create", () => {
     expect(onPendingCreateDone).toHaveBeenCalled();
   });
 
+  it("a name with a dot in it is a title, so it still becomes a note", () => {
+    const { ops } = renderTree({ pendingCreate: { kind: "file", parentDir: "" } });
+    const input = screen.getByLabelText("Name");
+    fireEvent.change(input, { target: { value: "Node.js" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(ops.createNote).toHaveBeenCalledWith("Node.js.md");
+  });
+
+  it("keeps a doc extension the name already carries", () => {
+    const { ops } = renderTree({ pendingCreate: { kind: "file", parentDir: "" } });
+    const input = screen.getByLabelText("Name");
+    fireEvent.change(input, { target: { value: "todo.txt" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(ops.createNote).toHaveBeenCalledWith("todo.txt");
+  });
+
   it("a cancelled create is reported done too", () => {
     const onPendingCreateDone = vi.fn<FileTreeProps["onPendingCreateDone"]>();
     renderTree({ onPendingCreateDone, pendingCreate: { kind: "file", parentDir: "" } });

@@ -449,6 +449,18 @@ describe("unlinked mentions", () => {
     const backlinks = await knowledge.backlinks("Roadmap.md");
     expect(backlinks.map((b) => b.sourcePath).toSorted()).toEqual(["a.md", "c.md"]);
   });
+
+  it("answers the target a Link writes, qualified when the bare name is another note's", async () => {
+    const { service, knowledge } = boot(makeDirs());
+    await service.write("Plan.md", "# Plan\n");
+    await service.write("zz/Plan.md", "# The other plan\n");
+    await service.write("zz/Solo.md", "# Solo\n");
+
+    const shadowed = await knowledge.unlinkedMentions("zz/Plan.md", 10);
+    const unique = await knowledge.unlinkedMentions("zz/Solo.md", 10);
+    expect(shadowed.linkTarget).toBe("zz/Plan");
+    expect(unique.linkTarget).toBe("Solo");
+  });
 });
 
 describe("vault problems", () => {

@@ -786,9 +786,12 @@ rename`.
   regexes as well as the editor's verbatim ranges, because those ranges come
   back empty for a doc the editor's grammar refuses. Not the H1: `[[H1 text]]`
   resolves to nothing unless it is the stem or an alias. Link wraps exactly
-  that site as `[[Stem]]`, or `[[Stem|as written]]` when the prose differs,
+  that site as `[[Target]]`, or `[[Target|as written]]` when the prose differs,
   through a write with the hash of the bytes it read; a mismatch is reported,
-  never merged. `@repo/notes/knowledge/unlinked-mentions.ts`,
+  never merged. The target is the route's `linkTarget`, answered beside the
+  rows from the index's resolver, because the bare stem may be another note's;
+  a name no alias can carry is no mention, and a note no link can name offers
+  no Link. `@repo/notes/knowledge/unlinked-mentions.ts`,
   `apps/desktop/src/renderer/app/actions/link-mention.ts`.
 
 - **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
@@ -796,7 +799,7 @@ rename`.
   alone: a wiki or md link the resolver answered null is an unresolved link
   (once per source and target, on its first line), one that is embedded or
   names a file is a missing embed, a doc no other doc links to is an orphan,
-  and a stem spelled at two paths or a frontmatter `id` two docs carry (a byte
+  and a link name (`wikiLinkName`) spelled at two paths or a frontmatter `id` two docs carry (a byte
   copy keeps its original's) is a duplicate the resolver is quietly breaking a
   tie on; a shared id shares the comment store too. Every row disappears with
   the sweep that fixes it, so no row is ever stale against the index. Daily
@@ -872,6 +875,26 @@ rename`.
   pasted asset is on disk before the listing that would resolve it.
   `useVaultLinkTarget` in `packages/editor/src/host.ts`,
   `packages/editor/src/nodes/image-node.tsx` and `link-node.tsx`.
+
+- **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
+  PARSER WRITES IT.** `.md` is the one extension a link leaves off
+  (`IMPLIED_LINK_EXTENSION` and `wikiLinkName` in
+  `@repo/notes/knowledge/doc-file`), and the resolver keys that same name, so a
+  `.txt` note links as `[[todo.txt]]`; letting every doc extension go was
+  rejected to keep Obsidian's reading and the pinned resolver, and `docStem`
+  stays the title. Every writer (the `[[` picker, Link, extract, a rename)
+  takes its target from `wikiTargetForPath` (`@repo/notes/knowledge/link-resolve`:
+  the name when it resolves back, else the path) and its bytes from
+  `serializeWikiBody` (`@repo/notes/markdown/remark-wiki-link`), which keeps the
+  plain spelling when it parses back (`[[C# Notes]]`), escapes every `\` and `#`
+  when it would not (`[[Issue\#42]]`), and answers null when nothing survives
+  the parse: a bracket, a line break, a `|` the last pipe would split. A null
+  writes nothing: the picker leaves that note out, Link is not offered, a rename
+  leaves the link for Problems. A rename span covers a target's escaped bytes,
+  so an escaped link renames like any other. `checkNoteName` refuses `[` and
+  `]`, and a name typed for a new note gets `.md` unless it already ends in a
+  doc extension (`withDocExtension`), so `Node.js` is a note. Pinned by the
+  round trip in `packages/notes/src/__tests__/link-resolve.test.ts`.
 
 ### Agents and threads
 

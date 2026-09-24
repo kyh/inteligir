@@ -5,6 +5,7 @@ export type NoteNameReason =
   | "empty"
   | "separator"
   | "illegal-char"
+  | "bracket"
   | "reserved"
   | "dot-edge"
   | "too-long";
@@ -13,6 +14,9 @@ export type NoteNameVerdict = { ok: true; name: string } | { ok: false; reason: 
 
 // windows-illegal punctuation; `/` and `\` are separators, rejected earlier
 const ILLEGAL_CHARS = new Set([":", "*", "?", '"', "<", ">", "|"]);
+
+// legal on every disk, but a bracket ends a `[[link]]`, so no link could name the note
+const BRACKETS = new Set(["[", "]"]);
 
 const RESERVED_RE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu;
 
@@ -50,6 +54,9 @@ export const checkNoteName = (raw: string): NoteNameVerdict => {
     if (cp < 0x20 || cp === 0x7f || ILLEGAL_CHARS.has(ch)) {
       return { ok: false, reason: "illegal-char" };
     }
+    if (BRACKETS.has(ch)) {
+      return { ok: false, reason: "bracket" };
+    }
   }
   // a trailing dot survives trim() and is unrepresentable on windows; a leading dot mints a hidden file the vault crawl skips
   if (name.startsWith(".") || name.endsWith(".")) {
@@ -76,6 +83,9 @@ export const noteNameErrorMessage = (reason: NoteNameReason): string => {
     }
     case "illegal-char": {
       return "Note names can't contain : * ? \" < > | or control characters.";
+    }
+    case "bracket": {
+      return "Note names can't contain [ or ], which would end a link to them.";
     }
     case "reserved": {
       return "That name is reserved on Windows (CON, PRN, AUX, NUL, COM1–9, LPT1–9).";
