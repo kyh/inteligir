@@ -1,7 +1,7 @@
 // driven over a scratch home, never the fixture table: this leaf writes the config.json
 // `serve` reads and dials no server.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -24,8 +24,9 @@ const selectionSchema = z
 // no server: the leaf never dials one, and a dial would be the bug
 const NO_SERVER = "http://127.0.0.1:1";
 
+// realpathed: a selection stores the folder's physical spelling, and tmpdir sits under a symlink on macOS
 const scratch = () => {
-  const homeDir = makeTempDir("inteligir-vault-open-");
+  const homeDir = makeTempDir("inteligir-vault-open-", { realpath: true });
   const config = resolveAppConfig({ checkoutPath: resolveCheckoutRoot(), env: {}, homeDir });
   return { defaultVaultDir: config.vaultDir, homeDir, rootDataDir: config.rootDataDir };
 };
@@ -70,6 +71,21 @@ describe("inteligir vault open", () => {
     const next = resolveAppConfig({ checkoutPath: resolveCheckoutRoot(), env: {}, homeDir });
     expect(next.vaultDir).toBe(work);
     expect(next.dataDir).toBe(body.dataDir);
+  });
+
+  it("stores the folder as the disk spells it, so one folder keeps one data dir", async () => {
+    const { homeDir, rootDataDir } = scratch();
+    const work = newVault(homeDir, "Work");
+    const linked = path.join(homeDir, "Linked");
+    symlinkSync(work, linked);
+    const result = await open(homeDir, linked);
+    expect(result.code, result.stderr).toBe(0);
+    const body = selectionSchema.parse(JSON.parse(result.stdout));
+    expect(body.vaultDir).toBe(work);
+    expect(body.dataDir).toBe(vaultDataDir(rootDataDir, work));
+    expect(JSON.parse(readFileSync(path.join(rootDataDir, "config.json"), "utf-8"))).toEqual({
+      vaultDir: work,
+    });
   });
 
   it("carries every other key of config.json through", async () => {
@@ -133,6 +149,15 @@ describe("inteligir vault open", () => {
       const { homeDir, defaultVaultDir } = scratch();
       mkdirSync(defaultVaultDir, { recursive: true });
       const envelope = await refused(homeDir, defaultVaultDir);
+      expect(envelope.message).toMatch(/already open/u);
+    });
+
+    it("the vault already selected, reached through a symlink", async () => {
+      const { homeDir, defaultVaultDir } = scratch();
+      mkdirSync(defaultVaultDir, { recursive: true });
+      const linked = path.join(homeDir, "Linked");
+      symlinkSync(defaultVaultDir, linked);
+      const envelope = await refused(homeDir, linked);
       expect(envelope.message).toMatch(/already open/u);
     });
 

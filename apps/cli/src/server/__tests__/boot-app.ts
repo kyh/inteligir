@@ -32,7 +32,7 @@ import { FakeTurnDriver } from "./fake-turn-driver";
 import type { FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
 
-export { makeTempDir } from "./temp-dir";
+export { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
 
 export const TEST_SERVER_TOKEN = "test-server-token";
 

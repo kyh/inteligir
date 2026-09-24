@@ -709,6 +709,13 @@ to the END of its group.
   `<root>/vaults/<sha256(path)[:16]>/`, derived once in `config.ts` so the
   shell's child and `inteligir serve` name the same dir, and the root's
   `config.json` is the selector both read. The root refuses a vault beneath it.
+  A folder is ONE vault however it is spelled: a selection stores its physical
+  spelling (`physicalVaultDir`, the native realpath, which follows every
+  symlink and answers a case-folding volume's own case), and "already open"
+  and "is the default" compare physically, so `~/inteligir` or a `~/Dropbox`
+  symlink never mints a signed-out twin with no threads. The hash stays over
+  the stored spelling: re-deriving it would move every selector already
+  written.
   Cost accepted: the credential, the connectors and the agent default live in
   the data dir, so a second vault starts signed out and unconfigured, which is
   also what keeps it off the account's hosted remote. The shell switches only a
