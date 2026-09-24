@@ -131,7 +131,8 @@ const Draggable = ({ id, ...props }: PlateElementProps & { id: string }) => {
   // Tooltip root per block in a long note is a cost nobody measured.
   // CSS.Translate, not CSS.Transform: the sortable transform carries a scale when
   // the drag-over block differs in size, which stretches the dragged block. The
-  // gutter's font-size follows the heading so its em-sized box centers on the first line.
+  // gutter's font-size follows the heading so its em-sized box centers on the first line:
+  // typeset's heading scale in em, since the gutter and the heading share a parent.
   return (
     <div
       ref={setNodeRef}
@@ -142,9 +143,9 @@ const Draggable = ({ id, ...props }: PlateElementProps & { id: string }) => {
         contentEditable={false}
         className={cn(
           "absolute top-[3px] -left-11 z-40 flex h-[1.3em] items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100",
-          element.type === "h1" && "text-[22px]",
-          element.type === "h2" && "text-[16px]",
-          element.type === "h3" && "text-[15px]",
+          element.type === "h1" && "text-[1.75em]",
+          element.type === "h2" && "text-[1.25em]",
+          element.type === "h3" && "text-[1.125em]",
         )}
       >
         <button

@@ -6,7 +6,7 @@ import type { TNode } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-const FRONTMATTER_KEY = "frontmatter";
+import { FRONTMATTER_KEY } from "@repo/editor/dialect-node-keys";
 
 // the note's properties, edited through the properties panel: never a block a gesture takes.
 export const isFrontmatterElement = (node: TNode | undefined): boolean =>

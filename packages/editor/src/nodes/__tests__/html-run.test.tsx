@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
 
-import { FAKE_HTML_FRAME_URL, installFakeEditorHost } from "../../__tests__/fake-editor-host";
+import {
+  FAKE_HTML_FRAME_URL,
+  installFakeEditorHost,
+} from "@repo/editor/test-support/fake-editor-host";
 
 const PAYLOAD = "<!doctype html><button onclick=\"this.textContent='ran'\">go</button>";
 

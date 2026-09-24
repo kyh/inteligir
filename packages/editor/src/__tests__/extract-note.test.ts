@@ -14,7 +14,7 @@ import {
   selectedTopLevelPaths,
 } from "@repo/editor/extract-note";
 import { registerLiveEditor } from "@repo/editor/live-editor";
-import { installFakeEditorHost } from "./fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 const h2 = (text: string): TElement => ({ children: [{ text }], type: "h2" });
 const p = (text: string): TElement => ({ children: [{ text }], type: "p" });

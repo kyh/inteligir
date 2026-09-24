@@ -1,6 +1,8 @@
 import { KEYS } from "platejs";
 import { BlockPlaceholderPlugin } from "platejs/react";
 
+import { FRONTMATTER_KEY } from "@repo/editor/dialect-node-keys";
+
 // The plugin skips a pristine-empty doc, so PlateContent's placeholder covers that state with the same copy.
 export const WRITE_PLACEHOLDER = "Write, or press '/' for commands";
 
@@ -17,7 +19,7 @@ export const BlockPlaceholderKit = [
         [KEYS.blockquote]: "Quote",
         [KEYS.toggle]: "Toggle",
       },
-      query: ({ node, path }) => path.length === 1 && node.type !== "frontmatter",
+      query: ({ node, path }) => path.length === 1 && node.type !== FRONTMATTER_KEY,
     },
   }),
 ];

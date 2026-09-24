@@ -1,10 +1,11 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { ElementApi, createSlateEditor } from "platejs";
+import { ElementApi, KEYS, createSlateEditor } from "platejs";
 import type { Descendant, TElement } from "platejs";
 import { MarkdownPlugin, serializeMd } from "@platejs/markdown";
 
+import * as DIALECT_NODE_KEYS from "@repo/editor/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
@@ -14,23 +15,13 @@ import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
 
-// dropping any of these from a kit is silent corruption, the opaque pair most of all.
+// dropping any of these from a kit is silent corruption, the opaque pair most of all. Every
+// dialect key and every modeled JSX tag is in by construction; the equations are named here.
 const VOCABULARY_PLUGIN_KEYS = [
   ...MODELED_JSX_FLOW_TAGS,
-  "equation",
-  "inline_equation",
-  "frontmatter",
-  "wikiLink",
-  "wikiEmbed",
-  "formulaPill",
-  "commentMarker",
-  "tab_group",
-  "tab_panel",
-  "chart_block",
-  "canvas_block",
-  "html_block",
-  "opaqueBlock",
-  "opaqueInline",
+  KEYS.equation,
+  KEYS.inlineEquation,
+  ...Object.values(DIALECT_NODE_KEYS),
 ];
 
 const walkElements = (nodes: Descendant[], visit: (el: TElement) => void): void => {
@@ -116,7 +107,13 @@ describe("kit parity (live editor mirror)", () => {
   });
 
   it("registers the inline voids as inline voids (normalization guard)", () => {
-    for (const type of ["date", "wikiLink", "wikiEmbed", "inline_equation", "opaqueInline"]) {
+    for (const type of [
+      KEYS.date,
+      DIALECT_NODE_KEYS.WIKI_LINK_KEY,
+      DIALECT_NODE_KEYS.WIKI_EMBED_KEY,
+      KEYS.inlineEquation,
+      DIALECT_NODE_KEYS.OPAQUE_INLINE_KEY,
+    ]) {
       const el: TElement = { children: [{ text: "" }], type };
       for (const [label, editor] of [
         ["BASE_KIT", base],

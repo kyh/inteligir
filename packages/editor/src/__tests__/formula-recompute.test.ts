@@ -7,7 +7,7 @@ import { recomputeFormulas } from "@repo/editor/formulas/formula-recompute";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";
-import { installFakeEditorHost } from "./fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 const editorWith = (md: string) => {
   const parsed = parseMarkdown(md);

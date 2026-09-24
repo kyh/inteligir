@@ -303,7 +303,9 @@ to the END of its group.
   `inteligir-html` / `:::tabs` blocks, all valid markdown, all round-tripping.
   Every spelling lives in one place (`@repo/notes/markdown/fence-langs`,
   `@repo/editor/nodes/canvas-header`) because the rule table and the knowledge
-  scan both read it. The file layout stays plain nested `.md`: no bundles, no
+  scan both read it, and so does each dialect node's Slate type
+  (`@repo/editor/dialect-node-keys`, a leaf the kits, the rule table and every
+  walk import, and the kit-parity vocabulary is built from). The file layout stays plain nested `.md`: no bundles, no
   meta.json; frontmatter is the only property store and a note's UUID is
   frontmatter `id:`. `{{` is reserved from MDX expressions by a tokenizer guard
   on both braces. Comment thread bodies live in

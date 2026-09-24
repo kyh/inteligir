@@ -8,6 +8,7 @@ import type { SlateEditor } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
+import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
@@ -16,12 +17,12 @@ const WikiChip = lazy(async () => await import("@repo/editor/wiki-chip"));
 const Transclusion = lazy(async () => await import("@repo/editor/transclusion"));
 
 const wikiLinkBasePlugin = createSlatePlugin({
-  key: "wikiLink",
+  key: WIKI_LINK_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
 const wikiEmbedBasePlugin = createSlatePlugin({
-  key: "wikiEmbed",
+  key: WIKI_EMBED_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
@@ -102,7 +103,7 @@ const completeWikiChip = (editor: SlateEditor): boolean => {
   insertVoidAndEscape(editor, {
     body,
     children: [{ text: "" }],
-    type: bang ? "wikiEmbed" : "wikiLink",
+    type: bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY,
   });
   return true;
 };

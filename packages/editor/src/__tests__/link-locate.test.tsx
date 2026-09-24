@@ -10,7 +10,7 @@ import { scrollToLinkTarget } from "@repo/editor/link-locate";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 import { EditorHarness } from "./editor-harness";
-import { installFakeEditorHost } from "./fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 const STORE = createOpenNoteStore();
 

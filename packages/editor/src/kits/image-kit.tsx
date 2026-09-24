@@ -4,6 +4,7 @@ import { createPlatePlugin } from "platejs/react";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
+import { isLiveEditor } from "@repo/editor/live-editor";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { toast } from "@repo/ui/components/sonner";
 
@@ -44,6 +45,10 @@ export const ingestImageFiles = async (editor: SlateEditor, files: File[]): Prom
     const name = file.name === "" ? `pasted-image${extFromMime(file.type)}` : file.name;
     try {
       const url = await writeAsset(file, name);
+      if (!isLiveEditor(editor)) {
+        toast.warning(`Added ${url} to the vault, but its note closed before the image landed`);
+        return;
+      }
       insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

@@ -7,7 +7,7 @@ import { expandTemplate } from "@repo/notes/templates/placeholders";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { insertMarkdownAtSelection } from "@repo/editor/insert-markdown";
-import { liveEditorPath } from "@repo/editor/live-editor";
+import { isLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
 
 // the one insert both the slash menu and the palette run, so a refusal has one wording. the
 // template's frontmatter stays behind: properties belong to the note, not to the cursor.
@@ -20,8 +20,13 @@ export const insertTemplate = async (editor: SlateEditor, templatePath: string):
     return;
   }
   const path = liveEditorPath(editor);
-  const title = path === null ? "" : docStem(path);
-  const { body } = splitFrontmatter(expandTemplate(content, { now: new Date(), title }));
+  if (path === null || !isLiveEditor(editor)) {
+    toast.warning("The note closed before the template could be inserted.");
+    return;
+  }
+  const { body } = splitFrontmatter(
+    expandTemplate(content, { now: new Date(), title: docStem(path) }),
+  );
   if (!insertMarkdownAtSelection(editor, body)) {
     toast.error("That template could not be parsed.");
   }

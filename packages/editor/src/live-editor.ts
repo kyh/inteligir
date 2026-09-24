@@ -46,6 +46,13 @@ export const getLiveEditor = (path: string): SlateEditor | null => editors.get(p
 
 export const liveEditorPath = (editor: SlateEditor): string | null => paths.get(editor) ?? null;
 
+// whether `editor` still serves its note: an unmounted one keeps its last path but no longer
+// answers for it, so an insert that awaited must not land in it.
+export const isLiveEditor = (editor: SlateEditor): boolean => {
+  const path = paths.get(editor);
+  return path !== undefined && editors.get(path) === editor;
+};
+
 // a render must subscribe, never read getLiveEditor: the editor registers after the render that
 // asked for it, and nothing else would draw that render again
 export const useLiveEditor = (path: string | null): SlateEditor | null =>

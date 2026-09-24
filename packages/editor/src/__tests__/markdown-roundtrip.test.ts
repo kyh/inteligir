@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
-  ParseFailedError,
+  RoundTripError,
   analyzeMarkdown,
   roundTrip,
   toCanonical,
@@ -27,10 +27,7 @@ describe("canonical fixtures (byte-stable)", () => {
       const out = roundTrip(src);
       expect(out.trimEnd()).toBe(src.trimEnd());
       expect(roundTrip(out)).toBe(out);
-      const analysis = analyzeMarkdown(src);
-      expect(analysis.canonical).toBe(true);
-      expect(analysis.richSafe).toBe(true);
-      expect(analysis.rawReason).toBeNull();
+      expect(analyzeMarkdown(src)).toEqual({ kind: "canonical" });
     });
   }
 });
@@ -41,17 +38,14 @@ describe("raw fixtures (throw-or-Raw, never mangled)", () => {
     const kind = name.split(".").at(-2);
     it(`${name} → ${kind}`, () => {
       const src = read("raw", name);
-      const analysis = analyzeMarkdown(src);
-      expect(analysis.richSafe).toBe(false);
-      expect(analysis.canonical).toBe(false);
-      expect(analysis.rawReason?.kind).toBe(kind);
-      expect(() => roundTrip(src)).toThrow(ParseFailedError);
+      expect(analyzeMarkdown(src).kind).toBe(kind);
+      expect(() => roundTrip(src)).toThrow(RoundTripError);
     });
   }
 });
 
 // their round-trip drops letters (a `$$latex` meta line, entity decoding, the
-// "mailto" and "variant" spellings), so they open Raw
+// "mailto" and "variant" spellings), so they open Raw as roundtrip-loss
 const CHURN_NOT_RICH_SAFE = new Set([
   "math-meta",
   "entities",
@@ -71,10 +65,10 @@ describe("churn fixtures (idempotent normalization)", () => {
       const out = roundTrip(input);
       expect(out.trimEnd()).toBe(expected.trimEnd());
       expect(roundTrip(out)).toBe(out);
-      const analysis = analyzeMarkdown(input);
-      expect(analysis.canonical).toBe(false);
-      expect(analysis.richSafe).toBe(!CHURN_NOT_RICH_SAFE.has(stem));
-      expect(analyzeMarkdown(toCanonical(input)).canonical).toBe(true);
+      expect(analyzeMarkdown(input).kind).toBe(
+        CHURN_NOT_RICH_SAFE.has(stem) ? "roundtrip-loss" : "normalizes",
+      );
+      expect(analyzeMarkdown(toCanonical(input)).kind).toBe("canonical");
     });
   }
 });
@@ -82,18 +76,13 @@ describe("churn fixtures (idempotent normalization)", () => {
 describe("analyzeMarkdown", () => {
   it("treats empty / whitespace-only docs as canonical and rich-safe", () => {
     for (const doc of ["", "\n\n", "   "]) {
-      const analysis = analyzeMarkdown(doc);
-      expect(analysis.canonical).toBe(true);
-      expect(analysis.richSafe).toBe(true);
-      expect(analysis.rawReason).toBeNull();
+      expect(analyzeMarkdown(doc)).toEqual({ kind: "canonical" });
     }
   });
 
   it("accepts formatting-only differences as rich-safe but not canonical", () => {
     const md = "* one\n* two\n\n***\n\nbody\n";
-    const analysis = analyzeMarkdown(md);
-    expect(analysis.canonical).toBe(false);
-    expect(analysis.richSafe).toBe(true);
+    expect(analyzeMarkdown(md)).toEqual({ kind: "normalizes" });
   });
 
   it("does not invent content for an empty document", () => {
@@ -107,24 +96,24 @@ describe("toCanonical", () => {
     expect(once.endsWith("\n")).toBe(true);
     expect(once.endsWith("\n\n")).toBe(false);
     expect(toCanonical(once)).toBe(once);
-    expect(analyzeMarkdown(once).canonical).toBe(true);
+    expect(analyzeMarkdown(once).kind).toBe("canonical");
   });
 
   it("canonicalizes messy-but-parseable markdown stably", () => {
     const messy = "Title\n=====\n\n\n\nbody";
     const canon = toCanonical(messy);
-    expect(analyzeMarkdown(canon).canonical).toBe(true);
+    expect(analyzeMarkdown(canon).kind).toBe("canonical");
     expect(toCanonical(canon)).toBe(canon);
   });
 
-  it("throws ParseFailedError when there is nothing safe to format to", () => {
-    expect(() => toCanonical("<Foo>x</Bar>\n")).toThrow(ParseFailedError);
-    expect(() => toCanonical("{unclosed brace\n")).toThrow(ParseFailedError);
+  it("throws RoundTripError when there is nothing safe to format to", () => {
+    expect(() => toCanonical("<Foo>x</Bar>\n")).toThrow(RoundTripError);
+    expect(() => toCanonical("{unclosed brace\n")).toThrow(RoundTripError);
   });
 
   it("formats a document whose constructs it cannot model", () => {
     for (const md of ["returns in <50ms\n", "<Steps>x</Steps>\n", "<!-- c -->\n"]) {
-      expect(analyzeMarkdown(toCanonical(md)).canonical, md).toBe(true);
+      expect(analyzeMarkdown(toCanonical(md)).kind, md).toBe("canonical");
     }
   });
 });

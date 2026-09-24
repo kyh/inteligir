@@ -2,7 +2,7 @@
 // node's plugin key — hence the yaml/frontmatter split.
 
 import type { AlignType } from "mdast";
-import { ElementApi, NodeApi, TextApi } from "platejs";
+import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
 import type { Descendant, TElement, TLinkElement, TText } from "platejs";
 import {
   convertChildrenDeserialize,
@@ -45,6 +45,20 @@ import {
 } from "@repo/notes/markdown/fence-langs";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
 
+import {
+  CANVAS_BLOCK_KEY,
+  CHART_BLOCK_KEY,
+  COMMENT_MARKER_KEY,
+  FORMULA_PILL_KEY,
+  FRONTMATTER_KEY,
+  HTML_BLOCK_KEY,
+  OPAQUE_BLOCK_KEY,
+  OPAQUE_INLINE_KEY,
+  TAB_GROUP_KEY,
+  TAB_PANEL_KEY,
+  WIKI_EMBED_KEY,
+  WIKI_LINK_KEY,
+} from "@repo/editor/dialect-node-keys";
 import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -284,7 +298,7 @@ export const MD_RULES: MdRules = {
   blockquote: blockquoteRule,
 
   // the body round-trips through the same pipeline so inline constructs inside survive byte-exact.
-  callout: {
+  [KEYS.callout]: {
     serialize: (node: TElement, options: SerializeMdOptions): MdCode => {
       const { editor } = options;
       const variant = stringProp(node, "variant") ?? "info";
@@ -310,7 +324,7 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  canvas_block: {
+  [CANVAS_BLOCK_KEY]: {
     serialize: (node: TElement): MdCode => ({
       lang: CANVAS_LANG,
       type: "code",
@@ -318,7 +332,7 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  chart_block: {
+  [CHART_BLOCK_KEY]: {
     serialize: (node: TElement): MdCode => ({
       lang: CHART_LANG,
       type: "code",
@@ -340,7 +354,7 @@ export const MD_RULES: MdRules = {
         // a prefix prop is set only when the note wrote one; a false prop would replay a spelling it never had.
         const callout: TElement = {
           children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],
-          type: "callout",
+          type: KEYS.callout,
           variant: payload.kind,
         };
         if (payload.typePrefixed) {
@@ -386,12 +400,12 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  commentMarker: {
+  [COMMENT_MARKER_KEY]: {
     deserialize: (node: CommentMarker): TElement => ({
       children: [{ text: "" }],
       edge: node.edge,
       ids: node.ids,
-      type: "commentMarker",
+      type: COMMENT_MARKER_KEY,
     }),
     serialize: (node: TElement): CommentMarker => ({
       edge: node.edge === "end" ? "end" : "start",
@@ -420,14 +434,14 @@ export const MD_RULES: MdRules = {
 
   file: { serialize: mediaSerializeWithoutId },
 
-  formulaPill: {
+  [FORMULA_PILL_KEY]: {
     deserialize: (node: FormulaPill): TElement => ({
       children: [{ text: "" }],
       display: node.display,
       meta: node.meta ?? "",
       raw: node.raw,
       source: node.source,
-      type: "formulaPill",
+      type: FORMULA_PILL_KEY,
     }),
     serialize: (node: TElement): FormulaPill => {
       const raw = stringProp(node, "raw") ?? "";
@@ -435,14 +449,14 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  frontmatter: {
+  [FRONTMATTER_KEY]: {
     serialize: (node: TElement): MdYaml => ({
       type: "yaml",
       value: stringProp(node, "value") ?? "",
     }),
   },
 
-  html_block: {
+  [HTML_BLOCK_KEY]: {
     serialize: (node: TElement): MdCode => ({
       lang: HTML_LANG,
       type: "code",
@@ -454,10 +468,10 @@ export const MD_RULES: MdRules = {
 
   media_embed: { serialize: mediaSerializeWithoutId },
 
-  opaqueBlock: {
+  [OPAQUE_BLOCK_KEY]: {
     deserialize: (node: OpaqueBlock): TElement => ({
       children: [{ text: "" }],
-      type: "opaqueBlock",
+      type: OPAQUE_BLOCK_KEY,
       value: node.value,
     }),
     serialize: (node: TElement): OpaqueBlock => ({
@@ -466,10 +480,10 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  opaqueInline: {
+  [OPAQUE_INLINE_KEY]: {
     deserialize: (node: OpaqueInline): TElement => ({
       children: [{ text: "" }],
-      type: "opaqueInline",
+      type: OPAQUE_INLINE_KEY,
       value: node.value,
     }),
     serialize: (node: TElement): OpaqueInline => ({
@@ -485,16 +499,16 @@ export const MD_RULES: MdRules = {
       children: node.children.map((panel): TElement => ({
         children: ensureBlocks(convertChildrenDeserialize(panel.children, deco, options)),
         label: panel.label,
-        type: "tab_panel",
+        type: TAB_PANEL_KEY,
       })),
-      type: "tab_group",
+      type: TAB_GROUP_KEY,
     }),
   },
 
-  tab_group: {
+  [TAB_GROUP_KEY]: {
     serialize: (node: TElement, options: SerializeMdOptions): TabGroup => ({
       children: node.children.flatMap((panel): TabPanel[] => {
-        if (!ElementApi.isElement(panel) || panel.type !== "tab_panel") {
+        if (!ElementApi.isElement(panel) || panel.type !== TAB_PANEL_KEY) {
           return [];
         }
         const panelChildren = convertNodesSerialize(panel.children, options).flatMap(
@@ -558,14 +572,14 @@ export const MD_RULES: MdRules = {
   },
 
   // Plate maps `toggle` in its type table but ships no rule; without this a toggle silently drops on serialize.
-  toggle: {
+  [KEYS.toggle]: {
     deserialize: (
       node: MdMdxJsxFlowElement,
       deco: MdDecoration,
       options: DeserializeMdOptions,
     ) => ({
       children: convertChildrenDeserialize(node.children, deco, options),
-      type: "toggle",
+      type: KEYS.toggle,
       ...parseAttributes(node.attributes),
     }),
     serialize: (node: TElement, options: SerializeMdOptions) =>
@@ -574,11 +588,11 @@ export const MD_RULES: MdRules = {
 
   video: { serialize: mediaSerializeWithoutId },
 
-  wikiEmbed: {
+  [WIKI_EMBED_KEY]: {
     deserialize: (node: WikiEmbed): TElement => ({
       body: node.body,
       children: [{ text: "" }],
-      type: "wikiEmbed",
+      type: WIKI_EMBED_KEY,
     }),
     serialize: (node: TElement): WikiEmbed => ({
       body: stringProp(node, "body") ?? "",
@@ -586,11 +600,11 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  wikiLink: {
+  [WIKI_LINK_KEY]: {
     deserialize: (node: WikiLink): TElement => ({
       body: node.body,
       children: [{ text: "" }],
-      type: "wikiLink",
+      type: WIKI_LINK_KEY,
     }),
     serialize: (node: TElement): WikiLink => ({
       body: stringProp(node, "body") ?? "",
@@ -603,7 +617,7 @@ export const MD_RULES: MdRules = {
   yaml: {
     deserialize: (node: MdYaml): TElement => ({
       children: [{ text: "" }],
-      type: "frontmatter",
+      type: FRONTMATTER_KEY,
       value: node.value,
     }),
   },

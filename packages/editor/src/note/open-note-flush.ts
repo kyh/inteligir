@@ -21,18 +21,15 @@ const flushStore = async (store: OpenNoteStore): Promise<boolean> => {
   if (flush === null) {
     return true;
   }
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  // oxlint-disable-next-line promise/avoid-new -- a cancellable timer has no promise-returning form here
-  const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => {
-      resolve(false);
-    }, FLUSH_TIMEOUT_MS);
-  });
-  return await Promise.race([flush().catch(() => false), timeout]).finally(() => {
-    if (timer !== undefined) {
-      clearTimeout(timer);
-    }
-  });
+  const timeout = Promise.withResolvers<boolean>();
+  const timer = setTimeout(() => {
+    timeout.resolve(false);
+  }, FLUSH_TIMEOUT_MS);
+  try {
+    return await Promise.race([flush().catch(() => false), timeout.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 // never rejects. the timeout bounds the caller's wait and does not abort the

@@ -27,7 +27,7 @@ describe("seed vault", () => {
   it.each(docs)("%s is byte-canonical through the fixpoint", (name) => {
     const raw = readFileSync(path.join(seedDir, name), "utf-8");
     expect(toCanonical(raw)).toBe(raw);
-    expect(analyzeMarkdown(raw)).toEqual({ canonical: true, rawReason: null, richSafe: true });
+    expect(analyzeMarkdown(raw)).toEqual({ kind: "canonical" });
   });
 
   it.each(stores)(
