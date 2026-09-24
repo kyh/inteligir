@@ -138,30 +138,21 @@ describe("appendEventsInTransaction", () => {
   });
 });
 
-describe("scope policy at the write", () => {
-  it("refuses a thread-scoped turn/started at the write, persisting nothing", () => {
+// the type admits an empty turn id; only the write's parse refuses one.
+describe("the event grammar at the write", () => {
+  it("refuses a turn scope with no turn id at the write, persisting nothing", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
-    const invalid: ThreadEvent = {
-      scope: threadScope(),
-      threadId: thread.id,
-      type: "turn/started",
-    };
-    expect(() => append(db, [invalid])).toThrow(/requires turn scope/u);
+    expect(() => append(db, [turnStarted(thread.id, "")])).toThrow(/turnId/u);
     expect(lastSequence(db, thread.id)).toBe(0);
   });
 
   it("refuses a batch atomically: a bad tail rolls back the good head", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
-    const invalid: ThreadEvent = {
-      scope: threadScope(),
-      threadId: thread.id,
-      type: "turn/started",
-    };
-    expect(() => append(db, [turnStarted(thread.id, "turn_1"), invalid])).toThrow(
-      /requires turn scope/u,
-    );
+    expect(() =>
+      append(db, [turnStarted(thread.id, "turn_1"), turnStarted(thread.id, "")]),
+    ).toThrow(/turnId/u);
     expect(lastSequence(db, thread.id)).toBe(0);
   });
 });

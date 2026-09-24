@@ -1,6 +1,7 @@
 // a null payload still renders with Deny alone: deny is the one decision every request
 // accepts, and a dead card is a turn that times out.
 
+import { pendingInteractionApprovalDecisionSchema } from "@repo/domain/pending-interactions";
 import type {
   ApprovalPendingInteractionPayload,
   PendingInteractionApprovalDecision,
@@ -19,14 +20,8 @@ const DECISION_LABELS = {
   deny: "Deny",
 } satisfies Record<PendingInteractionApprovalDecision, string>;
 
-const DECISIONS: readonly PendingInteractionApprovalDecision[] = [
-  "allow_once",
-  "allow_for_session",
-  "deny",
-];
-
 const isDecision = (value: string): value is PendingInteractionApprovalDecision =>
-  DECISIONS.some((decision) => decision === value);
+  pendingInteractionApprovalDecisionSchema.safeParse(value).success;
 
 export interface ApprovalCardProps {
   interaction: PendingInteraction;

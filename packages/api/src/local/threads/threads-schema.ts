@@ -6,7 +6,7 @@ import { viewContextSchema } from "@repo/domain/view-context";
 import type { ViewContext } from "@repo/domain/view-context";
 import { z } from "zod";
 import { threadTimelineSchema, timelineDeltaSchema } from "../thread-timeline";
-import { vaultPathSchema } from "../vault/vault-schema";
+import { contentHashSchema, vaultPathSchema } from "../vault/vault-schema";
 
 export const threadSchema = z
   .object({
@@ -115,7 +115,8 @@ export const interruptThreadResponseSchema = z
   .strict();
 export type InterruptThreadResponse = z.infer<typeof interruptThreadResponseSchema>;
 
-// the resource reaches a prompt with no further validation.
+// the resource and the revision reach a prompt with no further validation. the stored grammar
+// stays looser so a row written before either rule still parses.
 const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
   const resource = vaultPathSchema.safeParse(value.resource);
   if (!resource.success) {
@@ -123,6 +124,14 @@ const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewCont
       code: "custom",
       message: "viewContext.resource is not a vault path",
       path: ["resource"],
+    });
+    return z.NEVER;
+  }
+  if (!contentHashSchema.safeParse(value.revision).success) {
+    ctx.addIssue({
+      code: "custom",
+      message: "viewContext.revision is not a content hash",
+      path: ["revision"],
     });
     return z.NEVER;
   }

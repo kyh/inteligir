@@ -232,6 +232,19 @@ describe("the view context a message carries", () => {
     // the path grammar rides the input schema, so the refusal is oRPC's own BAD_REQUEST rather than a declared class.
     expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
   });
+
+  it("refuses a revision that is not a content hash", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const [error] = await safe(
+      client.threads.send({
+        text: "hi",
+        threadId,
+        viewContext: { ...VIEW_CONTEXT, revision: "HEAD" },
+      }),
+    );
+    expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
+  });
 });
 
 const userRow = async (client: ThreadsClient, threadId: string, text: string) => {

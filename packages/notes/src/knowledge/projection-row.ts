@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 
+import { LINK_KINDS } from "./link-extract";
 import type { StoredLink, DocProjection } from "./projection";
 
 const fail: (what: string) => never = (what) => {
@@ -15,7 +16,7 @@ const storedLinkRow = z.object({
   alias: z.string().nullish(),
   anchor: z.string().nullish(),
   embed: z.boolean(),
-  kind: z.enum(["wiki", "md", "image"]),
+  kind: z.enum(LINK_KINDS),
   line: z.number(),
   snippet: z.string(),
   target: z.string(),

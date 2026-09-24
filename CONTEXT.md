@@ -80,11 +80,13 @@ shown is the HOST id; the provider id is only ever spoken to the provider.
 
 **scope** — how far up an event's meaning reaches: `{ kind: "thread" }` or
 `{ kind: "turn", turnId }` (`@repo/domain/thread-event-scope`). Turn scope is
-the default reading; the per-type policy table names every exception and makes
-each state its reason, so an event that escapes turn chronology has to justify
-it in writing. The rule is enforced twice — the zod grammar at parse, a CHECK
-constraint on the `events` table — because a turn-scoped row with no turn id is
-a row no query can place.
+the default reading; each event type carries its own scope in the
+`threadEventSchema` union, and the two exceptions (`client/turn/requested`,
+`provider/error`) state their reason beside it, so an event that escapes turn
+chronology has to justify it in writing and a consumer reads a turn event's
+`turnId` without a null branch. The rule is enforced twice — the zod grammar at
+parse, a CHECK constraint on the `events` table — because a turn-scoped row
+with no turn id is a row no query can place.
 
 **view context vs thread origin** — two answers to "which doc is this about",
 and they are not interchangeable. A **view context**

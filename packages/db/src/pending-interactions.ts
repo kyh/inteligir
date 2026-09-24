@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { DbConnection } from "./connection";
 import { createPendingInteractionId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -71,10 +71,7 @@ export const listOpenPendingInteractions = (
     .select()
     .from(pendingInteractions)
     .where(
-      and(
-        eq(pendingInteractions.threadId, threadId),
-        inArray(pendingInteractions.status, ["pending", "resolving"]),
-      ),
+      and(eq(pendingInteractions.threadId, threadId), eq(pendingInteractions.status, "pending")),
     )
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
     .all();
@@ -83,7 +80,7 @@ export const listAllOpenPendingInteractions = (db: DbConnection): PendingInterac
   db
     .select()
     .from(pendingInteractions)
-    .where(inArray(pendingInteractions.status, ["pending", "resolving"]))
+    .where(eq(pendingInteractions.status, "pending"))
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
     .all();
 
@@ -100,7 +97,7 @@ export const interruptPendingInteraction = (
       and(
         eq(pendingInteractions.id, args.id),
         eq(pendingInteractions.threadId, args.threadId),
-        inArray(pendingInteractions.status, ["pending", "resolving"]),
+        eq(pendingInteractions.status, "pending"),
       ),
     )
     .returning()
@@ -122,10 +119,7 @@ export const interruptOpenPendingInteractions = (
     .update(pendingInteractions)
     .set({ resolvedAt: now, status: "interrupted", updatedAt: now })
     .where(
-      and(
-        eq(pendingInteractions.threadId, threadId),
-        inArray(pendingInteractions.status, ["pending", "resolving"]),
-      ),
+      and(eq(pendingInteractions.threadId, threadId), eq(pendingInteractions.status, "pending")),
     )
     .returning()
     .all();

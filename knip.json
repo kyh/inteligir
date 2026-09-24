@@ -56,7 +56,9 @@
     },
     "packages/domain": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": true,
+      "ignoreExportsUsedInFile": true
     },
     "packages/agent-runtime": {
       "entry": ["src/**/__tests__/**/*.test.ts", "scripts/*.ts"],

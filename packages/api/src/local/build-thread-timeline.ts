@@ -305,8 +305,8 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
     return created;
   };
 
-  const startTurn = (entry: ThreadTimelineEvent, turnId: string | null): void => {
-    if (turnId === null || turnsByTurnId.has(turnId)) {
+  const startTurn = (entry: ThreadTimelineEvent, turnId: string): void => {
+    if (turnsByTurnId.has(turnId)) {
       return;
     }
     turnsByTurnId.set(turnId, {
@@ -324,9 +324,9 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
   const completeTurn = (
     entry: ThreadTimelineEvent,
     status: ThreadEventTurnStatus,
-    turnId: string | null,
+    turnId: string,
   ): void => {
-    const turn = turnId === null ? undefined : turnsByTurnId.get(turnId);
+    const turn = turnsByTurnId.get(turnId);
     if (!turn) {
       return;
     }
@@ -335,16 +335,12 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
     turn.ownSeqEnd = entry.sequence;
   };
 
-  // an item event outside a turn scope has no accumulator to reach, so it is dropped
   const captureItemSnapshot = (
     entry: ThreadTimelineEvent,
-    turnId: string | null,
+    turnId: string,
     item: ThreadEventItem,
     type: "item/completed" | "item/started",
   ): void => {
-    if (turnId === null) {
-      return;
-    }
     const accumulator = itemAccumulator(entry, turnId, item.id);
     if (type === "item/started") {
       accumulator.started = item;
@@ -355,35 +351,28 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
 
   const appendItemDelta = (
     entry: ThreadTimelineEvent,
-    turnId: string | null,
+    turnId: string,
     itemId: string,
     delta: string,
     buffer: "reasoningBuffer" | "textBuffer",
   ): void => {
-    if (turnId === null) {
-      return;
-    }
     const accumulator = itemAccumulator(entry, turnId, itemId);
     accumulator[buffer] += delta;
   };
 
   const appendCommandOutput = (
     entry: ThreadTimelineEvent,
-    turnId: string | null,
+    turnId: string,
     itemId: string,
     delta: string,
     reset: boolean,
   ): void => {
-    if (turnId === null) {
-      return;
-    }
     const accumulator = itemAccumulator(entry, turnId, itemId);
     accumulator.outputBuffer = reset ? delta : accumulator.outputBuffer + delta;
   };
 
   const applyEvent = (entry: ThreadTimelineEvent): void => {
     const { event } = entry;
-    const scopeTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
 
     switch (event.type) {
       case "client/turn/requested": {
@@ -404,33 +393,40 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
         break;
       }
       case "turn/started": {
-        startTurn(entry, scopeTurnId);
+        startTurn(entry, event.scope.turnId);
         break;
       }
       case "turn/completed": {
-        completeTurn(entry, event.status, scopeTurnId);
+        completeTurn(entry, event.status, event.scope.turnId);
         break;
       }
       case "item/started":
       case "item/completed": {
-        captureItemSnapshot(entry, scopeTurnId, event.item, event.type);
+        captureItemSnapshot(entry, event.scope.turnId, event.item, event.type);
         break;
       }
       case "item/agentMessage/delta":
       case "item/plan/delta": {
-        appendItemDelta(entry, scopeTurnId, event.itemId, event.delta, "textBuffer");
+        appendItemDelta(entry, event.scope.turnId, event.itemId, event.delta, "textBuffer");
         break;
       }
       case "item/reasoning/summaryTextDelta":
       case "item/reasoning/textDelta": {
-        appendItemDelta(entry, scopeTurnId, event.itemId, event.delta, "reasoningBuffer");
+        appendItemDelta(entry, event.scope.turnId, event.itemId, event.delta, "reasoningBuffer");
         break;
       }
       case "item/commandExecution/outputDelta": {
-        appendCommandOutput(entry, scopeTurnId, event.itemId, event.delta, event.reset === true);
+        appendCommandOutput(
+          entry,
+          event.scope.turnId,
+          event.itemId,
+          event.delta,
+          event.reset === true,
+        );
         break;
       }
       case "provider/error": {
+        const scopeTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
         const row: TimelineErrorRow = {
           createdAt: entry.createdAt,
           detail: event.detail ?? null,

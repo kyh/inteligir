@@ -19,7 +19,7 @@ describe("threadEventSchema scope validation", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toContain("requires turn scope");
+      expect(result.error.issues[0]?.path).toEqual(["scope", "kind"]);
     }
   });
 

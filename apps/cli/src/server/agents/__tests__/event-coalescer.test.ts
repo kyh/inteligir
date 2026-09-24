@@ -5,7 +5,7 @@ import { buildThreadTimeline } from "@repo/api/local/build-thread-timeline";
 import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
 import { isThreadEventDelta } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
+import type { TurnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it, vi } from "vitest";
 import { ProviderEventCoalescer } from "../event-coalescer";
 
@@ -210,11 +210,7 @@ const completedItem = (item: OpenItem): ThreadEventItem => {
   }
 };
 
-const streamedDelta = (
-  random: () => number,
-  item: OpenItem,
-  itemScope: ThreadEventScope,
-): ThreadEvent => {
+const streamedDelta = (random: () => number, item: OpenItem, itemScope: TurnScope): ThreadEvent => {
   const base = {
     delta: pick(random, CHUNKS),
     itemId: item.id,

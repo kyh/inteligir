@@ -62,7 +62,6 @@ const describeStop = (body: InterruptThreadResponse): string => {
 const sendFailure = (cause: unknown): CliFailure =>
   cause instanceof ORPCError ? { serverClass: String(cause.code) } : { code: "SEND_FAILED" };
 
-// "resolving" is already answered; only "pending" is waiting on someone.
 const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
   interactions.filter((row) => row.status === "pending").map((row) => row.id);
 

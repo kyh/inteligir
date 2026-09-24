@@ -2,13 +2,13 @@
 // transaction boundaries. domain types only: the test fake imports this.
 
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
+import type { TurnScope } from "@repo/domain/thread-event-scope";
 
 export interface AgentMessageEventArgs {
   threadId: string;
   itemId: string;
   text: string;
-  scope: ThreadEventScope;
+  scope: TurnScope;
 }
 
 export const agentMessageEvents = (args: AgentMessageEventArgs): ThreadEvent[] => {

@@ -1,7 +1,9 @@
 // one table for the vault procedures, the comments procedures and the asset route: three
 // copies disagreed (a sidecar conflict answered 500 while vault.write answered 409). total
-// over VaultServiceErrorCode via satisfies, so a new code fails to compile rather than 500ing.
+// over VaultServiceErrorCode via satisfies, so a new code fails to compile rather than 500ing,
+// and each class is one the contract declares.
 
+import type { VAULT_REFUSAL_ERRORS } from "@repo/api/local/errors";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { ORPCError } from "@orpc/server";
 import { errorStatus } from "../error-status";
@@ -13,7 +15,10 @@ export const VAULT_REFUSALS = {
   invalid_path: "INVALID_PATH",
   not_found: "NOT_FOUND",
   too_large: "PAYLOAD_TOO_LARGE",
-} as const satisfies Record<VaultServiceErrorCode | "invalid_path", string>;
+} as const satisfies Record<
+  VaultServiceErrorCode | "invalid_path",
+  keyof typeof VAULT_REFUSAL_ERRORS
+>;
 
 type VaultWireClass = (typeof VAULT_REFUSALS)[keyof typeof VAULT_REFUSALS];
 

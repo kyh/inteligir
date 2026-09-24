@@ -38,8 +38,8 @@ src/
                          # status, not a side field, and `stopping` has no
                          # run.started cell: a queued turn cannot reactivate it
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # seven item kinds, fourteen event types, scope refined
-                         # at parse. `client/turn/requested` carries the
+                         # seven item kinds, fourteen event types, each with its
+                         # own scope. `client/turn/requested` carries the
                          # optional viewContext and contextPaths beside bb's
                          # `text`, which stays exactly what the user typed.
                          # `thread/meta` (title, origin note, harness) and
@@ -50,10 +50,9 @@ src/
                          # caller's cap bounding each. `settledReasoningText`
                          # is the one reading of a settled thought both the
                          # desktop's fold and the phone's run
-  thread-event-scope.ts  # thread | turn scope, and the per-type policy table
-                         # (`satisfies` keeps it total: a new type without a
-                         # row stops compiling; anything looser than turn
-                         # scope states its rationale in the row)
+  thread-event-scope.ts  # thread | turn scope, each its own schema so an
+                         # event type names the one it takes (anything looser
+                         # than turn scope states why beside its member)
   view-context.ts        # the screen a message left from: `doc` + path +
                          # sha-256 revision. a single-member discriminatedUnion
                          # so a second surface breaks every consumer at compile
@@ -68,7 +67,7 @@ src/
                          # parser the answer route's 400 gate and the runtime
                          # share (deny is always accepted; anything else must
                          # be a decision the request offered)
-  pending-interaction-status.ts  # pending|resolving|resolved|interrupted, the
+  pending-interaction-status.ts  # pending|resolved|interrupted, the
                          # same tuple-feeds-both-sides shape as thread-status
   change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
                          # change kinds — pings naming a subscription target,
