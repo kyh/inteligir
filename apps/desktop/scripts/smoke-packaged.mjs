@@ -14,6 +14,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { proveWatcherAlive } from "inteligir/scripts/smoke-lib.mjs";
 
 const CLI_BIN_NAME = "inteligir";
+const TEST_DIR_NAME = "__tests__";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const appDir = path.join(packageRoot, ".output", "bin", "mac-arm64", "Inteligir.app");
@@ -118,6 +119,27 @@ try {
 } catch {
   fail(`the packaged CLI is not executable (${cliBin})`);
 }
+
+// electron-builder copies the CLI's whole directory unless electron-builder.yml narrows it, so the
+// allowed names come from the manifest's own `files`, the set npm would publish
+const cliManifest = JSON.parse(readFileSync(path.join(runtimeRoot, "package.json"), "utf-8"));
+const shippedNames = new Set([
+  "package.json",
+  ...cliManifest.files
+    .filter((entry) => !entry.startsWith("!"))
+    .map((entry) => entry.split("/")[0]),
+]);
+const strays = readdirSync(runtimeRoot).filter((name) => !shippedNames.has(name));
+if (strays.length > 0) {
+  fail(`the packaged CLI carries what its \`files\` does not ship: ${strays.join(", ")}`);
+}
+const testDirs = readdirSync(runtimeRoot, { recursive: true }).filter(
+  (entry) => path.basename(entry) === TEST_DIR_NAME,
+);
+if (testDirs.length > 0) {
+  fail(`the packaged CLI carries test files: ${testDirs.join(", ")}`);
+}
+log(`packaged CLI -> ${readdirSync(runtimeRoot).join(", ")}`);
 
 const scratch = await mkdtemp(path.join(tmpdir(), "inteligir-desktop-smoke-"));
 const port = 4900 + Math.floor(Math.random() * 90);

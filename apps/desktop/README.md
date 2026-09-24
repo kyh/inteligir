@@ -246,6 +246,17 @@ build.
 `node_modules` is unpacked from the asar because a child process cannot be
 spawned from inside an archive and a `.node` binary cannot be loaded from one.
 
+The CLI ships as npm would publish it. electron-builder copies a
+workspace-linked dependency as its whole directory and never reads its
+`files`, so unnarrowed the CLI's sources, every `__tests__` file and its build
+caches ride beside the bundle the shell forks. One exclusion in
+`electron-builder.yml` keeps only the names `apps/cli/package.json`'s `files`
+lists; a dependency sees only `!` patterns, so the allowlist is an extglob
+inside one. Staging the CLI through `pnpm deploy` is rejected: a staging step
+and a second copy of the package for what one pattern does. The smoke reads
+the packaged manifest's `files` and refuses any other top-level name, and any
+`__tests__`.
+
 `electronFuses` in `electron-builder.yml` flips the binary's fuses before it is
 signed: `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are ignored, so
 no local process can run the signed app as a node interpreter, `file://` pages
