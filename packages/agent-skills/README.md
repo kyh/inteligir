@@ -88,7 +88,12 @@ No suite of its own — `package.json` has no scripts. The set itself is pinned
 by `tools/repo-guards/src/agent-skills.test.ts`: every directory carries a
 `SKILL.md` whose frontmatter names it, the hub's index names every focused
 skill and no phantom, and the resolver's probe file exists, so renaming
-`inteligir-notes` fails CI rather than silently dropping the pointer. The
+`inteligir-notes` fails CI rather than silently dropping the pointer. The same
+guard holds the fences to the parser: every `inteligir-*` fence an example
+opens is a `*_LANG` that `@repo/notes/markdown/fence-langs` exports, and every
+one it exports is taught. `packages/editor/src/__tests__/skill-examples.test.ts`
+holds the examples themselves: each `markdown` fence in a `SKILL.md` must open
+rich through the editor's gate and settle after one save. The
 rest of the pins are downstream:
 `apps/cli/src/server/agents/__tests__/agent-shell-env.test.ts` and
 `agent-instructions.test.ts` (the env var and the pointer appear together, and
