@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createAcpAgentRuntime } from "../acp-runtime";
 import type { AcpAgentRuntimeOptions } from "../acp-runtime";
 import type { HarnessId, HarnessModels } from "../harness-registry";
@@ -56,5 +58,29 @@ describe("an adapter's spawn env", () => {
     const envs = await spawnedEnvs({ claude: null, codex: null });
     expect(envs.get("claude")?.[THREAD_ID_ENV_VAR]).toBe("thr_claude");
     expect(envs.get("codex")?.[THREAD_ID_ENV_VAR]).toBe("thr_codex");
+  });
+
+  it("hands codex its native binary, so no node interpreter has to launch it", async () => {
+    const hostCodexPath = process.env.CODEX_PATH;
+    delete process.env.CODEX_PATH;
+    onTestFinished(() => {
+      if (hostCodexPath !== undefined) {
+        process.env.CODEX_PATH = hostCodexPath;
+      }
+    });
+    const envs = await spawnedEnvs({ claude: null, codex: null });
+    const codexPath = envs.get("codex")?.CODEX_PATH ?? "";
+    expect(path.basename(codexPath)).toMatch(/^codex(?:\.exe)?$/u);
+    expect(existsSync(codexPath)).toBe(true);
+    expect(envs.get("claude")?.CODEX_PATH).toBeUndefined();
+  });
+
+  it("keeps a codex the host already named", async () => {
+    vi.stubEnv("CODEX_PATH", "/opt/codex/bin/codex");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    const envs = await spawnedEnvs({ claude: null, codex: null });
+    expect(envs.get("codex")?.CODEX_PATH).toBe("/opt/codex/bin/codex");
   });
 });

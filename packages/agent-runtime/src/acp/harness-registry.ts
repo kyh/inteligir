@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 import { z } from "zod";
 
 const require = createRequire(import.meta.url);
@@ -27,6 +29,8 @@ export interface HarnessDefinition {
   vendorBinary: string;
   loginCommand: string;
   adapterEntry: string;
+  // set on the adapter's env unless the host's env already names it
+  adapterEnv: Readonly<Record<string, string>>;
   credentialProbes: readonly (HarnessCredentialProbe | HarnessKeychainProbe)[];
   applyModel: (model: string, env: Record<string, string>) => void;
   // the claude SDK refuses to run when it believes it is nested inside another claude session, so
@@ -36,9 +40,54 @@ export interface HarnessDefinition {
 
 const resolveAdapterEntry = (specifier: string): string => require.resolve(specifier);
 
+const CODEX_ADAPTER_ENTRY = resolveAdapterEntry("@agentclientprotocol/codex-acp/dist/index.js");
+
+// @openai/codex's own launcher (bin/codex.js) maps a platform onto its vendored binary this way.
+const CODEX_TARGET_TRIPLES = new Map([
+  ["darwin-arm64", "aarch64-apple-darwin"],
+  ["darwin-x64", "x86_64-apple-darwin"],
+  ["linux-arm64", "aarch64-unknown-linux-musl"],
+  ["linux-x64", "x86_64-unknown-linux-musl"],
+  ["win32-arm64", "aarch64-pc-windows-msvc"],
+  ["win32-x64", "x86_64-pc-windows-msvc"],
+]);
+
+// codex-acp runs its bundled codex as `process.execPath codex.js`, which needs execPath to be a
+// node binary; in the desktop shell the adapter's execPath is Electron's helper, which the
+// runAsNode fuse keeps from running JavaScript. CODEX_PATH names the native binary that launcher
+// would have spawned, so the adapter starts it directly. null leaves the launcher to find it.
+const resolveCodexBinary = (): string | null => {
+  const platform = `${process.platform}-${process.arch}`;
+  const triple = CODEX_TARGET_TRIPLES.get(platform);
+  if (triple === undefined) {
+    return null;
+  }
+  try {
+    const launcher = createRequire(CODEX_ADAPTER_ENTRY).resolve("@openai/codex/package.json");
+    const vendored = createRequire(launcher).resolve(`@openai/codex-${platform}/package.json`);
+    const binary = path.join(
+      path.dirname(vendored),
+      "vendor",
+      triple,
+      "bin",
+      process.platform === "win32" ? "codex.exe" : "codex",
+    );
+    return existsSync(binary) ? binary : null;
+  } catch {
+    return null;
+  }
+};
+
+const codexAdapterEnv = (): Record<string, string> => {
+  const binary = resolveCodexBinary();
+  return binary === null ? {} : { CODEX_PATH: binary };
+};
+
 export const HARNESSES = {
   claude: {
     adapterEntry: resolveAdapterEntry("@agentclientprotocol/claude-agent-acp/dist/index.js"),
+    // the adapter spawns the SDK's native claude binary, never a node script.
+    adapterEnv: {},
     applyModel: (model: string, env: Record<string, string>) => {
       env.ANTHROPIC_MODEL = model;
     },
@@ -53,7 +102,8 @@ export const HARNESSES = {
     vendorBinary: "claude",
   },
   codex: {
-    adapterEntry: resolveAdapterEntry("@agentclientprotocol/codex-acp/dist/index.js"),
+    adapterEntry: CODEX_ADAPTER_ENTRY,
+    adapterEnv: codexAdapterEnv(),
     // the adapter reads no argv; CODEX_CONFIG is merged over every session's codex config.
     applyModel: (model: string, env: Record<string, string>) => {
       env.CODEX_CONFIG = JSON.stringify({ model });
