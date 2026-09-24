@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
+import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
@@ -29,11 +30,13 @@ const NotFound = () => (
 );
 
 const RootComponent = () => (
-  <RadiusProvider radius="rounded">
-    <SizeProvider size="compact">
-      <Outlet />
-    </SizeProvider>
-  </RadiusProvider>
+  <MotionPolicy>
+    <RadiusProvider radius="rounded">
+      <SizeProvider size="compact">
+        <Outlet />
+      </SizeProvider>
+    </RadiusProvider>
+  </MotionPolicy>
 );
 
 const RootDocument = ({ children }: { children: React.ReactNode }) => (

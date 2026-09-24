@@ -34,6 +34,11 @@ components.json  shadcn config: base-rhea, zinc, the @fluid registry
 - No `any`, type assertions, or non-null assertions.
 - Use `cssVars(...)` instead of casting `React.CSSProperties`.
 - `dropdown-menu` keeps `anchor` passthrough and `modal={false}`.
+- A framer popup renders its Base UI Popup as the motion element and wraps it
+  in `PopupExit`; Base UI waits on that element's own animations, never a
+  wrapper's.
+- `MotionPolicy` is mounted once at each app root; nothing else configures
+  reduced motion for framer.
 - `popover` keeps `anchor` passthrough.
 - `command` keeps `initialFocus` and never filters (each palette page filters
   its own rows); title and description stay inside `DialogContent`.

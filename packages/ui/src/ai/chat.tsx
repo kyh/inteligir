@@ -117,7 +117,7 @@ const ChatMessage = ({
     data-superseded={superseded ? "" : undefined}
     className={cn(
       "flex w-full flex-col gap-1.5 transition-[opacity,transform] duration-300",
-      "animate-in fade-in slide-in-from-bottom-1 motion-reduce:animate-none",
+      "animate-in fade-in slide-in-from-bottom-1",
       superseded ? "scale-[0.985] opacity-55" : "scale-100 opacity-100",
       className,
     )}

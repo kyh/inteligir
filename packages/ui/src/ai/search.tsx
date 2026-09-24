@@ -77,7 +77,7 @@ const SearchField = ({
           className={cn(
             "flex size-6 items-center justify-center rounded-full text-ink-3",
             "transition-colors duration-100 hover:bg-line/70 hover:text-ink",
-            "animate-in fade-in duration-150 motion-reduce:animate-none",
+            "animate-in fade-in duration-150",
           )}
         >
           <svg
@@ -125,7 +125,7 @@ const SearchResult = ({
     data-slot="search-result"
     className={cn(
       "relative z-10 flex h-8 w-full items-center rounded-md px-2 text-left text-[13px] text-ink",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       className,
     )}
     {...props}
@@ -149,7 +149,7 @@ const SearchEmpty = ({
     data-slot="search-empty"
     className={cn(
       "flex flex-col items-center justify-center gap-1 px-4 py-8",
-      "animate-in fade-in duration-200 motion-reduce:animate-none",
+      "animate-in fade-in duration-200",
       className,
     )}
     {...props}

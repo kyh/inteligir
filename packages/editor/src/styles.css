@@ -24,6 +24,35 @@
   visibility: hidden;
 }
 
+/* the prose typeset draws, fed by the appearance dials the host publishes as --editor-* on <html> */
+.typeset-docs {
+  --typeset-font-body: var(--editor-font);
+  --typeset-font-heading: var(--editor-font);
+  --typeset-font-mono: var(--editor-mono);
+  --typeset-size: var(--editor-size);
+  --typeset-leading: var(--editor-line-height);
+  --typeset-flow: 1.25em;
+}
+
+/* plain class selectors out-specify typeset's zero-specificity :where() rules */
+.typeset table {
+  width: auto;
+  border-collapse: collapse;
+}
+.typeset :is(td, th) {
+  border: 1px solid var(--border);
+  padding: 0.375em 0.75em;
+  text-align: left;
+  vertical-align: top;
+}
+.typeset :is(td, th) > * {
+  margin-block: 0;
+}
+.typeset th {
+  background-color: var(--muted);
+  font-weight: 600;
+}
+
 /* lowlight `.hljs-*` token colours. the style-hooks guard pins these scopes to its highlight
    corpus in both directions: a rule over a scope the corpus never emits fails too. */
 :root {

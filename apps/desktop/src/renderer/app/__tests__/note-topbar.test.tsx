@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { SidebarProvider } from "@repo/ui/components/sidebar";
+import { SidebarProvider } from "@repo/ui/components/sidebar-core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

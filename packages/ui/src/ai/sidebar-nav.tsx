@@ -124,7 +124,7 @@ const SidebarNavItem = ({
     className={cn(
       "relative z-10 mx-2 flex h-8 items-center rounded-lg px-2 text-left",
       "transition-[background-color,color,transform] duration-150 active:scale-[0.98]",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       active && "bg-hover",
       className,
     )}

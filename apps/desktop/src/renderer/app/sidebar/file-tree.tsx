@@ -9,7 +9,7 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@repo/ui/components/sidebar";
+} from "@repo/ui/components/sidebar-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
 import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";

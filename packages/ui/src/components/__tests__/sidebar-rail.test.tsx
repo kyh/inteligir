@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { Sidebar, SidebarProvider } from "../sidebar";
+import { Sidebar } from "../sidebar";
+import { SidebarProvider } from "../sidebar-core";
 
 /* oxlint-disable anti-slop/no-runtime-typeof -- feature detection over host objects: jsdom has
    neither media queries nor pointer capture, and the rail reads both. */

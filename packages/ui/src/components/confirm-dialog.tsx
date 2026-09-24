@@ -77,7 +77,10 @@ export const ConfirmDialogHost = () => {
     confirmStore.getSnapshot,
     confirmStore.getSnapshot,
   );
+  const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
   const confirmButtonRef = React.useRef<HTMLButtonElement>(null);
+  // Enter confirms what can be undone; a destructive answer takes a deliberate move to reach
+  const destructive = options?.destructive === true;
 
   const settle = (confirmed: boolean) => {
     pending?.resolve(confirmed);
@@ -93,7 +96,7 @@ export const ConfirmDialogHost = () => {
         }
       }}
     >
-      <AlertDialogContent size="sm" initialFocus={confirmButtonRef}>
+      <AlertDialogContent size="sm" initialFocus={destructive ? cancelButtonRef : confirmButtonRef}>
         <AlertDialogHeader>
           <AlertDialogTitle>{options?.title}</AlertDialogTitle>
         </AlertDialogHeader>
@@ -102,6 +105,7 @@ export const ConfirmDialogHost = () => {
         )}
         <AlertDialogFooter>
           <Button
+            ref={cancelButtonRef}
             variant="secondary"
             onClick={() => {
               settle(false);
@@ -111,7 +115,7 @@ export const ConfirmDialogHost = () => {
           </Button>
           <Button
             ref={confirmButtonRef}
-            variant={options?.destructive === true ? "destructive" : "primary"}
+            variant={destructive ? "destructive" : "primary"}
             onClick={() => {
               settle(true);
             }}

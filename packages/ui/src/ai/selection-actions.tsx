@@ -16,7 +16,7 @@ const SelectionActions = ({
     data-slot="selection-actions"
     className={cn(
       "inline-flex items-center gap-px rounded-xl bg-surface-raised p-1 shadow-surface-3",
-      "animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none",
+      "animate-in fade-in zoom-in-95 duration-150",
       className,
     )}
     {...props}
@@ -44,7 +44,7 @@ const SelectionAction = ({
     className={cn(
       "flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12.5px] font-medium text-ink",
       "transition-colors duration-100 hover:bg-hover",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       "[&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-ink-2",
       className,
     )}
@@ -106,7 +106,7 @@ const SelectionResult = ({
     data-slot="selection-result"
     className={cn(
       "w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
-      "animate-in fade-in slide-in-from-top-1 duration-200 motion-reduce:animate-none",
+      "animate-in fade-in slide-in-from-top-1 duration-200",
       className,
     )}
     {...props}

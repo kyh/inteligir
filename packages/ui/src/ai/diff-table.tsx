@@ -173,7 +173,7 @@ const DiffRow = ({
         }
         className={cn(
           "border-b border-line transition-colors duration-150 last:border-0",
-          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)] focus-visible:ring-inset focus-visible:outline-none",
+          "focus-visible:ring-1 focus-visible:ring-focus-ring focus-visible:ring-inset focus-visible:outline-none",
           interactive && "cursor-pointer",
           marked && change === "removed" && "bg-destructive/8",
           marked && change === "added" && "bg-emerald-500/8",

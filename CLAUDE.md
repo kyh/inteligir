@@ -282,8 +282,10 @@ to the END of its group.
   `packages/editor/src/markdown/markdown-doc.ts`.
 
 - **THE EDITOR SHIPS ITS BEHAVIOUR CSS.** `packages/editor/src/styles.css`
-  carries the toggle collapse, the callout marker swap and the code theme, and
-  reaches the app through the desktop `globals.css` import. Every hook is
+  carries the toggle collapse, the callout marker swap, the code theme and the
+  prose scope (`.typeset-docs` and typeset's table rules; `@repo/ui` keeps only
+  the vendored typeset sheet), and reaches the app through the desktop
+  `globals.css` import. Every hook is
   spelled once in `packages/editor/src/style-hooks.ts` and pinned to the sheet
   in both directions by `packages/editor/src/__tests__/style-hooks.test.ts`,
   because the editor once shipped with the stylesheet missing and no test
@@ -367,8 +369,8 @@ to the END of its group.
   `cn("text-body", "text-muted-foreground")` dropped the size and the line
   fell back to the inherited 16px — every role class inside a `cn` call was
   silently doing nothing. `cn` is therefore configured once
-  (`packages/ui/src/lib/cn.ts`) and imported from there by every file in the
-  repo, reversing the drop-the-pass-through cleanup for a reason it did not
+  (`packages/ui/src/lib/cn.ts`, which names the roles from `typeScale`'s keys)
+  and imported from there by every file in the repo, reversing the drop-the-pass-through cleanup for a reason it did not
   have: the wrapper now carries configuration, and a second unconfigured `cn`
   beside it would be the bug again. Named in the font-size group, a role also
   correctly replaces another role, which CSS ordering cannot do. `text-sm`, `text-xs` and a
@@ -376,13 +378,17 @@ to the END of its group.
   components: a role says what a line IS, and four spellings of 12px said
   nothing. The utilities carry the compact step alone because the product
   pins compact at its root (`app/workspace-context.tsx`); a region on the
-  default step would read the map instead. THE NOTE IS NOT CHROME: the
+  default step would read the map instead. A sized control's text,
+  `useSize().text`, is the body role: `text-body` at compact, the map's
+  default number as a literal otherwise, pinned by the same test. THE NOTE IS NOT CHROME: the
   editor's prose keeps the appearance dials below, and `@repo/ui/src/ai`
   keeps its own sizes until a surface draws it.
 
 - **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
-  The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`.
-  No accent axis: nothing in Plate consumes a hue.
+  The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`
+  and read, with no fallback, by `.typeset-docs` in
+  `packages/editor/src/styles.css`. No accent axis: nothing in Plate consumes a
+  hue.
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE.** Slash items are grouped
   data (`GROUPS` in `packages/editor/src/slash-menu.tsx`). Every insertable
@@ -508,6 +514,26 @@ to the END of its group.
   (`packages/editor/src/transclusion.tsx`) holds a row for every void, pinned
   both ways by `packages/editor/src/__tests__/transclusion-static.test.ts`. A
   url inside an embed resolves from the embedded note, not the open one.
+
+- **A POPUP'S MOTION RIDES ITS POPUP ELEMENT, AND REDUCED MOTION IS ONE
+  POLICY.** Base UI unmounts a closing popup once the Popup element's own
+  animations finish, so a framer popup (`DropdownMenu`, `Tooltip`, `Dialog`,
+  `AlertDialog`, the mobile sidebar sheet) renders its Popup as the motion
+  element, never inside a motion wrapper, and there is no `actionsRef` hold or
+  fallback timer. Base UI looks one frame after the close, before framer's own
+  frame starts a declarative animation, so each exit is wrapped in `PopupExit`
+  (`packages/ui/src/lib/popup-exit.tsx`), whose effect resolves framer's queued
+  exit in the closing commit; without it every framer exit is cut after one
+  frame. A popup that animates only transforms adds a near-1 opacity so there
+  is a compositor animation to wait on. `AlertDialog` draws `Dialog`'s backdrop
+  and card (`DialogCard`) rather than a second skin, and the card and the menus
+  are `Elevated`, so `--popover` aliases the menus' surface rung. Reduced
+  motion: `MotionPolicy` (`packages/ui/src/lib/motion-policy.tsx`,
+  `reducedMotion="user"`) is mounted once at each app root, which drops
+  framer's transforms and left/top/width/height travel and keeps the fades;
+  tw-animate's `animate-in`/`animate-out` collapse to 1ms through its own
+  timing variables in `packages/ui/src/styles/globals.css`, so no class
+  carries a `motion-reduce:` suffix for them.
 
 ### Vault: writes, git and containment
 

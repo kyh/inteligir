@@ -16,7 +16,8 @@ Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 `host-io.ts` (`EditorHostIo`) and `note/vault-session.ts` (`VaultSessionPorts`);
 the app implements both. The package also ships ONE
 stylesheet, `styles.css` (toggle collapse, the callout marker swap, the hljs
-theme), inert until the host `@import`s `@repo/editor/styles.css` —
+theme, the prose scope the appearance dials feed and typeset's table rules),
+inert until the host `@import`s `@repo/editor/styles.css` —
 `style-hooks.ts` spells the selectors it reads, and
 `__tests__/style-hooks.test.ts` pins the two together.
 
