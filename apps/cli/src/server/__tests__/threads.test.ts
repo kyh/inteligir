@@ -1,6 +1,6 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
-import { threadScope } from "@repo/domain/thread-event-scope";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { writeTransaction } from "@repo/db/connection";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import {
@@ -9,7 +9,6 @@ import {
   releaseAllQueuedMessageClaims,
 } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEventInTransaction } from "@repo/db/threads";
-import { turnScope } from "@repo/domain/thread-event-scope";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
 import { WS_PATH } from "@repo/api/local/routes";

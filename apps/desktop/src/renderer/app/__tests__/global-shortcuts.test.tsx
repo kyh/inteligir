@@ -116,7 +116,7 @@ describe("the matcher", () => {
   });
 
   it("leaves a bare key to the field it is typed into", () => {
-    const fired = mountListener("meta");
+    const { fired } = mountListener("meta");
     const field = document.createElement("input");
     document.body.append(field);
     fireEvent.keyDown(field, { key: "[" });
