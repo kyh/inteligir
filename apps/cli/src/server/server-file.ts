@@ -35,16 +35,22 @@ const serverFileSchema = z.object({
   token: z.string().min(1),
   // diagnostic only; nothing branches on it.
   vaultDir: z.string().min(1),
+  // /local may break between releases, so a CLI installed apart from the app refuses a server of
+  // another one. optional so an older server's row reads as another release, not as no server.
+  version: z.string().min(1).optional(),
 });
 
 export type ServerFile = z.infer<typeof serverFileSchema>;
+
+// what this build publishes: a row with no release would be refused by every CLI, its own included.
+export type PublishedServerFile = ServerFile & { version: string };
 
 const serverFilePath = (dataDir: string): string => path.join(dataDir, SERVER_FILE_NAME);
 
 // per boot, not per install: a token that outlives its process can be replayed against the next one.
 export const mintServerToken = (): string => randomBytes(TOKEN_BYTES).toString("base64url");
 
-export const writeServerFile = (dataDir: string, value: ServerFile): void => {
+export const writeServerFile = (dataDir: string, value: PublishedServerFile): void => {
   mkdirSync(dataDir, { recursive: true });
   stagedWriteFileSync(serverFilePath(dataDir), `${JSON.stringify(value, null, 2)}\n`, {
     mode: SERVER_FILE_MODE,

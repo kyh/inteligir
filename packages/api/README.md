@@ -9,9 +9,11 @@ Worker — and the client runtime core both the CLI and the phone run over it.
 
 Two entries rather than one router because their compatibility obligations are
 OPPOSITE. `/local`'s two ends ship in one bundle, so it may break freely on any
-commit. `/cloud` is a deployed Worker answering installs that may be months
-stale, so it may never break: the Worker may grow an answer, and a client
-ignores what it does not know (the first invariant below). That is also
+commit; a CLI installed apart from the app is refused by the release the
+server's `server.json` names, not kept compatible. `/cloud` is a deployed
+Worker answering installs that may be months stale, so it may never break: the
+Worker may grow an answer, and a client ignores what it does not know (the
+first invariant below). That is also
 why `/cloud` is zod + REST paths and NOT oRPC, diverging from the decision
 record (#611 phase 6) deliberately: oRPC addresses a procedure by its position
 in the router, so moving the deployed wire onto it would break exactly the

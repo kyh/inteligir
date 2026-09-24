@@ -191,6 +191,7 @@ const boot = async (
     port,
     token: serverToken,
     vaultDir: config.vaultDir,
+    version,
   });
   injectWebSocket(server);
   // kicked after listen: an unsettled index only delays the searches that ask for it.

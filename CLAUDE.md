@@ -140,7 +140,10 @@ packages/
                  claims, because the desktop runs the turns and owns applying a
                  capture to the vault. Two entries rather than one router
                  because their compatibility obligations are OPPOSITE: /local's
-                 ends ship in one bundle and may break freely, /cloud is a
+                 ends ship in one bundle and may break freely (a CLI installed
+                 apart from the app is not kept compatible: it refuses a server
+                 whose `server.json` names another release, before it dials,
+                 as `SERVER_VERSION_MISMATCH`), /cloud is a
                  deployed Worker answering installs that may be months stale and
                  may never break: the Worker may add a field and a client
                  ignores what it does not know (see "A /CLOUD CLIENT IGNORES

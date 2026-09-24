@@ -65,7 +65,13 @@ const liveUnrelatedPid = async (): Promise<number> => {
 };
 
 const rowFor = (dataDir: string, port: number, pid: number): void => {
-  writeServerFile(dataDir, { pid, port, token: "probe-token", vaultDir: `${dataDir}/vault` });
+  writeServerFile(dataDir, {
+    pid,
+    port,
+    token: "probe-token",
+    vaultDir: `${dataDir}/vault`,
+    version: "0.1.0-test",
+  });
 };
 
 const lockFor = (dataDir: string, content: string): void => {
