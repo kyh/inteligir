@@ -552,8 +552,8 @@ const vaultRouter = {
   assetWrite: base.vault.assetWrite.handler(({ input }) => ({
     path: `${input.dir}/${input.baseName}`,
   })),
-  commitNow: base.vault.commitNow.handler(({ context }) => {
-    context.vaultLog.push("commitNow");
+  commitNow: base.vault.commitNow.handler(({ context, input }) => {
+    context.vaultLog.push(input === undefined ? "commitNow" : `commitNow ${input.paths.join(" ")}`);
     return { files: 0 };
   }),
   // a path with revisions and no bytes on disk: the fixture's "deleted".

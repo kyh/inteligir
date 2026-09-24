@@ -334,7 +334,25 @@ describe("what a scheduled commit costs", () => {
   });
 });
 
-describe("auto-commit", () => {
+// git's own lock, held as a GUI client or a crashed git would leave it, fails the flush.
+const failFlush = async (made: Awaited<ReturnType<typeof makeEngine>>): Promise<void> => {
+  const lock = path.join(made.root, ".git", "index.lock");
+  await writeFile(lock, "", "utf-8");
+  await writeFile(path.join(made.root, "stuck.md"), "a\n", "utf-8");
+  made.engine.scheduleCommit(["stuck.md"]);
+  await vi.waitFor(
+    () => {
+      expect(made.statusChanges()).toBeGreaterThanOrEqual(1);
+    },
+    { timeout: 5000 },
+  );
+  const failed = await made.engine.status();
+  expect(failed.lastError).toMatch(/index\.lock/u);
+  await rm(lock);
+};
+
+// each case spawns a chain of git processes, which a loaded machine stretches past vitest's 5s default.
+describe("auto-commit", { timeout: 30_000 }, () => {
   it("lands a burst of writes as ONE commit with the file count", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
@@ -427,6 +445,41 @@ describe("auto-commit", () => {
     const landed = await engine.status();
     expect(landed.lastError).toBeNull();
     await expectCleanRepo(root);
+  });
+
+  it("clears a failed flush's report once a sync pass commits what it stranded", async () => {
+    const made = await makeEngine({ remoteUrl: await makeBareRemote(), timing: FAST_COMMIT });
+    await failFlush(made);
+
+    const synced = await made.engine.syncNow();
+    expect(synced.lastError).toBeNull();
+    await expectCleanRepo(made.root);
+  });
+
+  it("clears a failed flush's report once a checkpoint commits what it stranded", async () => {
+    const made = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
+    await failFlush(made);
+    const changesBefore = made.statusChanges();
+
+    expect(await made.engine.commitNow()).toEqual({ files: 1 });
+    const status = await made.engine.status();
+    expect(status.lastError).toBeNull();
+    expect(made.statusChanges()).toBe(changesBefore + 1);
+    await expectCleanRepo(made.root);
+  });
+
+  it("a scoped commitNow commits only its paths, under a turn's hold too", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null });
+    const release = engine.holdCommits();
+    onTestFinished(release);
+    await writeFile(path.join(root, "restored.md"), "checkpoint me\n", "utf-8");
+    await writeFile(path.join(root, "mid-turn.md"), "the turn's own write\n", "utf-8");
+
+    expect(await engine.commitNow(["restored.md"])).toEqual({ files: 1 });
+    const head = await runGit(root, ["log", "-1", "--format=%an <%ae>|%s"], { env });
+    expect(head.stdout.trim()).toBe("inteligir <vault@inteligir.local>|vault: update restored.md");
+    const { stdout } = await runGit(root, ["status", "--porcelain"], { env });
+    expect(stdout).toBe("?? mid-turn.md\n");
   });
 
   it("commitNow is a no-op on a clean tree and commits as the engine", async () => {

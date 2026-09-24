@@ -120,6 +120,13 @@ export type VaultRevisionRequest = z.infer<typeof vaultRevisionRequestSchema>;
 export const vaultRevisionResponseSchema = z.object({ content: z.string() }).strict();
 export type VaultRevisionResponse = z.infer<typeof vaultRevisionResponseSchema>;
 
+// no paths commits the whole dirty tree, a running agent turn's writes included; a caller
+// checkpointing one note names it, so the turn's writes stay for the turn's own commit.
+export const vaultCommitRequestSchema = z
+  .object({ paths: z.array(vaultPathSchema).min(1) })
+  .strict()
+  .optional();
+
 export const vaultCommitResponseSchema = z.object({ files: z.number().int().min(0) }).strict();
 export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
 
@@ -273,99 +280,36 @@ const remoteFields = {
   remoteSource: z.enum(["explicit", "account"]),
 };
 
+const remoteState = <State extends string>(state: State) =>
+  z.object({ state: z.literal(state), ...remoteFields, ...syncStatusFields }).strict();
+
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("no-remote"), ...syncStatusFields }).strict(),
   // rebase state even `rebase --abort` could not clear; `lastError` names the manual recovery
   // and no pass runs while broken.
-  z
-    .object({
-      state: z.literal("broken"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
-  z
-    .object({
-      state: z.literal("clean"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
-  z
-    .object({
-      state: z.literal("dirty"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
-  z
-    .object({
-      state: z.literal("syncing"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("broken"),
+  remoteState("clean"),
+  remoteState("dirty"),
+  remoteState("syncing"),
   // an agent turn holds the commits; its own state rather than a silent no-op, so "sync now"
   // cannot report a sync that never ran.
-  z
-    .object({
-      state: z.literal("held"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("held"),
   // not `clean`: "unpushed" is measured against a remote-tracking ref a failed fetch left stale.
-  z
-    .object({
-      state: z.literal("offline"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("offline"),
   // not `offline`: offline heals on its own, this fails the same way until the user signs in again.
-  z
-    .object({
-      state: z.literal("unauthorized"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("unauthorized"),
   // the remote answered and refused the push (a hook, a protected branch); `lastError` carries its
   // words. not `offline`: no retry changes the answer.
-  z
-    .object({
-      state: z.literal("rejected"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("rejected"),
   // the remote answered that the push is larger than it takes (a 413): the hosted vault's cap, or
   // a proxy in front of the user's own remote. not `rejected`: what is refused is the history, so
   // the engine stops resending it until the history or the remote moves.
-  z
-    .object({
-      state: z.literal("too-large"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("too-large"),
   // the signed-in account is not the one this vault last synced with; no pass runs, since a push
   // would upload these notes into an account that never held them.
-  z
-    .object({
-      state: z.literal("account-mismatch"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("account-mismatch"),
   // the vault's HEAD names no branch, so a pass has nothing to push; not `clean`, which it is not.
-  z
-    .object({
-      state: z.literal("detached"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("detached"),
   z
     .object({
       state: z.literal("conflict"),

@@ -361,7 +361,7 @@ describe("vault commands", () => {
     expect(restore.code).toBe(0);
     expect(JSON.parse(restore.stdout)).toEqual({ comments: "none", path: "notes/hello.md" });
     expect(state.vault.get("notes/hello.md")).toBe("# Hello\n");
-    expect(state.vaultLog).toEqual(["commitNow", "write notes/hello.md"]);
+    expect(state.vaultLog).toEqual(["commitNow notes/hello.md", "write notes/hello.md"]);
 
     state.concurrentWrite = { content: "# Concurrent\n", path: "notes/hello.md" };
     const stale = await runCliForTest({
@@ -496,6 +496,23 @@ describe("knowledge commands", () => {
     });
     expect(related.stdout).toBe(
       "notes/nearby.md  Nearby\n  both link to Welcome; shares #project\n",
+    );
+  });
+
+  it("leads the unlinked rows with the link that names the note, path-qualified where the stem is another's", async () => {
+    const state = makeFixtureState();
+    state.vault.set("Idea.md", "# Root\n");
+    state.vault.set("projects/Idea.md", "# Nested\n");
+    state.vault.set("notes/mention.md", "An idea worth having.\n");
+    const server = await boot(state);
+
+    const human = await runCliForTest({
+      argv: ["unlinked", "projects/Idea.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(human.code).toBe(0);
+    expect(human.stdout).toBe(
+      "link as [[projects/Idea]]\nnotes/mention.md:1:4  An idea worth having.\n",
     );
   });
 
@@ -1045,6 +1062,28 @@ describe("argv the CLI refuses", () => {
       error: "INVALID_USAGE",
       message: "unknown option: --nope",
     });
+  });
+
+  it("refuses a flag written before the command's name, which the leaf would never read", async () => {
+    const server = await boot(seededState());
+    const leading = await runCliForTest({
+      argv: ["--json", "vault", "read", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(leading.code).toBe(1);
+    expect(leading.stdout).toBe("");
+    expect(JSON.parse(leading.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "put flags after the command's name: inteligir <command> … --flag",
+    });
+
+    const between = await runCliForTest({
+      argv: ["action", "--running", "list"],
+      baseUrl: server.baseUrl,
+    });
+    expect(between.code).toBe(1);
+    expect(between.stdout).toBe("");
+    expect(between.stderr).toContain("put flags after the command's name");
   });
 
   it("names a missing positional rather than acting on undefined", async () => {

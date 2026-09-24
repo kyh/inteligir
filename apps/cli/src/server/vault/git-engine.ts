@@ -53,7 +53,7 @@ export interface GitEngineArgs {
   remote: VaultRemoteProvider;
   // fired on a sync transition, never on a commit that lands: the state is dirty on both sides
   // of a commit, and each announcement costs every client a porcelain read under the repo lock.
-  // a flush that fails, and the one that lands after it, move the reported error, so both fire.
+  // a flush that fails, and the commit that lands after it, move the reported error, so both fire.
   onStatusChanged?: () => void;
   // fired mid-pass, when a rebase moved the tree.
   onFilesChanged?: (change: VaultFilesChange) => void;
@@ -66,9 +66,11 @@ export interface GitEngineArgs {
 export interface GitEngine {
   // the flush stages the window's union of paths; no paths means "whatever is dirty" and makes
   // the whole window's flush unscoped. a change nobody announced waits for a whole-tree caller
-  // (a sync pass, commitNow, shutdown, the next boot).
+  // (a sync pass, an unscoped commitNow, shutdown, the next boot).
   scheduleCommit: (paths?: readonly string[]) => void;
-  commitNow: () => Promise<{ files: number } | null>;
+  // with paths, only those, as the engine and allowed under a hold: a checkpoint of one note must
+  // leave a running turn's writes to the turn's own commit. without, the whole dirty tree.
+  commitNow: (paths?: readonly string[]) => Promise<{ files: number } | null>;
   // stages adds, edits and deletions under the paths, never the whole dirty tree; allowed
   // under a hold, being the hold's release path.
   commitPaths: (
@@ -135,8 +137,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
   let lastSyncAt: number | null = null;
   let lastError: string | null = null;
-  // reported ahead of lastError until a flush lands: a tree the auto-commit left dirty says why
-  // nowhere else, and a vault with no remote runs no pass that would clear it.
+  // reported ahead of lastError until a flush or a whole-tree commit lands: a tree the
+  // auto-commit left dirty says why nowhere else, and a vault with no remote runs no pass.
   let flushError: string | null = null;
   let lastOutcome: SyncOutcome = { kind: "none" };
   let refusedPush: RefusedPush | null = null;
@@ -194,15 +196,26 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     });
   };
 
+  const clearFlushError = (): void => {
+    if (flushError !== null) {
+      flushError = null;
+      args.onStatusChanged?.();
+    }
+  };
+
+  // a whole-tree commit that succeeds leaves nothing a failed flush stranded, whoever ran it: a
+  // sync pass or a checkpoint clears the report as a later flush would.
   const commitIfDirty = async (): Promise<{ files: number } | null> => {
     const dirty = entryPaths(await porcelain());
     if (dirty.length === 0) {
+      clearFlushError();
       return null;
     }
     // unscoped: the scoped form passes every path as argv, and a large vault's first commit
     // would exceed ARG_MAX.
     await run(["add", "-A"]);
     await commit(autoCommitSubject(dirty));
+    clearFlushError();
     return { files: dirty.length };
   };
 
@@ -260,10 +273,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       args.onStatusChanged?.();
       return;
     }
-    if (flushError !== null) {
-      flushError = null;
-      args.onStatusChanged?.();
-    }
+    clearFlushError();
   };
 
   const commitScheduler = createDebouncedCallbackScheduler({
@@ -697,8 +707,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   };
 
   return {
-    async commitNow() {
-      return await withRepoLock(async () => await commitIfDirty());
+    async commitNow(paths?: readonly string[]) {
+      return await withRepoLock(
+        async () =>
+          await (paths === undefined
+            ? commitIfDirty()
+            : commitPathsIfDirty(paths, undefined, autoCommitSubject)),
+      );
     },
     async commitPaths(paths, author, subject) {
       return await withRepoLock(async () => await commitPathsIfDirty(paths, author, subject));

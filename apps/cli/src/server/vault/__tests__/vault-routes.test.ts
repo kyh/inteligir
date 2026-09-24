@@ -93,6 +93,27 @@ describe("the vault routes", () => {
     expect(toORPCError(shaError).code).toBe("BAD_REQUEST");
   });
 
+  it("checkpoints only the paths a commitNow names, and the whole dirty tree when it names none", async () => {
+    const { client } = await bootTestApp();
+    for (const notePath of ["notes/named.md", "notes/other.md"]) {
+      // distinct bytes: --follow would read a byte-identical add as a rename of the first.
+      await client.vault.write({
+        content: `# ${notePath}\n`,
+        guard: { kind: "overwrite" },
+        path: notePath,
+      });
+    }
+
+    expect(await client.vault.commitNow({ paths: ["notes/named.md"] })).toEqual({ files: 1 });
+    const named = await client.vault.history({ path: "notes/named.md" });
+    expect(named.revisions).toHaveLength(1);
+    expect(await client.vault.history({ path: "notes/other.md" })).toEqual({ revisions: [] });
+
+    expect(await client.vault.commitNow()).toEqual({ files: 1 });
+    const other = await client.vault.history({ path: "notes/other.md" });
+    expect(other.revisions).toHaveLength(1);
+  });
+
   it("lists deleted docs, flushed or not, and a restore is a revision read plus an absent-guarded write", async () => {
     const { client, vault } = await bootTestApp();
     await client.vault.write({

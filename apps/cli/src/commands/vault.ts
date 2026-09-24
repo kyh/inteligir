@@ -1,5 +1,5 @@
 import { buffer } from "node:stream/consumers";
-import { isDefinedError, ORPCError, safe } from "@orpc/client";
+import { isDefinedError, safe } from "@orpc/client";
 import {
   VAULT_HISTORY_DEFAULT_LIMIT,
   VAULT_HISTORY_MAX_LIMIT,
@@ -22,15 +22,13 @@ import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store
 import type { CommentStoreRestore } from "@repo/api/local/vault/restore-comment-store";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
-import { CliExitError, getErrorMessage, invalidUsage } from "../cli-error";
-import type { CliFailure } from "../cli-error";
+import { CliExitError, failureFrom, getErrorMessage, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
 import { resolveAppConfig, writeManagedVaultDir } from "../server/config";
 import type { ResolveAppConfigArgs } from "../server/config";
 import { resolveCheckoutRoot } from "../server/dev-instance";
-import { messageOf } from "../server/error-message";
 import { loopbackOrigin, readServerFile } from "../server/server-file";
 import {
   planVaultSelection,
@@ -81,10 +79,6 @@ const readContentFromStdin = async (): Promise<string> => {
     throw invalidUsage("stdin is not valid UTF-8; vault files are text");
   }
 };
-
-// the note is back either way, so the failure keeps the store refusal's own class, like a send's.
-const commentsFailure = (cause: Error): CliFailure =>
-  cause instanceof ORPCError ? { serverClass: String(cause.code) } : { code: "UNEXPECTED" };
 
 const assertContentWithinBound = (content: string): void => {
   const { byteLength } = new TextEncoder().encode(content);
@@ -148,7 +142,7 @@ const selectVault = (deps: CliDeps, rawDir: string): VaultSelection => {
   try {
     candidate = resolveVaultCandidate(configArgs, rawDir);
   } catch (error) {
-    throw invalidUsage(messageOf(error));
+    throw invalidUsage(getErrorMessage(error));
   }
   const plan = planVaultSelection(current, candidate.vaultDir);
   if (plan.kind === "refused") {
@@ -426,10 +420,11 @@ export const vaultCommand = (deps: CliDeps) =>
         },
         // an ordinary guarded write of older bytes, never a server-side restore (a second write path with its own CAS):
         // checkpoint first so the replaced bytes survive as a revision, and carry the base read so a concurrent write is refused.
+        // the checkpoint names the note alone: a whole-tree one would sweep a running turn's writes into an auto-commit.
         run: async ({ args }) => {
           const api = apiFor(deps);
           const revision = await api.vault.revision({ path: args.path, sha: args.sha });
-          await api.vault.commitNow();
+          await api.vault.commitNow({ paths: [args.path] });
           const current = await safe(api.vault.read({ path: args.path }));
           let guard: VaultWriteGuard;
           if (current.error === null) {
@@ -447,9 +442,10 @@ export const vaultCommand = (deps: CliDeps) =>
               ? await restoreCommentStore(api, revision.content, args.sha)
               : { kind: "none" };
           if (comments.kind === "failed") {
+            // the note is back either way, so the failure keeps the store refusal's own class, like a send's.
             throw new CliExitError(
               `Restored ${body.path} to ${args.sha}, but not its comments: ${getErrorMessage(comments.error)}`,
-              commentsFailure(comments.error),
+              failureFrom(comments.error, "UNEXPECTED"),
             );
           }
           if (outputJson(args, { ...body, comments: comments.kind })) {
@@ -472,7 +468,8 @@ export const vaultCommand = (deps: CliDeps) =>
           ...jsonArg,
         },
         meta: {
-          description: "Print what a note held at one revision (restore: pipe into `vault write`)",
+          description:
+            "Print what a note held at one revision (to put it back, use `vault restore`)",
           name: "revision",
         },
         run: async ({ args }) => {

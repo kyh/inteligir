@@ -6,6 +6,7 @@ import { ALREADY_EXISTS, CAS_MISMATCH, INVALID_PATH } from "../local-errors";
 import {
   vaultAssetWriteRequestSchema,
   vaultAssetWriteResponseSchema,
+  vaultCommitRequestSchema,
   vaultCommitResponseSchema,
   vaultDeletedResponseSchema,
   vaultDeleteRequestSchema,
@@ -37,7 +38,7 @@ export const vaultContract = {
 
   // a restore checkpoints first: the auto-commit is session-shaped, so the bytes being replaced
   // may be in no revision yet.
-  commitNow: oc.output(vaultCommitResponseSchema),
+  commitNow: oc.input(vaultCommitRequestSchema).output(vaultCommitResponseSchema),
 
   // the recovery surface: there is no trash folder, the git log is the record of what was deleted.
   deleted: oc.output(vaultDeletedResponseSchema),

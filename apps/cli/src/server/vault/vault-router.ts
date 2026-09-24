@@ -104,8 +104,8 @@ const remove = base.vault.remove.handler(
     }),
 );
 
-const commitNow = base.vault.commitNow.handler(async ({ context }) => {
-  const committed = await context.vault.git.commitNow();
+const commitNow = base.vault.commitNow.handler(async ({ context, input }) => {
+  const committed = await context.vault.git.commitNow(input?.paths);
   return { files: committed?.files ?? 0 };
 });
 

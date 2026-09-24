@@ -21,6 +21,12 @@ import {
   VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
 } from "@repo/api/local/vault/vault-schema";
+import {
+  DEFAULT_WAIT_POLL_INTERVAL_MS,
+  DEFAULT_WAIT_TIMEOUT_SECONDS,
+  MAX_WAIT_POLL_INTERVAL_MS,
+  MAX_WAIT_TIMEOUT_SECONDS,
+} from "./action-wait-bounds";
 
 const MIB = 1024 * 1024;
 
@@ -36,9 +42,10 @@ knowledge index and an agent. The \`inteligir\` CLI drives the running app over
 its HTTP API. Every leaf command accepts \`--json\` for machine-readable
 output; without it the output is compact human text.
 
-Arguments are strict: a flag the command does not declare, and a word past its
-last argument, are refused rather than dropped. Quote an argument that holds
-spaces (\`inteligir search "two words"\`).
+Arguments are strict: a flag the command does not declare, a flag written
+before the command's name, and a word past its last argument, are refused
+rather than dropped. Quote an argument that holds spaces
+(\`inteligir search "two words"\`).
 
 ## Finding the server
 
@@ -100,7 +107,7 @@ spaces (\`inteligir search "two words"\`).
   necessarily today's name.
 - \`inteligir vault restore <path> <sha>\` — put the note back to that
   revision. \`<path>\` here is the note's path TODAY, or a path \`vault
-  deleted\` lists. It checkpoints the vault first (so the bytes being replaced
+  deleted\` lists. It checkpoints the note first (so the bytes being replaced
   survive as their own revision) and writes against the base it read, so a
   concurrent write is refused rather than overwritten; a deleted note is
   created afresh, and refused if something reappeared at its path. A deleted
@@ -141,8 +148,11 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
 - \`inteligir unlinked <path>\` — notes that name a note in prose (its stem or
   an alias, as a whole word) without linking it, one row per note as
   \`path:line:column\` with the sentence; code, links, urls and frontmatter do
-  not count. Wrap that text as \`[[Title]]\` to make it a link. \`--limit <n>\`
-  caps rows (1–${KNOWLEDGE_UNLINKED_MAX_LIMIT}).
+  not count. To make one a link, wrap the text as \`[[<linkTarget>]]\`
+  (\`[[<linkTarget>|as written]]\` when the prose differs), where
+  \`linkTarget\` is on \`--json\` and the first line prints the link ready to
+  write; the bare title may name another note. \`--limit <n>\` caps rows
+  (1–${KNOWLEDGE_UNLINKED_MAX_LIMIT}).
 - \`inteligir problems\` — what the graph cannot resolve: wiki links to notes
   that do not exist (with the source and line), embeds of missing files, notes
   nothing links to, stems spelled at more than one path, and frontmatter \`id\`s
@@ -168,9 +178,11 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
 - \`inteligir action list\` — actions with status, most recently active
   first, a page at a time: \`--limit <n>\` is the page (1–${THREADS_LIST_MAX_LIMIT}, default
   ${THREADS_LIST_DEFAULT_LIMIT}) and a cut listing ends with the \`--cursor <c>\` that
-  continues it. Archived actions are left out unless \`--archived\` is given,
-  and then listed after the rest; \`--doc <path>\` keeps the actions attached
-  to that note and \`--running\` those whose turn is running.
+  continues it. The cursor continues the same query, so its flags must be
+  repeated, and the hint repeats them. Archived actions are left out unless
+  \`--archived\` is given, and then listed after the rest; \`--doc <path>\` keeps
+  the actions attached to that note and \`--running\` those whose turn is
+  running.
 - \`inteligir action new [--doc <path>] <prompt>\` — start an action
   (optionally attached to a note) and send the first turn. If the action is
   created but its first turn fails, the failure names the new id so you can
@@ -183,8 +195,8 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   with what that approval would allow.
 - \`inteligir action wait <id>\` — block until the action settles. Exit code
   0 = idle, 1 = settled in error, 2 = timeout. \`--timeout <seconds>\` is a
-  real wall-clock bound (default 600, at most 86400) and
-  \`--poll-interval <ms>\` sets the poll cadence (default 300, at most 60000).
+  real wall-clock bound (default ${DEFAULT_WAIT_TIMEOUT_SECONDS}, at most ${MAX_WAIT_TIMEOUT_SECONDS}) and
+  \`--poll-interval <ms>\` sets the poll cadence (default ${DEFAULT_WAIT_POLL_INTERVAL_MS}, at most ${MAX_WAIT_POLL_INTERVAL_MS}).
   An action blocked on an approval does not settle until someone answers it:
   \`wait\` says so on stderr, naming each interaction and the
   \`inteligir interactions answer\` command, and keeps waiting; a timeout names
