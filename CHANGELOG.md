@@ -12,14 +12,15 @@ Everything since 0.4.0 (September 4, 2026).
 - **A browser tab signs in only through a one-time link.** Opening the server's address, or a bookmark of it, now shows a signed-out page instead of your notes. `inteligir serve --open` still opens a signed-in tab; for another one, run `inteligir open` or use File › Open in Browser in the app. Each link works once and expires after five minutes. The server also answers only requests addressed to `127.0.0.1` or `localhost`.
 - **The command line and the app must be the same release.** An `inteligir` installed from npm refuses to talk to a server of another version (exit code 3) and names both versions, and the app no longer takes over a running `inteligir serve` of another version. Update both together.
 - **Flags go after the command.** `inteligir --json vault read notes/a.md` is refused; write `inteligir vault read notes/a.md --json`. Extra words and unknown flags are refused too, where they used to be ignored.
-- **The model setting is per agent.** `INTELIGIR_AGENT_MODEL` and the `agentModel` key in `config.json` are no longer read, because one model name was handed to both agents. Set `INTELIGIR_CLAUDE_MODEL` or `INTELIGIR_CODEX_MODEL`, or `"agentModels": { "claude": "…", "codex": "…" }` in `config.json`.
+- **The model setting is per agent.** `INTELIGIR_AGENT_MODEL` and the `agentModel` key in `config.json` are no longer read, because one model name was handed to both agents. Set `INTELIGIR_CLAUDE_MODEL` or `INTELIGIR_CODEX_MODEL`, or `"agentModels": { "claude": "…", "codex": "…" }` in `config.json`. The server warns at start-up when it finds the old setting.
 - **Comments moved into one folder in your vault.** A note's comments now live in `.inteligir/comments/`, in a file named after the note's `id`, so moving or renaming the note anywhere (in Finder, with git, by an agent) keeps them. Existing `<note>.comments.json` files move there on the first launch. Commenting on a note that has no `id`, or starting an action from it, adds one to the note's properties (its frontmatter). Deleting a note deletes its comments, and restoring the note brings them back.
 - **A pin is a property.** Pinning a note writes `pinned: true` into it, so the pin follows the note to your other devices and to the agent.
 - **Videos, posts and images from the web are no longer loaded inside a note.** YouTube, tweets, iframes and remote images or PDFs show a card with Open in browser. The installed app's security policy already blocked them, so they drew broken; now they say what they are.
-- **The app's own commits skip your vault's git hooks.** A `commit-msg` or `pre-commit` hook in the vault could refuse every automatic commit. Your own commits still run them.
+- **The app's own git runs skip your vault's git hooks.** A hook in the vault (`pre-commit`, `commit-msg`, `post-commit`, `pre-rebase`, `pre-push` and the rest) could refuse, stall or rewrite every automatic commit and sync. Your own commits and pushes still run them.
 - **Two computers adding to `Inbox.md` no longer jam sync.** Captures from your phone are kept from both sides. One side effect: a line you delete from `Inbox.md` on one computer can come back if the other added a capture at the same moment.
 - **Signing out frees the device.** Signing a computer out now removes it from your account's devices, so it stops counting toward the limit.
 - **A second vault starts fresh.** Every vault besides the first keeps its own sign-in, connectors and default agent, so it starts signed out, with no connectors and no default agent chosen. Settings says so where it matters.
+- **What your `.gitignore` files leave out, the app leaves out too.** A folder or file a `.gitignore` in the vault names (a docs repo's `node_modules/` or build output, say) no longer shows in Files, ⌘P, search or links, and changes inside it no longer wake the app. A note you want to see again needs taking out of `.gitignore`.
 
 ### New
 
@@ -44,6 +45,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **Link previews you can use.** Hovering a `[[link]]` shows a card you can move into, select text from, and open by its title.
 - **What's new** in Settings › About opens this changelog.
 - **On the command line:** `inteligir open` opens another signed-in browser tab; `inteligir action list` pages with `--limit` and `--cursor`, filters with `--doc` and `--running`, and leaves archived actions out unless you pass `--archived`; `inteligir action wait` names an approval it is waiting on, and `--until-input` exits 4 when one arrives; `inteligir agents list` shows which agents are installed and signed in.
+- **Diagnostics for "it didn't update".** Start the server with `INTELIGIR_DEBUG=watcher,knowledge,sync,acp` (any of them) and it logs what it did with each file change, each file it indexed, each sync step and each message to an agent. Lines name files and ids, never what a note says, so they are safe to paste into a report.
 
 ### Changed
 
@@ -55,7 +57,10 @@ Everything since 0.4.0 (September 4, 2026).
 - **Actions** take their title from their first message wherever they start (the command line, the agent, another device) instead of "Untitled action". Notes you @-mention travel with the message and show as chips under it. An action's title, its note, its agent and whether it is archived now reach your other devices. The Actions list loads a page at a time, with Show more.
 - **The outline beside a note** appears once the note has three headings.
 - **One set of text sizes** across the app's menus, lists and panels. Popups now animate out as well as in, and the app follows your system's reduce-motion setting.
-- **Pushing more than 90 MB** to your account's hosted vault now says it is too large and stops retrying, instead of failing with git's raw error every minute.
+- **Pushing more than 90 MB** to your account's hosted vault now says it is too large and stops retrying, without uploading it first, instead of failing with git's raw error every minute.
+- **An action another device is running** says so in its header instead of offering a Stop button that could not stop it.
+- **Sync reports what it could not send.** Settings › Devices and `inteligir cloud status` count action events this computer dropped without sending, and a sign-out that could not remove the device from your account says so and points to the Devices page.
+- **The app is smaller.** It no longer carries the command line's source code and tests inside it.
 
 ### Fixed
 
@@ -82,9 +87,19 @@ Everything since 0.4.0 (September 4, 2026).
 - **Settings.** Choice rows respond to the arrow keys, and a connector shows as connected as soon as its sign-in finishes.
 - **Dictation.** The microphone turns off when a hold ends, even when permission arrived late; two model downloads at once no longer spoil each other, and an interrupted one no longer leaves about 100 MB behind.
 - **A settings file the app cannot read** is reported by name instead of being treated as empty and overwritten.
+- **Typing in a long note is quicker**, and the save after you stop typing in one takes a fraction of the time it did.
+- **A vault on slow storage** (iCloud Drive files not yet downloaded, a sleeping disk, a network folder) no longer holds up search. A note that takes more than two seconds to read keeps its last search entry and catches up once it arrives.
+- **Typing while a note is renamed or moved** is kept; before, keystrokes during the move could be lost.
+- **Links in notes.** A note link inside an embed opens the note instead of an empty browser tab, the hover preview of `![[Plan]]` reads `Plan`, and a `www.` address or a bare link in bold or italics no longer makes the note open as raw text.
+- **Search in ⌘P's Actions page** finds every action, not only the ones already loaded.
+- **Undo right after starting an action** no longer removes the `id` the app added to the note for it.
+- **What an agent deletes** is committed with the rest of its action, rather than landing in the next automatic commit.
+- **`inteligir open`** against a server started without the app's interface says how to fix it, instead of opening a link that leads nowhere.
+- **Your phone** no longer re-reads the whole notes list on every refresh when nothing in the vault changed.
 
 ### Security
 
 - Content inside a note, such as an HTML block, can no longer reach the app's local server with the app's own access.
 - A link in a note opens only when it is an `http` or `https` address.
 - The installed app can no longer be started as a plain Node.js interpreter, and its cookies are encrypted on disk.
+- The installed app checks its bundle's integrity when it starts and loads its code only from that bundle.
