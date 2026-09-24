@@ -29,7 +29,11 @@ export const vaultCrud: Scenario = {
     );
 
     ctx.log("write notes/hello.md");
-    const write = await api.vault.write({ content: FIRST_CONTENT, path: "notes/hello.md" });
+    const write = await api.vault.write({
+      content: FIRST_CONTENT,
+      guard: { kind: "overwrite" },
+      path: "notes/hello.md",
+    });
     expectEq(write.path, "notes/hello.md", "write echoes the path");
     expectEq(
       await readFile(path.join(vaultDir, "notes", "hello.md"), "utf-8"),
@@ -41,7 +45,11 @@ export const vaultCrud: Scenario = {
     const read = await api.vault.read({ path: "notes/hello.md" });
     expectEq(read.content, FIRST_CONTENT, "read-back content");
 
-    await api.vault.write({ content: SECOND_CONTENT, path: "notes/hello.md" });
+    await api.vault.write({
+      content: SECOND_CONTENT,
+      guard: { kind: "overwrite" },
+      path: "notes/hello.md",
+    });
     expectEq(
       await readFile(path.join(vaultDir, "notes", "hello.md"), "utf-8"),
       SECOND_CONTENT,
@@ -102,7 +110,9 @@ export const vaultCrud: Scenario = {
         readError instanceof ORPCError && readError.code === "BAD_REQUEST",
         `reading ${escaping} refused with ${String(readError)}`,
       );
-      const [writeError] = await safe(api.vault.write({ content: "x", path: escaping }));
+      const [writeError] = await safe(
+        api.vault.write({ content: "x", guard: { kind: "overwrite" }, path: escaping }),
+      );
       expect(
         writeError instanceof ORPCError && writeError.code === "BAD_REQUEST",
         `writing ${escaping} refused with ${String(writeError)}`,

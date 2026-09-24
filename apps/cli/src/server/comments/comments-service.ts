@@ -182,7 +182,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
     const content = serializeSidecar(next);
     const result =
       base.raw === null
-        ? await vault.writeGuarded(path, content, { ifAbsent: true })
+        ? await vault.writeGuarded(path, content, { kind: "absent" })
         : await vault.writeIfUnchanged(path, base.raw, content);
     return result.applied;
   };

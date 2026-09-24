@@ -50,7 +50,7 @@ const makeVault = (): FakeVault => {
       return await Promise.resolve({ content, path });
     },
     writeGuarded: async (path, content, guard) => {
-      if ("ifAbsent" in guard) {
+      if (guard.kind === "absent") {
         if (files.has(path)) {
           return await Promise.resolve({ applied: false, reason: "exists" });
         }

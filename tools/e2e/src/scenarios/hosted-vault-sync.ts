@@ -113,7 +113,11 @@ export const hostedVaultSync: Scenario = {
     await untilIdentityKnown(a.api, "A");
 
     ctx.log("A writes and pushes through the derived hosted remote");
-    await a.api.vault.write({ content: FROM_A, path: "notes/shared.md" });
+    await a.api.vault.write({
+      content: FROM_A,
+      guard: { kind: "overwrite" },
+      path: "notes/shared.md",
+    });
     await syncUntil(a.api, "A after write", "clean");
 
     ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
@@ -151,7 +155,11 @@ export const hostedVaultSync: Scenario = {
     expectEq(marker.stdout.trim(), userId, "B's clone pinned the account marker");
 
     ctx.log("B writes; the change reaches A the other way around");
-    await b.api.vault.write({ content: FROM_B, path: "notes/from-b.md" });
+    await b.api.vault.write({
+      content: FROM_B,
+      guard: { kind: "overwrite" },
+      path: "notes/from-b.md",
+    });
     await syncUntil(b.api, "B after write", "clean");
     await syncUntil(a.api, "A pulling B's write", "clean");
     expectEq(
@@ -165,7 +173,11 @@ export const hostedVaultSync: Scenario = {
 
     ctx.log("revoking B: the next sync must read unauthorized, not offline");
     await revokeDevice(worker.origin, bearer, deviceB.deviceId);
-    await b.api.vault.write({ content: "# Stranded\n", path: "notes/after-revoke.md" });
+    await b.api.vault.write({
+      content: "# Stranded\n",
+      guard: { kind: "overwrite" },
+      path: "notes/after-revoke.md",
+    });
     await syncUntil(b.api, "B after revoke", "unauthorized");
 
     ctx.log("A is untouched by B's revocation");

@@ -42,7 +42,7 @@ describe("linking an unlinked mention", () => {
     expect(api.writes).toEqual([
       {
         content: "We revisit the [[Roadmap|roadmap]] on Monday.\n",
-        expectedHash: await contentHashHex(content),
+        guard: { hash: await contentHashHex(content), kind: "expected" },
         path: "a.md",
       },
     ]);

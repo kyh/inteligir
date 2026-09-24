@@ -103,11 +103,19 @@ describe("a save that kept this device's lines over a change made elsewhere", ()
   it("says so, and its action opens the panel on History", async () => {
     const note = "Welcome.md";
     const harness = await bootWorkspace(async ({ client }) => {
-      await client.vault.write({ content: "# Welcome\n\nintro\n", path: note });
+      await client.vault.write({
+        content: "# Welcome\n\nintro\n",
+        guard: { kind: "overwrite" },
+        path: note,
+      });
     });
     await screen.findByText("intro");
 
-    await harness.client.vault.write({ content: "# Welcome\n\nintro by the agent\n", path: note });
+    await harness.client.vault.write({
+      content: "# Welcome\n\nintro by the agent\n",
+      guard: { kind: "overwrite" },
+      path: note,
+    });
     getEditorHostIo().actions.editNote(note, "# Welcome\n\nintro rewritten\n");
     await act(async () => {
       await flushOpenNote();

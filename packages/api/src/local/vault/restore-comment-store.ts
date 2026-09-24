@@ -18,8 +18,8 @@ export type CommentStoreRestore =
 type VaultClient = ContractRouterClient<LocalContract>["vault"];
 
 // The other half of a deleted-note restore, run by both clients after the note's own revision
-// read and ifAbsent write: the store was removed with the note, so it comes back from the same
-// revision the same way.
+// read and `absent`-guarded write: the store was removed with the note, so it comes back from the
+// same revision the same way.
 export const restoreCommentStore = async (
   api: { vault: Pick<VaultClient, "revision" | "write"> },
   noteContent: string,
@@ -36,7 +36,9 @@ export const restoreCommentStore = async (
       ? { kind: "none" }
       : { error: read.error, kind: "failed" };
   }
-  const written = await safe(api.vault.write({ content: read.data.content, ifAbsent: true, path }));
+  const written = await safe(
+    api.vault.write({ content: read.data.content, guard: { kind: "absent" }, path }),
+  );
   if (written.error !== null) {
     return isDefinedError(written.error) && written.error.code === "ALREADY_EXISTS"
       ? { kind: "kept" }

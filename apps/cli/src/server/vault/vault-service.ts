@@ -28,7 +28,11 @@ import {
   VAULT_ASSET_MAX_BYTES,
   VAULT_MAX_CONTENT_LENGTH,
 } from "@repo/api/local/vault/vault-schema";
-import type { VaultEntry, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type {
+  VaultEntry,
+  VaultTreeResponse,
+  VaultWriteGuard,
+} from "@repo/api/local/vault/vault-schema";
 import { errnoCode } from "../errno";
 import { pathContains } from "../path-containment";
 import { ABSENT_ENTRY, entryFingerprintAt, fingerprintOf } from "./vault-changes";
@@ -201,7 +205,8 @@ type ConditionalWriteResult =
   | { applied: true; path: string }
   | { applied: false; reason: "changed" | "not_found" };
 
-export type GuardedWriteGuard = { expectedHash: string } | { ifAbsent: true };
+// the wire's guards less `overwrite`, which is `write`.
+type GuardedWriteGuard = Exclude<VaultWriteGuard, { kind: "overwrite" }>;
 
 type GuardedWriteResult =
   | { applied: true; path: string }
@@ -613,7 +618,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
-        if ("ifAbsent" in guard) {
+        if (guard.kind === "absent") {
           if (existing !== null) {
             return { applied: false, reason: "exists" };
           }
@@ -626,7 +631,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           return { applied: false, current: null, reason: "hash_mismatch" };
         }
         const currentHash = await contentHashHex(current);
-        if (currentHash !== guard.expectedHash) {
+        if (currentHash !== guard.hash) {
           return {
             applied: false,
             current: { content: current, hash: currentHash },

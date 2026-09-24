@@ -44,7 +44,7 @@ export const appendToInbox = async (
     }
   }
   const created = await vault.writeGuarded(CAPTURE_INBOX_PATH, `# Inbox\n\n${addition}`, {
-    ifAbsent: true,
+    kind: "absent",
   });
   if (!created.applied) {
     return {

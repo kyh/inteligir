@@ -89,7 +89,9 @@ describe("the Deleted view", () => {
     await waitFor(() => {
       expect(onOpenNote).toHaveBeenCalledWith("notes/gone.md");
     });
-    expect(writes).toEqual([{ content: "# Gone\n", ifAbsent: true, path: "notes/gone.md" }]);
+    expect(writes).toEqual([
+      { content: "# Gone\n", guard: { kind: "absent" }, path: "notes/gone.md" },
+    ]);
   });
 
   it("opens a restored note whose comments could not come back, and says so apart from a refused restore", async () => {

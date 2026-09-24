@@ -37,8 +37,10 @@ export const rewriteNote = async <TWritten>(
   if (edited.content === content) {
     return { kind: "unchanged", result: edited.result };
   }
-  const expectedHash = await contentHashHex(content);
-  const { error } = await safe(api.vault.write({ content: edited.content, expectedHash, path }));
+  const hash = await contentHashHex(content);
+  const { error } = await safe(
+    api.vault.write({ content: edited.content, guard: { hash, kind: "expected" }, path }),
+  );
   if (error === null) {
     return { kind: "written", result: edited.result };
   }

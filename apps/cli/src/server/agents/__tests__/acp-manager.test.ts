@@ -353,10 +353,12 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     });
     await apiFor({ env: { [THREAD_ID_ENV_VAR]: threadId }, resolveServer }).vault.write({
       content: "written from the agent's shell\n",
+      guard: { kind: "overwrite" },
       path: "cli-note.md",
     });
     await apiFor({ env: {}, resolveServer }).vault.write({
       content: "written by someone else\n",
+      guard: { kind: "overwrite" },
       path: "user-note.md",
     });
 

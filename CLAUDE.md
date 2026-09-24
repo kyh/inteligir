@@ -595,14 +595,14 @@ to the END of its group.
 
 - **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** The history surface reads
   the vault's own git repo, so it works offline with no remote. Restoring
-  revision N writes its bytes through the ordinary write path with
-  `expectedHash`, never `git checkout` or `git revert`, which would bypass the
+  revision N writes its bytes through the ordinary write path under an
+  `expected` guard, never `git checkout` or `git revert`, which would bypass the
   CAS, the re-index, the `/ws` notification and the open buffer's convergence.
   There is no `vault.restore` procedure (a second server write path is a second
   CAS), so both clients run the same composition: checkpoint with
   `vault.commitNow`, then a guarded write. The desktop's base is the bytes its
   diff was computed from, never a fresh read; the CLI, which shows no diff,
-  reads its base after the checkpoint, or writes `ifAbsent` when the note is
+  reads its base after the checkpoint, or writes under `absent` when the note is
   gone. A restore's CAS refusal is reported, not diff3-merged: the user
   named exact bytes. Reading the log is off the repo lock. The git flags and the
   parse are `apps/cli/src/server/vault/git-history.ts`; the composition is
@@ -610,7 +610,7 @@ to the END of its group.
   `apps/cli/src/commands/vault.ts`. A deleted note comes back the same way: the
   deleted-notes list is the git log's deletions plus the worktree's uncommitted
   ones (a just-deleted note is not in the log for up to 60s), and restore is a
-  `revision` read plus an `ifAbsent` write. The log half is walked once per
+  `revision` read plus an `absent` write. The log half is walked once per
   HEAD, and overlapping reads share the walk (`cachedDeletionLog`): the
   Deleted view re-reads on every `files-changed` frame, and the walk grows with
   the vault's age. The renderer still re-reads on that frame, since the
@@ -622,9 +622,19 @@ to the END of its group.
   ends an editing session. Why the max wait is the sync interval is
   `apps/cli/src/server/vault/git-engine.ts`.
 
-- **A write carries the base it was computed from.** `expectedHash` is compared
+- **A write carries the base it was computed from, and NAMES ITS GUARD.**
+  `vault.write`'s `guard` is a required union
+  (`packages/api/src/local/vault/vault-schema.ts`): `expected` carries the
+  hash of the bytes the write was computed from, `absent` is a create, and
+  `overwrite` is last-writer-wins spelled out. One required field rather than
+  two optional ones: an omitted field would make last-writer-wins the silent
+  default, and two optionals let a hash and a create travel together.
+  `inteligir vault write` refuses a call naming no guard for the same reason
+  (`--if-absent`, `--expected-hash` or `--overwrite`). The server branches on
+  the kind: `overwrite` is the plain write, the other two `writeGuarded`
+  (`apps/cli/src/server/vault/vault-router.ts`). `expected` is compared
   under the repo lock; a mismatch answers 409 with the current content and the
-  client diff3-merges and retries. Creation uses `ifAbsent`. Without it an agent
+  client diff3-merges and retries. Creation uses `absent`. Without a base an agent
   write landing between a read and a save is silently overwritten. diff3 rather
   than active-user-wins, which discards concurrent body edits wholesale. A write
   ANSWERS THE BYTES THAT LANDED and the open buffer takes them, an edit made
@@ -638,10 +648,11 @@ to the END of its group.
   `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`,
   `packages/editor/src/vault-editor.ts` and `@repo/notes/text/diff3`.
 
-- **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends `ifAbsent` and
-  no hash; hashing bytes not yet on disk is a refusal every time. A guarded
-  write with no recorded base throws rather than inferring one, because an
-  inferred base lets a concurrent edit win silently. A path already taken
+- **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends the `absent`
+  guard, which carries no hash; hashing bytes not yet on disk is a refusal
+  every time. A guarded write with no recorded base throws rather than
+  inferring one, because an inferred base lets a concurrent edit win
+  silently. A path already taken
   answers `exists`, a `CreateOutcome` rather than a throw, and that answer is
   the one existence check: open-or-create (`createFileAt`) opens the file,
   and an exclusive create (`createNewFileAt`) hands it back for the caller to
@@ -801,7 +812,7 @@ to the END of its group.
   miss it, and is never retried, because it cannot land. Refusing to
   leave it, as a switch refuses to leave any unsaved note, would hold the user
   there for good, so leaving asks instead: discard the edits, or re-create the
-  note from the buffer through an `ifAbsent` create, refused if anything landed
+  note from the buffer through an `absent` create, refused if anything landed
   at the path since. Discarding is the dialog's confirm, so an Escape keeps the
   edits. `packages/editor/src/note/note-runtime.ts`,
   `packages/editor/src/note/vault-session.ts` and
@@ -1152,7 +1163,7 @@ rename`.
   deleted-notes restore brings both back from the same revision through
   `@repo/api/local/vault/restore-comment-store`, the one composition the
   rail's Deleted view and `vault restore` both run after the note's own
-  ifAbsent write. Only a store the revision never held is `none` and only one
+  `absent` write. Only a store the revision never held is `none` and only one
   already at that id is `kept`; any other refusal is `failed`, never folded
   into either, because the note is back by then and a store silently left
   behind strands its threads: the rail opens the note with a warning, and the
