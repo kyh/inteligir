@@ -3,7 +3,7 @@
 
 import type { AlignType } from "mdast";
 import { ElementApi, NodeApi, TextApi } from "platejs";
-import type { Descendant, TElement, TLinkElement } from "platejs";
+import type { Descendant, TElement, TLinkElement, TText } from "platejs";
 import {
   convertChildrenDeserialize,
   convertNodesSerialize,
@@ -20,6 +20,7 @@ import type {
   MdRules,
   MdCode,
   MdInlineMath,
+  MdParagraph,
   MdTableRow,
   MdText,
   MdYaml,
@@ -82,14 +83,16 @@ const defaultDateDeserialize = defaultRules.date?.deserialize;
 if (!defaultDateDeserialize) {
   throw new Error("@platejs/markdown defaultRules.date is missing — pipeline cannot start");
 }
-const defaultParagraphSerialize = defaultRules.p?.serialize;
-if (!defaultParagraphSerialize) {
+const defaultParagraph = defaultRules.p;
+const defaultParagraphDeserialize = defaultParagraph?.deserialize;
+const defaultParagraphSerialize = defaultParagraph?.serialize;
+if (!defaultParagraphDeserialize || !defaultParagraphSerialize) {
   throw new Error("@platejs/markdown defaultRules.p is missing — pipeline cannot start");
 }
 
-// `MdRules` narrows each keyed rule's return to that key's mdast node; rules emitting verbatim
-// bytes as a raw `html` node, or no node at all, are declared against the index signature's wide
-// serialize instead of casting.
+// `MdRules` narrows each keyed rule's return to that key's node; rules emitting verbatim bytes or
+// no node at all, or deserializing one mdast node into several blocks, are declared against the
+// index signature's wide rule instead of casting.
 type WideMdRule = NonNullable<MdRules[string]>;
 
 // NodeIdPlugin is a core default (off only under NODE_ENV=test), so every live block carries an
@@ -183,9 +186,49 @@ const paragraphChildren = (children: Descendant[]): Descendant[] => {
   return kept.length > 0 ? kept : [{ text: "" }];
 };
 
+const withoutEdgeBreak = (children: Descendant[], edge: "first" | "last"): Descendant[] => {
+  const index = edge === "first" ? 0 : children.length - 1;
+  const child = children[index];
+  if (child === undefined || !TextApi.isText(child)) {
+    return children;
+  }
+  const text = child.text.replace(edge === "first" ? /^\n/u : /\n$/u, "");
+  return text === "" ? children.toSpliced(index, 1) : children.with(index, { ...child, text });
+};
+
+// Plate's p rule lifts an image out of its paragraph into a block of its own, answering several
+// blocks where its type says one. A line break beside the image then sits at the edge of a
+// paragraph around it, where it would save as a stray `\` line; the block boundary already ends
+// the line, and a paragraph that held only that break goes.
+const paragraphRule: WideMdRule = {
+  deserialize: (
+    node: MdParagraph,
+    deco: MdDecoration,
+    options: DeserializeMdOptions,
+  ): TElement | TElement[] => {
+    const converted: TElement | TElement[] = defaultParagraphDeserialize(node, deco, options);
+    if (!Array.isArray(converted)) {
+      return converted;
+    }
+    return converted.flatMap((block, i): TElement[] => {
+      if (block.type !== "p") {
+        return [block];
+      }
+      const afterImage = i > 0 ? withoutEdgeBreak(block.children, "first") : block.children;
+      const children = i < converted.length - 1 ? withoutEdgeBreak(afterImage, "last") : afterImage;
+      return children.length > 0 ? [{ ...block, children }] : [];
+    });
+  },
+  serialize: (node: TElement, options: SerializeMdOptions): MdParagraph =>
+    defaultParagraphSerialize({ ...node, children: paragraphChildren(node.children) }, options),
+};
+
 // Plate's default lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink emits
 // `<a@b.cd>` — unparseable under MDX. Bare gfm emails emit their literal bytes; every other link
 // stays `[text](url)` under MD_STRINGIFY's resourceLink, which alone would also force bare https into resource form.
+// The literal is an opaque inline, not `html`: mdast-util-to-markdown turns the line break before
+// an html node into a space, since html opening a line could read as a flow block, and that joins
+// a url on its own line to the line above.
 const linkRule: WideMdRule = {
   serialize: (node: TLinkElement, options: SerializeMdOptions) => {
     const children = convertNodesSerialize(node.children, options);
@@ -197,7 +240,7 @@ const linkRule: WideMdRule = {
       ((text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
         (`mailto:${text}` === url && GFM_EMAIL_RE.test(text)));
     if (literal) {
-      return { type: "html", value: text };
+      return { type: "opaqueInline", value: text } satisfies OpaqueInline;
     }
     return defaultLinkSerialize(node, options);
   },
@@ -435,10 +478,7 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  p: {
-    serialize: (node, options) =>
-      defaultParagraphSerialize({ ...node, children: paragraphChildren(node.children) }, options),
-  },
+  p: paragraphRule,
 
   tabGroup: {
     deserialize: (node: TabGroup, deco, options): TElement => ({
@@ -470,6 +510,14 @@ export const MD_RULES: MdRules = {
       }),
       type: "tabGroup",
     }),
+  },
+
+  // Plate's default drops a text node's leading "\n", so the "\n" its `<br>` rule yields is not
+  // doubled; here `<br>` stays opaque and yields none, while a soft break after any inline node
+  // (a chip, a pill, a mark, a link) arrives as exactly that leading "\n", and dropping it joins
+  // the two lines.
+  text: {
+    deserialize: (node: MdText, deco: MdDecoration): TText => ({ ...deco, text: node.value }),
   },
 
   // Ragged rows are padded into real empty cells: mdast-util-gfm-table pads only in the emitted

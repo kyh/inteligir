@@ -509,6 +509,23 @@ to the END of its group.
   both ways by `packages/editor/src/__tests__/transclusion-static.test.ts`. A
   url inside an embed resolves from the embedded note, not the open one.
 
+- **A SAVE KEEPS EVERY LINE BREAK, AND ONE THAT WOULD JOIN TWO LINES OPENS
+  RAW.** Plate's default text rule drops a leading `"\n"`, which is exactly a
+  soft break after any inline node (a chip, a pill, a mark, a link), so it
+  would save `[[A]]\n[[B]]` as `[[A]][[B]]`; the rule table keeps it
+  (`packages/editor/src/markdown/md-rules.ts`). A paragraph's soft break saves
+  as a hard break, because the editor's model holds both as one `"\n"`; a list
+  item keeps its soft break byte-exact, and an image Plate lifts out of its
+  paragraph ends the line itself, so the break beside it goes. The hard break
+  is spelled `\`, except after a bare url, which would read the `\` back as
+  its own last character: there it is two trailing spaces
+  (`@repo/notes/markdown/md-plugins`). A bare url is emitted as an opaque
+  inline, never `html`, because mdast-util-to-markdown turns the line break
+  before an html node into a space. The gate backs all of it: a round trip
+  must keep every letter and every line end between them, so a save may split
+  a line but never join two (`keepsText` in
+  `packages/editor/src/markdown/markdown-doc.ts`).
+
 ### Vault: writes, git and containment
 
 - **The auto-commit stages what the window's writers named.** A scheduler that
