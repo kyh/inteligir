@@ -1,5 +1,5 @@
 // boots the packaged server through the app's own Electron binary; cannot open a window
-// (BrowserWindow needs a display). outside CI: it needs a macOS runner.
+// (BrowserWindow needs a display). needs a macOS arm64 host: CI's test-macos job runs it unsigned.
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";

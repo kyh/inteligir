@@ -1,6 +1,7 @@
 // a gate may call `pnpm verify` or run the chain step by step in verify's order: separate steps
 // with `if: !cancelled()` report every failure in one run, where the && chain stops at the first. a
 // gate is a workflow triggered by pull_request or push; workflows on other triggers are not swept.
+// its jobs run in parallel, so order is held per job and only the chain's coverage per workflow.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -14,19 +15,24 @@ const ROOT_MANIFEST = "package.json";
 const VERIFY_SCRIPT = "verify";
 const GATE_TRIGGERS = ["pull_request", "push"];
 
-// keyed <workflow>:<step name>, which is why a run step in a gate workflow must carry a name.
+const INSTALL_IS_PROVISIONING =
+  "provisioning, not a gate — `verify` runs against an installed tree and cannot install one for itself";
+
+// keyed <workflow>:<job>:<step name>, which is why a run step in a gate workflow must carry a name.
 const DECLARED_CI_EXTRAS = new Map<string, string>([
+  ["ci.yml:check:Install", INSTALL_IS_PROVISIONING],
   [
-    "ci.yml:Install",
-    "provisioning, not a gate — `verify` runs against an installed tree and cannot install one for itself",
-  ],
-  [
-    "ci.yml:E2E browser",
+    "ci.yml:check:E2E browser",
     "installs agent-browser and its system deps globally on the runner; a developer installs it once, so making `verify` do it on every run would be a minutes-long tax on the static gate",
   ],
   [
-    "ci.yml:E2E",
+    "ci.yml:check:E2E",
     "boots real instances and drives them over the wire — `pnpm e2e` is deliberately outside `verify`'s test task (tools/e2e/package.json), because every unit passes while the composition fails",
+  ],
+  ["ci.yml:test-macos:Install", INSTALL_IS_PROVISIONING],
+  [
+    "ci.yml:test-macos:Smoke desktop",
+    "packs the macOS arm64 .app with electron-builder and boots its server through the app's own Electron binary, including the vault selector — minutes of packaging per run, and only a macOS host can do either, so it stays out of the static gate that runs on every platform",
   ],
 ]);
 
@@ -38,10 +44,6 @@ const MANUAL_SMOKES = new Map<string, string>([
   [
     "smoke:cli",
     "it packs the publishable tarball, installs it into a scratch prefix and binds a port — minutes of work per run to prove a thing that only changes when the artifact's shape does, and nothing about it is a PR-sized risk",
-  ],
-  [
-    "smoke:desktop",
-    "it drives a packaged macOS arm64 .app through that app's own Electron binary, including the vault selector (config.json's vaultDir booting the packaged server on a per-vault data dir, the server half of the shell's vault switch); the gate runs on ubuntu, where neither packaging it nor executing it is possible — running it means adding a macOS job, which is worth doing the day the shell is something users install",
   ],
 ]);
 
@@ -84,6 +86,7 @@ const verifyChain = (scripts: Record<string, string>): string[] => {
 interface WorkflowStep {
   id: string;
   workflow: string;
+  job: string;
   name: string;
   run: string;
 }
@@ -149,7 +152,8 @@ const gateWorkflows = (): GateWorkflow[] => {
           );
         }
         steps.push({
-          id: `${entry}:${name.data}`,
+          id: `${entry}:${jobName}:${name.data}`,
+          job: jobName,
           name: name.data,
           run: step.data.run.trim(),
           workflow: entry,
@@ -182,15 +186,12 @@ describe("CI does not drift from `pnpm verify`", () => {
   it("every gate runs verify's chain — as the script, or step by step in its order", () => {
     const violations: string[] = [];
     for (const gate of gates) {
-      const invoked = gate.steps.map((step) => scriptRunBy(step, scripts));
-      if (invoked.includes(VERIFY_SCRIPT)) {
+      const invoked = new Set(gate.steps.map((step) => scriptRunBy(step, scripts)));
+      if (invoked.has(VERIFY_SCRIPT)) {
         continue;
       }
 
-      const ranInOrder = invoked.filter(
-        (name): name is string => name !== null && chain.includes(name),
-      );
-      const missing = chain.filter((name) => !ranInOrder.includes(name));
+      const missing = chain.filter((name) => !invoked.has(name));
       if (missing.length > 0) {
         violations.push(
           `GATE SKIPS A VERIFY STEP  ${WORKFLOW_DIR}/${gate.file} never runs: ${missing.join(", ")}\n` +
@@ -199,14 +200,21 @@ describe("CI does not drift from `pnpm verify`", () => {
         );
         continue;
       }
-      if (ranInOrder.join(" ") !== chain.join(" ")) {
-        violations.push(
-          `GATE REORDERS VERIFY  ${WORKFLOW_DIR}/${gate.file}\n` +
-            `  runs:   ${ranInOrder.join(" -> ")}\n` +
-            `  verify: ${chain.join(" -> ")}\n` +
-            `  rule: the two are one gate, so they fail in the same order — otherwise the first failure a developer sees is not the first failure CI reports\n` +
-            `  fix: reorder one of them, or collapse the gate to a single \`pnpm ${VERIFY_SCRIPT}\` step`,
-        );
+      for (const job of new Set(gate.steps.map((step) => step.job))) {
+        const ranInOrder = gate.steps
+          .filter((step) => step.job === job)
+          .map((step) => scriptRunBy(step, scripts))
+          .filter((name): name is string => name !== null && chain.includes(name));
+        const expected = chain.filter((name) => ranInOrder.includes(name));
+        if (ranInOrder.join(" ") !== expected.join(" ")) {
+          violations.push(
+            `GATE REORDERS VERIFY  ${WORKFLOW_DIR}/${gate.file} job "${job}"\n` +
+              `  runs:   ${ranInOrder.join(" -> ")}\n` +
+              `  verify: ${expected.join(" -> ")}\n` +
+              `  rule: the two are one gate, so a job fails in verify's order, each link once — otherwise the first failure a developer sees is not the first failure CI reports\n` +
+              `  fix: reorder one of them, or collapse the job to a single \`pnpm ${VERIFY_SCRIPT}\` step`,
+          );
+        }
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

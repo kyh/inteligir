@@ -198,6 +198,9 @@ modules load under Electron's runtime, that the SPA and API answer, that the
 bundled CLI is executable where the agent's PATH resolver looks for it, and that
 SIGTERM exits 0. **It does not open the window**: `BrowserWindow` needs a
 display, so the origin pin is proven by its unit tests and by nothing here.
+CI's `test-macos` job runs it on every push and pull request, unsigned:
+`CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through to the
+`package` task, because turbo's strict env mode would strip it.
 
 There is no native-rebuild step, and that is a fact rather than an omission: the
 three native modules are Node-API addons shipping per-platform prebuilds, and
@@ -213,10 +216,11 @@ spawned from inside an archive and a `.node` binary cannot be loaded from one.
 signed: `NODE_OPTIONS` and `--inspect` are ignored, `file://` pages get no
 extra privileges, and cookies are encrypted at rest. `runAsNode` stays on,
 because the server's watcher forks its child with `child_process` inside the
-utility process and the smoke boots the server as Node. An unsigned build
-(`-c.mac.identity=null`) is killed at launch on Apple Silicon: the flip
-invalidates Electron's ad-hoc signature, so re-sign it with
-`codesign --force --deep --sign -` before running it.
+utility process and the smoke boots the server as Node. The flip invalidates
+Electron's own ad-hoc signature, which Apple Silicon kills at launch, so
+`resetAdHocDarwinSignature` re-signs the app ad-hoc right after it: an unsigned
+build (no Developer ID, `CSC_IDENTITY_AUTO_DISCOVERY=false` or
+`-c.mac.identity=null`) runs as it is, and a signed one is re-signed over it.
 
 ### The release path
 

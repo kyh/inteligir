@@ -66,7 +66,7 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | source, config, markdown or yaml file resolves to a workspace or a path   |
 |                                | on disk. What it reads is stated in its own section below.                |
 | `ci-verify-parity.test.ts`     | A gate workflow (`pull_request` or `push`) runs `pnpm verify` or every    |
-|                                | link of its chain in verify's order; every step on top is a               |
+|                                | link of its chain, each job in verify's order; every step on top is a     |
 |                                | `DECLARED_CI_EXTRAS` row with a reason; every workspace `smoke` script is |
 |                                | reachable from a root script; every root `smoke*` runs in a gate or is a  |
 |                                | `MANUAL_SMOKES` row; a `run:` step with no `name:` throws.                |

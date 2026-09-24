@@ -26,8 +26,11 @@ extraMetadata:
 npmRebuild: false
 # flipped in the binary before signing. runAsNode stays on: the server's watcher forks its child
 # with child_process from inside the utility process, which runs this binary as Node, and the
-# packaged smoke boots the server the same way
+# packaged smoke boots the server the same way. the flip breaks Electron's own ad-hoc signature,
+# which Apple Silicon kills at launch, so the app is re-signed ad-hoc at once: an unsigned pack
+# (CI's, or a tree with no Developer ID) runs, and a signed one is re-signed over it
 electronFuses:
+  resetAdHocDarwinSignature: true
   runAsNode: true
   enableCookieEncryption: true
   enableNodeOptionsEnvironmentVariable: false
