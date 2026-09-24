@@ -10,6 +10,7 @@ import { FileTextIcon, XIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import type { RefObject } from "react";
 
+import { failed } from "../api";
 import { useWorkspace } from "../workspace-context";
 import type { ViewContextSource } from "../thread-activity";
 import { spliceIntoComposer } from "../voice/dictation";
@@ -183,8 +184,8 @@ export const ActionComposer = ({
           onOpenChange(false);
           onLaunched(created.threadId);
         }
-      } catch {
-        toast.error("Could not start the action.");
+      } catch (error) {
+        failed(error, "Could not start the action.");
       }
       setSending(false);
     })();

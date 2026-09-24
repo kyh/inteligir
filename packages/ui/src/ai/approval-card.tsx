@@ -25,6 +25,7 @@ interface ApprovalCardContextValue {
   custom: Record<string, string>;
   submit: (pending?: PendingAnswer) => void;
   hasAnswer: boolean;
+  sending: boolean;
 }
 
 const ApprovalCardContext = createContext<ApprovalCardContextValue | null>(null);
@@ -57,8 +58,12 @@ const useApprovalQuestion = (): ApprovalQuestionContextValue => {
   return value;
 };
 
+// the card reads "sent" only once the answer landed: a returned promise holds the options
+// disabled while it runs, and a rejection hands them back so the answer can be retried.
+type ApprovalCardStatus = "open" | "sending" | "sent";
+
 interface ApprovalCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSubmit"> {
-  onSubmit: (answers: ApprovalAnswer[]) => void;
+  onSubmit: (answers: ApprovalAnswer[]) => void | Promise<void>;
   sentLabel?: string;
 }
 
@@ -73,7 +78,7 @@ const ApprovalCard = ({
   const [order, setOrder] = useState<readonly string[]>([]);
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<ApprovalCardStatus>("open");
 
   const answered = order.filter(
     (id) => (picked[id] ?? []).length > 0 || (custom[id] ?? "").trim().length > 0,
@@ -93,24 +98,31 @@ const ApprovalCard = ({
         pending === undefined ? picked : { ...picked, [pending.questionId]: pending.optionIds };
       const nextCustom =
         pending === undefined ? custom : { ...custom, [pending.questionId]: pending.custom };
-      setSent(true);
-      onSubmit(
-        order.map((questionId) => {
-          const text = (nextCustom[questionId] ?? "").trim();
-          const entry: ApprovalAnswer = { optionIds: nextPicked[questionId] ?? [], questionId };
-          return text.length > 0 ? { ...entry, custom: text } : entry;
-        }),
-      );
+      const answers = order.map((questionId) => {
+        const text = (nextCustom[questionId] ?? "").trim();
+        const entry: ApprovalAnswer = { optionIds: nextPicked[questionId] ?? [], questionId };
+        return text.length > 0 ? { ...entry, custom: text } : entry;
+      });
+      setStatus("sending");
+      void (async () => {
+        try {
+          await onSubmit(answers);
+          setStatus("sent");
+        } catch {
+          setStatus("open");
+        }
+      })();
     },
     [order, picked, custom, onSubmit],
   );
   const hasAnswer = order.length > 0 && answered.length === order.length;
+  const sending = status === "sending";
   const value = useMemo<ApprovalCardContextValue>(
-    () => ({ answer, custom, hasAnswer, picked, register, submit }),
-    [register, answer, picked, custom, submit, hasAnswer],
+    () => ({ answer, custom, hasAnswer, picked, register, sending, submit }),
+    [register, answer, picked, custom, submit, hasAnswer, sending],
   );
 
-  if (sent) {
+  if (status === "sent") {
     return (
       <div
         ref={ref}
@@ -146,6 +158,7 @@ const ApprovalCard = ({
       <div
         ref={ref}
         data-slot="approval-card"
+        aria-busy={sending}
         className={cn(
           "w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
           className,
@@ -241,6 +254,7 @@ const ApprovalOption = ({
   ref,
   ...props
 }: ApprovalOptionProps & RefAttributes<HTMLButtonElement>) => {
+  const { sending } = useApprovalCard();
   const { kind, selected, toggle } = useApprovalQuestion();
   const on = selected.includes(optionId);
   return (
@@ -248,6 +262,7 @@ const ApprovalOption = ({
       ref={ref}
       type="button"
       aria-pressed={on}
+      disabled={sending}
       onClick={() => {
         toggle(optionId);
       }}
@@ -315,6 +330,7 @@ const ApprovalCustomAnswer = ({
       <input
         ref={ref}
         value={typed}
+        disabled={card.sending}
         onChange={(event) => {
           // typing clears a radio pick, or one question would send two answers
           card.answer(questionId, kind === "radio" ? [] : selected, event.target.value);
@@ -339,7 +355,7 @@ const ApprovalActions = ({
   ref,
   ...props
 }: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => {
-  const { hasAnswer, submit } = useApprovalCard();
+  const { hasAnswer, sending, submit } = useApprovalCard();
   return (
     <div
       ref={ref}
@@ -351,7 +367,7 @@ const ApprovalActions = ({
       <button
         type="button"
         aria-label="Send answers"
-        disabled={!hasAnswer}
+        disabled={!hasAnswer || sending}
         onClick={() => {
           submit();
         }}

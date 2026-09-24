@@ -16,9 +16,9 @@ import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { orpc } from "../api";
+import { failed, orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
-import { ChoiceRow, failed, SecondVaultNote, SectionHeading } from "./settings-chrome";
+import { ChoiceRow, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 const useConnectors = () => useQuery({ ...orpc.connectors.list.queryOptions(), staleTime: 0 });
 

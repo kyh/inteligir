@@ -4,8 +4,8 @@ import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { orpc } from "../api";
-import { ChoiceRow, failed, Row } from "./settings-chrome";
+import { failed, orpc } from "../api";
+import { ChoiceRow, Row } from "./settings-chrome";
 
 type Choice = AttachmentLocation["kind"];
 

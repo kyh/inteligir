@@ -22,12 +22,13 @@ import {
   PinOffIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { orpc } from "../api";
+import { failed, orpc, safe } from "../api";
 import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
+import { useFollowBottom } from "./follow-bottom";
 import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
 import type { ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
@@ -37,7 +38,8 @@ import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
 import type { CommentFocus } from "./comments-tab";
 import { HistoryTab } from "./history-tab";
-import { TimelineRowView } from "./timeline-rows";
+import { ReadRefusal } from "./read-refusal";
+import { QueuedReplyView, TimelineRowView } from "./timeline-rows";
 import { usePinnedPaths } from "../vault-hooks";
 import { useWorkspace } from "../workspace-context";
 import { bindingFor } from "../global-shortcuts";
@@ -204,23 +206,14 @@ const ActionDetail = ({
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const detailQuery = useThreadDetail(threadId);
-  const timeline = useThreadTimeline(threadId);
+  const transcript = useThreadTimeline(threadId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const { contentRef, onScroll, scrollRef } = useFollowBottom();
 
   const thread = detailQuery.data?.thread ?? null;
   const pending = detailQuery.data?.pendingInteractions ?? [];
-  const rowCount = timeline?.rows.length ?? 0;
-  const pendingCount = pending.length;
-
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (scroller === null || rowCount + pendingCount === 0) {
-      return;
-    }
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [rowCount, pendingCount]);
+  const queued = detailQuery.data?.queuedMessages ?? [];
 
   const invalidate = (): void => {
     void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
@@ -244,23 +237,24 @@ const ActionDetail = ({
         } else {
           setText("");
         }
-      } catch {
-        toast.error("Could not reach the agent.");
+      } catch (error) {
+        failed(error, "Could not reach the agent.");
       }
       setSending(false);
       invalidate();
     })();
   };
 
-  const answerInteraction = (interactionId: string, resolution: string): void => {
-    void (async () => {
-      try {
-        await api.threads.answerInteraction({ interactionId, resolution, threadId });
-      } catch {
-        toast.error("Could not answer the approval.");
-      }
-      invalidate();
-    })();
+  // rethrown so the card hands its options back for another try
+  const answerInteraction = async (interactionId: string, resolution: string): Promise<void> => {
+    const { error } = await safe(
+      api.threads.answerInteraction({ interactionId, resolution, threadId }),
+    );
+    invalidate();
+    if (error !== null) {
+      failed(error, "Could not answer the approval.");
+      throw error;
+    }
   };
 
   const archive = (): void => {
@@ -268,8 +262,8 @@ const ActionDetail = ({
       try {
         await api.threads.archive({ threadId });
         onBack();
-      } catch {
-        toast.error("Could not archive the action.");
+      } catch (error) {
+        failed(error, "Could not archive the action.");
       }
       invalidate();
     })();
@@ -297,17 +291,25 @@ const ActionDetail = ({
           <ArchiveIcon />
         </Button>
       </div>
-      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3">
-        {timeline?.rows.map((row) => (
-          <TimelineRowView key={row.id} row={row} />
-        ))}
-        {pending.map((interaction) => (
-          <ApprovalCard
-            key={interaction.id}
-            interaction={interaction}
-            onAnswer={answerInteraction}
-          />
-        ))}
+      <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+        <div ref={contentRef} className="flex flex-col gap-3">
+          {transcript.state === "refused" ? (
+            <ReadRefusal lead="The transcript could not be read." error={transcript.error} />
+          ) : null}
+          {transcript.state === "read"
+            ? transcript.timeline.rows.map((row) => <TimelineRowView key={row.id} row={row} />)
+            : null}
+          {queued.map((message) => (
+            <QueuedReplyView key={message.id} text={message.text} />
+          ))}
+          {pending.map((interaction) => (
+            <ApprovalCard
+              key={interaction.id}
+              interaction={interaction}
+              onAnswer={answerInteraction}
+            />
+          ))}
+        </div>
       </div>
       <div className="border-t border-line p-2">
         <Textarea

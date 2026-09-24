@@ -3,7 +3,8 @@ import { Button } from "@repo/ui/components/button";
 import { updateAction } from "../../../update-state";
 import type { UpdateAction, UpdateState } from "../../../update-state";
 import { runUpdateAction, useDesktopUpdates } from "../desktop-updates";
-import { failed, Row } from "./settings-chrome";
+import { failed } from "../api";
+import { Row } from "./settings-chrome";
 
 const statusLabel = (state: UpdateState): string => {
   switch (state.status) {
