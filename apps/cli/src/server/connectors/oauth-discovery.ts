@@ -36,7 +36,7 @@ const CHALLENGE_PARAMS = {
   scope: /(?:^|[\s,])scope=(?:"(?<quoted>[^"]*)"|(?<bare>[^\s,]+))/u,
 } as const;
 
-interface Refusal {
+export interface Refusal {
   ok: false;
   detail: string;
 }
@@ -235,37 +235,29 @@ const registerClient = async (
       signal: AbortSignal.timeout(DISCOVERY_REQUEST_TIMEOUT_MS),
     });
   } catch {
-    return {
-      detail: "The authorization server's registration endpoint did not answer.",
-      ok: false,
-    };
+    return refused("The authorization server's registration endpoint did not answer.");
   }
   if (!response.ok) {
     await discardBody(response);
-    return {
-      detail: `The authorization server refused to register this app (HTTP ${String(response.status)}).`,
-      ok: false,
-    };
+    return refused(
+      `The authorization server refused to register this app (HTTP ${String(response.status)}).`,
+    );
   }
   let body: unknown;
   try {
     body = await response.json();
   } catch {
-    return { detail: "The authorization server's registration answer was not JSON.", ok: false };
+    return refused("The authorization server's registration answer was not JSON.");
   }
   const registration = clientRegistrationSchema.safeParse(body);
   if (!registration.success) {
-    return {
-      detail: "The authorization server's registration answer had no client_id.",
-      ok: false,
-    };
+    return refused("The authorization server's registration answer had no client_id.");
   }
   const method = registration.data.token_endpoint_auth_method;
   if (method !== undefined && method !== "none") {
-    return {
-      detail: `The authorization server registered this app for "${method}", but it holds no client secret.`,
-      ok: false,
-    };
+    return refused(
+      `The authorization server registered this app for "${method}", but it holds no client secret.`,
+    );
   }
   return { clientId: registration.data.client_id, ok: true };
 };

@@ -11,7 +11,7 @@ export interface VoiceStreamSocket {
   close: (code?: number, reason?: string) => void;
   readonly readyState: number;
   // the transport under hono's wrapper; only the idle reap terminates through it.
-  readonly raw?: unknown;
+  readonly raw?: { terminate: () => void };
 }
 
 export type VoiceStreamFrame = string | Blob | ArrayBufferLike;
@@ -23,17 +23,6 @@ export const STREAM_IDLE_TIMEOUT_MS = 10_000;
 const SOCKET_OPEN_STATE = 1;
 const NORMAL_CLOSE_CODE = 1000;
 const POLICY_CLOSE_CODE = 1008;
-
-interface TerminableTransport {
-  terminate: () => void;
-}
-
-// z.custom passes the original object through, keeping terminate() bound to its socket.
-const terminableTransportSchema = z.custom<TerminableTransport>(
-  (value) =>
-    z.looseObject({ terminate: z.custom((member) => member instanceof Function) }).safeParse(value)
-      .success,
-);
 
 export class VoiceStreamConnection {
   readonly #socket: VoiceStreamSocket;
@@ -133,14 +122,9 @@ export class VoiceStreamConnection {
     }
   }
 
-  // parsed rather than asserted: the fake sockets tests inject have no raw at all.
   #terminate(): void {
-    const transport = terminableTransportSchema.safeParse(this.#socket.raw);
-    if (!transport.success) {
-      return;
-    }
     try {
-      transport.data.terminate();
+      this.#socket.raw?.terminate();
     } catch {
       // A socket already gone is the outcome we wanted.
     }

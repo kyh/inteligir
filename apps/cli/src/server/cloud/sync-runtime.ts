@@ -40,6 +40,10 @@ import type { SyncCadenceArgs } from "./sync-cadence";
 import { runSyncPass } from "./sync-pass";
 import type { PassContext, SyncedEventSink, SyncPassDeps } from "./sync-pass";
 
+// a shutdown's wait for a sign-out in flight: the client's own deadline is 30s, far past the
+// cloud teardown step's budget, and a quit that overran it would exit non-zero.
+const SIGN_OUT_GRACE_MS = 3000;
+
 export interface CloudTransport {
   fetch?: CloudFetch;
   /** absent means poll-only. injected rather than defaulted because
@@ -125,14 +129,15 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   });
 
   // settles once every sign-out sent so far has, so a shutdown right after one still gives the
-  // slot back, within the cloud step's budget
+  // slot back; a shutdown aborts whatever is still in flight after SIGN_OUT_GRACE_MS.
   let signOutsSettled: Promise<void> = Promise.resolve();
+  const signOutAbort = new AbortController();
 
   // never awaited by the caller: an unreachable cloud must not hold a sign-out open, and the row it
   // leaves is the Devices page's to revoke. its own client, because closing the session aborts every
   // request the session's client carries.
   const signOutBestEffort = (credential: DeviceCredential): void => {
-    const client = createCloudClient({ ...endpoint(), credential: credential.credential });
+    const client = createCloudClient(clientArgs(credential.credential, signOutAbort.signal));
     const earlier = signOutsSettled;
     signOutsSettled = (async () => {
       const result = await client.signOut();
@@ -423,7 +428,15 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
           // the pass reported through onError; the teardown has nothing to add.
         }
       }
-      await signOutsSettled;
+      const grace = setTimeout(() => {
+        signOutAbort.abort();
+      }, SIGN_OUT_GRACE_MS);
+      grace.unref?.();
+      try {
+        await signOutsSettled;
+      } finally {
+        clearTimeout(grace);
+      }
     },
 
     enqueue(tx, events) {
