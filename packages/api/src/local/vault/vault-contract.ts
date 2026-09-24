@@ -29,10 +29,11 @@ import {
 } from "./vault-schema";
 
 export const vaultContract = {
+  // CONFLICT: a file stands where the attachments folder must be.
   assetWrite: oc
     .input(vaultAssetWriteRequestSchema)
     .output(vaultAssetWriteResponseSchema)
-    .errors({ INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
+    .errors({ CONFLICT: {}, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
 
   // a restore checkpoints first: the auto-commit is session-shaped, so the bytes being replaced
   // may be in no revision yet.

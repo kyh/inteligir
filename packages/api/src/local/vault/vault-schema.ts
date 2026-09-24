@@ -176,11 +176,13 @@ export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 // "" is the vault root: a vault path is never empty, and the root is a place an attachment can land.
 export const vaultDirSchema = z.union([z.literal(""), vaultPathSchema]);
 
+// the bytes ride as a Blob, which the rpc link sends as a multipart part rather than as base64
+// inside the json body. the cap is the handler's, so an oversized file answers PAYLOAD_TOO_LARGE.
 export const vaultAssetWriteRequestSchema = z
   .object({
     baseName: z.string().min(1),
-    bytesBase64: z.string().min(1),
     dir: vaultDirSchema,
+    file: z.instanceof(Blob).refine((file) => file.size > 0, "an attachment holds no bytes"),
   })
   .strict();
 export type VaultAssetWriteRequest = z.infer<typeof vaultAssetWriteRequestSchema>;

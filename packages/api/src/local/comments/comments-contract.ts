@@ -23,11 +23,12 @@ export const commentsContract = {
     .output(commentsResponseSchema)
     .errors({ ...VAULT_REFUSALS, BAD_REQUEST: {} }),
 
-  // a list against a missing note still answers its sidecar, so no NOT_FOUND here
+  // a list against a missing note still answers its sidecar, so no NOT_FOUND here. BAD_REQUEST:
+  // folding a legacy sidecar mints an id, refused when the note's `id` is not text
   list: oc
     .input(commentsListRequestSchema)
     .output(commentsResponseSchema)
-    .errors({ CONFLICT: {}, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
+    .errors({ BAD_REQUEST: {}, CONFLICT: {}, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
 
   remove: oc
     .input(commentsRemoveRequestSchema)

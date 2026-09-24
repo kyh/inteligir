@@ -69,13 +69,12 @@ const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors
       message: `${input.baseName} is not an image type this vault serves`,
     });
   }
-  const byteLength = Math.floor((input.bytesBase64.length * 3) / 4);
-  if (byteLength > VAULT_ASSET_MAX_BYTES) {
+  if (input.file.size > VAULT_ASSET_MAX_BYTES) {
     throw errors.PAYLOAD_TOO_LARGE({
-      message: `attachment is ~${byteLength} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`,
+      message: `attachment is ${input.file.size} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`,
     });
   }
-  const bytes = new Uint8Array(Buffer.from(input.bytesBase64, "base64"));
+  const bytes = new Uint8Array(await input.file.arrayBuffer());
   return await refusing(async () => {
     const written = await context.vault.service.writeAsset(input.dir, input.baseName, bytes);
     attributeWrites(context, [written.path]);

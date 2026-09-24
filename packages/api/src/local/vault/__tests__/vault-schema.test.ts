@@ -83,20 +83,25 @@ describe("the asset bound", () => {
 });
 
 describe("assetWrite", () => {
+  const file = new Blob([new Uint8Array([0])]);
+
   it("holds `dir` to the vault path grammar", () => {
     expect(
-      vaultAssetWriteRequestSchema.safeParse({
-        baseName: "a.png",
-        bytesBase64: "AA==",
-        dir: "../outside",
-      }).success,
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "../outside", file })
+        .success,
     ).toBe(false);
     expect(
-      vaultAssetWriteRequestSchema.safeParse({
-        baseName: "a.png",
-        bytesBase64: "AA==",
-        dir: "assets",
-      }).success,
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "assets", file }).success,
     ).toBe(true);
+  });
+
+  it("takes the bytes as a Blob, never as text, and refuses an empty one", () => {
+    expect(
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "", file: "AA==" }).success,
+    ).toBe(false);
+    expect(
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "", file: new Blob([]) })
+        .success,
+    ).toBe(false);
   });
 });

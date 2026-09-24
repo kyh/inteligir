@@ -1,7 +1,18 @@
-import { mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
+import fsPromises, {
+  chmod,
+  mkdir,
+  readdir,
+  readFile,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
@@ -276,14 +287,168 @@ describe("physical containment (symlinks)", () => {
 });
 
 describe("where an attachment lands", () => {
+  const bytes = new Uint8Array([137, 80, 78, 71]);
+
   it('takes "" as the root, and creates a folder on the first write into it', async () => {
     const { root, service } = bootService();
-    const bytes = new Uint8Array([137, 80, 78, 71]);
     expect(await service.writeAsset("", "shot.png", bytes)).toEqual({ path: "shot.png" });
     expect(await service.writeAsset("media/2026", "shot.png", bytes)).toEqual({
       path: "media/2026/shot.png",
     });
     const assetDir = await stat(path.join(root, "media", "2026"));
     expect(assetDir.isDirectory()).toBe(true);
+  });
+
+  it("lands every paste of one name, however many the folder already holds", async () => {
+    // seeded on disk rather than written through the service: 1500 fsynced writes outrun the
+    // test's budget, and the folder cannot tell the two apart.
+    const { root, service } = bootService();
+    const assets = path.join(root, "assets");
+    await mkdir(assets);
+    const seeded = 1498;
+    await Promise.all(
+      Array.from({ length: seeded }, async (_, index) => {
+        const n = index + 1;
+        await writeFile(path.join(assets, n === 1 ? "shot.png" : `shot-${n}.png`), "seed");
+      }),
+    );
+
+    expect(await service.writeAsset("assets", "shot.png", bytes)).toEqual({
+      path: "assets/shot-1499.png",
+    });
+    expect(await service.writeAsset("assets", "shot.png", bytes)).toEqual({
+      path: "assets/shot-1500.png",
+    });
+    expect(await readdir(assets)).toHaveLength(1500);
+  });
+
+  it("steps past a name the folder holds in another case", async () => {
+    const { root, service } = bootService();
+    await mkdir(path.join(root, "assets"));
+    await writeFile(path.join(root, "assets", "Shot.png"), "theirs");
+    expect(await service.writeAsset("assets", "shot.png", bytes)).toEqual({
+      path: "assets/shot-2.png",
+    });
+    expect(await readFile(path.join(root, "assets", "Shot.png"), "utf-8")).toBe("theirs");
+  });
+});
+
+// the permission cases need a user the mode binds; root reads through a 000 mode.
+const modesBind = process.platform !== "win32" && process.getuid?.() !== 0;
+
+describe("what the filesystem throws at the vault", () => {
+  it("answers a file standing where a folder must be as a conflict, on every surface", async () => {
+    const { service } = bootService();
+    await service.write("file.md", "x");
+    await service.write("other.md", "y");
+
+    await expect(service.write("file.md/child.md", "z")).rejects.toMatchObject({
+      code: "conflict",
+    });
+    await expect(
+      service.writeGuarded("file.md/child.md", "z", { ifAbsent: true }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    await expect(service.rename("other.md", "file.md/other.md")).rejects.toMatchObject({
+      code: "conflict",
+    });
+    await expect(service.createDir("file.md/sub")).rejects.toMatchObject({ code: "conflict" });
+    await expect(
+      service.writeAsset("file.md", "shot.png", new Uint8Array([1])),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(await service.read("other.md")).toEqual({ content: "y", path: "other.md" });
+  });
+
+  it.runIf(modesBind)(
+    "lists around a folder it cannot open, keeping the folder's own row",
+    async () => {
+      const root = makeTempDir("inteligir-vault-test-");
+      const reported: string[] = [];
+      const service = createVaultService({
+        lock: identityLock,
+        notifier: createNotifierRecorder(),
+        onUnreadableFolder: (relPath, code) => {
+          reported.push(`${relPath}: ${code}`);
+        },
+        root,
+      });
+      await service.write("locked/secret.md", "s");
+      await service.write("open/note.md", "n");
+      await service.write("top.md", "t");
+
+      const locked = path.join(root, "locked");
+      await chmod(locked, 0o000);
+      let tree: VaultTreeResponse;
+      try {
+        tree = await service.listTree();
+      } finally {
+        await chmod(locked, 0o755);
+      }
+
+      expect(tree.entries.map((entry) => entry.path)).toEqual([
+        "locked",
+        "open",
+        "open/note.md",
+        "top.md",
+      ]);
+      expect(reported).toEqual(["locked: EACCES"]);
+    },
+  );
+
+  it.runIf(modesBind)("keeps a file's mode across every overwrite", async () => {
+    const { root, service } = bootService();
+    const absPath = path.join(root, "private.md");
+    await service.write("private.md", "one");
+    await chmod(absPath, 0o600);
+
+    await service.write("private.md", "two");
+    await service.writeGuarded("private.md", "three", {
+      expectedHash: await contentHashHex("two"),
+    });
+    await service.writeIfUnchanged("private.md", "three", "four");
+
+    expect(await readFile(absPath, "utf-8")).toBe("four");
+    const { mode } = await stat(absPath);
+    expect(mode % 0o1000).toBe(0o600);
+  });
+
+  it.runIf(modesBind)(
+    "reports a compare-and-swap read it cannot make, never a file that is gone",
+    async () => {
+      const { root, service } = bootService();
+      await service.write("sealed.md", "bytes");
+      const absPath = path.join(root, "sealed.md");
+      await chmod(absPath, 0o000);
+      try {
+        await expect(service.writeIfUnchanged("sealed.md", "bytes", "x")).rejects.toMatchObject({
+          code: "EACCES",
+        });
+        await expect(service.removeIfUnchanged("sealed.md", "bytes")).rejects.toMatchObject({
+          code: "EACCES",
+        });
+        await expect(
+          service.writeGuarded("sealed.md", "x", { expectedHash: await contentHashHex("bytes") }),
+        ).rejects.toMatchObject({ code: "EACCES" });
+      } finally {
+        await chmod(absPath, 0o644);
+      }
+    },
+  );
+
+  it("moves a note by rename where the filesystem refuses a hard link", async () => {
+    const { root, service } = bootService();
+    await service.write("from.md", "moved bytes");
+    const refused = Object.assign(new Error("operation not permitted"), { code: "EPERM" });
+    const link = vi.spyOn(fsPromises, "link").mockRejectedValue(refused);
+    syncBuiltinESMExports();
+    onTestFinished(() => {
+      link.mockRestore();
+      syncBuiltinESMExports();
+    });
+
+    expect(await service.rename("from.md", "nested/to.md")).toEqual({ path: "nested/to.md" });
+
+    expect(link).toHaveBeenCalled();
+    expect(await readFile(path.join(root, "nested", "to.md"), "utf-8")).toBe("moved bytes");
+    await expect(stat(path.join(root, "from.md"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
