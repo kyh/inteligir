@@ -74,19 +74,16 @@ const openRuntime = async (api: GuardedVaultApi) => {
 };
 
 describe("the guarded vault io", () => {
-  it("creates with ifAbsent and no base, and refuses where a file already is", async () => {
+  it("creates with ifAbsent and no base, and answers exists where a file already is", async () => {
     const { client, vaultDir } = await bootTestApp();
     const { api, sent } = recordingWrites(client);
     const io = createGuardedVaultIo(api);
 
-    await io.create(NOTE, "# Plans\n");
+    expect(await io.create(NOTE, "# Plans\n")).toStrictEqual({ kind: "created" });
     expect(sent).toStrictEqual([{ content: "# Plans\n", ifAbsent: true, path: NOTE }]);
     expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("# Plans\n");
 
-    await expect(io.create(NOTE, "clobber")).rejects.toMatchObject({
-      code: "ALREADY_EXISTS",
-      name: "ORPCError",
-    });
+    expect(await io.create(NOTE, "clobber")).toStrictEqual({ kind: "exists" });
     expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("# Plans\n");
   });
 

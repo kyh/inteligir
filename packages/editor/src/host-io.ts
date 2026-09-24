@@ -13,6 +13,13 @@ export interface VaultEntry {
   kind: "doc" | "other";
 }
 
+// `exists` names a taken path without a notice, so a caller can step past it; `refused` is final,
+// and the session has said whatever there was to say.
+export type CreateNewFileResult =
+  | { readonly kind: "created"; readonly path: string }
+  | { readonly kind: "exists"; readonly path: string }
+  | { readonly kind: "refused" };
+
 export interface VaultActions {
   /** A failed flush of the current note refuses to navigate. */
   openFile: (path: string) => void;
@@ -24,6 +31,8 @@ export interface VaultActions {
   createFile: (path: string, content?: string) => Promise<void>;
   /** Creates without opening; an existing file counts as success. */
   createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
+  /** Creates without opening, exclusively: a caller moving bytes into the file would drop them if an existing one counted as success. */
+  createNewFileAt: (path: string, seedContent: string) => Promise<CreateNewFileResult>;
   renameEntry: (from: string, to: string) => Promise<boolean>;
   deleteEntry: (path: string) => Promise<void>;
   flush: () => Promise<boolean>;

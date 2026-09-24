@@ -1,5 +1,5 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-import type { VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
+import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 import { diff3 } from "@repo/notes/text/diff3";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { isDefinedError, refusalMessage, safe } from "../api";
@@ -18,11 +18,18 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     return content;
   };
 
-  const create = async (path: string, content: string): Promise<void> => {
+  const create = async (path: string, content: string): Promise<CreateOutcome> => {
     // ifAbsent and no hash: hashing content not yet on disk names bytes the
     // server cannot match, so it refuses every create.
-    await api.vault.write({ content, ifAbsent: true, path });
-    bases.set(path, content);
+    const { error } = await safe(api.vault.write({ content, ifAbsent: true, path }));
+    if (error === null) {
+      bases.set(path, content);
+      return { kind: "created" };
+    }
+    if (isDefinedError(error) && error.code === "ALREADY_EXISTS") {
+      return { kind: "exists" };
+    }
+    throw error;
   };
 
   const write = async (path: string, content: string): Promise<WriteOutcome> => {

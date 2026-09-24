@@ -24,7 +24,6 @@ import type { ReactNode, RefObject } from "react";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
-import { safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
 import { useWorkspace } from "../workspace-context";
 import type { WorkspaceRuntime } from "../workspace-context";
@@ -174,12 +173,6 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
         }
       }
       return { entries: flat, openNote };
-    },
-    // Any refusal reads as absent: the caller's next step is a write, which
-    // reports its own failure.
-    exists: async (path) => {
-      const { error } = await safe(api.vault.read({ path }));
-      return error === null;
     },
     list: async () => listingEntries(await readVaultTree(queryClient)),
     note: io,
