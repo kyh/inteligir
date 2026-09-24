@@ -70,9 +70,9 @@ scripts/
   here produces is a branch every consumer would carry for nothing. The server
   narrows it onto `ThreadEvent` in `@repo/domain` in
   `apps/cli/src/server/agents/event-mapping.ts`, and a kind with no persisted
-  counterpart (a plan update, a tool's progress) is dropped with a reason, never
-  re-shaped. `CONTEXT.md` "event means four things" holds the four layers
-  apart.
+  counterpart (a plan update, a tool's progress, a notice) is dropped with a
+  reason, never re-shaped. `CONTEXT.md` "event means four things" holds the four
+  layers apart.
 - **A harness is a data row.** `HARNESSES` names the vendor binary, the login
   command, the adapter entry resolved through `require.resolve`, the credential
   probes the status probe checks, how a model is applied (an env var for
@@ -106,9 +106,20 @@ scripts/
 - **File-shaped tool kinds become `fileChange` items.** An `edit`/`delete`/
   `move` call lands as one `fileChange` with a change per diff or location, and
   the server's commit hold stages a turn's write set from exactly these. An
-  `execute` call is a `commandExecution`; everything else is a `toolCall`. A
+  `execute` call is a `commandExecution`, and so is a call codex names
+  `exec_command` whatever its kind, since codex kinds a shell command by what it
+  does (an `ls` is a `read`); everything else is a `toolCall`. A
   `tool_call_update`'s content REPLACES the call's content, as the protocol
-  says: claude sends a shell call's description, then its output.
+  says: claude sends a shell call's description, then its output. A call's
+  output is its content's text, else `rawOutput.formatted_output`, the only
+  place codex puts a shell command's output.
+- **What the adapter says for itself is a `provider/notice`, never the
+  message.** An ACP `notice` update lands as one, and so does the chunk codex
+  falls back to for its own warnings when the client advertises no notices:
+  `Warning: …` with no `messageId`, which every chunk the model writes carries.
+  A warning the model wrote itself stays in its message. The server has no row
+  for a notice yet, so it drops it with the notice's text as the reason, into
+  the agent log.
 - **A permission answer is one of the agent's own option ids.** The exact kind
   first, then the same allow/reject family; no offered option answers
   `cancelled`. An unrecognised tool kind falls back to the command subject,
@@ -172,19 +183,22 @@ pnpm --filter @repo/agent-runtime test
 `src/acp/__tests__/acp-mapping.test.ts` pins the pure halves: session
 notifications onto the provider-event grammar (one message item per turn,
 thoughts as one reasoning item, plans, edit-kind calls as `fileChange`, content
-replaced rather than appended, a failed tool, cancellation interrupting open
-items, every non-`end_turn` stop but a cancel failing the turn, a prompt
-rejection failing through the grammar) and permission requests onto the
-pending-interaction contract; `provider-error.test.ts` pins the auth hint.
+replaced rather than appended, a failed tool, codex's shell commands as
+`commandExecution` with their raw output, notices and codex's warning chunk as
+`provider/notice`, cancellation interrupting open items, every non-`end_turn`
+stop but a cancel failing the turn, a prompt rejection failing through the
+grammar) and permission requests onto the pending-interaction contract;
+`provider-error.test.ts` pins the auth hint.
 
 `src/acp/__tests__/acp-transcripts.test.ts` replays what the pinned adapters
 REALLY sent — `fixtures/<adapter>@<version>/*.ndjson`, one live turn per
 scenario (a reply, a plan request, a new file and an edit, a command, a failed
 command) — through the SDK's own client and the mapper, snapshots the event
 stream and the approval payloads, and asserts the write set an edit turn
-reports. The fake agent encodes beliefs about the adapters; these encode the
-adapters. Bumping an adapter pin re-records them, which spends real model calls
-and needs both vendors signed in:
+reports, the output each command item carries, and that no adapter warning
+reaches the message. The fake agent encodes beliefs about the adapters; these
+encode the adapters. Bumping an adapter pin re-records them, which spends real
+model calls and needs both vendors signed in:
 
 ```bash
 pnpm --filter @repo/agent-runtime record:transcripts   # or: … claude | codex

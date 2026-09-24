@@ -84,6 +84,13 @@ interface ProviderErrorEvent extends ProviderThreadEventData {
   message: string;
 }
 
+// the adapter speaking for itself, never the model, so it is no part of the assistant's message.
+interface ProviderNoticeEvent extends ProviderThreadEventData {
+  type: "provider/notice";
+  severity: string;
+  message: string;
+}
+
 export type ProviderEvent =
   | ({ type: "turn/started" } & ProviderThreadEventData)
   | ProviderTurnCompletedEvent
@@ -93,4 +100,5 @@ export type ProviderEvent =
   | ({ type: "item/reasoning/textDelta" } & ItemDeltaEventData)
   | ProviderToolCallProgressEvent
   | ProviderTurnPlanUpdatedEvent
-  | ProviderErrorEvent;
+  | ProviderErrorEvent
+  | ProviderNoticeEvent;

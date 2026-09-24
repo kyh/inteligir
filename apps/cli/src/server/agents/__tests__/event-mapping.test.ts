@@ -102,6 +102,23 @@ describe("provider event mapping", () => {
       "turn_host",
     );
     expect(progress).toMatchObject({ kind: "dropped" });
+
+    const notice = mapProviderEvent(
+      {
+        message: "Skill descriptions were shortened.",
+        providerThreadId: "cthr_1",
+        scope: providerScope,
+        severity: "warning",
+        threadId: "thr_1",
+        type: "provider/notice",
+      },
+      "turn_host",
+    );
+    expect(notice).toEqual({
+      kind: "dropped",
+      reason:
+        "provider/notice has no persisted mapping: warning: Skill descriptions were shortened.",
+    });
   });
 
   it("keeps a session-level provider error at thread scope", () => {

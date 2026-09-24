@@ -6,12 +6,14 @@ import type { ThreadEventFileChange, ThreadEventItemStatus } from "@repo/domain/
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
 import type {
   ContentBlock,
+  ContentChunk,
   PlanEntry,
   PromptResponse,
   SessionNotification,
   ToolCallContent,
   ToolCallLocation,
 } from "@agentclientprotocol/sdk";
+import { z } from "zod";
 import { jsonObjectSchema } from "../vocabulary/json-value.js";
 import type { JsonObject } from "../vocabulary/json-value.js";
 import type {
@@ -38,12 +40,39 @@ export interface AcpTurnContext {
 interface OpenToolCall {
   title: string;
   kind: string;
+  name: string | null;
   status: ThreadEventItemStatus;
   locations: ToolCallLocation[];
   diffs: ThreadEventFileChange[];
   outputText: string;
+  rawOutputText: string;
   rawInput?: JsonObject;
 }
+
+// codex names every shell command this but kinds it by what the command does, so an `ls` arrives
+// as a read and the kind alone would land it as a tool call.
+const CODEX_SHELL_TOOL = "exec_command";
+
+// codex reports a shell command's output here alone, never as content.
+const commandRawOutputSchema = z.looseObject({ formatted_output: z.string() });
+
+const outputOf = (open: OpenToolCall): string =>
+  open.outputText === "" ? open.rawOutputText : open.outputText;
+
+// the client advertises no notices, since nothing here can show one yet, so codex speaks its own
+// warnings as message text. every chunk the model writes carries a messageId and this one never
+// does, so the pair tells the adapter's voice from the model's.
+const CODEX_WARNING = /^Warning: (?<message>[\s\S]+?)\n\n$/u;
+
+const adapterWarning = (chunk: ContentChunk): string | null => {
+  if (
+    chunk.content.type !== "text" ||
+    (chunk.messageId !== undefined && chunk.messageId !== null)
+  ) {
+    return null;
+  }
+  return CODEX_WARNING.exec(chunk.content.text)?.groups?.message ?? null;
+};
 
 const mapToolStatus = (status: string | null | undefined): ThreadEventItemStatus => {
   if (status === "completed" || status === "failed") {
@@ -111,8 +140,15 @@ const applyToolCallUpdate = (
   if (update.kind !== undefined && update.kind !== null) {
     open.kind = update.kind;
   }
+  if (update.name !== undefined && update.name !== null) {
+    open.name = update.name;
+  }
   if (update.locations !== undefined && update.locations !== null) {
     open.locations = [...update.locations];
+  }
+  if (update.rawOutput !== undefined) {
+    const rawOutput = commandRawOutputSchema.safeParse(update.rawOutput);
+    open.rawOutputText = rawOutput.success ? rawOutput.data.formatted_output : "";
   }
   if (update.rawInput !== undefined && update.rawInput !== null) {
     const parsedInput = jsonObjectSchema.safeParse(update.rawInput);
@@ -150,7 +186,8 @@ const toolItem = (id: string, open: OpenToolCall): ProviderEventItem => {
       type: "fileChange",
     };
   }
-  if (open.kind === "execute") {
+  const output = outputOf(open);
+  if (open.kind === "execute" || open.name === CODEX_SHELL_TOOL) {
     const item: ProviderEventItem = {
       approvalStatus: null,
       command: open.title,
@@ -159,8 +196,8 @@ const toolItem = (id: string, open: OpenToolCall): ProviderEventItem => {
       status: open.status,
       type: "commandExecution",
     };
-    if (open.outputText !== "") {
-      item.aggregatedOutput = open.outputText;
+    if (output !== "") {
+      item.aggregatedOutput = output;
     }
     return item;
   }
@@ -173,8 +210,8 @@ const toolItem = (id: string, open: OpenToolCall): ProviderEventItem => {
   if (open.rawInput !== undefined) {
     item.arguments = open.rawInput;
   }
-  if (open.outputText !== "") {
-    item.result = open.outputText;
+  if (output !== "") {
+    item.result = output;
   }
   return item;
 };
@@ -223,7 +260,10 @@ export class AcpTurnMapper {
     const { update } = notification;
     switch (update.sessionUpdate) {
       case "agent_message_chunk": {
-        return this.#appendMessage(update.content);
+        const warning = adapterWarning(update);
+        return warning === null
+          ? this.#appendMessage(update.content)
+          : [this.#notice("warning", warning)];
       }
       case "agent_thought_chunk": {
         return this.#appendThought(update.content);
@@ -243,13 +283,18 @@ export class AcpTurnMapper {
           },
         ];
       }
+      case "notice": {
+        const { description, severity, title } = update;
+        const message =
+          description === undefined || description === null ? title : `${title}: ${description}`;
+        return [this.#notice(severity, message)];
+      }
       case "user_message_chunk":
       case "available_commands_update":
       case "current_mode_update":
       case "config_option_update":
       case "session_info_update":
       case "usage_update":
-      case "notice":
       case "plan_update":
       case "plan_removed":
       case "compaction_update":
@@ -258,6 +303,10 @@ export class AcpTurnMapper {
       }
       // no default
     }
+  }
+
+  #notice(severity: string, message: string): ProviderEvent {
+    return { message, severity, type: "provider/notice", ...this.#threadData() };
   }
 
   #appendMessage(content: ContentBlock): ProviderEvent[] {
@@ -307,11 +356,14 @@ export class AcpTurnMapper {
   }
 
   #openToolCall(update: SessionUpdateOf<"tool_call">): ProviderEvent[] {
+    const rawOutput = commandRawOutputSchema.safeParse(update.rawOutput);
     const open: OpenToolCall = {
       diffs: [],
       kind: update.kind ?? "other",
       locations: [...(update.locations ?? [])],
+      name: update.name ?? null,
       outputText: "",
+      rawOutputText: rawOutput.success ? rawOutput.data.formatted_output : "",
       status: mapToolStatus(update.status),
       title: update.title,
     };
