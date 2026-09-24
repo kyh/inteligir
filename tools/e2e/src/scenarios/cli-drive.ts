@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { ExecResult } from "../harness/exec";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
 const NOTE_PATH = "notes/cli-drive.md";
@@ -63,21 +63,22 @@ export const cliDrive: Scenario = {
     expect(listing.stdout.includes(NOTE_PATH), "the listing names the note");
 
     ctx.log("search finds the note (projection is async — poll)");
-    const searchDeadline = Date.now() + SEARCH_DEADLINE_MS;
-    for (;;) {
-      const search = await cli("search", NOTE_TOKEN, "--json");
-      const parsed = searchOutputSchema.safeParse(JSON.parse(search.stdout));
-      const results = parsed.success ? parsed.data.results : [];
-      if (results.length > 0) {
-        expect(
-          results.some((result) => searchHitSchema.safeParse(result).data?.path === NOTE_PATH),
-          "search names the written note",
-        );
-        break;
-      }
-      expect(Date.now() < searchDeadline, `search still empty after ${SEARCH_DEADLINE_MS}ms`);
-      await delay(250);
-    }
+    const results = await pollUntil(
+      async () => {
+        const search = await cli("search", NOTE_TOKEN, "--json");
+        const parsed = searchOutputSchema.safeParse(JSON.parse(search.stdout));
+        return parsed.success ? parsed.data.results : [];
+      },
+      (found) => found.length > 0,
+      {
+        deadlineMs: SEARCH_DEADLINE_MS,
+        describe: () => `search still empty after ${SEARCH_DEADLINE_MS}ms`,
+      },
+    );
+    expect(
+      results.some((result) => searchHitSchema.safeParse(result).data?.path === NOTE_PATH),
+      "search names the written note",
+    );
 
     ctx.log("action new + wait under the scripted driver");
     const created = await cli("action", "new", PROMPT, "--json");

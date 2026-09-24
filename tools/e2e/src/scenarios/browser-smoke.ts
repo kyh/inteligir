@@ -2,23 +2,21 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { modChord } from "../harness/agent-browser";
+import type { AgentBrowser } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
+import { EDITOR, PALETTE_INPUT, SIDEBAR } from "../harness/selectors";
 
-const agentBrowser = agentBrowserSession("smoke");
-const freshBrowser = agentBrowserSession("smoke-signed-out");
 const MOUNT_DEADLINE_MS = 60_000;
 // a late async failure must not slip in after the error sweep.
 const QUIESCENCE_MS = 1000;
 // longer than the note's save debounce, so a corrupted buffer has reached disk by the read.
 const SAVE_SETTLE_MS = 2500;
-// prefix-matched: the placeholder ends in an ellipsis that is awkward to quote through a shell.
-const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
-// agent-browser drives a browser on this machine, so the page sees this platform's modifier.
-const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
+const PALETTE_CHORD = modChord("p");
 // the one thing the signed-out page must say: the command that signs a browser in.
 const SIGNED_OUT_NAMES = "inteligir open";
 
@@ -80,6 +78,7 @@ const assertDocumentPolicy = async (app: AppInstance): Promise<void> => {
 // in a browser of its own: its cookie jar starts empty, and the signed-out page's own 401 load
 // stays out of the console the main session sweeps.
 const assertSignedOutJourney = async (
+  freshBrowser: AgentBrowser,
   app: AppInstance,
   repoRoot: string,
   log: (message: string) => void,
@@ -103,7 +102,7 @@ const assertSignedOutJourney = async (
   );
   const { url } = z.object({ url: z.string() }).parse(JSON.parse(opened.stdout));
   await freshBrowser(["open", url], 60_000);
-  await freshBrowser(["wait", '[data-slot="sidebar-wrapper"]'], 90_000);
+  await freshBrowser(["wait", SIDEBAR], 90_000);
 };
 
 export const browserSmoke: Scenario = {
@@ -112,76 +111,58 @@ export const browserSmoke: Scenario = {
   name: "browser-smoke",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
-    try {
-      ctx.log("asserting the served document carries the real policy");
-      await assertDocumentPolicy(app);
+    ctx.log("asserting the served document carries the real policy");
+    await assertDocumentPolicy(app);
 
-      await probeHeadlessOrSkip(agentBrowser, ctx.log);
+    const freshBrowser = await ctx.browser("smoke-signed-out");
+    await assertSignedOutJourney(freshBrowser, app, ctx.repoRoot, ctx.log);
+    await freshBrowser.close();
 
-      await assertSignedOutJourney(app, ctx.repoRoot, ctx.log);
-      await closeQuietly(freshBrowser);
+    const agentBrowser = await ctx.browser("smoke");
+    ctx.log(`opening ${app.baseUrl}/: the SPA mounts and the virgin-boot note opens`);
+    await agentBrowser.openWorkspace(app);
 
-      ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
+    const title = await agentBrowser(["get", "title"]);
+    expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);
 
-      ctx.log("waiting for the SPA to mount");
-      await agentBrowser(["wait", '[data-slot="sidebar-wrapper"]'], 90_000);
+    ctx.log("waiting for the page to reach the API");
+    await pollUntil(async () => await agentBrowser(["get", "text", "body"]), pageIsMounted, {
+      deadlineMs: MOUNT_DEADLINE_MS,
+      describe: (body) => `the SPA never reached the API; body text:\n${body.slice(0, 2000)}`,
+      intervalMs: 500,
+    });
 
-      ctx.log("waiting for the virgin-boot note to open in the editor");
-      await agentBrowser(["wait", '[data-slate-editor="true"]'], 90_000);
+    // disk is the oracle, not rendered text: decorations move with the caret, bytes do not, and
+    // the palette's focus steal flushes the editor, so a corrupted buffer would land.
+    ctx.log("the palette chord opens the palette without editing the note under it");
+    const welcomeFile = path.join(app.vaultDir, "Welcome.md");
+    const beforeChord = await readFile(welcomeFile, "utf-8");
+    await agentBrowser(["click", EDITOR]);
+    await agentBrowser(["press", "End"]);
+    await agentBrowser(["press", PALETTE_CHORD]);
+    await agentBrowser(["wait", PALETTE_INPUT], 30_000);
+    await agentBrowser(["press", "Escape"]);
+    await delay(SAVE_SETTLE_MS);
+    const afterChord = await readFile(welcomeFile, "utf-8");
+    expect(
+      afterChord === beforeChord,
+      `${PALETTE_CHORD} changed Welcome.md on disk:\n${JSON.stringify(afterChord)}`,
+    );
 
-      const title = await agentBrowser(["get", "title"]);
-      expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);
+    ctx.log("settling, then sweeping for page and console errors");
+    await delay(QUIESCENCE_MS);
+    const settledBody = await agentBrowser(["get", "text", "body"]);
+    expect(pageIsMounted(settledBody), "the page stays mounted through the settle window");
 
-      ctx.log("waiting for the page to reach the API");
-      const deadline = Date.now() + MOUNT_DEADLINE_MS;
-      for (;;) {
-        const body = await agentBrowser(["get", "text", "body"]);
-        if (pageIsMounted(body)) {
-          break;
-        }
-        expect(
-          Date.now() < deadline,
-          `the SPA never reached the API; body text:\n${body.slice(0, 2000)}`,
-        );
-        await delay(500);
-      }
-
-      // disk is the oracle, not rendered text: decorations move with the caret, bytes do not, and
-      // the palette's focus steal flushes the editor, so a corrupted buffer would land.
-      ctx.log("the palette chord opens the palette without editing the note under it");
-      const welcomeFile = path.join(app.vaultDir, "Welcome.md");
-      const beforeChord = await readFile(welcomeFile, "utf-8");
-      await agentBrowser(["click", '[data-slate-editor="true"]']);
-      await agentBrowser(["press", "End"]);
-      await agentBrowser(["press", PALETTE_CHORD]);
-      await agentBrowser(["wait", PALETTE_INPUT], 30_000);
-      await agentBrowser(["press", "Escape"]);
-      await delay(SAVE_SETTLE_MS);
-      const afterChord = await readFile(welcomeFile, "utf-8");
-      expect(
-        afterChord === beforeChord,
-        `${PALETTE_CHORD} changed Welcome.md on disk:\n${JSON.stringify(afterChord)}`,
-      );
-
-      ctx.log("settling, then sweeping for page and console errors");
-      await delay(QUIESCENCE_MS);
-      const settledBody = await agentBrowser(["get", "text", "body"]);
-      expect(pageIsMounted(settledBody), "the page stays mounted through the settle window");
-
-      const pageErrors = await agentBrowser(["errors"]);
-      expect(
-        pageErrors.length === 0 || /^no /iu.test(pageErrors),
-        `page errors were raised:\n${pageErrors}`,
-      );
-      const consoleOutput = await agentBrowser(["console"]);
-      const errorLines = consoleOutput
-        .split("\n")
-        .filter((line) => /^\s*\[?err(?:or)?\]?\b/iu.test(line));
-      expect(errorLines.length === 0, `console errors were logged:\n${errorLines.join("\n")}`);
-    } finally {
-      await closeQuietly(freshBrowser);
-      await closeQuietly(agentBrowser);
-    }
+    const pageErrors = await agentBrowser(["errors"]);
+    expect(
+      pageErrors.length === 0 || /^no /iu.test(pageErrors),
+      `page errors were raised:\n${pageErrors}`,
+    );
+    const consoleOutput = await agentBrowser(["console"]);
+    const errorLines = consoleOutput
+      .split("\n")
+      .filter((line) => /^\s*\[?err(?:or)?\]?\b/iu.test(line));
+    expect(errorLines.length === 0, `console errors were logged:\n${errorLines.join("\n")}`);
   },
 };

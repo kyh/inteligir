@@ -1,11 +1,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
 const WRITTEN_PATH = "notes/built.md";
@@ -47,33 +47,42 @@ export const builtCliBoot: Scenario = {
 
     ctx.log("a write through the API reaches the index");
     await app.api.vault.write({ content: `# Built\n\n${WRITTEN_TOKEN}\n`, path: WRITTEN_PATH });
-    const writeDeadline = Date.now() + DEADLINE_MS;
-    while (!(await searchFinds(app, WRITTEN_TOKEN, WRITTEN_PATH))) {
-      expect(Date.now() < writeDeadline, `search never found ${WRITTEN_PATH} (${DEADLINE_MS}ms)`);
-      await delay(POLL_INTERVAL_MS);
-    }
+    await pollUntil(
+      async () => await searchFinds(app, WRITTEN_TOKEN, WRITTEN_PATH),
+      (found) => found,
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: () => `search never found ${WRITTEN_PATH} (${DEADLINE_MS}ms)`,
+        intervalMs: POLL_INTERVAL_MS,
+      },
+    );
 
     // the child is resolved as a sibling of whichever chunk forks it, and the proxy respawns a
     // child that cannot load forever, so only an external write reaching the index proves it
     // lives. rewritten each round: the first can land before the child subscribes.
     ctx.log("a write on disk reaches the index through the forked watcher");
-    const watchDeadline = Date.now() + DEADLINE_MS;
-    let seen = false;
-    for (let round = 0; !seen; round += 1) {
-      expect(
-        Date.now() < watchDeadline,
-        `the watcher never reported an external write to ${WATCHED_PATH} (${DEADLINE_MS}ms)`,
-      );
-      await writeFile(
-        path.join(app.vaultDir, WATCHED_PATH),
-        `# Watched\n\n${WATCHED_TOKEN} round ${round}\n`,
-      );
-      const roundEnd = Date.now() + WATCH_ROUND_MS;
-      while (!seen && Date.now() < roundEnd) {
-        await delay(POLL_INTERVAL_MS);
-        seen = await searchFinds(app, WATCHED_TOKEN, WATCHED_PATH);
-      }
-    }
+    let round = 0;
+    let rewriteAt = 0;
+    await pollUntil(
+      async () => {
+        if (Date.now() >= rewriteAt) {
+          await writeFile(
+            path.join(app.vaultDir, WATCHED_PATH),
+            `# Watched\n\n${WATCHED_TOKEN} round ${round}\n`,
+          );
+          round += 1;
+          rewriteAt = Date.now() + WATCH_ROUND_MS;
+        }
+        return await searchFinds(app, WATCHED_TOKEN, WATCHED_PATH);
+      },
+      (seen) => seen,
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: () =>
+          `the watcher never reported an external write to ${WATCHED_PATH} (${DEADLINE_MS}ms)`,
+        intervalMs: POLL_INTERVAL_MS,
+      },
+    );
 
     // a client verb loads other chunks than serve does, and reads the version through the
     // package-root rule a misplaced chunk would break.

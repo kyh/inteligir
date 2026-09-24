@@ -1,17 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import {
-  agentBrowserSession,
-  closeQuietly,
-  parseEval,
-  probeHeadlessOrSkip,
-} from "../harness/agent-browser";
+import { parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
+import { EDITOR } from "../harness/selectors";
 
-const agentBrowser = agentBrowserSession("tree-ops");
 // not the note the virgin boot opens (the listing puts folders first), so the pin is a closed
 // note's guarded write and the reload below names the moved note rather than trusting the boot.
 const NOTE = "Aardvark.md";
@@ -27,7 +22,6 @@ const PNG = Buffer.from(
 );
 const FOLDER = "zoo";
 const FOLDER_NOTE = "Zebra.md";
-const EDITOR = '[data-slate-editor="true"]';
 const DISK_DEADLINE_MS = 30_000;
 const IMAGE_DEADLINE_MS = 30_000;
 
@@ -38,6 +32,11 @@ const rowActions = (vaultPath: string): string =>
 
 const readOrNull = async (filePath: string): Promise<string | null> =>
   await readFile(filePath, "utf-8").catch(() => null);
+
+interface MoveState {
+  moved: string | null;
+  original: string | null;
+}
 
 export const treeOpsBrowser: Scenario = {
   description:
@@ -54,75 +53,65 @@ export const treeOpsBrowser: Scenario = {
         await writeFile(path.join(vaultDir, FOLDER, FOLDER_NOTE), "# Zebra\n", "utf-8");
       },
     });
-    try {
-      await probeHeadlessOrSkip(agentBrowser, ctx.log);
+    const agentBrowser = await ctx.browser("tree-ops");
 
-      ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
-      await agentBrowser(["wait", EDITOR], 90_000);
+    ctx.log(`opening ${app.baseUrl}/`);
+    await agentBrowser.openWorkspace(app);
 
-      ctx.log("the rail opens on Files on a fresh profile");
-      await agentBrowser(["wait", row(NOTE)], 30_000);
+    ctx.log("the rail opens on Files on a fresh profile");
+    await agentBrowser(["wait", row(NOTE)], 30_000);
 
-      ctx.log("Pin from the row menu lands pinned: true in the frontmatter");
-      await agentBrowser(["click", rowActions(NOTE)]);
-      await agentBrowser(["find", "role", "menuitem", "click", "--name", "Pin", "--exact"]);
-      const pinDeadline = Date.now() + DISK_DEADLINE_MS;
-      for (;;) {
-        const bytes = (await readOrNull(path.join(app.vaultDir, NOTE))) ?? "";
-        if (bytes.includes("pinned: true")) {
-          expect(bytes.endsWith(DOC), `the pin rewrote more than the frontmatter:\n${bytes}`);
-          break;
-        }
-        expect(Date.now() < pinDeadline, `the pin never reached disk:\n${bytes}`);
-        await delay(250);
-      }
+    ctx.log("Pin from the row menu lands pinned: true in the frontmatter");
+    await agentBrowser(["click", rowActions(NOTE)]);
+    await agentBrowser(["find", "role", "menuitem", "click", "--name", "Pin", "--exact"]);
+    const pinned = await pollUntil(
+      async () => (await readOrNull(path.join(app.vaultDir, NOTE))) ?? "",
+      (bytes) => bytes.includes("pinned: true"),
+      {
+        deadlineMs: DISK_DEADLINE_MS,
+        describe: (bytes) => `the pin never reached disk:\n${bytes}`,
+      },
+    );
+    expect(pinned.endsWith(DOC), `the pin rewrote more than the frontmatter:\n${pinned}`);
 
-      ctx.log(`dragging ${NOTE} onto ${FOLDER}/ moves it`);
-      await agentBrowser(["drag", row(NOTE), row(FOLDER)]);
-      const moveDeadline = Date.now() + DISK_DEADLINE_MS;
-      for (;;) {
-        const moved = await readOrNull(path.join(app.vaultDir, FOLDER, NOTE));
-        const original = await readOrNull(path.join(app.vaultDir, NOTE));
-        if (moved !== null && original === null) {
-          expect(moved.includes("pinned: true"), `the move dropped the frontmatter:\n${moved}`);
-          expect(moved.includes(REBASED_URL), `the move did not re-base the image:\n${moved}`);
-          break;
-        }
-        expect(
-          Date.now() < moveDeadline,
-          `the drop never moved the note: ${FOLDER}/${NOTE} ${moved === null ? "absent" : "present"}, ${NOTE} ${original === null ? "absent" : "present"}`,
-        );
-        await delay(250);
-      }
+    ctx.log(`dragging ${NOTE} onto ${FOLDER}/ moves it`);
+    await agentBrowser(["drag", row(NOTE), row(FOLDER)]);
+    const { moved } = await pollUntil(
+      async (): Promise<MoveState> => ({
+        moved: await readOrNull(path.join(app.vaultDir, FOLDER, NOTE)),
+        original: await readOrNull(path.join(app.vaultDir, NOTE)),
+      }),
+      (state): state is { moved: string; original: null } =>
+        state.moved !== null && state.original === null,
+      {
+        deadlineMs: DISK_DEADLINE_MS,
+        describe: (state) =>
+          `the drop never moved the note: ${FOLDER}/${NOTE} ${state.moved === null ? "absent" : "present"}, ${NOTE} ${state.original === null ? "absent" : "present"}`,
+      },
+    );
+    expect(moved.includes("pinned: true"), `the move dropped the frontmatter:\n${moved}`);
+    expect(moved.includes(REBASED_URL), `the move did not re-base the image:\n${moved}`);
 
-      // a fresh load, so no image the note drew before the move can answer for it
-      ctx.log("the moved note's re-based image still loads");
-      await agentBrowser(
-        ["open", await app.browserUrl(`/?note=${encodeURIComponent(`${FOLDER}/${NOTE}`)}`)],
-        60_000,
-      );
-      await agentBrowser(["wait", EDITOR], 90_000);
-      const imageDeadline = Date.now() + IMAGE_DEADLINE_MS;
-      for (;;) {
-        const state = parseEval(
+    // a fresh load, so no image the note drew before the move can answer for it
+    ctx.log("the moved note's re-based image still loads");
+    await agentBrowser.openWorkspace(app, {
+      path: `/?note=${encodeURIComponent(`${FOLDER}/${NOTE}`)}`,
+    });
+    await pollUntil(
+      async () =>
+        parseEval(
           await agentBrowser([
             "eval",
             `JSON.stringify({ text: document.querySelector('${EDITOR}')?.textContent ?? "", loaded: document.querySelectorAll('${EDITOR} img[src^="blob:"]').length })`,
           ]),
           z.object({ loaded: z.number(), text: z.string() }),
-        );
-        if (state.text.includes(PROSE) && state.loaded > 0) {
-          break;
-        }
-        expect(
-          Date.now() < imageDeadline,
+        ),
+      (state) => state.text.includes(PROSE) && state.loaded > 0,
+      {
+        deadlineMs: IMAGE_DEADLINE_MS,
+        describe: (state) =>
           `the moved note never drew its image; the editor holds:\n${state.text}`,
-        );
-        await delay(250);
-      }
-    } finally {
-      await closeQuietly(agentBrowser);
-    }
+      },
+    );
   },
 };
