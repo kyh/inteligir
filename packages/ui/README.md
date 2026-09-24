@@ -37,6 +37,9 @@ components.json  shadcn config: base-rhea, zinc, the @fluid registry
 - `popover` keeps `anchor` passthrough.
 - `command` keeps `initialFocus` and never filters (each palette page filters
   its own rows); title and description stay inside `DialogContent`.
+- `dialog`'s `DialogPopup` is the bare popup — no card, no backdrop — with
+  `container`, `initialFocus` and `finalFocus` passthrough, for a non-modal
+  dialog that floats inside the region it serves (the ⌘K composer).
 - `sonner` uses `@repo/ui/lib/theme`, not `next-themes`.
 - `globals.css` keeps `@source "../**/*.{ts,tsx}"` so Tailwind sees this
   package through workspace imports.

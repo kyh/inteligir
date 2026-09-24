@@ -35,6 +35,7 @@ const base = { createdAt: 1000, threadId: "thr_1" };
 
 const assistant = (text: string, seq: number): TimelineRow => ({
   ...base,
+  contextPaths: [],
   id: "item:turn_1:item_a",
   kind: "conversation",
   role: "assistant",
@@ -148,8 +149,12 @@ it("names the lines a command's head leaves out", () => {
   expect(view.container.textContent).toContain("9960 more lines");
 });
 
-const userMessage = (viewContext: TimelineConversationRow["viewContext"]): TimelineRow => ({
+const userMessage = (
+  viewContext: TimelineConversationRow["viewContext"],
+  contextPaths: string[] = [],
+): TimelineRow => ({
   ...base,
+  contextPaths,
   id: "user:1",
   kind: "conversation",
   role: "user",
@@ -181,4 +186,12 @@ it("attributes a user message to what the sender was looking at", () => {
 it("renders a message with no context as the bubble alone", () => {
   const view = render(<List rows={[userMessage(null)]} />);
   expect(view.container.textContent).toBe("make this shorter");
+});
+
+it("draws the notes a message attached under its bubble, apart from the text", () => {
+  const view = render(<List rows={[userMessage(null, ["Notes/Plans.md", "Notes/Goals.md"])]} />);
+  const bubble = view.getByText("make this shorter");
+  expect(bubble.textContent).toBe("make this shorter");
+  expect(view.getByText("Notes/Plans.md")).toBeTruthy();
+  expect(view.getByText("Notes/Goals.md")).toBeTruthy();
 });

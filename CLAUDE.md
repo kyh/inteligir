@@ -115,8 +115,8 @@ apps/
                  and @repo/notes only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
-                 provider events), vendored-from-bb shapes; every package may
-                 reach it, it reaches nothing.
+                 provider events, the thread-title rule), vendored-from-bb
+                 shapes; every package may reach it, it reaches nothing.
   api/           @repo/api — ONE contract package, TWO entry points (#611).
                  `./local/*` is the oRPC contract the renderer and the CLI
                  compile against and `inteligir serve` implements: ONE folder
@@ -329,6 +329,14 @@ to the END of its group.
   column's corner. The wiki-link preview is the HoverCard (Base UI's
   PreviewCard): the pointer can move into it, the text selects, the title
   opens the note; Popover has no hover mode (`packages/editor/src/wiki-chip.tsx`).
+  The ⌘K composer is a non-modal `Dialog` whose bare `DialogPopup` mounts in
+  the note column, so it floats over the note and never the panel; Base UI
+  owns its Escape, outside press and focus, and its `finalFocus` hands focus
+  back through the editor's own `tf.focus()`, since a DOM focus on the
+  editable drops the caret at the note's start, after a `tf.blur()` that
+  only clears Slate's focus flag: a blur landing while Slate writes the DOM
+  selection leaves it set, and the focus then does nothing
+  (`apps/desktop/src/renderer/app/actions/action-composer.tsx`).
   The selection toolbar (`packages/editor/src/selection-toolbar.tsx`) is the
   one popup that is not a primitive: it is Plate's `@platejs/floating` toolbar,
   anchored to the selection rect and kept there by floating-ui's `autoUpdate`,
@@ -1031,6 +1039,29 @@ agents default`; unset falls back
   it was and keeps it out of that one session. A callback for a row removed
   mid-flow answers the page, never a 500.
   `apps/cli/src/server/connectors/oauth-flow.ts`.
+
+- **AN @-MENTION RIDES THE SEND AS `contextPaths`, NEVER AS TEXT.** The
+  stored `client/turn/requested.text` is exactly what the user typed, so the
+  timeline, the phone and a thread's title all read the message rather than a
+  prefix the desktop glued on; the server names the notes to the agent in a
+  block of its own (`composeContextPathsBlock` in
+  `apps/cli/src/server/agents/view-context-prompt.ts`), like the view context.
+  The wire holds them to the vault path grammar, one to sixteen, no repeats,
+  absent rather than empty. UNLIKE the view context, a queued send KEEPS them
+  (`queued_thread_messages.context_paths`): a mention is part of what the user
+  asked, not a statement about a screen since left, and a drained "compare
+  these" with its notes dropped asks about nothing. The panel draws them as
+  chips under the user bubble. `@repo/api/local/threads/threads-schema`.
+
+- **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER.** A thread created
+  without a title takes one from the first `client/turn/requested` that lands
+  on it, local or synced, in the transaction that appends it, and announces
+  `title-changed`; an explicit title, or one an earlier message set, stays.
+  Naming it in the desktop left every action the CLI, an agent or another
+  device started as "Untitled action". The rule is `deriveThreadTitle`
+  (`@repo/domain/thread-title`: the first visible line, cut at 60 code points),
+  which the phone's projection runs too, so both agree.
+  `apps/cli/src/server/threads/service.ts`.
 
 ### Dictation
 

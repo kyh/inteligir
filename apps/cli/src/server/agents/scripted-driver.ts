@@ -37,7 +37,7 @@ class ScriptedTurnDriver implements TurnDriver {
   startTurn(args: TurnDriverStartArgs): void {
     const scope = turnScope(args.turnId);
     const itemId = `item_${args.turnId}_message`;
-    const prompt = turnPromptInput(args.text, args.viewContext)
+    const prompt = turnPromptInput(args)
       .map((part) => part.text)
       .join("\n\n");
     const text = `Noted: ${prompt}`;

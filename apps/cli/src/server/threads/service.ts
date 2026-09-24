@@ -45,10 +45,12 @@ import {
   ensureThreadInTransaction,
   getThread,
   listThreads,
+  nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
 import type { CreateThreadInput, ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId, threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import { deriveThreadTitle } from "@repo/domain/thread-title";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import type {
@@ -62,6 +64,7 @@ import type {
   TimelineResponse,
 } from "@repo/api/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
+import { z } from "zod";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 import { ThreadTimelineProjector } from "./timeline-projection";
@@ -88,13 +91,19 @@ export type SendOutcome =
 
 type QueuedSendOutcome = Extract<SendOutcome, { kind: "queued" }>;
 
+// what a message asks its turn to carry, beside the text the user typed.
+interface TurnRequest {
+  text: string;
+  contextPaths?: readonly string[] | undefined;
+  viewContext?: ViewContext | undefined;
+}
+
 type SendDecision =
   | {
       kind: "dispatch";
       threadId: string;
       turnId: string;
-      text: string;
-      viewContext: ViewContext | undefined;
+      turn: TurnRequest;
     }
   // the queue's head starts, and the send that found it answers for its own message, queued behind it.
   | { kind: "drain"; claimed: ClaimedQueuedThreadMessageRow; outcome: QueuedSendOutcome }
@@ -201,16 +210,63 @@ const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
 };
 
 // a queued message carries no view context: it drains minutes later, long
-// after the screen it described; storing one gives away the immediacy that keeps it honest.
+// after the screen it described; storing one gives away the immediacy that keeps it honest. its
+// context paths stay: an @-mention is part of what the user asked.
 const queueInTransaction = (
   tx: DbTransaction,
   threadId: string,
-  text: string,
+  turn: TurnRequest,
   buffer: NotificationBuffer,
 ): QueuedSendOutcome => {
-  const queued = createQueuedThreadMessageInTransaction(tx, { text, threadId });
+  const queued = createQueuedThreadMessageInTransaction(tx, {
+    contextPaths: turn.contextPaths,
+    text: turn.text,
+    threadId,
+  });
   buffer.notifyThread(threadId, ["queue-changed"]);
   return { kind: "queued", queuedMessageId: queued.id };
+};
+
+const storedContextPathsSchema = z.array(z.string().min(1)).min(1);
+
+// only this process writes the column, from a parsed request; bytes that no longer parse cost the
+// message its attachments, never the message.
+const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
+  if (claimed.contextPaths === null) {
+    return { text: claimed.text };
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(claimed.contextPaths);
+  } catch {
+    return { text: claimed.text };
+  }
+  const parsed = storedContextPathsSchema.safeParse(raw);
+  return parsed.success
+    ? { contextPaths: parsed.data, text: claimed.text }
+    : { text: claimed.text };
+};
+
+// the first message a thread carries names it, whichever client sent it and on whichever device.
+const nameThreadFromRequestsInTransaction = (
+  tx: DbTransaction,
+  threadId: string,
+  events: readonly ThreadEvent[],
+  buffer: NotificationBuffer,
+): void => {
+  for (const event of events) {
+    if (event.type !== "client/turn/requested") {
+      continue;
+    }
+    const title = deriveThreadTitle(event.text);
+    if (title === null) {
+      continue;
+    }
+    if (nameUntitledThreadInTransaction(tx, { threadId, title })) {
+      buffer.notifyThread(threadId, ["title-changed"]);
+    }
+    return;
+  }
 };
 
 export class ThreadService implements ProviderEventSink {
@@ -343,24 +399,18 @@ export class ThreadService implements ProviderEventSink {
         // first: starting this one ahead of it would run the older one after an unrelated turn.
         const head = claimNextQueuedThreadMessageInTransaction(tx, thread.id);
         if (head === null) {
-          return this.prepareTurnInTransaction(
-            tx,
-            thread,
-            request.text,
-            request.viewContext,
-            buffer,
-          );
+          return this.prepareTurnInTransaction(tx, thread, request, buffer);
         }
         return {
           claimed: head,
           kind: "drain",
-          outcome: queueInTransaction(tx, thread.id, request.text, buffer),
+          outcome: queueInTransaction(tx, thread.id, request, buffer),
         };
       }
       case "active":
       case "starting":
       case "stopping": {
-        return { kind: "done", outcome: queueInTransaction(tx, thread.id, request.text, buffer) };
+        return { kind: "done", outcome: queueInTransaction(tx, thread.id, request, buffer) };
       }
       // no default
     }
@@ -370,8 +420,7 @@ export class ThreadService implements ProviderEventSink {
   private prepareTurnInTransaction(
     tx: DbTransaction,
     thread: ThreadRow,
-    text: string,
-    viewContext: ViewContext | undefined,
+    turn: TurnRequest,
     buffer: NotificationBuffer,
   ): SendDecision {
     const threadId = thread.id;
@@ -393,32 +442,39 @@ export class ThreadService implements ProviderEventSink {
     buffer.notifyThread(threadId, ["status-changed"]);
     const requested: Extract<ThreadEvent, { type: "client/turn/requested" }> = {
       scope: threadScope(),
-      text,
+      text: turn.text,
       threadId,
       type: "client/turn/requested",
     };
-    if (viewContext !== undefined) {
-      requested.viewContext = viewContext;
+    if (turn.contextPaths !== undefined) {
+      requested.contextPaths = [...turn.contextPaths];
+    }
+    if (turn.viewContext !== undefined) {
+      requested.viewContext = turn.viewContext;
     }
     this.appendLocal(tx, [requested]);
     buffer.notifyThread(threadId, ["events-appended"]);
+    nameThreadFromRequestsInTransaction(tx, threadId, [requested], buffer);
     return {
       kind: "dispatch",
-      text,
       threadId,
+      turn,
       turnId: createTurnId(),
-      viewContext,
     };
   }
 
   private dispatchTurn(decision: Extract<SendDecision, { kind: "dispatch" }>): SendOutcome {
+    const { turn } = decision;
     const start: TurnDriverStartArgs = {
-      text: decision.text,
+      text: turn.text,
       threadId: decision.threadId,
       turnId: decision.turnId,
     };
-    if (decision.viewContext !== undefined) {
-      start.viewContext = decision.viewContext;
+    if (turn.contextPaths !== undefined) {
+      start.contextPaths = turn.contextPaths;
+    }
+    if (turn.viewContext !== undefined) {
+      start.viewContext = turn.viewContext;
     }
     try {
       this.driver.startTurn(start);
@@ -555,6 +611,7 @@ export class ThreadService implements ProviderEventSink {
         this.appendLocal(tx, events);
       }
       buffer.notifyThread(threadId, ["events-appended"]);
+      nameThreadFromRequestsInTransaction(tx, threadId, projected, buffer);
       for (const event of projected) {
         const lifecycleEvent = lifecycleEventFor(event);
         if (lifecycleEvent === null) {
@@ -600,7 +657,7 @@ export class ThreadService implements ProviderEventSink {
       if (thread === null) {
         return { kind: "done", outcome: { kind: "not-found" } };
       }
-      const prepared = this.prepareTurnInTransaction(tx, thread, claimed.text, undefined, buffer);
+      const prepared = this.prepareTurnInTransaction(tx, thread, queuedTurn(claimed), buffer);
       if (prepared.kind === "dispatch") {
         deleteClaimedQueuedThreadMessageInTransaction(tx, claimed);
         buffer.notifyThread(threadId, ["queue-changed"]);

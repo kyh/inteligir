@@ -1,5 +1,6 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
+import { threadScope } from "@repo/domain/thread-event-scope";
 import { writeTransaction } from "@repo/db/connection";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import {
@@ -226,6 +227,109 @@ describe("the view context a message carries", () => {
     );
     // the path grammar rides the input schema, so the refusal is oRPC's own BAD_REQUEST rather than a declared class.
     expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
+  });
+});
+
+const userRow = async (client: ThreadsClient, threadId: string, text: string) => {
+  const row = timelineRows(await fetchTimeline(client, threadId)).find(
+    (candidate) => candidate.kind === "conversation" && candidate.text === text,
+  );
+  if (row?.kind !== "conversation") {
+    throw new Error(`expected the conversation row for "${text}"`);
+  }
+  return row;
+};
+
+const threadTitle = async (client: ThreadsClient, threadId: string): Promise<string | null> => {
+  const detail = await client.threads.get({ threadId });
+  return detail.thread.title;
+};
+
+describe("the notes a message attaches", () => {
+  const ATTACHED = ["Notes/Plans.md", "Notes/Goals.md"];
+
+  it("reach the driver and the timeline beside the text, which stays what was typed", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ contextPaths: ATTACHED, text: "compare these", threadId });
+
+    expect(driver.startedTurns[0]?.text).toBe("compare these");
+    expect(driver.startedTurns[0]?.contextPaths).toEqual(ATTACHED);
+    const row = await userRow(client, threadId, "compare these");
+    expect(row.contextPaths).toEqual(ATTACHED);
+  });
+
+  it("are KEPT by a queued send, unlike its view context", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    const queued = await client.threads.send({
+      contextPaths: ATTACHED,
+      text: "then these",
+      threadId,
+    });
+    expect(queued.kind).toBe("queued");
+
+    driver.completeTurn(threadId, started.turnId, "completed");
+    expect(driver.startedTurns[1]?.contextPaths).toEqual(ATTACHED);
+    const row = await userRow(client, threadId, "then these");
+    expect(row.contextPaths).toEqual(ATTACHED);
+  });
+
+  it("refuses a path outside the vault, an empty list and a repeated note", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    for (const contextPaths of [["../outside.md"], [], ["a.md", "a.md"]]) {
+      const [error] = await safe(client.threads.send({ contextPaths, text: "hi", threadId }));
+      expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
+    }
+  });
+});
+
+describe("a thread's title", () => {
+  it("comes from the first message when the thread was created without one", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "\n  Tidy the intro  \nand the outro", threadId });
+    expect(await threadTitle(client, threadId)).toBe("Tidy the intro");
+
+    await client.threads.send({ text: "a later message", threadId });
+    expect(await threadTitle(client, threadId)).toBe("Tidy the intro");
+  });
+
+  it("keeps a title the thread was created with", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const { thread } = await client.threads.create({ title: "Chosen" });
+    await client.threads.send({ text: "Tidy the intro", threadId: thread.id });
+    expect(await threadTitle(client, thread.id)).toBe("Chosen");
+  });
+
+  it("names a thread another device started, from the request that synced in", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier: noopNotifier,
+    });
+    service.applySyncedEvents({
+      cursor: 1,
+      rows: [
+        {
+          event: {
+            scope: threadScope(),
+            text: "Plan the offsite",
+            threadId: "thr_remote",
+            type: "client/turn/requested",
+          },
+          origin: { deviceId: "dev_other", deviceSeq: 1 },
+        },
+      ],
+      threadId: "thr_remote",
+    });
+    expect(await threadTitle(client, "thr_remote")).toBe("Plan the offsite");
   });
 });
 

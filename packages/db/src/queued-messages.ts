@@ -25,6 +25,7 @@ const requireClaimedQueuedThreadMessage = (
 export interface CreateQueuedThreadMessageInput {
   threadId: string;
   text: string;
+  contextPaths?: readonly string[] | undefined;
 }
 
 // fixed-width ms timestamp so lexicographic order is arrival order; extended past the tail when
@@ -54,6 +55,7 @@ export const createQueuedThreadMessageInTransaction = (
     .values({
       claimToken: null,
       claimedAt: null,
+      contextPaths: input.contextPaths === undefined ? null : JSON.stringify(input.contextPaths),
       createdAt: now,
       id: createQueuedThreadMessageId(),
       sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),

@@ -251,6 +251,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   }, [noteStore]);
 
   const actionsRef = useRef<VaultActions | null>(null);
+  const noteColumnRef = useRef<HTMLElement | null>(null);
   const setOpenNote = useCallback(
     (path: string | null): void => {
       if (path === null) {
@@ -634,7 +635,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               width={initialPanelWidth}
             >
               <SidebarWidthPersistence write={writePanelWidth} />
-              <SidebarInset className="relative bg-surface">
+              <SidebarInset ref={noteColumnRef} className="relative bg-surface">
                 {zen ? null : (
                   <NoteTopbar
                     path={openPath}
@@ -684,6 +685,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                   docPath={openPath}
                   readViewContext={readViewContext}
                   onLaunched={openThread}
+                  container={noteColumnRef}
                 />
               </SidebarInset>
               <Sidebar side="right" className="h-full print:hidden">

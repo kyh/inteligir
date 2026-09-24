@@ -40,7 +40,8 @@ src/
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
                          # seven item kinds, twelve event types, scope refined
                          # at parse. `client/turn/requested` carries the
-                         # optional viewContext beside bb's `text`.
+                         # optional viewContext and contextPaths beside bb's
+                         # `text`, which stays exactly what the user typed.
                          # `mergeAdjacentDeltas` stores one item's adjacent
                          # deltas as one row, a reset opening a new run and a
                          # caller's cap bounding each. `settledReasoningText`
@@ -53,6 +54,9 @@ src/
   view-context.ts        # the screen a message left from: `doc` + path +
                          # sha-256 revision. a single-member discriminatedUnion
                          # so a second surface breaks every consumer at compile
+  thread-title.ts        # `deriveThreadTitle`: a thread's name from its first
+                         # message, the one reading the server's naming and
+                         # the phone's projection both run
   pending-interactions.ts  # the provider-neutral approval grammar — subjects
                          # (command | file_change), decisions, payload,
                          # resolution — and `parseApprovalResolution`, the ONE
@@ -94,8 +98,8 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   settle validated against turn A cannot land after turn B bound.
 - **Vendored from bb, and the header says so.** Every file that came from bb
   keeps `// Vendored from bb (github.com/get-bb/bb), MIT.` on its first line;
-  the licence text is `tools/licenses/bb.LICENSE`; `view-context.ts` is this
-  repo's own. Rename, trim and restructure freely — the attribution line is
+  the licence text is `tools/licenses/bb.LICENSE`; `view-context.ts` and
+  `thread-title.ts` are this repo's own. Rename, trim and restructure freely — the attribution line is
   the one thing a vendored file must keep.
 - **A view context rides the message.** Never a thread column, never a
   mutable "current view": it describes the screen a message left from, so

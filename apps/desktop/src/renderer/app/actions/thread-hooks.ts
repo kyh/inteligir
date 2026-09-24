@@ -31,6 +31,7 @@ const MOVES_THE_TIMELINE = {
   "queue-changed": false,
   "status-changed": true,
   "thread-created": false,
+  "title-changed": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 
 export const useThreadTimeline = (threadId: string | null): ThreadTimeline | null => {

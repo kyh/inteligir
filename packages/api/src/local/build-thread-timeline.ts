@@ -168,10 +168,11 @@ const projectItem = (accumulator: ItemAccumulator): PlacedRow | null => {
     case "userMessage": {
       const row: TimelineConversationRow = {
         ...base,
+        // a provider's echo of the user's message: the context belongs to the send that recorded it
+        contextPaths: [],
         kind: "conversation",
         role: "user",
         text: snapshot.text,
-        // a provider's echo of the user's message: the context belongs to the send that recorded it
         viewContext: null,
       };
       return { placement: "top-level", row };
@@ -179,6 +180,7 @@ const projectItem = (accumulator: ItemAccumulator): PlacedRow | null => {
     case "agentMessage": {
       const row: TimelineConversationRow = {
         ...base,
+        contextPaths: [],
         kind: "conversation",
         role: "assistant",
         text: settled ? snapshot.text : snapshot.text + accumulator.textBuffer,
@@ -386,6 +388,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
     switch (event.type) {
       case "client/turn/requested": {
         const row: TimelineConversationRow = {
+          contextPaths: event.contextPaths ?? [],
           createdAt: entry.createdAt,
           id: `user:${entry.sequence}`,
           kind: "conversation",

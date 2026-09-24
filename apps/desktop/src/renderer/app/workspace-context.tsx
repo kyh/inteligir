@@ -63,6 +63,7 @@ const MOVES_THE_LIST = {
   "queue-changed": false,
   "status-changed": true,
   "thread-created": true,
+  "title-changed": true,
 } satisfies Record<ThreadChangeKind, boolean>;
 
 const MOVES_THE_DETAIL = {
@@ -73,6 +74,7 @@ const MOVES_THE_DETAIL = {
   "queue-changed": true,
   "status-changed": true,
   "thread-created": true,
+  "title-changed": true,
 } satisfies Record<ThreadChangeKind, boolean>;
 
 const movesAny = (

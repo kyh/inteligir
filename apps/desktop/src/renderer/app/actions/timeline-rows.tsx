@@ -10,7 +10,9 @@ import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
+import { Badge } from "@repo/ui/components/badge";
 import { cn } from "@repo/ui/lib/cn";
+import { FileTextIcon } from "lucide-react";
 import { memo } from "react";
 import type { ReactNode } from "react";
 
@@ -25,6 +27,17 @@ const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
 const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
   <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
     {context.resource}
+  </div>
+);
+
+const ContextPathChips = ({ paths }: { paths: readonly string[] }) => (
+  <div className="flex max-w-[85%] flex-wrap justify-end gap-1">
+    {paths.map((path) => (
+      <Badge key={path} variant="outline" className="gap-1 bg-surface-raised">
+        <FileTextIcon className="size-3" />
+        {path}
+      </Badge>
+    ))}
   </div>
 );
 
@@ -189,6 +202,7 @@ const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
             <div className="max-w-[85%] rounded-2xl bg-surface-raised px-3 py-1.5 text-subtitle whitespace-pre-wrap shadow-surface-1">
               {row.text}
             </div>
+            {row.contextPaths.length === 0 ? null : <ContextPathChips paths={row.contextPaths} />}
             {row.viewContext === null ? null : <ViewContextAttribution context={row.viewContext} />}
           </div>
         );

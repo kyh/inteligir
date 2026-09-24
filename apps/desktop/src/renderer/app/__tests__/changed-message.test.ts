@@ -232,6 +232,7 @@ describe("a thread change", () => {
     "status-changed",
     "archived-changed",
     "origin-changed",
+    "title-changed",
   ];
   const MOVES_DETAIL_ALONE: readonly ThreadChangeKind[] = ["queue-changed", "interactions-changed"];
   const MOVES_NEITHER: readonly ThreadChangeKind[] = ["events-appended"];

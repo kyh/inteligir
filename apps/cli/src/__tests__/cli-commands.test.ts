@@ -72,6 +72,7 @@ const SHOW_TIMELINE: ThreadTimeline = {
   maxSequence: 3,
   rows: [
     {
+      contextPaths: [],
       createdAt: 1_700_000_000_001,
       id: "user:1",
       kind: "conversation",
@@ -110,6 +111,7 @@ const SHOW_TIMELINE: ThreadTimeline = {
       turnId: "turn_1",
     },
     {
+      contextPaths: [],
       createdAt: 1_700_000_000_003,
       id: "item:turn_1:msg",
       kind: "conversation",

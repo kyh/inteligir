@@ -132,6 +132,18 @@ export const rebindThreadOrigins = (
   return moved.length;
 };
 
+// fills an empty title only: an explicit one, or one an earlier message already set, stays.
+export const nameUntitledThreadInTransaction = (
+  tx: DbTransaction,
+  args: { threadId: string; title: string },
+): boolean =>
+  tx
+    .update(threads)
+    .set({ title: args.title, updatedAt: Date.now() })
+    .where(and(eq(threads.id, args.threadId), isNull(threads.title)))
+    .returning({ id: threads.id })
+    .get() !== undefined;
+
 export const archiveThread = (
   db: DbConnection,
   notifier: DbNotifier,

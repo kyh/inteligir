@@ -104,6 +104,9 @@ export const queuedThreadMessages = sqliteTable(
     sortKey: text("sort_key").notNull(),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
+    // json array of vault paths, null for none. Kept, unlike the view context the queue drops:
+    // an @-mention is part of what the user asked, not a statement about a screen since left.
+    contextPaths: text("context_paths"),
   },
   (table) => [
     index("queued_thread_messages_thread_sort_idx").on(table.threadId, table.sortKey, table.id),

@@ -23,6 +23,8 @@ export const timelineRowBaseSchema = z.object({
 export type TimelineRowBase = z.infer<typeof timelineRowBaseSchema>;
 
 export const timelineConversationRowSchema = timelineRowBaseSchema.extend({
+  // the notes a user message attached; empty on every other row
+  contextPaths: z.array(z.string()),
   kind: z.literal("conversation"),
   role: z.enum(["user", "assistant"]),
   text: z.string(),

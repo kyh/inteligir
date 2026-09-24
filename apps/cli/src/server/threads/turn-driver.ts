@@ -13,6 +13,7 @@ export interface TurnDriverStartArgs {
   threadId: string;
   turnId: string;
   text: string;
+  contextPaths?: readonly string[];
   viewContext?: ViewContext;
 }
 
