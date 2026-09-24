@@ -11,7 +11,7 @@ export const connectorNameSchema = z
   .string()
   .min(1)
   .max(CONNECTOR_NAME_MAX_LENGTH)
-  .regex(CONNECTOR_NAME_PATTERN, "use letters, numbers, '-' and '_' only");
+  .regex(CONNECTOR_NAME_PATTERN, "must use letters, numbers, '-' and '_' only");
 
 const HTTP_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
 
