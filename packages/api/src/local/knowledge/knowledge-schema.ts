@@ -1,8 +1,10 @@
-// each schema mirrors an engine type: a field the engine adds passes structural assignment
-// unseen, and only the strict parse catches it. a capped response carries `total`, and
-// `array.length < total` is the truncation test; no second flag can disagree with the arrays.
+// each row schema mirrors an engine type, and `__tests__/engine-mirror.test.ts` holds the two
+// equal at compile time: a field the engine adds would otherwise pass structural assignment
+// unseen. the mirrored optionals are exactOptional because the engine's are exact. a capped
+// response carries `total`, and `array.length < total` is the truncation test; no second flag
+// can disagree with the arrays.
 
-import { isTagName } from "@repo/notes/knowledge/link-extract";
+import { LINK_KINDS, isTagName } from "@repo/notes/knowledge/link-extract";
 import { z } from "zod";
 import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";
 
@@ -127,7 +129,7 @@ export type KnowledgeUnlinkedMentionsResponse = z.infer<
   typeof knowledgeUnlinkedMentionsResponseSchema
 >;
 
-export const linkKindSchema = z.enum(["wiki", "md", "image"]);
+export const linkKindSchema = z.enum(LINK_KINDS);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;
 
 // what the graph cannot resolve: five families, each capped on its own with its own total.
@@ -189,7 +191,7 @@ export type KnowledgeProblemsResponse = z.infer<typeof knowledgeProblemsResponse
 
 export const backlinkEntrySchema = z
   .object({
-    alias: z.string().optional(),
+    alias: z.string().exactOptional(),
     embed: z.boolean(),
     kind: linkKindSchema,
     // 1-based
@@ -202,10 +204,10 @@ export type BacklinkEntryWire = z.infer<typeof backlinkEntrySchema>;
 
 export const wikiTargetSchema = z
   .object({
-    aliases: z.array(z.string()).optional(),
-    id: z.string().min(1).optional(),
+    aliases: z.array(z.string()).exactOptional(),
+    id: z.string().min(1).exactOptional(),
     path: z.string().min(1),
-    pinned: z.boolean().optional(),
+    pinned: z.boolean().exactOptional(),
     title: z.string(),
     type: z.enum(["doc", "asset"]),
   })

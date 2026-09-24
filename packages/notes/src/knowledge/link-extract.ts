@@ -20,7 +20,9 @@ export interface Span {
   start: number;
   end: number;
 }
-export type LinkKind = "wiki" | "md" | "image";
+
+export const LINK_KINDS = ["wiki", "md", "image"] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
 
 export interface ExtractedLink {
   kind: LinkKind;

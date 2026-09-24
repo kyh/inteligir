@@ -13,7 +13,6 @@ import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { base64FromBytes } from "@repo/api/cloud/bytes";
-import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
@@ -64,21 +63,6 @@ const listingEntries = (tree: VaultTreeResponse): VaultEntry[] =>
 const readFile = async (api: Api, path: string): Promise<string> => {
   const { content } = await api.vault.read({ path });
   return content;
-};
-
-// exactOptionalPropertyTypes: the wire's optional members may hold an explicit undefined.
-const editorWikiTarget = ({ aliases, id, pinned, ...row }: WikiTargetWire): WikiTarget => {
-  const target: WikiTarget = row;
-  if (aliases !== undefined) {
-    target.aliases = aliases;
-  }
-  if (id !== undefined) {
-    target.id = id;
-  }
-  if (pinned !== undefined) {
-    target.pinned = pinned;
-  }
-  return target;
 };
 
 export interface VaultProviderProps {
@@ -244,10 +228,7 @@ export const VaultProvider = ({
   const queryClient = useQueryClient();
 
   const wikiTargetsQuery = useWikiTargets();
-  const wikiTargets = useMemo(
-    () => (wikiTargetsQuery.data?.targets ?? []).map(editorWikiTarget),
-    [wikiTargetsQuery.data],
-  );
+  const wikiTargets = useMemo(() => wikiTargetsQuery.data?.targets ?? [], [wikiTargetsQuery.data]);
 
   const port = useMemo<VaultPort>(
     () => createVaultPort({ api, bootPath, queryClient, store }),
@@ -282,16 +263,7 @@ export const VaultProvider = ({
       actions: session.actions,
       getBacklinks: async ({ path }) => {
         const body = await api.knowledge.backlinks({ path }).catch(() => null);
-        if (body === null) {
-          return [];
-        }
-        // exactOptionalPropertyTypes: drop the explicit-undefined member.
-        return body.backlinks.map(({ alias, ...row }) => {
-          if (alias !== undefined) {
-            return Object.assign(row, { alias });
-          }
-          return row;
-        });
+        return body === null ? [] : body.backlinks;
       },
       linkResolver: port.linkResolver,
       onVaultChanged: (listener) => vaultChanges.subscribe(listener),
