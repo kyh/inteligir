@@ -115,14 +115,14 @@ const WikiChip = ({ body }: { body: string }) => {
         <HoverCardTrigger delay={HOVER_PREVIEW_DELAY_MS} render={chip} />
         <HoverCardContent className="max-h-72 overflow-y-auto p-0">
           {resolved === null ? (
-            <p className="px-3 py-2.5 text-xs text-muted-foreground">
+            <p className="px-3 py-2.5 text-body text-muted-foreground">
               Not created yet — click to create
             </p>
           ) : (
             <>
               <button
                 type="button"
-                className="block w-full px-3 pt-2.5 pb-1 text-left text-xs font-medium hover:underline"
+                className="block w-full px-3 pt-2.5 pb-1 text-left text-body font-medium hover:underline"
                 onClick={() => {
                   closePreview();
                   openFile(resolved);
@@ -130,7 +130,7 @@ const WikiChip = ({ body }: { body: string }) => {
               >
                 {docStem(resolved)}
               </button>
-              <div className="px-3 pb-3 text-xs whitespace-pre-wrap select-text">
+              <div className="px-3 pb-3 text-body whitespace-pre-wrap select-text">
                 <PreviewBody text={previewText} />
               </div>
             </>
@@ -146,7 +146,7 @@ const WikiChip = ({ body }: { body: string }) => {
                 setCreateOpen(false);
                 void createFile(parsed.target);
               }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent hover:text-accent-foreground"
             >
               <FilePlusIcon className="size-4 text-muted-foreground" />
               <span>

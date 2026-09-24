@@ -376,9 +376,9 @@ const OpenFindBar = () => {
               cycleFindMatch(editor, event.shiftKey ? -1 : 1);
             }
           }}
-          className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+          className="w-40 bg-transparent text-subtitle outline-none placeholder:text-muted-foreground/60"
         />
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+        <span className="shrink-0 text-body tabular-nums text-muted-foreground">
           {counter.count === 0 ? "0/0" : `${counter.index + 1}/${counter.count}`}
         </span>
         <Tooltip content="Close find bar">
@@ -421,7 +421,7 @@ const OpenFindBar = () => {
                 replaceActiveMatch(editor);
               }
             }}
-            className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+            className="w-40 bg-transparent text-subtitle outline-none placeholder:text-muted-foreground/60"
           />
           <Tooltip content="Replace (Enter)">
             <button
@@ -431,7 +431,7 @@ const OpenFindBar = () => {
               onClick={() => {
                 replaceActiveMatch(editor);
               }}
-              className={cn(BAR_BUTTON_CLASS, "px-1 text-xs")}
+              className={cn(BAR_BUTTON_CLASS, "px-1 text-body")}
             >
               Replace
             </button>
@@ -446,7 +446,7 @@ const OpenFindBar = () => {
               onClick={() => {
                 replaceAllMatches(editor);
               }}
-              className={cn(BAR_BUTTON_CLASS, "px-1 text-xs")}
+              className={cn(BAR_BUTTON_CLASS, "px-1 text-body")}
             >
               All
             </button>

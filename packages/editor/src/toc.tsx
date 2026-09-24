@@ -199,7 +199,7 @@ export const TableOfContents = () => {
               }}
               style={{ paddingLeft: `${8 + 12 * (h.depth - 1)}px` }}
               className={cn(
-                "block w-full truncate rounded-md py-1 pr-2 text-left text-xs transition-colors hover:bg-accent",
+                "block w-full truncate rounded-md py-1 pr-2 text-left text-body transition-colors hover:bg-accent",
                 i === activeIndex ? "font-medium text-foreground" : "text-muted-foreground",
               )}
             >

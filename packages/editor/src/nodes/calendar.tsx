@@ -27,9 +27,9 @@ export const Calendar = ({ className, classNames, ...props }: DayPickerProps) =>
     classNames={{
       button_next: NAV_BUTTON,
       button_previous: NAV_BUTTON,
-      caption_label: "text-sm font-medium",
+      caption_label: "text-subtitle font-medium",
       chevron: "size-4 fill-current",
-      day: "p-0 text-center text-sm",
+      day: "p-0 text-center text-body",
       day_button: cn(
         buttonVariants({ size: "icon", variant: "ghost" }),
         "size-8 rounded-md font-normal hover:bg-hover dark:hover:bg-hover",
@@ -47,7 +47,7 @@ export const Calendar = ({ className, classNames, ...props }: DayPickerProps) =>
         "[&_button]:bg-primary [&_button]:text-primary-foreground [&_button]:hover:bg-primary [&_button]:hover:text-primary-foreground",
       today: "[&_button]:font-medium [&_button]:ring-1 [&_button]:ring-ring/50",
       week: "mt-1 flex w-full",
-      weekday: "w-8 text-[0.8rem] font-normal text-muted-foreground",
+      weekday: "w-8 text-caption font-normal text-muted-foreground",
       weekdays: "flex",
       ...classNames,
     }}

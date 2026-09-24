@@ -66,7 +66,7 @@ export const MermaidPreview = ({ code }: { code: string }) => {
   return (
     <div contentEditable={false} className="my-1 select-none">
       {errorText ? (
-        <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+        <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-body text-destructive">
           <span className="font-medium">Mermaid:</span>
           <span className="truncate">{errorText}</span>
         </div>

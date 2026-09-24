@@ -415,7 +415,7 @@ const SlashInputElement = (props: PlateElementProps) => {
                   </div>
                   <div className="ml-2.5 flex flex-1 flex-col truncate">
                     <span>{item.label}</span>
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="truncate text-body text-muted-foreground">
                       {item.description}
                     </span>
                   </div>

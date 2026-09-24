@@ -12,7 +12,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
 const FIELD_CLASS =
-  "h-7 border-transparent bg-transparent px-1.5 text-sm shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
+  "h-7 border-transparent bg-transparent px-1.5 text-body shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
 
 // buffered so the document isn't re-serialized on every keystroke.
 const useBuffer = (value: string, commit: (next: string) => void) => {
@@ -136,7 +136,7 @@ export const TagsField = ({
       {prop.value.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-0.5 rounded-[6px] bg-muted px-1.5 py-0.5 text-xs text-foreground"
+          className="inline-flex items-center gap-0.5 rounded-[6px] bg-muted px-1.5 py-0.5 text-caption text-foreground"
         >
           {tag}
           <Tooltip content={`Remove ${tag}`}>
@@ -175,10 +175,10 @@ export const TagsField = ({
         aria-label={`${prop.key} tags`}
         aria-invalid={refused || undefined}
         aria-describedby={refused ? hintId : undefined}
-        className="min-w-16 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 aria-invalid:text-destructive"
+        className="min-w-16 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground/60 aria-invalid:text-destructive"
       />
       {refused ? (
-        <p id={hintId} className="basis-full text-xs text-destructive">
+        <p id={hintId} className="basis-full text-body text-destructive">
           A tag starts with a letter and holds only letters, digits, -, _ and /.
         </p>
       ) : null}
@@ -196,7 +196,7 @@ export const UnsupportedField = ({
       title="Unsupported YAML — preserved byte-for-byte."
       className={cn(
         "max-w-full overflow-x-auto rounded-[6px] bg-muted/60 px-1.5 py-0.5",
-        "font-mono text-xs whitespace-pre text-muted-foreground",
+        "font-mono text-body whitespace-pre text-muted-foreground",
       )}
     >
       {prop.rawYaml === "" ? "—" : prop.rawYaml}

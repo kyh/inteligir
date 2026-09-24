@@ -28,7 +28,7 @@ export const FileElement = (props: PlateElementProps) => {
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              "flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm",
+              "flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-subtitle",
               focused && selected && "ring-2 ring-ring ring-offset-2",
             )}
           >

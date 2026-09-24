@@ -51,7 +51,7 @@ const EmbedChip = ({ body, note }: { body: string; note?: string | undefined }) 
     </span>
     <WikiChip body={body} />
     {note !== undefined && (
-      <span className="ml-1 text-xs text-muted-foreground italic" contentEditable={false}>
+      <span className="ml-1 text-body text-muted-foreground italic" contentEditable={false}>
         ({note})
       </span>
     )}
@@ -261,7 +261,7 @@ const BlockquoteStatic = (props: SlateElementProps) => {
     >
       <div
         className={cn(
-          "flex items-center gap-1.5 py-[3px] text-[13px] leading-[1.3] font-semibold select-none",
+          "flex items-center gap-1.5 py-[3px] text-subtitle leading-[1.3] font-semibold select-none",
           icon,
         )}
         contentEditable={false}
@@ -394,7 +394,7 @@ const TransclusionBody = ({ content }: { content: string }) => {
     [parsed],
   );
   if (content.trim() === "") {
-    return <span className="text-sm text-muted-foreground italic">This note is empty.</span>;
+    return <span className="text-subtitle text-muted-foreground italic">This note is empty.</span>;
   }
   if (!editor) {
     return <pre className="whitespace-pre-wrap">{content}</pre>;
@@ -436,7 +436,7 @@ const Transclusion = ({ body }: { body: string }) => {
         <button
           type="button"
           onClick={onOpen}
-          className="cursor-pointer truncate text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+          className="cursor-pointer truncate text-body font-medium text-muted-foreground transition-colors hover:text-primary"
         >
           {title}
         </button>

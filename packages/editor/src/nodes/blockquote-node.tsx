@@ -98,7 +98,7 @@ export const BlockquoteElement = (props: PlateElementProps) => {
         <div
           contentEditable={false}
           className={cn(
-            "flex items-center gap-1.5 py-[3px] text-[13px] leading-[1.3] font-semibold select-none",
+            "flex items-center gap-1.5 py-[3px] text-subtitle leading-[1.3] font-semibold select-none",
             icon,
             selected && "hidden",
           )}

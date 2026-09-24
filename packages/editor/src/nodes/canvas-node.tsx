@@ -272,7 +272,7 @@ const SketchToolButton = ({
   <button
     type="button"
     className={cn(
-      "rounded-sm px-1.5 py-0.5 text-xs",
+      "rounded-sm px-1.5 py-0.5 text-body",
       active ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
     )}
     onClick={onClick}
@@ -296,7 +296,7 @@ const CanvasActions = ({
     return (
       <button
         type="button"
-        className="text-xs text-muted-foreground hover:text-foreground"
+        className="text-body text-muted-foreground hover:text-foreground"
         onClick={() => {
           onMode("view");
         }}
@@ -313,7 +313,7 @@ const CanvasActions = ({
       {canSketch ? (
         <button
           type="button"
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-body text-muted-foreground hover:text-foreground"
           onClick={() => {
             onMode("sketch");
           }}
@@ -323,7 +323,7 @@ const CanvasActions = ({
       ) : null}
       <button
         type="button"
-        className="text-xs text-muted-foreground hover:text-foreground"
+        className="text-body text-muted-foreground hover:text-foreground"
         onClick={() => {
           onMode("raw");
         }}

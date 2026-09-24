@@ -25,7 +25,7 @@ const OpaqueBlockElement = (props: PlateElementProps) => (
     <pre
       contentEditable={false}
       title="Not editable here — preserved byte-for-byte"
-      className="overflow-x-auto rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 font-mono text-muted-foreground text-sm whitespace-pre select-none"
+      className="overflow-x-auto rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 font-mono text-muted-foreground whitespace-pre select-none"
     >
       {stringProp(props.element, "value") ?? ""}
     </pre>
