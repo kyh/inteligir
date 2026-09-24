@@ -10,6 +10,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   deviceHeaders,
+  emitted,
   loginDevice,
   ORIGIN,
   PASSWORD,
@@ -45,7 +46,7 @@ const activeDevices = async (userId: string) =>
 
 const expectInvalidCredentials = async (response: Response): Promise<void> => {
   expect(response.status).toBe(401);
-  const body = cloudErrorSchema.parse(await response.json());
+  const body = emitted(cloudErrorSchema, await response.text());
   expect(body.error.code).toBe("invalid-credentials");
   expect(body.error.message).toBe("Wrong email or password.");
 };
@@ -60,7 +61,7 @@ describe("device login", () => {
     const response = await postLogin({ deviceName: "Test Laptop", email, password: PASSWORD });
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const logged = deviceLoginResponseSchema.parse(await response.json());
+    const logged = emitted(deviceLoginResponseSchema, await response.text());
     expect(logged.credential.startsWith("igd_")).toBe(true);
 
     const pulled = await pull(logged.credential);
@@ -90,7 +91,7 @@ describe("device login", () => {
     const listed = await SELF.fetch(`${ORIGIN}/v1/device/list`, {
       headers: sessionHeaders(bearer),
     });
-    const { devices } = listDevicesResponseSchema.parse(await listed.json());
+    const { devices } = emitted(listDevicesResponseSchema, await listed.text());
     expect(devices.map((row) => row.name)).toEqual(["Laptop"]);
   });
 
@@ -144,7 +145,7 @@ describe("device login", () => {
       method: "POST",
     });
     expect(response.status).toBe(400);
-    expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("bad-request");
+    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("bad-request");
   });
 
   it("refuses to create a twenty-first active device", async () => {
@@ -164,7 +165,7 @@ describe("device login", () => {
 
     const response = await postLogin({ deviceName: "One Too Many", email, password: PASSWORD });
     expect(response.status).toBe(409);
-    expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("device-limit");
+    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("device-limit");
     expect(await activeDevices(userId)).toHaveLength(20);
 
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
@@ -231,7 +232,7 @@ describe("device login", () => {
     const response = await SELF.fetch(`${ORIGIN}/v1/device/list`, {
       headers: sessionHeaders(bearer),
     });
-    const { devices } = listDevicesResponseSchema.parse(await response.json());
+    const { devices } = emitted(listDevicesResponseSchema, await response.text());
     expect(devices.map((d) => d.name)).toEqual(["Laptop", "Desktop"]);
     expect(devices[0]?.revokedAt).not.toBeNull();
     expect(devices[1]?.revokedAt).toBeNull();
@@ -269,13 +270,13 @@ describe("device sign-out", () => {
 
     const signedOut = await postSignOut(deviceHeaders(credential));
     expect(signedOut.status).toBe(200);
-    expect(revokeDeviceResponseSchema.parse(await signedOut.json())).toEqual({ revoked: true });
+    expect(emitted(revokeDeviceResponseSchema, await signedOut.text())).toEqual({ revoked: true });
 
     const after = await pull(credential);
     expect(after.status).toBe(401);
     const again = await postSignOut(deviceHeaders(credential));
     expect(again.status).toBe(401);
-    expect(cloudErrorSchema.parse(await again.json()).error.code).toBe("unauthorized");
+    expect(emitted(cloudErrorSchema, await again.text()).error.code).toBe("unauthorized");
 
     const active = await activeDevices(await userIdOf(bearer));
     expect(active.map((row) => row.id)).toEqual([other.deviceId]);
@@ -330,6 +331,6 @@ describe("the login window", () => {
     }
     const shut = await postLogin({ ...guess, password: PASSWORD });
     expect(shut.status).toBe(429);
-    expect(cloudErrorSchema.parse(await shut.json()).error.code).toBe("rate-limited");
+    expect(emitted(cloudErrorSchema, await shut.text()).error.code).toBe("rate-limited");
   });
 });

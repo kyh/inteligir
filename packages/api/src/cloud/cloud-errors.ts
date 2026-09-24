@@ -13,12 +13,10 @@ export const CLOUD_ERROR_CODES = [
   "sync-conflict",
   "sync-out-of-order",
   "account-deleted",
-  // a new code is safe only on routes stale clients never call: their enum refuses it
   "file-too-large",
   "internal",
 ] as const;
-export const cloudErrorCodeSchema = z.enum(CLOUD_ERROR_CODES);
-export type CloudErrorCode = z.infer<typeof cloudErrorCodeSchema>;
+export type CloudErrorCode = (typeof CLOUD_ERROR_CODES)[number];
 
 // account-deleted is 410, not 401: told "unauthorized", a client retries the credential forever
 export const CLOUD_ERROR_STATUS = {
@@ -46,18 +44,23 @@ export const SYNC_OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set([
   "sync-out-of-order",
 ]);
 
-export const cloudErrorSchema = z
-  .object({
-    error: z
-      .object({
-        code: cloudErrorCodeSchema,
-        // only on sync-conflict / sync-out-of-order: the outbox position that disagreed
-        deviceSeq: z.number().int().nonnegative().optional(),
-        message: z.string(),
-      })
-      .strict(),
-  })
-  .strict();
+// a code this build does not know is a newer worker's: `internal` retries it and keeps the
+// worker's message, where refusing the envelope would read it as a body this build cannot read.
+// 0.4.0 and older still refuse the whole envelope, so to them a new code is no refusal at all.
+const errorCodeSchema = z
+  .string()
+  .transform(
+    (code): CloudErrorCode => CLOUD_ERROR_CODES.find((known) => known === code) ?? "internal",
+  );
+
+export const cloudErrorSchema = z.object({
+  error: z.object({
+    code: errorCodeSchema,
+    // only on sync-conflict / sync-out-of-order: the outbox position that disagreed
+    deviceSeq: z.number().int().nonnegative().optional(),
+    message: z.string(),
+  }),
+});
 export type CloudError = z.infer<typeof cloudErrorSchema>;
 
 export const cloudError = (

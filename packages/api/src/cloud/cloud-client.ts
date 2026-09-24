@@ -104,6 +104,10 @@ const readFailure = async (response: Response): Promise<CloudFailure> => {
   };
 };
 
+// response schemas strip what they do not declare, so a newer worker may add a field and this
+// build reads on. a field that changes what a row MEANS is another matter: stripped, the row
+// reads as something else, so it reaches only a client whose request asks for it. 0.4.0 and
+// older refuse any added field, which is why what they must read rides a new route.
 const readValue = async <TSchema extends z.ZodType>(
   response: Response,
   schema: TSchema,

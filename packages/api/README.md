@@ -10,9 +10,8 @@ Worker — and the client runtime core both the CLI and the phone run over it.
 Two entries rather than one router because their compatibility obligations are
 OPPOSITE. `/local`'s two ends ship in one bundle, so it may break freely on any
 commit. `/cloud` is a deployed Worker answering installs that may be months
-stale, so it may never break: every response is `.strict()` and final at
-birth, a new field is a new route (`account/account-schema.ts` says why), and a
-new error code is safe only on a route stale clients never call. That is also
+stale, so it may never break: the Worker may grow an answer, and a client
+ignores what it does not know (the first invariant below). That is also
 why `/cloud` is zod + REST paths and NOT oRPC, diverging from the decision
 record (#611 phase 6) deliberately: oRPC addresses a procedure by its position
 in the router, so moving the deployed wire onto it would break exactly the
@@ -64,8 +63,8 @@ src/
                        # that fits an over-cap event to one row, payload text
                        # only, so a peer's fold settles it the same)
     captures/          # at-least-once delivery, exactly-once deletion by claim
-    account/           # /v1/account — its own route, because a login field
-                       # cannot be added
+    account/           # /v1/account — its own route, because 0.4.0 and older
+                       # read the login answer strictly
     vault/             # VAULT_API_PATHS, the hosted tree/file/asset shapes and
                        # ceilings, VAULT_GIT_PATH, and the asset media-type
                        # allowlist the desktop and Worker routes share
@@ -86,6 +85,18 @@ src/
 
 ## Invariants
 
+- **`/cloud` reads leniently and is written strictly.** Every response schema
+  strips a field it does not declare, so a newer Worker may add one and this
+  build reads on; a refusal code it does not know reads as `internal`, a fault
+  to retry in the Worker's own words, never a verdict on the credential.
+  Requests stay `.strict()`: only the always-newest Worker parses them. The
+  Worker's tests hold every answer to exactly the declared shape (`emitted` in
+  `apps/web/src/worker/__tests__/cloud-helpers.ts`), since a stripping client
+  would let a leaked column through. Two things stay closed: 0.4.0 and older
+  parse every response strictly, so a field they must read rides a new route;
+  and a field that changes what a row MEANS (a new capture kind) reaches only
+  a client whose request declares it, because stripped, the row reads as the
+  old kind.
 - **`src/` holds exactly two buckets.** The cloud-never-reaches-local guard
   populates itself from `src/cloud`, so a file outside both halves is one no
   guard reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is
@@ -105,9 +116,10 @@ src/
   foreign row it moves past unread (`firstUnparsed`), so a client that keeps
   its cursor can pull that row again under a build that reads it.
 - **The cloud client never throws a refusal.** `CloudResult` carries
-  `refused` (a code the contract names), `unreachable` (no verdict on the
-  credential) or `malformed` (a body this build cannot read); an
-  `Error("HTTP 409")` would retry a batch the server refuses forever.
+  `refused` (a code this build names, `internal` for one it does not),
+  `unreachable` (no verdict on the credential) or `malformed` (a body this
+  build cannot read); an `Error("HTTP 409")` would retry a batch the server
+  refuses forever.
 - **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
   the literal strings behind `@repo/api/local/routes` and `VAULT_API_PATHS`
   and refuses a second spelling outside the file that owns it.
@@ -140,8 +152,9 @@ src/
 ## Testing
 
 `pnpm --filter @repo/api test` — vitest, no platform. `src/cloud/__tests__/`
-pins the contract shapes and refusals, the login flow, the session fence and
-single-flight, the byte primitives, the sync clip (every
+pins the contract shapes and refusals (and that every answer a newer Worker
+grows still reads), the login flow, the session fence and single-flight, the
+byte primitives, the sync clip (every
 event type fits the cap with its envelope untouched), and that the cloud
 vault-path grammar admits exactly what `parseVaultPath` returns unchanged;
 `src/local/__tests__/` the timeline fold and delta algebra (a clipped log

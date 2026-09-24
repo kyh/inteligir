@@ -15,6 +15,7 @@ import { threadScope } from "@repo/domain/thread-event-scope";
 import nodePath from "node:path";
 import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { z } from "zod";
 import { CAPTURE_INBOX_PATH } from "../captures";
 import type { CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
@@ -378,6 +379,101 @@ describe("a revoked device", () => {
     await harness.runtime.syncNow();
     await harness.runtime.syncNow();
     expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
+  });
+});
+
+type Json = z.infer<ReturnType<typeof z.json>>;
+
+const jsonArraySchema = z.array(z.json());
+const jsonObjectSchema = z.record(z.string(), z.json());
+
+// every object a newer worker answers gains a field this build never declared, except an event
+// body, which the wire carries opaque
+const grown = (value: Json): Json => {
+  const array = jsonArraySchema.safeParse(value);
+  if (array.success) {
+    return array.data.map(grown);
+  }
+  const object = jsonObjectSchema.safeParse(value);
+  if (!object.success) {
+    return value;
+  }
+  return {
+    ...Object.fromEntries(
+      Object.entries(object.data).map(([key, inner]) => [
+        key,
+        key === "event" ? inner : grown(inner),
+      ]),
+    ),
+    addedByANewerWorker: { nested: [1] },
+  };
+};
+
+const fromANewerWorker =
+  (cloud: FakeCloud): CloudFetch =>
+  async (input, init) => {
+    const response = await cloud.fetch(input, init);
+    const body = z.json().parse(await response.json());
+    return Response.json(grown(body), { status: response.status });
+  };
+
+describe("a worker newer than this build", () => {
+  it("signs in, pushes, pulls, claims and acks through answers that grew a field", async () => {
+    const cloud = new FakeCloud();
+    const peer = makeHarness({ cloud, pollIntervalMs: null });
+    await signIn(peer);
+    append(peer, [message("thr_peer", "from the other device")]);
+    await peer.runtime.syncNow();
+
+    const harness = makeHarness({ cloud, fetch: fromANewerWorker(cloud), pollIntervalMs: null });
+    await signIn(harness);
+    append(harness, [message("thr_mine", "from this device")]);
+    cloud.capture("buy oat milk");
+    const status = await harness.runtime.syncNow();
+
+    expect(status).toMatchObject({ lastError: null, state: "signed-in" });
+    expect(harness.applied.map((batch) => batch.threadId)).toEqual(["thr_peer"]);
+    expect(cloud.logSize()).toBe(2);
+    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
+    expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
+  });
+
+  it("still hears a revocation whose refusal grew a field", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({ cloud, fetch: fromANewerWorker(cloud), pollIntervalMs: null });
+    const deviceId = await signIn(harness);
+
+    cloud.revoke(deviceId);
+    await harness.runtime.syncNow();
+
+    expect(harness.runtime.status().state).toBe("unauthorized");
+  });
+
+  it("reads a refusal code it does not know as a fault to retry, in the worker's words", async () => {
+    const cloud = new FakeCloud();
+    let paused = false;
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) =>
+        paused && new URL(input).pathname === SYNC_API_PATHS.pull
+          ? Response.json(
+              { error: { code: "account-paused", message: "This account is paused." } },
+              { status: 403 },
+            )
+          : await cloud.fetch(input, init),
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+
+    paused = true;
+    const refused = await harness.runtime.syncNow();
+    expect(refused.state).toBe("signed-in");
+    expect(refused.state === "signed-in" ? refused.lastError : null).toMatch(
+      /This account is paused\./u,
+    );
+
+    paused = false;
+    expect(await harness.runtime.syncNow()).toMatchObject({ lastError: null, state: "signed-in" });
   });
 });
 

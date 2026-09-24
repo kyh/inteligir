@@ -142,7 +142,10 @@ packages/
                  because their compatibility obligations are OPPOSITE: /local's
                  ends ship in one bundle and may break freely, /cloud is a
                  deployed Worker answering installs that may be months stale and
-                 may never break. A dep-dag table (`CLOUD_ONLY_CLIENTS`) pins
+                 may never break: the Worker may add a field and a client
+                 ignores what it does not know (see "A /CLOUD CLIENT IGNORES
+                 WHAT IT DOES NOT KNOW" under Cloud, sync and accounts). A
+                 dep-dag table (`CLOUD_ONLY_CLIENTS`) pins
                  apps/web and apps/mobile to /cloud alone.
                  src/ holds exactly those two buckets, and a dep-dag row refuses
                  a third: the cloud-never-reaches-local guard populates itself
@@ -1312,6 +1315,25 @@ agents default`; unset falls back
   cache failure is a miss, never a refusal; account deletion purges the slot.
   `apps/web/src/worker/vault/tree-walk.ts` (pure, over a `listTree` port) and
   `tree-listing.ts`.
+
+- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
+  exactly what it declares** (owner decision, reversing "final at birth").
+  Every response schema under `@repo/api/cloud` strips a field it does not
+  declare, and a refusal code the build does not know reads as `internal`: a
+  fault to retry, in the Worker's own words, never a verdict on the
+  credential. Strict readers made every additive change a new route, and a
+  refusal that grew a field turned a stale client's `unauthorized` into
+  `malformed`, so a revoked device kept retrying. Requests stay `.strict()`,
+  since only the always-newest Worker parses them, and the Worker's tests
+  parse every answer through `emitted`
+  (`apps/web/src/worker/__tests__/cloud-helpers.ts`), which fails on a field
+  the contract does not declare, because a stripping client would let a leaked
+  column through. Two things still close the wire: 0.4.0 and older parse every
+  response strictly, so a field they must read rides a new route; and a field
+  that changes what a row MEANS, such as a new capture kind, reaches only a
+  client whose request declares it, because stripped, the row reads as the old
+  kind. `packages/api/src/cloud/cloud-client.ts`,
+  `packages/api/src/cloud/cloud-errors.ts`.
 
 ### Server process and the desktop shell
 

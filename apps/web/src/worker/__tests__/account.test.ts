@@ -1,7 +1,7 @@
 import { ACCOUNT_API_PATHS, accountResponseSchema } from "@repo/api/cloud/account/account-schema";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { deviceHeaders, ORIGIN, loginDevice, signUpUser } from "./cloud-helpers";
+import { deviceHeaders, emitted, ORIGIN, loginDevice, signUpUser } from "./cloud-helpers";
 
 // `GET /v1/account` — the row that lets the product NAME the account an
 // install syncs as (the account is the entitlement; Settings shows whose).
@@ -19,7 +19,7 @@ describe("the account row", () => {
     const { credential } = await loginDevice(bearer, "Laptop");
     const response = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
     expect(response.status).toBe(200);
-    const account = accountResponseSchema.parse(await response.json());
+    const account = emitted(accountResponseSchema, await response.text());
     expect(account.email).toBe("whoami@example.test");
     expect(account.id.length).toBeGreaterThan(0);
   });

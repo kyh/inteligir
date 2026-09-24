@@ -14,6 +14,7 @@ import { z } from "zod";
 import {
   awaitFrames,
   deviceHeaders,
+  emitted,
   openSocket,
   ORIGIN,
   loginDevice,
@@ -43,7 +44,7 @@ const pull = async (credential: string, afterSeq: number, limit?: number) => {
     headers: deviceHeaders(credential),
   });
   expect(response.status).toBe(200);
-  return pullResponseSchema.parse(await response.json());
+  return emitted(pullResponseSchema, await response.text());
 };
 
 const event = (
@@ -89,7 +90,7 @@ const claim = async (credential: string) => {
     method: "POST",
   });
   expect(response.status).toBe(200);
-  return claimCapturesResponseSchema.parse(await response.json());
+  return emitted(claimCapturesResponseSchema, await response.text());
 };
 
 const ack = async (credential: string, claimToken: string, ids: string[]) => {
@@ -99,7 +100,7 @@ const ack = async (credential: string, claimToken: string, ids: string[]) => {
     method: "POST",
   });
   expect(response.status).toBe(200);
-  return ackCapturesResponseSchema.parse(await response.json());
+  return emitted(ackCapturesResponseSchema, await response.text());
 };
 
 describe("thread sync log", () => {
@@ -109,11 +110,11 @@ describe("thread sync log", () => {
 
     const batch: PushRequest = { events: [event("th_1", 1, "a"), event("th_1", 2, "b")] };
     const pushed = await push(credential, batch);
-    const first = pushResponseSchema.parse(await pushed.json());
+    const first = emitted(pushResponseSchema, await pushed.text());
     expect(first).toEqual({ accepted: 2, duplicates: 0, lastSeq: 2 });
 
     const replayed = await push(credential, batch);
-    const replay = pushResponseSchema.parse(await replayed.json());
+    const replay = emitted(pushResponseSchema, await replayed.text());
     expect(replay).toEqual({ accepted: 0, duplicates: 2, lastSeq: 2 });
 
     const page = await pull(credential, 0);
@@ -130,7 +131,7 @@ describe("thread sync log", () => {
     const retried = await push(credential, {
       events: [event("th_1", 1, "a"), event("th_1", 2, "b")],
     });
-    const retry = pushResponseSchema.parse(await retried.json());
+    const retry = emitted(pushResponseSchema, await retried.text());
     expect(retry).toEqual({ accepted: 1, duplicates: 1, lastSeq: 2 });
   });
 
@@ -141,7 +142,7 @@ describe("thread sync log", () => {
 
     const response = await push(credential, { events: [event("th_1", 2, "DIFFERENT")] });
     expect(response.status).toBe(409);
-    const envelope = cloudErrorSchema.parse(await response.json());
+    const envelope = emitted(cloudErrorSchema, await response.text());
     expect(envelope.error.code).toBe("sync-conflict");
     expect(envelope.error.deviceSeq).toBe(2);
 
@@ -156,7 +157,7 @@ describe("thread sync log", () => {
 
     const response = await push(credential, { events: [event("th_1", 3, "three")] });
     expect(response.status).toBe(409);
-    const envelope = cloudErrorSchema.parse(await response.json());
+    const envelope = emitted(cloudErrorSchema, await response.text());
     expect(envelope.error.code).toBe("sync-out-of-order");
     expect(envelope.error.deviceSeq).toBe(3);
     const page = await pull(credential, 0);
@@ -171,7 +172,7 @@ describe("thread sync log", () => {
       events: [event("th_1", 1, "a"), event("th_1", 3, "c"), event("th_1", 2, "b")],
     });
     expect(response.status).toBe(409);
-    expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("sync-out-of-order");
+    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("sync-out-of-order");
     const page = await pull(credential, 0);
     expect(page.events).toEqual([]);
   });
@@ -282,7 +283,7 @@ describe("thread sync log", () => {
       events: [],
       threads: [meta("th_later", "desktop", 1000, "Queued")],
     });
-    const response = pushResponseSchema.parse(await pushed.json());
+    const response = emitted(pushResponseSchema, await pushed.text());
     expect(response).toEqual({ accepted: 0, duplicates: 0, lastSeq: 0 });
 
     await awaitFrames(desktopWs, [{ threadId: "th_later", type: "dispatch" }]);
@@ -364,7 +365,7 @@ describe("capture inbox", () => {
     const laptop = await loginDevice(bearer, "Laptop");
 
     const captured = await capture(phone.credential, "buy oat milk", "key-oat-milk-1");
-    const posted = captureResponseSchema.parse(await captured.json());
+    const posted = emitted(captureResponseSchema, await captured.text());
     expect(posted.duplicate).toBe(false);
 
     const laptopClaim = await claim(laptop.credential);
@@ -391,7 +392,7 @@ describe("capture inbox", () => {
     const phone = await loginDevice(bearer, "Phone");
     const laptop = await loginDevice(bearer, "Laptop");
     const captured = await capture(phone.credential, "remember", "key-remember-1");
-    const posted = captureResponseSchema.parse(await captured.json());
+    const posted = emitted(captureResponseSchema, await captured.text());
 
     const stale = await claim(laptop.credential);
     expect(stale.captures).toHaveLength(1);
@@ -417,9 +418,9 @@ describe("capture inbox", () => {
     const phone = await loginDevice(bearer, "Phone");
 
     const captured = await capture(phone.credential, "one thought", "key-shared");
-    const first = captureResponseSchema.parse(await captured.json());
+    const first = emitted(captureResponseSchema, await captured.text());
     const recaptured = await capture(phone.credential, "one thought", "key-shared");
-    const retry = captureResponseSchema.parse(await recaptured.json());
+    const retry = emitted(captureResponseSchema, await recaptured.text());
     expect(retry.id).toBe(first.id);
     expect(retry.duplicate).toBe(true);
 
@@ -499,7 +500,7 @@ describe("account deletion", () => {
       method: "POST",
     });
     expect(inFlight.status).toBe(410);
-    expect(cloudErrorSchema.parse(await inFlight.json()).error.code).toBe("account-deleted");
+    expect(emitted(cloudErrorSchema, await inFlight.text()).error.code).toBe("account-deleted");
 
     const remaining = await runInDurableObject(
       stub,

@@ -11,7 +11,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { vaultRepoName } from "../vault/git-remote";
 import { treeListingSlot } from "../vault/tree-listing";
-import { deviceHeaders, ORIGIN, loginDevice, signUpUser, userIdOf } from "./cloud-helpers";
+import { deviceHeaders, emitted, ORIGIN, loginDevice, signUpUser, userIdOf } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
@@ -19,7 +19,7 @@ const FILE = `${ORIGIN}${VAULT_API_PATHS.file}`;
 const ASSET = `${ORIGIN}${VAULT_API_PATHS.asset}`;
 
 const errorCode = async (response: Response): Promise<string> =>
-  cloudErrorSchema.parse(await response.json()).error.code;
+  emitted(cloudErrorSchema, await response.text()).error.code;
 
 const loginAndPush = async (email: string, files: Parameters<typeof pushVaultFiles>[2]) => {
   const { bearer } = await signUpUser(email);
@@ -48,7 +48,7 @@ const pageWholeTree = async (credential: string, limit: number, ref?: string) =>
       headers: deviceHeaders(credential),
     });
     expect(response.status).toBe(200);
-    const page = vaultTreeResponseSchema.parse(await response.json());
+    const page = emitted(vaultTreeResponseSchema, await response.text());
     commits.add(page.commit);
     paths.push(...page.entries.map((entry) => entry.path));
     pinned = page.commit;
@@ -93,7 +93,7 @@ describe("vault read rows", () => {
 
     const first = await SELF.fetch(`${TREE}?limit=2`, { headers: deviceHeaders(credential) });
     expect(first.status).toBe(200);
-    const pageOne = vaultTreeResponseSchema.parse(await first.json());
+    const pageOne = emitted(vaultTreeResponseSchema, await first.text());
     expect(pageOne.commit).toBe(commit);
     expect(pageOne.entries.map((entry) => entry.path)).toEqual(["a.md", "notes/b.md"]);
     expect(pageOne.next).toBe("notes/b.md");
@@ -102,7 +102,7 @@ describe("vault read rows", () => {
       `${TREE}?limit=2&ref=${pageOne.commit}&after=${encodeURIComponent(pageOne.next ?? "")}`,
       { headers: deviceHeaders(credential) },
     );
-    const pageTwo = vaultTreeResponseSchema.parse(await second.json());
+    const pageTwo = emitted(vaultTreeResponseSchema, await second.text());
     expect(pageTwo.commit).toBe(commit);
     expect(pageTwo.entries.map((entry) => entry.path)).toEqual(["notes/deep/c.md"]);
     expect(pageTwo.next).toBeNull();
@@ -125,7 +125,7 @@ describe("vault read rows", () => {
       headers: deviceHeaders(credential),
     });
     expect(
-      vaultTreeResponseSchema.parse(await pinned.json()).entries.map((entry) => entry.path),
+      emitted(vaultTreeResponseSchema, await pinned.text()).entries.map((entry) => entry.path),
     ).toEqual(["only-in-the-slot.md"]);
   });
 
@@ -156,7 +156,7 @@ describe("vault read rows", () => {
     const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
     expect(tree.status).toBe(200);
     expect(
-      vaultTreeResponseSchema.parse(await tree.json()).entries.map((entry) => entry.path),
+      emitted(vaultTreeResponseSchema, await tree.text()).entries.map((entry) => entry.path),
     ).toEqual(["a.md"]);
   });
 
@@ -168,7 +168,7 @@ describe("vault read rows", () => {
       headers: deviceHeaders(credential),
     });
     expect(response.status).toBe(200);
-    const file = vaultFileResponseSchema.parse(await response.json());
+    const file = emitted(vaultFileResponseSchema, await response.text());
     expect(file.commit).toBe(commit);
     expect(file.path).toBe("notes/hello.md");
     expect(file.content).toBe("# hello\n\nfrom the vault\n");
@@ -183,10 +183,10 @@ describe("vault read rows", () => {
       headers: deviceHeaders(credential),
     });
     expect(response.status).toBe(200);
-    expect(vaultFileResponseSchema.parse(await response.json()).content).toBe("# done\n");
+    expect(emitted(vaultFileResponseSchema, await response.text()).content).toBe("# done\n");
     const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
     expect(
-      vaultTreeResponseSchema.parse(await tree.json()).entries.map((entry) => entry.path),
+      emitted(vaultTreeResponseSchema, await tree.text()).entries.map((entry) => entry.path),
     ).toContain("100%done.md");
   });
 
