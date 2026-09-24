@@ -5,7 +5,8 @@
 
 import { frontmatterYaml, frontmatterYamlStart, yamlScalarText } from "../markdown/frontmatter";
 import { documentTagSpans, frontmatterTags } from "./link-extract";
-import type { Span } from "./link-extract";
+import { applyReplacements } from "./rename-links";
+import type { SpanReplacement } from "./rename-links";
 
 // `from` names a tag and everything nested under it: the rail folds `area/deep` under `area`,
 // so renaming the row moves the family.
@@ -18,18 +19,13 @@ export const tagInFamily = (tag: string, from: string): boolean => {
 export const renamedTag = (tag: string, from: string, to: string): string | null =>
   tagInFamily(tag, from) ? `${to}${tag.slice(from.length)}` : null;
 
-interface Replacement {
-  span: Span;
-  text: string;
-}
-
-const inlineReplacements = (content: string, from: string, to: string): Replacement[] =>
+const inlineReplacements = (content: string, from: string, to: string): SpanReplacement[] =>
   documentTagSpans(content).flatMap((span) => {
     const next = renamedTag(span.tag, from, to);
     return next === null ? [] : [{ span, text: `#${next}` }];
   });
 
-const frontmatterReplacements = (content: string, from: string, to: string): Replacement[] => {
+const frontmatterReplacements = (content: string, from: string, to: string): SpanReplacement[] => {
   const yaml = frontmatterYaml(content);
   const start = frontmatterYamlStart(content);
   if (yaml === null || start === null) {
@@ -49,18 +45,12 @@ const frontmatterReplacements = (content: string, from: string, to: string): Rep
   });
 };
 
-export const renameTagsInDoc = (content: string, from: string, to: string): string => {
-  const replacements = [
+// the frontmatter and the body never overlap
+export const renameTagsInDoc = (content: string, from: string, to: string): string =>
+  applyReplacements(content, [
     ...frontmatterReplacements(content, from, to),
     ...inlineReplacements(content, from, to),
-  ];
-  // back-to-front so earlier spans stay valid; the frontmatter and the body never overlap
-  let out = content;
-  for (const { span, text } of replacements.toSorted((a, b) => b.span.start - a.span.start)) {
-    out = out.slice(0, span.start) + text + out.slice(span.end);
-  }
-  return out;
-};
+  ]);
 
 // `docs` is keyed by path; the result holds changed docs only
 export const computeTagRenameEdits = (

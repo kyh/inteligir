@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import { documentTagSpans, scanDoc } from "../knowledge/link-extract";
-import { isTagName } from "../knowledge/tag-grammar";
+import { inlineTagSpans, isTagName } from "../knowledge/tag-grammar";
 import { computeTagRenameEdits, renamedTag, renameTagsInDoc } from "../knowledge/rename-tags";
 
 describe("the tag name a rename accepts", () => {
   it("is the inline grammar's name", () => {
-    for (const name of ["project", "area/deep-dive", "v2_final", "Ünïcode"]) {
+    for (const name of ["project", "area/deep-dive", "v2_final", "Ünïcode", "a-/b"]) {
       expect(isTagName(name)).toBe(true);
     }
-    for (const name of ["", "#project", "123", "a/", "/a", "a b", "a//b", "-x"]) {
+    for (const name of ["", "#project", "123", "a/", "/a", "a b", "a//b", "-x", "bar-", "a/b-"]) {
       expect(isTagName(name)).toBe(false);
     }
+  });
+
+  it("reads back whole from the inline scan, which drops a trailing dash", () => {
+    const [span] = inlineTagSpans("#bar-");
+    expect(span?.tag).toBe("bar");
+    expect(isTagName(span?.tag ?? "")).toBe(true);
+    expect(inlineTagSpans("#a-/b").map((found) => found.tag)).toEqual(["a-/b"]);
   });
 });
 

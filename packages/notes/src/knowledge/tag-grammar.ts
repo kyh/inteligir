@@ -15,7 +15,13 @@ const TAG_NAME_SOURCE = String.raw`\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*`;
 const INLINE_TAG_RE = new RegExp(String.raw`(?<![\p{L}\p{N}_/#])#(${TAG_NAME_SOURCE})`, "gu");
 const TAG_NAME_RE = new RegExp(`^(?:${TAG_NAME_SOURCE})$`, "u");
 
-export const isTagName = (value: string): boolean => TAG_NAME_RE.test(value);
+// the inline scan strips a trailing dash as punctuation, so a name ending in one could be
+// written but never read back whole
+export const isTagName = (value: string): boolean =>
+  TAG_NAME_RE.test(value) && !value.endsWith("-");
+
+export const TAG_NAME_RULE =
+  "A tag starts with a letter, holds letters, digits, _ and -, puts / only between levels, and does not end in -.";
 
 // shared with the editor's tag chip decoration; the token grammar must not drift between them
 export const inlineTagSpans = (text: string): InlineTagSpan[] => {

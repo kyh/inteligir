@@ -7,7 +7,7 @@ import type { Node, PhrasingContent, Root } from "mdast";
 import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
-import { splitLinesKeepingTerminators } from "../knowledge/source-lines";
+import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
 
 type RootChild = Root["children"][number];

@@ -1,5 +1,5 @@
 // The one split rule: a line's content excludes its terminator, any of `\r\n`,
-// `\r`, `\n`. ../text/line-diff splits on LF alone on purpose.
+// `\r`, `\n`. ./line-diff splits on LF alone on purpose.
 const LINE_TERMINATOR = /\r\n|\r|\n/u;
 
 export const splitLines = (source: string): string[] => source.split(LINE_TERMINATOR);

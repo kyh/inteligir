@@ -30,7 +30,7 @@ name may not hold `[` or `]`, which would end a link to it.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor
 (`\r\n`, `\r`, `\n`). That rule is stated once, in `@repo/notes`'
-`knowledge/source-lines`, and read once, by `splitLines` — the projection cuts
+`text/source-lines`, and read once, by `splitLines` — the projection cuts
 link snippets under it. A
 second reading of "what a line is" anywhere else is a file-corruption bug
 waiting to happen; `text/line-diff`'s `splitLinesLf` is the one deliberate
@@ -51,8 +51,9 @@ Read them together.
 
 **thread** — the durable conversation, a row in this app's own SQLite
 (`threads` in `@repo/db/schema`, id `thr_…`). It survives process restarts,
-owns its title, status, `activeTurnId` and — for a doc-attached action — the
-path it was spawned from. Everything the user can reopen lives here.
+owns its title, status, `activeTurnId` and — for a doc-attached action — its
+origin note (see **view context vs thread origin**). Everything the user can
+reopen lives here.
 
 **turn** — one request-to-settle exchange inside a thread. It names no table:
 a turn exists only as the SCOPE its events share (`@repo/db/ids`, id `turn_…`),

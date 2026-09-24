@@ -4,17 +4,25 @@ import {
   bodyPrefilters,
   collectVaultMatches,
   excerptAround,
-  findTextMatches,
   findTextOffsets,
   replaceTextMatches,
 } from "../knowledge/text-matches";
+import type { TextMatch, TextMatchOptions } from "../knowledge/text-matches";
 
 const LOOSE = { caseSensitive: false, wholeWord: false };
+
+const matchesIn = (text: string, needle: string, options: TextMatchOptions): TextMatch[] =>
+  collectVaultMatches(
+    [{ body: text, path: "a.md", title: "A" }],
+    needle,
+    options,
+    Number.POSITIVE_INFINITY,
+  ).matches.map(({ column, length, line }) => ({ column, length, line }));
 
 describe("finding literal occurrences", () => {
   it("answers line and column per occurrence, across every terminator", () => {
     const text = "Deploy on Friday\r\nnever deploy Friday evening\rredeploy\n";
-    expect(findTextMatches(text, "deploy", LOOSE)).toEqual([
+    expect(matchesIn(text, "deploy", LOOSE)).toEqual([
       { column: 0, length: 6, line: 1 },
       { column: 6, length: 6, line: 2 },
       { column: 2, length: 6, line: 3 },
@@ -22,7 +30,7 @@ describe("finding literal occurrences", () => {
   });
 
   it("folds case the unicode way without moving offsets", () => {
-    expect(findTextMatches("ACCIÓN acción", "acción", LOOSE)).toEqual([
+    expect(matchesIn("ACCIÓN acción", "acción", LOOSE)).toEqual([
       { column: 0, length: 6, line: 1 },
       { column: 7, length: 6, line: 1 },
     ]);
@@ -30,21 +38,20 @@ describe("finding literal occurrences", () => {
 
   it("honours case-sensitive and whole-word", () => {
     const text = "Deploy deploys deploy_now deploy";
-    expect(findTextMatches(text, "deploy", { caseSensitive: true, wholeWord: false })).toHaveLength(
-      3,
-    );
-    expect(findTextMatches(text, "deploy", { caseSensitive: false, wholeWord: true })).toEqual([
+    expect(matchesIn(text, "deploy", { caseSensitive: true, wholeWord: false })).toHaveLength(3);
+    expect(matchesIn(text, "deploy", { caseSensitive: false, wholeWord: true })).toEqual([
       { column: 0, length: 6, line: 1 },
       { column: 26, length: 6, line: 1 },
     ]);
   });
 
   it("treats regex syntax in the needle as text", () => {
-    expect(findTextMatches("a.b axb", "a.b", LOOSE)).toEqual([{ column: 0, length: 3, line: 1 }]);
+    expect(matchesIn("a.b axb", "a.b", LOOSE)).toEqual([{ column: 0, length: 3, line: 1 }]);
   });
 
   it("finds nothing for an empty needle", () => {
-    expect(findTextMatches("anything", "", LOOSE)).toEqual([]);
+    const docs = [{ body: "anything", path: "a.md", title: "A" }];
+    expect(collectVaultMatches(docs, "", LOOSE, 10)).toEqual({ matches: [], total: 0 });
   });
 });
 
