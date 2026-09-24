@@ -25,7 +25,6 @@ export interface MessagePortLike {
     (event: "close", listener: () => void): void;
   };
   start: () => void;
-  close: () => void;
 }
 
 // the server posts main one thing: a fork to make.

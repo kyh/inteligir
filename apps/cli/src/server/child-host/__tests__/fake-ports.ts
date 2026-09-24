@@ -1,6 +1,7 @@
 // an in-memory MessageChannel with MessagePortMain's semantics: frames are structured clones, held
 // until the receiving end starts, and closing one end tells the other.
 
+import type { BrokeredFork, ForkAttachment } from "../fork-broker-client";
 import type { ForkRequest } from "../fork-broker-wire";
 import type { MessagePortLike, ParentPortLike, PortFrame, PortMessageEvent } from "../message-port";
 
@@ -95,5 +96,22 @@ export const fakeParentPort = (): FakeParentPort => {
       posted.push(structuredClone(message));
     },
     posted,
+  };
+};
+
+// a broker fork whose attachment and exit the test resolves by hand
+interface ManualFork {
+  fork: BrokeredFork;
+  attach: (attachment: ForkAttachment) => void;
+  exit: (code: number | null) => void;
+}
+
+export const manualFork = (): ManualFork => {
+  const attachment = Promise.withResolvers<ForkAttachment>();
+  const exit = Promise.withResolvers<number | null>();
+  return {
+    attach: attachment.resolve,
+    exit: exit.resolve,
+    fork: { attachment: attachment.promise, exit: exit.promise },
   };
 };

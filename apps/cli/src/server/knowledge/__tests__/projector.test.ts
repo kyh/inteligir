@@ -1,10 +1,16 @@
 // the real worker, booted from source under tsx: seconds per boot, so one projector serves the
-// suite and only the dispose case pays for its own.
+// suite and only the dispose case pays for its own. a worker's death is driven by hand.
 
+import { setImmediate } from "node:timers/promises";
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { computeTagRenameEdits } from "@repo/notes/knowledge/rename-tags";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { RenameEditsJob } from "../projection-protocol";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
+import type {
+  ProjectedDoc,
+  ProjectionAnswer,
+  ProjectionRequest,
+  RenameEditsJob,
+} from "../projection-protocol";
 import { createProjectionWorker } from "../projector";
 import type { Projector } from "../projector";
 
@@ -84,4 +90,94 @@ describe("the projection worker", () => {
     },
     BOOT_TIMEOUT_MS,
   );
+});
+
+interface HandWorkerEvents {
+  message: ProjectionAnswer;
+  error: Error;
+  exit: number;
+}
+
+type HandWorkerListeners = {
+  [Event in keyof HandWorkerEvents]: ((value: HandWorkerEvents[Event]) => void)[];
+};
+
+const handWorkers: HandWorker[] = [];
+
+// a worker whose every event the test fires, so a dead worker's 'exit' can land after the job
+// its replacement was handed: a real worker orders its own 'error' and 'exit'.
+class HandWorker {
+  readonly posted: ProjectionRequest[] = [];
+  held = false;
+  terminated = false;
+  readonly #listeners: HandWorkerListeners = { error: [], exit: [], message: [] };
+
+  constructor() {
+    handWorkers.push(this);
+  }
+
+  on<Event extends keyof HandWorkerEvents>(
+    event: Event,
+    listener: (value: HandWorkerEvents[Event]) => void,
+  ): void {
+    this.#listeners[event].push(listener);
+  }
+
+  fire<Event extends keyof HandWorkerEvents>(event: Event, value: HandWorkerEvents[Event]): void {
+    for (const listener of this.#listeners[event]) {
+      listener(value);
+    }
+  }
+
+  postMessage(request: ProjectionRequest): void {
+    this.posted.push(request);
+  }
+
+  ref(): void {
+    this.held = true;
+  }
+
+  unref(): void {
+    this.held = false;
+  }
+
+  async terminate(): Promise<number> {
+    this.terminated = true;
+    return 1;
+  }
+}
+
+describe("a projection worker that dies", () => {
+  it("fails the jobs it held, never one posted to its replacement before its exit", async () => {
+    vi.resetModules();
+    // the transport news up its own Worker, so the module is the only place to hand it one
+    // oxlint-disable-next-line anti-slop/no-module-mocking
+    vi.doMock("node:worker_threads", () => ({ Worker: HandWorker }));
+    onTestFinished(() => {
+      vi.doUnmock("node:worker_threads");
+    });
+    const { createProjectionWorker: createOverHandWorkers } = await import("../projector");
+    const own = createOverHandWorkers();
+    onTestFinished(async () => {
+      await own.dispose();
+    });
+
+    const doc = { content: "# Note\n", path: "note.md" };
+    const retried = own.project([doc]).catch(async () => await own.project([doc]));
+    const [dead] = handWorkers;
+    dead?.fire("error", new Error("the projection worker threw"));
+    await setImmediate();
+    const [, replacement] = handWorkers;
+    const retry = replacement?.posted[0];
+    if (replacement === undefined || retry === undefined) {
+      throw new Error("the retry reached no fresh worker");
+    }
+    dead?.fire("exit", 1);
+
+    const answered: ProjectedDoc[] = [{ kind: "unprojectable", reason: "answered by hand" }];
+    replacement.fire("message", { docs: answered, id: retry.id, kind: "projected" });
+    await expect(retried).resolves.toEqual(answered);
+    expect(dead?.terminated).toBe(true);
+    expect(replacement.held).toBe(false);
+  });
 });

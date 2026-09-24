@@ -1,14 +1,11 @@
-import { createHash } from "node:crypto";
 import { chmodSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
-import type { DocProjection } from "@repo/notes/knowledge/projection";
-import { projectDoc } from "@repo/notes/knowledge/projection";
-import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
+import { docRow } from "./seeded-store";
 
 const makeDbDir = (): string => {
   const dir = makeTempDir("inteligir-knowledge-driver-");
@@ -21,9 +18,6 @@ const makeDbDir = (): string => {
 
 const makeDbPath = (): string => nodePath.join(makeDbDir(), "knowledge.db");
 
-const sha256Hex = (content: string): string =>
-  createHash("sha256").update(content, "utf-8").digest("hex");
-
 const openStore = (dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore => {
   const store = createSqlKnowledgeStore(createSqliteDriver(dbPath), vaultRoot);
   onTestFinished(() => {
@@ -34,16 +28,6 @@ const openStore = (dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore => {
     }
   });
   return store;
-};
-
-const docRow = (path: string, content: string) => {
-  const projection: DocProjection = projectDoc(path, content);
-  const row: Parameters<SqlKnowledgeStore["upsertDoc"]>[0] = {
-    contentHash: sha256Hex(content),
-    path,
-    projection,
-  };
-  return { row, search: docSearchColumns(projection, content) };
 };
 
 type StoredDocRow = Parameters<SqlKnowledgeStore["upsertDoc"]>[0];

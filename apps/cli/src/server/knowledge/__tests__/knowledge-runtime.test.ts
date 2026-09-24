@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, rmSync, statSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
@@ -6,16 +6,15 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import type { VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
 import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "../knowledge-runtime";
 import type { ProjectionResult } from "../projection-protocol";
 import { createProjectionWorker, createProjector } from "../projector";
-import type { Projector } from "../projector";
 import { createSqliteDriver } from "../sqlite-driver";
 import { identityLock } from "../../__tests__/identity-lock";
+import { bootIndexedVault, makeVaultDirs } from "./indexed-vault";
 import { createInlineProjector } from "./inline-projector";
 
 const searchPaths = async (knowledge: KnowledgeRuntime, query: string): Promise<string[]> => {
@@ -23,40 +22,7 @@ const searchPaths = async (knowledge: KnowledgeRuntime, query: string): Promise<
   return hits.map((hit) => hit.path);
 };
 
-const makeDirs = () => {
-  const instanceDir = makeTempDir("inteligir-knowledge-runtime-");
-  const root = nodePath.join(instanceDir, "vault");
-  const dataDir = nodePath.join(instanceDir, "data");
-  mkdirSync(root, { recursive: true });
-  mkdirSync(dataDir, { recursive: true });
-  return { dataDir, root };
-};
-
-const boot = (
-  dirs: ReturnType<typeof makeDirs>,
-  reader: (service: VaultService) => KnowledgeRuntimeArgs["vault"] = (service) => service,
-  projector: Projector = createInlineProjector(),
-) => {
-  let sink: KnowledgeRuntime | null = null;
-  const service = createVaultService({
-    lock: identityLock,
-    notifier: noopNotifier,
-    onMutated: (mutations) =>
-      sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
-    root: dirs.root,
-  });
-  const knowledge = createKnowledgeRuntime({
-    dataDir: dirs.dataDir,
-    projector,
-    vault: reader(service),
-    vaultRoot: dirs.root,
-  });
-  sink = knowledge;
-  onTestFinished(async () => {
-    await knowledge.dispose();
-  });
-  return { knowledge, service };
-};
+const makeDirs = () => makeVaultDirs("inteligir-knowledge-runtime-");
 
 // the scan of this note holds a loop for seconds (2.9s measured, 6s on a loaded machine) and the
 // rows it leaves this thread write in tenths of one, so a loaded machine cannot fail the test and
@@ -89,7 +55,7 @@ const recordingReads =
 
 describe("the knowledge runtime", () => {
   it("indexes a write, answers search/backlinks/tags, and drops a delete", async () => {
-    const { service, knowledge } = boot(makeDirs());
+    const { service, knowledge } = bootIndexedVault(makeDirs());
 
     await service.write("alpha.md", "# Alpha\n\nMentions [[beta]] and #project work.\n");
     await service.write("beta.md", "# Beta\n\nQuokka research notes.\n");
@@ -114,7 +80,7 @@ describe("the knowledge runtime", () => {
   });
 
   it("filters search by a tag's family, as the rail lists it, titled from the index", async () => {
-    const { service, knowledge } = boot(makeDirs());
+    const { service, knowledge } = bootIndexedVault(makeDirs());
     await service.write("top.md", "# Top Level\n\nWombat #area here.\n");
     await service.write("deep.md", "# Deep Dive\n\nWombat #area/deep here.\n");
     await service.write("elsewhere.md", "# Elsewhere\n\nWombat #areas here.\n");
@@ -130,7 +96,7 @@ describe("the knowledge runtime", () => {
 
   it("re-indexes a directory rename from its announced paths, reading each doc once", async () => {
     const reads: string[] = [];
-    const { service, knowledge } = boot(makeDirs(), recordingReads(reads));
+    const { service, knowledge } = bootIndexedVault(makeDirs(), { reader: recordingReads(reads) });
     await service.write("notes/one.md", "# One\n\nWombat facts.\n");
     await service.write("notes/two.md", "# Two\n\nMore wombat facts.\n");
     await knowledge.settle();
@@ -145,7 +111,7 @@ describe("the knowledge runtime", () => {
   });
 
   it("drops exactly the announced deletions", async () => {
-    const { service, knowledge } = boot(makeDirs());
+    const { service, knowledge } = bootIndexedVault(makeDirs());
     for (const name of ["n0", "n1", "n2", "n3", "n4", "n5"]) {
       await service.write(`${name}.md`, `# ${name}\n\nKiwi sighting.\n`);
     }
@@ -203,7 +169,7 @@ describe("the knowledge runtime", () => {
     writeFileSync(nodePath.join(dirs.root, "doomed.md"), "# Doomed\n");
     writeFileSync(nodePath.join(dirs.root, "asset.png"), "not really a png");
 
-    const first = boot(dirs);
+    const first = bootIndexedVault(dirs);
     await first.knowledge.settle();
     expect(first.knowledge.lastReconcile).toEqual({ projected: 3, removed: 0, unchanged: 0 });
     await first.knowledge.dispose();
@@ -215,7 +181,7 @@ describe("the knowledge runtime", () => {
     writeFileSync(nodePath.join(dirs.root, "created.md"), "# Created\n\nBrand new capybara.\n");
     rmSync(nodePath.join(dirs.root, "doomed.md"));
 
-    const second = boot(dirs);
+    const second = bootIndexedVault(dirs);
     await second.knowledge.settle();
     expect(second.knowledge.lastReconcile).toEqual({ projected: 2, removed: 1, unchanged: 1 });
 
@@ -226,7 +192,7 @@ describe("the knowledge runtime", () => {
 
   it("treats a pathless change announcement as a reconcile", async () => {
     const dirs = makeDirs();
-    const { knowledge } = boot(dirs);
+    const { knowledge } = bootIndexedVault(dirs);
     await knowledge.settle();
 
     writeFileSync(nodePath.join(dirs.root, "pulled.md"), "# Pulled\n\nNarwhal sighting.\n");
@@ -239,7 +205,7 @@ describe("the knowledge runtime", () => {
   it("rebuilds from the vault when the index file was corrupted between runs", async () => {
     const dirs = makeDirs();
     writeFileSync(nodePath.join(dirs.root, "note.md"), "# Note\n\nPangolin data.\n");
-    const first = boot(dirs);
+    const first = bootIndexedVault(dirs);
     await first.knowledge.settle();
     expect(first.knowledge.lastReconcile?.projected).toBe(1);
     // dispose first: an open connection's page cache would mask the corruption.
@@ -247,7 +213,7 @@ describe("the knowledge runtime", () => {
 
     writeFileSync(nodePath.join(dirs.dataDir, "knowledge.db"), "garbage bytes");
 
-    const second = boot(dirs);
+    const second = bootIndexedVault(dirs);
     await second.knowledge.settle();
     expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
     const hits = await second.knowledge.search({ limit: 10, query: "pangolin" });
@@ -257,7 +223,7 @@ describe("the knowledge runtime", () => {
   it("rebuilds from the vault when the stored projection version is not this build's", async () => {
     const dirs = makeDirs();
     writeFileSync(nodePath.join(dirs.root, "note.md"), "# Note\n\nTapir data.\n");
-    const first = boot(dirs);
+    const first = bootIndexedVault(dirs);
     await first.knowledge.settle();
     expect(first.knowledge.lastReconcile?.projected).toBe(1);
     await first.knowledge.dispose();
@@ -268,7 +234,7 @@ describe("the knowledge runtime", () => {
     ]);
     driver.close();
 
-    const second = boot(dirs);
+    const second = bootIndexedVault(dirs);
     await second.knowledge.settle();
     expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
     expect(await searchPaths(second.knowledge, "tapir")).toEqual(["note.md"]);
@@ -276,7 +242,7 @@ describe("the knowledge runtime", () => {
 
   it("converges a doc that crosses the read-cap boundary in both directions", async () => {
     const dirs = makeDirs();
-    const { service, knowledge } = boot(dirs);
+    const { service, knowledge } = bootIndexedVault(dirs);
     const oversized = `# Big\n\n${"x".repeat(VAULT_MAX_CONTENT_LENGTH)}`;
 
     writeFileSync(nodePath.join(dirs.root, "big.md"), oversized);
@@ -298,16 +264,18 @@ describe("the knowledge runtime", () => {
     const dirs = makeDirs();
     writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
     let failNextListing = false;
-    const { knowledge } = boot(dirs, (service) => ({
-      ...service,
-      listTree: async () => {
-        if (failNextListing) {
-          failNextListing = false;
-          throw new Error("transient io failure");
-        }
-        return await service.listTree();
-      },
-    }));
+    const { knowledge } = bootIndexedVault(dirs, {
+      reader: (service) => ({
+        ...service,
+        listTree: async () => {
+          if (failNextListing) {
+            failNextListing = false;
+            throw new Error("transient io failure");
+          }
+          return await service.listTree();
+        },
+      }),
+    });
     await knowledge.settle();
 
     writeFileSync(nodePath.join(dirs.root, "b.md"), "# B\n\nHeron notes.\n");
@@ -321,7 +289,7 @@ describe("the knowledge runtime", () => {
     writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
     const locked = nodePath.join(dirs.root, "b.md");
     writeFileSync(locked, "# B\n\nHeron notes.\n");
-    const { knowledge } = boot(dirs);
+    const { knowledge } = bootIndexedVault(dirs);
     await knowledge.settle();
     const indexFile = nodePath.join(dirs.dataDir, "knowledge.db");
     const indexInode = statSync(indexFile).ino;
@@ -346,7 +314,7 @@ describe("the knowledge runtime", () => {
     // deep enough to overflow the parser's stack
     writeFileSync(nodePath.join(dirs.root, "deep.md"), `${">".repeat(10_000)} kestrel\n`);
     const reads: string[] = [];
-    const { knowledge } = boot(dirs, recordingReads(reads));
+    const { knowledge } = bootIndexedVault(dirs, { reader: recordingReads(reads) });
 
     expect(await searchPaths(knowledge, "kestrel")).toEqual(["a.md"]);
     const backlinks = await knowledge.backlinks("b.md");
@@ -367,16 +335,18 @@ describe("the knowledge runtime", () => {
     const reads: string[] = [];
     let watching = false;
     const firstRead: PromiseWithResolvers<void> = Promise.withResolvers();
-    const { knowledge } = boot(dirs, (service) => ({
-      ...service,
-      readBytes: async (path) => {
-        if (watching) {
-          firstRead.resolve();
-        }
-        reads.push(path);
-        return await service.readBytes(path);
-      },
-    }));
+    const { knowledge } = bootIndexedVault(dirs, {
+      reader: (service) => ({
+        ...service,
+        readBytes: async (path) => {
+          if (watching) {
+            firstRead.resolve();
+          }
+          reads.push(path);
+          return await service.readBytes(path);
+        },
+      }),
+    });
     await knowledge.settle();
 
     const docCount = 600;
@@ -415,7 +385,7 @@ describe("the knowledge runtime", () => {
         return await released.promise;
       },
     });
-    const { knowledge } = boot(dirs, undefined, wedged);
+    const { knowledge } = bootIndexedVault(dirs, { projector: wedged });
 
     const settling = knowledge.settle();
     await projecting.promise;
@@ -424,7 +394,9 @@ describe("the knowledge runtime", () => {
   });
 
   it("keeps the event loop free while a 20k-line note projects", async () => {
-    const { service, knowledge } = boot(makeDirs(), undefined, createProjectionWorker());
+    const { service, knowledge } = bootIndexedVault(makeDirs(), {
+      projector: createProjectionWorker(),
+    });
     // the worker boots from source on its first job, and the boot is not what is measured
     await service.write("warm.md", "# Warm\n");
     await knowledge.settle();
@@ -444,7 +416,7 @@ describe("the knowledge runtime", () => {
 
 describe("unlinked mentions", () => {
   it("names the notes that spell this one in prose, and drops one once it links", async () => {
-    const { service, knowledge } = boot(makeDirs());
+    const { service, knowledge } = bootIndexedVault(makeDirs());
     await service.write("Roadmap.md", "---\naliases: [the plan]\n---\n# Roadmap\n");
     await service.write("a.md", "We revisit the roadmap on Monday.\n");
     await service.write("b.md", "Follow the plan.\n");
@@ -466,7 +438,7 @@ describe("unlinked mentions", () => {
   });
 
   it("answers the target a Link writes, qualified when the bare name is another note's", async () => {
-    const { service, knowledge } = boot(makeDirs());
+    const { service, knowledge } = bootIndexedVault(makeDirs());
     await service.write("Plan.md", "# Plan\n");
     await service.write("zz/Plan.md", "# The other plan\n");
     await service.write("zz/Solo.md", "# Solo\n");
@@ -480,7 +452,7 @@ describe("unlinked mentions", () => {
 
 describe("vault problems", () => {
   it("lists a dangling link once with its source, and drops it once the note exists", async () => {
-    const { service, knowledge } = boot(makeDirs());
+    const { service, knowledge } = bootIndexedVault(makeDirs());
     await service.write("Welcome.md", "# Welcome\n\nOpen [[Nowhere]] twice: [[nowhere]].\n");
     await service.write("Guide.md", "# Guide\n\nBack to [[Welcome]].\n");
 

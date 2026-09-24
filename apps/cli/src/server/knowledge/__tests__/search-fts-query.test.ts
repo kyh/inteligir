@@ -1,35 +1,9 @@
 // lives here rather than in packages/notes because that package carries no sqlite binding.
 
-import { createHash } from "node:crypto";
-import nodePath from "node:path";
-import { projectDoc } from "@repo/notes/knowledge/projection";
-import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
-import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
-import { describe, expect, it, onTestFinished } from "vitest";
-import { makeTempDir } from "../../__tests__/temp-dir";
-import { createSqliteDriver } from "../sqlite-driver";
-
-const storeWith = (docs: Record<string, string>): SqlKnowledgeStore => {
-  const dbPath = nodePath.join(makeTempDir("inteligir-fts-query-"), "knowledge.db");
-  const store = createSqlKnowledgeStore(createSqliteDriver(dbPath), "/vault");
-  onTestFinished(() => {
-    store.dispose();
-  });
-  for (const [path, content] of Object.entries(docs)) {
-    const projection = projectDoc(path, content);
-    store.upsertDoc(
-      {
-        contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
-        path,
-        projection,
-      },
-      docSearchColumns(projection, content),
-    );
-  }
-  return store;
-};
+import { describe, expect, it } from "vitest";
+import { storeWith } from "./seeded-store";
 
 const hits = (store: SqlKnowledgeStore, query: string): string[] =>
   store.search(query, 20).map((hit) => hit.path);
