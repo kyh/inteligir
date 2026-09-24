@@ -18,13 +18,17 @@ export const EditorHarness = ({
   store,
   ref,
   livePath,
+  nodeIds = false,
 }: {
   value: Value;
   store: OpenNoteStore;
   ref?: Ref<PlateEditor>;
   livePath?: string;
+  // Plate turns NodeIdPlugin off under NODE_ENV=test; the app runs it, and the block overlays
+  // address blocks by that id.
+  nodeIds?: boolean;
 }) => {
-  const editor = usePlateEditor({ plugins: EDITOR_KIT, value });
+  const editor = usePlateEditor({ nodeId: nodeIds, plugins: EDITOR_KIT, value });
   useImperativeHandle(ref, () => editor, [editor]);
   useEffect(() => {
     if (livePath === undefined) {

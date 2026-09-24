@@ -1,18 +1,22 @@
 // Collapse is view state keyed `level:text:ordinal` per note path in localStorage;
-// it never touches bytes or history. The hidden set is derived once per render in
-// a provider: a per-block backward walk is quadratic under keystrokes.
+// it never touches bytes or history. What a fold hides is derived once per document
+// change in a provider, a per-block backward walk being quadratic under keystrokes, and
+// addressed by block id: Plate re-renders a block only when its own node changes, so the
+// `path` it last rendered with is stale after an insert above it.
 
-import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
-import { createPlatePlugin, useEditorRef } from "platejs/react";
-import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
+import { createPlatePlugin, useEditorSelector } from "platejs/react";
+import type { RenderNodeWrapper } from "platejs/react";
 import { ChevronDownIcon } from "lucide-react";
 import { z } from "zod";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
+import { blockId } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
@@ -23,12 +27,12 @@ const HEADING_RANK = new Map<string, number>([
   ["h3", 3],
 ]);
 
-const folds = new Map<string, Set<string>>();
-let version = 0;
+// A toggle replaces a note's set rather than mutating it, so the set is itself the snapshot a
+// subscriber compares.
+const folds = new Map<string, ReadonlySet<string>>();
 const listeners = new Set<() => void>();
 
 const emit = (): void => {
-  version += 1;
   for (const listener of listeners) {
     listener();
   }
@@ -76,7 +80,7 @@ const writeStorage = (path: string, keys: ReadonlySet<string>): void => {
   }
 };
 
-const foldsFor = (path: string): Set<string> => {
+const foldsFor = (path: string): ReadonlySet<string> => {
   const known = folds.get(path);
   if (known !== undefined) {
     return known;
@@ -89,12 +93,13 @@ const foldsFor = (path: string): Set<string> => {
 export const headingCollapseKeys = (path: string): ReadonlySet<string> => foldsFor(path);
 
 export const toggleHeadingCollapse = (path: string, key: string): void => {
-  const keys = foldsFor(path);
+  const keys = new Set(foldsFor(path));
   if (keys.has(key)) {
     keys.delete(key);
   } else {
     keys.add(key);
   }
+  folds.set(path, keys);
   writeStorage(path, keys);
   emit();
 };
@@ -106,46 +111,48 @@ const subscribe = (listener: () => void): (() => void) => {
   };
 };
 
+const NO_FOLDS: ReadonlySet<string> = new Set();
+
 interface Derived {
-  path: string | null;
-  hidden: Set<number>;
-  keys: Map<number, string>;
+  path: string;
   folded: ReadonlySet<string>;
+  // block id → that heading's fold key
+  keys: ReadonlyMap<string, string>;
+  hidden: ReadonlySet<string>;
 }
 
-const NOTHING_FOLDED: Derived = {
-  folded: new Set(),
-  hidden: new Set(),
-  keys: new Map(),
-  path: null,
-};
-
-const derive = (children: readonly TElement[], path: string): Derived => {
-  const folded = headingCollapseKeys(path);
-  const hidden = new Set<number>();
-  const keys = new Map<number, string>();
+const derive = (
+  children: readonly TElement[],
+  path: string,
+  folded: ReadonlySet<string>,
+): Derived => {
+  const hidden = new Set<string>();
+  const keys = new Map<string, string>();
   const ordinals = new Map<string, number>();
   const stack: number[] = [];
-  for (const [index, child] of children.entries()) {
+  for (const child of children) {
+    const id = blockId(child);
     const rank = HEADING_RANK.get(child.type);
     if (rank === undefined) {
-      if (stack.length > 0) {
-        hidden.add(index);
+      if (stack.length > 0 && id !== undefined) {
+        hidden.add(id);
       }
       continue;
     }
     while (stack.length > 0 && (stack.at(-1) ?? 0) >= rank) {
       stack.pop();
     }
-    if (stack.length > 0) {
-      hidden.add(index);
+    if (stack.length > 0 && id !== undefined) {
+      hidden.add(id);
     }
     const text = NodeApi.string(child);
     const base = `${String(rank)}:${text}`;
     const ordinal = ordinals.get(base) ?? 0;
     ordinals.set(base, ordinal + 1);
     const key = `${base}:${String(ordinal)}`;
-    keys.set(index, key);
+    if (id !== undefined) {
+      keys.set(id, key);
+    }
     if (folded.has(key)) {
       stack.push(rank);
     }
@@ -153,36 +160,67 @@ const derive = (children: readonly TElement[], path: string): Derived => {
   return { folded, hidden, keys, path };
 };
 
-// `clock` only makes the memo key carry the store's version; the fold sets are module state the linter cannot see.
-const deriveAt = (children: readonly TElement[], path: string, clock: number): Derived => {
-  void clock;
-  return derive(children, path);
+const sameIds = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean => {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const id of a) {
+    if (!b.has(id)) {
+      return false;
+    }
+  }
+  return true;
 };
 
-const DerivedContext = createContext<Derived>(NOTHING_FOLDED);
+const sameKeys = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean => {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const [id, key] of a) {
+    if (b.get(id) !== key) {
+      return false;
+    }
+  }
+  return true;
+};
 
-const CollapseProvider = ({ children }: { children: React.ReactNode }) => {
-  const editor = useEditorRef();
+// Every change re-derives, so this is what keeps typing in a paragraph from re-rendering every
+// block: the context moves only when a fold's reach or a heading's key does.
+const sameDerived = (a: Derived | null, b: Derived | null): boolean => {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return (
+    a.path === b.path &&
+    a.folded === b.folded &&
+    sameIds(a.hidden, b.hidden) &&
+    sameKeys(a.keys, b.keys)
+  );
+};
+
+const DerivedContext = createContext<Derived | null>(null);
+
+const CollapseProvider = ({ children }: { children: ReactNode }) => {
   // subscribed once here rather than per block, so the fold set and every chevron name the same file
   const path = useOpenNotePath();
-  const storeVersion = useSyncExternalStore(subscribe, () => version);
-  const derived = useMemo(
-    () => (path === null ? NOTHING_FOLDED : deriveAt(editor.children, path, storeVersion)),
-    [editor.children, path, storeVersion],
+  const folded = useSyncExternalStore(subscribe, () => (path === null ? NO_FOLDS : foldsFor(path)));
+  const derived = useEditorSelector(
+    (editor) => (path === null ? null : derive(editor.children, path, folded)),
+    [path, folded],
+    { equalityFn: sameDerived },
   );
   return <DerivedContext.Provider value={derived}>{children}</DerivedContext.Provider>;
 };
 
-const CollapsibleBlock = (props: PlateElementProps) => {
+const CollapsibleBlock = ({ id, children }: { id: string; children: ReactNode }) => {
   const derived = useContext(DerivedContext);
-  const index = props.path?.at(0) ?? -1;
-  const key = derived.keys.get(index);
-  const isHidden = derived.hidden.has(index);
-  const { path } = derived;
+  const isHidden = derived?.hidden.has(id) === true;
+  const key = derived?.keys.get(id);
 
-  if (key === undefined || path === null) {
-    return <div className={cn(isHidden && "hidden")}>{props.children}</div>;
+  if (derived === null || key === undefined) {
+    return <div className={cn(isHidden && "hidden")}>{children}</div>;
   }
+  const { path } = derived;
   const isCollapsed = derived.folded.has(key);
   return (
     <div className={cn("group/heading relative", isHidden && "hidden")}>
@@ -206,17 +244,20 @@ const CollapsibleBlock = (props: PlateElementProps) => {
           <ChevronDownIcon />
         </button>
       </Tooltip>
-      {props.children}
+      {children}
     </div>
   );
 };
 
-const CollapseWrapper: RenderNodeWrapper = ({ path }) => {
-  if (path.length !== 1) {
+// NodeIdPlugin gives every live block an id; only a test editor, where Plate turns the plugin
+// off, has blocks without one, and those take no part in folding.
+const CollapseWrapper: RenderNodeWrapper = ({ element, path }) => {
+  const id = blockId(element);
+  if (path.length !== 1 || id === undefined) {
     return;
   }
-  return function CollapsibleBlockWrapper(props) {
-    return <CollapsibleBlock {...props} />;
+  return function CollapsibleBlockWrapper({ children }) {
+    return <CollapsibleBlock id={id}>{children}</CollapsibleBlock>;
   };
 };
 
