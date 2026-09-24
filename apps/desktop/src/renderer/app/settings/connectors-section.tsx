@@ -1,7 +1,5 @@
 import {
-  CONNECTOR_ARGS_MAX,
-  CONNECTOR_NAME_MAX_LENGTH,
-  CONNECTOR_NAME_PATTERN,
+  connectorAddRequestSchema,
   connectorTarget,
 } from "@repo/api/local/connectors/connectors-schema";
 import type {
@@ -16,11 +14,48 @@ import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
+import type { z } from "zod";
 import { failed, orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
 import { ChoiceRow, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
-const useConnectors = () => useQuery({ ...orpc.connectors.list.queryOptions(), staleTime: 0 });
+// The OAuth callback lands on the server and nothing on the ws bus announces it, so the list is
+// polled from the moment the browser is sent to the provider until the row reads connected.
+const AUTHORIZE_POLL_MS = 1000;
+const AUTHORIZE_WAIT_MS = 5 * 60 * 1000;
+
+interface AwaitedAuthorize {
+  name: string;
+  until: number;
+}
+
+const oauthStatusOf = (
+  servers: readonly ConnectorView[] | undefined,
+  name: string,
+): ConnectorOauthStatus | null => {
+  const transport = servers?.find((server) => server.name === name)?.transport;
+  return transport?.kind === "oauth" ? transport.status : null;
+};
+
+export const authorizePollInterval = (
+  awaited: AwaitedAuthorize | null,
+  servers: readonly ConnectorView[] | undefined,
+  now: number,
+): number | false => {
+  if (awaited === null || now >= awaited.until) {
+    return false;
+  }
+  const status = oauthStatusOf(servers, awaited.name);
+  return status === null || status === "connected" ? false : AUTHORIZE_POLL_MS;
+};
+
+const useConnectors = (awaited: AwaitedAuthorize | null) =>
+  useQuery({
+    ...orpc.connectors.list.queryOptions(),
+    refetchInterval: (query) =>
+      authorizePollInterval(awaited, query.state.data?.servers, Date.now()),
+    staleTime: 0,
+  });
 
 export const argumentLines = (text: string): string[] =>
   text
@@ -112,78 +147,99 @@ const CATALOG: readonly CatalogEntry[] = [
   },
 ];
 
-export const draftToRequest = (
-  draft: AddConnectorDraft,
-): { ok: true; transport: ConnectorTransportInput } | { ok: false; problem: string } => {
-  if (!CONNECTOR_NAME_PATTERN.test(draft.name)) {
-    return { ok: false, problem: "A name uses letters, numbers, '-' and '_' only." };
+type DraftVerdict =
+  | { ok: true; transport: ConnectorTransportInput }
+  | { ok: false; problem: string };
+
+const draftTransport = (draft: AddConnectorDraft): ConnectorTransportInput => {
+  switch (draft.kind) {
+    case "stdio": {
+      return { args: argumentLines(draft.argsText), command: draft.command.trim(), kind: "stdio" };
+    }
+    case "oauth": {
+      return {
+        authorizationEndpoint: draft.authorizationEndpoint.trim(),
+        clientId: draft.clientId.trim(),
+        kind: "oauth",
+        scopes: draft.scopesText.split(/\s+/u).filter((scope) => scope.length > 0),
+        tokenEndpoint: draft.tokenEndpoint.trim(),
+        url: draft.url.trim(),
+      };
+    }
+    case "http": {
+      const url = draft.url.trim();
+      const headerName = draft.headerName.trim();
+      const headerValue = draft.headerValue.trim();
+      return headerName === "" || headerValue === ""
+        ? { kind: "http", url }
+        : { headers: { [headerName]: headerValue }, kind: "http", url };
+    }
+    // no default
   }
-  if (draft.name.length > CONNECTOR_NAME_MAX_LENGTH) {
+};
+
+// The schema is the rule; this table only names each field the way the form labels it.
+const FIELD_LABELS = {
+  args: "arguments",
+  authorizationEndpoint: "authorize endpoint",
+  clientId: "client id",
+  command: "command",
+  name: "name",
+  scopes: "scopes",
+  tokenEndpoint: "token endpoint",
+  url: "URL",
+} satisfies Record<string, string>;
+
+const isLabelledField = (key: PropertyKey): key is keyof typeof FIELD_LABELS =>
+  Object.hasOwn(FIELD_LABELS, key);
+
+const fieldLabel = (kind: TransportKind, path: readonly PropertyKey[]): string => {
+  const field = path.findLast(isLabelledField);
+  if (field === undefined) {
+    return "connector";
+  }
+  return field === "url" && kind === "oauth" ? "server URL" : FIELD_LABELS[field];
+};
+
+const problemOf = (kind: TransportKind, issue: z.core.$ZodIssue): string => {
+  const label = fieldLabel(kind, issue.path);
+  switch (issue.code) {
+    case "too_small": {
+      return `Fill in the ${label}.`;
+    }
+    case "too_big": {
+      const maximum = String(issue.maximum);
+      return issue.origin === "array"
+        ? `At most ${maximum} ${label}.`
+        : `The ${label} is at most ${maximum} characters.`;
+    }
+    default: {
+      return `The ${label} ${issue.message}.`;
+    }
+  }
+};
+
+export const draftToRequest = (draft: AddConnectorDraft): DraftVerdict => {
+  const parsed = connectorAddRequestSchema.safeParse({
+    name: draft.name,
+    transport: draftTransport(draft),
+  });
+  if (!parsed.success) {
+    const [issue] = parsed.error.issues;
     return {
       ok: false,
-      problem: `A name is at most ${String(CONNECTOR_NAME_MAX_LENGTH)} characters.`,
+      problem:
+        issue === undefined ? "The connector is not complete." : problemOf(draft.kind, issue),
     };
   }
-  if (draft.kind === "stdio") {
-    const command = draft.command.trim();
-    if (command.length === 0) {
-      return { ok: false, problem: "Name the program to run." };
-    }
-    const args = argumentLines(draft.argsText);
-    if (args.length > CONNECTOR_ARGS_MAX) {
-      return { ok: false, problem: `At most ${String(CONNECTOR_ARGS_MAX)} arguments.` };
-    }
-    return { ok: true, transport: { args, command, kind: "stdio" } };
-  }
-  if (draft.kind === "oauth") {
-    const url = draft.url.trim();
-    const authorizationEndpoint = draft.authorizationEndpoint.trim();
-    const tokenEndpoint = draft.tokenEndpoint.trim();
-    const clientId = draft.clientId.trim();
-    for (const [label, value] of [
-      ["server URL", url],
-      ["authorize endpoint", authorizationEndpoint],
-      ["token endpoint", tokenEndpoint],
-    ] as const) {
-      let protocol = "";
-      try {
-        ({ protocol } = new URL(value));
-      } catch {
-        return { ok: false, problem: `The ${label} does not parse.` };
-      }
-      if (protocol !== "http:" && protocol !== "https:") {
-        return { ok: false, problem: `The ${label} must be http:// or https://.` };
-      }
-    }
-    if (clientId.length === 0) {
-      return { ok: false, problem: "Paste the OAuth app's client id." };
-    }
-    const scopes = draft.scopesText.split(/\s+/u).filter((scope) => scope.length > 0);
-    return {
-      ok: true,
-      transport: { authorizationEndpoint, clientId, kind: "oauth", scopes, tokenEndpoint, url },
-    };
-  }
-  const url = draft.url.trim();
-  let protocol = "";
-  try {
-    ({ protocol } = new URL(url));
-  } catch {
-    return { ok: false, problem: "The URL does not parse." };
-  }
-  if (protocol !== "http:" && protocol !== "https:") {
-    return { ok: false, problem: "The URL must be http:// or https://." };
-  }
-  const headerName = draft.headerName.trim();
-  const headerValue = draft.headerValue.trim();
-  if ((headerName === "") !== (headerValue === "")) {
+  // the one draft rule the schema cannot state: it only ever sees a header that is whole
+  if (
+    draft.kind === "http" &&
+    (draft.headerName.trim() === "") !== (draft.headerValue.trim() === "")
+  ) {
     return { ok: false, problem: "An auth header needs both its name and its value." };
   }
-  const transport: ConnectorTransportInput = { kind: "http", url };
-  if (headerName !== "") {
-    transport.headers = { [headerName]: headerValue };
-  }
-  return { ok: true, transport };
+  return { ok: true, transport: parsed.data.transport };
 };
 
 const OAUTH_STATUS_LABEL = {
@@ -195,9 +251,11 @@ const OAUTH_STATUS_LABEL = {
 const ConnectorRow = ({
   server,
   onChanged,
+  onAuthorizing,
 }: {
   server: ConnectorView;
   onChanged: (servers: ConnectorView[]) => void;
+  onAuthorizing: (name: string) => void;
 }) => {
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
 
@@ -213,6 +271,7 @@ const ConnectorRow = ({
         if (!body.opened) {
           setAuthorizeUrl(body.url);
         }
+        onAuthorizing(server.name);
       },
     }),
   );
@@ -348,11 +407,20 @@ const ConnectorRow = ({
 
 export const ConnectorsSection = () => {
   const queryClient = useQueryClient();
-  const query = useConnectors();
+  const [awaited, setAwaited] = useState<AwaitedAuthorize | null>(null);
+  const query = useConnectors(awaited);
   const [draft, setDraft] = useState<AddConnectorDraft>(EMPTY_DRAFT);
   const formId = useId();
 
   const servers = query.data?.servers ?? [];
+  // dropped once it lands, so a later Disconnect does not start the poll again
+  if (awaited !== null && oauthStatusOf(servers, awaited.name) === "connected") {
+    setAwaited(null);
+  }
+
+  const awaitAuthorize = (name: string): void => {
+    setAwaited({ name, until: Date.now() + AUTHORIZE_WAIT_MS });
+  };
   const setServers = (next: ConnectorView[]): void => {
     queryClient.setQueryData(orpc.connectors.list.queryKey(), { servers: next });
   };
@@ -419,7 +487,12 @@ export const ConnectorsSection = () => {
     return (
       <div className="divide-y divide-line">
         {servers.map((server) => (
-          <ConnectorRow key={server.name} server={server} onChanged={setServers} />
+          <ConnectorRow
+            key={server.name}
+            server={server}
+            onChanged={setServers}
+            onAuthorizing={awaitAuthorize}
+          />
         ))}
       </div>
     );
