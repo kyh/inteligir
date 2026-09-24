@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -30,9 +30,22 @@ export const PROD_SERVER_PORT = 4664;
 export const VAULTS_DIR_NAME = "vaults";
 const VAULT_DATA_DIR_HASH_LENGTH = 16;
 
+// A folder's identity: every symlink followed, and the native realpath rather than the JS one,
+// because only it answers a case-insensitive volume's own case (`~/inteligir` is `~/Inteligir`).
+// A path with no physical spelling, one not there yet, keeps its resolved one.
+export const physicalVaultDir = (vaultDir: string): string => {
+  try {
+    return realpathSync.native(vaultDir);
+  } catch {
+    return path.resolve(vaultDir);
+  }
+};
+
 // The default vault keeps the root, as every install before a second vault did; any other
 // vault gets a dir of its own beneath it, so two vaults never share an index, a db or a
-// server.json. Keyed by the resolved path, not a realpath: the vault may not exist yet.
+// server.json. Keyed by the spelling the selector stores, which selection makes physical:
+// hashing the realpath here instead would move the dir of every vault already stored under a
+// symlinked spelling.
 export const vaultDataDir = (rootDataDir: string, vaultDir: string): string => {
   const digest = createHash("sha256").update(path.resolve(vaultDir)).digest("hex");
   return path.join(rootDataDir, VAULTS_DIR_NAME, digest.slice(0, VAULT_DATA_DIR_HASH_LENGTH));
@@ -440,9 +453,10 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     devInstanceDir,
     managed,
   );
-  // an explicit data dir is taken as given: a harness or an operator pinned it and expects exactly it
+  // an explicit data dir is taken as given: a harness or an operator pinned it and expects exactly it.
+  // the default reached by another case or through a symlink is still the default, and keeps the root
   const dataDir =
-    envDataDir !== undefined || path.resolve(vaultDir) === path.resolve(defaultVaultDir)
+    envDataDir !== undefined || physicalVaultDir(vaultDir) === physicalVaultDir(defaultVaultDir)
       ? rootDataDir
       : vaultDataDir(rootDataDir, vaultDir);
   // the root too: a vault under it would sit beside config.json and every other vault's db

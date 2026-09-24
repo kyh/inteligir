@@ -3,8 +3,7 @@
 // refuse the same things for the same reasons.
 
 import { statSync } from "node:fs";
-import nodePath from "node:path";
-import { resolveAppConfig } from "./config";
+import { physicalVaultDir, resolveAppConfig } from "./config";
 import type { AppConfig, ResolveAppConfigArgs } from "./config";
 
 export type VaultSelectionRefusal =
@@ -47,7 +46,9 @@ export const planVaultSelection = (current: CurrentVault, vaultDir: string): Vau
   if (blocked !== null) {
     return { kind: "refused", reason: blocked };
   }
-  if (nodePath.resolve(vaultDir) === nodePath.resolve(current.vaultDir)) {
+  // physical on both sides: the shell asks with the path its picker returned, and the open
+  // vault is the default's spelling or whatever config.json holds
+  if (physicalVaultDir(vaultDir) === physicalVaultDir(current.vaultDir)) {
     return { kind: "refused", reason: "already-open" };
   }
   if (!isDirectory(vaultDir)) {
@@ -75,6 +76,12 @@ export const selectionRefusalMessage = (reason: VaultSelectionRefusal): string =
 };
 
 // a candidate is resolved exactly as a boot would resolve it, so every refusal a boot has
-// (not absolute, nested in the data dir) is raised here, before anything is written
-export const resolveVaultCandidate = (args: ResolveAppConfigArgs, vaultDir: string): AppConfig =>
-  resolveAppConfig({ ...args, env: { ...args.env, INTELIGIR_VAULT_DIR: vaultDir } });
+// (not absolute, nested in the data dir) is raised here, before anything is written. then
+// again on the folder's physical spelling, which the selector stores, so one folder keeps one
+// data dir however it was typed; the parse goes first so a `~/` path is expanded, and a
+// relative one refused, before anything is realpathed
+export const resolveVaultCandidate = (args: ResolveAppConfigArgs, vaultDir: string): AppConfig => {
+  const withVault = (dir: string): AppConfig =>
+    resolveAppConfig({ ...args, env: { ...args.env, INTELIGIR_VAULT_DIR: dir } });
+  return withVault(physicalVaultDir(withVault(vaultDir).vaultDir));
+};

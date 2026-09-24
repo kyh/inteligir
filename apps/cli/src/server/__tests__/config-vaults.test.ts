@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -9,9 +9,17 @@ import {
   writeManagedVaultDir,
 } from "../config";
 import { pathContains } from "../path-containment";
-import { makeTempDir } from "./temp-dir";
+import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
 
 const PROD = { NODE_ENV: "production" };
+
+const selectDefaultAs = (spell: (homeDir: string) => string) => {
+  const homeDir = makeTempDir("inteligir-config-test-");
+  const root = path.join(homeDir, PROD_DATA_DIR_NAME);
+  mkdirSync(path.join(homeDir, "Inteligir"));
+  writeManagedVaultDir(root, spell(homeDir));
+  return { config: resolveAppConfig({ checkoutPath: "/checkout/a", env: PROD, homeDir }), root };
+};
 
 describe("a second vault's data dir", () => {
   it("keeps the root for the default vault, as before", () => {
@@ -61,6 +69,35 @@ describe("a second vault's data dir", () => {
     });
     expect(config.dataDir).toBe(dataDir);
     expect(config.rootDataDir).toBe(dataDir);
+  });
+
+  describe("keeps the root for the default vault however the selector spells it", () => {
+    it("through a symlink", () => {
+      const { config, root } = selectDefaultAs((homeDir) => {
+        const linked = path.join(homeDir, "Linked");
+        symlinkSync(path.join(homeDir, "Inteligir"), linked);
+        return linked;
+      });
+      expect(config.dataDir).toBe(root);
+    });
+
+    it.skipIf(!TEMP_DIR_FOLDS_CASE)("in another case, where the volume folds case", () => {
+      const { config, root } = selectDefaultAs((homeDir) => path.join(homeDir, "inteligir"));
+      expect(config.dataDir).toBe(root);
+    });
+  });
+
+  it("keys any other vault by the spelling the selector stores, never re-derived", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const root = path.join(homeDir, PROD_DATA_DIR_NAME);
+    const work = path.join(homeDir, "Work");
+    mkdirSync(work);
+    const linked = path.join(homeDir, "Linked");
+    symlinkSync(work, linked);
+    writeManagedVaultDir(root, linked);
+    const config = resolveAppConfig({ checkoutPath: "/checkout/a", env: PROD, homeDir });
+    expect(config.dataDir).toBe(vaultDataDir(root, linked));
+    expect(config.dataDir).not.toBe(vaultDataDir(root, realpathSync.native(work)));
   });
 
   it("refuses a vault inside the root, which holds every vault's data", () => {
