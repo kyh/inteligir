@@ -698,7 +698,13 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
                 {zen ? null : <NoteFooter path={openPath} />}
                 <ActionComposer
                   open={composerOpen}
-                  onOpenChange={setComposerOpen}
+                  onOpenChange={(next) => {
+                    // a press or an Escape in the layer over a covered workspace is not one at
+                    // the composer, which the way back finds as it was left
+                    if (next || !covered) {
+                      setComposerOpen(next);
+                    }
+                  }}
                   seed={composerSeed}
                   docPath={openPath}
                   readViewContext={readViewContext}

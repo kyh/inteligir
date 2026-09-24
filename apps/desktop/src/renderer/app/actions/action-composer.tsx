@@ -150,7 +150,8 @@ export const ActionComposer = ({
       return false;
     }
     const editor = docPath === null ? null : getLiveEditor(docPath);
-    if (editor === null) {
+    // a composer unmounted with the window outlives the editor's DOM, which has no focus to take
+    if (editor === null || editor.api.toDOMNode(editor)?.isConnected !== true) {
       return true;
     }
     editor.tf.blur();
