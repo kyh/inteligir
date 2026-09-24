@@ -11,13 +11,17 @@ import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
-import type { OpenExternalUrl } from "../cloud/browser-opener";
+import type { OpenExternalUrl } from "../browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
+import type { RecordAgentWrites } from "../agents/agent-driver";
 import type { AppConfig } from "../config";
+import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
+import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
-import { authorizationHeader } from "../server-file";
+import { LOOPBACK_HOST } from "../loopback-origin";
+import { authorizationHeader, loopbackOrigin } from "../server-file";
 import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import type { CreateTurnDriver } from "../threads/turn-driver";
@@ -29,7 +33,7 @@ import { FakeTurnDriver } from "./fake-turn-driver";
 import type { FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
 
-export { makeTempDir } from "./temp-dir";
+export { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
 
 export const TEST_SERVER_TOKEN = "test-server-token";
 
@@ -48,6 +52,9 @@ export interface BootTestAppOptions {
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
+    recordAgentWrites?: RecordAgentWrites;
+    // absent, `agent` answers every request.
+    status?: () => AgentStatus;
   };
 }
 
@@ -77,7 +84,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   const agent = options.agent ?? { detail: null, mode: "off", runtime: "off" };
   const config: AppConfig = {
     agent: agent.mode,
-    agentModel: null,
+    agentModels: { claude: null, codex: null },
     cloudUrl: "https://cloud.test",
     dataDir,
     dataDirSource: "env",
@@ -98,6 +105,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   };
 
   const ports: ComposePorts = {
+    knowledge: { projector: createInlineProjector() },
     vault: { gitEnv: hermeticGitEnv(), remote: () => null, watch: false },
   };
   if (options.openExternalUrl !== undefined) {
@@ -127,7 +135,12 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
           (async () => {
             await Promise.resolve();
           }),
-        status: agent,
+        recordAgentWrites:
+          made?.recordAgentWrites ??
+          (() => {
+            /* empty */
+          }),
+        status: made?.status ?? (() => agent),
       };
     },
     ports,
@@ -150,8 +163,9 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   const client = createRouterClient(localRouter, {
     context: {
       ...runtime.context,
-      // no request reached this client, so the procedure that needs a callback host refuses.
-      requestHost: undefined,
+      agentThreadId: null,
+      // no request reached this client, so the procedure that needs a callback origin refuses.
+      requestOrigin: null,
     },
   });
   const bareRequest = async (input: string, init?: RequestInit): Promise<Response> => {
@@ -211,15 +225,14 @@ export interface ListeningTestApp {
 }
 
 export const listenTestApp = async (booted: BootedTestApp): Promise<ListeningTestApp> => {
-  const server = serve({ fetch: booted.composed.app.fetch, hostname: "127.0.0.1", port: 0 });
+  const server = serve({ fetch: booted.composed.app.fetch, hostname: LOOPBACK_HOST, port: 0 });
   booted.composed.injectWebSocket(server);
   onTestFinished(async () => {
     // a suite that is about the listener's teardown closes it itself.
     if (!server.listening) {
       return;
     }
-    server.close();
-    await once(server, "close");
+    await closeServer(server, booted.composed.upgradedSockets);
   });
   if (server.address() === null) {
     await once(server, "listening");
@@ -228,7 +241,7 @@ export const listenTestApp = async (booted: BootedTestApp): Promise<ListeningTes
   const client: RouterClient<typeof localRouter> = createORPCClient(
     new RPCLink({
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
-      origin: `http://127.0.0.1:${port}`,
+      origin: loopbackOrigin(port),
       url: RPC_PREFIX,
     }),
   );

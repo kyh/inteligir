@@ -1,14 +1,16 @@
 import { buffer } from "node:stream/consumers";
 import { isDefinedError, safe } from "@orpc/client";
 import {
+  VAULT_HISTORY_DEFAULT_LIMIT,
   VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
   contentHashHex,
+  contentHashSchema,
 } from "@repo/api/local/vault/vault-schema";
 import type {
   VaultHistoryRequest,
   VaultStatusResponse,
-  VaultWriteRequest,
+  VaultWriteGuard,
 } from "@repo/api/local/vault/vault-schema";
 import {
   ATTACHMENT_LOCATION_SPELLINGS,
@@ -17,16 +19,17 @@ import {
   parseAttachmentLocation,
 } from "@repo/api/local/vault/attachment-location";
 import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
+import type { CommentStoreRestore } from "@repo/api/local/vault/restore-comment-store";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
-import { invalidUsage } from "../cli-error";
+import { CliExitError, failureFrom, getErrorMessage, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
 import { resolveAppConfig, writeManagedVaultDir } from "../server/config";
 import type { ResolveAppConfigArgs } from "../server/config";
 import { resolveCheckoutRoot } from "../server/dev-instance";
-import { readServerFile } from "../server/server-file";
+import { loopbackOrigin, readServerFile } from "../server/server-file";
 import {
   planVaultSelection,
   resolveVaultCandidate,
@@ -55,8 +58,16 @@ const renderVaultStatus = (status: VaultStatusResponse): string[] => {
 
 // `fatal` refuses invalid UTF-8 rather than substituting U+FFFD; `ignoreBOM` keeps a leading BOM as content.
 // the size bound is checked here too: the server's refusal arrives only after the whole body crossed the socket.
+// a terminal would park an agent's shell on a read nobody answers, and a closed stdin reads as nothing: emptying
+// a file is spelled out as `--content ''` rather than inferred from a pipe that carried nothing.
 const readContentFromStdin = async (): Promise<string> => {
+  if (process.stdin.isTTY) {
+    throw invalidUsage("no --content and stdin is a terminal; pipe the content or pass --content");
+  }
   const bytes = await buffer(process.stdin);
+  if (bytes.byteLength === 0) {
+    throw invalidUsage("stdin carried no content; pass --content '' to empty a file");
+  }
   if (bytes.byteLength > VAULT_MAX_CONTENT_LENGTH) {
     throw invalidUsage(
       `stdin is ${bytes.byteLength} bytes; the vault refuses anything over ${VAULT_MAX_CONTENT_LENGTH}`,
@@ -76,6 +87,39 @@ const assertContentWithinBound = (content: string): void => {
       `--content is ${byteLength} bytes; the vault refuses anything over ${VAULT_MAX_CONTENT_LENGTH}`,
     );
   }
+};
+
+// the contract's guard is required, so exactly one flag names it, refused here as the schema would
+// refuse it, before stdin is read: last-writer-wins is `--overwrite`, never a forgotten flag.
+const writeGuard = (args: {
+  "expected-hash"?: string | undefined;
+  "if-absent"?: boolean | undefined;
+  overwrite?: boolean | undefined;
+}): VaultWriteGuard => {
+  const expectedHash = args["expected-hash"];
+  const ifAbsent = args["if-absent"] === true;
+  const overwrite = args.overwrite === true;
+  const named = [expectedHash !== undefined, ifAbsent, overwrite].filter(Boolean).length;
+  if (named === 0) {
+    throw invalidUsage(
+      "name the write's guard: --if-absent for a new file, --expected-hash <hash> over the bytes you read, or --overwrite",
+    );
+  }
+  if (named > 1) {
+    throw invalidUsage(
+      "--if-absent, --expected-hash and --overwrite each guard a whole write; name one",
+    );
+  }
+  if (expectedHash === undefined) {
+    return ifAbsent ? { kind: "absent" } : { kind: "overwrite" };
+  }
+  const hash = contentHashSchema.safeParse(expectedHash);
+  if (!hash.success) {
+    throw invalidUsage(
+      `--expected-hash takes the 64 lowercase hex characters \`vault read --json\` answers as hash (got "${expectedHash}")`,
+    );
+  }
+  return { hash: hash.data, kind: "expected" };
 };
 
 interface VaultSelection {
@@ -98,7 +142,7 @@ const selectVault = (deps: CliDeps, rawDir: string): VaultSelection => {
   try {
     candidate = resolveVaultCandidate(configArgs, rawDir);
   } catch (error) {
-    throw invalidUsage(error instanceof Error ? error.message : String(error));
+    throw invalidUsage(getErrorMessage(error));
   }
   const plan = planVaultSelection(current, candidate.vaultDir);
   if (plan.kind === "refused") {
@@ -109,7 +153,7 @@ const selectVault = (deps: CliDeps, rawDir: string): VaultSelection => {
   return {
     dataDir: candidate.dataDir,
     previousVaultDir: current.vaultDir,
-    running: server === null ? null : { baseUrl: `http://127.0.0.1:${String(server.port)}` },
+    running: server === null ? null : { baseUrl: loopbackOrigin(server.port) },
     vaultDir: candidate.vaultDir,
   };
 };
@@ -132,9 +176,8 @@ export const vaultCommand = (deps: CliDeps) =>
           name: "attachments",
         },
         run: async ({ args }) => {
-          const api = apiFor(deps);
           if (args.location === undefined) {
-            const body = await api.vault.prefs();
+            const body = await apiFor(deps).vault.prefs();
             if (outputJson(args, body)) {
               return;
             }
@@ -147,7 +190,7 @@ export const vaultCommand = (deps: CliDeps) =>
               `"${args.location}" is not a location — use ${ATTACHMENT_LOCATION_SPELLINGS}`,
             );
           }
-          const body = await api.vault.setPrefs({ attachments: location });
+          const body = await apiFor(deps).vault.setPrefs({ attachments: location });
           if (outputJson(args, body)) {
             return;
           }
@@ -197,7 +240,10 @@ export const vaultCommand = (deps: CliDeps) =>
 
       history: defineCommand({
         args: {
-          limit: { description: "How many revisions to answer", type: "string" },
+          limit: {
+            description: `How many revisions to answer (1–${VAULT_HISTORY_MAX_LIMIT}, default ${VAULT_HISTORY_DEFAULT_LIMIT})`,
+            type: "string",
+          },
           path: { description: "The vault-relative path", required: true, type: "positional" },
           skip: { description: "Skip this many revisions", type: "string" },
           ...jsonArg,
@@ -250,9 +296,16 @@ export const vaultCommand = (deps: CliDeps) =>
         run: async ({ args }) => {
           const api = apiFor(deps);
           const tree = await api.vault.tree();
-          const prefix = args.dir?.replace(/\/+$/u, "");
+          const prefix = args.dir?.replace(/\/+$/u, "") ?? "";
+          // a mistyped folder would otherwise list nothing, which reads as an empty folder.
+          if (
+            prefix.length > 0 &&
+            !tree.entries.some((entry) => entry.kind === "dir" && entry.path === prefix)
+          ) {
+            throw new CliExitError(`No folder ${prefix} in the vault`, { code: "NOT_FOUND" });
+          }
           const entries =
-            prefix === undefined || prefix.length === 0
+            prefix.length === 0
               ? tree.entries
               : tree.entries.filter(
                   (entry) => entry.path === prefix || entry.path.startsWith(`${prefix}/`),
@@ -319,7 +372,8 @@ export const vaultCommand = (deps: CliDeps) =>
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.vault.read({ path: args.path });
-          if (outputJson(args, body)) {
+          // the base a guarded `vault write --expected-hash` carries back.
+          if (outputJson(args, { ...body, hash: await contentHashHex(body.content) })) {
             return;
           }
           writeOut(body.content);
@@ -333,7 +387,7 @@ export const vaultCommand = (deps: CliDeps) =>
           ...jsonArg,
         },
         meta: {
-          description: "Rename/move a note; wiki links into it are rewritten",
+          description: "Rename/move a note or folder; links into and out of it are rewritten",
           name: "rename",
         },
         run: async ({ args }) => {
@@ -366,35 +420,39 @@ export const vaultCommand = (deps: CliDeps) =>
         },
         // an ordinary guarded write of older bytes, never a server-side restore (a second write path with its own CAS):
         // checkpoint first so the replaced bytes survive as a revision, and carry the base read so a concurrent write is refused.
+        // the checkpoint names the note alone: a whole-tree one would sweep a running turn's writes into an auto-commit.
         run: async ({ args }) => {
           const api = apiFor(deps);
           const revision = await api.vault.revision({ path: args.path, sha: args.sha });
-          await api.vault.commitNow();
+          await api.vault.commitNow({ paths: [args.path] });
           const current = await safe(api.vault.read({ path: args.path }));
-          let request: VaultWriteRequest;
+          let guard: VaultWriteGuard;
           if (current.error === null) {
-            request = {
-              content: revision.content,
-              expectedHash: await contentHashHex(current.data.content),
-              path: args.path,
-            };
+            guard = { hash: await contentHashHex(current.data.content), kind: "expected" };
           } else if (isDefinedError(current.error) && current.error.code === "NOT_FOUND") {
             // a deleted note has no base to guard against; create-exclusively, so a note that
             // reappeared there in the meantime is refused rather than replaced.
-            request = { content: revision.content, ifAbsent: true, path: args.path };
+            guard = { kind: "absent" };
           } else {
             throw current.error;
           }
-          const body = await api.vault.write(request);
-          const comments =
-            "ifAbsent" in request
+          const body = await api.vault.write({ content: revision.content, guard, path: args.path });
+          const comments: CommentStoreRestore =
+            guard.kind === "absent"
               ? await restoreCommentStore(api, revision.content, args.sha)
-              : "none";
-          if (outputJson(args, { ...body, comments })) {
+              : { kind: "none" };
+          if (comments.kind === "failed") {
+            // the note is back either way, so the failure keeps the store refusal's own class, like a send's.
+            throw new CliExitError(
+              `Restored ${body.path} to ${args.sha}, but not its comments: ${getErrorMessage(comments.error)}`,
+              failureFrom(comments.error, "UNEXPECTED"),
+            );
+          }
+          if (outputJson(args, { ...body, comments: comments.kind })) {
             return;
           }
           out.success(
-            `Restored ${body.path} to ${args.sha}${comments === "restored" ? ", with its comments" : ""}`,
+            `Restored ${body.path} to ${args.sha}${comments.kind === "restored" ? ", with its comments" : ""}`,
           );
         },
       }),
@@ -410,7 +468,8 @@ export const vaultCommand = (deps: CliDeps) =>
           ...jsonArg,
         },
         meta: {
-          description: "Print what a note held at one revision (restore: pipe into `vault write`)",
+          description:
+            "Print what a note held at one revision (to put it back, use `vault restore`)",
           name: "revision",
         },
         run: async ({ args }) => {
@@ -455,14 +514,29 @@ export const vaultCommand = (deps: CliDeps) =>
             description: "The content to write; omitted means read stdin",
             type: "string",
           },
+          "expected-hash": {
+            description:
+              "Write only if the file still hashes to this (the hash `vault read --json` answers)",
+            type: "string",
+          },
+          "if-absent": {
+            description: "Create only: refuse if something is already at the path",
+            type: "boolean",
+          },
+          overwrite: {
+            description: "Replace whatever is at the path: the last writer wins",
+            type: "boolean",
+          },
           path: { description: "The vault-relative path", required: true, type: "positional" },
           ...jsonArg,
         },
         meta: {
-          description: "Write a file (content from --content, else stdin); parents are created",
+          description:
+            "Write a file (content from --content, else stdin) under one guard; parents are created",
           name: "write",
         },
         run: async ({ args }) => {
+          const guard = writeGuard(args);
           let content: string;
           if (args.content === undefined) {
             content = await readContentFromStdin();
@@ -471,7 +545,7 @@ export const vaultCommand = (deps: CliDeps) =>
             ({ content } = args);
           }
           const api = apiFor(deps);
-          const body = await api.vault.write({ content, path: args.path });
+          const body = await api.vault.write({ content, guard, path: args.path });
           if (outputJson(args, body)) {
             return;
           }

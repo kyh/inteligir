@@ -354,7 +354,7 @@ export const ChartElement = (props: PlateElementProps) => {
           mode === "view" ? (
             <button
               type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-body text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setMode(parsed.ok ? "grid" : "raw");
               }}
@@ -364,7 +364,7 @@ export const ChartElement = (props: PlateElementProps) => {
           ) : (
             <button
               type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-body text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setMode("view");
               }}

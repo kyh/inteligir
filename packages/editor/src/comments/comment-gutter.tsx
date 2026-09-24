@@ -1,25 +1,34 @@
 import { ElementApi } from "platejs";
-import { createPlatePlugin, useEditorRef } from "platejs/react";
+import { createPlatePlugin, useEditorSelector } from "platejs/react";
 import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
+import { shallow } from "zustand/shallow";
 
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
-import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
+import { blockHoldsCommentMarkers, commentSpans } from "./comment-ranges";
 import { useCommentMeta, useCommentSurface } from "./comment-store";
 
+// A range spanning blocks draws its dot beside the block it starts in, not the one it ends in.
+// Subscribed rather than read in render: an edit elsewhere can orphan an edge here without
+// touching this block.
 const CommentGutterBlock = (props: PlateElementProps) => {
-  const editor = useEditorRef();
+  const { element } = props;
   const actions = useCommentSurface((state) => state.actions);
   const notePath = useOpenNotePath();
   const { resolvedIds } = useCommentMeta(notePath);
-  const { path } = props;
-  const scan =
-    path === undefined
-      ? { ranges: [], unpairedIds: [] }
-      : scanBlockComments(editor, [props.element, path]);
-  const ids = [...new Set([...scan.ranges.flatMap((range) => range.ids), ...scan.unpairedIds])];
+  const ids = useEditorSelector(
+    (editor) => [
+      ...new Set(
+        commentSpans(editor)
+          .filter((span) => span.block === element)
+          .flatMap((span) => span.ids),
+      ),
+    ],
+    [element],
+    { equalityFn: shallow },
+  );
 
   if (ids.length === 0) {
     // Plate types PlateElementProps["children"] as `any`, so the fragment is what pins the
@@ -61,7 +70,7 @@ const CommentGutterWrapper: RenderNodeWrapper = ({ element, path }) => {
   if (path.length !== 1) {
     return;
   }
-  if (!ElementApi.isElement(element) || !holdsCommentMarkers(element)) {
+  if (!ElementApi.isElement(element) || !blockHoldsCommentMarkers(element)) {
     return;
   }
   return function CommentGutterAbove(props) {

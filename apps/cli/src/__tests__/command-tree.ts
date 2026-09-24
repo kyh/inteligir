@@ -6,6 +6,7 @@ import { FIXTURE_REVISION_SHA } from "./fixture-server";
 export const testProgram = (): CommandDef => {
   const deps: CliDeps = {
     env: {},
+    openExternalUrl: async () => false,
     resolveServer: () => ({
       baseUrl: "http://127.0.0.1:0",
       dataDir: "/fixture/data",
@@ -22,7 +23,10 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault history", ["vault", "history", "notes/hello.md", "--limit", "10"]],
   ["vault revision", ["vault", "revision", "notes/hello.md", FIXTURE_REVISION_SHA]],
   ["vault restore", ["vault", "restore", "notes/hello.md", FIXTURE_REVISION_SHA]],
-  ["vault write", ["vault", "write", "notes/written.md", "--content", "# Written\n"]],
+  [
+    "vault write",
+    ["vault", "write", "notes/written.md", "--if-absent", "--content", "# Written\n"],
+  ],
   ["vault rename", ["vault", "rename", "notes/hello.md", "notes/renamed.md"]],
   ["vault delete", ["vault", "delete", "notes/hello.md"]],
   ["vault mkdir", ["vault", "mkdir", "projects"]],
@@ -43,6 +47,7 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["action new", ["action", "new", "do a thing"]],
   ["action send", ["action", "send", "thr_1", "and then?"]],
   ["action show", ["action", "show", "thr_1"]],
+  ["action stop", ["action", "stop", "thr_1"]],
   ["action wait", ["action", "wait", "thr_1", "--timeout", "2", "--poll-interval", "20"]],
   ["action archive", ["action", "archive", "thr_1"]],
   ["comment list", ["comment", "list", "notes/hello.md"]],
@@ -67,5 +72,6 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ],
   ["cloud sync", ["cloud", "sync"]],
   ["status", ["status"]],
+  ["open", ["open"]],
   ["guide", ["guide"]],
 ]);

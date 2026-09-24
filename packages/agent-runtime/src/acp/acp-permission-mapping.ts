@@ -6,7 +6,7 @@ import type {
   PermissionOption,
   RequestPermissionRequest,
   RequestPermissionResponse,
-} from "@zed-industries/agent-client-protocol";
+} from "@agentclientprotocol/sdk";
 import type {
   ApprovalPendingInteractionPayload,
   PendingInteractionApprovalDecision,

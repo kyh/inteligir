@@ -1,14 +1,19 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { createScenarioBrowser, requireHeadlessBrowser } from "./agent-browser";
+import type { ScenarioBrowser } from "./agent-browser";
 import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
+import { launchDesktopShell } from "./desktop-shell";
+import type { DesktopShell, DesktopShellOptions } from "./desktop-shell";
 import { exec, hermeticProcessEnv } from "./exec";
 import { launchApp } from "./instance";
-import type { AppInstance, LaunchAppArgs } from "./instance";
+import type { AppInstance, LaunchAppArgs, LaunchMode } from "./instance";
 import type { TrackedProcess } from "./tracked-child";
 
 interface BootOptions {
   name: string;
+  mode?: LaunchMode;
   vaultRemote?: string;
   extraEnv?: Readonly<Record<string, string>>;
   // both run before boot; the app's repo init commits whatever it finds in the vault.
@@ -23,11 +28,17 @@ export interface ScenarioContext {
   boot: (options: BootOptions) => Promise<AppInstance>;
   bareRemote: (name?: string) => Promise<string>;
   cloudWorker: (options?: { builtConfig?: string }) => Promise<CloudWorker>;
+  // the built Electron shell on a scratch home, driven over DevTools; skips with no display.
+  desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
+  // skips the scenario when no headless browser can launch; closed at teardown like an instance.
+  browser: (label: string) => Promise<ScenarioBrowser>;
 }
 
 export interface Scenario {
   name: string;
   description: string;
+  // the runner fails a run still going past this, so a hang costs one scenario, not the job.
+  timeoutMs?: number;
   run: (context: ScenarioContext) => Promise<void>;
 }
 
@@ -36,7 +47,25 @@ export interface CreateScenarioContextArgs {
   scratchDir: string;
   log: (message: string) => void;
   instances: TrackedProcess[];
+  isClosed: () => boolean;
 }
+
+// a run abandoned at its deadline keeps going, and what it starts once the teardown began would be
+// owned by nothing: it is stopped and refused instead.
+const own = (args: CreateScenarioContextArgs, instance: TrackedProcess): void => {
+  if (!args.isClosed()) {
+    args.instances.push(instance);
+    return;
+  }
+  void (async () => {
+    try {
+      await instance.stop();
+    } catch (error) {
+      args.log(`teardown: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  })();
+  throw new Error(`${instance.name} started after its scenario was torn down`);
+};
 
 export const createScenarioContext = (args: CreateScenarioContextArgs): ScenarioContext => ({
   async bareRemote(name = "remote") {
@@ -62,10 +91,11 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     }
     const launchArgs: LaunchAppArgs = {
       instanceDir,
+      mode: options.mode ?? "source",
       name: options.name,
       onLog: args.log,
       register: (instance) => {
-        args.instances.push(instance);
+        own(args, instance);
       },
       repoRoot: args.repoRoot,
     };
@@ -78,11 +108,17 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     }
     return await launchApp(launchArgs);
   },
+  async browser(label) {
+    await requireHeadlessBrowser(args.log);
+    const browser = createScenarioBrowser(label);
+    own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
+    return browser;
+  },
   async cloudWorker(options) {
     const launch: LaunchCloudWorkerArgs = {
       onLog: args.log,
       register: (process) => {
-        args.instances.push(process);
+        own(args, process);
       },
       repoRoot: args.repoRoot,
       scratchDir: args.scratchDir,
@@ -91,6 +127,17 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       launch.builtConfig = options.builtConfig;
     }
     return await launchCloudWorker(launch);
+  },
+  async desktopShell(options = {}) {
+    return await launchDesktopShell({
+      ...options,
+      onLog: args.log,
+      register: (shell) => {
+        own(args, shell);
+      },
+      repoRoot: args.repoRoot,
+      scratchDir: args.scratchDir,
+    });
   },
   log: args.log,
   repoRoot: args.repoRoot,

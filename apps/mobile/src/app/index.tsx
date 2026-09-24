@@ -1,38 +1,29 @@
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  login,
-  logout,
-  submitCapture,
-  syncNow,
-  useLoginState,
-  useSyncStatus,
-  useThreads,
-} from "@/lib/app-runtime";
+import { logout, submitCapture, syncNow, useSyncStatus, useThreads } from "@/lib/app-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
-import { defaultDeviceName } from "@/login/device-name";
 import type { SyncStatus } from "@/sync/sync-runtime";
+import type { ThreadProjection } from "@/sync/thread-projection";
 import { describeCloudFailure } from "@repo/api/cloud/client";
+
+const threadCaption = (thread: ThreadProjection): string =>
+  [thread.archived ? "Archived" : "", thread.preview].filter((part) => part !== "").join(" · ");
 
 const styles = StyleSheet.create({
   bodyText: { fontSize: 16, textAlign: "center" },
-  buttonLabel: { fontSize: 16, fontWeight: "600" },
   captionText: { fontSize: 12 },
   captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
-  center: { alignItems: "center", justifyContent: "center" },
-  disabled: { opacity: 0.5 },
   empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
   footer: { borderTopWidth: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
   input: {
@@ -45,15 +36,7 @@ const styles = StyleSheet.create({
   list: { paddingBottom: 32, paddingHorizontal: SPACE.lg },
   pressed70: { opacity: 0.7 },
   pressed80: { opacity: 0.8 },
-  primaryButton: {
-    alignItems: "center",
-    borderRadius: RADIUS.md,
-    marginTop: SPACE.sm,
-    paddingHorizontal: SPACE.xxl,
-    paddingVertical: SPACE.md,
-  },
   screen: { flex: 1 },
-  signInBody: { alignSelf: "stretch", gap: SPACE.md, paddingHorizontal: SPACE.xxl },
   smallLabel: { fontSize: 14, fontWeight: "600" },
   smallText: { fontSize: 14 },
   syncActions: { flexDirection: "row", gap: SPACE.sm },
@@ -74,87 +57,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.lg,
     paddingVertical: SPACE.md,
   },
-  title: { fontSize: 30, fontWeight: "700" },
 });
-
-const SignInScreen = ({ status }: { status: SyncStatus }) => {
-  const theme = useTheme();
-  const signIn = useLoginState();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [deviceName, setDeviceName] = useState(defaultDeviceName);
-  const busy = signIn.kind === "signing-in";
-  const ready = email.trim() !== "" && password !== "" && deviceName.trim() !== "";
-  const reason =
-    status.state === "unauthorized"
-      ? "This device was signed out. Sign in again to resume syncing."
-      : "Sign in with your account to read your notes and threads, and capture ideas.";
-  const fieldStyle = [
-    styles.input,
-    { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
-  ];
-
-  return (
-    <SafeAreaView style={[styles.screen, styles.center, { backgroundColor: theme.background }]}>
-      <Stack.Screen options={{ title: "inteligir" }} />
-      <View style={styles.signInBody}>
-        <Text style={[styles.title, { color: theme.foreground }]}>inteligir</Text>
-        <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>{reason}</Text>
-        <TextInput
-          style={fieldStyle}
-          placeholder="Email"
-          placeholderTextColor={theme.mutedForeground}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="username"
-          editable={!busy}
-        />
-        <TextInput
-          style={fieldStyle}
-          placeholder="Password"
-          placeholderTextColor={theme.mutedForeground}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          textContentType="password"
-          editable={!busy}
-        />
-        <TextInput
-          style={fieldStyle}
-          placeholder="This device's name"
-          placeholderTextColor={theme.mutedForeground}
-          value={deviceName}
-          onChangeText={setDeviceName}
-          editable={!busy}
-        />
-        {signIn.kind === "failed" ? (
-          <Text style={[styles.smallText, { color: theme.destructive }]}>{signIn.message}</Text>
-        ) : null}
-        <Pressable
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: theme.primary },
-            pressed && styles.pressed80,
-            (busy || !ready) && styles.disabled,
-          ]}
-          disabled={busy || !ready}
-          onPress={() => {
-            void login({ deviceName, email, password });
-          }}
-        >
-          {busy ? (
-            <ActivityIndicator color={theme.primaryForeground} />
-          ) : (
-            <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>Sign in</Text>
-          )}
-        </Pressable>
-      </View>
-    </SafeAreaView>
-  );
-};
 
 const describeStatus = (status: SyncStatus): string => {
   if (status.state !== "signed-in") {
@@ -308,7 +211,7 @@ const HomeScreen = () => {
         </View>
       </View>
 
-      <ScrollView
+      <FlatList
         style={styles.screen}
         contentContainerStyle={styles.list}
         refreshControl={
@@ -319,18 +222,20 @@ const HomeScreen = () => {
             }}
           />
         }
-      >
-        {threads.length === 0 ? (
+        data={threads}
+        keyExtractor={(thread) => thread.threadId}
+        ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>No threads yet.</Text>
             <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
               Pull to refresh, or start one on your desktop.
             </Text>
           </View>
-        ) : (
-          threads.map((thread) => (
+        }
+        renderItem={({ item: thread }) => {
+          const caption = threadCaption(thread);
+          return (
             <Pressable
-              key={thread.threadId}
               style={({ pressed }) => [
                 styles.threadRow,
                 { backgroundColor: theme.card, borderColor: theme.border },
@@ -343,18 +248,18 @@ const HomeScreen = () => {
               <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
                 {thread.title}
               </Text>
-              {thread.preview === "" ? null : (
+              {caption === "" ? null : (
                 <Text
                   style={[styles.smallText, { color: theme.mutedForeground }]}
                   numberOfLines={1}
                 >
-                  {thread.preview}
+                  {caption}
                 </Text>
               )}
             </Pressable>
-          ))
-        )}
-      </ScrollView>
+          );
+        }}
+      />
 
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
         <Pressable
@@ -371,9 +276,4 @@ const HomeScreen = () => {
   );
 };
 
-const Index = () => {
-  const status = useSyncStatus();
-  return status.state === "signed-in" ? <HomeScreen /> : <SignInScreen status={status} />;
-};
-
-export default Index;
+export default HomeScreen;

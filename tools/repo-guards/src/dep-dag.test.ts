@@ -2,13 +2,17 @@
 // edge no manifest declares (pnpm's hoisting resolves it). adding a package or an edge: add the
 // row.
 
+import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   importsOf,
   isTestFile,
   manifestWorkspaceDeps,
+  REPO_ROOT,
   resolveWorkspace,
+  sourceOf,
   workspaceFiles,
   workspaces,
 } from "./repo";
@@ -22,15 +26,16 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a leaf: content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
     // the @repo/notes edge is the parser-free grammars the contract validates against (vault-path,
-    // sidecar-schema); widening it to a remark-carrying module drags remark into every client
-    // bundle.
+    // sidecar-schema, tag-grammar, link-kinds); widening it to a remark-carrying module drags
+    // remark into every client bundle, which "the contract's @repo/notes edge" below walks for.
     "@repo/api": ["@repo/domain", "@repo/notes"],
-    // below the wire: an edge to @repo/api would drag hono and the contract's notes edge into a
-    // package that only writes rows.
+    // below the wire: an edge to @repo/api would drag @orpc/contract and the contract's notes edge
+    // into a package that only writes rows.
     "@repo/db": ["@repo/domain"],
     // `inteligir` for the facts both processes must agree on: config resolution, the token's file
-    // and header spelling, the shutdown budget the stop grace must exceed, and the CSP the protocol
-    // handler serves. forking its bundle as a child is the same dependency, declared once.
+    // and header spelling, the shutdown budget the stop grace must exceed, the CSP and the
+    // html-block frame the protocol handler serves, and the fork broker's frames. forking its
+    // bundle as a child is the same dependency, declared once.
     "@repo/desktop": [
       "@repo/api",
       "@repo/domain",
@@ -127,6 +132,16 @@ const PURITY_RULES = new Map<string, PurityRule>(
 
 // @repo/api is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
+
+// @repo/api/cloud may never break and @repo/api/local may break freely, so a workspace that ships
+// apart from the desktop bundle reaches the cloud entry alone; each row says why it ships apart.
+const CLOUD_ONLY_CLIENTS = new Map<string, string>([
+  ["@repo/web", "it serves the cloud wire and only the cloud wire"],
+  [
+    "@repo/mobile",
+    "a phone install may be months stale against the deployed Worker, while /local ships in the desktop bundle and may break freely",
+  ],
+]);
 
 const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, string[]> => {
   const edges = new Map<string, string[]>();
@@ -392,33 +407,39 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("the Cloudflare Worker reaches @repo/api's cloud entry and nothing else", () => {
-    const worker = workspaces().find((candidate) => candidate.name === "@repo/web");
-    if (worker === undefined) {
-      throw new Error("@repo/web is not a workspace");
-    }
-    const files = workspaceFiles(worker);
+  it("every cloud-only client reaches @repo/api's cloud entry and nothing else", () => {
     const violations: string[] = [];
-    for (const file of [...files.shipped, ...files.test]) {
-      for (const specifier of importsOf(file)) {
-        if (!specifier.startsWith("@repo/api/")) {
-          continue;
-        }
-        if (specifier.startsWith("@repo/api/cloud/")) {
-          continue;
-        }
+    for (const [name, why] of CLOUD_ONLY_CLIENTS) {
+      const client = workspaces().find((candidate) => candidate.name === name);
+      if (client === undefined) {
         violations.push(
-          `LOCAL CONTRACT IN THE WORKER  ${file} imports "${specifier}"\n` +
-            `  rule: apps/web serves the cloud wire and only the cloud wire — @repo/api/cloud/* is its half of the package`,
+          `CLOUD_ONLY_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
+            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
         );
+        continue;
+      }
+      const files = workspaceFiles(client);
+      for (const file of [...files.shipped, ...files.test]) {
+        for (const specifier of importsOf(file)) {
+          if (!specifier.startsWith("@repo/api/")) {
+            continue;
+          }
+          if (specifier.startsWith("@repo/api/cloud/")) {
+            continue;
+          }
+          violations.push(
+            `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
+              `  rule: ${name} reaches @repo/api/cloud/* alone — ${why}`,
+          );
+        }
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
   it("@repo/api's cloud entry never reaches into its local entry", () => {
-    // a file under src/cloud reaching src/local by relative path is invisible to the Worker pin
-    // above; the sanctioned crossing is the other direction (local reusing a cloud constant).
+    // a file under src/cloud reaching src/local by relative path is invisible to the cloud-only
+    // pin above; the sanctioned crossing is the other direction (local reusing a cloud constant).
     const api = workspaces().find((candidate) => candidate.name === "@repo/api");
     if (api === undefined) {
       throw new Error("@repo/api is not a workspace");
@@ -498,6 +519,122 @@ describe("platform purity", () => {
       );
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+});
+
+// `import type` ships nothing, so a type-only edge loads no module
+const RUNTIME_IMPORT =
+  /\bimport\s*\(\s*["'](?<dynamic>[^"'\n]+)["']|\b(?:import|export)\s+(?<typeOnly>type\s+)?(?:[\w$*{}\s,]+?\s+from\s*)?["'](?<specifier>[^"'\n]+)["']/gu;
+
+const runtimeImportsOf = (file: string): string[] => {
+  const specifiers: string[] = [];
+  for (const match of sourceOf(file).matchAll(RUNTIME_IMPORT)) {
+    const found =
+      match.groups?.dynamic ??
+      (match.groups?.typeOnly === undefined ? match.groups?.specifier : undefined);
+    if (found !== undefined) {
+      specifiers.push(found);
+    }
+  }
+  return specifiers;
+};
+
+const MARKDOWN_PARSER = /^(?:remark-|unified$|micromark|mdast-util-)/u;
+
+const NOTES_DIR = "packages/notes";
+
+const notesExports = z
+  .object({ exports: z.record(z.string(), z.string()) })
+  .parse(
+    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, NOTES_DIR, "package.json"), "utf-8")),
+  ).exports;
+
+const notesExportFile = (specifier: string): string | null => {
+  const target = specifier.startsWith("@repo/notes/")
+    ? notesExports[`./${specifier.slice("@repo/notes/".length)}`]
+    : undefined;
+  return target === undefined ? null : path.posix.join(NOTES_DIR, target);
+};
+
+const resolveRelative = (from: string, specifier: string): string | null => {
+  const base = path.posix.join(path.posix.dirname(from), specifier);
+  return (
+    [base, `${base}.ts`, `${base}.tsx`, path.posix.join(base, "index.ts")].find((candidate) => {
+      const full = path.join(REPO_ROOT, candidate);
+      return fs.existsSync(full) && fs.statSync(full).isFile();
+    }) ?? null
+  );
+};
+
+interface ParserReach {
+  chain: string[];
+  specifier: string;
+}
+
+// the first markdown-parser import in the module's runtime closure, and the files that lead to it
+const markdownParserReach = (entry: string): ParserReach | null => {
+  const seen = new Set<string>();
+  const visit = (file: string, chain: readonly string[]): ParserReach | null => {
+    if (seen.has(file)) {
+      return null;
+    }
+    seen.add(file);
+    const here = [...chain, file];
+    for (const specifier of runtimeImportsOf(file)) {
+      if (MARKDOWN_PARSER.test(specifier)) {
+        return { chain: here, specifier };
+      }
+      const next = specifier.startsWith(".")
+        ? resolveRelative(file, specifier)
+        : notesExportFile(specifier);
+      const found = next === null ? null : visit(next, here);
+      if (found !== null) {
+        return found;
+      }
+    }
+    return null;
+  };
+  return visit(entry, []);
+};
+
+describe("the contract's @repo/notes edge", () => {
+  it("reaches no markdown parser", () => {
+    const api = workspaces().find((candidate) => candidate.name === "@repo/api");
+    if (api === undefined) {
+      throw new Error("@repo/api is not a workspace");
+    }
+    const violations: string[] = [];
+    for (const file of workspaceFiles(api).shipped) {
+      for (const specifier of runtimeImportsOf(file)) {
+        if (!specifier.startsWith("@repo/notes/")) {
+          continue;
+        }
+        const entry = notesExportFile(specifier);
+        if (entry === null) {
+          violations.push(
+            `UNRESOLVED NOTES IMPORT  ${file} imports "${specifier}"\n` +
+              `  rule: every @repo/notes specifier the contract imports is a row in ${NOTES_DIR}/package.json's exports, or this walk cannot follow it`,
+          );
+          continue;
+        }
+        const reach = markdownParserReach(entry);
+        if (reach !== null) {
+          violations.push(
+            `MARKDOWN PARSER IN THE CONTRACT  ${file} imports "${specifier}", which loads "${reach.specifier}"\n` +
+              `  via ${reach.chain.join(" -> ")}\n` +
+              `  rule: @repo/api's @repo/notes edge is the parser-free grammars the contract validates against — the contract loads in every client, so a remark-carrying module drags the markdown parser into every bundle\n` +
+              `  fix: move what the contract needs into an import-free module beside it, as tag-grammar.ts and link-kinds.ts are`,
+          );
+        }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("sees the parser behind the scan, so a clean walk is a real one", () => {
+    const scan = notesExportFile("@repo/notes/knowledge/link-extract");
+    expect(scan).not.toBeNull();
+    expect(scan === null ? null : markdownParserReach(scan)?.specifier).toMatch(MARKDOWN_PARSER);
   });
 });
 

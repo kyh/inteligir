@@ -10,9 +10,12 @@ import { z } from "zod";
 import { constantTimeEqual } from "@repo/api/cloud/bytes";
 import { BROWSER_SESSION_COOKIE } from "./browser-session";
 import { errnoCode } from "./errno";
+import { LOOPBACK_HOST } from "./loopback-origin";
 import { stagedWriteFileSync } from "./staged-write";
 
 export const SERVER_FILE_NAME = "server.json";
+
+export const loopbackOrigin = (port: number): string => `http://${LOOPBACK_HOST}:${String(port)}`;
 
 const SERVER_FILE_MODE = 0o600;
 
@@ -29,16 +32,22 @@ const serverFileSchema = z.object({
   token: z.string().min(1),
   // diagnostic only; nothing branches on it.
   vaultDir: z.string().min(1),
+  // /local may break between releases, so a CLI installed apart from the app refuses a server of
+  // another one. optional so an older server's row reads as another release, not as no server.
+  version: z.string().min(1).optional(),
 });
 
 export type ServerFile = z.infer<typeof serverFileSchema>;
+
+// what this build publishes: a row with no release would be refused by every CLI, its own included.
+export type PublishedServerFile = ServerFile & { version: string };
 
 const serverFilePath = (dataDir: string): string => path.join(dataDir, SERVER_FILE_NAME);
 
 // per boot, not per install: a token that outlives its process can be replayed against the next one.
 export const mintServerToken = (): string => randomBytes(TOKEN_BYTES).toString("base64url");
 
-export const writeServerFile = (dataDir: string, value: ServerFile): void => {
+export const writeServerFile = (dataDir: string, value: PublishedServerFile): void => {
   mkdirSync(dataDir, { recursive: true });
   stagedWriteFileSync(serverFilePath(dataDir), `${JSON.stringify(value, null, 2)}\n`, {
     mode: SERVER_FILE_MODE,
@@ -64,7 +73,11 @@ export const readServerFile = (dataDir: string): ServerFile | null => {
   }
 };
 
-export const removeServerFile = (dataDir: string): void => {
+// only this boot's own row: a row minted by another boot is that server's address, not ours to retract.
+export const removeServerFile = (dataDir: string, token: string): void => {
+  if (readServerFile(dataDir)?.token !== token) {
+    return;
+  }
   rmSync(serverFilePath(dataDir), { force: true });
 };
 

@@ -1,4 +1,5 @@
-import { deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
+import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
+import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
 import type { DeviceLoginRequest } from "@repo/api/cloud/device/device-schema";
 import { syncPingSchema } from "@repo/api/cloud/sync/sync-ws";
 import type { SyncPing } from "@repo/api/cloud/sync/sync-ws";
@@ -17,7 +18,7 @@ let inviteCounter = 0;
 export const signUpUser = async (email: string): Promise<{ bearer: string; password: string }> => {
   const code = `CLOUD-TEST-${(inviteCounter += 1)}`;
   await createDb(env.DB).insert(inviteCode).values({ code });
-  const response = await SELF.fetch(`${ORIGIN}/v1/auth/sign-up`, {
+  const response = await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
     headers: { "content-type": "application/json", origin: ORIGIN },
     method: "POST",
@@ -26,6 +27,18 @@ export const signUpUser = async (email: string): Promise<{ bearer: string; passw
   const bearer = response.headers.get("set-auth-token");
   expect(bearer).not.toBeNull();
   return { bearer: bearer ?? "", password: PASSWORD };
+};
+
+// clients strip a field they do not declare, so a plain parse here would pass a column the
+// worker leaks: what the worker emits is held to exactly the declared shape
+export const emitted = <TSchema extends z.ZodType>(
+  schema: TSchema,
+  json: string,
+): z.infer<TSchema> => {
+  const body: unknown = JSON.parse(json);
+  const parsed = schema.parse(body);
+  expect(parsed).toStrictEqual(body);
+  return parsed;
 };
 
 export const sessionHeaders = (bearer: string) => ({
@@ -72,10 +85,17 @@ export const loginDevice = async (
   const { email } = await sessionUser(bearer);
   const response = await postLogin({ deviceName, email, password: PASSWORD });
   expect(response.status).toBe(200);
-  return deviceLoginResponseSchema.parse(await response.json());
+  return emitted(deviceLoginResponseSchema, await response.text());
 };
 
 export const deviceHeaders = (credential: string) => ({ authorization: `Bearer ${credential}` });
+
+export const postSignOut = async (authorization: Record<string, string>): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.signOut}`, {
+    body: "{}",
+    headers: { ...authorization, "content-type": "application/json" },
+    method: "POST",
+  });
 
 export const openSocket = async (
   credential: string,
@@ -96,7 +116,7 @@ export const openSocket = async (
     if (!text.success) {
       return;
     }
-    frames.push(syncPingSchema.parse(JSON.parse(text.data)));
+    frames.push(emitted(syncPingSchema, text.data));
   });
   return { frames, socket };
 };

@@ -12,11 +12,21 @@ suite drives the same bytes and the same policy a user gets.
 ## Run it
 
 ```sh
-pnpm e2e                      # every scenario (build first: pnpm build)
+pnpm e2e                      # every scenario (the runner builds the CLI first)
 pnpm e2e --only vault-sync    # one scenario (comma-separated, repeatable)
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # names + descriptions
+pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and display
 ```
+
+Before the first scenario the runner builds the CLI bundle and the workspace
+UI it stages, through turbo (`--filter=inteligir`): a cache hit when nothing
+changed, and never a stale `dist/` booted as if it were this checkout.
+
+Every scenario runs under a deadline (`timeoutMs`, default 180s; a scenario
+that builds or boots a Worker, or the desktop shell, declares more). A run
+still going past it FAILS with its instances' output tails and is torn down,
+so a hang costs one scenario, not the whole job.
 
 Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
 the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
@@ -28,11 +38,14 @@ sweep), but its scenarios boot processes and a browser, so they run only via
 Each scenario receives a context (`src/harness/scenario.ts`) that owns its
 scratch dir and tears everything down afterwards:
 
-- `boot({ name, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a fresh
-  instance: scratch `data/` + `vault/` siblings, a reserved free port (bind
-  races retry with a fresh port, bounded), health-gated on `/health` answering
-  `{ok:true}`. Registered for teardown at SPAWN, before the health wait, and
-  torn down as a process group that is polled to verified-dead (SIGTERM →
+- `boot({ name, mode?, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a
+  fresh instance. `mode` is `source` (the default: `bin/inteligir`, which runs
+  `src/` under tsx in a checkout) or `built` (`dist/index.js` under
+  `NODE_ENV=production`, what npm and the .app run). Scratch `data/` + `vault/`
+  siblings, a reserved free port (bind races retry with a fresh port,
+  bounded), health-gated on `/health` answering `{ok:true}`. Registered for
+  teardown at SPAWN, before the health wait, and torn down as a process group
+  that is polled to verified-dead (SIGTERM →
   SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
   group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
   `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
@@ -46,6 +59,29 @@ scratch dir and tears everything down afterwards:
 - `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
+- `desktopShell({ seedVault?, seedUserData? })` — the checkout's built Electron
+  shell, launched with `--remote-debugging-port` on a scratch `HOME` and
+  `--user-data-dir` (never `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which
+  would make it refuse a vault switch), a pinned server port and
+  `INTELIGIR_AGENT=scripted`. Its `cdpPort` is what an agent-browser session
+  `connect`s to; `api` is the oRPC client over whichever server it runs now;
+  `target()` is the data and vault dir it resolves now, derived as main derives
+  them; `quit()` sends main alone the SIGTERM an OS quit would. The Electron
+  binary is fetched by electron's own installer on first use (pnpm runs no
+  install script). Registered for teardown like an instance. On Linux with no
+  display it skips: run the suite under `xvfb-run -a`.
+- `browser(label)` — an agent-browser session registered for teardown like an
+  instance, so a failed or abandoned scenario still closes it. It is callable
+  with any agent-browser command, and `openWorkspace(app, { path?, launchArgs? })`
+  signs it in through a fresh handoff and returns once the rail and the editor
+  mounted. It skips the scenario when no headless browser can launch (see CI).
+
+Beside the context, `src/harness/` carries what the scenarios would otherwise
+each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
+and fails with what the last read held; `untilThreadIdle` (`threads.ts`);
+`modChord` for the platform's modifier key (`agent-browser.ts`); the workspace
+selectors (`selectors.ts`); and the account's sign-up and device routes against
+a dev Worker (`cloud-account.ts`).
 
 ## The scenarios
 
@@ -60,10 +96,22 @@ what each one is FOR.
 |                           | propagation, then a typed conflict + git-verified repo integrity          |
 | hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
 |                           | convergence through the derived remote, boot clone, revoke → unauthorized |
+| thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
+|                           | socket opens, and B holds A's timeline before its poll timer could run,   |
+|                           | so the Durable Object's ping is what delivered it                         |
 | built-worker-boot         | the vite-built bundle — what `wrangler deploy` ships — boots under        |
 |                           | wrangler dev and answers; built through turbo on every run, so it is the  |
 |                           | current source, and the one place a module-scope crash of the emitted     |
 |                           | module can show                                                           |
+| built-cli-boot            | the esbuild bundle — what npm and the .app run — boots in production      |
+|                           | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
+|                           | write, hears an on-disk write through its forked watcher, and answers a   |
+|                           | client verb run from the same split bundle                                |
+| desktop-shell             | the built Electron shell over DevTools: the window is on `inteligir://`,  |
+|                           | the rail and a note ride the protocol handler's bearer, an API write      |
+|                           | reaches the open editor through the socket, `window.open` is denied,      |
+|                           | Reveal refuses a symlink out of the vault, a switch boots a new child on  |
+|                           | the new vault, and a SIGTERM quit stops it and retracts `server.json`     |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline                |
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
 |                           | CAS write guards the save (typed conflict, current bytes in the body);    |
@@ -85,12 +133,20 @@ what each one is FOR.
 | dictation-browser         | the composer's mic captures, transcribes and inserts — never sends        |
 | settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
 |                           | dialog on that route, and a refused connector add toasts there            |
+| vault-search-browser      | the palette's vault search lists every match; Enter lands the find bar on |
+|                           | one; Replace all rewrites the notes on disk                               |
+| tree-ops-browser          | the tree's row menu pins a note into its frontmatter, and a drag moves it |
+| extract-note-browser      | the selection toolbar extracts the selected block to a new note and       |
+|                           | leaves a link                                                             |
+| remote-content-browser    | under the built bundle's CSP a remote embed is an unloaded card, and an   |
+|                           | html block's Run executes its script under its own policy                 |
 
 ## Adding a scenario
 
 1. `src/scenarios/<name>.ts` exporting a `Scenario` (`name`, `description`,
-   `run(ctx)`); assert with `expect`/`expectEq`, bail with `skip(reason)` for
-   a capability this environment/branch does not have yet.
+   `run(ctx)`, and `timeoutMs` only when a green run can near the default);
+   assert with `expect`/`expectEq`, bail with `skip(reason)` for a capability
+   this environment/branch does not have yet.
 2. Register it in `SCENARIOS` in `src/run.ts` (a static import — knip reads
    reachability from there).
 
@@ -129,12 +185,24 @@ mode, state under the scenario's scratch dir; secrets ride `--var`, so no
 browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
-Every browser scenario probes the environment with `about:blank` first — only
-a failure THERE (the browser cannot launch at all) reports SKIP, with the exact
-launcher error; opening the app and everything after is a real assertion.
+The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
+after a sysctl that lets Chromium's namespace sandbox run under Ubuntu's
+AppArmor (the shell is never launched with `--no-sandbox`); with no display on
+Linux, `desktop-shell` skips. The first browser a run asks for probes the
+environment with `about:blank`, once per run and in a session of its own, so
+every scenario's session still launches with its own flags. Only a failure THERE (the browser cannot launch at all)
+reports SKIP, for that scenario and every browser scenario after it, with the
+exact launcher error; opening the app and everything after is a real assertion.
+A SKIP still exits 0, which is right on a machine with no browser or no display
+and wrong on one provisioned for both: there a failed install or a missing
+display passes as skipped scenarios behind a green step. So a run whose
+environment was provisioned passes `--no-skip`, and every skip, the browser's
+and the display's alike, becomes a FAIL carrying the reason it would have
+skipped with.
 
-`pnpm build` must have run: the harness refuses to boot without
-`apps/cli/dist/ui`, because a server with no workspace UI answers the API and
-serves a 404 to the browser — a green API run beside a page that never loads.
-built-worker-boot is the one scenario that builds for itself (apps/web,
-through turbo), because the bundle it boots is the thing under test.
+The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
+still refuses to boot without it, because a server with no workspace UI
+answers the API and serves a 404 to the browser — a green API run beside a
+page that never loads. built-worker-boot builds apps/web for itself, through
+turbo, because the bundle it boots is the thing under test and no other
+scenario needs it.

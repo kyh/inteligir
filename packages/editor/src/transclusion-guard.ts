@@ -1,32 +1,19 @@
-// the editor root is depth 0 (embeds expand); content inside a transclusion is depth 1+,
-// where embeds stay chips.
-
-export interface TransclusionScope {
-  depth: number;
-  chain: readonly string[];
-}
+// Only the open note's own embeds expand, so the one cycle left to refuse is the note embedding
+// itself: content inside an embed renders its embeds as chips and never recurses.
 
 export type TransclusionDecision =
-  | { kind: "chip"; reason: "unresolved" | "depth" | "cycle" }
+  | { kind: "chip"; reason: "unresolved" | "cycle" }
   | { kind: "render"; path: string };
 
 export const decideTransclusion = (
-  scope: TransclusionScope,
+  hostPath: string | null,
   resolved: string | null,
 ): TransclusionDecision => {
   if (resolved === null) {
     return { kind: "chip", reason: "unresolved" };
   }
-  if (scope.depth >= 1) {
-    return { kind: "chip", reason: "depth" };
-  }
-  if (scope.chain.includes(resolved)) {
+  if (resolved === hostPath) {
     return { kind: "chip", reason: "cycle" };
   }
   return { kind: "render", path: resolved };
 };
-
-export const nestedScope = (scope: TransclusionScope, resolved: string): TransclusionScope => ({
-  chain: [...scope.chain, resolved],
-  depth: scope.depth + 1,
-});

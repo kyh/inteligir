@@ -11,13 +11,14 @@ import { PlusIcon, XIcon } from "lucide-react";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
+import { TAB_GROUP_KEY, TAB_PANEL_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 
 const ActiveTabContext = createContext(0);
 
 const panelsOf = (element: TElement): { label: string; index: number }[] =>
   element.children.flatMap((child, index) => {
-    if (!ElementApi.isElement(child) || child.type !== "tab_panel") {
+    if (!ElementApi.isElement(child) || child.type !== TAB_PANEL_KEY) {
       return [];
     }
     return [{ index, label: stringProp(child, "label") ?? "Tab" }];
@@ -39,7 +40,7 @@ const TabGroupElement = (props: PlateElementProps) => {
       {
         children: [{ children: [{ text: "" }], type: "p" }],
         label: `Tab ${String(panels.length + 1)}`,
-        type: "tab_panel",
+        type: TAB_PANEL_KEY,
       },
       { at: [...path, element.children.length] },
     );
@@ -77,7 +78,7 @@ const TabGroupElement = (props: PlateElementProps) => {
                 setActive(panel.index);
               }}
               className={cn(
-                "rounded-sm px-2 py-0.5 text-xs font-medium",
+                "rounded-sm px-2 py-0.5 text-body font-medium",
                 panel.index === shown
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -136,7 +137,7 @@ const TabPanelElement = (props: PlateElementProps) => {
     >
       <div
         contentEditable={false}
-        className="mb-1 hidden text-xs font-semibold text-muted-foreground print:block"
+        className="mb-1 hidden text-body font-semibold text-muted-foreground print:block"
       >
         {label}
       </div>
@@ -146,12 +147,12 @@ const TabPanelElement = (props: PlateElementProps) => {
 };
 
 const tabGroupBasePlugin = createSlatePlugin({
-  key: "tab_group",
+  key: TAB_GROUP_KEY,
   node: { isElement: true },
 });
 
 const tabPanelBasePlugin = createSlatePlugin({
-  key: "tab_panel",
+  key: TAB_PANEL_KEY,
   node: { isElement: true },
 });
 
@@ -168,14 +169,14 @@ export const insertTabGroup = (editor: SlateEditor): void => {
       {
         children: [{ children: [{ text: "" }], type: "p" }],
         label: "Tab 1",
-        type: "tab_panel",
+        type: TAB_PANEL_KEY,
       },
       {
         children: [{ children: [{ text: "" }], type: "p" }],
         label: "Tab 2",
-        type: "tab_panel",
+        type: TAB_PANEL_KEY,
       },
     ],
-    type: "tab_group",
+    type: TAB_GROUP_KEY,
   });
 };

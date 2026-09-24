@@ -1,9 +1,8 @@
-import { setTimeout as delay } from "node:timers/promises";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
+import { untilThreadIdle } from "../harness/threads";
 
 const TURN_TEXT = "Hello from the e2e harness";
-const TURN_DEADLINE_MS = 30_000;
 
 export const threadsScripted: Scenario = {
   description: "create thread, send a turn through the scripted driver, read the timeline",
@@ -26,16 +25,7 @@ export const threadsScripted: Scenario = {
     expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
 
     ctx.log("wait for the turn to settle");
-    const deadline = Date.now() + TURN_DEADLINE_MS;
-    for (;;) {
-      const { thread: current } = await app.api.threads.get({ threadId: thread.id });
-      if (current.status === "idle") {
-        break;
-      }
-      expect(current.status !== "error", "the turn settled in error");
-      expect(Date.now() < deadline, `turn still "${current.status}" after ${TURN_DEADLINE_MS}ms`);
-      await delay(250);
-    }
+    await untilThreadIdle(app.api, thread.id);
 
     ctx.log("read the timeline");
     const body = await app.api.threads.timeline({ threadId: thread.id });

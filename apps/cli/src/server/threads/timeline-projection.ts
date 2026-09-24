@@ -1,12 +1,15 @@
-// rests on events being append-only per thread (nothing deletes an event row
-// or a thread): the parsed log only grows, so a refresh reads afterSequence,
-// and the projection served last is the base the next frame diffs against.
+// rests on events being append-only per thread while the server serves (nothing
+// deletes a thread, and the one event removal, of this install's own synced
+// copies, ends in boot before any read): the parsed log only grows, so a
+// refresh reads afterSequence, and the projection served last is the base the
+// next frame diffs against.
 
 import type { DbConnection } from "@repo/db/connection";
 import { listStoredThreadEvents } from "@repo/db/events";
 import type { StoredThreadEvent } from "@repo/db/events";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { buildThreadTimeline } from "@repo/api/local/build-thread-timeline";
+import { setMostRecent } from "../evict-oldest";
 
 const RESIDENT_THREADS = 8;
 // the one just served, plus the bases a client a frame or two behind asks for.
@@ -14,20 +17,12 @@ const RESIDENT_PROJECTIONS = 4;
 
 interface ThreadLog {
   events: StoredThreadEvent[];
+  // the last row read, whether or not this build could parse it: a row it cannot is reported
+  // once, not re-read by every refresh.
+  readThrough: number;
   // keyed by the projection's own maxSequence.
   projections: Map<number, ThreadTimeline>;
 }
-
-// Map iterates in insertion order and every read re-inserts, so this is an LRU.
-const evict = (map: Map<unknown, unknown>, limit: number): void => {
-  while (map.size > limit) {
-    const oldest = map.keys().next();
-    if (oldest.done === true) {
-      return;
-    }
-    map.delete(oldest.value);
-  }
-};
 
 const projection = (
   log: ThreadLog,
@@ -36,14 +31,11 @@ const projection = (
 ): ThreadTimeline => {
   const held = log.projections.get(maxSequence);
   if (held !== undefined) {
-    // re-insert so the LRU counts this read.
-    log.projections.delete(maxSequence);
-    log.projections.set(maxSequence, held);
+    setMostRecent(log.projections, maxSequence, held, RESIDENT_PROJECTIONS);
     return held;
   }
   const built = buildThreadTimeline(events);
-  log.projections.set(maxSequence, built);
-  evict(log.projections, RESIDENT_PROJECTIONS);
+  setMostRecent(log.projections, maxSequence, built, RESIDENT_PROJECTIONS);
   return built;
 };
 
@@ -80,22 +72,28 @@ export class ThreadTimelineProjector {
   private refresh(threadId: string): ThreadLog {
     const existing = this.logs.get(threadId);
     if (existing === undefined) {
-      const log: ThreadLog = {
-        events: listStoredThreadEvents(this.db, { threadId }),
-        projections: new Map(),
-      };
-      this.logs.set(threadId, log);
-      evict(this.logs, RESIDENT_THREADS);
+      const log: ThreadLog = { events: [], projections: new Map(), readThrough: 0 };
+      this.readInto(threadId, log);
+      setMostRecent(this.logs, threadId, log, RESIDENT_THREADS);
       return log;
     }
-    this.logs.delete(threadId);
-    this.logs.set(threadId, existing);
-    const afterSequence = existing.events.at(-1)?.sequence;
-    if (afterSequence === undefined) {
-      existing.events.push(...listStoredThreadEvents(this.db, { threadId }));
-    } else {
-      existing.events.push(...listStoredThreadEvents(this.db, { afterSequence, threadId }));
-    }
+    setMostRecent(this.logs, threadId, existing, RESIDENT_THREADS);
+    this.readInto(threadId, existing);
     return existing;
+  }
+
+  private readInto(threadId: string, log: ThreadLog): void {
+    const read = listStoredThreadEvents(this.db, {
+      afterSequence: log.readThrough,
+      onSkipped: (row) => {
+        log.readThrough = Math.max(log.readThrough, row.sequence);
+        console.warn(
+          `thread ${threadId}: event ${row.sequence} (${row.type}) is not one this build can read; its timeline leaves it out`,
+        );
+      },
+      threadId,
+    });
+    log.events.push(...read);
+    log.readThrough = Math.max(log.readThrough, read.at(-1)?.sequence ?? 0);
   }
 }

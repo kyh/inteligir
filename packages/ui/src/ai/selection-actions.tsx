@@ -2,6 +2,7 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
+import { ChevronRightIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -16,7 +17,7 @@ const SelectionActions = ({
     data-slot="selection-actions"
     className={cn(
       "inline-flex items-center gap-px rounded-xl bg-surface-raised p-1 shadow-surface-3",
-      "animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none",
+      "animate-in fade-in zoom-in-95 duration-150",
       className,
     )}
     {...props}
@@ -44,7 +45,7 @@ const SelectionAction = ({
     className={cn(
       "flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12.5px] font-medium text-ink",
       "transition-colors duration-100 hover:bg-hover",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       "[&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-ink-2",
       className,
     )}
@@ -52,22 +53,7 @@ const SelectionAction = ({
   >
     {icon}
     {children}
-    {hasMenu ? (
-      <svg
-        aria-hidden
-        width="10"
-        height="10"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-ink-3"
-      >
-        <path d="M9 6l6 6-6 6" />
-      </svg>
-    ) : null}
+    {hasMenu ? <ChevronRightIcon size={10} strokeWidth={2.5} className="text-ink-3" /> : null}
   </button>
 );
 SelectionAction.displayName = "SelectionAction";
@@ -106,7 +92,7 @@ const SelectionResult = ({
     data-slot="selection-result"
     className={cn(
       "w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
-      "animate-in fade-in slide-in-from-top-1 duration-200 motion-reduce:animate-none",
+      "animate-in fade-in slide-in-from-top-1 duration-200",
       className,
     )}
     {...props}

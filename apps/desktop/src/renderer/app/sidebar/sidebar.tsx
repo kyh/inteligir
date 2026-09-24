@@ -22,10 +22,8 @@ import {
   SidebarGroupActions,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@repo/ui/components/sidebar";
+} from "@repo/ui/components/sidebar-core";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@repo/ui/components/sidebar-menu";
 import { Spinner } from "@repo/ui/components/spinner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useTheme } from "@repo/ui/lib/theme";
@@ -47,7 +45,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "@repo/ui/components/sonner";
-import { useThreads } from "../actions/thread-hooks";
+import { useAgentWorking } from "../actions/thread-hooks";
 import { useCloudSession } from "../cloud-session";
 import type { CloudSession } from "../cloud-session";
 import {
@@ -57,9 +55,9 @@ import {
   useDesktopVaults,
   useVaultSwitch,
 } from "../desktop-vaults";
-import { readTreeSort, writeTreeSort } from "../prefs";
+import { RAIL_VIEWS, readTreeSort, writeTreeSort } from "../prefs";
 import type { RailView, TreeSort } from "../prefs";
-import { SignInForm } from "../settings/sync-section";
+import { SignInForm } from "../sign-in-form";
 import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
@@ -73,10 +71,11 @@ import {
 } from "../vault-hooks";
 import { DeletedNotes } from "./deleted-notes";
 import { FileTree } from "./file-tree";
-import type { PendingCreate, TreeLoadState, TreeOps } from "./file-tree";
+import type { TreeLoadState, TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
 import { TaggedNotes } from "./tagged-notes";
-import { createDirFor, revealInTree, useTreeState } from "./tree-state";
+import { useTreeState } from "./tree-state";
+import type { TreeReveal } from "./tree-state";
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 
@@ -97,7 +96,7 @@ const tipWithShortcut = (label: string, shortcut: string | null) =>
   ) : (
     <span className="flex items-center gap-2">
       <span>{label}</span>
-      <kbd className="-my-1 flex h-4 min-w-4 items-center justify-center rounded border border-background/30 px-1 font-sans text-[10px] text-background/80">
+      <kbd className="-my-1 flex h-4 min-w-4 items-center justify-center rounded border border-background/30 px-1 font-sans text-caption text-background/80">
         {shortcut}
       </kbd>
     </span>
@@ -107,7 +106,7 @@ const tipWithShortcut = (label: string, shortcut: string | null) =>
 const VaultTile = ({ name }: { name: string }) => (
   <span
     aria-hidden="true"
-    className="pointer-events-none absolute top-1/2 left-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-md bg-foreground text-[10px] font-semibold text-background"
+    className="pointer-events-none absolute top-1/2 left-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-md bg-foreground text-caption font-semibold text-background"
   >
     {name.slice(0, 1).toLocaleUpperCase()}
   </span>
@@ -157,9 +156,7 @@ const VaultRow = ({ vaultName }: { vaultName: string }) => {
                 key={vault.path}
                 className="h-auto py-1.5"
                 onClick={() => {
-                  run("opening", async () => {
-                    await openRecentVault(vault.path);
-                  });
+                  run("opening", async () => await openRecentVault(vault.path));
                 }}
               >
                 <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -187,8 +184,6 @@ const VaultRow = ({ vaultName }: { vaultName: string }) => {
     </SidebarMenu>
   );
 };
-
-const RAIL_VIEWS: readonly RailView[] = ["recent", "files", "deleted"];
 
 const RAIL_VIEW_LABELS: Record<RailView, string> = {
   deleted: "Deleted",
@@ -232,19 +227,19 @@ const SignInDialog = ({
 
 // The rail's ambient row: the vault's sync state as the row, and behind it the verbs that change
 // it — a sync now, and the account this device does or does not have.
-const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
+export const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
   const statusQuery = useVaultStatus();
-  const threadsQuery = useThreads();
+  const agentWorking = useAgentWorking();
   const session = useCloudSession();
   const [signInOpen, setSignInOpen] = useState(false);
-  const agentWorking = (threadsQuery.data?.threads ?? []).some(
-    (thread) =>
-      thread.status === "active" || thread.status === "starting" || thread.status === "stopping",
-  );
   const status = statusQuery.data;
   const canSync = canSyncNow(status);
   const blocked = status === undefined ? null : (status.lastError ?? syncBlockedReason(status));
   const cloud = session.status;
+  // a sign-in that landed closes its dialog, or a later sign-out would open it again
+  if (cloud?.state === "signed-in" && signInOpen) {
+    setSignInOpen(false);
+  }
   const handleSyncThreads = session.syncThreads;
   const handleSignOut = session.signOut;
   return (
@@ -314,7 +309,7 @@ const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-      {cloud === undefined || cloud.state === "signed-in" ? null : (
+      {cloud === undefined ? null : (
         <SignInDialog
           cloudUrl={cloud.cloudUrl}
           session={session}
@@ -357,8 +352,10 @@ export interface SidebarRailContentProps {
   onViewChange: (view: RailView) => void;
   selectedTag: string | null;
   onSelectTag: (tag: string | null) => void;
-  // the breadcrumb's ask, passed to the tree: open the way to this entry and select it
-  reveal: { path: string; nonce: number } | null;
+  // the breadcrumb's ask, applied to the tree's state: open the way to this entry and select it;
+  // the tree says once it has focused the row, so the owner can clear it
+  reveal: TreeReveal | null;
+  onRevealConsumed: () => void;
   // the header's Search opens the one palette; the chord is spelled by the workspace's table
   onOpenSearch: () => void;
   searchShortcut: string | null;
@@ -376,6 +373,7 @@ export const SidebarRailContent = ({
   selectedTag,
   onSelectTag,
   reveal,
+  onRevealConsumed,
   onOpenSearch,
   searchShortcut,
   onSyncNow,
@@ -383,8 +381,6 @@ export const SidebarRailContent = ({
 }: SidebarRailContentProps) => {
   const treeQuery = useVaultTree();
   const pinnedPaths = usePinnedPaths();
-  const tree = useTreeState();
-  const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null);
   const [treeSort, setTreeSort] = useState<TreeSort>(readTreeSort);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [insetTitleBar] = useState(hasInsetTitleBar);
@@ -392,30 +388,14 @@ export const SidebarRailContent = ({
 
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
   const listed = useMemo(() => visibleEntries(entries), [entries]);
+  // the breadcrumb's reveal and the open note land on the fold state the rail owns, during the
+  // rail's own render; the tree focuses the revealed row its next render draws
+  const tree = useTreeState({ entries: listed, onRevealConsumed, openPath, reveal });
 
-  // The breadcrumb's reveal lands on the fold state the rail owns, keyed by the nonce so naming
-  // the same entry twice reveals it twice; the tree is handed the same request and focuses the
-  // row its next render draws.
-  const [appliedReveal, setAppliedReveal] = useState<number | null>(null);
-  if (reveal !== null && reveal.nonce !== appliedReveal) {
-    setAppliedReveal(reveal.nonce);
-    revealInTree(
-      tree,
-      reveal.path,
-      entries.some((entry) => entry.kind === "dir" && entry.path === reveal.path),
-    );
-  }
-
-  // The group's create is a note; a folder is the tree's right-click. It lands where an IDE's
-  // would: in the tree's selected folder, else at the vault root.
+  // The group's create is a note; a folder is the tree's right-click.
   const startCreate = (): void => {
     onViewChange("files");
-    setPendingCreate({
-      kind: "file",
-      parentDir: createDirFor("", tree.activePath, (path) =>
-        entries.some((entry) => entry.kind === "dir" && entry.path === path),
-      ),
-    });
+    tree.startCreateInSelection("file");
   };
   const changeSort = (next: TreeSort): void => {
     writeTreeSort(next);
@@ -423,56 +403,59 @@ export const SidebarRailContent = ({
   };
 
   const list = (): React.ReactNode => {
-    if (view === "deleted") {
-      return <DeletedNotes onOpenNote={onOpenFile} />;
-    }
-    if (view === "recent") {
-      if (selectedTag !== null) {
+    switch (view) {
+      case "deleted": {
+        return <DeletedNotes onOpenNote={onOpenFile} />;
+      }
+      case "recent": {
+        if (selectedTag !== null) {
+          return (
+            <TaggedNotes
+              key={selectedTag}
+              tag={selectedTag}
+              onSelectTag={onSelectTag}
+              entries={listed}
+              openPath={openPath}
+              onOpenFile={onOpenFile}
+              onSetPinned={handleSetPinned}
+            />
+          );
+        }
         return (
-          <TaggedNotes
-            key={selectedTag}
-            tag={selectedTag}
-            onSelectTag={onSelectTag}
+          <NotesList
             entries={listed}
             openPath={openPath}
             onOpenFile={onOpenFile}
             onSetPinned={handleSetPinned}
+            limit={RECENT_LIMIT}
           />
         );
       }
-      return (
-        <NotesList
-          entries={listed}
-          openPath={openPath}
-          onOpenFile={onOpenFile}
-          onSetPinned={handleSetPinned}
-          limit={RECENT_LIMIT}
-        />
-      );
+      case "files": {
+        return (
+          <FileTree
+            entries={listed}
+            loadState={treeLoadState(treeQuery)}
+            onRetry={() => {
+              void treeQuery.refetch();
+            }}
+            openPath={openPath}
+            onOpenFile={onOpenFile}
+            ops={ops}
+            state={tree}
+            onMoveRequest={onMoveRequest}
+            pinnedPaths={pinnedPaths}
+            sort={treeSort}
+            onSortChange={changeSort}
+            vaultRoot={treeQuery.data?.root ?? null}
+          />
+        );
+      }
+      default: {
+        const exhaustive: never = view;
+        return exhaustive;
+      }
     }
-    return (
-      <FileTree
-        entries={listed}
-        loadState={treeLoadState(treeQuery)}
-        onRetry={() => {
-          void treeQuery.refetch();
-        }}
-        openPath={openPath}
-        onOpenFile={onOpenFile}
-        ops={ops}
-        state={tree}
-        pendingCreate={pendingCreate}
-        onPendingCreateDone={() => {
-          setPendingCreate(null);
-        }}
-        reveal={reveal}
-        onMoveRequest={onMoveRequest}
-        pinnedPaths={pinnedPaths}
-        sort={treeSort}
-        onSortChange={changeSort}
-        vaultRoot={treeQuery.data?.root ?? null}
-      />
-    );
   };
 
   // Fluid's sidebar anatomy: the vault row and Search share the header line; one group whose

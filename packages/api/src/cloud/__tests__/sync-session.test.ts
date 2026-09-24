@@ -8,7 +8,7 @@ import {
   MAX_PULL_PAGES_PER_PASS,
   pullPages,
 } from "../sync/sync-session";
-import type { PullPagesArgs } from "../sync/sync-session";
+import type { PullPagesArgs, SyncOutcome } from "../sync/sync-session";
 
 const UNAUTHORIZED: CloudFailure = {
   code: "unauthorized",
@@ -40,6 +40,7 @@ const fakeClient = (pull: CloudClient["pull"]): CloudClient => ({
   createCapture: async () => await unreachable(),
   pull,
   push: async () => await unreachable(),
+  signOut: async () => await unreachable(),
   vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
   vaultFile: async () => await unreachable(),
   vaultTree: async () => await unreachable(),
@@ -213,28 +214,36 @@ describe("pullPages", () => {
         ok({ events: [row(2, "dev_other")], hasMore: false, lastSeq: 2 }),
       ],
     });
-    expect(await run()).toBe(true);
+    expect(await run()).toBe("caught-up");
     expect(loop.pages).toEqual([0, 1]);
     expect(loop.applied).toHaveLength(2);
     expect(loop.cursor).toBe(2);
     expect(loop.skipped).toHaveLength(2);
   });
 
-  it("stops at the page bound — what is left rides the next pass", async () => {
+  it("stops at the page bound and says more is left — the next pass follows at once", async () => {
     const endless = ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 1 });
     const { loop, run } = pageLoop({
       results: Array.from({ length: MAX_PULL_PAGES_PER_PASS + 5 }, () => endless),
     });
-    expect(await run()).toBe(true);
+    expect(await run()).toBe("more");
     expect(loop.pages).toHaveLength(MAX_PULL_PAGES_PER_PASS);
   });
 
-  it("answers the session's own verdict on a failed pull", async () => {
+  it("reads an empty page as caught up whatever it claims, since asking again asks the same", async () => {
+    const { loop, run } = pageLoop({
+      results: [ok({ events: [], hasMore: true, lastSeq: 9 })],
+    });
+    expect(await run()).toBe("caught-up");
+    expect(loop.pages).toEqual([0]);
+  });
+
+  it("says failed on a retryable refusal and fenced once the session has ended", async () => {
     const failed: CloudResult<PullResponse> = { failure: RATE_LIMITED, ok: false };
     const continuing = pageLoop({ recordFailure: () => "continue", results: [failed] });
-    expect(await continuing.run()).toBe(true);
+    expect(await continuing.run()).toBe("failed");
     const ending = pageLoop({ recordFailure: () => "ended", results: [failed] });
-    expect(await ending.run()).toBe(false);
+    expect(await ending.run()).toBe("fenced");
     expect(ending.loop.applied).toEqual([]);
   });
 
@@ -267,7 +276,7 @@ describe("pullPages", () => {
     session.open({ deviceId: "dev_2" });
     release(ok({ events: [row(1, "dev_other")], hasMore: false, lastSeq: 1 }));
 
-    expect(await pass).toBe(false);
+    expect(await pass).toBe("fenced");
     expect(applied).toEqual([]);
   });
 });
@@ -285,12 +294,13 @@ describe("createSingleFlight", () => {
       }),
       Promise.resolve(),
     ];
-    const pass = async (): Promise<void> => {
+    const pass = async (): Promise<SyncOutcome> => {
       running += 1;
       expect(running).toBe(1);
       passes += 1;
       await gates.shift();
       running -= 1;
+      return "caught-up";
     };
     const runArgs = { onError: () => {}, pass, repeat: () => true };
 
@@ -314,9 +324,10 @@ describe("createSingleFlight", () => {
     });
     const args = {
       onError: () => {},
-      pass: async (): Promise<void> => {
+      pass: async (): Promise<SyncOutcome> => {
         passes += 1;
         await held;
+        return "caught-up";
       },
       repeat: () => false,
     };
@@ -337,5 +348,31 @@ describe("createSingleFlight", () => {
       repeat: () => true,
     });
     expect(errors).toEqual(["boom"]);
+  });
+
+  it("follows a capped pass at once, until one catches up or the session ends", async () => {
+    const flight = createSingleFlight();
+    const catchingUp: SyncOutcome[] = ["more", "more", "caught-up", "more"];
+    let passes = 0;
+    await flight.run({
+      onError: () => {},
+      pass: async () => {
+        passes += 1;
+        return await Promise.resolve(catchingUp.shift() ?? "caught-up");
+      },
+      repeat: () => true,
+    });
+    expect(passes).toBe(3);
+
+    let ended = 0;
+    await flight.run({
+      onError: () => {},
+      pass: async () => {
+        ended += 1;
+        return await Promise.resolve<SyncOutcome>("more");
+      },
+      repeat: () => ended < 2,
+    });
+    expect(ended).toBe(2);
   });
 });

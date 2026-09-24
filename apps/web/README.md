@@ -56,24 +56,31 @@ its own `tsconfig.json`.
 | `POST /v1/device/login`        | —       | Email + password in, the durable device credential out     |
 | `GET /v1/device/list`          | session | The device table (revoked rows included)                   |
 | `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
+| `POST /v1/device/sign-out`     | device  | The same revoke, for the device the credential names       |
 | `POST /v1/sync/push`           | device  | Outbox batch in — idempotent, conflict-aware               |
 | `GET /v1/sync/pull`            | device  | Page the merged log by global `seq`                        |
 | `GET /v1/sync/ws`              | device  | Invalidation socket (Bearer on the upgrade; hibernatable)  |
 | `POST /v1/capture`             | device  | Quick capture in, deduped on an idempotency key            |
 | `POST /v1/sync/captures/claim` | device  | Take the inbox for a five-minute window                    |
 | `POST /v1/sync/captures/ack`   | device  | Delete what that claim owns — per-id outcomes              |
-| `/v1/git/vault.git/*`          | device  | The hosted vault git remote — smart HTTP, per-user repo    |
+| `/v1/git/vault.git/*`          | device  | The hosted vault git remote — smart HTTP, 90 MiB push cap  |
 | `GET /v1/vault/tree`           | device  | Flat listing of the hosted vault at one commit             |
 | `GET /v1/vault/file`           | device  | One note's bytes at that commit — 2 MB ceiling             |
 | `GET /v1/vault/asset`          | device  | One embedded binary at that commit                         |
 | `GET /v1/account`              | device  | Whose account this device credential syncs as              |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
-hash compare against D1 — never cached, so revocation is immediate. The
+hash compare against D1 — never cached, so revocation is immediate; its
+`last_seen_at` is written at most every five minutes
+(`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the sync and capture routes fan out to that user's own
-`ThreadSyncDO`, the git remote and the `/v1/vault/*` reads to that user's own
-durable-git `RepoCell`, and `/v1/account` reads D1 directly.
+`ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
+verified deviceId; only the socket upgrade is a forwarded request), the git
+remote and the `/v1/vault/*` reads to that user's own durable-git `RepoCell`,
+and `/v1/account` reads D1 directly. Every `/v1` refusal, an unknown route and
+an unhandled fault included, is the JSON error envelope; the git mount alone
+answers git clients in plain text.
 
 ## Auth
 
@@ -84,12 +91,29 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   `Authorization: Bearer <token>`; the token comes back in the `set-auth-token`
   header on sign-in/up.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
-  (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` claims the code in one
-  atomic `UPDATE … WHERE redeemed_at IS NULL`, then forwards into the one
-  instance built with sign-up enabled — so the response (cookie,
-  `set-auth-token`, validation errors) is Better Auth's own, untouched. Every
-  other caller's instance carries `disableSignUp`, which shuts
+  (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
+  `signUpRequestSchema` (`@repo/api/cloud/account/account-schema`, which the
+  page, the gate and the e2e harness share with `AUTH_PAGE_PATHS`) and refuses a
+  password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
+  the code. It then claims the code in one atomic
+  `UPDATE … WHERE redeemed_at IS NULL` and forwards into the one instance built
+  with sign-up enabled — so the response (cookie, `set-auth-token`, Better
+  Auth's own refusals) is Better Auth's, untouched. Better Auth is configured
+  with those same two bounds (`src/worker/auth/auth.ts`), which the reset page
+  and device login hold too. Every other caller's instance carries
+  `disableSignUp`, which shuts
   `/api/auth/sign-up/email` and `auth.api.signUpEmail` together.
+- **The site's pages ask for a session in the route, and remember the way
+  back.** `/app/devices` is `ssr: false`; its `beforeLoad` sends a signed-out
+  visit to `/app/sign-in?next=<the page>`, and its loader does the same when
+  the list answers `unauthorized`. Sign-in follows `next` through
+  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), else
+  lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
+  the route's loader and every refusal reads the cloud error envelope through
+  `readCloudCall` (`@repo/api/cloud/client`), so a failure is the route's error
+  view with a retry, never a page stuck on Loading. The three auth forms submit
+  through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
+  request that never left into a message rather than a button stuck busy.
 - **A device signs in with the account's own email and password**
   (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
   verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential
@@ -98,6 +122,16 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   nobody sees is a bearer nobody revokes. A wrong password and an unknown
   address answer one `invalid-credentials`, throttled
   per address; `/app/devices` is where a credential is revoked.
+- **A signing-out device revokes itself** (`POST /v1/device/sign-out`, the one
+  device route a device credential authenticates, since an app holds no
+  session). It is the dashboard's revoke — the row's `revoked_at`, the device's
+  limiter rows, its live sockets — so the account's twenty-device cap counts
+  only devices still signed in. It answers `{ revoked: true }` even when a
+  dashboard revoke lands mid-request, and `unauthorized` to a credential
+  already revoked. The desktop's local server and the phone send it best-effort
+  as they drop the credential, and the login flow sends it for a credential its
+  store could not keep; a sign-out the cloud never hears leaves the row for
+  `/app/devices`.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
   limiter on the auth routes, and the same table behind the invite gate's and
   the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
@@ -109,12 +143,16 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   `x-forwarded-for`. `/api/auth/get-session` spends no window: a session read
   is no password oracle, and every route guard and hover preload makes one. A
   read that fails is unknown to the route guards, never signed out
-  (`src/lib/auth-client.ts`). The hosted
+  (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
+  that failed to load, as its message and a retry
+  (`src/routes/app/devices.tsx`). The hosted
   vault's two read budgets (`/v1/git/*` 600/min, `/v1/vault/*` 3,000/min) spend
   the same table keyed on the DEVICE, never the address: a stolen credential
   moves between addresses, and the device row is what `/app/devices` revokes.
   Two families so a drained read budget never takes sync down; revocation and
-  account deletion drop the rows.
+  account deletion drop the rows. Better Auth prunes the shared table on its
+  own writes, every row past its 60s window with it, so every Worker window is
+  declared in `RATE_WINDOWS` and a guard holds each to 60s or less.
 - **No CORS**, deliberately: every browser client is served by this Worker from
   this origin, and a native client is not subject to CORS at all. If CORS is
   ever reintroduced, `access-control-allow-credentials` must stay absent — the

@@ -1,10 +1,15 @@
+import { Suspense, lazy } from "react";
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
-import { HeroOrb } from "@/components/hero-orb";
-import { createDownloadUrlReader } from "@/lib/download-url";
+import { createDownloadUrlReader, downloadHref } from "@/lib/download-url";
 import { SiteHeader } from "@/components/site-header";
-import { ThemeProvider } from "@/components/theme-provider";
+
+// three.js is most of this page's weight; imported statically it would hold hydration, and the CTA with it
+const HeroOrb = lazy(async () => {
+  const module = await import("@/components/hero-orb");
+  return { default: module.HeroOrb };
+});
 
 // themed tokens, not literal hex: dark is the default theme, so a hardcoded near-black pill vanishes into it
 const CTA_PILL =
@@ -21,28 +26,30 @@ const readDownloadUrl = createDownloadUrlReader();
 const getDownloadUrl = createServerFn().handler(async () => await readDownloadUrl());
 
 const Page = () => {
-  const downloadUrl = Route.useLoaderData();
+  const href = downloadHref(Route.useLoaderData());
 
   return (
-    <ThemeProvider>
+    <>
       <SiteHeader />
       <main className="flex min-h-dvh w-full flex-col">
         <div className="flex flex-1 flex-col items-center justify-center">
           <div className="h-48 w-48">
             <ClientOnly fallback={null}>
-              <HeroOrb />
+              <Suspense fallback={null}>
+                <HeroOrb />
+              </Suspense>
             </ClientOnly>
           </div>
         </div>
         <div className="flex flex-col items-center gap-3 px-6 pb-16">
-          {downloadUrl === null ? (
+          {href === null ? (
             <span className={`${CTA_PILL} bg-muted text-muted-foreground`}>
               <MacLogoIcon className="size-5 shrink-0" />
               Coming soon for Mac
             </span>
           ) : (
             <a
-              href={downloadUrl}
+              href={href}
               className={`${CTA_PILL} bg-primary text-primary-foreground transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
             >
               <MacLogoIcon className="size-5 shrink-0" />
@@ -52,7 +59,7 @@ const Page = () => {
           <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
         </div>
       </main>
-    </ThemeProvider>
+    </>
   );
 };
 

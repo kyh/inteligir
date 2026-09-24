@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
+import { analyzeMarkdown, gateReasonFor, roundTrip } from "@repo/editor/markdown/markdown-doc";
 import { SAMPLE_NOTES } from "./sample-notes";
 
 type Classification =
@@ -12,18 +12,25 @@ type Classification =
   | "formattable"
   // parses, but round-trip drops content → Raw
   | "letters-diverge"
-  // rawReason.kind
+  // the gate's reason for every other refusal
   | `raw:${string}`;
 
 const classify = (md: string): Classification => {
   const analysis = analyzeMarkdown(md);
-  if (analysis.rawReason) {
-    return `raw:${analysis.rawReason.kind}`;
+  switch (analysis.kind) {
+    case "canonical": {
+      return "canonical";
+    }
+    case "normalizes": {
+      return "formattable";
+    }
+    case "roundtrip-loss": {
+      return "letters-diverge";
+    }
+    default: {
+      return `raw:${analysis.kind}`;
+    }
   }
-  if (analysis.canonical) {
-    return "canonical";
-  }
-  return analysis.richSafe ? "formattable" : "letters-diverge";
 };
 
 const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
@@ -81,8 +88,7 @@ describe("legacy corpus classification", () => {
 
   it("round-trips rich-safe corpus files idempotently and letters-preserving", () => {
     for (const [name, md] of CORPUS) {
-      const analysis = analyzeMarkdown(md);
-      if (!analysis.richSafe || md.trim() === "") {
+      if (gateReasonFor(analyzeMarkdown(md)) !== null || md.trim() === "") {
         continue;
       }
       const once = roundTrip(md);

@@ -3,12 +3,12 @@ import { Button } from "@repo/ui/components/button";
 import { updateAction } from "../../../update-state";
 import type { UpdateAction, UpdateState } from "../../../update-state";
 import { runUpdateAction, useDesktopUpdates } from "../desktop-updates";
-import { failed, Row } from "./settings-chrome";
+import { bridgeFailed, Row } from "./settings-chrome";
 
 const statusLabel = (state: UpdateState): string => {
   switch (state.status) {
     case "disabled": {
-      return state.message ?? "Automatic updates are off.";
+      return state.reason;
     }
     case "idle": {
       return "Checked automatically a few minutes after launch, then every few minutes.";
@@ -20,13 +20,13 @@ const statusLabel = (state: UpdateState): string => {
       return `Inteligir ${state.currentVersion} is the newest version.`;
     }
     case "available": {
-      return `Inteligir ${state.availableVersion ?? ""} is available.`;
+      return `Inteligir ${state.version} is available.`;
     }
     case "downloading": {
-      return `Downloading — ${state.downloadPercent ?? 0}%`;
+      return `Downloading — ${state.percent}%`;
     }
     case "downloaded": {
-      return `Inteligir ${state.downloadedVersion ?? ""} is ready. Restart to finish.`;
+      return `Inteligir ${state.version} is ready. Restart to finish.`;
     }
     case "error": {
       return "The last step failed.";
@@ -35,13 +35,13 @@ const statusLabel = (state: UpdateState): string => {
   }
 };
 
-const actionLabel = (action: UpdateAction, state: UpdateState): string => {
-  switch (action) {
+const actionLabel = (action: UpdateAction): string => {
+  switch (action.action) {
     case "check": {
       return "Check for updates";
     }
     case "download": {
-      return `Download ${state.availableVersion ?? "update"}`;
+      return `Download ${action.version}`;
     }
     case "install": {
       return "Restart to update";
@@ -75,7 +75,7 @@ export const UpdatesRow = () => {
     try {
       await runUpdateAction(next);
     } catch (error) {
-      failed(error, "The updater did not answer.");
+      bridgeFailed(error, "The updater did not answer.");
     }
     setPending(false);
   };
@@ -92,12 +92,12 @@ export const UpdatesRow = () => {
               void run(action);
             }}
           >
-            {actionLabel(action, state)}
+            {actionLabel(action)}
           </Button>
         )}
         <span className="text-subtitle text-muted-foreground">{statusLabel(state)}</span>
       </span>
-      {state.status === "error" && state.message !== null ? (
+      {state.status === "error" ? (
         <span className="mt-1 block text-body text-destructive">{state.message}</span>
       ) : null}
     </Row>

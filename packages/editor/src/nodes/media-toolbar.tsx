@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckIcon, ExternalLinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 
 import { stringProp } from "@repo/editor/node-props";
@@ -65,8 +66,11 @@ export const MediaToolbar = () => {
             ref={inputRef}
             defaultValue={url}
             placeholder="https://…"
-            className="h-6 w-56 rounded-md border border-border bg-background px-2 text-xs outline-none"
+            className="h-6 w-56 rounded-md border border-border bg-background px-2 text-body outline-none"
             onKeyDown={(e) => {
+              if (isImeComposing(e)) {
+                return;
+              }
               if (e.key === "Enter") {
                 commitUrl();
               }
@@ -100,19 +104,6 @@ export const MediaToolbar = () => {
             }}
           >
             <PencilIcon />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            title="Open original"
-            className={BUTTON_CLASS}
-            onClick={() => {
-              if (url) {
-                window.open(url, "_blank", "noopener,noreferrer");
-              }
-            }}
-          >
-            <ExternalLinkIcon />
           </Button>
           <Button
             variant="ghost"

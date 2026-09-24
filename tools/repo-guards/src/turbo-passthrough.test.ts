@@ -3,19 +3,28 @@
 // reaches resolveAppConfig), and a task reads the config when it is persistent or already names a
 // variable. a workspace that reads the config through a path turbo never runs is invisible here.
 
-import fs from "node:fs";
-import path from "node:path";
 import { ENV_VAR_NAMES } from "inteligir/server/config";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
+import {
+  sourceOf,
+  turboTaskBodies,
+  workspaceFiles,
+  workspaceTurboConfig,
+  workspaces,
+} from "./repo";
 import type { Workspace } from "./repo";
 
 const CONFIG_READER = "resolveAppConfig";
 
 // reads the config but runs through no turbo task, with the path that starts it; drains when one
 // gains a turbo.json.
-const RUNS_OUTSIDE_TURBO = new Map<string, string>();
+const RUNS_OUTSIDE_TURBO = new Map<string, string>([
+  [
+    "@repo/e2e",
+    "`pnpm e2e` starts it through pnpm, never turbo, and the harness resolves the desktop shell's dirs from an env it builds, never its own",
+  ],
+]);
 
 interface TurboTask {
   name: string;
@@ -24,21 +33,14 @@ interface TurboTask {
   passThroughEnv: string[] | null;
 }
 
-const turboConfigSchema = z.looseObject({ tasks: z.record(z.string(), z.unknown()) });
 const turboTaskSchema = z.looseObject({
   passThroughEnv: z.array(z.string()).optional(),
   // oxlint-disable-next-line unicorn/no-useless-undefined -- zod's catch takes the fallback; a bare catch() is a type error
   persistent: z.literal(true).optional().catch(undefined),
 });
 
-// turbo.json is JSONC; sourceOf drops full-line comments, which is every comment this repo's turbo
-// configs use.
-const turboTasks = (configPath: string): TurboTask[] => {
-  const parsed = turboConfigSchema.safeParse(JSON.parse(sourceOf(configPath)));
-  if (!parsed.success) {
-    throw new Error(`${configPath}: expected an object at "tasks"`);
-  }
-  return Object.entries(parsed.data.tasks).map(([name, body]) => {
+const turboTasks = (configPath: string): TurboTask[] =>
+  [...turboTaskBodies(configPath)].map(([name, body]) => {
     const task = turboTaskSchema.safeParse(body);
     if (!task.success) {
       throw new Error(
@@ -51,18 +53,12 @@ const turboTasks = (configPath: string): TurboTask[] => {
       persistent: task.data.persistent === true,
     };
   });
-};
 
 const configConsumers = (): Workspace[] => {
   const reader = new RegExp(`\\b${CONFIG_READER}\\b`, "u");
   return workspaces().filter((workspace) =>
     workspaceFiles(workspace).shipped.some((file) => reader.test(sourceOf(file))),
   );
-};
-
-const turboConfigOf = (workspace: Workspace): string | null => {
-  const relative = `${workspace.dir}/turbo.json`;
-  return fs.existsSync(path.join(REPO_ROOT, relative)) ? relative : null;
 };
 
 const readsTheConfig = (task: TurboTask): boolean =>
@@ -83,7 +79,7 @@ describe("turbo passes through the whole environment contract", () => {
   it("every task that runs the config names exactly the declared variables", () => {
     const violations: string[] = [];
     for (const workspace of consumers) {
-      const config = turboConfigOf(workspace);
+      const config = workspaceTurboConfig(workspace);
       if (config === null) {
         continue;
       }
@@ -116,7 +112,7 @@ describe("turbo passes through the whole environment contract", () => {
   it("every config reader is either checked here or declared to run outside turbo", () => {
     const violations: string[] = [];
     for (const workspace of consumers) {
-      if (turboConfigOf(workspace) !== null) {
+      if (workspaceTurboConfig(workspace) !== null) {
         continue;
       }
       if (RUNS_OUTSIDE_TURBO.has(workspace.name)) {
@@ -142,7 +138,7 @@ describe("turbo passes through the whole environment contract", () => {
         );
         continue;
       }
-      if (turboConfigOf(workspace) !== null) {
+      if (workspaceTurboConfig(workspace) !== null) {
         stale.push(
           `STALE EXCEPTION  ${name} now HAS a turbo.json\n` +
             `  the reason it named ("${why}") no longer holds\n` +

@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { isMdastRoot } from "./mdast-nodes";
 import { MD_REMARK_PLUGINS } from "./md-plugins";
+import { rebaseParsedOffsets } from "./parsed-offsets";
 import { escapePillPipesInTables } from "./table-pipes";
 
 interface ParseFailure {
@@ -47,6 +48,7 @@ export const parseMdast = (md: string): ParseResult => {
     if (!isMdastRoot(tree)) {
       throw new Error("markdown transform returned a non-root node");
     }
+    rebaseParsedOffsets(tree, text);
     return { ok: true, root: tree, text };
   } catch (error) {
     const reported = THROWN_PARSE_ERROR.parse(error);

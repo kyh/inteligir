@@ -6,27 +6,24 @@ import {
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/api/cloud/sync/sync-schema";
 import type { PushRequest, ThreadMetaInput } from "@repo/api/cloud/sync/sync-schema";
-import { devicePlatformSchema } from "@repo/api/cloud/sync/sync-ws";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
+import { threadSyncStub } from "../sync/routes";
+import { SOCKET_IDENTITY_HEADERS } from "../sync/thread-sync-do";
 import {
   awaitFrames,
   deviceHeaders,
+  emitted,
   openSocket,
   ORIGIN,
   loginDevice,
+  postSignOut,
   sessionHeaders,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-
-// the attachment is the socket's whole identity across hibernation, so the test reads it as one
-const socketTagSchema = z.object({
-  deviceId: z.string().min(1),
-  platform: devicePlatformSchema,
-});
 
 const push = async (credential: string, body: PushRequest): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
@@ -42,7 +39,7 @@ const pull = async (credential: string, afterSeq: number, limit?: number) => {
     headers: deviceHeaders(credential),
   });
   expect(response.status).toBe(200);
-  return pullResponseSchema.parse(await response.json());
+  return emitted(pullResponseSchema, await response.text());
 };
 
 const event = (
@@ -88,7 +85,7 @@ const claim = async (credential: string) => {
     method: "POST",
   });
   expect(response.status).toBe(200);
-  return claimCapturesResponseSchema.parse(await response.json());
+  return emitted(claimCapturesResponseSchema, await response.text());
 };
 
 const ack = async (credential: string, claimToken: string, ids: string[]) => {
@@ -98,7 +95,7 @@ const ack = async (credential: string, claimToken: string, ids: string[]) => {
     method: "POST",
   });
   expect(response.status).toBe(200);
-  return ackCapturesResponseSchema.parse(await response.json());
+  return emitted(ackCapturesResponseSchema, await response.text());
 };
 
 describe("thread sync log", () => {
@@ -108,11 +105,11 @@ describe("thread sync log", () => {
 
     const batch: PushRequest = { events: [event("th_1", 1, "a"), event("th_1", 2, "b")] };
     const pushed = await push(credential, batch);
-    const first = pushResponseSchema.parse(await pushed.json());
+    const first = emitted(pushResponseSchema, await pushed.text());
     expect(first).toEqual({ accepted: 2, duplicates: 0, lastSeq: 2 });
 
     const replayed = await push(credential, batch);
-    const replay = pushResponseSchema.parse(await replayed.json());
+    const replay = emitted(pushResponseSchema, await replayed.text());
     expect(replay).toEqual({ accepted: 0, duplicates: 2, lastSeq: 2 });
 
     const page = await pull(credential, 0);
@@ -129,7 +126,7 @@ describe("thread sync log", () => {
     const retried = await push(credential, {
       events: [event("th_1", 1, "a"), event("th_1", 2, "b")],
     });
-    const retry = pushResponseSchema.parse(await retried.json());
+    const retry = emitted(pushResponseSchema, await retried.text());
     expect(retry).toEqual({ accepted: 1, duplicates: 1, lastSeq: 2 });
   });
 
@@ -140,7 +137,7 @@ describe("thread sync log", () => {
 
     const response = await push(credential, { events: [event("th_1", 2, "DIFFERENT")] });
     expect(response.status).toBe(409);
-    const envelope = cloudErrorSchema.parse(await response.json());
+    const envelope = emitted(cloudErrorSchema, await response.text());
     expect(envelope.error.code).toBe("sync-conflict");
     expect(envelope.error.deviceSeq).toBe(2);
 
@@ -155,7 +152,7 @@ describe("thread sync log", () => {
 
     const response = await push(credential, { events: [event("th_1", 3, "three")] });
     expect(response.status).toBe(409);
-    const envelope = cloudErrorSchema.parse(await response.json());
+    const envelope = emitted(cloudErrorSchema, await response.text());
     expect(envelope.error.code).toBe("sync-out-of-order");
     expect(envelope.error.deviceSeq).toBe(3);
     const page = await pull(credential, 0);
@@ -170,7 +167,7 @@ describe("thread sync log", () => {
       events: [event("th_1", 1, "a"), event("th_1", 3, "c"), event("th_1", 2, "b")],
     });
     expect(response.status).toBe(409);
-    expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("sync-out-of-order");
+    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("sync-out-of-order");
     const page = await pull(credential, 0);
     expect(page.events).toEqual([]);
   });
@@ -281,25 +278,24 @@ describe("thread sync log", () => {
       events: [],
       threads: [meta("th_later", "desktop", 1000, "Queued")],
     });
-    const response = pushResponseSchema.parse(await pushed.json());
+    const response = emitted(pushResponseSchema, await pushed.text());
     expect(response).toEqual({ accepted: 0, duplicates: 0, lastSeq: 0 });
 
     await awaitFrames(desktopWs, [{ threadId: "th_later", type: "dispatch" }]);
     desktopWs.socket.close();
   });
 
-  it("keeps its socket identity in the attachment, not in instance memory", async () => {
+  it("keeps its socket identity in the hibernation tags, not in instance memory", async () => {
     const { bearer } = await signUpUser("sync-hibernate@example.test");
     const desktop = await loginDevice(bearer, "Desktop");
     const phone = await loginDevice(bearer, "Phone");
     const desktopWs = await openSocket(desktop.credential, "desktop");
-    const userId = await userIdOf(bearer);
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+    const stub = threadSyncStub(env, await userIdOf(bearer));
 
     const tags = await runInDurableObject(stub, (_instance, state) =>
-      state.getWebSockets().map((ws) => socketTagSchema.parse(ws.deserializeAttachment())),
+      state.getWebSockets().map((ws) => state.getTags(ws)),
     );
-    expect(tags).toEqual([{ deviceId: desktop.deviceId, platform: "desktop" }]);
+    expect(tags).toEqual([[`device:${desktop.deviceId}`, "platform:desktop"]]);
 
     await push(phone.credential, {
       events: [event("th_x", 1, "after")],
@@ -329,7 +325,23 @@ describe("thread sync log", () => {
       method: "POST",
     });
 
-    expect(await closed).toBe(1008);
+    expect(await closed).toBe(SYNC_WS_REVOKED_CLOSE_CODE);
+  });
+
+  it("severs a signed-out device's live socket", async () => {
+    const { bearer } = await signUpUser("sync-sever-signout@example.test");
+    const leaving = await loginDevice(bearer, "Leaving Laptop");
+    const socket = await openSocket(leaving.credential, "desktop");
+    // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
+    const closed = new Promise<number>((resolve) => {
+      socket.socket.addEventListener("close", (close) => {
+        resolve(close.code);
+      });
+    });
+
+    await postSignOut(deviceHeaders(leaving.credential));
+
+    expect(await closed).toBe(SYNC_WS_REVOKED_CLOSE_CODE);
   });
 
   it("refuses the socket without a device credential", async () => {
@@ -347,7 +359,7 @@ describe("capture inbox", () => {
     const laptop = await loginDevice(bearer, "Laptop");
 
     const captured = await capture(phone.credential, "buy oat milk", "key-oat-milk-1");
-    const posted = captureResponseSchema.parse(await captured.json());
+    const posted = emitted(captureResponseSchema, await captured.text());
     expect(posted.duplicate).toBe(false);
 
     const laptopClaim = await claim(laptop.credential);
@@ -374,13 +386,13 @@ describe("capture inbox", () => {
     const phone = await loginDevice(bearer, "Phone");
     const laptop = await loginDevice(bearer, "Laptop");
     const captured = await capture(phone.credential, "remember", "key-remember-1");
-    const posted = captureResponseSchema.parse(await captured.json());
+    const posted = emitted(captureResponseSchema, await captured.text());
 
     const stale = await claim(laptop.credential);
     expect(stale.captures).toHaveLength(1);
 
     const userId = await userIdOf(bearer);
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+    const stub = threadSyncStub(env, userId);
     await runInDurableObject(stub, (_instance, state) => {
       state.storage.sql.exec("UPDATE captures SET claimed_at = 0");
     });
@@ -400,9 +412,9 @@ describe("capture inbox", () => {
     const phone = await loginDevice(bearer, "Phone");
 
     const captured = await capture(phone.credential, "one thought", "key-shared");
-    const first = captureResponseSchema.parse(await captured.json());
+    const first = emitted(captureResponseSchema, await captured.text());
     const recaptured = await capture(phone.credential, "one thought", "key-shared");
-    const retry = captureResponseSchema.parse(await recaptured.json());
+    const retry = emitted(captureResponseSchema, await recaptured.text());
     expect(retry.id).toBe(first.id);
     expect(retry.duplicate).toBe(true);
 
@@ -453,7 +465,7 @@ describe("account deletion", () => {
     expect(after.status).toBe(401);
 
     // read off the SQL: every route refuses a tombstoned object, so a route answer would prove the tombstone, not the wipe
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+    const stub = threadSyncStub(env, userId);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
       captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
@@ -474,20 +486,36 @@ describe("account deletion", () => {
       method: "POST",
     });
 
-    // replays a request whose credential check passed before the purge, as the Worker would have forwarded it
-    const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
-    const inFlight = await stub.fetch("https://thread-sync/push", {
-      body: JSON.stringify({ events: [event("th_1", 2, "after the purge")] }),
-      headers: { "content-type": "application/json", "x-device-id": deviceId },
-      method: "POST",
-    });
-    expect(inFlight.status).toBe(410);
-    expect(cloudErrorSchema.parse(await inFlight.json()).error.code).toBe("account-deleted");
+    // replays calls whose credential check passed before the purge, as the Worker would have made them
+    const stub = threadSyncStub(env, userId);
+    const late = [
+      await stub.push(deviceId, {
+        events: [{ createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" }],
+        threads: [],
+      }),
+      await stub.pull({ afterSeq: 0, limit: 10 }),
+      await stub.capture({ idempotencyKey: "key-after-purge", text: "after the purge" }),
+      await stub.claimCaptures({ limit: 10 }),
+      await stub.ackCaptures({ claimToken: "late-claim", ids: ["late-capture"] }),
+    ];
+    expect(late.map((result) => (result.ok ? "answered" : result.code))).toEqual([
+      "account-deleted",
+      "account-deleted",
+      "account-deleted",
+      "account-deleted",
+      "account-deleted",
+    ]);
 
-    const remaining = await runInDurableObject(
-      stub,
-      (_instance, state) => state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
-    );
-    expect(remaining).toBe(0);
+    const socket = await stub.fetch("https://thread-sync/ws", {
+      headers: { [SOCKET_IDENTITY_HEADERS.deviceId]: deviceId, upgrade: "websocket" },
+    });
+    expect(socket.status).toBe(410);
+    expect(emitted(cloudErrorSchema, await socket.text()).error.code).toBe("account-deleted");
+
+    const remaining = await runInDurableObject(stub, (_instance, state) => ({
+      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
+      events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
+    }));
+    expect(remaining).toEqual({ captures: 0, events: 0 });
   });
 });

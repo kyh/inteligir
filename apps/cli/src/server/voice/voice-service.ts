@@ -5,15 +5,10 @@
 
 import { VOICE_BYTES_PER_SAMPLE, VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
 import type { VoiceModel, VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
+import { messageOf } from "../error-message";
 import { VOICE_MODEL } from "./model-catalog";
 import type { VoiceModelSpec } from "./model-catalog";
-import {
-  downloadModel,
-  isModelInstalled,
-  resolveModelFiles,
-  ModelDownloadError,
-  removeModel,
-} from "./model-store";
+import { downloadModel, isModelInstalled, resolveModelFiles, removeModel } from "./model-store";
 import type { DownloadModelArgs } from "./model-store";
 import { WorkerStreamSession } from "./stream-session";
 import type { StreamHandlers, StreamSession } from "./stream-session";
@@ -147,10 +142,7 @@ export class ParakeetVoiceService implements VoiceService {
       } catch (error) {
         if (this.#download === inFlight) {
           this.#download = null;
-          this.#lastError =
-            error instanceof ModelDownloadError || error instanceof Error
-              ? error.message
-              : String(error);
+          this.#lastError = messageOf(error);
         }
       }
     })();
@@ -173,7 +165,7 @@ export class ParakeetVoiceService implements VoiceService {
         }
       } catch (error) {
         // a warm-up that throws records like a failed answer rather than escaping this void.
-        this.#lastError = error instanceof Error ? error.message : String(error);
+        this.#lastError = messageOf(error);
       } finally {
         this.#preparing = false;
       }

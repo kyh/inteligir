@@ -1,25 +1,17 @@
 // snapshots are cached and rebuilt only on change: useSyncExternalStore treats a fresh reference as
 // new state.
 
-import type { ApplyThreadEventsArgs, StoredThread, SyncStore } from "./sync-store";
-import type { ThreadEvent } from "@repo/domain/provider-event";
-
-interface ThreadState {
-  events: ThreadEvent[];
-  lastSeq: number;
-  snapshot: StoredThread;
-}
-
-const originKey = (deviceId: string, deviceSeq: number): string => `${deviceId}:${deviceSeq}`;
-
-const rebuildThreadSnapshot = (state: ThreadState, threadId: string): void => {
-  state.snapshot = { events: [...state.events], lastSeq: state.lastSeq, threadId };
-};
+import type {
+  ApplyThreadEventsArgs,
+  StoredThread,
+  StoredThreadEvent,
+  SyncStore,
+} from "./sync-store";
+import { isThreadEventDelta } from "@repo/domain/provider-event";
 
 export const createMemorySyncStore = (): SyncStore => {
   let cursor = 0;
-  const threads = new Map<string, ThreadState>();
-  const appliedOrigins = new Set<string>();
+  const threads = new Map<string, StoredThread>();
 
   const threadListeners = new Set<() => void>();
   let threadsSnapshot: readonly StoredThread[] | null = null;
@@ -33,32 +25,36 @@ export const createMemorySyncStore = (): SyncStore => {
 
   return {
     applyThreadEvents(args: ApplyThreadEventsArgs): void {
+      const current = threads.get(args.threadId);
+      const appended: StoredThreadEvent[] = [];
+      let lastSeq = current?.lastSeq ?? 0;
       let changed = false;
-      let state = threads.get(args.threadId);
       for (const row of args.rows) {
-        const key = originKey(row.origin.deviceId, row.origin.deviceSeq);
-        if (appliedOrigins.has(key)) {
+        // the log and its cursor move together, so a row at or below the cursor was applied or
+        // skipped already.
+        if (row.seq <= cursor) {
           continue;
         }
-        appliedOrigins.add(key);
-        if (state === undefined) {
-          state = {
-            events: [],
-            lastSeq: 0,
-            snapshot: { events: [], lastSeq: 0, threadId: args.threadId },
-          };
-          threads.set(args.threadId, state);
-        }
-        state.events.push(row.event);
-        state.lastSeq = Math.max(state.lastSeq, row.seq);
         changed = true;
+        lastSeq = Math.max(lastSeq, row.seq);
+        if (!isThreadEventDelta(row.event)) {
+          appended.push(row.event);
+        }
       }
       // the cursor moves with the append: one synchronous call is the whole transaction.
-      ({ cursor } = args);
-      if (changed && state !== undefined) {
-        rebuildThreadSnapshot(state, args.threadId);
-        notifyThreads();
+      cursor = Math.max(cursor, args.cursor);
+      if (!changed) {
+        return;
       }
+      // a snapshot is never mutated, so a step that appends copies once; a step of deltas alone
+      // keeps the array and only moves the thread's recency.
+      const held = current?.events ?? [];
+      threads.set(args.threadId, {
+        events: appended.length === 0 ? held : [...held, ...appended],
+        lastSeq,
+        threadId: args.threadId,
+      });
+      notifyThreads();
     },
 
     readCursor(): number {
@@ -68,18 +64,15 @@ export const createMemorySyncStore = (): SyncStore => {
     reset(): void {
       cursor = 0;
       threads.clear();
-      appliedOrigins.clear();
       notifyThreads();
     },
 
     snapshotThread(threadId: string): StoredThread | null {
-      return threads.get(threadId)?.snapshot ?? null;
+      return threads.get(threadId) ?? null;
     },
 
     snapshotThreads(): readonly StoredThread[] {
-      threadsSnapshot ??= [...threads.values()]
-        .map((state) => state.snapshot)
-        .toSorted((a, b) => b.lastSeq - a.lastSeq);
+      threadsSnapshot ??= [...threads.values()].toSorted((a, b) => b.lastSeq - a.lastSeq);
       return threadsSnapshot;
     },
 
@@ -91,7 +84,7 @@ export const createMemorySyncStore = (): SyncStore => {
     },
 
     writeCursor(seq: number): void {
-      cursor = seq;
+      cursor = Math.max(cursor, seq);
     },
   };
 };

@@ -5,15 +5,16 @@
 import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";
 
-import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
+import { inlineTagSpans } from "@repo/notes/knowledge/tag-grammar";
 
+import { FRONTMATTER_KEY } from "@repo/editor/dialect-node-keys";
 import { TagChipLeaf } from "@repo/editor/nodes/tag-chip-node";
 
 const isSuppressedAncestor = (editor: SlateEditor, type: string): boolean =>
   type === editor.getType(KEYS.codeBlock) ||
   type === editor.getType(KEYS.codeLine) ||
   type === editor.getType(KEYS.link) ||
-  type === "frontmatter";
+  type === FRONTMATTER_KEY;
 
 const TagChipPlugin = createSlatePlugin({
   decorate: ({ editor, entry: [node, path] }) => {

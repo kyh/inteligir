@@ -1,21 +1,31 @@
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
-import { Badge } from "@repo/ui/components/badge";
+import { MAX_CONTEXT_PATHS } from "@repo/api/local/threads/threads-schema";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { Button } from "@repo/ui/components/button";
+import { Dialog, DialogPopup } from "@repo/ui/components/dialog";
 import { InputMessage } from "@repo/ui/components/input-message";
-import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { toast } from "@repo/ui/components/sonner";
-import { FileTextIcon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { XIcon } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import type { RefObject } from "react";
 
-import { useWorkspace } from "../workspace-context";
+import { failed } from "../api";
+import { ensureOpenNoteId } from "../note/open-note-id";
 import type { ViewContextSource } from "../thread-activity";
 import { spliceIntoComposer } from "../voice/dictation";
 import { MicButton } from "../voice/mic-button";
 import { useVoiceStatus } from "../voice-hooks";
 import { useWikiTargets } from "../vault-hooks";
 import { createAction } from "./action-service";
-import { activeMentionAt, filterMentionTargets, MentionCombobox } from "./mention-combobox";
+import {
+  activeMentionAt,
+  filterMentionTargets,
+  MentionCombobox,
+  mentionOptionId,
+} from "./mention-combobox";
 import type { MentionSpan } from "./mention-combobox";
+import { NoteBadge } from "./note-badge";
 
 interface PendingAction {
   threadId: string;
@@ -29,6 +39,8 @@ export interface ActionComposerProps {
   docPath: string | null;
   readViewContext: ViewContextSource;
   onLaunched: (threadId: string) => void;
+  // the note column: the composer floats over the note, never over the panel beside it
+  container: RefObject<HTMLElement | null>;
 }
 
 export const ActionComposer = ({
@@ -38,8 +50,8 @@ export const ActionComposer = ({
   docPath,
   readViewContext,
   onLaunched,
+  container,
 }: ActionComposerProps) => {
-  const { api } = useWorkspace();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   // the thread a refused send already created; the retry reuses it only over the same note,
@@ -51,40 +63,27 @@ export const ActionComposer = ({
   const [mentionIndex, setMentionIndex] = useState(0);
   const [dictationPartial, setDictationPartial] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
-  // the seed applies at open; a mid-open seed change must not clobber typing
-  const seedRef = useRef(seed);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const listId = useId();
   const voiceStatus = useVoiceStatus().data;
   const wikiTargets = useWikiTargets();
 
-  useEffect(() => {
-    seedRef.current = seed;
-  }, [seed]);
-
   // The composer outlives a close — the thread a refused send created is retried into on the
-  // next open — so remounting it under a `key`, React's own answer here, would drop that.
-  /* oxlint-disable react/set-state-in-effect -- see above */
-  useEffect(() => {
+  // next open — so an open resets the rest here rather than through a remount under a `key`. The
+  // seed applies at open only: a mid-open seed change must not clobber typing.
+  const [openSeen, setOpenSeen] = useState(false);
+  if (open !== openSeen) {
+    setOpenSeen(open);
     if (open) {
       setAttached(true);
       setMentions([]);
       setMention(null);
-      const opened = seedRef.current;
-      if (opened !== null) {
-        setText(opened);
+      if (seed !== null) {
+        setText(seed);
       }
-      requestAnimationFrame(() => {
-        const field = fieldRef.current;
-        field?.focus();
-        field?.setSelectionRange(field.value.length, field.value.length);
-      });
     } else {
       setDictationPartial(null);
     }
-  }, [open]);
-  /* oxlint-enable react/set-state-in-effect */
-
-  if (!open) {
-    return null;
   }
 
   const attachedPath = attached ? docPath : null;
@@ -93,10 +92,14 @@ export const ActionComposer = ({
   if (attachedPath !== null) {
     chipPaths.add(attachedPath);
   }
+  // the wire's own cap: past it the list stays shut rather than offer a note the send would refuse
+  const mentionsFull = mentions.length >= MAX_CONTEXT_PATHS;
   const mentionOptions =
-    mention === null
+    mention === null || mentionsFull
       ? []
       : filterMentionTargets(wikiTargets.data?.targets ?? [], mention.query, chipPaths);
+  const listShown = mentionOptions.length > 0;
+  const activeMention = Math.min(mentionIndex, mentionOptions.length - 1);
 
   const syncMention = (value: string, caret: number): void => {
     const span = activeMentionAt(value, caret);
@@ -130,6 +133,34 @@ export const ActionComposer = ({
     });
   };
 
+  const focusField = (): HTMLElement | null => {
+    const field = fieldRef.current;
+    field?.setSelectionRange(field.value.length, field.value.length);
+    return field;
+  };
+
+  // Back to the note, through the editor's own focus, which restores its selection: a DOM focus
+  // on the editable would drop the caret at the note's start. The blur before it only clears
+  // Slate's focus flag: Slate ignores a blur that lands while it writes the DOM selection, and a
+  // flag left set makes this focus a no-op. A press outside already put focus where the pointer
+  // went, and that is left alone.
+  const returnFocus = (): boolean => {
+    const active = document.activeElement;
+    const movedAway =
+      active !== null && active !== document.body && popupRef.current?.contains(active) !== true;
+    if (movedAway) {
+      return false;
+    }
+    const editor = docPath === null ? null : getLiveEditor(docPath);
+    // a composer unmounted with the window outlives the editor's DOM, which has no focus to take
+    if (editor === null || editor.api.toDOMNode(editor)?.isConnected !== true) {
+      return true;
+    }
+    editor.tf.blur();
+    editor.tf.focus();
+    return false;
+  };
+
   const submit = (): void => {
     const trimmed = text.trim();
     if (trimmed === "" || sending) {
@@ -138,8 +169,11 @@ export const ActionComposer = ({
     setSending(true);
     void (async () => {
       try {
+        if (attachedPath !== null) {
+          ensureOpenNoteId(attachedPath);
+        }
         const viewContext = attachedPath === null ? null : await readViewContext();
-        const created = await createAction(api, {
+        const created = await createAction({
           contextPaths: mentions,
           docPath: attachedPath,
           prompt: trimmed,
@@ -156,182 +190,170 @@ export const ActionComposer = ({
           onOpenChange(false);
           onLaunched(created.threadId);
         }
-      } catch {
-        toast.error("Could not start the action.");
+      } catch (error) {
+        failed(error, "Could not start the action.");
       }
       setSending(false);
     })();
   };
 
   return (
-    <>
-      <div
-        role="presentation"
-        className="absolute inset-0 z-30"
-        onPointerDown={() => {
-          onOpenChange(false);
-        }}
-      />
-      <div
-        role="presentation"
-        className="absolute inset-x-0 bottom-10 z-40 flex justify-center px-6"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onOpenChange(false);
-          }
-        }}
+    <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
+      <DialogPopup
+        ref={popupRef}
+        container={container}
+        initialFocus={focusField}
+        finalFocus={returnFocus}
+        aria-label="Action composer"
+        className="absolute inset-x-6 bottom-10 mx-auto max-w-xl"
       >
-        <dialog
-          open
-          aria-label="Action composer"
-          className="static h-auto w-full max-w-xl bg-transparent text-inherit"
-        >
-          {dictationPartial === null ? null : (
-            <div
-              data-dictation-preview=""
-              aria-live="polite"
-              className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-body text-muted-foreground"
-            >
-              {dictationPartial === "" ? "Listening…" : dictationPartial}
-            </div>
-          )}
+        {dictationPartial === null ? null : (
+          <div
+            data-dictation-preview=""
+            aria-live="polite"
+            className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-body text-muted-foreground"
+          >
+            {dictationPartial === "" ? "Listening…" : dictationPartial}
+          </div>
+        )}
 
-          <div className="relative">
-            <MentionCombobox
-              options={mentionOptions}
-              activeIndex={mentionIndex}
-              onHover={setMentionIndex}
-              onPick={pickMention}
-            />
-            <InputMessage
-              topSlot={
-                docPath !== null || mentions.length > 0 ? (
-                  <>
-                    {docPath === null ? null : (
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "gap-1 bg-surface-raised",
-                          !attached && "text-muted-foreground line-through",
-                        )}
-                      >
-                        <FileTextIcon className="size-3" />
-                        {docPath}
-                        {attached ? (
-                          <Button
-                            variant="ghost"
-                            size="icon-compact"
-                            className="size-4"
-                            aria-label="Detach note"
-                            onClick={() => {
-                              setAttached(false);
-                            }}
-                          >
-                            <XIcon className="size-3" />
-                          </Button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                              setAttached(true);
-                            }}
-                          >
-                            attach
-                          </button>
-                        )}
-                      </Badge>
-                    )}
-                    {mentions.map((path) => (
-                      <Badge key={path} variant="outline" className="gap-1 bg-surface-raised">
-                        <FileTextIcon className="size-3" />
-                        {path}
+        <div className="relative">
+          <MentionCombobox
+            id={listId}
+            options={mentionOptions}
+            activeIndex={activeMention}
+            onHover={setMentionIndex}
+            onPick={pickMention}
+          />
+          <InputMessage
+            topSlot={
+              docPath !== null || mentions.length > 0 ? (
+                <>
+                  {docPath === null ? null : (
+                    <NoteBadge
+                      path={docPath}
+                      className={attached ? undefined : "text-muted-foreground line-through"}
+                    >
+                      {attached ? (
                         <Button
                           variant="ghost"
                           size="icon-compact"
                           className="size-4"
-                          aria-label={`Remove ${path}`}
+                          aria-label="Detach note"
                           onClick={() => {
-                            setMentions((prior) => prior.filter((kept) => kept !== path));
+                            setAttached(false);
                           }}
                         >
                           <XIcon className="size-3" />
                         </Button>
-                      </Badge>
-                    ))}
-                  </>
-                ) : null
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            setAttached(true);
+                          }}
+                        >
+                          attach
+                        </button>
+                      )}
+                    </NoteBadge>
+                  )}
+                  {mentions.map((path) => (
+                    <NoteBadge key={path} path={path}>
+                      <Button
+                        variant="ghost"
+                        size="icon-compact"
+                        className="size-4"
+                        aria-label={`Remove ${path}`}
+                        onClick={() => {
+                          setMentions((prior) => prior.filter((kept) => kept !== path));
+                        }}
+                      >
+                        <XIcon className="size-3" />
+                      </Button>
+                    </NoteBadge>
+                  ))}
+                  {mentionsFull ? (
+                    <span className="self-center text-caption text-muted-foreground">
+                      At most {MAX_CONTEXT_PATHS} notes can be attached
+                    </span>
+                  ) : null}
+                </>
+              ) : null
+            }
+            value={text}
+            onValueChange={(value) => {
+              setText(value);
+              const field = fieldRef.current;
+              if (field !== null) {
+                syncMention(value, field.selectionStart);
               }
-              value={text}
-              onValueChange={(value) => {
-                setText(value);
-                const field = fieldRef.current;
-                if (field !== null) {
-                  syncMention(value, field.selectionStart);
+            }}
+            onSend={() => {
+              submit();
+            }}
+            placeholder="Ask the agent… @ mentions a note"
+            minRows={2}
+            maxRows={8}
+            sendLabel="Send"
+            disabled={sending}
+            textareaRef={fieldRef}
+            rightSlot={
+              <MicButton
+                status={voiceStatus}
+                onTranscript={acceptTranscript}
+                onPartial={setDictationPartial}
+                disabled={sending}
+              />
+            }
+            textareaProps={{
+              "aria-activedescendant": listShown
+                ? mentionOptionId(listId, activeMention)
+                : undefined,
+              "aria-autocomplete": "list",
+              "aria-controls": listShown ? listId : undefined,
+              "aria-expanded": listShown,
+              "aria-label": "Ask the agent",
+              onBlur: () => {
+                setMention(null);
+              },
+              onKeyDown: (event) => {
+                if (isImeComposing(event)) {
+                  return;
                 }
-              }}
-              onSend={() => {
-                submit();
-              }}
-              placeholder="Ask the agent… @ mentions a note"
-              minRows={2}
-              maxRows={8}
-              sendLabel="Send"
-              disabled={sending}
-              textareaRef={fieldRef}
-              rightSlot={
-                <MicButton
-                  status={voiceStatus}
-                  onTranscript={acceptTranscript}
-                  onPartial={setDictationPartial}
-                  disabled={sending}
-                />
-              }
-              textareaProps={{
-                "aria-label": "Ask the agent",
-                onBlur: () => {
-                  setMention(null);
-                },
-                onKeyDown: (event) => {
-                  if (mention !== null && mentionOptions.length > 0) {
-                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                      event.preventDefault();
-                      const step = event.key === "ArrowDown" ? 1 : -1;
-                      setMentionIndex((prior) =>
-                        Math.min(Math.max(prior + step, 0), mentionOptions.length - 1),
-                      );
-                      return;
-                    }
-                    if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
-                      event.preventDefault();
-                      const active =
-                        mentionOptions[Math.min(mentionIndex, mentionOptions.length - 1)];
-                      if (active !== undefined) {
-                        pickMention(active);
-                      }
-                      return;
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setMention(null);
-                      return;
-                    }
-                  }
-                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                if (listShown) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();
-                    submit();
+                    const step = event.key === "ArrowDown" ? 1 : -1;
+                    setMentionIndex((prior) =>
+                      Math.min(Math.max(prior + step, 0), mentionOptions.length - 1),
+                    );
+                    return;
                   }
-                },
-                onSelect: (event) => {
-                  syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
-                },
-              }}
-            />
-          </div>
-        </dialog>
-      </div>
-    </>
+                  if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+                    event.preventDefault();
+                    const active = mentionOptions[activeMention];
+                    if (active !== undefined) {
+                      pickMention(active);
+                    }
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setMention(null);
+                  }
+                }
+              },
+              onSelect: (event) => {
+                syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
+              },
+              role: "combobox",
+            }}
+          />
+        </div>
+      </DialogPopup>
+    </Dialog>
   );
 };

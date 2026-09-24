@@ -2,6 +2,7 @@
 // code a real provider would receive and an e2e otherwise cannot see.
 
 import { turnScope } from "@repo/domain/thread-event-scope";
+import { messageOf } from "../error-message";
 import type { GitEngine } from "../vault/git-engine";
 import type { VaultService } from "../vault/vault-service";
 import type {
@@ -9,6 +10,7 @@ import type {
   ProviderEventSink,
   TurnDriver,
   TurnDriverStartArgs,
+  TurnInterrupt,
 } from "../threads/turn-driver";
 import { beginAgentTurnWrites } from "./agent-commits";
 import { agentMessageEvents } from "./agent-message-events";
@@ -36,7 +38,7 @@ class ScriptedTurnDriver implements TurnDriver {
   startTurn(args: TurnDriverStartArgs): void {
     const scope = turnScope(args.turnId);
     const itemId = `item_${args.turnId}_message`;
-    const prompt = turnPromptInput(args.text, args.viewContext)
+    const prompt = turnPromptInput(args)
       .map((part) => part.text)
       .join("\n\n");
     const text = `Noted: ${prompt}`;
@@ -45,6 +47,12 @@ class ScriptedTurnDriver implements TurnDriver {
       ...agentMessageEvents({ itemId, scope, text, threadId: args.threadId }),
     ]);
     this.lastTurn = this.runFileHalf(args, scope);
+  }
+
+  // a scripted turn has no provider to cancel, and its file half always reports the turn's end.
+  // oxlint-disable-next-line class-methods-use-this -- the TurnDriver's instance API: the service calls it on the driver it was handed
+  interruptTurn(): TurnInterrupt {
+    return "settling";
   }
 
   private async runFileHalf(
@@ -82,13 +90,14 @@ class ScriptedTurnDriver implements TurnDriver {
         { scope, status: "completed", threadId: args.threadId, type: "turn/completed" },
       ]);
     } catch (error) {
-      this.deps.onError?.(error instanceof Error ? error.message : String(error));
+      const detail = messageOf(error);
+      this.deps.onError?.(detail);
       await turnCommit.finish().catch(() => {
         /* empty */
       });
       this.sink.ingestProviderEvents(args.threadId, [
         {
-          detail: error instanceof Error ? error.message : String(error),
+          detail,
           message: "Scripted turn failed",
           scope,
           threadId: args.threadId,

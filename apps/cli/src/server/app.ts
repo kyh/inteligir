@@ -7,6 +7,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
+  HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   VOICE_STREAM_PATH,
@@ -16,17 +17,23 @@ import {
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
+import { AGENT_THREAD_HEADER, agentThreadIdOf } from "./agent-thread-header";
 import { isSameOriginBrowserRequest } from "./browser-request";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
+import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "./html-block-frame";
+import { INERT_PAGE_HEADERS } from "./inert-page";
+import { JsonFileStoreError } from "./json-file-store";
+import type { UpgradedSocket } from "./listen";
 import { loopbackRequestOrigin } from "./loopback-origin";
 import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
 import { presentedCredential, tokenAccepted } from "./server-file";
 import type { PresentedCredential } from "./server-file";
+import { SIGNED_OUT_PAGE } from "./signed-out-page";
 import { handleVaultAsset } from "./vault/asset-route";
 import type { VoiceStreamConnection } from "./voice/voice-stream-connection";
 import type { VoiceStreamHub } from "./voice/voice-stream-hub";
@@ -72,6 +79,8 @@ export const createApp = (args: CreateAppArgs) => {
   const nodeWebSocket = createNodeWebSocket({ app });
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
+  // ws tracks every socket it upgraded, whichever route took it; the http server lost them at the upgrade.
+  const upgradedSockets: ReadonlySet<UpgradedSocket> = nodeWebSocket.wss.clients;
 
   // first, ahead of every route, /health and the oauth landing included: the server binds 127.0.0.1
   // alone, so any other name is a page that rebound its own hostname onto this port. the header,
@@ -88,10 +97,20 @@ export const createApp = (args: CreateAppArgs) => {
   });
 
   // each carrier has its own secret: the bearer never rides a cookie, and the browser's cookie is no bearer.
-  const credentialAccepted = (credential: PresentedCredential): boolean =>
-    credential.carrier === "header"
-      ? tokenAccepted(args.serverToken, credential.token)
-      : args.context.browserSession.cookieAccepted(credential.token);
+  const acceptedCredential = (c: Context): PresentedCredential | null => {
+    const credential = presentedCredential({
+      authorization: c.req.header("authorization"),
+      cookie: c.req.header("cookie"),
+    });
+    if (credential === null) {
+      return null;
+    }
+    const accepted =
+      credential.carrier === "header"
+        ? tokenAccepted(args.serverToken, credential.token)
+        : args.context.browserSession.cookieAccepted(credential.token);
+    return accepted ? credential : null;
+  };
 
   // one gate at the http boundary: three of the four surfaces it protects are not procedures.
   // /health stays outside (a supervisor's spawn probe holds no credential yet), and so does the
@@ -99,11 +118,9 @@ export const createApp = (args: CreateAppArgs) => {
   // stands in). a cookie is ambient and loopback "site" ignores the port, so a co-resident page
   // on another 127.0.0.1 port carries it: a cookie-authed request must also prove same-origin.
   const requireServerToken: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
-    const credential = presentedCredential({
-      authorization: c.req.header("authorization"),
-      cookie: c.req.header("cookie"),
-    });
-    if (credential === null || !credentialAccepted(credential)) {
+    const credential = acceptedCredential(c);
+    if (credential === null) {
+      c.header("WWW-Authenticate", 'Bearer realm="inteligir"');
       return c.text("This request carried no valid inteligir device token", 401);
     }
     if (
@@ -124,6 +141,18 @@ export const createApp = (args: CreateAppArgs) => {
   const rpc = new RPCHandler(localRouter, {
     errorStatusMap: ERROR_STATUS_MAP,
     interceptors: [
+      // a data-dir file the user can fix names itself on the wire; left alone it is a bare
+      // "Internal server error" that says nothing of which file or why.
+      async ({ next }) => {
+        try {
+          return await next();
+        } catch (error) {
+          if (error instanceof JsonFileStoreError) {
+            throw new ORPCError("INTERNAL_SERVER_ERROR", { cause: error, message: error.message });
+          }
+          throw error;
+        }
+      },
       onError((cause: unknown) => {
         if (isOrpcError(cause) && errorStatus(cause.code) < SERVER_FAULT_STATUS) {
           return;
@@ -136,7 +165,11 @@ export const createApp = (args: CreateAppArgs) => {
   app.use(`${RPC_PREFIX}/*`, requireServerToken);
   app.all(`${RPC_PREFIX}/*`, async (c) => {
     const { response } = await rpc.handle(c.req.raw, {
-      context: { ...args.context, requestHost: c.req.header("host") },
+      context: {
+        ...args.context,
+        agentThreadId: agentThreadIdOf(c.req.header(AGENT_THREAD_HEADER)),
+        requestOrigin: c.get("requestOrigin"),
+      },
       prefix: RPC_PREFIX,
     });
     return response ?? c.text("Not found", 404);
@@ -230,6 +263,20 @@ export const createApp = (args: CreateAppArgs) => {
       return c.redirect(`${c.get("requestOrigin")}${target.pathname}${target.search}`, 303);
     };
 
+    // no guard, since the shell is public bytes: a tab with no session would load it and then fail
+    // every call with nothing on screen saying why. the cookie's same-origin proof stays the api's.
+    const signedOutDocument: MiddlewareHandler<AppEnv> = async (
+      c,
+      next,
+    ): Promise<Response | undefined> => {
+      if (acceptedCredential(c) === null) {
+        return c.body(SIGNED_OUT_PAGE, 401, INERT_PAGE_HEADERS);
+      }
+      // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
+      await next();
+      return undefined;
+    };
+
     // stamped by content type, not route: serveStatic answers index.html for `/` and the fallback
     // reads the same file for deep links. the ws origin is the one the caller reached: a
     // connect-src naming the configured port refuses this app's own socket on a probed dev bind.
@@ -248,6 +295,9 @@ export const createApp = (args: CreateAppArgs) => {
       }
     };
 
+    // ahead of the shell's route: its stamp would hand the frame the page's `script-src 'self'`.
+    app.get(HTML_FRAME_PATH, (c) => c.body(HTML_FRAME_DOCUMENT, 200, HTML_FRAME_HEADERS));
+
     // only /assets/* carries content hashes, so only it may be immutable; an asset miss must 404,
     // since answering with the shell hands the module loader html and an opaque mime error.
     app.on(
@@ -262,6 +312,7 @@ export const createApp = (args: CreateAppArgs) => {
       ["GET", "HEAD"],
       "*",
       browserHandoff,
+      signedOutDocument,
       documentHeaders,
       staticCacheControl(STATIC_NO_STORE_CACHE_CONTROL),
       serveClientFile,
@@ -269,5 +320,5 @@ export const createApp = (args: CreateAppArgs) => {
     );
   }
 
-  return { app, injectWebSocket };
+  return { app, injectWebSocket, upgradedSockets };
 };

@@ -49,6 +49,8 @@ export const VAULT_MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
 
 export const contentHashHex = async (content: string): Promise<string> => await sha256Hex(content);
 
+export const contentHashSchema = z.string().regex(/^[0-9a-f]{64}$/u);
+
 export const contentHashBytesHex = async (
   bytes: ArrayBuffer | Uint8Array<ArrayBuffer>,
 ): Promise<string> => {
@@ -58,7 +60,7 @@ export const contentHashBytesHex = async (
 
 // re-exported from the cloud side: local importing cloud is the direction the dep guard allows,
 // and one table keeps both routes accepting the same images.
-export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "@repo/api/cloud/vault/vault-schema";
+export { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
 
 export const vaultReadRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
@@ -118,25 +120,34 @@ export type VaultRevisionRequest = z.infer<typeof vaultRevisionRequestSchema>;
 export const vaultRevisionResponseSchema = z.object({ content: z.string() }).strict();
 export type VaultRevisionResponse = z.infer<typeof vaultRevisionResponseSchema>;
 
+// no paths commits the whole dirty tree, a running agent turn's writes included; a caller
+// checkpointing one note names it, so the turn's writes stay for the turn's own commit.
+export const vaultCommitRequestSchema = z
+  .object({ paths: z.array(vaultPathSchema).min(1) })
+  .strict()
+  .optional();
+
 export const vaultCommitResponseSchema = z.object({ files: z.number().int().min(0) }).strict();
 export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
+
+// required, so last-writer-wins is a choice a caller spells rather than what it gets by
+// forgetting a field. `expected` carries the sha-256 hex of the utf-8 bytes the write was derived
+// from, and a mismatch answers CAS_MISMATCH with the current content; `absent` is a create, and
+// never a hash of bytes not yet on disk, which no file could match.
+const vaultWriteGuardSchema = z.discriminatedUnion("kind", [
+  z.object({ hash: contentHashSchema, kind: z.literal("expected") }).strict(),
+  z.object({ kind: z.literal("absent") }).strict(),
+  z.object({ kind: z.literal("overwrite") }).strict(),
+]);
+export type VaultWriteGuard = z.infer<typeof vaultWriteGuardSchema>;
 
 export const vaultWriteRequestSchema = z
   .object({
     content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
-    // sha-256 hex of the utf-8 bytes this write was derived from; a mismatch answers 409 with
-    // the current content. omitted, the write is last-writer-wins.
-    expectedHash: z
-      .string()
-      .regex(/^[0-9a-f]{64}$/u)
-      .optional(),
-    ifAbsent: z.literal(true).optional(),
+    guard: vaultWriteGuardSchema,
     path: vaultPathSchema,
   })
-  .strict()
-  .refine((value) => value.expectedHash === undefined || value.ifAbsent === undefined, {
-    message: "expectedHash and ifAbsent are mutually exclusive",
-  });
+  .strict();
 export type VaultWriteRequest = z.infer<typeof vaultWriteRequestSchema>;
 
 export const vaultWriteResponseSchema = z.object({ path: z.string().min(1) }).strict();
@@ -177,11 +188,13 @@ export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 // "" is the vault root: a vault path is never empty, and the root is a place an attachment can land.
 export const vaultDirSchema = z.union([z.literal(""), vaultPathSchema]);
 
+// the bytes ride as a Blob, which the rpc link sends as a multipart part rather than as base64
+// inside the json body. the cap is the handler's, so an oversized file answers PAYLOAD_TOO_LARGE.
 export const vaultAssetWriteRequestSchema = z
   .object({
     baseName: z.string().min(1),
-    bytesBase64: z.string().min(1),
     dir: vaultDirSchema,
+    file: z.instanceof(Blob).refine((file) => file.size > 0, "an attachment holds no bytes"),
   })
   .strict();
 export type VaultAssetWriteRequest = z.infer<typeof vaultAssetWriteRequestSchema>;
@@ -221,7 +234,7 @@ export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 
 // doc paths no longer on disk. `sha` names the revision whose tree still holds the bytes — the
 // deleting commit's parent, or HEAD for a deletion the auto-commit has not flushed yet — so a
-// restore is `revision` read plus an `ifAbsent` write. latest deletion per path, newest first.
+// restore is `revision` read plus an `absent` write. latest deletion per path, newest first.
 export const vaultDeletedEntrySchema = z
   .object({
     // git's `%aI` of the deleting commit; the read time for an unflushed deletion.
@@ -267,72 +280,36 @@ const remoteFields = {
   remoteSource: z.enum(["explicit", "account"]),
 };
 
+const remoteState = <State extends string>(state: State) =>
+  z.object({ state: z.literal(state), ...remoteFields, ...syncStatusFields }).strict();
+
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("no-remote"), ...syncStatusFields }).strict(),
   // rebase state even `rebase --abort` could not clear; `lastError` names the manual recovery
   // and no pass runs while broken.
-  z
-    .object({
-      state: z.literal("broken"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
-  z
-    .object({
-      state: z.literal("clean"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
-  z
-    .object({
-      state: z.literal("dirty"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
-  z
-    .object({
-      state: z.literal("syncing"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("broken"),
+  remoteState("clean"),
+  remoteState("dirty"),
+  remoteState("syncing"),
   // an agent turn holds the commits; its own state rather than a silent no-op, so "sync now"
   // cannot report a sync that never ran.
-  z
-    .object({
-      state: z.literal("held"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("held"),
   // not `clean`: "unpushed" is measured against a remote-tracking ref a failed fetch left stale.
-  z
-    .object({
-      state: z.literal("offline"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("offline"),
   // not `offline`: offline heals on its own, this fails the same way until the user signs in again.
-  z
-    .object({
-      state: z.literal("unauthorized"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("unauthorized"),
+  // the remote answered and refused the push (a hook, a protected branch); `lastError` carries its
+  // words. not `offline`: no retry changes the answer.
+  remoteState("rejected"),
+  // the remote answered that the push is larger than it takes (a 413): the hosted vault's cap, or
+  // a proxy in front of the user's own remote. not `rejected`: what is refused is the history, so
+  // the engine stops resending it until the history or the remote moves.
+  remoteState("too-large"),
   // the signed-in account is not the one this vault last synced with; no pass runs, since a push
   // would upload these notes into an account that never held them.
-  z
-    .object({
-      state: z.literal("account-mismatch"),
-      ...remoteFields,
-      ...syncStatusFields,
-    })
-    .strict(),
+  remoteState("account-mismatch"),
+  // the vault's HEAD names no branch, so a pass has nothing to push; not `clean`, which it is not.
+  remoteState("detached"),
   z
     .object({
       state: z.literal("conflict"),

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isUuidWikiAlias, parseWikiBodyRange } from "../remark-wiki-link";
+import {
+  isUuidWikiAlias,
+  parseWikiBody,
+  parseWikiBodyRange,
+  serializeWikiBody,
+  wikiLinkLabel,
+} from "../remark-wiki-link";
 
 describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
   it("splits a tight # into the anchor", () => {
@@ -33,8 +39,7 @@ describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
     const parsed = parseWikiBodyRange("My \\#1 Note");
     expect(parsed.target).toBe("My #1 Note");
     expect(parsed.anchor).toBeUndefined();
-    // The range maps the RAW slice; verification fails closed on escaped
-    // titles, so rename surgery never rewrites them.
+    // the range maps the raw slice, escapes included, which is what a rename rewrites
     expect(parsed.targetRange).toEqual({ end: 11, start: 0 });
   });
 
@@ -52,6 +57,62 @@ describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
   });
 });
 
+describe("serializeWikiBody", () => {
+  it("writes the plain spelling when it parses back", () => {
+    expect(serializeWikiBody({ target: "note" })).toBe("note");
+    expect(serializeWikiBody({ anchor: "sec", target: "note" })).toBe("note#sec");
+    expect(serializeWikiBody({ alias: "nice", target: "note" })).toBe("note|nice");
+    expect(serializeWikiBody({ alias: "nice", anchor: "sec", target: "note" })).toBe(
+      "note#sec|nice",
+    );
+    expect(serializeWikiBody({ target: "C# Notes" })).toBe("C# Notes");
+    expect(serializeWikiBody({ alias: "", anchor: "", target: "note" })).toBe("note");
+  });
+
+  it("escapes every `\\` and `#` when the plain spelling would split", () => {
+    expect(serializeWikiBody({ target: "Issue#42" })).toBe("Issue\\#42");
+    expect(serializeWikiBody({ target: "#hash" })).toBe("\\#hash");
+    expect(serializeWikiBody({ anchor: "sec", target: "C#" })).toBe("C\\##sec");
+    expect(serializeWikiBody({ target: "a\\#b" })).toBe("a\\\\\\#b");
+  });
+
+  it("answers null when no spelling survives the parse", () => {
+    for (const parts of [
+      { target: "[draft]" },
+      { target: "a]b" },
+      { target: "two\nlines" },
+      { target: "a|b" },
+      { alias: "x|y", target: "note" },
+      { target: " padded" },
+      { target: "" },
+    ]) {
+      expect(serializeWikiBody(parts), JSON.stringify(parts)).toBeNull();
+    }
+    expect(serializeWikiBody({ alias: "shown", target: "a|b" })).toBe("a|b|shown");
+  });
+
+  it("is parseWikiBody's inverse over every part it can carry", () => {
+    const targets = ["Plan", "C# Notes", "Issue#42", "#lead", "tail#", "a\\b", "x/y.txt", "100%"];
+    const anchors = [undefined, "sec", "a#b", "C#"];
+    const aliases = [undefined, "shown", "Issue#42"];
+    for (const target of targets) {
+      for (const anchor of anchors) {
+        for (const alias of aliases) {
+          const body = serializeWikiBody({ alias, anchor, target });
+          const label = JSON.stringify({ alias, anchor, target });
+          expect(body, label).not.toBeNull();
+          const parsed = parseWikiBody(body ?? "");
+          expect([parsed.target, parsed.anchor, parsed.alias], label).toEqual([
+            target,
+            anchor,
+            alias,
+          ]);
+        }
+      }
+    }
+  });
+});
+
 describe("isUuidWikiAlias", () => {
   it("matches the resolved-link uuid, either case", () => {
     expect(isUuidWikiAlias("9e64c3df-c1e2-4a4d-8c07-91528f422413")).toBe(true);
@@ -62,5 +123,29 @@ describe("isUuidWikiAlias", () => {
     expect(isUuidWikiAlias("friendly name")).toBe(false);
     expect(isUuidWikiAlias("9e64c3df-c1e2-4a4d-8c07")).toBe(false);
     expect(isUuidWikiAlias("")).toBe(false);
+  });
+});
+
+describe("wikiLinkLabel", () => {
+  const uuid = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
+
+  it("shows the alias, else the target with its anchor", () => {
+    expect(wikiLinkLabel("Plan")).toBe("Plan");
+    expect(wikiLinkLabel("Plan|the plan")).toBe("the plan");
+    expect(wikiLinkLabel("Note#Heading")).toBe("Note#Heading");
+    expect(wikiLinkLabel("Note#Heading|shown")).toBe("shown");
+    expect(wikiLinkLabel("#sec")).toBe("#sec");
+  });
+
+  it("never shows a resolved link's uuid", () => {
+    expect(wikiLinkLabel(`Plan|${uuid}`)).toBe("Plan");
+    expect(wikiLinkLabel(`Plan|${uuid.toUpperCase()}`)).toBe("Plan");
+    expect(wikiLinkLabel(`Plan#Goals|${uuid}`)).toBe("Plan#Goals");
+    expect(wikiLinkLabel(`A|B|${uuid}`)).toBe("A|B");
+  });
+
+  it("reads a # the way the parse does", () => {
+    expect(wikiLinkLabel("C# Notes")).toBe("C# Notes");
+    expect(wikiLinkLabel("C\\#Sharp")).toBe("C#Sharp");
   });
 });

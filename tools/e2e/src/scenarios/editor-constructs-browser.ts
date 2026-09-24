@@ -2,18 +2,13 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import {
-  agentBrowserSession,
-  closeQuietly,
-  parseEval,
-  probeHeadlessOrSkip,
-} from "../harness/agent-browser";
+import { modChord, parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
+import { EDITOR } from "../harness/selectors";
 
-const agentBrowser = agentBrowserSession("editor");
 const DOC_PATH = "Constructs.md";
-const EDITOR = '[data-slate-editor="true"]';
 
 const DOC = `# Constructs
 
@@ -66,56 +61,47 @@ export const editorConstructsBrowser: Scenario = {
       },
     });
 
-    try {
-      await probeHeadlessOrSkip(agentBrowser, ctx.log);
+    const agentBrowser = await ctx.browser("editor");
 
-      ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
-      await agentBrowser(["wait", EDITOR], 90_000);
-      await agentBrowser(["wait", `${EDITOR} table`], 30_000);
+    ctx.log(`opening ${app.baseUrl}/`);
+    await agentBrowser.openWorkspace(app);
+    await agentBrowser(["wait", `${EDITOR} table`], 30_000);
 
-      ctx.log("probing the rendered constructs");
-      const probe = parseEval(await agentBrowser(["eval", PROBE]), probeSchema);
-      expect(probe.bold, "bold text did not render as <strong>");
-      // the callout and the ordinary quote both render as blockquotes.
-      expect(probe.blockquotes >= 2, `expected 2 blockquotes, got ${probe.blockquotes}`);
-      expect(probe.checkboxes >= 2, `expected the 2 task checkboxes, got ${probe.checkboxes}`);
-      expect(probe.fence, "the code fence did not render as <pre>");
-      expect(probe.table, "the table did not render as <table>");
+    ctx.log("probing the rendered constructs");
+    const probe = parseEval(await agentBrowser(["eval", PROBE]), probeSchema);
+    expect(probe.bold, "bold text did not render as <strong>");
+    // the callout and the ordinary quote both render as blockquotes.
+    expect(probe.blockquotes >= 2, `expected 2 blockquotes, got ${probe.blockquotes}`);
+    expect(probe.checkboxes >= 2, `expected the 2 task checkboxes, got ${probe.checkboxes}`);
+    expect(probe.fence, "the code fence did not render as <pre>");
+    expect(probe.table, "the table did not render as <table>");
 
-      ctx.log("rendering wrote nothing: the seeded bytes are untouched");
-      await delay(2500);
-      const onDisk = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
-      expectEq(onDisk, DOC, "opening the note changed its bytes");
+    ctx.log("rendering wrote nothing: the seeded bytes are untouched");
+    await delay(2500);
+    const onDisk = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
+    expectEq(onDisk, DOC, "opening the note changed its bytes");
 
-      ctx.log("an edit keeps every construct on disk");
-      // the bottom toolbar floats over the note's lower half, so a text-target click can land under
-      // it.
-      await agentBrowser(["click", EDITOR]);
-      await agentBrowser(["press", "Meta+Home"]);
-      await agentBrowser(["press", "End"]);
-      await agentBrowser(["type", EDITOR, " Edited."]);
-      const deadline = Date.now() + 15_000;
-      for (;;) {
-        const after = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
-        if (after.includes("Edited.")) {
-          for (const marker of [
-            "**bold**",
-            "`inline code`",
-            "> [!WARNING]",
-            "- [ ]",
-            "```ts",
-            "| Name |",
-          ]) {
-            expect(after.includes(marker), `${marker} was lost by the save:\n${after}`);
-          }
-          break;
-        }
-        expect(Date.now() < deadline, `the edit never saved:\n${after}`);
-        await delay(250);
-      }
-    } finally {
-      await closeQuietly(agentBrowser);
+    ctx.log("an edit keeps every construct on disk");
+    // the bottom toolbar floats over the note's lower half, so a text-target click can land under
+    // it.
+    await agentBrowser(["click", EDITOR]);
+    await agentBrowser(["press", modChord("Home")]);
+    await agentBrowser(["press", "End"]);
+    await agentBrowser(["type", EDITOR, " Edited."]);
+    const after = await pollUntil(
+      async () => await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8"),
+      (bytes) => bytes.includes("Edited."),
+      { deadlineMs: 15_000, describe: (bytes) => `the edit never saved:\n${bytes}` },
+    );
+    for (const marker of [
+      "**bold**",
+      "`inline code`",
+      "> [!WARNING]",
+      "- [ ]",
+      "```ts",
+      "| Name |",
+    ]) {
+      expect(after.includes(marker), `${marker} was lost by the save:\n${after}`);
     }
   },
 };

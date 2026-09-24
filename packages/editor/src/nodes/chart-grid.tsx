@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import type { ChartPayload } from "./chart-node";
 
@@ -130,6 +131,7 @@ export const chartWithSeriesRemoved = (
   return { ...chart, series: chart.series.filter((_, i) => i !== column) };
 };
 
+// a refused draft is dropped, so the cell shows the payload's text again.
 const CellInput = ({
   align,
   ariaLabel,
@@ -138,33 +140,41 @@ const CellInput = ({
 }: {
   align: "left" | "right";
   ariaLabel: string;
-  onCommit: (text: string) => boolean;
+  onCommit: (text: string) => void;
   text: string;
 }) => {
   const [draft, setDraft] = useState<string | null>(null);
-  const commit = (element: HTMLInputElement): void => {
-    if (draft !== null && draft !== text && !onCommit(draft)) {
-      element.value = text;
+  // a new `text` from the payload wins over the draft; re-keyed during render (not in an effect)
+  // so the cell never paints a frame of a removed row's value.
+  const [shown, setShown] = useState(text);
+  if (shown !== text) {
+    setShown(text);
+    setDraft(null);
+  }
+  const commit = (): void => {
+    if (draft !== null && draft !== text) {
+      onCommit(draft);
     }
     setDraft(null);
   };
   return (
     <input
       aria-label={ariaLabel}
-      defaultValue={text}
+      value={draft ?? text}
       spellCheck={false}
       className={cn(
-        "w-full min-w-14 bg-transparent px-1.5 py-0.5 font-mono text-xs outline-none",
+        "w-full min-w-14 bg-transparent px-1.5 py-0.5 font-mono text-body outline-none",
         "rounded-sm focus:bg-background focus:ring-1 focus:ring-border",
         align === "right" ? "text-right" : "text-left",
       )}
       onChange={(event) => {
         setDraft(event.target.value);
       }}
-      onBlur={(event) => {
-        commit(event.target);
-      }}
+      onBlur={commit}
       onKeyDown={(event) => {
+        if (isImeComposing(event)) {
+          return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           event.currentTarget.blur();
@@ -186,7 +196,7 @@ export const ChartGridEditor = ({
   const view = chartGridView(chart);
   if (view === null) {
     return (
-      <div className="px-3 py-2 text-xs text-muted-foreground">
+      <div className="px-3 py-2 text-body text-muted-foreground">
         The series disagree on labels, which the grid cannot show faithfully.{" "}
         <button type="button" className="underline hover:text-foreground" onClick={onRawEdit}>
           Edit raw JSON
@@ -195,21 +205,19 @@ export const ChartGridEditor = ({
     );
   }
   const columns = view.values.length;
-  // cells are uncontrolled; keying the table by the payload remounts them after every commit,
-  // so a row removal never leaves a neighbor showing the removed row's value.
-  const version = emitChartPayload(chart);
+  // rows and cells keep their elements across a commit, so the cell a Tab moved focus to keeps it.
   return (
     <div className="px-2 py-1.5">
-      <table key={version} className="w-full border-separate border-spacing-0">
+      <table className="w-full border-separate border-spacing-0">
         <thead>
           <tr>
-            <th className="w-1/3 border-b border-border/60 px-1.5 pb-1 text-left text-[10px] font-normal text-muted-foreground">
+            <th className="w-1/3 border-b border-border/60 px-1.5 pb-1 text-left text-caption font-normal text-muted-foreground">
               Label
             </th>
             {Array.from({ length: columns }, (_, column) => (
               <th
                 key={column}
-                className="border-b border-border/60 px-1.5 pb-1 text-right text-[10px] font-normal text-muted-foreground"
+                className="border-b border-border/60 px-1.5 pb-1 text-right text-caption font-normal text-muted-foreground"
               >
                 {view.seriesNames === null ? (
                   "Value"
@@ -219,11 +227,9 @@ export const ChartGridEditor = ({
                     ariaLabel={`Series ${String(column + 1)} name`}
                     text={view.seriesNames[column] ?? ""}
                     onCommit={(text) => {
-                      if (text.trim() === "") {
-                        return false;
+                      if (text.trim() !== "") {
+                        onCommit(chartWithSeriesName(chart, column, text));
                       }
-                      onCommit(chartWithSeriesName(chart, column, text));
-                      return true;
                     }}
                   />
                 )}
@@ -234,7 +240,7 @@ export const ChartGridEditor = ({
         </thead>
         <tbody>
           {view.labels.map((label, row) => (
-            <tr key={`${label}-${String(row)}`} className="group/chartrow">
+            <tr key={row} className="group/chartrow">
               <td className="px-0.5">
                 <CellInput
                   align="left"
@@ -242,7 +248,6 @@ export const ChartGridEditor = ({
                   text={label}
                   onCommit={(text) => {
                     onCommit(chartWithRowLabel(chart, row, text));
-                    return true;
                   }}
                 />
               </td>
@@ -254,11 +259,10 @@ export const ChartGridEditor = ({
                     text={String(view.values[column]?.[row] ?? 0)}
                     onCommit={(text) => {
                       const value = Number(text.trim());
-                      if (text.trim() === "" || Number.isNaN(value)) {
-                        return false;
+                      // Infinity and NaN both have no JSON spelling: stringify writes null.
+                      if (text.trim() !== "" && Number.isFinite(value)) {
+                        onCommit(chartWithCellValue(chart, column, row, value));
                       }
-                      onCommit(chartWithCellValue(chart, column, row, value));
-                      return true;
                     }}
                   />
                 </td>
@@ -268,7 +272,7 @@ export const ChartGridEditor = ({
                   <button
                     type="button"
                     aria-label={`Remove row ${String(row + 1)}`}
-                    className="text-xs text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
+                    className="text-body text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
                     onClick={() => {
                       const next = chartWithRowRemoved(chart, row);
                       if (next !== null) {
@@ -284,7 +288,7 @@ export const ChartGridEditor = ({
           ))}
         </tbody>
       </table>
-      <div className="flex items-center gap-3 pt-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-3 pt-1.5 text-body text-muted-foreground">
         <button
           type="button"
           className="hover:text-foreground"

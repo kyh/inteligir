@@ -5,10 +5,21 @@
 // spreads the classes it can raise; a base carrying every class gives every switch unreachable branches.
 
 import { z } from "zod";
+import { contentHashSchema } from "./vault/vault-schema";
 
 // not BAD_REQUEST (an input schema's refusal): the filesystem's, decided after the value parsed
 export const INVALID_PATH = {
   message: "That path is not one this vault can address",
+} as const;
+
+// the classes a VaultServiceError maps to (vault-refusals.ts is typed against these keys); a
+// comment-store row spreads them whole. PAYLOAD_TOO_LARGE is reachable from a comment store past
+// the vault's read cap.
+export const VAULT_REFUSAL_ERRORS = {
+  CONFLICT: {},
+  INVALID_PATH,
+  NOT_FOUND: {},
+  PAYLOAD_TOO_LARGE: {},
 } as const;
 
 export const ALREADY_EXISTS = {
@@ -21,7 +32,7 @@ export const CAS_MISMATCH = {
     current: z
       .object({
         content: z.string(),
-        hash: z.string().regex(/^[0-9a-f]{64}$/u),
+        hash: contentHashSchema,
       })
       .strict()
       .optional(),

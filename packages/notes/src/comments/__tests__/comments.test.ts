@@ -195,13 +195,33 @@ describe("transforms", () => {
   });
 });
 
+const webRandomBytes = (length: number): Uint8Array =>
+  globalThis.crypto.getRandomValues(new Uint8Array(length));
+
 describe("mintCommentId", () => {
   it("mints ids the marker grammar accepts, from the lowercase alphabet", () => {
-    const minted = Array.from({ length: 50 }, () => mintCommentId());
+    const minted = Array.from({ length: 50 }, () => mintCommentId(webRandomBytes));
     for (const id of minted) {
       expect(id).toMatch(/^[a-z0-9]{10}$/u);
       expect(id).toMatch(COMMENT_ID_RE);
     }
     expect(new Set(minted).size).toBe(minted.length);
+  });
+
+  it("draws every character from the bytes it is handed", () => {
+    expect(mintCommentId((length) => new Uint8Array(length).fill(36 + 1))).toBe("bbbbbbbbbb");
+  });
+
+  it("mints an id that round-trips through the body marker grammar", () => {
+    const id = mintCommentId(webRandomBytes);
+    expect(markerRootIds(`The %%i:${id}:start%%plan%%i:${id}:end%% holds.\n`)).toEqual(
+      new Set([id]),
+    );
+  });
+
+  it("parses a marker for every character the id alphabet admits", () => {
+    const id = "Az09_-";
+    expect(id).toMatch(COMMENT_ID_RE);
+    expect(markerRootIds(`%%i:${id},b:start%%x%%i:${id},b:end%%\n`)).toEqual(new Set([id, "b"]));
   });
 });

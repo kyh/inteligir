@@ -3,24 +3,53 @@
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import type {
   GetThreadResponse,
+  ListThreadsQuery,
   ListThreadsResponse,
+  Thread,
 } from "@repo/api/local/threads/threads-schema";
 import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
-import { useQuery } from "@tanstack/react-query";
-import type { UseQueryResult } from "@tanstack/react-query";
+import { skipToken, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { InfiniteData, UseInfiniteQueryResult, UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { orpc } from "../api";
+import { client, orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 
-export const useThreads = (): UseQueryResult<ListThreadsResponse> =>
-  useQuery(orpc.threads.list.queryOptions());
+type ThreadListFilter = Omit<ListThreadsQuery, "cursor">;
 
-export const useThreadDetail = (threadId: string | null): UseQueryResult<GetThreadResponse> =>
-  useQuery({
-    ...orpc.threads.get.queryOptions({ input: { threadId: threadId ?? "none" } }),
-    enabled: threadId !== null,
+// module-level, so the flattened list keeps its identity until a page changes.
+const flattenPages = (data: InfiniteData<ListThreadsResponse, string | null>): Thread[] =>
+  data.pages.flatMap((page) => page.threads);
+
+const threadPages = (filter: ThreadListFilter | typeof skipToken) =>
+  orpc.threads.list.infiniteOptions({
+    getNextPageParam: (page) => page.nextCursor,
+    initialPageParam: null,
+    input:
+      filter === skipToken
+        ? skipToken
+        : (cursor: string | null) => (cursor === null ? filter : { ...filter, cursor }),
+    select: flattenPages,
   });
+
+// live threads, most recently active first; `fetchNextPage` reads on past the pages held.
+export const useThreads = (): UseInfiniteQueryResult<Thread[]> => useInfiniteQuery(threadPages({}));
+
+// asked for by path, so a note's older actions are not lost below the recent pages.
+export const useNoteThreads = (docPath: string | null): UseInfiniteQueryResult<Thread[]> =>
+  useInfiniteQuery(threadPages(docPath === null ? skipToken : { originDocPath: docPath }));
+
+// archived or not: an archived thread still running is still the agent at work.
+const RUNNING_ANYWHERE: ListThreadsQuery = { includeArchived: true, limit: 1, running: true };
+
+const holdsAny = (page: ListThreadsResponse): boolean => page.threads.length > 0;
+
+export const useAgentWorking = (): boolean =>
+  useQuery(orpc.threads.list.queryOptions({ input: RUNNING_ANYWHERE, select: holdsAny })).data ??
+  false;
+
+export const useThreadDetail = (threadId: string): UseQueryResult<GetThreadResponse> =>
+  useQuery(orpc.threads.get.queryOptions({ input: { threadId } }));
 
 // total over the kinds: one not weighed here is a row the user never sees until they reopen the thread.
 const MOVES_THE_TIMELINE = {
@@ -31,30 +60,30 @@ const MOVES_THE_TIMELINE = {
   "queue-changed": false,
   "status-changed": true,
   "thread-created": false,
+  "title-changed": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 
-export const useThreadTimeline = (threadId: string | null): ThreadTimeline | null => {
-  const { api, threadEvents } = useWorkspace();
-  const [timeline, setTimeline] = useState<ThreadTimeline | null>(null);
+// refused only while no rows are held: a failed delta keeps the rows on screen, and the next
+// matching frame, the reconnect sweep or reopening the action retries either way.
+type ThreadTimelineRead =
+  | { state: "reading" }
+  | { state: "read"; timeline: ThreadTimeline }
+  | { state: "refused"; error: unknown };
 
-  // drop the previous thread's rows as the id arrives, not one commit later.
-  const [shownFor, setShownFor] = useState(threadId);
-  if (shownFor !== threadId) {
-    setShownFor(threadId);
-    setTimeline(null);
-  }
+const READING: ThreadTimelineRead = { state: "reading" };
+
+export const useThreadTimeline = (threadId: string): ThreadTimelineRead => {
+  const { threadEvents } = useWorkspace();
+  const [read, setRead] = useState<ThreadTimelineRead>(READING);
 
   useEffect(() => {
-    if (threadId === null) {
-      return;
-    }
     let disposed = false;
     let held: ThreadTimeline | null = null;
     let inFlight = false;
     let rerun = false;
 
     const fetchFull = async (): Promise<ThreadTimeline | null> => {
-      const response = await api.threads.timeline({ threadId });
+      const response = await client.threads.timeline({ threadId });
       return response.kind === "full" ? response.timeline : null;
     };
 
@@ -71,7 +100,7 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimeline | nul
           if (held === null) {
             next = await fetchFull();
           } else {
-            const response = await api.threads.timeline({
+            const response = await client.threads.timeline({
               afterSequence: held.maxSequence,
               threadId,
             });
@@ -85,11 +114,13 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimeline | nul
           }
           if (next !== null) {
             held = next;
-            setTimeline(next);
+            setRead({ state: "read", timeline: next });
           }
         } while (rerun);
-      } catch {
-        // the next frame retries
+      } catch (error) {
+        if (!disposed && held === null) {
+          setRead({ error, state: "refused" });
+        }
       }
       inFlight = false;
     };
@@ -107,7 +138,7 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimeline | nul
       disposed = true;
       unsubscribe();
     };
-  }, [api, threadEvents, threadId]);
+  }, [threadEvents, threadId]);
 
-  return timeline;
+  return read;
 };

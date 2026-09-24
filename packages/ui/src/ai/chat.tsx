@@ -8,8 +8,10 @@ import type {
   ReactNode,
   RefAttributes,
 } from "react";
+import { ArrowUpIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 const ChatPanel = ({
   className,
@@ -117,7 +119,7 @@ const ChatMessage = ({
     data-superseded={superseded ? "" : undefined}
     className={cn(
       "flex w-full flex-col gap-1.5 transition-[opacity,transform] duration-300",
-      "animate-in fade-in slide-in-from-bottom-1 motion-reduce:animate-none",
+      "animate-in fade-in slide-in-from-bottom-1",
       superseded ? "scale-[0.985] opacity-55" : "scale-100 opacity-100",
       className,
     )}
@@ -136,27 +138,12 @@ const ChatMessage = ({
 );
 ChatMessage.displayName = "ChatMessage";
 
-const SEND_ICON = (
-  <svg
-    aria-hidden
-    width="13"
-    height="13"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.4"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 19V5M5 12l7-7 7 7" />
-  </svg>
-);
-
+// controlled: the send button and Enter both read what the field holds
 export interface ChatComposerProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
   "onSubmit" | "value"
 > {
-  value?: string;
+  value: string;
   onSend?: () => void;
   sendLabel?: string;
 }
@@ -170,7 +157,7 @@ const ChatComposer = ({
   ref,
   ...props
 }: ChatComposerProps & RefAttributes<HTMLInputElement>) => {
-  const canSend = (value ?? "").trim().length > 0;
+  const canSend = value.trim().length > 0;
   const submit = () => {
     if (canSend) {
       onSend?.();
@@ -190,7 +177,7 @@ const ChatComposer = ({
         )}
         onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
           onKeyDown?.(event);
-          if (event.defaultPrevented || event.key !== "Enter") {
+          if (event.defaultPrevented || event.key !== "Enter" || isImeComposing(event)) {
             return;
           }
           event.preventDefault();
@@ -209,7 +196,7 @@ const ChatComposer = ({
           canSend ? "bg-primary text-primary-foreground" : "bg-surface-inset text-ink-3 opacity-60",
         )}
       >
-        {SEND_ICON}
+        <ArrowUpIcon size={13} strokeWidth={2.4} />
       </button>
     </div>
   );

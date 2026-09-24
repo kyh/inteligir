@@ -30,18 +30,23 @@ export const threads = sqliteTable(
     archivedAt: integer("archived_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
+    // the origin note's frontmatter `id`, which a move anywhere (Finder, a pull, an agent's `mv`)
+    // keeps; origin_doc_path stays the path at compose time and answers for a note with none. no
+    // index: the listing filters by it (and by origin_doc_path) inside the (updated_at, id)
+    // partial-index scan, which a vault's thread count keeps cheap.
+    originNoteId: text("origin_note_id"),
   },
   (table) => [
     // two partial indexes: one (archived_at, updated_at) index cannot serve
     // `IS NOT NULL … ORDER BY updated_at` without a temp b-tree, since IS NOT NULL is a range
-    // over the leading column.
-    index("threads_live_updated_idx")
-      .on(table.updatedAt)
+    // over the leading column. `id` is the listing's tie-break, so a page cursor's
+    // `(updated_at, id) <` seeks the index rather than sorting a millisecond's ties.
+    index("threads_live_updated_id_idx")
+      .on(table.updatedAt, table.id)
       .where(sql`${table.archivedAt} IS NULL`),
-    index("threads_archived_updated_idx")
-      .on(table.updatedAt)
+    index("threads_archived_updated_id_idx")
+      .on(table.updatedAt, table.id)
       .where(sql`${table.archivedAt} IS NOT NULL`),
-    index("threads_origin_doc_idx").on(table.originDocPath),
   ],
 );
 
@@ -73,7 +78,6 @@ export const events = sqliteTable(
     // sqlite treats nulls as distinct in a unique index, so locally-written rows (both null)
     // coexist.
     uniqueIndex("events_origin_idx").on(table.originDeviceId, table.originDeviceSeq),
-    index("events_thread_type_sequence_idx").on(table.threadId, table.type, table.sequence),
     index("events_thread_turn_type_item_sequence_idx").on(
       table.threadId,
       table.turnId,
@@ -105,6 +109,9 @@ export const queuedThreadMessages = sqliteTable(
     sortKey: text("sort_key").notNull(),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
+    // json array of vault paths, null for none. Kept, unlike the view context the queue drops:
+    // an @-mention is part of what the user asked, not a statement about a screen since left.
+    contextPaths: text("context_paths"),
   },
   (table) => [
     index("queued_thread_messages_thread_sort_idx").on(table.threadId, table.sortKey, table.id),
@@ -161,6 +168,11 @@ export const syncState = sqliteTable(
     lastDeviceSeq: integer("last_device_seq").notNull().default(0),
     cursor: integer("cursor").notNull().default(0),
     lastSyncedAt: integer("last_synced_at"),
+    // the lowest log row a pull moved past without being able to read it, and the build that
+    // could not: a different build rewinds the cursor to pull it again. no CHECK pairs them, for
+    // the reason on threads.provider_id.
+    skippedFromSeq: integer("skipped_from_seq"),
+    skippedByBuild: text("skipped_by_build"),
   },
   (table) => [check("sync_state_singleton_check", sql`${table.id} = 1`)],
 );

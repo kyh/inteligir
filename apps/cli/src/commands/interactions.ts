@@ -1,10 +1,11 @@
-import { parseApprovalResolution } from "@repo/domain/pending-interactions";
+import { answerableDecisions, parseApprovalResolution } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { CliExitError, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
+import { describeInteraction } from "./describe-interaction";
 
 // a null payload is not a refusal: the host answers 400 itself, and refusing here would strand a grammar the server accepts.
 const assertResolutionValid = (interaction: PendingInteraction, resolution: string): void => {
@@ -15,7 +16,7 @@ const assertResolutionValid = (interaction: PendingInteraction, resolution: stri
   const parsed = parseApprovalResolution(resolution, payload);
   if (!parsed.ok) {
     throw invalidUsage(
-      `${parsed.reason}. Pass a bare decision verb (${payload.availableDecisions.join(", ")}, deny) ` +
+      `${parsed.reason}. Pass a bare decision verb (${answerableDecisions(payload).join(", ")}) ` +
         `or the resolution JSON.`,
     );
   }
@@ -80,7 +81,7 @@ export const interactionsCommand = (deps: CliDeps) =>
           if (outputJson(args, body)) {
             return;
           }
-          writeLines(body.interactions.map((row) => `${row.id}  ${row.threadId}  ${row.status}`));
+          writeLines(body.interactions.flatMap(describeInteraction));
         },
       }),
     },

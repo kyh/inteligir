@@ -35,8 +35,6 @@ const VOCABULARIES: Vocabulary[] = [
   {
     declaredIn: "packages/api/src/local/vault/vault-schema.ts",
     dispatchedIn: {
-      "apps/cli/src/server/vault/git-engine.ts":
-        "the PRODUCER — `statusSnapshot` is the state machine that decides which state the vault is in; naming them all is what it is for",
       "apps/desktop/src/renderer/app/vault-hooks.ts":
         "the ONE client answer, four tables deliberately side by side so a ninth state cannot be answered in one and forgotten in another: `syncStateLabel` (the word), `syncStateDotClass` (the colour), `syncBlockedReason` (why a pass would not run — which `canSyncNow` reads as a boolean) and `syncNowNotice` (what the command owes the user afterwards)",
     },
@@ -48,8 +46,6 @@ const VOCABULARIES: Vocabulary[] = [
     dispatchedIn: {
       "apps/cli/src/server/threads/service.ts":
         "server POLICY — what a send does in each status (start, queue, refuse), which is a different question from what the status is called",
-      "apps/desktop/src/renderer/app/thread-activity.ts":
-        "the client's ONE derivation into `ThreadActivity`; every React surface reads its labels, dots and tones from there rather than from the lifecycle word",
       "packages/domain/src/thread-lifecycle.ts":
         "the FSM — which transition each status permits, and the only table that may say so",
     },

@@ -1,9 +1,10 @@
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-import type { VaultIO } from "@repo/editor/vault-editor";
+import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `hangReads` never settles a read, so a runtime can be observed before its first
 // load; `manualRead`/`manualWrite` park each call in pendingReads/pendingWrites until the test settles it;
-// `landAs` makes a write land other bytes than it was sent, as a host's merge does.
+// `landAs` makes a write land other bytes than it was sent, as a host's merge does, and
+// `landsConflicted` says that merge overlapped. A write to a path with no file answers vanished,
+// as a guarded write does; a remove takes a folder's files with it.
 export class FakeVault implements VaultIO {
   files = new Map<string, string>();
   writes = 0;
@@ -13,8 +14,8 @@ export class FakeVault implements VaultIO {
   manualWrite = false;
   pendingReads: PromiseWithResolvers<string>[] = [];
   pendingWrites: PromiseWithResolvers<void>[] = [];
-  removeOutcome: DeleteVaultEntryResult = { outcome: "removed" };
   landAs: ((sent: string) => string) | null = null;
+  landsConflicted = false;
 
   read = async (path: string): Promise<string> => {
     if (this.hangReads) {
@@ -31,8 +32,11 @@ export class FakeVault implements VaultIO {
       : await Promise.resolve(content);
   };
 
-  write = async (path: string, content: string): Promise<string> => {
+  write = async (path: string, content: string): Promise<WriteOutcome> => {
     this.writes += 1;
+    if (!this.files.has(path)) {
+      return { kind: "vanished" };
+    }
     const landed = this.landAs?.(content) ?? content;
     this.files.set(path, landed);
     if (this.manualWrite) {
@@ -40,22 +44,25 @@ export class FakeVault implements VaultIO {
       this.pendingWrites.push(pending);
       await pending.promise;
     }
-    return landed;
+    return { conflicted: this.landsConflicted, content: landed, kind: "landed" };
   };
 
-  create = async (path: string, content: string): Promise<void> => {
+  create = async (path: string, content: string): Promise<CreateOutcome> => {
     if (this.files.has(path)) {
-      throw new Error("EEXIST");
+      return await Promise.resolve({ kind: "exists" });
     }
     this.files.set(path, content);
-    await Promise.resolve();
+    return await Promise.resolve({ kind: "created" });
   };
 
-  remove = async (path: string): Promise<DeleteVaultEntryResult> => {
+  remove = async (path: string): Promise<void> => {
     this.removes += 1;
-    if (this.removeOutcome.outcome !== "held") {
-      this.files.delete(path);
+    const gone = [...this.files.keys()].filter(
+      (file) => file === path || file.startsWith(`${path}/`),
+    );
+    for (const file of gone) {
+      this.files.delete(file);
     }
-    return await Promise.resolve(this.removeOutcome);
+    await Promise.resolve();
   };
 }

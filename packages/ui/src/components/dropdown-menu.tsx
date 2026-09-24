@@ -10,16 +10,20 @@ import {
   createContext,
   useContext,
 } from "react";
-import type { ComponentProps, ReactNode, RefAttributes, RefObject } from "react";
-import { motion } from "framer-motion";
+import type { ComponentProps, ReactNode, RefAttributes } from "react";
 import { Menu } from "@base-ui/react/menu";
+import { CheckIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
-import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
+import { spring } from "@repo/ui/lib/springs";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
+import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
+import { PopupExit } from "@repo/ui/lib/popup-exit";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
+import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
+import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
 import { radiusMap } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
@@ -29,17 +33,7 @@ import { Elevated } from "@repo/ui/lib/elevated";
 // scale and makes the corner shadow asymmetric.
 const radius = radiusMap.rounded;
 
-interface DropdownMenuActions {
-  unmount: () => void;
-  close: () => void;
-}
-
-interface DropdownMenuContextValue {
-  open: boolean;
-  actionsRef: RefObject<DropdownMenuActions | null>;
-}
-
-const DropdownMenuContext = createContext<DropdownMenuContextValue | null>(null);
+const DropdownMenuContext = createContext<{ open: boolean } | null>(null);
 
 const useDropdownMenuContext = () => {
   const ctx = useContext(DropdownMenuContext);
@@ -53,7 +47,7 @@ interface DropdownItemsContextValue {
   // a row hands the popup its element; the popup keeps the ordering, since only it can read the
   // document order of rows that mount and unmount independently of each other
   registerRow: (element: HTMLElement) => () => void;
-  activeRowEl: HTMLElement | null;
+  highlight: HighlightStore<HTMLElement | null>;
 }
 
 const DropdownItemsContext = createContext<DropdownItemsContextValue | null>(null);
@@ -89,7 +83,6 @@ const DropdownMenu = ({
 }: DropdownMenuProps) => {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = openProp ?? internalOpen;
-  const actionsRef = useRef<DropdownMenuActions | null>(null);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -101,17 +94,11 @@ const DropdownMenu = ({
     [openProp, onOpenChange],
   );
 
-  const ctx = useMemo(() => ({ actionsRef, open }), [open]);
+  const ctx = useMemo(() => ({ open }), [open]);
 
   const root = (
     <DropdownMenuContext.Provider value={ctx}>
-      <Menu.Root
-        open={open}
-        onOpenChange={handleOpenChange}
-        actionsRef={actionsRef}
-        disabled={disabled}
-        modal={modal}
-      >
+      <Menu.Root open={open} onOpenChange={handleOpenChange} disabled={disabled} modal={modal}>
         {children}
       </Menu.Root>
     </DropdownMenuContext.Provider>
@@ -146,49 +133,17 @@ const DropdownMenuContent = ({
   anchor,
   ref,
 }: DropdownMenuContentProps & RefAttributes<HTMLDivElement>) => {
-  const { open, actionsRef } = useDropdownMenuContext();
+  const { open } = useDropdownMenuContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const { activeIndex, setActiveIndex, itemRects, session, handlers, registerItem, measureItems } =
+  const { activeIndex, setActiveIndex, itemRects, session, handlers, setItems, measureItems } =
     useProximityHover(containerRef);
-  const rowsRef = useRef<Set<HTMLElement>>(new Set());
-  const registeredCountRef = useRef(0);
-  const [orderedRows, setOrderedRows] = useState<HTMLElement[]>([]);
-
-  // the document's own order, read from the popup: a conditional row changes where its siblings
-  // sit without re-rendering them, so no row can answer for its own position
-  const syncRows = useCallback(() => {
-    const container = containerRef.current;
-    const sorted =
-      container === null
-        ? []
-        : [...container.querySelectorAll<HTMLElement>("[data-dropdown-menu-item]")].filter((el) =>
-            rowsRef.current.has(el),
-          );
-    setOrderedRows((previous) =>
-      previous.length === sorted.length && previous.every((el, i) => el === sorted[i])
-        ? previous
-        : sorted,
-    );
-    for (const [i, el] of sorted.entries()) {
-      registerItem(i, el);
-    }
-    for (let i = sorted.length; i < registeredCountRef.current; i += 1) {
-      registerItem(i, null);
-    }
-    registeredCountRef.current = sorted.length;
-  }, [registerItem]);
-
-  const registerRow = useCallback(
-    (element: HTMLElement) => {
-      rowsRef.current.add(element);
-      syncRows();
-      return () => {
-        rowsRef.current.delete(element);
-        syncRows();
-      };
-    },
-    [syncRows],
+  // a conditional row changes where its siblings sit without re-rendering them, so the popup
+  // reads the order, never a row
+  const { rows: orderedRows, registerRow } = useRowOrder(
+    containerRef,
+    "[data-dropdown-menu-item]",
+    setItems,
   );
   const {
     onMouseEnter: handleMouseEnter,
@@ -197,38 +152,6 @@ const DropdownMenuContent = ({
   } = handlers;
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-
-  // Base UI defers unmount while actionsRef is set; the exit spring's onAnimationComplete releases
-  // it, and this timer is the fallback for throttled/background tabs where that callback stalls.
-  // Only a real open→close has anything to release, and whichever path runs first disarms the
-  // other: a timer still armed once the popup is gone outlives the tree it would call into.
-  const fallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wasOpenRef = useRef(false);
-
-  const disarmFallback = useCallback(() => {
-    if (fallbackRef.current !== null) {
-      clearTimeout(fallbackRef.current);
-      fallbackRef.current = null;
-    }
-  }, []);
-
-  const releaseUnmount = useCallback(() => {
-    disarmFallback();
-    actionsRef.current?.unmount();
-  }, [disarmFallback, actionsRef]);
-
-  useEffect(() => {
-    if (open) {
-      wasOpenRef.current = true;
-      return;
-    }
-    if (!wasOpenRef.current) {
-      return;
-    }
-    wasOpenRef.current = false;
-    fallbackRef.current = setTimeout(releaseUnmount, exitFallbackMs(spring.fast));
-    return disarmFallback;
-  }, [open, releaseUnmount, disarmFallback]);
 
   useEffect(() => {
     if (!open) {
@@ -248,7 +171,12 @@ const DropdownMenuContent = ({
   }, [open, measureItems]);
 
   const activeRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
-  const itemsCtx = useMemo(() => ({ activeRowEl, registerRow }), [registerRow, activeRowEl]);
+  const highlight = useHighlightStore(activeRowEl);
+  const itemsCtx = useMemo(() => ({ highlight, registerRow }), [registerRow, highlight]);
+
+  // the Popup itself is the animated surface, never a wrapper: Base UI keeps a closing menu
+  // mounted only while the Popup element's own animations run
+  const hidden = { opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 };
 
   return (
     <Menu.Portal>
@@ -260,68 +188,63 @@ const DropdownMenuContent = ({
         anchor={anchor}
         className="z-50 outline-none"
       >
-        <motion.div
-          initial={{ opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 }}
-          animate={
-            open
-              ? { opacity: 1, scaleY: 1, y: 0 }
-              : { opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 }
-          }
-          transition={open ? spring.fast : spring.fast.exit}
-          style={{
-            transformOrigin: side === "top" ? "bottom center" : "top center",
-          }}
-          onAnimationComplete={() => {
-            if (!open) {
-              releaseUnmount();
-            }
-          }}
-        >
-          <DropdownItemsContext.Provider value={itemsCtx}>
-            <Menu.Popup
-              render={
-                <Elevated
-                  offset={2}
-                  shadowLevel={3}
-                  ref={composeRefs<HTMLDivElement>(containerRef, ref)}
-                />
+        <DropdownItemsContext.Provider value={itemsCtx}>
+          <Menu.Popup
+            ref={composeRefs<HTMLDivElement>(containerRef, ref)}
+            render={(popupProps, state) => {
+              const exiting = state.transitionStatus === "ending";
+              const { style: baseStyle, ...rest } = motionProps(popupProps);
+              return (
+                <PopupExit exiting={exiting}>
+                  <Elevated
+                    {...rest}
+                    offset={2}
+                    shadowLevel={3}
+                    style={motionStyle(baseStyle, {
+                      transformOrigin: side === "top" ? "bottom center" : "top center",
+                    })}
+                    initial={hidden}
+                    animate={exiting ? hidden : { opacity: 1, scaleY: 1, y: 0 }}
+                    transition={exiting ? spring.fast.exit : spring.fast}
+                  />
+                </PopupExit>
+              );
+            }}
+            onMouseEnter={() => {
+              handleMouseEnter();
+              setFocusedIndex(null);
+            }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            onFocus={(e) => {
+              const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
+              const idx = row === null ? -1 : orderedRows.indexOf(row);
+              if (idx !== -1) {
+                setActiveIndex(idx);
+                setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
               }
-              onMouseEnter={() => {
-                handleMouseEnter();
-                setFocusedIndex(null);
-              }}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              onFocus={(e) => {
-                const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
-                const idx = row === null ? -1 : orderedRows.indexOf(row);
-                if (idx !== -1) {
-                  setActiveIndex(idx);
-                  setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
-                }
-              }}
-              onBlur={(e) => {
-                if (containerRef.current?.contains(e.relatedTarget) === true) {
-                  return;
-                }
-                setFocusedIndex(null);
-                setActiveIndex(null);
-              }}
-              className={cn(
-                `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
-                className,
-              )}
-            >
-              <ProximityOverlays
-                hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
-                focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
-                session={session}
-                radius={radius}
-              />
-              {children}
-            </Menu.Popup>
-          </DropdownItemsContext.Provider>
-        </motion.div>
+            }}
+            onBlur={(e) => {
+              if (containerRef.current?.contains(e.relatedTarget) === true) {
+                return;
+              }
+              setFocusedIndex(null);
+              setActiveIndex(null);
+            }}
+            className={cn(
+              `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
+              className,
+            )}
+          >
+            <ProximityOverlays
+              hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
+              focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
+              session={session}
+              radius={radius}
+            />
+            {children}
+          </Menu.Popup>
+        </DropdownItemsContext.Provider>
       </Menu.Positioner>
     </Menu.Portal>
   );
@@ -366,9 +289,39 @@ const DropdownMenuSeparator = ({
 
 DropdownMenuSeparator.displayName = "DropdownMenuSeparator";
 
+type MenuRowVariant = "default" | "destructive";
+
+// every row registers with the popup, whichever Base UI part renders it: the popup alone orders
+// the rows the proximity pill lights
+const useMenuRow = (variant: MenuRowVariant, disabled: boolean) => {
+  // state, not a ref: `isActive` compares it while rendering, and a ref read there is not reactive
+  const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
+  const { registerRow, highlight } = useDropdownItems();
+  const sizeClasses = useSize();
+
+  useIsoLayoutEffect(() => {
+    if (rowEl === null) {
+      return;
+    }
+    return registerRow(rowEl);
+  }, [registerRow, rowEl]);
+
+  const isActive = useHighlighted(highlight, (active) => rowEl !== null && active === rowEl);
+  const activeTone = isActive ? "text-foreground" : "text-muted-foreground";
+  const className = cn(
+    `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
+    sizeClasses.text,
+    "transition-colors duration-80",
+    variant === "destructive" ? "text-destructive" : activeTone,
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    disabled && "opacity-50 pointer-events-none",
+  );
+  return { className, setRowEl };
+};
+
 interface DropdownMenuItemProps extends ComponentProps<"div"> {
   disabled?: boolean | undefined;
-  variant?: "default" | "destructive" | undefined;
+  variant?: MenuRowVariant | undefined;
   closeOnClick?: boolean | undefined;
 }
 
@@ -381,44 +334,61 @@ const DropdownMenuItem = ({
   ref,
   ...props
 }: DropdownMenuItemProps) => {
-  // state, not a ref: `isActive` compares it while rendering, and a ref read there is not reactive
-  const [rowEl, setRowEl] = useState<HTMLDivElement | null>(null);
-  const { registerRow, activeRowEl } = useDropdownItems();
-  const sizeClasses = useSize();
-
-  useIsoLayoutEffect(() => {
-    if (rowEl === null) {
-      return;
-    }
-    return registerRow(rowEl);
-  }, [registerRow, rowEl]);
-
-  const isActive = rowEl !== null && activeRowEl === rowEl;
-  const activeTone = isActive ? "text-foreground" : "text-muted-foreground";
-
+  const row = useMenuRow(variant, disabled);
   return (
     <Menu.Item
       disabled={disabled}
       closeOnClick={closeOnClick ?? true}
       render={
         <div
-          ref={composeRefs(setRowEl, ref)}
+          ref={composeRefs(row.setRowEl, ref)}
           data-dropdown-menu-item=""
-          className={cn(
-            `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
-            sizeClasses.text,
-            "transition-colors duration-80",
-            variant === "destructive" ? "text-destructive" : activeTone,
-            "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-            disabled && "opacity-50 pointer-events-none",
-            className,
-          )}
+          className={cn(row.className, className)}
           {...props}
         />
       }
     >
       {children}
     </Menu.Item>
+  );
+};
+
+interface DropdownMenuRadioItemProps extends ComponentProps<"div"> {
+  value: string;
+  disabled?: boolean | undefined;
+  closeOnClick?: boolean | undefined;
+}
+
+// the pick closes the menu like any other row's action; Base UI's radio default keeps it open
+const DropdownMenuRadioItem = ({
+  className,
+  value,
+  disabled = false,
+  closeOnClick,
+  children,
+  ref,
+  ...props
+}: DropdownMenuRadioItemProps) => {
+  const row = useMenuRow("default", disabled);
+  return (
+    <Menu.RadioItem
+      value={value}
+      disabled={disabled}
+      closeOnClick={closeOnClick ?? true}
+      render={
+        <div
+          ref={composeRefs(row.setRowEl, ref)}
+          data-dropdown-menu-item=""
+          className={cn(row.className, className)}
+          {...props}
+        />
+      }
+    >
+      {children}
+      <Menu.RadioItemIndicator className="ml-auto flex">
+        <CheckIcon />
+      </Menu.RadioItemIndicator>
+    </Menu.RadioItem>
   );
 };
 
@@ -432,12 +402,29 @@ const DropdownMenuGroup = ({ className, ...props }: DropdownMenuGroupProps) => (
   <Menu.Group className={cn("contents", className)} {...props} />
 );
 
+interface DropdownMenuRadioGroupProps extends Omit<
+  ComponentProps<typeof Menu.RadioGroup>,
+  "className" | "value" | "defaultValue" | "onValueChange"
+> {
+  className?: string | undefined;
+  value: string;
+  onValueChange: (value: string) => void;
+}
+
+// display: contents for the same reason as DropdownMenuGroup; every value Base UI hands back is a
+// DropdownMenuRadioItem's, which is a string
+const DropdownMenuRadioGroup = ({ className, ...props }: DropdownMenuRadioGroupProps) => (
+  <Menu.RadioGroup className={cn("contents", className)} {...props} />
+);
+
 export {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioItem,
   DropdownMenuGroup,
+  DropdownMenuRadioGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 };

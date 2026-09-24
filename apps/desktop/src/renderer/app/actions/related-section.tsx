@@ -2,17 +2,16 @@
 
 import type { UnlinkedMentionWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
+import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useState } from "react";
 
-import { orpc } from "../api";
+import { client, orpc } from "../api";
 import { readRelatedOpen, writeRelatedOpen } from "../prefs";
 import { FoldSection } from "../fold-section";
-import { useWorkspace } from "../workspace-context";
 import { linkMentionInNote, linkMentionMessage } from "./link-mention";
 
 export interface RelatedRow {
@@ -25,13 +24,7 @@ export interface RelatedRow {
 
 export const plainSnippet = (snippet: string): string =>
   snippet
-    .replaceAll(/!?\[\[(?<body>[^\]]+)\]\]/gu, (_match, body: string) => {
-      const parts = body.split("|");
-      const target = parts[0] ?? body;
-      const alias = parts.length > 1 ? parts.at(-1) : undefined;
-      const label = alias !== undefined && !isUuidWikiAlias(alias) ? alias : target;
-      return label.split("#")[0] ?? label;
-    })
+    .replaceAll(/!?\[\[(?<body>[^\]]+)\]\]/gu, (_match, body: string) => wikiLinkLabel(body))
     .replaceAll(/\{\{(?<body>[^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
     .replaceAll(/%%i:[^%]*%%/gu, "")
     .replace(/^[\s>#*-]+/u, "")
@@ -158,7 +151,6 @@ export const RelatedInline = ({
   onOpenDoc: (path: string) => void;
 }) => {
   const [open, setOpen] = useState(readRelatedOpen);
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const { backlinksQuery, relatedQuery, unlinkedQuery } = useRelatedRows(docPath, open);
 
@@ -166,11 +158,12 @@ export const RelatedInline = ({
   const backlinkTotal = backlinksQuery.data?.total ?? 0;
   const related = relatedQuery.data?.related ?? [];
   const unlinked = unlinkedQuery.data?.mentions ?? [];
+  const linkTarget = unlinkedQuery.data?.linkTarget ?? null;
 
   // the sweep on files-changed moves the row to backlinks; the refetch here only shortens the wait
-  const link = (mention: UnlinkedMentionWire): void => {
+  const link = (mention: UnlinkedMentionWire, target: string): void => {
     void (async () => {
-      const outcome = await linkMentionInNote(api, mention, docStem(docPath));
+      const outcome = await linkMentionInNote(client, mention, target);
       toast[outcome.kind === "written" ? "success" : "error"](
         linkMentionMessage(outcome, mention.path),
       );
@@ -192,17 +185,22 @@ export const RelatedInline = ({
       label: entry.title,
       path: entry.path,
     })),
-    ...unlinked.map((mention) => ({
-      action: {
-        label: "Link",
-        run: () => {
-          link(mention);
-        },
-      },
-      detail: unlinkedMentionDetail(mention),
-      label: docStem(mention.path),
-      path: mention.path,
-    })),
+    ...unlinked.map((mention) => {
+      const row: RelatedRow = {
+        detail: unlinkedMentionDetail(mention),
+        label: docStem(mention.path),
+        path: mention.path,
+      };
+      if (linkTarget !== null) {
+        row.action = {
+          label: "Link",
+          run: () => {
+            link(mention, linkTarget);
+          },
+        };
+      }
+      return row;
+    }),
   ];
 
   const settledEmpty =

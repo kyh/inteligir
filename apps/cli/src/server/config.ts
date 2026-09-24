@@ -1,10 +1,11 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
+import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
 import { agentModeSchema, agentModeValues } from "@repo/api/local/system/system-schema";
 import type { AgentMode } from "@repo/api/local/system/system-schema";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
@@ -15,6 +16,7 @@ import { stagedWriteFileSync } from "./staged-write";
 type RuntimeMode = "dev" | "prod";
 
 export const PROD_DATA_DIR_NAME = ".inteligir";
+export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
 export const DEV_DATA_ROOT_DIR = ".inteligir-dev";
 const PROD_VAULT_DIR_NAME = "Inteligir";
 // siblings, not nested: the vault is a git repo the sync loop pushes, and a nested data dir
@@ -28,9 +30,22 @@ export const PROD_SERVER_PORT = 4664;
 export const VAULTS_DIR_NAME = "vaults";
 const VAULT_DATA_DIR_HASH_LENGTH = 16;
 
+// A folder's identity: every symlink followed, and the native realpath rather than the JS one,
+// because only it answers a case-insensitive volume's own case (`~/inteligir` is `~/Inteligir`).
+// A path with no physical spelling, one not there yet, keeps its resolved one.
+export const physicalVaultDir = (vaultDir: string): string => {
+  try {
+    return realpathSync.native(vaultDir);
+  } catch {
+    return path.resolve(vaultDir);
+  }
+};
+
 // The default vault keeps the root, as every install before a second vault did; any other
 // vault gets a dir of its own beneath it, so two vaults never share an index, a db or a
-// server.json. Keyed by the resolved path, not a realpath: the vault may not exist yet.
+// server.json. Keyed by the spelling the selector stores, which selection makes physical:
+// hashing the realpath here instead would move the dir of every vault already stored under a
+// symlinked spelling.
 export const vaultDataDir = (rootDataDir: string, vaultDir: string): string => {
   const digest = createHash("sha256").update(path.resolve(vaultDir)).digest("hex");
   return path.join(rootDataDir, VAULTS_DIR_NAME, digest.slice(0, VAULT_DATA_DIR_HASH_LENGTH));
@@ -155,14 +170,9 @@ const parseSyncIntervalValue = (name: string, rawValue: string): number => {
 const ENV_VARS = {
   agent: defineEnvVar({
     description:
-      "Agent runtime selection: auto (the ACP runtime when a vendor CLI is on PATH), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
+      "Agent runtime selection: auto (the ACP runtime, over whichever vendor CLI is on PATH when a turn is sent), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
     name: "INTELIGIR_AGENT",
     parse: ({ name, value }) => parseAgentModeValue(name, value),
-  }),
-  agentModel: defineEnvVar({
-    description: "Model passed through to the agent provider; unset means the provider's default.",
-    name: "INTELIGIR_AGENT_MODEL",
-    parse: ({ name, value }) => parseNonEmptyValue(name, value),
   }),
   cloudUrl: defineEnvVar({
     description: `Origin of the hosted deployment this install signs in to for thread sync; unset means ${DEFAULT_CLOUD_URL}. Signing in is what turns sync on — an install with no device credential opens no socket and makes no request whatever this says.`,
@@ -172,7 +182,7 @@ const ENV_VARS = {
   dataDir: defineEnvVar({
     description:
       "Absolute (or ~-relative) data directory override; replaces both the prod and per-checkout dev defaults.",
-    name: "INTELIGIR_DATA_DIR",
+    name: DATA_DIR_ENV_VAR,
     parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
   }),
   modelDir: defineEnvVar({
@@ -212,9 +222,28 @@ const ENV_VARS = {
   }),
 };
 
+// one row per harness, since a model id is vendor-specific: one string handed to every adapter
+// would give codex a claude model. keyed by HarnessId, so a new harness cannot compile without
+// its row.
+const MODEL_ENV_VARS = {
+  claude: defineEnvVar({
+    description: "Model the Claude Code harness runs; unset means Claude Code's own default.",
+    name: "INTELIGIR_CLAUDE_MODEL",
+    parse: ({ name, value }) => parseNonEmptyValue(name, value),
+  }),
+  codex: defineEnvVar({
+    description: "Model the Codex harness runs; unset means Codex's own default.",
+    name: "INTELIGIR_CODEX_MODEL",
+    parse: ({ name, value }) => parseNonEmptyValue(name, value),
+  }),
+} satisfies Record<HarnessId, EnvVarDefinition<string>>;
+
 // apps/desktop/turbo.json's dev.passThroughEnv must name exactly these: turbo strips anything
 // unnamed in strict env mode, so a missing one is silently ignored under `pnpm dev`.
-export const ENV_VAR_NAMES: readonly string[] = Object.values(ENV_VARS)
+export const ENV_VAR_NAMES: readonly string[] = [
+  ...Object.values(ENV_VARS),
+  ...Object.values(MODEL_ENV_VARS),
+]
   .map((definition) => definition.name)
   .toSorted();
 
@@ -233,7 +262,12 @@ const readEnvVar = <TValue>(
 // lenient: unknown keys from a newer build must not brick an older one.
 const managedConfigSchema = z.object({
   agent: agentModeSchema.optional(),
-  agentModel: z.string().min(1).optional(),
+  agentModels: z
+    .object({
+      claude: z.string().min(1).optional(),
+      codex: z.string().min(1).optional(),
+    } satisfies Record<HarnessId, z.ZodOptional<z.ZodString>>)
+    .optional(),
   cloudUrl: z.string().min(1).optional(),
   port: z.number().int().min(1).max(65_535).optional(),
   vaultDir: z.string().min(1).optional(),
@@ -244,9 +278,10 @@ const managedConfigSchema = z.object({
 const managedConfigFileSchema = managedConfigSchema.loose();
 
 const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFileSchema> => {
+  const configPath = path.join(dataDir, CONFIG_FILE_NAME);
   let raw: string;
   try {
-    raw = readFileSync(path.join(dataDir, CONFIG_FILE_NAME), "utf-8");
+    raw = readFileSync(configPath, "utf-8");
   } catch (error) {
     if (errnoCode(error) === "ENOENT") {
       return {};
@@ -257,9 +292,15 @@ const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFil
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(`${CONFIG_FILE_NAME} is not valid JSON`);
+    throw new Error(`${configPath} is not valid JSON`);
   }
-  return managedConfigFileSchema.parse(parsed);
+  const verdict = managedConfigFileSchema.safeParse(parsed);
+  if (!verdict.success) {
+    throw new Error(
+      `${configPath} does not match the ${CONFIG_FILE_NAME} shape:\n${z.prettifyError(verdict.error)}`,
+    );
+  }
+  return verdict.data;
 };
 
 type ManagedConfig = z.infer<typeof managedConfigSchema>;
@@ -299,7 +340,7 @@ export interface AppConfig {
   modelDir: string;
   voice: VoiceMode;
   agent: AgentMode;
-  agentModel: string | null;
+  agentModels: HarnessModels;
   cloudUrl: string;
 }
 
@@ -358,6 +399,16 @@ const resolveVaultRemote = (
     ? null
     : parseRemoteUrlValue("config.json vaultRemote", managed.vaultRemote));
 
+const resolveAgentModels = (
+  args: ResolveAppConfigArgs,
+  homeDir: string,
+  managed: ManagedConfig,
+): HarnessModels => ({
+  claude:
+    readEnvVar(MODEL_ENV_VARS.claude, args.env, homeDir) ?? managed.agentModels?.claude ?? null,
+  codex: readEnvVar(MODEL_ENV_VARS.codex, args.env, homeDir) ?? managed.agentModels?.codex ?? null,
+});
+
 const resolveCloudUrl = (
   args: ResolveAppConfigArgs,
   homeDir: string,
@@ -368,9 +419,12 @@ const resolveCloudUrl = (
     ? DEFAULT_CLOUD_URL
     : parseCloudUrlValue("config.json cloudUrl", managed.cloudUrl));
 
+export const runtimeModeOf = (env: NodeJS.ProcessEnv): RuntimeMode =>
+  env.NODE_ENV === "production" ? "prod" : "dev";
+
 export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
   const homeDir = args.homeDir ?? homedir();
-  const mode: RuntimeMode = args.env.NODE_ENV === "production" ? "prod" : "dev";
+  const mode = runtimeModeOf(args.env);
 
   const devInstanceDir = path.join(
     homeDir,
@@ -399,9 +453,10 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     devInstanceDir,
     managed,
   );
-  // an explicit data dir is taken as given: a harness or an operator pinned it and expects exactly it
+  // an explicit data dir is taken as given: a harness or an operator pinned it and expects exactly it.
+  // the default reached by another case or through a symlink is still the default, and keeps the root
   const dataDir =
-    envDataDir !== undefined || path.resolve(vaultDir) === path.resolve(defaultVaultDir)
+    envDataDir !== undefined || physicalVaultDir(vaultDir) === physicalVaultDir(defaultVaultDir)
       ? rootDataDir
       : vaultDataDir(rootDataDir, vaultDir);
   // the root too: a vault under it would sit beside config.json and every other vault's db
@@ -416,13 +471,12 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
   assertModelDirOutsideVault(path.resolve(modelDir), path.resolve(vaultDir));
   const voice = readEnvVar(ENV_VARS.voice, args.env, homeDir) ?? "auto";
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
-  const agentModel =
-    readEnvVar(ENV_VARS.agentModel, args.env, homeDir) ?? managed.agentModel ?? null;
+  const agentModels = resolveAgentModels(args, homeDir, managed);
   const cloudUrl = resolveCloudUrl(args, homeDir, managed);
 
   const config: AppConfig = {
     agent,
-    agentModel,
+    agentModels,
     cloudUrl,
     dataDir,
     dataDirSource: envDataDir === undefined ? "default" : "env",

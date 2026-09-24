@@ -1,3 +1,5 @@
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
+
 // Cloud-hosted, not a deep link: email clients open browsers, and a reset must work with no
 // app installed. One static document with inline CSS/JS: the token never touches the markup
 // (the script reads it from location.search), so nothing is reflected and nothing needs escaping.
@@ -5,8 +7,7 @@
 // client-side sanity only; routes junk URLs to the invalid view instead of a doomed submit
 const TOKEN_PATTERN = "^[A-Za-z0-9_-]{8,256}$";
 
-// Better Auth's default minPasswordLength
-const MIN_PASSWORD_LENGTH = 8;
+const PASSWORD_BOUNDS = `minlength="${PASSWORD_MIN_LENGTH}" maxlength="${PASSWORD_MAX_LENGTH}"`;
 
 const PAGE = `<!doctype html>
 <html lang="en">
@@ -36,9 +37,9 @@ const PAGE = `<!doctype html>
     <h1>Choose a new password</h1>
     <form id="reset-form">
       <label for="password">New password</label>
-      <input id="password" type="password" autocomplete="new-password" required minlength="${MIN_PASSWORD_LENGTH}">
+      <input id="password" type="password" autocomplete="new-password" required ${PASSWORD_BOUNDS}>
       <label for="confirm">Confirm password</label>
-      <input id="confirm" type="password" autocomplete="new-password" required minlength="${MIN_PASSWORD_LENGTH}">
+      <input id="confirm" type="password" autocomplete="new-password" required ${PASSWORD_BOUNDS}>
       <button id="submit" type="submit">Set new password</button>
     </form>
     <p class="error" id="form-error"></p>

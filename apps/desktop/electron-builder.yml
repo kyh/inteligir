@@ -24,6 +24,18 @@ extraMetadata:
 # npmRebuild off: the three native modules are prebuilt Node-API addons (ABI-stable across
 # Node and Electron), and a rebuild would clobber the pnpm store's shared copy
 npmRebuild: false
+# flipped in the binary before signing. runAsNode is off: nothing runs this binary as Node, since
+# every node child the server needs is a utility process main forks for it (src/main/fork-broker.ts).
+# the flip breaks Electron's own ad-hoc signature, which Apple Silicon kills at launch, so the app
+# is re-signed ad-hoc at once: an unsigned pack (CI's, or a tree with no Developer ID) runs, and a
+# signed one is re-signed over it
+electronFuses:
+  resetAdHocDarwinSignature: true
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  grantFileProtocolExtraPrivileges: false
 mac:
   target:
     - target: dmg

@@ -3,8 +3,11 @@
 
 import { useCallback } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
+import type { RenameResult } from "@repo/editor/note/vault-session";
 import { toast } from "@repo/ui/components/sonner";
 import { freeDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
+import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
 import type {
   VaultEntry,
@@ -15,7 +18,20 @@ import { orpc, refusalMessage } from "./api";
 
 export const useVaultTree = () => useQuery(orpc.vault.tree.queryOptions());
 
+// The note session's read of the query the rail observes, so one change costs one walk: it joins
+// a refetch already in flight, and otherwise walks afresh, because the session re-lists right
+// after its own create, rename or delete, before the frame that invalidates the tree arrives.
+export const readVaultTree = async (queryClient: QueryClient): Promise<VaultTreeResponse> =>
+  await queryClient.query({ ...orpc.vault.tree.queryOptions(), staleTime: 0 });
+
 export const useWikiTargets = () => useQuery(orpc.knowledge.wikiTargets.queryOptions());
+
+// The cached listing while nothing has invalidated it; after a vault change, the refetch that
+// change set off, joined rather than duplicated.
+export const readWikiTargets = async (
+  queryClient: QueryClient,
+): Promise<KnowledgeWikiTargetsResponse> =>
+  await queryClient.query(orpc.knowledge.wikiTargets.queryOptions());
 
 // the index's answer, not the open buffer's: every surface that shows a pin agrees on one source
 export const usePinnedPaths = (): ReadonlySet<string> => {
@@ -25,11 +41,8 @@ export const usePinnedPaths = (): ReadonlySet<string> => {
 };
 
 // a listing by path, not a search: the family's first `limit` notes and the whole count
-export const useNotesWithTag = (tag: string | null, limit: number) =>
-  useQuery({
-    ...orpc.knowledge.tagNotes.queryOptions({ input: { limit, tag: tag ?? "none" } }),
-    enabled: tag !== null,
-  });
+export const useNotesWithTag = (tag: string, limit: number) =>
+  useQuery(orpc.knowledge.tagNotes.queryOptions({ input: { limit, tag } }));
 
 export const useVaultStatus = () => useQuery(orpc.vault.status.queryOptions());
 
@@ -63,8 +76,19 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     case "unauthorized": {
       return "Not authorized — sign this device in again";
     }
+    case "rejected": {
+      return "The remote refused the push";
+    }
+    case "too-large": {
+      return status.remoteSource === "account"
+        ? "Too large for the hosted vault"
+        : "Too large for the remote";
+    }
     case "account-mismatch": {
       return "This vault belongs to a different account";
+    }
+    case "detached": {
+      return "Not on a branch — check one out to sync";
     }
     case "conflict": {
       return `Conflict (${status.conflict.files.length})`;
@@ -85,7 +109,7 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
       return "bg-muted-foreground/40";
     }
     case "clean": {
-      return "bg-emerald-500";
+      return "bg-success";
     }
     case "dirty": {
       return "bg-amber-500";
@@ -100,7 +124,10 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
       return "bg-muted-foreground/60";
     }
     case "unauthorized":
+    case "rejected":
+    case "too-large":
     case "account-mismatch":
+    case "detached":
     case "conflict":
     case "broken": {
       return "bg-destructive";
@@ -130,6 +157,9 @@ export const syncBlockedReason = (status: VaultStatusResponse): string | null =>
     case "dirty":
     case "offline":
     case "unauthorized":
+    case "rejected":
+    case "too-large":
+    case "detached":
     case "conflict":
     case "broken": {
       return null;
@@ -183,6 +213,27 @@ const syncNowNotice = (status: VaultStatusResponse): SyncNowNotice | null => {
         tone: "error",
       };
     }
+    case "rejected": {
+      return {
+        message:
+          status.lastError === null
+            ? "The git remote refused the push."
+            : `The git remote refused the push: ${status.lastError}`,
+        tone: "error",
+      };
+    }
+    case "too-large": {
+      return {
+        message: status.lastError ?? "The git remote refused the push as too large.",
+        tone: "error",
+      };
+    }
+    case "detached": {
+      return {
+        message: "Sync is paused: the vault's git HEAD is detached. Check out a branch in it.",
+        tone: "warning",
+      };
+    }
     case "clean":
     case "dirty":
     case "broken": {
@@ -230,8 +281,6 @@ export const useSyncNow = (): SyncNowHandle => {
   return { inFlight, syncNow };
 };
 
-export type RenameOutcome = { ok: true } | { ok: false; message: string };
-
 export interface RenameVaultApi {
   vault: {
     rename: (input: { from: string; to: string }) => Promise<{ path: string; rewritten: string[] }>;
@@ -242,15 +291,12 @@ export const renameVaultEntry = async (
   api: RenameVaultApi,
   from: string,
   to: string,
-): Promise<RenameOutcome> => {
+): Promise<RenameResult> => {
   try {
     await api.vault.rename({ from, to });
     return { ok: true };
   } catch (error) {
-    return {
-      message: refusalMessage(error, `Could not rename ${from}.`),
-      ok: false,
-    };
+    return { error: refusalMessage(error, `Could not rename ${from}.`), ok: false };
   }
 };
 

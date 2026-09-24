@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode, RefAttributes } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
@@ -49,6 +49,9 @@ const FineTuneSection = ({
 );
 FineTuneSection.displayName = "FineTuneSection";
 
+// a step's own precision, so 0.1 + 0.2 lands on 0.3 rather than 0.30000000000000004
+const decimalsOf = (value: number): number => String(value).split(".")[1]?.length ?? 0;
+
 export interface ScrubFieldProps {
   label: string;
   value: number;
@@ -73,7 +76,27 @@ const ScrubField = ({
   className,
 }: ScrubFieldProps) => {
   const drag = useRef<{ x: number; value: number } | null>(null);
-  const clamp = (next: number) => Math.min(max, Math.max(min, Math.round(next)));
+  // what the user is typing, held until blur or Enter: a clamp per keystroke turns "5" into min
+  // before "50" can be typed
+  const [draft, setDraft] = useState<string | null>(null);
+  const clamp = (next: number) => Math.min(max, Math.max(min, next));
+  const snap = (next: number) => {
+    const stepped = Math.round((next - min) / step) * step + min;
+    return Number(clamp(stepped).toFixed(Math.max(decimalsOf(step), decimalsOf(min))));
+  };
+  const commit = () => {
+    if (draft === null) {
+      return;
+    }
+    const next = Number(draft);
+    if (draft.trim() !== "" && Number.isFinite(next)) {
+      onChange(clamp(next));
+    }
+    setDraft(null);
+  };
+  const endDrag = () => {
+    drag.current = null;
+  };
 
   const onPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
     if (event.target instanceof HTMLElement) {
@@ -87,19 +110,19 @@ const ScrubField = ({
     if (start === null) {
       return;
     }
-    onChange(clamp(start.value + ((event.clientX - start.x) / 2) * step));
+    onChange(snap(start.value + ((event.clientX - start.x) / 2) * step));
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
     const multiplier = event.shiftKey ? 10 : 1;
     if (event.key === "ArrowUp" || event.key === "ArrowRight") {
       event.preventDefault();
-      onChange(clamp(value + step * multiplier));
+      onChange(snap(value + step * multiplier));
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowLeft") {
       event.preventDefault();
-      onChange(clamp(value - step * multiplier));
+      onChange(snap(value - step * multiplier));
     }
   };
 
@@ -110,7 +133,7 @@ const ScrubField = ({
       className={cn(
         "flex h-6.5 min-w-0 items-center gap-1 rounded-full py-1 pr-1 pl-0.5",
         "bg-surface-inset transition-[background-color,box-shadow] duration-200",
-        active && "ring-1 ring-[color:var(--focus-ring)]",
+        active && "ring-1 ring-focus-ring",
         className,
       )}
     >
@@ -124,9 +147,9 @@ const ScrubField = ({
         tabIndex={0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={() => {
-          drag.current = null;
-        }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
         onKeyDown={onKeyDown}
         className={cn(
           "flex h-full shrink-0 cursor-ew-resize touch-none items-center rounded-[4px] px-0.5",
@@ -137,13 +160,17 @@ const ScrubField = ({
         {label}
       </span>
       <input
-        inputMode="numeric"
-        value={value}
+        inputMode="decimal"
+        value={draft ?? String(value)}
         aria-label={`${label} value`}
         onChange={(event) => {
-          const next = Number(event.target.value.replaceAll(/[^\d-]/gu, ""));
-          if (!Number.isNaN(next)) {
-            onChange(clamp(next));
+          setDraft(event.target.value.replaceAll(/[^\d.-]/gu, ""));
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
           }
         }}
         className="min-w-0 flex-1 bg-transparent text-[12px] text-ink tabular-nums outline-none"
@@ -234,7 +261,7 @@ const FineTuneMenuItem = ({
     data-slot="fine-tune-menu-item"
     className={cn(
       "relative z-10 flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] text-ink",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       className,
     )}
     {...props}

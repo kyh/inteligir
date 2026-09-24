@@ -26,7 +26,14 @@ const timeline = (rows: TimelineRow[]): ThreadTimeline => ({
 describe("formatThreadTimeline", () => {
   it("renders a whole conversation with a grouped turn, deterministically", () => {
     const rows: TimelineRow[] = [
-      { ...base(), kind: "conversation", role: "user", text: "Write me a note", viewContext: null },
+      {
+        ...base(),
+        contextPaths: [],
+        kind: "conversation",
+        role: "user",
+        text: "Write me a note",
+        viewContext: null,
+      },
       {
         ...base(),
         children: [
@@ -38,7 +45,8 @@ describe("formatThreadTimeline", () => {
             cwd: "/vault",
             exitCode: 0,
             kind: "work",
-            output: "a.md",
+            outputHead: ["a.md"],
+            outputLineCount: 1,
             status: "completed",
             workKind: "command",
           },
@@ -58,6 +66,7 @@ describe("formatThreadTimeline", () => {
       },
       {
         ...base(),
+        contextPaths: [],
         kind: "conversation",
         role: "assistant",
         text: "Done — see notes/a.md",

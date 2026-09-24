@@ -2,9 +2,8 @@
 // `inteligir vault open` both move it: one plan and one set of sentences, so the two
 // refuse the same things for the same reasons.
 
-import { statSync } from "node:fs";
-import nodePath from "node:path";
-import { resolveAppConfig } from "./config";
+import { existsSync, statSync } from "node:fs";
+import { physicalVaultDir, resolveAppConfig } from "./config";
 import type { AppConfig, ResolveAppConfigArgs } from "./config";
 
 export type VaultSelectionRefusal =
@@ -47,7 +46,9 @@ export const planVaultSelection = (current: CurrentVault, vaultDir: string): Vau
   if (blocked !== null) {
     return { kind: "refused", reason: blocked };
   }
-  if (nodePath.resolve(vaultDir) === nodePath.resolve(current.vaultDir)) {
+  // physical on both sides: the shell asks with the path its picker returned, and the open
+  // vault is the default's spelling or whatever config.json holds
+  if (physicalVaultDir(vaultDir) === physicalVaultDir(current.vaultDir)) {
     return { kind: "refused", reason: "already-open" };
   }
   if (!isDirectory(vaultDir)) {
@@ -75,6 +76,16 @@ export const selectionRefusalMessage = (reason: VaultSelectionRefusal): string =
 };
 
 // a candidate is resolved exactly as a boot would resolve it, so every refusal a boot has
-// (not absolute, nested in the data dir) is raised here, before anything is written
-export const resolveVaultCandidate = (args: ResolveAppConfigArgs, vaultDir: string): AppConfig =>
-  resolveAppConfig({ ...args, env: { ...args.env, INTELIGIR_VAULT_DIR: vaultDir } });
+// (not absolute, nested in the data dir) is raised here, before anything is written. then
+// again on the folder's physical spelling, which the selector stores, so one folder keeps one
+// data dir however it was typed; the parse goes first so a `~/` path is expanded, and a
+// relative one refused, before anything is realpathed. the data dir is keyed by the stored
+// spelling, so one given that already keys a data dir the physical spelling lacks is kept as
+// given: moving it would open that vault signed out, with no threads
+export const resolveVaultCandidate = (args: ResolveAppConfigArgs, vaultDir: string): AppConfig => {
+  const withVault = (dir: string): AppConfig =>
+    resolveAppConfig({ ...args, env: { ...args.env, INTELIGIR_VAULT_DIR: dir } });
+  const given = withVault(vaultDir);
+  const physical = withVault(physicalVaultDir(given.vaultDir));
+  return !existsSync(physical.dataDir) && existsSync(given.dataDir) ? given : physical;
+};

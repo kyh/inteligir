@@ -24,9 +24,9 @@ pnpm cli serve        # The server ALONE, from source, no window; a shell adopts
 pnpm cli <verb>       # Every other verb, against this checkout's instance
 pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
-pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
+pnpm package:desktop  # The macOS arm64 dmg, signed + notarized when the keys are present
 pnpm smoke:cli        # Pack, install into a scratch prefix, boot, probe, stop
-pnpm smoke:desktop    # Package the .app, boot its server, drive it, SIGTERM (macOS only)
+pnpm smoke:desktop    # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)
@@ -72,7 +72,8 @@ task list is held against the module's own declared set by
 The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
 staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` wraps that same package in the
-unsigned .app.
+.app, signed when the keychain holds a Developer ID and notarized when
+`.release/` is present (`apps/desktop/README.md` § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
 the capture inbox, the hosted vault git remote — over a local D1 file and
@@ -105,17 +106,22 @@ every gate independently (each step runs even if an earlier one fails), so a
 red format cannot hide test regressions behind it.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
-(pinned) and runs the scenario suite. ONE run, because there is one build —
+(pinned), lets Chromium's namespace sandbox run under Ubuntu's AppArmor, and
+runs the scenario suite under `xvfb-run`, since the desktop shell's scenario
+opens a real window. ONE run, because there is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
-run `pnpm e2e` too before claiming one.
+run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
+app ships: `pnpm test` again, since APFS, FSEvents and a tmpdir behind a
+symlink exist only there, and `pnpm smoke:desktop` on an unsigned pack
+(`CSC_IDENTITY_AUTO_DISCOVERY=false`).
 
 That "plus a few more" is a CLAIM, and
 `tools/repo-guards/src/ci-verify-parity.test.ts` is what keeps it one: every
-gate workflow runs `pnpm verify` or its chain in verify's own order, and every
-step on top of that is a row in `DECLARED_CI_EXTRAS` with its reason. A step
-nobody declared fails the guard rather than quietly becoming a build a
-developer cannot reproduce.
+gate workflow runs `pnpm verify` or every link of its chain, each job in
+verify's own order, and every step on top of that is a row in
+`DECLARED_CI_EXTRAS` with its reason. A step nobody declared fails the guard
+rather than quietly becoming a build a developer cannot reproduce.
 
 ## Tests
 
@@ -125,5 +131,6 @@ span workspaces (the dep DAG, ws change kinds, CI parity, dangling references,
 the per-export orphan guard over `@repo/ui`).
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
-vaults, scratch git remotes, a headless browser) and is deliberately outside
+vaults, scratch git remotes, a headless browser, and the Electron shell itself,
+driven over DevTools) and is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager.

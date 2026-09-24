@@ -16,11 +16,9 @@ import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 
+import { alertMarkerPrefix, leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
+import type { AlertVariant } from "@repo/editor/markdown/alert-marker";
 import { CALLOUT_ALERT, CALLOUT_EDITING } from "@repo/editor/style-hooks";
-
-const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;
-
-type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
 interface AlertPresentation {
   Icon: ComponentType<{ className?: string }>;
@@ -62,31 +60,7 @@ const ALERTS = {
   },
 } satisfies Record<AlertVariant, AlertPresentation>;
 
-// strict form: the marker is the whole first line; `hidden` spans the marker plus its soft break.
-const ALERT_MARKER_RE = /^\[!(?<variant>NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\n|$)/iu;
-
-// loose form keeps the marker visible: hiding non-marker bytes would lie.
-const ALERT_LOOSE_RE = /^\s*\[!(?<variant>NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/iu;
-
-const toVariant = (raw: string): AlertVariant | null => {
-  const upper = raw.toUpperCase();
-  return ALERT_VARIANTS.find((variant) => variant === upper) ?? null;
-};
-
 export const alertPresentation = (variant: AlertVariant): AlertPresentation => ALERTS[variant];
-
-export type { AlertVariant };
-
-export const alertMarkerPrefix = (
-  text: string,
-): { hidden: number; variant: AlertVariant } | null => {
-  const match = ALERT_MARKER_RE.exec(text);
-  const variant = match ? toVariant(match.groups?.variant ?? "") : null;
-  if (!match || !variant) {
-    return null;
-  }
-  return { hidden: match[0].length, variant };
-};
 
 // the calloutMarker decoration runs the same alertMarkerPrefix, so badge and hiding cannot disagree.
 const alertQuoteMarker = (
@@ -124,7 +98,7 @@ export const BlockquoteElement = (props: PlateElementProps) => {
         <div
           contentEditable={false}
           className={cn(
-            "flex items-center gap-1.5 py-[3px] text-[13px] leading-[1.3] font-semibold select-none",
+            "flex items-center gap-1.5 py-[3px] text-subtitle leading-[1.3] font-semibold select-none",
             icon,
             selected && "hidden",
           )}
@@ -136,10 +110,10 @@ export const BlockquoteElement = (props: PlateElementProps) => {
       </PlateElement>
     );
   }
-  const loose = ALERT_LOOSE_RE.exec(NodeApi.string(props.element));
-  const looseVariant = loose ? toVariant(loose.groups?.variant ?? "") : null;
-  if (looseVariant) {
-    const { Icon, accent, icon } = ALERTS[looseVariant];
+  // the loose form keeps the marker visible: hiding non-marker bytes would lie.
+  const loose = leadingAlertMarker(NodeApi.string(props.element));
+  if (loose) {
+    const { Icon, accent, icon } = ALERTS[loose.variant];
     return (
       <PlateElement
         {...props}

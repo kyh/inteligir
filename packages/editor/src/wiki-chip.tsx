@@ -9,22 +9,13 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/componen
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/cn";
 
-import { useVaultActions, useWikiResolver } from "@repo/editor/host";
+import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
 const HOVER_PREVIEW_DELAY_MS = 350;
-
-// the resolved-link uuid alias is identity plumbing, not display text.
-export const wikiChipLabel = (body: string): string => {
-  const { alias, anchor, target } = parseWikiBody(body);
-  if (alias !== undefined && alias !== "" && !isUuidWikiAlias(alias)) {
-    return alias;
-  }
-  return anchor !== undefined && anchor !== "" ? `${target}#${anchor}` : target;
-};
 
 export const RESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm bg-primary/10 px-1 text-primary transition-colors hover:bg-primary/20";
@@ -42,7 +33,7 @@ const PreviewBody = ({ text }: { text: string | null }) => {
 };
 
 const WikiChip = ({ body }: { body: string }) => {
-  const { resolveWikiTarget } = useWikiResolver();
+  const { resolveWikiTarget } = useLinkResolver();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -52,9 +43,9 @@ const WikiChip = ({ body }: { body: string }) => {
   const previewFor = useRef<string | null>(null);
 
   const parsed = parseWikiBody(body);
-  const label = wikiChipLabel(body);
+  const label = wikiLinkLabel(body);
   // a pure-anchor link (`[[#sec]]`) points at the open note: nothing to resolve or create.
-  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);
+  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
 
   const readPreview = async (path: string): Promise<void> => {
     try {
@@ -124,14 +115,14 @@ const WikiChip = ({ body }: { body: string }) => {
         <HoverCardTrigger delay={HOVER_PREVIEW_DELAY_MS} render={chip} />
         <HoverCardContent className="max-h-72 overflow-y-auto p-0">
           {resolved === null ? (
-            <p className="px-3 py-2.5 text-xs text-muted-foreground">
+            <p className="px-3 py-2.5 text-body text-muted-foreground">
               Not created yet — click to create
             </p>
           ) : (
             <>
               <button
                 type="button"
-                className="block w-full px-3 pt-2.5 pb-1 text-left text-xs font-medium hover:underline"
+                className="block w-full px-3 pt-2.5 pb-1 text-left text-body font-medium hover:underline"
                 onClick={() => {
                   closePreview();
                   openFile(resolved);
@@ -139,7 +130,7 @@ const WikiChip = ({ body }: { body: string }) => {
               >
                 {docStem(resolved)}
               </button>
-              <div className="px-3 pb-3 text-xs whitespace-pre-wrap select-text">
+              <div className="px-3 pb-3 text-body whitespace-pre-wrap select-text">
                 <PreviewBody text={previewText} />
               </div>
             </>
@@ -155,7 +146,7 @@ const WikiChip = ({ body }: { body: string }) => {
                 setCreateOpen(false);
                 void createFile(parsed.target);
               }}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent hover:text-accent-foreground"
             >
               <FilePlusIcon className="size-4 text-muted-foreground" />
               <span>

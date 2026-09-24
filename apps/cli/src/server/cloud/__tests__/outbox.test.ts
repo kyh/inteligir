@@ -1,7 +1,9 @@
+import { PUSH_MAX_THREADS, pushRequestSchema } from "@repo/api/cloud/sync/sync-schema";
 import { closeConnection, createConnection, writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { readSyncState } from "@repo/db/sync-outbox";
+import { threadEventSchema } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import path from "node:path";
@@ -86,12 +88,113 @@ describe("the outbox", () => {
     closeConnection(db);
   });
 
+  it("freezes an over-cap event clipped, so a large command output still syncs, settled", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    const output = "compiling…\n".repeat(20_000);
+    enqueue(db, [
+      {
+        item: {
+          aggregatedOutput: output,
+          approvalStatus: null,
+          command: "make",
+          cwd: "/vault",
+          exitCode: 0,
+          id: "item_c",
+          status: "completed",
+          type: "commandExecution",
+        },
+        scope: turnScope("turn_1"),
+        threadId: "thr_1",
+        type: "item/completed",
+      },
+      message("thr_1", "x".repeat(70_000)),
+    ]);
+    const batch = takePushBatch(db);
+    expect(batch?.rejected).toEqual([]);
+    const [command, said] = (batch?.request.events ?? []).map((row) =>
+      threadEventSchema.parse(row.event),
+    );
+    if (command?.type !== "item/completed" || command.item.type !== "commandExecution") {
+      throw new Error("expected the command's completion");
+    }
+    expect(command.item.status).toBe("completed");
+    expect(command.item.aggregatedOutput?.length).toBeLessThan(output.length);
+    expect(command.item.aggregatedOutput).toContain("bytes elided");
+    expect(said?.type).toBe("client/turn/requested");
+    closeConnection(db);
+  });
+
+  it("sends each named thread's latest title as the batch's threads half", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    enqueue(db, [
+      message("thr_1", "hello"),
+      { scope: threadScope(), threadId: "thr_1", title: "First", type: "thread/meta" },
+      { originDocPath: "Moved.md", scope: threadScope(), threadId: "thr_2", type: "thread/meta" },
+      { scope: threadScope(), threadId: "thr_1", title: "Second", type: "thread/meta" },
+    ]);
+    const batch = takePushBatch(db);
+    expect(batch?.request.events).toHaveLength(4);
+    expect(batch?.request.threads).toEqual([
+      { lane: "any", threadId: "thr_1", title: "Second", updatedAt: expect.any(Number) },
+    ]);
+    closeConnection(db);
+  });
+
+  it("ends a batch before the thread that would take its threads half past the cap", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    const named = Array.from({ length: PUSH_MAX_THREADS + 1 }, (_, index): ThreadEvent => ({
+      scope: threadScope(),
+      threadId: `thr_${index}`,
+      title: `Thread ${index}`,
+      type: "thread/meta",
+    }));
+    enqueue(db, named);
+    const first = takePushBatch(db);
+    if (first === null) {
+      throw new Error("expected a batch");
+    }
+    expect(first.request.events).toHaveLength(PUSH_MAX_THREADS);
+    expect(first.request.threads).toHaveLength(PUSH_MAX_THREADS);
+    expect(pushRequestSchema.safeParse(first.request).success).toBe(true);
+    ackPushBatch(db, first);
+
+    expect(takePushBatch(db)?.request.threads?.map((row) => row.threadId)).toEqual([
+      `thr_${PUSH_MAX_THREADS}`,
+    ]);
+    closeConnection(db);
+  });
+
+  it("sends no threads half for a batch that names no thread", () => {
+    const dataDir = makeTempDir("inteligir-outbox-");
+    const db = openStore(dataDir);
+    enqueue(db, [message("thr_1", "hello")]);
+    expect(takePushBatch(db)?.request).not.toHaveProperty("threads");
+    closeConnection(db);
+  });
+
   it("leaves an event the log would refuse out of the batch rather than wedging", () => {
     const dataDir = makeTempDir("inteligir-outbox-");
     const db = openStore(dataDir);
-    // past the contract's per-event byte ceiling.
+    // no payload text to clip: the envelope alone is past the contract's per-event byte ceiling.
     enqueue(db, [
-      message("thr_1", "x".repeat(70_000)),
+      {
+        item: {
+          approvalStatus: null,
+          changes: Array.from({ length: 3000 }, (_, index) => ({
+            kind: "add",
+            path: `notes/renamed-in-bulk-${index}.md`,
+          })),
+          id: "item_f",
+          status: "completed",
+          type: "fileChange",
+        },
+        scope: turnScope("turn_1"),
+        threadId: "thr_1",
+        type: "item/completed",
+      },
       message("thr_1", "the one that must still get through"),
     ]);
     const batch = takePushBatch(db);

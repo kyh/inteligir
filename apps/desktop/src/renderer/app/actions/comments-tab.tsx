@@ -1,18 +1,22 @@
-import { scrollToCommentMarker } from "@repo/editor/comments/comment-kit";
+import { ADD_COMMENT_SHORTCUT, scrollToCommentMarker } from "@repo/editor/comments/comment-kit";
 import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import type { CommentEntryWire, CommentThreadWire } from "@repo/api/local/comments/comments-schema";
+import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
+import { spellHotkey } from "@repo/ui/lib/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { orpc } from "../api";
-import { relativeTimeLabel } from "../relative-time";
+import { failed, orpc } from "../api";
+import { relativeTimeLabel, useNow } from "../relative-time";
 import { useNoteComments } from "./comment-hooks";
 import { ReadRefusal } from "./read-refusal";
 
@@ -80,8 +84,8 @@ const ThreadCard = ({
 
   // re-read after every verb, refusal included: a failed resolve otherwise shows a state the file never took.
   const settle = {
-    onError: (): void => {
-      toast.error("The comment change was refused.");
+    onError: (cause: unknown): void => {
+      failed(cause, "The comment change was refused.");
     },
     onSettled: onDone,
   };
@@ -109,7 +113,7 @@ const ThreadCard = ({
     }
     reply.mutate(
       {
-        id: `${thread.rootId}-r${String(Date.now() % 100_000)}`,
+        id: mintCommentId((length) => crypto.getRandomValues(new Uint8Array(length))),
         parentId: thread.rootId,
         path: docPath,
         text,
@@ -157,6 +161,9 @@ const ThreadCard = ({
             setDraft(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               sendReply();
@@ -207,12 +214,15 @@ const ThreadCard = ({
 export const CommentsTab = ({
   docPath,
   focus,
+  modifier,
 }: {
   docPath: string | null;
   focus: CommentFocus | null;
+  modifier: ShortcutModifier;
 }) => {
   const queryClient = useQueryClient();
   const query = useNoteComments(docPath);
+  const asOfMs = useNow();
   // stamped with the focus it was made under: a newer focus on a resolved thread shows the
   // resolved list again, while Hide still hides it under the focus that opened it
   const [resolvedToggle, setResolvedToggle] = useState<{
@@ -244,14 +254,13 @@ export const CommentsTab = ({
     resolvedToggle.shown ||
     (resolvedToggle.underNonce !== focusNonce &&
       resolved.some((thread) => focusNonceFor(thread) !== null));
-  // not `Date.now()`: reading the clock during render is impure, and every verb re-reads the sidecar anyway.
-  const asOfMs = query.dataUpdatedAt;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2">
       {open.length === 0 && resolved.length === 0 ? (
         <p className="p-1 text-subtitle text-muted-foreground">
-          No comments yet. Select text and press ⌘⇧A.
+          No comments yet. Select text and press{" "}
+          {spellHotkey(ADD_COMMENT_SHORTCUT.hotkey, modifier)}.
         </p>
       ) : null}
       {open.map((thread) => (

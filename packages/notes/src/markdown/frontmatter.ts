@@ -1,9 +1,11 @@
 // yaml the typed ADT cannot represent is preserved byte-exactly, never coerced or dropped.
 
-import { isMap, isScalar, parse as parseYaml, parseDocument } from "yaml";
+import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument } from "yaml";
+import type { Scalar } from "yaml";
 import { z } from "zod";
 
-import { splitLines } from "../knowledge/source-lines";
+import { splitLines } from "../text/source-lines";
+import { BOM } from "./parsed-offsets";
 
 // yaml 1.2 core has no timestamp tag, so every value is json-shaped; `.nan`/`.inf` fail the
 // schema and read as unsupported.
@@ -17,8 +19,6 @@ export interface SplitDoc {
   properties: Properties;
   body: string;
 }
-
-const BOM = "\uFEFF";
 
 // remark-frontmatter's default `yaml` fence, read past the BOM micromark skips; the content group
 // is optional so an empty block matches. `eol` is the opener's terminator, which a rewrite keeps.
@@ -40,6 +40,17 @@ export const frontmatterYaml = (text: string): string | null => {
     return null;
   }
   return match.groups?.yaml ?? "";
+};
+
+// the offset the block ends at, its BOM included: where a reader that withholds the header cuts.
+export const frontmatterEnd = (text: string): number | null =>
+  FRONTMATTER_RE.exec(text)?.[0].length ?? null;
+
+// where frontmatterYaml's text starts in the note, one past the opener's line break: a splice
+// inside the yaml lands at this plus its own offset, and every other byte stays put.
+export const frontmatterYamlStart = (text: string): number | null => {
+  const match = FRONTMATTER_RE.exec(text);
+  return match === null ? null : match[0].indexOf("\n") + 1;
 };
 
 export const splitFrontmatter = (text: string): SplitDoc => {
@@ -170,7 +181,7 @@ const withoutTopLevelKey = (lines: readonly string[], key: string): string[] => 
 
 // the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the comment
 // store is keyed by. Text only: a number or a list is not a name.
-export const noteIdOf = (parsed: ParsedProperties | null): string | null => {
+export const noteIdOfProperties = (parsed: ParsedProperties | null): string | null => {
   if (parsed === null || parsed.kind !== "valid") {
     return null;
   }
@@ -183,7 +194,7 @@ export const noteIdOf = (parsed: ParsedProperties | null): string | null => {
 };
 
 export const frontmatterId = (content: string): string | null =>
-  noteIdOf(parseProperties(frontmatterYaml(content) ?? ""));
+  noteIdOfProperties(parseProperties(frontmatterYaml(content) ?? ""));
 
 // uuid-shaped, the form the resolver's id tier already answers
 export const mintNoteId = (): string => globalThis.crypto.randomUUID();
@@ -197,6 +208,10 @@ export type FrontmatterIdVerdict =
   | { kind: "invalid" }
   | { kind: "foreign-id"; value: string };
 
+export type FrontmatterIdYamlVerdict =
+  | Exclude<FrontmatterIdVerdict, { kind: "written" }>
+  | { kind: "written"; yaml: string };
+
 // YAML 1.2 core's null spellings: `id:` and `id: ~` hold nothing a minted id could displace
 const YAML_NULL_RE = /^(?:~|null|Null|NULL)?$/u;
 
@@ -205,14 +220,16 @@ const holdsNoValue = (prop: TypedProperty): boolean =>
   (prop.type === "unsupported" && YAML_NULL_RE.test(prop.rawYaml.trim()));
 
 // A line cut like the pin's: `id:` goes first, an empty one is replaced, a note that has one
-// keeps it.
-export const withFrontmatterId = (content: string, id: string): FrontmatterIdVerdict => {
-  const yaml = frontmatterYaml(content);
+// keeps it. Over the block's own YAML, the form the live editor's frontmatter node holds.
+export const frontmatterYamlWithId = (
+  yaml: string | null,
+  id: string,
+): FrontmatterIdYamlVerdict => {
   const parsed = parseProperties(yaml ?? "");
   if (parsed.kind === "invalid") {
     return { kind: "invalid" };
   }
-  const kept = noteIdOf(parsed);
+  const kept = noteIdOfProperties(parsed);
   if (kept !== null) {
     return { id: kept, kind: "unchanged" };
   }
@@ -225,8 +242,14 @@ export const withFrontmatterId = (content: string, id: string): FrontmatterIdVer
     };
   }
   const lines = yaml === null || yaml === "" ? [] : splitLines(yaml);
-  const next = [`id: ${id}`, ...withoutTopLevelKey(lines, "id")];
-  return { content: replaceFrontmatterYaml(content, next.join("\n")), kind: "written" };
+  return { kind: "written", yaml: [`id: ${id}`, ...withoutTopLevelKey(lines, "id")].join("\n") };
+};
+
+export const withFrontmatterId = (content: string, id: string): FrontmatterIdVerdict => {
+  const verdict = frontmatterYamlWithId(frontmatterYaml(content), id);
+  return verdict.kind === "written"
+    ? { content: replaceFrontmatterYaml(content, verdict.yaml), kind: "written" }
+    : verdict;
 };
 
 // a note minted from a template must not inherit the template's identity: two notes with one
@@ -318,6 +341,94 @@ export const addFrontmatterAlias = (content: string, alias: string): string | nu
 };
 
 export const PINNED_KEY = "pinned";
+
+// the key the index reads a note's tags from, beside its inline `#tag`s
+export const TAGS_KEY = "tags";
+
+type YamlScalarStyle = "plain" | "single" | "double";
+
+export interface YamlStringEntry {
+  value: string;
+  // offsets into the yaml text, a quoted scalar's quotes included
+  start: number;
+  end: number;
+  style: YamlScalarStyle;
+}
+
+const scalarStyle = (type: Scalar.Type | undefined): YamlScalarStyle | null => {
+  switch (type) {
+    case "PLAIN": {
+      return "plain";
+    }
+    case "QUOTE_SINGLE": {
+      return "single";
+    }
+    case "QUOTE_DOUBLE": {
+      return "double";
+    }
+    default: {
+      return null;
+    }
+  }
+};
+
+// A list key's string entries and where each sits: a sequence's string items, or one bare string.
+// Anything else in it (a number, a map, a block scalar) is skipped rather than costing the key, so
+// a hand-written `[2026, ok]` still yields `ok`. Empty on invalid yaml, which nothing may rewrite.
+export const yamlStringEntries = (yamlText: string, key: string): YamlStringEntry[] => {
+  if (yamlText.trim() === "") {
+    return [];
+  }
+  let doc;
+  try {
+    doc = parseDocument(yamlText);
+  } catch {
+    return [];
+  }
+  if (doc.errors.length > 0 || !isMap(doc.contents)) {
+    return [];
+  }
+  const value = doc.contents.items.find(
+    (item) => isScalar(item.key) && String(item.key.value) === key,
+  )?.value;
+  const entries: YamlStringEntry[] = [];
+  for (const node of isSeq(value) ? value.items : [value]) {
+    if (!isScalar(node) || !node.range) {
+      continue;
+    }
+    const text = z.string().safeParse(node.value);
+    const style = scalarStyle(node.type);
+    if (text.success && style !== null) {
+      entries.push({ end: node.range[1], start: node.range[0], style, value: text.data });
+    }
+  }
+  return entries;
+};
+
+// a flow indicator would split a flow list, and a spelling yaml reads as something else (`true`,
+// `2026`, `#x`) would change the value's type
+const plainReadsAsItself = (value: string): boolean => {
+  if (/[,[\]{}]/u.test(value)) {
+    return false;
+  }
+  try {
+    return parseYaml(value) === value;
+  } catch {
+    return false;
+  }
+};
+
+// a value spelled in the style its scalar was written in, so a splice restyles nothing; a plain
+// scalar that cannot hold it plainly is double-quoted instead.
+export const yamlScalarText = (value: string, style: YamlScalarStyle): string => {
+  if (style === "single") {
+    return `'${value.replaceAll("'", "''")}'`;
+  }
+  if (style === "plain" && plainReadsAsItself(value)) {
+    return value;
+  }
+  return JSON.stringify(value);
+};
 
 export type PinnedYamlVerdict =
   | { kind: "unchanged" }

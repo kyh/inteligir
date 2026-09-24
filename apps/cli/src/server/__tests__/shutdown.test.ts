@@ -1,16 +1,19 @@
+import { PassThrough } from "node:stream";
 import type { DbConnection } from "@repo/db/connection";
 import { describe, expect, it, vi } from "vitest";
-import { registerListener } from "../compose";
+import { registerListener, registerLockRelease } from "../compose";
 import { bootTestApp } from "./boot-app";
 import {
   createGracefulShutdown,
   FATAL_EVENTS,
+  ignoreDeadStreamErrors,
   installFatalErrorHandlers,
   installShutdownSignals,
   SHUTDOWN_SIGNALS,
   SHUTDOWN_TIMEOUT_MS,
   shutdownDeadlineMs,
   TEARDOWN_BUDGETS_MS,
+  teardownStep,
 } from "../shutdown";
 import type { FatalEvent, ShutdownStep } from "../shutdown";
 
@@ -203,6 +206,26 @@ describe("createGracefulShutdown", () => {
     }
   });
 
+  it("runs a step registered mid-run exactly once, and every step already there once", async () => {
+    const log: string[] = [];
+    const steps: ShutdownStep[] = [recordingStep("db", log)];
+    let registered = false;
+    // a boot still composing when the signal landed brings a resource up during the teardown.
+    steps.unshift(
+      recordingStep("vault", log, async () => {
+        if (!registered) {
+          registered = true;
+          steps.unshift(recordingStep("agent", log));
+        }
+        await Promise.resolve();
+      }),
+    );
+    const shutdown = createGracefulShutdown({ ...quiet, steps });
+
+    await expect(shutdown.run()).resolves.toEqual({ failed: [], ok: true });
+    expect(log).toEqual(["vault", "agent", "db"]);
+  });
+
   it("reads the deadline at RUN time, from the steps registered by then", async () => {
     vi.useFakeTimers();
     try {
@@ -283,6 +306,49 @@ describe("installShutdownSignals", () => {
 
     expect(reported).toEqual([["db"]]);
     expect(fake.exits).toEqual([1]);
+  });
+
+  it("tears down on SIGHUP, which a closed terminal sends and node's default answers by dying", async () => {
+    const log: string[] = [];
+    const fake = fakeTarget();
+    const shutdown = createGracefulShutdown({ ...quiet, steps: [recordingStep("vault", log)] });
+    installShutdownSignals({
+      onImpatient: () => {},
+      onUncleanExit: () => {},
+      shutdown,
+      target: fake.target,
+    });
+
+    fake.raise("SIGHUP");
+    await shutdown.run();
+    await Promise.resolve();
+
+    expect(log).toEqual(["vault"]);
+    expect(fake.exits).toEqual([0]);
+  });
+
+  it("reads a second SIGHUP as the terminal's echo, not impatience, and still flushes the vault", async () => {
+    const log: string[] = [];
+    const impatient: NodeJS.Signals[] = [];
+    const fake = fakeTarget();
+    const shutdown = createGracefulShutdown({ ...quiet, steps: [recordingStep("vault", log)] });
+    installShutdownSignals({
+      onImpatient: (signal) => {
+        impatient.push(signal);
+      },
+      onUncleanExit: () => {},
+      shutdown,
+      target: fake.target,
+    });
+
+    fake.raise("SIGHUP");
+    fake.raise("SIGHUP");
+    await shutdown.run();
+    await Promise.resolve();
+
+    expect(impatient).toEqual([]);
+    expect(log).toEqual(["vault"]);
+    expect(fake.exits).toEqual([0]);
   });
 
   it("treats a second signal as impatience, not a second teardown", async () => {
@@ -378,14 +444,40 @@ describe("installFatalErrorHandlers", () => {
   });
 });
 
+const writeError = (code: string): Error => Object.assign(new Error(`write ${code}`), { code });
+
+describe("ignoreDeadStreamErrors", () => {
+  it("swallows the EIO and EPIPE a gone terminal or pipe answers a write with", () => {
+    const stream = new PassThrough();
+    ignoreDeadStreamErrors([stream]);
+    expect(() => stream.emit("error", writeError("EIO"))).not.toThrow();
+    expect(() => stream.emit("error", writeError("EPIPE"))).not.toThrow();
+  });
+
+  it("lets every other write error through as the crash it is", () => {
+    const stream = new PassThrough();
+    ignoreDeadStreamErrors([stream]);
+    expect(() => stream.emit("error", writeError("ENOSPC"))).toThrow("write ENOSPC");
+  });
+});
+
 describe("the composed teardown", () => {
-  it("holds every budgeted step in the budgets table's order once the listener joins", async () => {
+  it("holds every budgeted step in the budgets table's order once the listener and the lock join", async () => {
     const { composed } = await bootTestApp();
     registerListener(composed.teardown, async () => {});
+    registerLockRelease(composed.teardown, () => {});
     expect(
       composed.teardown.map((step) => step.name),
-      "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets in the table's own order (it is written in teardown order), and registerListener must put the one step only a bound port can add at the FRONT — the listener closes the sockets before the vault flush behind it",
+      "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets in the table's own order (it is written in teardown order); registerListener must put the one step only a bound port can add at the FRONT — the listener closes the sockets before the vault flush behind it — and registerLockRelease the data dir's release at the BACK, after the db closes",
     ).toEqual(Object.keys(TEARDOWN_BUDGETS_MS));
+  });
+
+  it("releases the lock last even when it was registered before anything was composed", () => {
+    const teardown: ShutdownStep[] = [];
+    registerLockRelease(teardown, () => {});
+    teardown.unshift(teardownStep("db", () => {}));
+    registerListener(teardown, async () => {});
+    expect(teardown.map((step) => step.name)).toEqual(["listener", "db", "lock"]);
   });
 
   it("carries each step's budget from the one table", async () => {

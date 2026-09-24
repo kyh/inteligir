@@ -10,6 +10,7 @@ import { scrollToLinkTarget } from "@repo/editor/link-locate";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 import { EditorHarness } from "./editor-harness";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 const STORE = createOpenNoteStore();
 
@@ -25,6 +26,15 @@ const VALUE: Value = [
     ],
     type: "p",
   },
+  {
+    children: [
+      { text: "and " },
+      { children: [{ text: "a spaced note" }], type: "a", url: "My%20Note.md#top" },
+      { text: "." },
+    ],
+    type: "p",
+  },
+  { caption: [{ text: "shot" }], children: [{ text: "" }], type: "img", url: "../a/x%20y.png" },
 ];
 
 const NO_RECT: DOMRect = {
@@ -40,6 +50,7 @@ const NO_RECT: DOMRect = {
 };
 
 beforeAll(() => {
+  installFakeEditorHost();
   // jsdom lays nothing out: the scroll into view is a no-op, and the selection's DOM range
   // (which the editable measures after a select) has no box
   window.HTMLElement.prototype.scrollIntoView = () => {};
@@ -75,6 +86,26 @@ describe("landing on a link by its written target", () => {
     });
     expect(found).toBe(true);
     expect(editor.selection?.anchor.path.slice(0, 2)).toEqual([1, 3]);
+  });
+
+  it("reads a percent-encoded url as the scan indexes it, so a Problems row lands", () => {
+    const editor = mountEditor();
+    let found = false;
+    act(() => {
+      found = scrollToLinkTarget(editor, "My Note.md");
+    });
+    expect(found).toBe(true);
+    expect(editor.selection?.anchor.path.slice(0, 2)).toEqual([2, 1]);
+  });
+
+  it("lands on an image by its decoded url", () => {
+    const editor = mountEditor();
+    let found = false;
+    act(() => {
+      found = scrollToLinkTarget(editor, "../a/x y.png");
+    });
+    expect(found).toBe(true);
+    expect(editor.selection?.anchor.path.slice(0, 1)).toEqual([3]);
   });
 
   it("answers false, and moves nothing, for a target the document does not carry", () => {

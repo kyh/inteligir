@@ -7,36 +7,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
-import { GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
+import { AWAITING_CONSUMER, GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
 
 const NON_CONSUMER_DIRS = [GALLERY_DIR];
 
-// held whole by owner decision, listed per file so an unlisted unwired component still fails; a
-// held file is not a consumer.
-const AWAITING_CONSUMER = new Set([
-  "packages/ui/src/ai/chat.tsx",
-  "packages/ui/src/ai/code-block.tsx",
-  "packages/ui/src/ai/context-cards.tsx",
-  "packages/ui/src/ai/diff-table.tsx",
-  "packages/ui/src/ai/filter-table.tsx",
-  "packages/ui/src/ai/fine-tune-card.tsx",
-  "packages/ui/src/ai/flowchart.tsx",
-  "packages/ui/src/ai/glide-list.tsx",
-  "packages/ui/src/ai/insight-cards.tsx",
-  "packages/ui/src/ai/prompt-bar.tsx",
-  "packages/ui/src/ai/recommendation-card.tsx",
-  "packages/ui/src/ai/records-table.tsx",
-  "packages/ui/src/ai/search.tsx",
-  "packages/ui/src/ai/selection-actions.tsx",
-  "packages/ui/src/ai/sidebar-nav.tsx",
-]);
-
 // keyed `<repo-relative file>#<export name>`; a row is a decision, not a backlog.
 const ALLOWED_EXPORTS = new Map<string, string>([
-  [
-    "packages/ui/src/lib/size-context.tsx#typeScale",
-    "The type scale's one declaration. The product draws it through the text-* utilities in styles/globals.css, which lib/__tests__/type-scale.test.ts derives from this map; a component importing it instead would be a second spelling of the same numbers.",
-  ],
   [
     "packages/ui/src/ai/thinking.tsx#ThinkingTool",
     "The trace vocabulary's tool row — Step and Reasoning are wired; the third kind is held with the Beautiful UI set for the timeline that renders tool calls.",
@@ -57,6 +33,14 @@ const ALLOWED_EXPORTS = new Map<string, string>([
   [
     "packages/ui/src/ai/streaming-text.tsx#StreamingAction",
     "The consumed StreamingText's inline action chip — held with the Beautiful UI set for answer-with-actions turns.",
+  ],
+  [
+    "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioGroup",
+    "The menu vocabulary's one-choice half, so a picker is a Base UI radio group and not a hand-built listbox; its one caller is the held PromptBarMenu.",
+  ],
+  [
+    "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioItem",
+    "A row inside DropdownMenuRadioGroup — held with it.",
   ],
 ]);
 
@@ -194,8 +178,38 @@ const consumerFiles = (): string[] =>
     .flatMap((workspace) => workspaceSourceFiles(workspace))
     .filter((file) => !isNonConsumer(file) && !AWAITING_CONSUMER.has(file));
 
+// every import of the file across the consumers, merged; a file never consumes itself.
+const consumptionAcross = (target: UiFile, consumers: readonly string[]): Consumption => {
+  const merged: Consumption = { defaultImport: false, names: new Set(), namespace: false };
+  for (const consumer of consumers) {
+    if (consumer === target.file) {
+      continue;
+    }
+    const source = sourceOf(consumer);
+    if (!source.includes(target.specifier)) {
+      continue;
+    }
+    const consumed = consumptionOf(source, target.specifier);
+    merged.namespace ||= consumed.namespace;
+    merged.defaultImport ||= consumed.defaultImport;
+    for (const name of consumed.names) {
+      merged.names.add(name);
+    }
+  }
+  return merged;
+};
+
+const consumes = (consumption: Consumption, name: string): boolean =>
+  consumption.namespace ||
+  consumption.names.has(name) ||
+  (name === "default" && consumption.defaultImport);
+
+const isConsumedAtAll = (consumption: Consumption): boolean =>
+  consumption.namespace || consumption.defaultImport || consumption.names.size > 0;
+
 describe("no orphan @repo/ui exports", () => {
   const files = uiFiles();
+  const byFile = new Map(files.map((target) => [target.file, target]));
   const sweptDirs = sweptRoots()
     .map((root) => `src/${root.dir}`)
     .join(", ");
@@ -204,37 +218,16 @@ describe("no orphan @repo/ui exports", () => {
     const consumers = consumerFiles();
     const orphans: string[] = [];
 
-    for (const { file, specifier } of files) {
-      if (AWAITING_CONSUMER.has(file)) {
+    for (const target of files) {
+      if (AWAITING_CONSUMER.has(target.file)) {
         continue;
       }
-      const names = exportedNames(file);
-      const unconsumed = new Set(names.filter((name) => !ALLOWED_EXPORTS.has(`${file}#${name}`)));
-      for (const consumer of consumers) {
-        if (unconsumed.size === 0) {
-          break;
-        }
-        if (consumer === file) {
-          continue;
-        }
-        const source = sourceOf(consumer);
-        if (!source.includes(specifier)) {
-          continue;
-        }
-        const consumed = consumptionOf(source, specifier);
-        if (consumed.namespace) {
-          unconsumed.clear();
-          break;
-        }
-        for (const name of consumed.names) {
-          unconsumed.delete(name);
-        }
-        if (consumed.defaultImport) {
-          unconsumed.delete("default");
-        }
-      }
-      for (const name of [...unconsumed].toSorted()) {
-        orphans.push(`  ${file} — ${name}`);
+      const consumption = consumptionAcross(target, consumers);
+      const unconsumed = exportedNames(target.file).filter(
+        (name) => !ALLOWED_EXPORTS.has(`${target.file}#${name}`) && !consumes(consumption, name),
+      );
+      for (const name of unconsumed.toSorted()) {
+        orphans.push(`  ${target.file} — ${name}`);
       }
     }
 
@@ -252,28 +245,39 @@ describe("no orphan @repo/ui exports", () => {
     ).toEqual([]);
   });
 
-  it("no AWAITING_CONSUMER file counts as a consumer", () => {
-    const held = consumerFiles().filter((file) => AWAITING_CONSUMER.has(file));
+  it("no AWAITING_CONSUMER row outlives its hold", () => {
+    const consumers = consumerFiles();
+    const stale: string[] = [];
+    for (const file of AWAITING_CONSUMER) {
+      const target = byFile.get(file);
+      if (target === undefined) {
+        stale.push(`  ${file} — not a file under ${sweptDirs}`);
+      } else if (isConsumedAtAll(consumptionAcross(target, consumers))) {
+        stale.push(`  ${file} — ${target.specifier} has a consumer outside the gallery now`);
+      }
+    }
     expect(
-      held,
-      `AWAITING_CONSUMER files counted as consumers:\n${held.map((file) => `  ${file}`).join("\n")}`,
+      stale,
+      `AWAITING_CONSUMER rows whose hold is over — delete these, so the per-export check reads the file:\n${stale.join("\n")}`,
     ).toEqual([]);
   });
 
   it("no ALLOWED_EXPORTS row outlives its export", () => {
+    const consumers = consumerFiles();
     const stale = [...ALLOWED_EXPORTS.keys()].filter((key) => {
       const [file, name] = key.split("#");
-      if (file === undefined || name === undefined) {
+      const target = file === undefined ? undefined : byFile.get(file);
+      if (target === undefined || name === undefined) {
         return true;
       }
-      if (!fs.existsSync(path.join(REPO_ROOT, file))) {
+      if (!exportedNames(target.file).includes(name)) {
         return true;
       }
-      return !exportedNames(file).includes(name);
+      return consumes(consumptionAcross(target, consumers), name);
     });
     expect(
       stale,
-      `ALLOWED_EXPORTS rows whose export no longer exists — delete these:\n${stale.map((key) => `  ${key}`).join("\n")}`,
+      `ALLOWED_EXPORTS rows whose export is gone, is outside ${sweptDirs}, or now has a consumer — delete these:\n${stale.map((key) => `  ${key}`).join("\n")}`,
     ).toEqual([]);
   });
 });

@@ -1,10 +1,11 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { makeTempDir } from "inteligir/server/testing";
+import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "inteligir/server/testing";
 import { describe, expect, it } from "vitest";
 import type { ServerTarget } from "../server-instance";
 import {
   forgetVault,
+  offeredRecentVaults,
   planVaultSwitch,
   readRecentVaults,
   RECENT_VAULTS_LIMIT,
@@ -24,6 +25,12 @@ const target = (overrides: Partial<ServerTarget> = {}): ServerTarget => ({
   vaultDirSource: "default",
   ...overrides,
 });
+
+const openVault = (): string => {
+  const vaultDir = path.join(makeTempDir("inteligir-vault-"), "Notes");
+  mkdirSync(vaultDir);
+  return vaultDir;
+};
 
 describe("what may be switched", () => {
   it("switches an owned child to another folder that exists", () => {
@@ -57,6 +64,26 @@ describe("what may be switched", () => {
     expect(planVaultSwitch({ current: target(), ownsServer: true }, "/home/me/Inteligir/")).toEqual(
       { kind: "refused", reason: "already-open" },
     );
+  });
+
+  describe("refuses the vault already open when the picker names the same folder", () => {
+    it("through a symlink", () => {
+      const vaultDir = openVault();
+      const linked = path.join(path.dirname(vaultDir), "Linked");
+      symlinkSync(vaultDir, linked);
+      expect(planVaultSwitch({ current: target({ vaultDir }), ownsServer: true }, linked)).toEqual({
+        kind: "refused",
+        reason: "already-open",
+      });
+    });
+
+    it.skipIf(!TEMP_DIR_FOLDS_CASE)("in another case, where the volume folds case", () => {
+      const vaultDir = openVault();
+      const respelled = path.join(path.dirname(vaultDir), "notes");
+      expect(
+        planVaultSwitch({ current: target({ vaultDir }), ownsServer: true }, respelled),
+      ).toEqual({ kind: "refused", reason: "already-open" });
+    });
   });
 
   it("has a sentence for every refusal", () => {
@@ -93,6 +120,15 @@ describe("the remembered list", () => {
     expect(again[0]).toBe("/v/5");
     expect(again.filter((each) => each === "/v/5")).toHaveLength(1);
     expect(forgetVault(again, "/v/5")).not.toContain("/v/5");
+  });
+
+  it("offers neither the vault already open nor a folder that is gone, and keeps the order", () => {
+    const present = new Set(["/v/a", "/v/open", "/v/c"]);
+    const exists = (vaultPath: string): boolean => present.has(vaultPath);
+    const recent = ["/v/open", "/v/a", "/v/unmounted", "/v/c"];
+    expect(offeredRecentVaults(recent, "/v/open", exists)).toEqual(["/v/a", "/v/c"]);
+    // before the first boot there is no vault open to leave out
+    expect(offeredRecentVaults(recent, null, exists)).toEqual(["/v/open", "/v/a", "/v/c"]);
   });
 
   it("round-trips through its file and starts over on bytes that are not a list", () => {

@@ -1,4 +1,5 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
@@ -10,7 +11,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { orpc } from "./api";
+import { client, orpc } from "./api";
 import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
@@ -20,11 +21,11 @@ import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
 import { NoteFooter } from "./note-footer";
 import { useThreads } from "./actions/thread-hooks";
-import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorColumn } from "@repo/editor/editor-column";
-import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
+import { hideFindBar, jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
 import { scrollToLinkTarget } from "@repo/editor/link-locate";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
@@ -43,10 +44,12 @@ import { setNotePinned } from "./note/pin-note";
 import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
-import type { PaletteEntryPage, PaletteRequest } from "./palette/command-palette";
+import type { PaletteEntry, PaletteRequest } from "./palette/command-palette";
 import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
-import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
+import { Sidebar } from "@repo/ui/components/sidebar";
+import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
+import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { SidebarRailContent } from "./sidebar/sidebar";
 import { useTreeOps } from "./sidebar/tree-ops";
 import { useNavigate } from "@tanstack/react-router";
@@ -71,11 +74,14 @@ import {
 } from "./prefs";
 import type { RailView } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
-import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
-  openNote: string | null;
+  // read once, at boot: after that the note store owns the open note and `onOpenNote` mirrors it
+  bootNote: string | null;
   onOpenNote: (path: string | null) => void;
+  // another surface draws over the workspace: it goes inert and its window-level chords stand
+  // down. Its root isolates the z-indices inside, so a later sibling covers every one of them.
+  covered: boolean;
 }
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
@@ -84,15 +90,21 @@ const EMPTY_THREADS: readonly Thread[] = [];
 // what the panel is asked to show; a comments reveal with no focus keeps the last one
 type PanelReveal =
   | { tab: "actions"; threadId: string }
-  | { tab: "comments"; focus?: readonly string[] };
+  | { tab: "comments"; focus?: readonly string[] }
+  | { tab: "history" };
 
 // a note that never mounts (a refused open) must not leave a jump waiting forever
 const LIVE_EDITOR_WAIT_MS = 5000;
 
-const jumpWhenLive = async (path: string, query: string, ordinal: number): Promise<void> => {
+const jumpWhenLive = async (
+  path: string,
+  needle: string,
+  ordinal: number,
+  options: TextMatchOptions,
+): Promise<void> => {
   const editor = await whenLiveEditor(path, LIVE_EDITOR_WAIT_MS);
   if (editor !== null) {
-    jumpToFindMatch(editor, query, ordinal);
+    jumpToFindMatch(editor, needle, ordinal, options);
   }
 };
 
@@ -110,21 +122,7 @@ const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Pro
   }
 };
 
-// inside a provider: the rail's and the panel's each carry one, writing their own pref
-const SidebarWidthPersistence = ({ write }: { write: (px: number) => void }) => {
-  const { width } = useSidebar();
-  useEffect(() => {
-    // oxlint-disable-next-line unicorn/prefer-number-coercion -- the width carries its CSS unit; Number("256px") is NaN
-    const px = Number.parseInt(width, 10);
-    if (Number.isFinite(px)) {
-      write(px);
-    }
-  }, [width, write]);
-  return null;
-};
-
-export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
-  const { api } = useWorkspace();
+export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => {
   const queryClient = useQueryClient();
   const treeQuery = useVaultTree();
   const statusQuery = useVaultStatus();
@@ -133,15 +131,12 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   // the last request mounted with `open` off, because unmounting the dialog cuts its exit tween;
   // the next open replaces it.
   const [palette, setPalette] = useState<{ request: PaletteRequest; open: boolean } | null>(null);
-  const openPalette = useCallback(
-    (page: PaletteEntryPage, extra: { subject?: string } = {}): void => {
-      setPalette((current) => ({
-        open: true,
-        request: { page, ...extra, nonce: (current?.request.nonce ?? 0) + 1 },
-      }));
-    },
-    [],
-  );
+  const openPalette = useCallback((entry: PaletteEntry): void => {
+    setPalette((current) => ({
+      open: true,
+      request: { ...entry, nonce: (current?.request.nonce ?? 0) + 1 },
+    }));
+  }, []);
   const closePalette = useCallback((): void => {
     setPalette((current) => (current === null ? null : { ...current, open: false }));
   }, []);
@@ -157,7 +152,8 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   const [composerSeed, setComposerSeed] = useState<string | null>(null);
   const [zen, setZen] = useState(false);
   // Narrow selectors only: the store settles on every keystroke.
-  const noteStore = useMemo(() => createOpenNoteStore(), []);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [noteStore] = useState(createOpenNoteStore);
   const openPath = useStore(noteStore.store, (state) => state.openPath);
   // Trails `openPath` across a switch; the comment tint keys on it.
   const loadedPath = useStore(noteStore.store, (state) => openDocPath(state.openDoc));
@@ -180,22 +176,43 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   useNoteCommentMeta(loadedPath);
 
+  const [railOpen, setRailOpen] = useState(true);
+  // a provider's own toggle and the table's key both land here: showing either side leaves zen
+  const showRail = useCallback((show: boolean): void => {
+    if (show) {
+      setZen(false);
+    }
+    setRailOpen(show);
+  }, []);
+  const showPanel = useCallback(
+    (show: boolean): void => {
+      if (show) {
+        setZen(false);
+      }
+      setPanelOpenPersisted(show);
+    },
+    [setPanelOpenPersisted],
+  );
+  // the toggles the providers own, since below the mobile breakpoint a side is a sheet whose open
+  // state only its provider holds
+  const railActionsRef = useRef<SidebarActions | null>(null);
+  const panelActionsRef = useRef<SidebarActions | null>(null);
+
   const [commentFocus, setCommentFocus] = useState<CommentFocus | null>(null);
   // One verb for every entry that shows something in the panel: it starts closed, so an entry
   // that only picks its tab or thread shows nothing.
   const revealPanel = useCallback(
     (target: PanelReveal): void => {
-      setZen(false);
-      setPanelOpenPersisted(true);
+      showPanel(true);
       setPanelTab(target.tab);
       if (target.tab === "actions") {
         setPanelThreadId(target.threadId);
-      } else if (target.focus !== undefined) {
+      } else if (target.tab === "comments" && target.focus !== undefined) {
         const ids = target.focus;
         setCommentFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
       }
     },
-    [setPanelOpenPersisted],
+    [showPanel],
   );
 
   const openThread = useCallback(
@@ -215,7 +232,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         }
         await flushOpenNote();
         try {
-          await api.comments.add({ id, path, text });
+          await client.comments.add({ id, path, text });
         } catch {
           return false;
         }
@@ -229,7 +246,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     return () => {
       setCommentActions(null);
     };
-  }, [api, queryClient, noteStore, revealPanel]);
+  }, [queryClient, noteStore, revealPanel]);
 
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
     const { path } = noteStore.state().editor;
@@ -242,32 +259,30 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       },
       read: () => {
         const current = noteStore.state().editor;
-        return { content: current.path === path ? current.content : "" };
+        return current.path === path ? { content: current.content } : null;
       },
     });
   }, [noteStore]);
 
   const actionsRef = useRef<VaultActions | null>(null);
-  const setOpenNote = useCallback(
-    (path: string | null): void => {
-      if (path === null) {
-        onOpenNote(null);
-        return;
-      }
-      actionsRef.current?.openFile(path);
-    },
-    [onOpenNote],
-  );
-
-  // Ordinary opens: the store's stacks recognize a back/forward move by value.
-  const goTo = useCallback((target: string | null): void => {
-    if (target === null) {
+  const noteColumnRef = useRef<HTMLElement | null>(null);
+  // Ordinary opens, Back and Forward included: the store's stacks recognize a back/forward move
+  // by value.
+  const setOpenNote = useCallback((path: string | null): void => {
+    if (path === null) {
       return;
     }
-    actionsRef.current?.openFile(target);
+    actionsRef.current?.openFile(path);
   }, []);
 
-  const [railOpen, setRailOpen] = useState(true);
+  const showHistory = useCallback(
+    (path: string): void => {
+      setOpenNote(path);
+      revealPanel({ tab: "history" });
+    },
+    [setOpenNote, revealPanel],
+  );
+
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -280,15 +295,21 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     setRailView(view);
   }, []);
   // The breadcrumb's ask, keyed by a nonce so naming the same folder twice reveals it twice; the
-  // tree consumes it, so the rail shows Files first.
+  // tree consumes it, so the rail shows Files first. The nonce is counted here rather than off
+  // the ask, which is cleared once the tree has focused it.
   const [reveal, setReveal] = useState<{ path: string; nonce: number } | null>(null);
+  const revealNonce = useRef(0);
   const revealInTree = useCallback(
     (path: string): void => {
       chooseRailView("files");
-      setReveal((current) => ({ nonce: (current?.nonce ?? 0) + 1, path }));
+      revealNonce.current += 1;
+      setReveal({ nonce: revealNonce.current, path });
     },
     [chooseRailView],
   );
+  const clearReveal = useCallback((): void => {
+    setReveal(null);
+  }, []);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const createNote = useCallback(async (path: string, content = ""): Promise<void> => {
@@ -314,9 +335,9 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   // the note opens first; the find bar takes the match once its editor is live
   const openMatch = useCallback(
-    (match: VaultMatchWire, query: string): void => {
+    (match: VaultMatchWire, needle: string, options: TextMatchOptions): void => {
       setOpenNote(match.path);
-      void jumpWhenLive(match.path, query, match.ordinal);
+      void jumpWhenLive(match.path, needle, match.ordinal, options);
     },
     [setOpenNote],
   );
@@ -344,11 +365,11 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       }
       // the open note's buffer lands first, so its file is not the one that "changed since read"
       await flushOpenNote();
-      const outcomes = await replaceInVault(api, request, port);
+      const outcomes = await replaceInVault(client, request, port);
       const summary = summarizeReplace(outcomes, noteCount - outcomes.length);
       toast[summary.tone](summary.message);
     },
-    [api],
+    [],
   );
 
   // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
@@ -358,7 +379,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     void (async () => {
       let content = dailyNoteTemplate(now);
       try {
-        const template = await api.vault.read({ path: DAILY_TEMPLATE_PATH });
+        const template = await client.vault.read({ path: DAILY_TEMPLATE_PATH });
         content = dailyNoteFromTemplate(template.content, now);
       } catch {
         // no template in this vault
@@ -366,14 +387,14 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       // Create-exclusive rather than checking the tree first, which can be stale.
       await createNote(dailyNotePath(now), content);
     })();
-  }, [api, createNote]);
+  }, [createNote]);
 
   const newNoteFromTemplate = useCallback(
     (templatePath: string): void => {
       void (async () => {
         let template: string;
         try {
-          ({ content: template } = await api.vault.read({ path: templatePath }));
+          ({ content: template } = await client.vault.read({ path: templatePath }));
         } catch {
           toast.error("Could not read the template.");
           return;
@@ -383,7 +404,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         await createNote(path, removeFrontmatterId(body));
       })();
     },
-    [api, treeQuery.data, createNote],
+    [treeQuery.data, createNote],
   );
 
   const insertTemplateIntoNote = useCallback(
@@ -399,28 +420,35 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
-  const setPinned = useCallback(
-    (path: string, pinned: boolean): void => {
-      void pinAndReport(api, path, pinned);
-    },
-    [api],
-  );
+  const setPinned = useCallback((path: string, pinned: boolean): void => {
+    void pinAndReport(client, path, pinned);
+  }, []);
   const pinnedPaths = usePinnedPaths();
   const openPinned = openPath !== null && pinnedPaths.has(openPath);
 
   const treeOps = useTreeOps({
     actions: actionsRef,
-    api,
     createNote,
-    openNote,
-    setOpenNote,
     setPinned,
   });
 
   const navigate = useNavigate();
+  // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
+  // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette and
+  // the find bar are portaled, so the cover would hide neither: both close here.
   const onOpenSettings = useCallback((): void => {
-    void navigate({ to: "/settings" });
-  }, [navigate]);
+    closePalette();
+    const { openPath: path } = noteStore.state();
+    const editor = path === null ? null : getLiveEditor(path);
+    if (editor !== null) {
+      hideFindBar(editor);
+    }
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    void flushOpenNote();
+    void navigate({ search: true, to: "/settings" });
+  }, [closePalette, noteStore, navigate]);
 
   useEffect(() => {
     setAgentRequestActions({
@@ -433,8 +461,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         setComposerOpen(true);
       },
       showTag: (tag) => {
-        setZen(false);
-        setRailOpen(true);
+        showRail(true);
         chooseRailView("recent");
         setSelectedTag(tag);
       },
@@ -442,9 +469,9 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     return () => {
       setAgentRequestActions(null);
     };
-  }, [chooseRailView]);
+  }, [chooseRailView, showRail]);
 
-  useGlobalShortcuts(shortcutModifier, (action) => {
+  useGlobalShortcuts({ enabled: !covered, modifier: shortcutModifier }, (action) => {
     switch (action) {
       case "open-action-composer": {
         setComposerSeed(null);
@@ -455,7 +482,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         if (palette?.open === true) {
           closePalette();
         } else {
-          openPalette("root");
+          openPalette({ page: "root" });
         }
         break;
       }
@@ -464,7 +491,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
         break;
       }
       case "open-headings": {
-        openPalette("headings");
+        openPalette({ page: "headings" });
         break;
       }
       case "open-settings": {
@@ -477,6 +504,14 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       }
       case "toggle-zen": {
         setZen((current) => !current);
+        break;
+      }
+      case "toggle-rail": {
+        railActionsRef.current?.toggle();
+        break;
+      }
+      case "toggle-panel": {
+        panelActionsRef.current?.toggle();
         break;
       }
       default: {
@@ -492,13 +527,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   const paletteActions = useMemo(
     () => ({
-      exportPdf:
-        openPath === null
-          ? null
-          : () => {
-              exportNoteAsPdf(docStem(openPath));
-            },
-      findInNote: openPath === null ? null : findInNote,
       goToHeading: (heading: HeadingItem) => {
         const { openPath: path } = noteStore.state();
         const editor = path === null ? null : getLiveEditor(path);
@@ -506,17 +534,28 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
           goToHeading(editor, heading);
         }
       },
-      insertTemplate: openPath === null ? null : insertTemplateIntoNote,
-      listHeadings:
-        openPath === null
-          ? null
-          : () => {
-              const editor = getLiveEditor(openPath);
-              return editor === null ? [] : collectHeadings(editor);
-            },
       moveNote: treeOps.moveEntry,
       newNote: newUntitledNote,
       newNoteFromTemplate,
+      note:
+        openPath === null
+          ? null
+          : {
+              exportPdf: () => {
+                exportNoteAsPdf(docStem(openPath));
+              },
+              findInNote,
+              insertTemplate: insertTemplateIntoNote,
+              listHeadings: () => {
+                const editor = getLiveEditor(openPath);
+                return editor === null ? [] : collectHeadings(editor);
+              },
+              path: openPath,
+              pinned: openPinned,
+              togglePin: () => {
+                setPinned(openPath, !openPinned);
+              },
+            },
       openDailyNote,
       openDeletedNotes: () => {
         chooseRailView("deleted");
@@ -526,15 +565,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
       openProblemLink,
       openSettings: onOpenSettings,
       openThread,
-      pin:
-        openPath === null
-          ? null
-          : {
-              pinned: openPinned,
-              toggle: () => {
-                setPinned(openPath, !openPinned);
-              },
-            },
       replaceAll,
       syncNow,
     }),
@@ -581,44 +611,43 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     [noteStore, treeOps, setPinned, chooseRailView],
   );
 
-  const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
+  const threads = threadsQuery.data ?? EMPTY_THREADS;
 
   return (
     <VaultProvider
-      initialPath={openNote}
+      initialPath={bootNote}
       onOpenPath={onOpenNote}
+      onShowHistory={showHistory}
       actionsRef={actionsRef}
       store={noteStore}
     >
-      <div className="flex h-dvh flex-col bg-surface text-ink print:h-auto">
+      <div inert={covered} className="isolate flex h-dvh flex-col bg-surface text-ink print:h-auto">
         <SidebarProvider
           className="min-h-0 flex-1 overflow-hidden print:h-auto print:overflow-visible"
           open={railOpen && !zen}
-          onOpenChange={(nextOpen) => {
-            if (nextOpen) {
-              setZen(false);
-            }
-            setRailOpen(nextOpen);
-          }}
+          onOpenChange={showRail}
+          shortcut={bindingFor("toggle-rail", shortcutModifier)}
+          onWidthCommitted={writeSidebarWidth}
+          actionsRef={railActionsRef}
           peek="click"
           width={initialSidebarWidth}
         >
-          <SidebarWidthPersistence write={writeSidebarWidth} />
           <Sidebar variant="floating" className="h-full print:hidden">
             <SidebarRailContent
-              openPath={openNote}
+              openPath={openPath}
               onOpenFile={setOpenNote}
               ops={treeOps}
               onMoveRequest={(path) => {
-                openPalette("move-to-folder", { subject: path });
+                openPalette({ page: "move-to-folder", subject: path });
               }}
               view={railView}
               onViewChange={chooseRailView}
               selectedTag={selectedTag}
               onSelectTag={setSelectedTag}
               reveal={reveal}
+              onRevealConsumed={clearReveal}
               onOpenSearch={() => {
-                openPalette("root");
+                openPalette({ page: "root" });
               }}
               searchShortcut={bindingFor("open-palette", shortcutModifier)}
               onSyncNow={syncNow}
@@ -629,38 +658,33 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
             <SidebarProvider
               className="min-h-0 h-full flex-1"
               open={panelOpen && !zen}
-              onOpenChange={(nextOpen) => {
-                if (nextOpen) {
-                  setZen(false);
-                }
-                setPanelOpenPersisted(nextOpen);
-              }}
+              onOpenChange={showPanel}
+              shortcut={bindingFor("toggle-panel", shortcutModifier)}
+              onWidthCommitted={writePanelWidth}
+              actionsRef={panelActionsRef}
               width={initialPanelWidth}
             >
-              <SidebarWidthPersistence write={writePanelWidth} />
-              <SidebarInset className="relative bg-surface">
+              <SidebarInset ref={noteColumnRef} className="relative bg-surface">
                 {zen ? null : (
                   <NoteTopbar
                     path={openPath}
                     railOpen={railOpen && !zen}
                     onToggleRail={() => {
-                      setZen(false);
-                      setRailOpen((open) => !open);
+                      railActionsRef.current?.toggle();
                     }}
                     insetTitleBar={insetTitleBar}
                     canBack={back !== null}
                     canForward={forward !== null}
                     onBack={() => {
-                      goTo(back);
+                      setOpenNote(back);
                     }}
                     onForward={() => {
-                      goTo(forward);
+                      setOpenNote(forward);
                     }}
                     onFindInNote={findInNote}
                     onOpenFolder={(folder) => {
                       revealInTree(folder);
-                      setZen(false);
-                      setRailOpen(true);
+                      showRail(true);
                     }}
                     commentCount={openCommentCount}
                     onOpenComments={() => {
@@ -683,11 +707,18 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                 {zen ? null : <NoteFooter path={openPath} />}
                 <ActionComposer
                   open={composerOpen}
-                  onOpenChange={setComposerOpen}
+                  onOpenChange={(next) => {
+                    // a press or an Escape in the layer over a covered workspace is not one at
+                    // the composer, which the way back finds as it was left
+                    if (next || !covered) {
+                      setComposerOpen(next);
+                    }
+                  }}
                   seed={composerSeed}
                   docPath={openPath}
                   readViewContext={readViewContext}
                   onLaunched={openThread}
+                  container={noteColumnRef}
                 />
               </SidebarInset>
               <Sidebar side="right" className="h-full print:hidden">
@@ -700,6 +731,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
                   onSelectThread={setPanelThreadId}
                   onOpenDoc={setOpenNote}
                   noteMetadata={noteMetadata}
+                  modifier={shortcutModifier}
                 />
               </Sidebar>
             </SidebarProvider>
@@ -709,7 +741,6 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
               key={palette.request.nonce}
               open={palette.open}
               request={palette.request}
-              openNotePath={openPath}
               modifier={shortcutModifier}
               onOpenChange={(open) => {
                 if (!open) {

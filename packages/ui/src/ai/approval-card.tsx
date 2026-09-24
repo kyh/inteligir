@@ -3,6 +3,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode, RefAttributes } from "react";
+import { ArrowUpIcon, CheckIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -25,6 +26,7 @@ interface ApprovalCardContextValue {
   custom: Record<string, string>;
   submit: (pending?: PendingAnswer) => void;
   hasAnswer: boolean;
+  sending: boolean;
 }
 
 const ApprovalCardContext = createContext<ApprovalCardContextValue | null>(null);
@@ -57,8 +59,12 @@ const useApprovalQuestion = (): ApprovalQuestionContextValue => {
   return value;
 };
 
+// the card reads "sent" only once the answer landed: a returned promise holds the options
+// disabled while it runs, and a rejection hands them back so the answer can be retried.
+type ApprovalCardStatus = "open" | "sending" | "sent";
+
 interface ApprovalCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSubmit"> {
-  onSubmit: (answers: ApprovalAnswer[]) => void;
+  onSubmit: (answers: ApprovalAnswer[]) => void | Promise<void>;
   sentLabel?: string;
 }
 
@@ -73,7 +79,7 @@ const ApprovalCard = ({
   const [order, setOrder] = useState<readonly string[]>([]);
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<ApprovalCardStatus>("open");
 
   const answered = order.filter(
     (id) => (picked[id] ?? []).length > 0 || (custom[id] ?? "").trim().length > 0,
@@ -93,24 +99,31 @@ const ApprovalCard = ({
         pending === undefined ? picked : { ...picked, [pending.questionId]: pending.optionIds };
       const nextCustom =
         pending === undefined ? custom : { ...custom, [pending.questionId]: pending.custom };
-      setSent(true);
-      onSubmit(
-        order.map((questionId) => {
-          const text = (nextCustom[questionId] ?? "").trim();
-          const entry: ApprovalAnswer = { optionIds: nextPicked[questionId] ?? [], questionId };
-          return text.length > 0 ? { ...entry, custom: text } : entry;
-        }),
-      );
+      const answers = order.map((questionId) => {
+        const text = (nextCustom[questionId] ?? "").trim();
+        const entry: ApprovalAnswer = { optionIds: nextPicked[questionId] ?? [], questionId };
+        return text.length > 0 ? { ...entry, custom: text } : entry;
+      });
+      setStatus("sending");
+      void (async () => {
+        try {
+          await onSubmit(answers);
+          setStatus("sent");
+        } catch {
+          setStatus("open");
+        }
+      })();
     },
     [order, picked, custom, onSubmit],
   );
   const hasAnswer = order.length > 0 && answered.length === order.length;
+  const sending = status === "sending";
   const value = useMemo<ApprovalCardContextValue>(
-    () => ({ answer, custom, hasAnswer, picked, register, submit }),
-    [register, answer, picked, custom, submit, hasAnswer],
+    () => ({ answer, custom, hasAnswer, picked, register, sending, submit }),
+    [register, answer, picked, custom, submit, hasAnswer, sending],
   );
 
-  if (sent) {
+  if (status === "sent") {
     return (
       <div
         ref={ref}
@@ -119,21 +132,9 @@ const ApprovalCard = ({
         className={cn("flex w-full items-center gap-3 animate-in fade-in zoom-in-95", className)}
         {...props}
       >
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-inset py-1 pr-2.5 pl-1 text-[12.5px] font-medium text-ink">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-inset py-1 pr-2.5 pl-1 text-body font-medium text-ink">
           <span className="flex size-4.5 items-center justify-center rounded-full bg-ink text-background">
-            <svg
-              aria-hidden
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
+            <CheckIcon size={11} strokeWidth={3} />
           </span>
           {sentLabel}
         </span>
@@ -146,6 +147,7 @@ const ApprovalCard = ({
       <div
         ref={ref}
         data-slot="approval-card"
+        aria-busy={sending}
         className={cn(
           "w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
           className,
@@ -216,10 +218,8 @@ const ApprovalQuestion = ({
       >
         <div className="flex items-start justify-between gap-3">
           <span className="flex min-w-0 flex-col gap-1">
-            <span className="text-[13px] font-medium text-ink">{prompt}</span>
-            {detail === undefined ? null : (
-              <span className="text-[12.5px] text-ink-2">{detail}</span>
-            )}
+            <span className="text-subtitle font-medium text-ink">{prompt}</span>
+            {detail === undefined ? null : <span className="text-body text-ink-2">{detail}</span>}
           </span>
           {action}
         </div>
@@ -230,7 +230,8 @@ const ApprovalQuestion = ({
 };
 ApprovalQuestion.displayName = "ApprovalQuestion";
 
-interface ApprovalOptionProps extends HTMLAttributes<HTMLButtonElement> {
+// onClick is omitted: a forwarded one would replace the pick while aria-pressed still promised it
+interface ApprovalOptionProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onClick"> {
   optionId: string;
 }
 
@@ -241,6 +242,7 @@ const ApprovalOption = ({
   ref,
   ...props
 }: ApprovalOptionProps & RefAttributes<HTMLButtonElement>) => {
+  const { sending } = useApprovalCard();
   const { kind, selected, toggle } = useApprovalQuestion();
   const on = selected.includes(optionId);
   return (
@@ -248,6 +250,7 @@ const ApprovalOption = ({
       ref={ref}
       type="button"
       aria-pressed={on}
+      disabled={sending}
       onClick={() => {
         toggle(optionId);
       }}
@@ -275,23 +278,14 @@ const ApprovalOption = ({
             )}
           />
         ) : (
-          <svg
-            aria-hidden
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
+          <CheckIcon size={12} strokeWidth={3} />
         )}
       </span>
       <span
-        className={cn("text-[13px] transition-colors duration-200", on ? "text-ink" : "text-ink-2")}
+        className={cn(
+          "text-subtitle transition-colors duration-200",
+          on ? "text-ink" : "text-ink-2",
+        )}
       >
         {children}
       </span>
@@ -315,6 +309,7 @@ const ApprovalCustomAnswer = ({
       <input
         ref={ref}
         value={typed}
+        disabled={card.sending}
         onChange={(event) => {
           // typing clears a radio pick, or one question would send two answers
           card.answer(questionId, kind === "radio" ? [] : selected, event.target.value);
@@ -323,7 +318,7 @@ const ApprovalCustomAnswer = ({
         aria-label="Custom answer"
         data-slot="approval-custom-answer"
         className={cn(
-          "min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3",
+          "min-w-0 flex-1 bg-transparent text-subtitle text-ink outline-none placeholder:text-ink-3",
           className,
         )}
         {...props}
@@ -339,7 +334,7 @@ const ApprovalActions = ({
   ref,
   ...props
 }: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => {
-  const { hasAnswer, submit } = useApprovalCard();
+  const { hasAnswer, sending, submit } = useApprovalCard();
   return (
     <div
       ref={ref}
@@ -351,7 +346,7 @@ const ApprovalActions = ({
       <button
         type="button"
         aria-label="Send answers"
-        disabled={!hasAnswer}
+        disabled={!hasAnswer || sending}
         onClick={() => {
           submit();
         }}
@@ -360,19 +355,7 @@ const ApprovalActions = ({
           hasAnswer ? "bg-ink text-background" : "bg-muted text-ink-3",
         )}
       >
-        <svg
-          aria-hidden
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12 19V5M5 12l7-7 7 7" />
-        </svg>
+        <ArrowUpIcon size={14} strokeWidth={2.5} />
       </button>
     </div>
   );

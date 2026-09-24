@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -154,6 +155,29 @@ const walk = (dir: string, matches: RegExp, out: string[]): void => {
   }
 };
 
+let cachedTracked: string[] | undefined;
+
+// git's index, not a directory walk, for a guard judging what the repo commits: build output and
+// ignored sidecars are not in it.
+export const trackedFiles = (): string[] => {
+  if (cachedTracked !== undefined) {
+    return cachedTracked;
+  }
+  cachedTracked = execFileSync("git", ["ls-files", "-z"], {
+    cwd: REPO_ROOT,
+    encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
+  })
+    .split("\0")
+    .filter(
+      (file) =>
+        file.length > 0 &&
+        // the index still lists a file deleted in the working tree.
+        fs.existsSync(path.join(REPO_ROOT, file)),
+    );
+  return cachedTracked;
+};
+
 export const isTestFile = (relativePath: string): boolean =>
   /(?:^|\/)__tests__\//u.test(relativePath) ||
   /(?:^|\/)test-support\//u.test(relativePath) ||
@@ -256,3 +280,20 @@ export const resolveWorkspace = (specifier: string): Workspace | null =>
   workspaces().find(
     (workspace) => specifier === workspace.name || specifier.startsWith(`${workspace.name}/`),
   ) ?? null;
+
+const turboConfigSchema = z.looseObject({ tasks: z.record(z.string(), z.unknown()) });
+
+// turbo.json is JSONC; sourceOf drops full-line comments, which is every comment this repo's turbo
+// configs use. Each guard parses a body with its own task schema, since each reads other fields.
+export const turboTaskBodies = (configPath: string): Map<string, unknown> => {
+  const parsed = turboConfigSchema.safeParse(JSON.parse(sourceOf(configPath)));
+  if (!parsed.success) {
+    throw new Error(`${configPath}: expected an object at "tasks"`);
+  }
+  return new Map(Object.entries(parsed.data.tasks));
+};
+
+export const workspaceTurboConfig = (workspace: Workspace): string | null => {
+  const relative = `${workspace.dir}/turbo.json`;
+  return fs.existsSync(path.join(REPO_ROOT, relative)) ? relative : null;
+};

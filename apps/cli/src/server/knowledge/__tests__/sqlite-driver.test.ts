@@ -1,13 +1,11 @@
-import { createHash } from "node:crypto";
 import { chmodSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
-import type { DocProjection } from "@repo/notes/knowledge/projection";
-import { projectDoc } from "@repo/notes/knowledge/projection";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlDriver, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
+import { docRow } from "./seeded-store";
 
 const makeDbDir = (): string => {
   const dir = makeTempDir("inteligir-knowledge-driver-");
@@ -19,9 +17,6 @@ const makeDbDir = (): string => {
 };
 
 const makeDbPath = (): string => nodePath.join(makeDbDir(), "knowledge.db");
-
-const sha256Hex = (content: string): string =>
-  createHash("sha256").update(content, "utf-8").digest("hex");
 
 const openStore = (dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore => {
   const store = createSqlKnowledgeStore(createSqliteDriver(dbPath), vaultRoot);
@@ -35,21 +30,33 @@ const openStore = (dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore => {
   return store;
 };
 
-const docRow = (path: string, content: string) => {
-  const projection: DocProjection = projectDoc(path, content);
-  const row: Parameters<SqlKnowledgeStore["upsertDoc"]>[0] = {
-    contentHash: sha256Hex(content),
-    path,
-    projection,
-  };
-  return { body: content, row };
+type StoredDocRow = Parameters<SqlKnowledgeStore["upsertDoc"]>[0];
+
+interface StoredRows {
+  docs: StoredDocRow[];
+  others: { path: string }[];
+}
+
+// every row the store holds, paged the way the runtime hydrates
+const drain = (store: SqlKnowledgeStore): StoredRows => {
+  const cursor = store.hydrate(1000);
+  const docs: StoredDocRow[] = [];
+  const others: { path: string }[] = [];
+  for (let page = cursor.next(); page.kind !== "done"; page = cursor.next()) {
+    if (page.kind === "docs") {
+      docs.push(...page.docs);
+    } else {
+      others.push(...page.others);
+    }
+  }
+  return { docs, others };
 };
 
 const seed = (store: SqlKnowledgeStore): void => {
   const alpha = docRow("alpha.md", "# Alpha Note\n\nBody about zebras.\n");
   const beta = docRow("beta.md", "# Beta Note\n\nAlpha appears only in this body.\n");
-  store.upsertDoc(alpha.row, alpha.body);
-  store.upsertDoc(beta.row, beta.body);
+  store.upsertDoc(alpha.row, alpha.search);
+  store.upsertDoc(beta.row, beta.search);
   store.upsertOther("img/pic.png");
 };
 
@@ -123,11 +130,11 @@ describe("the sqlite driver", () => {
 });
 
 describe("the better-sqlite3 knowledge store", () => {
-  it("round-trips docs through upsert, search and loadAll", () => {
+  it("round-trips docs through upsert, search and hydration", () => {
     const store = openStore(makeDbPath());
     seed(store);
 
-    const { docs, others } = store.loadAll();
+    const { docs, others } = drain(store);
     expect(docs.map((d) => d.path)).toEqual(["alpha.md", "beta.md"]);
     expect(docs[0]?.projection.title).toBe("Alpha Note");
     expect(others).toEqual([{ path: "img/pic.png" }]);
@@ -137,7 +144,7 @@ describe("the better-sqlite3 knowledge store", () => {
 
     store.remove("alpha.md");
     expect(store.search("zebras", 10)).toEqual([]);
-    expect(store.loadAll().docs.map((d) => d.path)).toEqual(["beta.md"]);
+    expect(drain(store).docs.map((d) => d.path)).toEqual(["beta.md"]);
   });
 
   it("persists across close and reopen from the same file", () => {
@@ -147,7 +154,7 @@ describe("the better-sqlite3 knowledge store", () => {
     first.dispose();
 
     const second = openStore(dbPath);
-    expect(second.loadAll().docs).toHaveLength(2);
+    expect(drain(second).docs).toHaveLength(2);
     expect(second.search("zebras", 10).map((h) => h.path)).toEqual(["alpha.md"]);
   });
 
@@ -176,28 +183,31 @@ describe("the better-sqlite3 knowledge store", () => {
     expect(() => {
       store.transaction(() => {
         const extra = docRow("gamma.md", "# Gamma\n");
-        store.upsertDoc(extra.row, extra.body);
+        store.upsertDoc(extra.row, extra.search);
         throw new Error("boom");
       });
     }).toThrow("boom");
-    expect(store.loadAll().docs.map((d) => d.path)).toEqual(["alpha.md", "beta.md"]);
+    expect(drain(store).docs.map((d) => d.path)).toEqual(["alpha.md", "beta.md"]);
   });
 
-  it("wipes and rebuilds when the vault root changed", () => {
+  it("wipes and rebuilds when the vault root changed, and says why", () => {
     const dbPath = makeDbPath();
     const first = openStore(dbPath, "/vault-a");
+    expect(first.opened).toEqual({ kind: "created" });
     seed(first);
     first.dispose();
 
+    expect(openStore(dbPath, "/vault-a").opened).toEqual({ kind: "reused" });
     const second = openStore(dbPath, "/vault-b");
-    expect(second.loadAll().docs).toEqual([]);
+    expect(second.opened).toEqual({ kind: "discarded", reason: "vault root mismatch" });
+    expect(drain(second).docs).toEqual([]);
   });
 
   it("opens over a corrupt file as an empty store instead of failing boot", () => {
     const dbPath = makeDbPath();
     writeFileSync(dbPath, "not a sqlite file at all");
     const store = openStore(dbPath);
-    expect(store.loadAll()).toEqual({ docs: [], others: [] });
+    expect(drain(store)).toEqual({ docs: [], others: [] });
     seed(store);
     expect(store.search("zebras", 10).map((h) => h.path)).toEqual(["alpha.md"]);
   });
@@ -208,11 +218,11 @@ describe("the better-sqlite3 knowledge store", () => {
     seed(store);
 
     store.nuke();
-    expect(store.loadAll()).toEqual({ docs: [], others: [] });
+    expect(drain(store)).toEqual({ docs: [], others: [] });
     expect(existsSync(dbPath)).toBe(true);
 
     const gamma = docRow("gamma.md", "# Gamma\n\nquokka\n");
-    store.upsertDoc(gamma.row, gamma.body);
+    store.upsertDoc(gamma.row, gamma.search);
     expect(store.search("quokka", 10).map((h) => h.path)).toEqual(["gamma.md"]);
   });
 });

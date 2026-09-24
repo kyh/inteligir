@@ -30,7 +30,7 @@ describe("the scripted driver over real HTTP", () => {
         const resolved = resolveAgentDriver({
           config: {
             agent: "scripted",
-            agentModel: null,
+            agentModels: { claude: null, codex: null },
             vaultDir,
           },
           db,
@@ -39,7 +39,7 @@ describe("the scripted driver over real HTTP", () => {
           sessionFacts: () => fakeSessionFacts(),
           vault,
         });
-        expect(resolved.status).toEqual({ detail: null, mode: "scripted", runtime: "scripted" });
+        expect(resolved.status()).toEqual({ detail: null, mode: "scripted", runtime: "scripted" });
         return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
       },
     });

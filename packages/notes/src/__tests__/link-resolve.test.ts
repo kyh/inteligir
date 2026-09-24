@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildResolver } from "../knowledge/link-resolve";
+import { isDocPath } from "../knowledge/doc-file";
+import { buildResolver, wikiTargetForPath } from "../knowledge/link-resolve";
+import { checkNoteName } from "../knowledge/note-name";
+import { parseWikiBody, serializeWikiBody } from "../markdown/remark-wiki-link";
 
 describe("resolveWiki — precedence", () => {
   it("exact path beats basename", () => {
@@ -204,5 +207,77 @@ describe("resolveMd", () => {
   it("returns null for escapes and misses", () => {
     expect(r.resolveMd("../../etc/passwd", "a/b.md")).toBeNull();
     expect(r.resolveMd("nope.md", "a/b.md")).toBeNull();
+  });
+});
+
+describe("wikiTargetForPath", () => {
+  const r = buildResolver([
+    "wiki/target note.md",
+    "wiki/hub.md",
+    "notes/hub.md",
+    "diagram.png",
+    "notes/todo.txt",
+    "README",
+    "README.md",
+  ]);
+  const target = (path: string): string => wikiTargetForPath(path, r.resolveWiki);
+
+  it("uses the bare name when it resolves back to the path", () => {
+    expect(target("wiki/target note.md")).toBe("target note");
+    expect(target("diagram.png")).toBe("diagram.png");
+    expect(target("notes/todo.txt")).toBe("todo.txt");
+  });
+
+  it("qualifies a name another path wins", () => {
+    expect(target("wiki/hub.md")).toBe("hub");
+    expect(target("notes/hub.md")).toBe("notes/hub");
+  });
+
+  it("keeps the extension when an extensionless file shadows the path", () => {
+    expect(target("README")).toBe("README");
+    expect(target("README.md")).toBe("README.md");
+  });
+
+  it("qualifies a path the resolver does not know yet", () => {
+    expect(target("new/Plan.md")).toBe("new/Plan");
+  });
+});
+
+// every legal note name, at any depth, beside the names that could capture its link: the
+// target the writers compute, written by the one writer and read by the parser, lands back
+describe("a written wiki link resolves back to its note", () => {
+  const names = [
+    "Plan",
+    "plan",
+    "Issue#42",
+    "#hash",
+    "C# Notes",
+    "Node.js",
+    "Release 1.2",
+    "100% done",
+    "café",
+    "日本語",
+    "x.md",
+    "tail#",
+  ];
+  const dirs = ["", "zz", "a/b", "Issue#1", "C# dir"];
+  const extensions = [".md", ".MD", ".txt", ".markdown", ".mdx"];
+
+  it("for every doc in a vault of colliding names", () => {
+    for (const name of names) {
+      expect(checkNoteName(name).ok, name).toBe(true);
+    }
+    const paths = dirs.flatMap((dir) =>
+      names.flatMap((name) =>
+        extensions.map((ext) => (dir === "" ? `${name}${ext}` : `${dir}/${name}${ext}`)),
+      ),
+    );
+    const resolver = buildResolver([...paths, "Plan", "zz/Node.js"]);
+    for (const path of paths) {
+      expect(isDocPath(path), path).toBe(true);
+      const body = serializeWikiBody({ target: wikiTargetForPath(path, resolver.resolveWiki) });
+      expect(body, path).not.toBeNull();
+      expect(resolver.resolveWiki(parseWikiBody(body ?? "").target), path).toBe(path);
+    }
   });
 });

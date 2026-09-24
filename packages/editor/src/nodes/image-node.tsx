@@ -1,5 +1,7 @@
-// A vault-relative src is fetched through the host's asset route into an object URL; the media
-// type rides the Blob, so this file owns no extension table that could drift from the routes'.
+// A vault src is fetched through the host's asset route into an object URL; the media type rides
+// the Blob, so this file owns no extension table that could drift from the routes'. The src is
+// resolved as the knowledge index resolves it, so a moved note's re-based url still loads and an
+// image Problems calls missing is the one drawn missing.
 
 import { useEffect, useState } from "react";
 import { NodeApi } from "platejs";
@@ -10,14 +12,17 @@ import { ImageOff } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
+import { useVaultLinkTarget } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
+import { isHttpUrl } from "@repo/editor/lib/wire";
+import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
-
-const EXTERNAL_RE = /^https?:\/\//iu;
+import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";
 
 type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
-const useVaultAsset = (path: string, external: boolean): VaultState => {
+// null: a src no vault path answers, which is drawn missing
+const useVaultAsset = (path: string | null): VaultState => {
   const [fetched, setFetched] = useState<VaultState>({ kind: "loading" });
   // re-key during the render that changes the path so no frame shows the previous file's object URL.
   const [fetchedPath, setFetchedPath] = useState(path);
@@ -27,7 +32,7 @@ const useVaultAsset = (path: string, external: boolean): VaultState => {
   }
 
   useEffect(() => {
-    if (external) {
+    if (path === null) {
       return;
     }
     const io = getEditorHostIo();
@@ -57,9 +62,9 @@ const useVaultAsset = (path: string, external: boolean): VaultState => {
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [path, external]);
+  }, [path]);
 
-  return external ? { kind: "ready", url: path } : fetched;
+  return path === null ? { kind: "error" } : fetched;
 };
 
 // alt text lives in the img node's `caption` children (Plate's markdown img rule).
@@ -101,7 +106,7 @@ const ImageBody = ({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground",
+        "flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-subtitle text-muted-foreground",
         selected && "ring-2 ring-ring ring-offset-2",
       )}
     >
@@ -111,18 +116,42 @@ const ImageBody = ({
   );
 };
 
-export const ImageElement = (props: PlateElementProps) => {
-  const selected = useSelected();
-  const url = stringProp(props.element, "url") ?? "";
-  const external = EXTERNAL_RE.test(url);
-  const state = useVaultAsset(url, external);
-  const alt = altText(props.element);
+// `notePath` is the note the url is written in, which for an embedded note is not the open one.
+export const ImageFigure = ({
+  element,
+  notePath,
+  selected,
+}: {
+  element: TElement;
+  notePath: string | null;
+  selected: boolean;
+}) => {
+  const url = stringProp(element, "url") ?? "";
+  const external = isHttpUrl(url);
+  const linked = useVaultLinkTarget(url, notePath);
+  // a miss falls back to the url as a root path: a just-pasted asset is on disk before the
+  // listing that would resolve it
+  const vaultState = useVaultAsset(
+    external || linked === null ? null : (linked.path ?? linked.target),
+  );
 
   return (
+    <figure className="group/image relative m-0 w-full" contentEditable={false}>
+      {external ? (
+        <RemoteContentCard kind="image" selected={selected} url={url} />
+      ) : (
+        <ImageBody alt={altText(element)} selected={selected} state={vaultState} url={url} />
+      )}
+    </figure>
+  );
+};
+
+export const ImageElement = (props: PlateElementProps) => {
+  const selected = useSelected();
+  const notePath = useOpenNotePath();
+  return (
     <PlateElement {...props} className="py-2.5">
-      <figure className="group/image relative m-0 w-full" contentEditable={false}>
-        <ImageBody alt={alt} selected={selected} state={state} url={url} />
-      </figure>
+      <ImageFigure element={props.element} notePath={notePath} selected={selected} />
       {props.children}
     </PlateElement>
   );

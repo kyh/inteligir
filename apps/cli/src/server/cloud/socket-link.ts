@@ -1,11 +1,8 @@
 import type { CloudSocket, CloudSocketOpener, OpenCloudSocketArgs } from "@repo/api/cloud/client";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 60_000;
-
-// rfc 6455 policy violation, what the cloud closes a revoked device's socket
-// with. a hint, not the verdict — the next http call establishes it.
-const SEVERED_CLOSE_CODE = 1008;
 
 export interface SocketLinkArgs {
   baseUrl: string;
@@ -16,6 +13,8 @@ export interface SocketLinkArgs {
   credential: () => string | null;
   onPing: OpenCloudSocketArgs["onPing"];
   onSevered: () => void;
+  /** a socket this link dialled opened, or one that had opened dropped; close() reports neither. */
+  onConnectionChanged: (connected: boolean) => void;
 }
 
 export interface SocketLink {
@@ -65,8 +64,12 @@ export const createSocketLink = (args: SocketLinkArgs): SocketLink => {
         }
         socketGeneration += 1;
         socket = null;
+        const wasConnected = connected;
         connected = false;
-        if (code === SEVERED_CLOSE_CODE) {
+        if (wasConnected) {
+          args.onConnectionChanged(false);
+        }
+        if (code === SYNC_WS_REVOKED_CLOSE_CODE) {
           args.onSevered();
         }
         scheduleReconnect();
@@ -77,6 +80,7 @@ export const createSocketLink = (args: SocketLinkArgs): SocketLink => {
         }
         connected = true;
         reconnectAttempt = 0;
+        args.onConnectionChanged(true);
       },
       onPing: args.onPing,
       platform: args.platform,

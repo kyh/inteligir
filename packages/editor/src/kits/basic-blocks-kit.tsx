@@ -22,7 +22,9 @@ import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/rea
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { BlockquoteElement, alertMarkerPrefix } from "@repo/editor/nodes/blockquote-node";
+import { WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
+import { alertMarkerPrefix } from "@repo/editor/markdown/alert-marker";
+import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";
@@ -42,7 +44,7 @@ const hostsBlockContent = (element: TElement): boolean => {
     return true;
   }
   return element.children.some(
-    (child) => ElementApi.isElement(child) && child.type === "wikiEmbed",
+    (child) => ElementApi.isElement(child) && child.type === WIKI_EMBED_KEY,
   );
 };
 

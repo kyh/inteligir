@@ -7,47 +7,65 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@repo/ui/components/dropdown-menu";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@repo/ui/components/sidebar";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@repo/ui/components/sidebar-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { orpc, refusalMessage } from "../api";
-import { relativeTimeLabel } from "../relative-time";
-import { useWorkspace } from "../workspace-context";
+import { client, failed, orpc, refusalMessage } from "../api";
+import { relativeTimeLabel, useNow } from "../relative-time";
+import { RailReadFailed } from "./rail-read-failed";
 
 // The rail's third view: what the vault's history holds and the tree no longer does, one row per
 // deleted note, newest first. A click restores it where it was and opens it; the right-click
 // names the verb. Mounted only while the view shows, so the log is read only then.
 export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => void }) => {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const deletedQuery = useQuery(orpc.vault.deleted.queryOptions());
+  const now = useNow();
   const [menu, setMenu] = useState<{ entry: VaultDeletedEntry; anchor: HTMLElement } | null>(null);
 
   // The same composition as a history restore, with no bytes on disk to base it on:
   // create-exclusively, so a note re-created there since is refused rather than replaced.
   const restore = useMutation({
     mutationFn: async (entry: VaultDeletedEntry) => {
-      const { content } = await api.vault.revision({ path: entry.path, sha: entry.sha });
-      const restored = await api.vault.write({ content, ifAbsent: true, path: entry.path });
-      await restoreCommentStore(api, content, entry.sha);
-      return restored;
+      const { content } = await client.vault.revision({ path: entry.path, sha: entry.sha });
+      const { path } = await client.vault.write({
+        content,
+        guard: { kind: "absent" },
+        path: entry.path,
+      });
+      const comments = await restoreCommentStore(client, content, entry.sha);
+      return { comments, path };
     },
     onError: (error, entry) => {
-      toast.error(refusalMessage(error, `Could not restore ${entry.path}.`));
+      failed(error, `Could not restore ${entry.path}.`);
     },
-    onSuccess: (restored) => {
+    // the note is back whatever became of its comments, so it opens either way.
+    onSuccess: ({ comments, path }) => {
+      if (comments.kind === "failed") {
+        toast.warning(
+          `Restored ${path}, but not its comments: ${refusalMessage(comments.error, "the comment store was refused")}`,
+        );
+      }
       void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
-      onOpenNote(restored.path);
+      onOpenNote(path);
     },
   });
 
   const entries = deletedQuery.data?.entries ?? [];
-  // Not Date.now(): a clock read in render is impure, and the query refetches on every mount.
-  const now = deletedQuery.dataUpdatedAt;
 
   if (deletedQuery.isPending) {
     return <p className="px-2 py-2 text-body text-muted-foreground">Loading…</p>;
+  }
+  if (deletedQuery.isLoadingError) {
+    return (
+      <RailReadFailed
+        sentence="Could not read the vault's history."
+        onRetry={() => {
+          void deletedQuery.refetch();
+        }}
+      />
+    );
   }
   if (entries.length === 0) {
     return <p className="px-2 py-2 text-body text-muted-foreground">Nothing has been deleted.</p>;

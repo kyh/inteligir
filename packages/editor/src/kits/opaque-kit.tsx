@@ -5,15 +5,16 @@ import { createSlatePlugin } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
+import { OPAQUE_BLOCK_KEY, OPAQUE_INLINE_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 
 const opaqueBlockBasePlugin = createSlatePlugin({
-  key: "opaqueBlock",
+  key: OPAQUE_BLOCK_KEY,
   node: { isElement: true, isVoid: true },
 });
 
 const opaqueInlineBasePlugin = createSlatePlugin({
-  key: "opaqueInline",
+  key: OPAQUE_INLINE_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
@@ -24,7 +25,7 @@ const OpaqueBlockElement = (props: PlateElementProps) => (
     <pre
       contentEditable={false}
       title="Not editable here — preserved byte-for-byte"
-      className="overflow-x-auto rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 font-mono text-muted-foreground text-sm whitespace-pre select-none"
+      className="overflow-x-auto rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 font-mono text-muted-foreground whitespace-pre select-none"
     >
       {stringProp(props.element, "value") ?? ""}
     </pre>

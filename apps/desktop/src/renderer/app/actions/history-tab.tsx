@@ -12,13 +12,12 @@ import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { isDefinedError, orpc, refusalMessage, safe } from "../api";
-import { relativeTimeLabel } from "../relative-time";
-import { useWorkspace } from "../workspace-context";
+import { client, failed, isDefinedError, orpc, refusalMessage, safe } from "../api";
+import { relativeTimeLabel, useNow } from "../relative-time";
 import { diffRows } from "./history-diff";
 import type { DiffRow } from "./history-diff";
 import { ReadRefusal } from "./read-refusal";
@@ -60,9 +59,9 @@ const RevisionRow = ({
 );
 
 const DIFF_LINE = {
-  added: { className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", mark: "+" },
+  added: { className: "bg-success/10 text-success", mark: "+" },
   context: { className: "text-muted-foreground", mark: " " },
-  removed: { className: "bg-red-500/10 text-red-700 dark:text-red-300", mark: "-" },
+  removed: { className: "bg-destructive/10 text-destructive", mark: "-" },
 } satisfies Record<"context" | "removed" | "added", { mark: string; className: string }>;
 
 const revisionBody = (unread: boolean, refused: boolean): string => {
@@ -80,6 +79,13 @@ const DiffRowView = ({ row }: { row: DiffRow }) => {
     return (
       <div className="py-1 text-center text-muted-foreground">
         ⋯ {row.lines} more changed lines not shown
+      </div>
+    );
+  }
+  if (row.kind === "unaligned") {
+    return (
+      <div className="py-1 text-center text-muted-foreground">
+        Too many changes to pair line by line: the note&apos;s lines, then the revision&apos;s
       </div>
     );
   }
@@ -103,11 +109,12 @@ const RevisionDetail = ({
   revision: VaultRevision;
   onBack: () => void;
 }) => {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
-  const revisionQuery = useQuery(
-    orpc.vault.revision.queryOptions({ input: { path: revision.path, sha: revision.sha } }),
-  );
+  // no retries: a revision git cannot show is as missing on the third ask as on the first.
+  const revisionQuery = useQuery({
+    ...orpc.vault.revision.queryOptions({ input: { path: revision.path, sha: revision.sha } }),
+    retry: false,
+  });
   const content = revisionQuery.data?.content ?? null;
   const rows = useMemo(
     () => (content === null ? null : diffRows(current, content)),
@@ -123,12 +130,13 @@ const RevisionDetail = ({
           message: "The note could not be saved, so nothing was restored.",
         };
       }
-      // the auto-commit is session-shaped, so bytes saved seconds ago are in no revision yet.
-      await api.vault.commitNow();
+      // the auto-commit is session-shaped, so bytes saved seconds ago are in no revision yet. the
+      // note alone: a whole-tree checkpoint would sweep a running turn's writes into an auto-commit.
+      await client.vault.commitNow({ paths: [docPath] });
       const { error } = await safe(
-        api.vault.write({
+        client.vault.write({
           content: bytes,
-          expectedHash: await contentHashHex(current),
+          guard: { hash: await contentHashHex(current), kind: "expected" },
           path: docPath,
         }),
       );
@@ -144,7 +152,7 @@ const RevisionDetail = ({
       return { kind: "refused", message: refusalMessage(error, RESTORE_REFUSED) };
     },
     onError: (cause: unknown) => {
-      toast.error(refusalMessage(cause, RESTORE_REFUSED));
+      failed(cause, RESTORE_REFUSED);
     },
     onSuccess: (outcome) => {
       if (outcome.kind === "refused") {
@@ -219,13 +227,18 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
     state.editor.path === docPath ? state.editor.content : null,
   );
   // `staleTime` is Infinity app-wide and a commit announces nothing, so this query re-asks per open.
-  // no retries: an off-lock `git log` refusal is deterministic.
+  // no retries: an off-lock `git log` refusal is deterministic. A larger page keeps the rows it
+  // grows from on screen, so Show older neither blanks the list nor loses the scroll.
   const historyQuery = useQuery({
-    ...orpc.vault.history.queryOptions({ input: { limit, path: docPath ?? "" } }),
-    enabled: docPath !== null,
+    ...orpc.vault.history.queryOptions({
+      input: docPath === null ? skipToken : { limit, path: docPath },
+    }),
+    placeholderData: (previous) => previous,
     retry: false,
     staleTime: 0,
   });
+  // not the query's `dataUpdatedAt`, which is 0 while the larger page is still a placeholder
+  const asOfMs = useNow();
 
   if (docPath === null) {
     return (
@@ -250,7 +263,6 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
   }
 
   const revisions = historyQuery.data?.revisions ?? [];
-  const asOfMs = historyQuery.dataUpdatedAt;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
       {revisions.map((revision) => (

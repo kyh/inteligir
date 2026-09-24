@@ -20,8 +20,16 @@ import type {
 } from "./captures/captures-schema";
 import { cloudErrorSchema } from "./cloud-errors";
 import type { CloudErrorCode } from "./cloud-errors";
-import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "./device/device-schema";
-import type { DeviceLoginRequest, DeviceLoginResponse } from "./device/device-schema";
+import {
+  DEVICE_API_PATHS,
+  deviceLoginResponseSchema,
+  revokeDeviceResponseSchema,
+} from "./device/device-schema";
+import type {
+  DeviceLoginRequest,
+  DeviceLoginResponse,
+  RevokeDeviceResponse,
+} from "./device/device-schema";
 import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
 import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
 import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
@@ -69,12 +77,20 @@ const unreachable = (cause: unknown): CloudFailure => ({
   message: cause instanceof Error ? cause.message : String(cause),
 });
 
+const isTransientStatus = (status: number): boolean =>
+  status >= 500 || status === 408 || status === 429;
+
 const readFailure = async (response: Response): Promise<CloudFailure> => {
   const body: unknown = await response.json().catch(() => {
     /* empty */
   });
   const parsed = cloudErrorSchema.safeParse(body);
   if (!parsed.success) {
+    // every refusal the worker means rides the envelope, so a bare 5xx, 408 or 429 is a fault or
+    // an edge in front of it: retryable, and no verdict on the credential
+    if (isTransientStatus(response.status)) {
+      return { kind: "unreachable", message: `HTTP ${response.status} with no error body` };
+    }
     return {
       kind: "malformed",
       message: `The cloud answered HTTP ${response.status} with a body this build cannot read.`,
@@ -88,6 +104,10 @@ const readFailure = async (response: Response): Promise<CloudFailure> => {
   };
 };
 
+// response schemas strip what they do not declare, so a newer worker may add a field and this
+// build reads on. a field that changes what a row MEANS is another matter: stripped, the row
+// reads as something else, so it reaches only a client whose request asks for it. 0.4.0 and
+// older refuse any added field, which is why what they must read rides a new route.
 const readValue = async <TSchema extends z.ZodType>(
   response: Response,
   schema: TSchema,
@@ -109,6 +129,21 @@ const readValue = async <TSchema extends z.ZodType>(
     };
   }
   return { ok: true, value: parsed.data };
+};
+
+// every HTTP call on the wire is read through this, the site's cookie-authed pages included, so a
+// fetch that throws is `unreachable` and never an exception one caller forgot to catch
+export const readCloudCall = async <TSchema extends z.ZodType>(
+  send: () => Promise<Response>,
+  schema: TSchema,
+): Promise<CloudResult<z.infer<TSchema>>> => {
+  let response: Response;
+  try {
+    response = await send();
+  } catch (error) {
+    return { failure: unreachable(error), ok: false };
+  }
+  return await readValue(response, schema);
 };
 
 // every call runs inside the single-flight pass, so a black-holed request stalls the whole
@@ -158,18 +193,16 @@ export const postDeviceLogin = async (
   request: DeviceLoginRequest,
 ): Promise<CloudResult<DeviceLoginResponse>> => {
   const call = endpoint.fetch ?? fetch;
-  let response: Response;
-  try {
-    response = await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.login), {
-      body: JSON.stringify(request),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-      signal: callSignal(endpoint.signal),
-    });
-  } catch (error) {
-    return { failure: unreachable(error), ok: false };
-  }
-  return await readValue(response, deviceLoginResponseSchema);
+  return await readCloudCall(
+    async () =>
+      await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.login), {
+        body: JSON.stringify(request),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+        signal: callSignal(endpoint.signal),
+      }),
+    deviceLoginResponseSchema,
+  );
 };
 
 export interface CloudClient {
@@ -179,6 +212,9 @@ export interface CloudClient {
   claimCaptures: (limit: number) => Promise<CloudResult<ClaimCapturesResponse>>;
   ackCaptures: (request: AckCapturesRequest) => Promise<CloudResult<AckCapturesResponse>>;
   account: () => Promise<CloudResult<AccountResponse>>;
+  // revokes the device the credential names: forgetting a credential leaves its row holding one
+  // of the account's device slots
+  signOut: () => Promise<CloudResult<RevokeDeviceResponse>>;
   vaultTree: (query: VaultTreeQuery) => Promise<CloudResult<VaultTreeResponse>>;
   vaultFile: (query: VaultFileQuery) => Promise<CloudResult<VaultFileResponse>>;
   // synchronous: the answer is bytes an <img> fetches itself; here so the bearer has one spelling
@@ -214,13 +250,10 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
             method: "POST",
             signal,
           };
-    let response: Response;
-    try {
-      response = await call(endpointUrl(args.baseUrl, path), init);
-    } catch (error) {
-      return { failure: unreachable(error), ok: false };
-    }
-    return await readValue(response, schema);
+    return await readCloudCall(
+      async () => await call(endpointUrl(args.baseUrl, path), init),
+      schema,
+    );
   };
 
   return {
@@ -238,6 +271,8 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
         pullResponseSchema,
       ),
     push: async (request) => await send(SYNC_API_PATHS.push, request, pushResponseSchema),
+    // the credential names the device, so the body carries nothing
+    signOut: async () => await send(DEVICE_API_PATHS.signOut, {}, revokeDeviceResponseSchema),
     vaultAssetSource: (query) => ({
       headers: { authorization },
       uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),
@@ -269,7 +304,8 @@ export interface OpenCloudSocketArgs {
   platform: DevicePlatform;
   onOpen: () => void;
   onPing: (ping: SyncPing) => void;
-  // called once even if the socket never opened; 1008 is a revoked device, never reconnect through it
+  // called once even if the socket never opened. SYNC_WS_REVOKED_CLOSE_CODE is a hint that runs
+  // an http pass; the pass's terminal refusal is what halts the transport.
   onClose: (code: number) => void;
 }
 

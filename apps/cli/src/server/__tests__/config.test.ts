@@ -147,7 +147,21 @@ describe("port layering: env → managed file → default", () => {
         env: { INTELIGIR_DATA_DIR: dataDir },
         homeDir,
       }),
-    ).toThrow(/config\.json/u);
+    ).toThrow(`${path.join(dataDir, "config.json")} is not valid JSON`);
+  });
+
+  it("names the file and the offending key when the managed file has the wrong shape", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
+    writeFileSync(path.join(dataDir, "config.json"), JSON.stringify({ port: "4555" }));
+    const boot = () =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_DATA_DIR: dataDir },
+        homeDir,
+      });
+    expect(boot).toThrow(`${path.join(dataDir, "config.json")} does not match`);
+    expect(boot).toThrow(/at port/u);
   });
 
   it("refuses a malformed INTELIGIR_PORT", () => {
@@ -277,15 +291,15 @@ describe("the agent selection", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const defaulted = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
     expect(defaulted.agent).toBe("auto");
-    expect(defaulted.agentModel).toBeNull();
+    expect(defaulted.agentModels).toEqual({ claude: null, codex: null });
 
     const withEnv = resolveAppConfig({
       checkoutPath: "/checkout/a",
-      env: { INTELIGIR_AGENT: "scripted", INTELIGIR_AGENT_MODEL: "gpt-5.3-codex" },
+      env: { INTELIGIR_AGENT: "scripted", INTELIGIR_CODEX_MODEL: "gpt-5.3-codex" },
       homeDir,
     });
     expect(withEnv.agent).toBe("scripted");
-    expect(withEnv.agentModel).toBe("gpt-5.3-codex");
+    expect(withEnv.agentModels).toEqual({ claude: null, codex: "gpt-5.3-codex" });
 
     expect(() =>
       resolveAppConfig({
@@ -296,12 +310,12 @@ describe("the agent selection", () => {
     ).toThrow(/INTELIGIR_AGENT/u);
   });
 
-  it("reads agent and agentModel from the managed file, env winning", () => {
+  it("reads agent and each harness's model from the managed file, env winning", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const dataDir = makeTempDir("inteligir-config-test-");
     writeFileSync(
       path.join(dataDir, "config.json"),
-      JSON.stringify({ agent: "off", agentModel: "m1" }),
+      JSON.stringify({ agent: "off", agentModels: { claude: "m1", codex: "m2" } }),
     );
     const managed = resolveAppConfig({
       checkoutPath: "/checkout/a",
@@ -309,14 +323,18 @@ describe("the agent selection", () => {
       homeDir,
     });
     expect(managed.agent).toBe("off");
-    expect(managed.agentModel).toBe("m1");
+    expect(managed.agentModels).toEqual({ claude: "m1", codex: "m2" });
 
     const layered = resolveAppConfig({
       checkoutPath: "/checkout/a",
-      env: { INTELIGIR_AGENT: "scripted", INTELIGIR_DATA_DIR: dataDir },
+      env: {
+        INTELIGIR_AGENT: "scripted",
+        INTELIGIR_CLAUDE_MODEL: "m3",
+        INTELIGIR_DATA_DIR: dataDir,
+      },
       homeDir,
     });
     expect(layered.agent).toBe("scripted");
-    expect(layered.agentModel).toBe("m1");
+    expect(layered.agentModels).toEqual({ claude: "m3", codex: "m2" });
   });
 });

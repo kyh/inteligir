@@ -56,7 +56,34 @@ describe("VaultEditorController", () => {
     expect(c.getState()).toMatchObject({
       content: "one typed\ntwo\nthree\nexternal\n",
       dirty: false,
-      saving: false,
+      saveError: null,
+    });
+  });
+
+  it("moves diskSeq only when bytes from the IO replace what the buffer holds", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\n");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    expect(c.getState().diskSeq).toBe(1);
+
+    c.edit("one typed\n");
+    await c.flush();
+    c.externalChange();
+    await tick();
+    expect(c.getState()).toMatchObject({ content: "one typed\n", diskSeq: 1 });
+
+    io.files.set("a.md", "one typed\nexternal\n");
+    c.externalChange();
+    await tick();
+    expect(c.getState()).toMatchObject({ content: "one typed\nexternal\n", diskSeq: 2 });
+
+    io.landAs = (sent) => `${sent}merged\n`;
+    c.edit("one typed\nexternal\nmore\n");
+    await c.flush();
+    expect(c.getState()).toMatchObject({
+      content: "one typed\nexternal\nmore\nmerged\n",
+      diskSeq: 3,
     });
   });
 
@@ -121,10 +148,9 @@ describe("VaultEditorController", () => {
         held = null;
       }
     });
-    c.setRoot("/vault");
     await c.open("a.md");
     io.files.set("a.md", "one\ntwo\nthree\nexternal\n");
-    c.externalChange("/vault");
+    c.externalChange();
     await tick();
     expect(c.getState()).toMatchObject({ content: "one typed\ntwo\nthree\n", dirty: true });
   });
@@ -144,10 +170,9 @@ describe("VaultEditorController", () => {
           held = null;
         }
       });
-      c.setRoot("/vault");
       await c.open("a.md");
       io.manualRead = true;
-      c.externalChange("/vault");
+      c.externalChange();
       if (viaSurface) {
         held = "one typed\ntwo\nthree\n";
       } else {
@@ -161,6 +186,51 @@ describe("VaultEditorController", () => {
       });
     },
   );
+
+  it("shows an external write whose echo arrived mid-write once the write settles", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\n");
+    io.manualWrite = true;
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    c.edit("one typed\ntwo\n");
+    const flushed = c.flush();
+    await tick();
+    io.files.set("a.md", "one typed\ntwo\nexternal\n");
+    c.externalChange();
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    await tick();
+    expect(c.getState()).toMatchObject({
+      content: "one typed\ntwo\nexternal\n",
+      dirty: false,
+    });
+    expect(io.writes).toBe(1);
+  });
+
+  it("reads again once a write that overtook a reload's read settles", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\n");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    io.manualRead = true;
+    io.manualWrite = true;
+    c.externalChange();
+    c.edit("one typed\ntwo\n");
+    const flushed = c.flush();
+    await tick();
+    io.pendingReads[0]?.resolve("one\ntwo\n");
+    await tick();
+    io.files.set("a.md", "one typed\ntwo\nexternal\n");
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    io.pendingReads[1]?.resolve("one typed\ntwo\nexternal\n");
+    await tick();
+    expect(c.getState()).toMatchObject({
+      content: "one typed\ntwo\nexternal\n",
+      dirty: false,
+    });
+  });
 
   it("a slow open does not apply after a newer open", async () => {
     const io = new FakeVault();
@@ -186,8 +256,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("typed");
     io.files.set("a.md", "external");
-    // same (empty) root → not a switch
-    c.externalChange("");
+    c.externalChange();
     await tick();
     expect(c.getState().content).toBe("typed");
     expect(c.getState().dirty).toBe(true);
@@ -197,38 +266,11 @@ describe("VaultEditorController", () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");
     const c = new VaultEditorController(io);
-    c.setRoot("/vault");
     await c.open("a.md");
     io.files.set("a.md", "v1-external");
-    c.externalChange("/vault");
+    c.externalChange();
     await tick();
     expect(c.getState().content).toBe("v1-external");
-  });
-
-  it("treats a different non-empty root as a switch and drops the open file", async () => {
-    const io = new FakeVault();
-    io.files.set("a.md", "A");
-    const c = new VaultEditorController(io);
-    c.setRoot("/vault-1");
-    await c.open("a.md");
-    c.externalChange("/vault-2");
-    expect(c.getState()).toMatchObject({ content: "", path: null, root: "/vault-2" });
-  });
-
-  it("does not treat the first event (empty root) as a switch", async () => {
-    const io = new FakeVault();
-    io.files.set("a.md", "A");
-    const c = new VaultEditorController(io);
-    await c.open("a.md");
-    c.edit("unsaved");
-    c.externalChange("/vault");
-    await tick();
-    expect(c.getState()).toMatchObject({
-      content: "unsaved",
-      dirty: true,
-      path: "a.md",
-      root: "/vault",
-    });
   });
 
   it("delete waits for an in-flight save then clears", async () => {
@@ -247,28 +289,13 @@ describe("VaultEditorController", () => {
     expect(io.files.has("a.md")).toBe(false);
   });
 
-  it("keeps the note open when the host holds the delete", async () => {
-    const io = new FakeVault();
-    io.files.set("a.md", "A");
-    io.removeOutcome = {
-      held: { deletions: 40, limit: 25, liveCount: 100, sample: ["a.md"], windowMs: 600_000 },
-      outcome: "held",
-    };
-    const c = new VaultEditorController(io);
-    await c.open("a.md");
-    const outcome = await c.remove();
-    expect(outcome).toMatchObject({ outcome: "held" });
-    expect(c.getState()).toMatchObject({ content: "A", path: "a.md" });
-    expect(io.files.has("a.md")).toBe(true);
-  });
-
   it("keeps the note open when the delete itself fails", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
     io.remove = async () => await Promise.reject(new Error("offline"));
     const c = new VaultEditorController(io);
     await c.open("a.md");
-    expect(await c.remove()).toBe(null);
+    expect(await c.remove()).toBe(false);
     expect(c.getState()).toMatchObject({ content: "A", path: "a.md" });
   });
 
@@ -285,6 +312,55 @@ describe("VaultEditorController", () => {
     expect(c.getState()).toMatchObject({ content: "v1", dirty: true, path: "a.md" });
   });
 
+  it("holds a refused write's reason until a write lands", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    const { write } = io;
+    io.write = async () => await Promise.reject(new Error("disk full"));
+    c.edit("v1");
+    await c.flush();
+    expect(c.getState()).toMatchObject({
+      dirty: true,
+      saveError: { kind: "refused", message: "disk full" },
+    });
+
+    io.write = write;
+    await c.flush();
+    expect(c.getState()).toMatchObject({ dirty: false, saveError: null });
+  });
+
+  it("names a write refused because the file is gone, and re-creates it from the buffer", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    io.files.delete("a.md");
+    c.edit("v1");
+    await c.flush();
+    expect(c.getState()).toMatchObject({ dirty: true, saveError: { kind: "vanished" } });
+
+    expect(await c.recreate()).toBe(true);
+    expect(io.files.get("a.md")).toBe("v1");
+    expect(c.getState()).toMatchObject({ content: "v1", dirty: false, saveError: null });
+  });
+
+  it("refuses to re-create over a file that landed at the path since", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    io.files.delete("a.md");
+    c.edit("v1");
+    await c.flush();
+    io.files.set("a.md", "someone else's");
+
+    expect(await c.recreate()).toBe(false);
+    expect(io.files.get("a.md")).toBe("someone else's");
+    expect(c.getState()).toMatchObject({ dirty: true, saveError: { kind: "vanished" } });
+  });
+
   it("a failed open clears instead of reviving a deleted path", async () => {
     const io = new FakeVault();
     const c = new VaultEditorController(io);
@@ -297,11 +373,63 @@ describe("VaultEditorController", () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
     const c = new VaultEditorController(io);
-    c.setRoot("/vault");
     await c.open("a.md");
     io.files.delete("a.md");
-    c.externalChange("/vault");
+    c.externalChange();
     await tick();
     expect(c.getState().path).toBe(null);
+  });
+});
+
+const countingConflicts = (io: FakeVault) => {
+  const conflicts = { count: 0 };
+  const c = new VaultEditorController(io, undefined, () => {
+    conflicts.count += 1;
+  });
+  return { c, conflicts };
+};
+
+describe("a merge that kept the buffer's lines over a concurrent change", () => {
+  it("is told when the host's merge overlapped", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\n");
+    io.landAs = (sent) => `${sent}external\n`;
+    io.landsConflicted = true;
+    const { c, conflicts } = countingConflicts(io);
+    await c.open("a.md");
+    c.edit("one typed\n");
+    await c.flush();
+    expect(conflicts.count).toBe(1);
+  });
+
+  it("is told when an edit typed during a reload's read overlaps the bytes read", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\n");
+    const { c, conflicts } = countingConflicts(io);
+    await c.open("a.md");
+    io.manualRead = true;
+    c.externalChange();
+    c.edit("one mine\ntwo\n");
+    io.pendingReads[0]?.resolve("one theirs\ntwo\n");
+    await tick();
+    expect(c.getState()).toMatchObject({ content: "one mine\ntwo\n", dirty: true });
+    expect(conflicts.count).toBe(1);
+  });
+
+  it("is not told when the merge kept both sides", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\nthree\n");
+    io.manualWrite = true;
+    io.landAs = (sent) => `${sent}external\n`;
+    const { c, conflicts } = countingConflicts(io);
+    await c.open("a.md");
+    c.edit("one typed\ntwo\nthree\n");
+    const flushed = c.flush();
+    await tick();
+    c.edit("one typed more\ntwo\nthree\n");
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    expect(c.getState().content).toBe("one typed more\ntwo\nthree\nexternal\n");
+    expect(conflicts.count).toBe(0);
   });
 });

@@ -3,10 +3,12 @@ import type { KeyboardEvent } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { useOpenNote, useOpenNotePath } from "@repo/editor/note/open-note-context";
+import { focusNoteBody, registerNoteBodyFocus } from "@repo/editor/note-body-focus";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -49,30 +51,57 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
       }),
     [path, titleRef],
   );
+  useEffect(
+    () =>
+      registerNoteBodyFocus(path, () => {
+        columnRef.current
+          ?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')
+          ?.focus();
+      }),
+    [path, columnRef],
+  );
 
   const ext = dot > 0 ? fileName.slice(dot) : "";
   const dir = dirnamePath(path);
 
-  const commitTitle = async (raw: string): Promise<void> => {
+  const revertTitle = () => {
+    if (titleRef.current) {
+      titleRef.current.textContent = displayName;
+    }
+  };
+
+  // the path a typed title renames the note to; null keeps it where it is.
+  const renameTarget = (raw: string): string | null => {
     const next = raw.trim();
     if (next === "" || next === displayName) {
-      if (titleRef.current) {
-        titleRef.current.textContent = displayName;
-      }
-      return;
+      return null;
     }
     // Reject, never sanitize: an unchecked `/` creates folders and Windows-illegal characters break sync.
     const verdict = checkNoteName(`${next}${ext}`);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));
-      if (titleRef.current) {
-        titleRef.current.textContent = displayName;
+      return null;
+    }
+    return joinPath(dir, verdict.name);
+  };
+
+  // `toBody` hands the caret on only once the note is where it will stay: typed into the body
+  // while a rename is in flight, a keystroke reaches an editor the session has already let go of.
+  const commitTitle = async (raw: string, toBody: boolean): Promise<void> => {
+    const dest = renameTarget(raw);
+    if (dest === null) {
+      revertTitle();
+      if (toBody) {
+        focusNoteBody(path);
       }
       return;
     }
-    const ok = await renameEntry(path, joinPath(dir, verdict.name));
-    if (!ok && titleRef.current) {
-      titleRef.current.textContent = displayName;
+    if (!(await renameEntry(path, dest))) {
+      revertTitle();
+      return;
+    }
+    if (toBody) {
+      focusNoteBody(dest);
     }
   };
 
@@ -81,6 +110,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
   // the stale path), so window blur and unmount only settle edits blur never saw.
   // A ⌘Q from the title loses the retitle: the async rename cannot finish during quit.
   const editingRef = useRef(false);
+  const toBodyRef = useRef(false);
   const commitTitleRef = useRef(commitTitle);
   useEffect(() => {
     commitTitleRef.current = commitTitle;
@@ -100,19 +130,20 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
     () => () => {
       if (editingRef.current) {
         editingRef.current = false;
-        void commitTitleRef.current(titleRef.current?.textContent ?? "");
+        void commitTitleRef.current(titleRef.current?.textContent ?? "", false);
       }
     },
     [titleRef],
   );
 
   const onTitleKeyDown = (e: KeyboardEvent<HTMLHeadingElement>) => {
+    if (isImeComposing(e)) {
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
+      toBodyRef.current = true;
       e.currentTarget.blur();
-      columnRef.current
-        ?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')
-        ?.focus();
     }
     if (e.key === "Escape") {
       e.preventDefault();
@@ -133,7 +164,9 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
         }}
         onBlur={(e) => {
           editingRef.current = false;
-          void commitTitle(e.currentTarget.textContent ?? "");
+          const toBody = toBodyRef.current;
+          toBodyRef.current = false;
+          void commitTitle(e.currentTarget.textContent ?? "", toBody);
         }}
         onKeyDown={onTitleKeyDown}
         className={cn(
@@ -180,7 +213,7 @@ export const EditorColumn = () => {
 
   if (kind === "none") {
     return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
+      <div className="flex flex-1 items-center justify-center p-8 text-center text-subtitle text-muted-foreground">
         Select a note to edit, or create one. The agent edits these same files.
       </div>
     );

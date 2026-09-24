@@ -159,6 +159,17 @@ describe("runShell", () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
+  it("answers at the second marker, though something the shell started holds its stdout", async () => {
+    const started = Date.now();
+    const stdout = await runShell(
+      "/bin/sh",
+      ["-c", `sleep 30 & echo ${PATH_MARKER}; echo /x; echo ${PATH_MARKER}`],
+      5000,
+    );
+    expect(parseMarkedPath(stdout)).toBe("/x");
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   it("stops waiting when something the shell started holds its stdout past its exit", async () => {
     await expect(runShell("/bin/sh", ["-c", "sleep 30 & echo started"], 200)).rejects.toThrow(
       "/bin/sh did not answer within 200ms",

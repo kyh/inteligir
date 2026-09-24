@@ -3,6 +3,8 @@
 // single budget lets one wedged step starve the vault flush behind it, so the
 // sequence deadline is derived from the steps, never declared.
 
+import { errnoCode } from "./errno";
+
 export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 
 // the one place a budget is written; teardownStep takes a name from here, so no step carries its own number.
@@ -17,6 +19,8 @@ export const TEARDOWN_BUDGETS_MS = {
   // a git commit over a large dirty tree; the step the ordering exists to protect.
   vault: 8000,
   db: DEFAULT_STEP_TIMEOUT_MS,
+  // the data dir stays claimed until the db behind it is closed. one unlink.
+  lock: 1000,
 } as const satisfies Record<string, number>;
 /* oxlint-enable sort-keys */
 
@@ -55,7 +59,7 @@ export interface ShutdownResult {
 }
 
 export interface GracefulShutdownArgs {
-  // read at run time, so steps registered during boot count.
+  // read before every step, so a boot still composing when the teardown began adds what it brings up.
   steps: readonly ShutdownStep[];
   onStepFailed: (name: string, cause: unknown) => void;
   onTimeout: (deadlineMs: number) => void;
@@ -96,7 +100,11 @@ export const createGracefulShutdown = (args: GracefulShutdownArgs): GracefulShut
 
   const runSteps = async (): Promise<ShutdownResult> => {
     const failed: string[] = [];
-    for (const step of args.steps) {
+    const ran = new Set<ShutdownStep>();
+    // not an iterator: a step unshifted mid-run shifts every index, so one step would run twice and the new one never.
+    const nextStep = (): ShutdownStep | undefined => args.steps.find((step) => !ran.has(step));
+    for (let step = nextStep(); step !== undefined; step = nextStep()) {
+      ran.add(step);
       try {
         await runStep(step);
       } catch (error) {
@@ -133,7 +141,8 @@ export const createGracefulShutdown = (args: GracefulShutdownArgs): GracefulShut
   };
 };
 
-export const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM"] as const;
+// SIGHUP is a closed terminal, and node's default for it exits on the spot, skipping the vault flush.
+export const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 interface SignalTarget {
   on: (signal: NodeJS.Signals, handler: () => void) => void;
@@ -151,7 +160,10 @@ export const installShutdownSignals = (args: InstallShutdownSignalsArgs): void =
   for (const signal of SHUTDOWN_SIGNALS) {
     args.target.on(signal, () => {
       if (args.shutdown.started) {
-        args.onImpatient(signal);
+        // a closed terminal delivers SIGHUP twice (the shell's killpg, then the kernel's), and with no terminal left nobody can be impatient.
+        if (signal !== "SIGHUP") {
+          args.onImpatient(signal);
+        }
         return;
       }
       void (async () => {
@@ -191,6 +203,25 @@ export const installFatalErrorHandlers = (args: InstallFatalErrorHandlersArgs): 
         await args.shutdown.run();
         args.target.exit(1);
       })();
+    });
+  }
+};
+
+// what a write answers once its terminal or its pipe is gone.
+const DEAD_STREAM_CODES: ReadonlySet<string> = new Set(["EIO", "EPIPE"]);
+
+interface ErrorEmitter {
+  on: (event: "error", listener: (error: Error) => void) => void;
+}
+
+// console swallows its own write errors, a direct write does not: after SIGHUP took the terminal,
+// a line written during the teardown would arrive as an uncaught exception and exit 1.
+export const ignoreDeadStreamErrors = (streams: readonly ErrorEmitter[]): void => {
+  for (const stream of streams) {
+    stream.on("error", (error) => {
+      if (!DEAD_STREAM_CODES.has(errnoCode(error) ?? "")) {
+        throw error;
+      }
     });
   }
 };

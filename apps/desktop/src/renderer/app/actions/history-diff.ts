@@ -2,7 +2,6 @@
 // segment of a newline-terminated file is kept, or two files with different bytes read identical.
 
 import { diffLines, splitLinesLf } from "@repo/notes/text/line-diff";
-import type { DiffHunk } from "@repo/notes/text/line-diff";
 
 export type DiffRow = { id: string } & (
   | { kind: "context"; text: string }
@@ -10,12 +9,10 @@ export type DiffRow = { id: string } & (
   | { kind: "added"; text: string }
   | { kind: "gap"; lines: number }
   | { kind: "truncated"; lines: number }
+  | { kind: "unaligned" }
 );
 
 const CONTEXT_LINES = 2;
-
-// the Myers walk clones its frontier per round; two long notes sharing nothing runs to hundreds of megabytes.
-const DIFF_LINE_BUDGET = 4000;
 
 const MAX_DIFF_ROWS = 400;
 
@@ -25,12 +22,12 @@ export const diffRows = (current: string, revision: string): DiffRow[] => {
   }
   const currentLines = splitLinesLf(current);
   const revisionLines = splitLinesLf(revision);
-  const overBudget = currentLines.length + revisionLines.length > DIFF_LINE_BUDGET;
-  const hunks: readonly DiffHunk[] = overBudget
-    ? [{ baseEnd: currentLines.length, baseStart: 0, sideEnd: revisionLines.length, sideStart: 0 }]
-    : diffLines(currentLines, revisionLines);
+  const diff = diffLines(currentLines, revisionLines);
+  const { hunks } = diff;
 
-  const rows: DiffRow[] = [];
+  // past the diff's budget the whole span is one hunk, which reads as every line rewritten.
+  const rows: DiffRow[] =
+    diff.kind === "overBudget" ? [{ id: "unaligned", kind: "unaligned" }] : [];
   const push = (
     kind: "context" | "removed" | "added",
     prefix: string,

@@ -4,16 +4,16 @@
 // LinkGraphIndex with a KnowledgeStore instead.
 
 import { LinkGraphIndex } from "./link-graph-index";
-import type { BacklinkEntry, ForwardLinkEntry, LinkGraph, WikiTarget } from "./link-graph-index";
+import type { BacklinkEntry, ForwardLinkEntry, WikiTarget } from "./link-graph-index";
 import { docStem } from "./doc-file";
 import { projectDoc } from "./projection";
-import { splitLines } from "./source-lines";
 import { relatedNotes } from "./related-notes";
 import type { RelatedNoteEntry, RelatedNotesOpts } from "./related-notes";
+import { searchFieldsOf } from "./search-columns";
 import { SearchIndex } from "./search-index";
 import { searchExcerpt } from "./search-excerpt";
-import { planSearchQuery } from "./search-query";
-import type { SearchQueryTerm } from "./search-query";
+import { planSearchQuery, SEARCH_DEFAULT_LIMIT } from "./search-query";
+import type { SearchQueryTerm, SearchResult } from "./search-query";
 import type { TagCount } from "./tag-index";
 import { notesInTagFamily } from "./tag-notes";
 import { collectVaultMatches } from "./text-matches";
@@ -21,52 +21,33 @@ import type { TextMatchOptions, VaultMatches } from "./text-matches";
 import { collectVaultProblems } from "./vault-problems";
 import type { VaultProblems, VaultProblemsOptions } from "./vault-problems";
 
-export interface SearchResult {
-  path: string;
-  title: string;
-  snippet: string;
-  score: number;
-}
-
-export const SEARCH_DEFAULT_LIMIT = 20;
-
 export class KnowledgeIndex {
   private readonly linkGraph = new LinkGraphIndex();
   private readonly searchIndex = new SearchIndex();
-  private readonly lines = new Map<string, string[]>();
   private readonly bodies = new Map<string, string>();
 
   setDoc(path: string, content: string): void {
     const projection = projectDoc(path, content);
-    this.lines.set(path, splitLines(content));
     this.bodies.set(path, content);
     this.linkGraph.applyDoc(path, projection);
-    this.searchIndex.set(path, {
-      body: content,
-      // aliases ride the headings field as a ranking boost; sql-knowledge-store's fts insert must match
-      headings: [...projection.headings, ...projection.aliases],
-      title: projection.title,
-    });
+    this.searchIndex.set(path, searchFieldsOf(projection, content));
   }
 
   setOther(path: string): void {
-    if (this.lines.delete(path)) {
+    if (this.bodies.delete(path)) {
       this.searchIndex.remove(path);
     }
-    this.bodies.delete(path);
     this.linkGraph.setOther(path);
   }
 
   remove(path: string): void {
-    if (this.lines.delete(path)) {
+    if (this.bodies.delete(path)) {
       this.searchIndex.remove(path);
     }
-    this.bodies.delete(path);
     this.linkGraph.remove(path);
   }
 
   clear(): void {
-    this.lines.clear();
     this.bodies.clear();
     this.searchIndex.clear();
     this.linkGraph.clear();
@@ -78,10 +59,6 @@ export class KnowledgeIndex {
 
   forwardLinks(path: string): ForwardLinkEntry[] {
     return this.linkGraph.forwardLinks(path);
-  }
-
-  graph(): LinkGraph {
-    return this.linkGraph.graph();
   }
 
   problems(options: VaultProblemsOptions): VaultProblems {
@@ -130,17 +107,17 @@ export class KnowledgeIndex {
   relatedNotes(path: string, opts?: RelatedNotesOpts): RelatedNoteEntry[] {
     return relatedNotes(
       this.linkGraph,
-      (query, limit) => this.searchIndex.search(query, limit),
+      (query, limit, options) => this.searchIndex.search(query, limit, options),
       path,
       opts,
     );
   }
 
   private searchSnippet(path: string, terms: readonly SearchQueryTerm[]): string {
-    const lines = this.lines.get(path);
-    if (!lines) {
+    const body = this.bodies.get(path);
+    if (body === undefined) {
       return "";
     }
-    return searchExcerpt(lines, terms) || (this.linkGraph.titleOf(path) ?? "");
+    return searchExcerpt(body, terms) || (this.linkGraph.titleOf(path) ?? "");
   }
 }

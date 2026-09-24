@@ -9,20 +9,21 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@repo/ui/components/sidebar";
+} from "@repo/ui/components/sidebar-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
-import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { isImeComposing } from "@repo/ui/lib/ime";
+import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
-import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import type { TreeSort } from "../prefs";
+import { RailReadFailed } from "./rail-read-failed";
 import { absoluteEntryPath, planMove } from "./tree-ops";
-import { withAncestorsExpanded } from "./tree-state";
-import type { TreeState } from "./tree-state";
+import type { TreeEditing, TreeState } from "./tree-state";
 
 export interface TreeOps {
   createNote: (path: string) => void;
@@ -39,11 +40,6 @@ export interface TreeOps {
 
 export type TreeLoadState = "loading" | "loaded" | "failed";
 
-export interface PendingCreate {
-  kind: "file" | "dir";
-  parentDir: string;
-}
-
 export interface FileTreeProps {
   entries: readonly VaultEntry[];
   loadState: TreeLoadState;
@@ -51,13 +47,8 @@ export interface FileTreeProps {
   openPath: string | null;
   onOpenFile: (path: string) => void;
   ops: TreeOps;
-  // the fold and focus state, owned by the rail so its header can act on it
+  // the fold, focus and edit state, owned by the rail so its header can act on it
   state: TreeState;
-  // a create the header started: the input row shows until it commits or cancels
-  pendingCreate: PendingCreate | null;
-  onPendingCreateDone: () => void;
-  // the breadcrumb's ask, already applied to the fold state: bring this entry's row into view
-  reveal: { path: string; nonce: number } | null;
   // the keyboard path to a move: the caller opens its folder picker for this entry
   onMoveRequest: (path: string) => void;
   // which notes the index holds pinned; the row menu's verb follows it
@@ -126,16 +117,12 @@ const buildTree = (entries: readonly VaultEntry[], sort: TreeSort) => {
   return roots;
 };
 
-type EditingState =
-  | { mode: "rename"; path: string }
-  | { mode: "create"; kind: "dir" | "file"; parentDir: string };
-
 type Row = { kind: "node"; node: TreeNode; depth: number } | { kind: "editor"; depth: number };
 
 const visibleRows = (
   nodes: readonly TreeNode[],
   expanded: ReadonlySet<string>,
-  editing: EditingState | null,
+  editing: TreeEditing | null,
   rootDir: string,
   depth: number,
   out: Row[],
@@ -205,6 +192,10 @@ const InlineNameInput = ({
         aria-label="Name"
         className="w-full rounded-md border border-ring bg-background px-1.5 py-0.5 text-[length:inherit] outline-none"
         onKeyDown={(event) => {
+          event.stopPropagation();
+          if (isImeComposing(event)) {
+            return;
+          }
           if (event.key === "Enter") {
             event.preventDefault();
             commit();
@@ -213,7 +204,6 @@ const InlineNameInput = ({
             cancelledRef.current = true;
             onCancel();
           }
-          event.stopPropagation();
         }}
         onBlur={commit}
       />
@@ -223,23 +213,12 @@ const InlineNameInput = ({
 
 const EmptyRows = ({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: () => void }) => {
   if (loadState === "loading") {
-    return <p className="px-1 py-2 text-body text-muted-foreground">Loading…</p>;
+    return <p className="px-2 py-2 text-body text-muted-foreground">Loading…</p>;
   }
   if (loadState === "loaded") {
-    return <p className="px-1 py-2 text-body text-muted-foreground">The vault is empty.</p>;
+    return <p className="px-2 py-2 text-body text-muted-foreground">The vault is empty.</p>;
   }
-  return (
-    <div className="px-1 py-2 text-body">
-      <p className="text-destructive">The vault could not be read.</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-1 rounded px-1 py-0.5 text-muted-foreground underline underline-offset-2 hover:text-foreground"
-      >
-        Try again
-      </button>
-    </div>
-  );
+  return <RailReadFailed sentence="The vault could not be read." onRetry={onRetry} />;
 };
 
 // a right-click on a row, or on the listing's empty area (the root's own verbs)
@@ -447,19 +426,27 @@ export const FileTree = ({
   onOpenFile,
   ops,
   state,
-  pendingCreate,
-  onPendingCreateDone,
-  reveal,
   onMoveRequest,
   pinnedPaths,
   sort,
   onSortChange,
   vaultRoot,
 }: FileTreeProps) => {
-  const { expanded, setExpanded, activePath, setActivePath, collapseAll } = state;
+  const {
+    expanded,
+    setExpanded,
+    activePath,
+    setActivePath,
+    collapseAll,
+    editing,
+    startCreate,
+    startRename,
+    stopEditing,
+    revealToFocus,
+    revealFocused,
+  } = state;
   const roots = useMemo(() => buildTree(entries, sort), [entries, sort]);
 
-  const [editing, setEditing] = useState<EditingState | null>(null);
   const [menu, setMenu] = useState<TreeMenu | null>(null);
   // the drag's source is component state, not dataTransfer: a drop reads it synchronously
   // and a drag that started elsewhere (a file from the desktop) has no source here
@@ -501,72 +488,27 @@ export const FileTree = ({
     }
   };
 
-  // The header's create is the rail's state until the input commits or cancels; the row menu's
-  // edits are the tree's own. Both draw the one input row. The parent folder opens during
-  // render so the row is in the first paint.
-  const activeEditing: EditingState | null =
-    pendingCreate === null
-      ? editing
-      : { kind: pendingCreate.kind, mode: "create", parentDir: pendingCreate.parentDir };
-  const openParentForCreate = (create: PendingCreate | null): void => {
-    if (create !== null && create.parentDir !== "") {
-      setExpanded((current) => new Set(current).add(create.parentDir));
-    }
-  };
-  const [expandedForCreate, setExpandedForCreate] = useState<PendingCreate | null>(null);
-  if (expandedForCreate !== pendingCreate) {
-    setExpandedForCreate(pendingCreate);
-    openParentForCreate(pendingCreate);
-  }
-  const stopEditing = (): void => {
-    setEditing(null);
-    if (pendingCreate !== null) {
-      onPendingCreateDone();
-    }
-  };
-
-  // Keyed on entries alone: reconciling on every activePath change would clear
-  // an optimistic rename-follow before the refetched tree confirms it.
-  const clearActiveIfGone = (): void => {
-    if (activePath !== null && !entries.some((entry) => entry.path === activePath)) {
-      setActivePath(null);
-    }
-  };
-  const [reconciledEntries, setReconciledEntries] = useState(entries);
-  if (reconciledEntries !== entries) {
-    setReconciledEntries(entries);
-    clearActiveIfGone();
-  }
-
-  // Seeded null so a tree mounting on an already-open note expands to it.
-  const expandToOpenNote = (path: string | null): void => {
-    if (path !== null && path.includes("/")) {
-      setExpanded((current) => withAncestorsExpanded(current, path));
-    }
-  };
   // The rail applied the reveal to the fold state it owns; this focuses the row that render
-  // drew, which is what brings it into view.
+  // drew, which is what brings it into view. An open name input keeps the focus it took, or its
+  // blur would cancel it.
   useEffect(() => {
-    if (reveal === null) {
+    if (revealToFocus === null) {
       return;
     }
-    for (const candidate of treeRef.current?.querySelectorAll<HTMLElement>("[data-path]") ?? []) {
-      if (candidate.dataset.path === reveal.path) {
-        candidate.focus({ preventScroll: true });
-        candidate.scrollIntoView({ block: "nearest" });
-        return;
+    if (editing === null) {
+      for (const candidate of treeRef.current?.querySelectorAll<HTMLElement>("[data-path]") ?? []) {
+        if (candidate.dataset.path === revealToFocus) {
+          candidate.focus({ preventScroll: true });
+          candidate.scrollIntoView({ block: "nearest" });
+          break;
+        }
       }
     }
-  }, [reveal]);
-
-  const [expandedFor, setExpandedFor] = useState<string | null>(null);
-  if (expandedFor !== openPath) {
-    setExpandedFor(openPath);
-    expandToOpenNote(openPath);
-  }
+    revealFocused();
+  }, [revealToFocus, editing, revealFocused]);
 
   const rows: Row[] = [];
-  visibleRows(roots, expanded, activeEditing, ROOT, 0, rows);
+  visibleRows(roots, expanded, editing, ROOT, 0, rows);
   const nodeRows = rows.filter((row): row is Extract<Row, { kind: "node" }> => row.kind === "node");
 
   const toggleDir = (path: string): void => {
@@ -667,7 +609,7 @@ export const FileTree = ({
         break;
       }
       case "F2": {
-        setEditing({ mode: "rename", path: node.path });
+        startRename(node.path);
         break;
       }
       default: {
@@ -682,29 +624,26 @@ export const FileTree = ({
     stopEditing();
     const toPath = joinPath(dirnamePath(node.path), newName);
     if (toPath !== node.path) {
-      // The reconcile above clears this if the rename never lands.
+      // The rail's reconcile over the listing clears this if the rename never lands.
       setActivePath(toPath);
       ops.renameEntry(node.path, toPath);
     }
   };
 
-  const commitCreate = (create: EditingState & { mode: "create" }, name: string): void => {
+  const commitCreate = (create: Extract<TreeEditing, { mode: "create" }>, name: string): void => {
     stopEditing();
-    const fileName =
-      create.kind === "file" && extnamePath(name) === "" ? `${name}${DEFAULT_DOC_EXTENSION}` : name;
-    const path = joinPath(create.parentDir, fileName);
     if (create.kind === "file") {
-      ops.createNote(path);
+      ops.createNote(joinPath(create.parentDir, withDocExtension(name)));
     } else {
-      ops.createFolder(path);
+      ops.createFolder(joinPath(create.parentDir, name));
     }
   };
 
   const createRow = (row: Extract<Row, { kind: "editor" }>) => {
-    if (activeEditing?.mode !== "create") {
+    if (editing?.mode !== "create") {
       return null;
     }
-    const createState = activeEditing;
+    const createState = editing;
     return (
       <InlineNameInput
         key="create-editor"
@@ -737,7 +676,7 @@ export const FileTree = ({
 
   return (
     <SidebarMenu
-      tabIndex={0}
+      tabIndex={-1}
       ref={treeRef}
       role="tree"
       aria-label="Vault files"
@@ -768,7 +707,7 @@ export const FileTree = ({
           );
         }
         const { node } = row;
-        if (activeEditing?.mode === "rename" && activeEditing.path === node.path) {
+        if (editing?.mode === "rename" && editing.path === node.path) {
           return (
             <li key={node.path} role="none">
               {renameRow(row)}
@@ -849,7 +788,7 @@ export const FileTree = ({
           </SidebarMenuItem>
         );
       })}
-      {entries.length === 0 && activeEditing === null ? (
+      {entries.length === 0 && editing?.mode !== "create" ? (
         <li role="none">
           <EmptyRows loadState={loadState} onRetry={onRetry} />
         </li>
@@ -860,12 +799,9 @@ export const FileTree = ({
           setMenu(null);
         }}
         onStartCreate={(parentDir, kind) => {
-          setExpanded((current) => new Set(current).add(parentDir));
-          setEditing({ kind, mode: "create", parentDir });
+          startCreate(kind, parentDir);
         }}
-        onStartRename={(path) => {
-          setEditing({ mode: "rename", path });
-        }}
+        onStartRename={startRename}
         onMoveRequest={onMoveRequest}
         ops={ops}
         pinnedPaths={pinnedPaths}

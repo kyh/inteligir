@@ -1,24 +1,23 @@
 // Pinned to [0]: mdast-util-frontmatter emits the `---` fence wherever the node sits, and a
 // mid-document fence re-parses as a thematic break.
 
-import { ElementApi, createSlatePlugin } from "platejs";
+import { createSlatePlugin } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
+import { FRONTMATTER_KEY } from "@repo/editor/dialect-node-keys";
+import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
+
 const FrontmatterBasePlugin = createSlatePlugin({
-  key: "frontmatter",
+  key: FRONTMATTER_KEY,
   node: { isElement: true, isVoid: true },
 }).overrideEditor(({ editor, tf: { normalizeNode } }) => ({
   transforms: {
     normalizeNode(entry) {
       const [node, path] = entry;
-      if (
-        ElementApi.isElement(node) &&
-        node.type === "frontmatter" &&
-        (path.length !== 1 || path[0] !== 0)
-      ) {
+      if (isFrontmatterElement(node) && (path.length !== 1 || path[0] !== 0)) {
         const [first] = editor.children;
-        if (ElementApi.isElement(first) && first.type === "frontmatter") {
+        if (isFrontmatterElement(first)) {
           // a duplicate is removed, not moved: move-to-front for both would normalize-loop.
           editor.tf.removeNodes({ at: path });
         } else {

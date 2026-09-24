@@ -17,37 +17,55 @@ import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
+import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
+import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
 import type { IconComponent } from "@repo/ui/lib/icon";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { splitLeadingText } from "@repo/ui/lib/text-children";
 
+interface MenuHighlight {
+  hovered: HTMLElement | null;
+  active: HTMLElement | null;
+  first: HTMLElement | null;
+}
+
+// Stable for the list's lifetime: what moves travels through the store, so the traveling pill
+// re-renders the two rows it left and reached rather than every row.
 interface MenuScopeValue {
   registerRow: (el: HTMLElement) => () => void;
-  setRowButton: (row: HTMLElement, button: HTMLElement | null) => void;
   setRowActive: (row: HTMLElement, active: boolean) => void;
-  hoveredRowEl: HTMLElement | null;
-  activeRowEl: HTMLElement | null;
-  firstRowEl: HTMLElement | null;
-  hasActive: boolean;
+  highlight: HighlightStore<MenuHighlight>;
 }
 
 const MenuScopeContext = createContext<MenuScopeValue | null>(null);
 
 interface MenuItemContextValue {
-  // state, not a ref: isHovered / isActiveRow compare it during render, and a ref read there is not reactive
+  // state, not a ref: the row's highlight reading compares it, and a ref read there is not reactive
   rowEl: HTMLLIElement | null;
   setRow: (el: HTMLLIElement | null) => void;
   isHovered: boolean;
-  isActiveRow: boolean;
   setActive: (active: boolean) => void;
-  setButtonEl: (el: HTMLElement | null) => void;
 }
 
 const MenuItemContext = createContext<MenuItemContextValue | null>(null);
 
-const sameElements = (a: HTMLElement[], b: HTMLElement[]): boolean =>
-  a.length === b.length && a.every((el, i) => el === b[i]);
+const MENU_ITEM = '[data-sidebar="menu-item"]';
+
+// the rail's own panel, or its peek card while collapsed: a popup anchored anywhere in it
+const RAIL = '[data-sidebar="sidebar"], [data-sidebar="peek"]';
+
+// A row's box spans the whole <li>, so it is clamped to the button's; 32px is the tallest row,
+// for a row whose button is not its direct child.
+const measureRow = (row: HTMLElement): ItemRect => {
+  const button = row.querySelector<HTMLElement>(':scope > [data-sidebar="menu-button"]');
+  return {
+    height: Math.min(row.offsetHeight, button?.offsetHeight ?? 32),
+    left: row.offsetLeft,
+    top: row.offsetTop,
+    width: row.offsetWidth,
+  };
+};
 
 const NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"]);
 
@@ -66,122 +84,59 @@ interface MenuScope {
 }
 
 const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope => {
-  const { activeIndex, setActiveIndex, itemRects, isMeasured, session, handlers, registerItem } =
-    useProximityHover(containerRef);
+  const { activeIndex, setActiveIndex, itemRects, isMeasured, session, handlers, setItems } =
+    useProximityHover(containerRef, { measure: measureRow });
 
-  const rowsRef = useRef<Set<HTMLElement>>(new Set());
-  // state, not a ref: overlayRect reads this during render, and a ref would leave the first paint
-  // measuring the whole <li>
-  const [rowButtons, setRowButtons] = useState<Map<HTMLElement, HTMLElement>>(new Map());
-  const activeMapRef = useRef<Map<HTMLElement, boolean>>(new Map());
-  const [orderedRows, setOrderedRows] = useState<HTMLElement[]>([]);
-  const registeredCountRef = useRef(0);
+  // the rows whose button is current; the first of them in document order carries the active pill
+  const activeRowsRef = useRef<Set<HTMLElement>>(new Set());
   const [activeRowEl, setActiveRowEl] = useState<HTMLElement | null>(null);
   const [focusedRowEl, setFocusedRowEl] = useState<HTMLElement | null>(null);
 
-  // the document's own order, read from the list rather than sorted from a render-time mirror,
-  // which would be a render-phase write
-  const rowsInOrder = useCallback((): HTMLElement[] => {
-    const container = containerRef.current;
-    if (!container) {
-      return [];
-    }
-    return [...container.querySelectorAll<HTMLElement>('[data-sidebar="menu-item"]')].filter((el) =>
-      rowsRef.current.has(el),
-    );
-  }, [containerRef]);
-
-  const recomputeActive = useCallback(() => {
-    const first = rowsInOrder().find((el) => activeMapRef.current.get(el) === true) ?? null;
-    setActiveRowEl((prev) => (prev === first ? prev : first));
-  }, [rowsInOrder]);
-
-  const syncRows = useCallback(() => {
-    const sorted = rowsInOrder();
-    setOrderedRows((prev) => (sameElements(prev, sorted) ? prev : sorted));
-    for (const [i, el] of sorted.entries()) {
-      registerItem(i, el);
-    }
-    for (let i = sorted.length; i < registeredCountRef.current; i += 1) {
-      registerItem(i, null);
-    }
-    registeredCountRef.current = sorted.length;
-    recomputeActive();
-  }, [registerItem, recomputeActive, rowsInOrder]);
-
-  const registerRow = useCallback(
-    (el: HTMLElement) => {
-      rowsRef.current.add(el);
-      syncRows();
-      return () => {
-        rowsRef.current.delete(el);
-        setRowButtons((prev) => {
-          if (!prev.has(el)) {
-            return prev;
-          }
-          const next = new Map(prev);
-          next.delete(el);
-          return next;
-        });
-        activeMapRef.current.delete(el);
-        syncRows();
-      };
+  const onRows = useCallback(
+    (rows: readonly HTMLElement[]) => {
+      setItems(rows);
+      setActiveRowEl(rows.find((el) => activeRowsRef.current.has(el)) ?? null);
     },
-    [syncRows],
+    [setItems],
   );
-
-  const setRowButton = useCallback((row: HTMLElement, button: HTMLElement | null) => {
-    setRowButtons((prev) => {
-      if (prev.get(row) === (button ?? undefined)) {
-        return prev;
-      }
-      const next = new Map(prev);
-      if (button) {
-        next.set(row, button);
-      } else {
-        next.delete(row);
-      }
-      return next;
-    });
-  }, []);
+  const {
+    rows: orderedRows,
+    registerRow,
+    requestSync,
+  } = useRowOrder(containerRef, MENU_ITEM, onRows);
 
   const setRowActive = useCallback(
     (row: HTMLElement, active: boolean) => {
-      activeMapRef.current.set(row, active);
-      recomputeActive();
+      const activeRows = activeRowsRef.current;
+      if (activeRows.has(row) === active) {
+        return;
+      }
+      if (active) {
+        activeRows.add(row);
+      } else {
+        activeRows.delete(row);
+      }
+      requestSync();
     },
-    [recomputeActive],
+    [requestSync],
   );
 
-  // a row's rect spans the whole <li>, so overlay heights clamp to the button box; 32px is the
-  // tallest row, for when the button lookup misses
   const overlayRect = useCallback(
     (row: HTMLElement | null): ItemRect | null => {
-      if (!row) {
-        return null;
-      }
-      const idx = orderedRows.indexOf(row);
-      const rect = idx === -1 ? null : itemRects[idx];
-      if (!rect) {
-        return null;
-      }
-      const button =
-        rowButtons.get(row) ??
-        row.querySelector<HTMLElement>(':scope > [data-sidebar="menu-button"]');
-      const height = Math.min(rect.height, button?.offsetHeight ?? 32);
-      return { ...rect, height };
+      const idx = row === null ? -1 : orderedRows.indexOf(row);
+      return idx === -1 ? null : (itemRects[idx] ?? null);
     },
-    [itemRects, orderedRows, rowButtons],
+    [itemRects, orderedRows],
   );
 
-  // hover tracking freezes while a popup anchored in the sidebar is open, or a non-modal popup
-  // lets rows underneath keep highlighting
+  // hover tracking freezes while a popup anchored in the rail is open, or a non-modal popup lets
+  // rows underneath keep highlighting; the rail, not the whole window, since this runs per move
   const popupOpen = useCallback(() => {
     const container = containerRef.current;
     if (!container) {
       return false;
     }
-    const root = container.closest('[data-slot="sidebar-wrapper"]') ?? container;
+    const root = container.closest(RAIL) ?? container;
     return root.querySelector('[data-sidebar^="menu-"][data-popup-open]') !== null;
   }, [containerRef]);
 
@@ -270,18 +225,16 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
   );
 
   const hoveredRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
+  const firstRowEl = orderedRows[0] ?? null;
+  const highlightValue = useMemo<MenuHighlight>(
+    () => ({ active: activeRowEl, first: firstRowEl, hovered: hoveredRowEl }),
+    [activeRowEl, firstRowEl, hoveredRowEl],
+  );
+  const highlight = useHighlightStore(highlightValue);
 
   const value = useMemo<MenuScopeValue>(
-    () => ({
-      activeRowEl,
-      firstRowEl: orderedRows[0] ?? null,
-      hasActive: activeRowEl !== null,
-      hoveredRowEl,
-      registerRow,
-      setRowActive,
-      setRowButton,
-    }),
-    [registerRow, setRowButton, setRowActive, hoveredRowEl, activeRowEl, orderedRows],
+    () => ({ highlight, registerRow, setRowActive }),
+    [highlight, registerRow, setRowActive],
   );
 
   const overlays = isMeasured ? (
@@ -349,7 +302,6 @@ type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
 const useMenuRow = (): MenuItemContextValue => {
   const scope = useContext(MenuScopeContext);
   const registerRow = scope?.registerRow;
-  const setRowButton = scope?.setRowButton;
   const setRowActive = scope?.setRowActive;
 
   const [rowEl, setRowEl] = useState<HTMLLIElement | null>(null);
@@ -370,21 +322,14 @@ const useMenuRow = (): MenuItemContextValue => {
     [setRowActive, rowEl],
   );
 
-  const setButtonEl = useCallback(
-    (el: HTMLElement | null) => {
-      if (rowEl && setRowButton) {
-        setRowButton(rowEl, el);
-      }
-    },
-    [setRowButton, rowEl],
+  const isHovered = useHighlighted(
+    scope?.highlight ?? null,
+    (highlight) => rowEl !== null && highlight.hovered === rowEl,
   );
 
-  const isHovered = rowEl !== null && scope?.hoveredRowEl === rowEl;
-  const isActiveRow = rowEl !== null && scope?.activeRowEl === rowEl;
-
   return useMemo(
-    () => ({ isActiveRow, isHovered, rowEl, setActive, setButtonEl, setRow: setRowEl }),
-    [rowEl, isHovered, isActiveRow, setActive, setButtonEl],
+    () => ({ isHovered, rowEl, setActive, setRow: setRowEl }),
+    [rowEl, isHovered, setActive],
   );
 };
 
@@ -489,7 +434,6 @@ const SidebarMenuButton = ({
   const item = useContext(MenuItemContext);
   const radius = useRadius();
   const sizeClasses = useSize();
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   const setActive = item?.setActive;
   useIsoLayoutEffect(() => {
@@ -497,34 +441,24 @@ const SidebarMenuButton = ({
     return () => setActive?.(false);
   }, [isActive, setActive]);
 
-  const setButtonEl = item?.setButtonEl;
-  useIsoLayoutEffect(() => {
-    setButtonEl?.(buttonRef.current);
-    return () => setButtonEl?.(null);
-  }, [setButtonEl]);
   const lit = isActive || (item?.isHovered ?? false);
   const heightClass = sizeClasses.variant === "compact" ? "h-7" : "h-8";
 
   // roving tabindex: the active row is the list's tab stop, else its first row
   const row = item?.rowEl ?? null;
-  const tabIdx = (): number => {
-    if (isActive) {
-      return 0;
-    }
-    if (scope?.hasActive === true) {
-      return -1;
-    }
-    return scope !== null && row !== null && row === scope.firstRowEl ? 0 : -1;
-  };
+  const isFirstStop = useHighlighted(
+    scope?.highlight ?? null,
+    (highlight) => highlight.active === null && row !== null && highlight.first === row,
+  );
 
   return (
     <button
-      ref={composeRefs(buttonRef, ref)}
+      ref={ref}
       type="button"
       data-sidebar="menu-button"
       data-active={isActive ? "true" : undefined}
       aria-current={isActive ? "page" : undefined}
-      tabIndex={tabIdx()}
+      tabIndex={isActive || isFirstStop ? 0 : -1}
       className={cn(
         "peer/menu-button relative z-10 flex w-full cursor-pointer items-center gap-2 px-2 text-left outline-none select-none",
         heightClass,

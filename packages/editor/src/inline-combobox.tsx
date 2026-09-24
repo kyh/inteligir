@@ -309,7 +309,7 @@ const InlineComboboxInput = ({
 };
 
 const ITEM_BASE =
-  "relative mx-1 flex select-none items-center rounded-md px-2 py-1 text-sm text-foreground outline-hidden transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+  "relative mx-1 flex select-none items-center rounded-md px-2 py-1 text-body text-foreground outline-hidden transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 const ITEM_INTERACTIVE =
   "cursor-pointer hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
@@ -424,7 +424,7 @@ const InlineComboboxGroupLabel = ({
   ...props
 }: React.ComponentProps<typeof Combobox.GroupLabel>) => (
   <Combobox.GroupLabel
-    className={cn("mt-1.5 mb-2 px-3 text-xs font-medium text-muted-foreground", className)}
+    className={cn("mt-1.5 mb-2 px-3 text-caption font-medium text-muted-foreground", className)}
     {...props}
   />
 );

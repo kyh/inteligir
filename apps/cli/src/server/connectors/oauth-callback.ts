@@ -2,10 +2,14 @@
 // top-level navigation, and the armed `state` stands where the origin guard cannot.
 
 import type { ConnectorOauthFlow, OauthCompletion } from "./oauth-flow";
-import { INERT_CALLBACK_HEADERS, renderInertCallbackPage } from "../inert-callback-page";
-import type { InertCallbackPage } from "../inert-callback-page";
+import { INERT_PAGE_HEADERS, renderInertPage } from "../inert-page";
+import type { InertPage } from "../inert-page";
 
-const oauthCallbackPage = (completion: OauthCompletion): InertCallbackPage => {
+interface OauthCallbackPage extends InertPage {
+  status: 200 | 400;
+}
+
+const oauthCallbackPage = (completion: OauthCompletion): OauthCallbackPage => {
   switch (completion.kind) {
     case "connected": {
       return {
@@ -38,6 +42,14 @@ const oauthCallbackPage = (completion: OauthCompletion): InertCallbackPage => {
         title: "That took too long",
       };
     }
+    case "removed": {
+      return {
+        detail:
+          "This connector was removed or changed while it was being authorized, so nothing was stored. Start again from Settings → Connectors.",
+        status: 400,
+        title: "That connector is gone",
+      };
+    }
     case "refused": {
       return { detail: completion.detail, status: 400, title: "The provider refused" };
     }
@@ -56,8 +68,8 @@ export const handleConnectorOauthCallback = async (
     code === null || state === null ? { kind: "no-pending" } : await flow.complete({ code, state });
   const page = oauthCallbackPage(completion);
   return {
-    body: renderInertCallbackPage(page),
-    headers: INERT_CALLBACK_HEADERS,
+    body: renderInertPage(page),
+    headers: INERT_PAGE_HEADERS,
     status: page.status,
   };
 };

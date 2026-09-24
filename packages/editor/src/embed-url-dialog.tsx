@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 
@@ -57,7 +58,8 @@ export const EmbedUrlDialogHost = () => {
         <DialogHeader>
           <DialogTitle>Embed from URL</DialogTitle>
           <DialogDescription>
-            YouTube video, tweet, PDF, or any page (renders as an iframe).
+            A video, tweet, PDF or page. Notes load nothing remote, so it shows as a card that opens
+            in your browser.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
@@ -69,6 +71,9 @@ export const EmbedUrlDialogHost = () => {
             }}
             placeholder="https://…"
             onKeyDown={(e) => {
+              if (isImeComposing(e)) {
+                return;
+              }
               if (e.key === "Enter") {
                 submit();
               }

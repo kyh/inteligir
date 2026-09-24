@@ -9,7 +9,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import type { DragEndEvent } from "@dnd-kit/core";
+import type { DragEndEvent, UniqueIdentifier } from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -18,26 +18,23 @@ import { GripVerticalIcon, PlusIcon } from "lucide-react";
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
 import { PathApi } from "platejs";
 import type { Descendant } from "platejs";
-import { createPlatePlugin, useEditorRef } from "platejs/react";
+import { createPlatePlugin, useEditorRef, useEditorSelector } from "platejs/react";
 import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
+import { shallow } from "zustand/shallow";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { stringProp } from "@repo/editor/node-props";
+import { blockId } from "@repo/editor/node-props";
 
-// Slate's moveNodes preserves node identity, so a WeakMap keyed by element yields ids that survive a reorder.
-let idCounter = 0;
-const blockIds = new WeakMap<Descendant, string>();
-const blockId = (node: Descendant): string => {
-  const existing = blockIds.get(node);
-  if (existing !== undefined) {
-    return existing;
-  }
-  idCounter += 1;
-  const id = `blk-${idCounter}`;
-  blockIds.set(node, id);
-  return id;
-};
+// A block's NodeIdPlugin id survives both an edit and a move; its node object survives only the move.
+const sortableIds = (children: readonly Descendant[]): string[] =>
+  children.flatMap((node) => {
+    const id = blockId(node);
+    return id === undefined ? [] : [id];
+  });
+
+const indexOfBlock = (children: readonly Descendant[], id: UniqueIdentifier): number =>
+  children.findIndex((node) => blockId(node) === id);
 
 // no sibling displacement during a drag; a drop line marks the target instead
 const noDisplacement = () => null;
@@ -49,16 +46,19 @@ const DragProvider = ({ children }: { children: React.ReactNode }) => {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const items = editor.children.map((n) => blockId(n));
+  // A fresh array every change; compared by value, the sortable context moves only when a block
+  // joins, leaves or moves.
+  const items = useEditorSelector(() => sortableIds(editor.children), [], {
+    equalityFn: shallow,
+  });
 
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
       return;
     }
-    const ids = editor.children.map((n) => blockId(n));
-    const from = ids.indexOf(String(active.id));
-    const to = ids.indexOf(String(over.id));
+    const from = indexOfBlock(editor.children, active.id);
+    const to = indexOfBlock(editor.children, over.id);
     if (from === -1 || to === -1) {
       return;
     }
@@ -79,7 +79,7 @@ const DragProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const Draggable = (props: PlateElementProps) => {
+const Draggable = ({ id, ...props }: PlateElementProps & { id: string }) => {
   const { element } = props;
   const editor = useEditorRef();
   const {
@@ -94,7 +94,7 @@ const Draggable = (props: PlateElementProps) => {
     setActivatorNodeRef,
     transform,
     transition,
-  } = useSortable({ id: blockId(element) });
+  } = useSortable({ id });
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
   // a drag ends in a synthetic click on the grip, which must not open the menu
@@ -116,9 +116,8 @@ const Draggable = (props: PlateElementProps) => {
   };
 
   const openBlockMenu = () => {
-    const id = stringProp(element, "id");
     const grip = gripRef.current;
-    if (id === undefined || id === "" || grip === null) {
+    if (grip === null) {
       return;
     }
     editor.getApi(BlockSelectionPlugin).blockSelection.set(id);
@@ -130,7 +129,8 @@ const Draggable = (props: PlateElementProps) => {
   // Tooltip root per block in a long note is a cost nobody measured.
   // CSS.Translate, not CSS.Transform: the sortable transform carries a scale when
   // the drag-over block differs in size, which stretches the dragged block. The
-  // gutter's font-size follows the heading so its em-sized box centers on the first line.
+  // gutter's font-size follows the heading so its em-sized box centers on the first line:
+  // typeset's heading scale in em, since the gutter and the heading share a parent.
   return (
     <div
       ref={setNodeRef}
@@ -141,9 +141,9 @@ const Draggable = (props: PlateElementProps) => {
         contentEditable={false}
         className={cn(
           "absolute top-[3px] -left-11 z-40 flex h-[1.3em] items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100",
-          element.type === "h1" && "text-[22px]",
-          element.type === "h2" && "text-[16px]",
-          element.type === "h3" && "text-[15px]",
+          element.type === "h1" && "text-[1.75em]",
+          element.type === "h2" && "text-[1.25em]",
+          element.type === "h3" && "text-[1.125em]",
         )}
       >
         <button
@@ -193,15 +193,18 @@ const Draggable = (props: PlateElementProps) => {
   );
 };
 
-const BlockDraggable: RenderNodeWrapper = ({ editor, path }) => {
+// NodeIdPlugin gives every live block an id; only a test editor, where Plate turns the plugin
+// off, has blocks without one, and those render without a handle.
+const BlockDraggable: RenderNodeWrapper = ({ editor, element, path }) => {
   if (editor.dom.readOnly) {
     return;
   }
-  if (path.length !== 1) {
+  const id = blockId(element);
+  if (path.length !== 1 || id === undefined) {
     return;
   }
   return function DraggableWrapper(props) {
-    return <Draggable {...props} />;
+    return <Draggable {...props} id={id} />;
   };
 };
 

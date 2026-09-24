@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
+import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -12,16 +13,25 @@ interface CodeBlockContextValue {
   code: string;
 }
 
-const CodeBlockContext = createContext<CodeBlockContextValue>({ code: "" });
+const CodeBlockContext = createContext<CodeBlockContextValue | null>(null);
 
+const useCodeBlock = (): CodeBlockContextValue => {
+  const value = useContext(CodeBlockContext);
+  if (value === null) {
+    throw new Error("<CodeBlockCopy> must render inside <CodeBlock>");
+  }
+  return value;
+};
+
+// required: the copy reads this source, never the rendered tokens
 export interface CodeBlockProps extends HTMLAttributes<HTMLDivElement> {
-  code?: string;
+  code: string;
 }
 
 const CodeBlock = ({
   className,
   children,
-  code = "",
+  code,
   ref,
   ...props
 }: CodeBlockProps & RefAttributes<HTMLDivElement>) => (
@@ -81,40 +91,8 @@ const CodeBlockTitle = ({
 );
 CodeBlockTitle.displayName = "CodeBlockTitle";
 
-const COPIED_ICON = (
-  <svg
-    aria-hidden
-    width="10"
-    height="10"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
-);
-
-const COPY_ICON = (
-  <svg
-    aria-hidden
-    width="10"
-    height="10"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="9" y="9" width="12" height="12" rx="2.5" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
-
-export interface CodeBlockCopyProps extends HTMLAttributes<HTMLButtonElement> {
+// onClick is omitted: a forwarded one would replace the copy the label promises
+export interface CodeBlockCopyProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onClick"> {
   copyLabel?: string;
   copiedLabel?: string;
 }
@@ -126,7 +104,7 @@ const CodeBlockCopy = ({
   ref,
   ...props
 }: CodeBlockCopyProps & RefAttributes<HTMLButtonElement>) => {
-  const { code } = useContext(CodeBlockContext);
+  const { code } = useCodeBlock();
   const [copied, setCopied] = useState(false);
   // a second copy must cancel the first reset timer
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,7 +140,7 @@ const CodeBlockCopy = ({
       )}
       {...props}
     >
-      {copied ? COPIED_ICON : COPY_ICON}
+      {copied ? <CheckIcon size={10} strokeWidth={3} /> : <CopyIcon size={10} strokeWidth={2} />}
       {copied ? copiedLabel : copyLabel}
     </button>
   );

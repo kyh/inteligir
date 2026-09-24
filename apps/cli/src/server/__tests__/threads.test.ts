@@ -1,8 +1,22 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
+import type { ThreadEvent } from "@repo/domain/provider-event";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import { writeTransaction } from "@repo/db/connection";
+import { listStoredThreadEvents } from "@repo/db/events";
+import type { SyncedEventInput } from "@repo/db/events";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
-import { claimNextQueuedThreadMessage, listQueuedThreadMessages } from "@repo/db/queued-messages";
-import { applyThreadLifecycleEvent } from "@repo/db/threads";
+import {
+  claimNextQueuedThreadMessageInTransaction,
+  listQueuedThreadMessages,
+  releaseAllQueuedMessageClaims,
+} from "@repo/db/queued-messages";
+import {
+  applyThreadLifecycleEventInTransaction,
+  getThread,
+  setThreadProviderSession,
+} from "@repo/db/threads";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
 import { WS_PATH } from "@repo/api/local/routes";
@@ -16,6 +30,8 @@ import { unavailableTurnDriver } from "../threads/turn-driver";
 import { authorizationHeader } from "../server-file";
 import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import type { BootedTestApp } from "./boot-app";
+import { FakeTurnDriver } from "./fake-turn-driver";
+import { pathOnlyOrigins } from "./path-only-origins";
 
 type ThreadsClient = BootedTestApp["client"];
 
@@ -102,10 +118,12 @@ describe("the send policy", () => {
     });
     expect(queuedWhileActive.kind).toBe("queued");
 
-    applyThreadLifecycleEvent(activeHarness.db, noopNotifier, {
-      event: { type: "stop.requested" },
-      threadId: activeThread,
-    });
+    writeTransaction(activeHarness.db, (tx) =>
+      applyThreadLifecycleEventInTransaction(tx, {
+        event: { type: "stop.requested" },
+        threadId: activeThread,
+      }),
+    );
     expect(await getThreadStatus(activeHarness.client, activeThread)).toBe("stopping");
     const queuedWhileStopping = await activeHarness.client.threads.send({
       text: "after the stop",
@@ -219,6 +237,295 @@ describe("the view context a message carries", () => {
     // the path grammar rides the input schema, so the refusal is oRPC's own BAD_REQUEST rather than a declared class.
     expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
   });
+
+  it("refuses a revision that is not a content hash", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const [error] = await safe(
+      client.threads.send({
+        text: "hi",
+        threadId,
+        viewContext: { ...VIEW_CONTEXT, revision: "HEAD" },
+      }),
+    );
+    expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
+  });
+});
+
+const userRow = async (client: ThreadsClient, threadId: string, text: string) => {
+  const row = timelineRows(await fetchTimeline(client, threadId)).find(
+    (candidate) => candidate.kind === "conversation" && candidate.text === text,
+  );
+  if (row?.kind !== "conversation") {
+    throw new Error(`expected the conversation row for "${text}"`);
+  }
+  return row;
+};
+
+const threadTitle = async (client: ThreadsClient, threadId: string): Promise<string | null> => {
+  const detail = await client.threads.get({ threadId });
+  return detail.thread.title;
+};
+
+describe("the notes a message attaches", () => {
+  const ATTACHED = ["Notes/Plans.md", "Notes/Goals.md"];
+
+  it("reach the driver and the timeline beside the text, which stays what was typed", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ contextPaths: ATTACHED, text: "compare these", threadId });
+
+    expect(driver.startedTurns[0]?.text).toBe("compare these");
+    expect(driver.startedTurns[0]?.contextPaths).toEqual(ATTACHED);
+    const row = await userRow(client, threadId, "compare these");
+    expect(row.contextPaths).toEqual(ATTACHED);
+  });
+
+  it("are KEPT by a queued send, unlike its view context", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    const queued = await client.threads.send({
+      contextPaths: ATTACHED,
+      text: "then these",
+      threadId,
+    });
+    expect(queued.kind).toBe("queued");
+
+    driver.completeTurn(threadId, started.turnId, "completed");
+    expect(driver.startedTurns[1]?.contextPaths).toEqual(ATTACHED);
+    const row = await userRow(client, threadId, "then these");
+    expect(row.contextPaths).toEqual(ATTACHED);
+  });
+
+  it("refuses a path outside the vault, an empty list and a repeated note", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    for (const contextPaths of [["../outside.md"], [], ["a.md", "a.md"]]) {
+      const [error] = await safe(client.threads.send({ contextPaths, text: "hi", threadId }));
+      expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
+    }
+  });
+});
+
+describe("a thread's title", () => {
+  it("comes from the first message when the thread was created without one", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "\n  Tidy the intro  \nand the outro", threadId });
+    expect(await threadTitle(client, threadId)).toBe("Tidy the intro");
+
+    await client.threads.send({ text: "a later message", threadId });
+    expect(await threadTitle(client, threadId)).toBe("Tidy the intro");
+  });
+
+  it("keeps a title the thread was created with", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const { thread } = await client.threads.create({ title: "Chosen" });
+    await client.threads.send({ text: "Tidy the intro", threadId: thread.id });
+    expect(await threadTitle(client, thread.id)).toBe("Chosen");
+  });
+
+  it("names a thread another device started, from the request that synced in", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier: noopNotifier,
+      origins: pathOnlyOrigins,
+    });
+    service.applySyncedEvents({
+      cursor: 1,
+      rows: [
+        {
+          event: {
+            scope: threadScope(),
+            text: "Plan the offsite",
+            threadId: "thr_remote",
+            type: "client/turn/requested",
+          },
+          origin: { deviceId: "dev_other", deviceSeq: 1 },
+        },
+      ],
+      threadId: "thr_remote",
+    });
+    expect(await threadTitle(client, "thr_remote")).toBe("Plan the offsite");
+  });
+});
+
+interface RecordedChanges {
+  changes: string[];
+  notifier: DbNotifier;
+}
+
+const recordingNotifier = (): RecordedChanges => {
+  const changes: string[] = [];
+  return {
+    changes,
+    notifier: {
+      ...noopNotifier,
+      notifyThread(threadId, kinds) {
+        changes.push(...kinds.map((kind) => `${threadId} ${kind}`));
+      },
+    },
+  };
+};
+
+const createThreadOver = async (client: ThreadsClient, originDocPath: string): Promise<string> => {
+  const { thread } = await client.threads.create({ originDocPath });
+  return thread.id;
+};
+
+const synced = (event: ThreadEvent, deviceSeq: number): SyncedEventInput => ({
+  event,
+  origin: { deviceId: "dev_other", deviceSeq },
+});
+
+describe("a thread's own facts", () => {
+  it("land from another device on the row, each announced once", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const { changes, notifier } = recordingNotifier();
+    const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier,
+      origins: pathOnlyOrigins,
+    });
+    const threadId = "thr_remote";
+    service.applySyncedEvents({
+      cursor: 3,
+      rows: [
+        synced(
+          { scope: threadScope(), text: "plan it", threadId, type: "client/turn/requested" },
+          1,
+        ),
+        synced(
+          {
+            originDocPath: "Offsite.md",
+            originNoteId: "note-offsite",
+            providerId: "codex",
+            scope: threadScope(),
+            threadId,
+            title: "Offsite",
+            type: "thread/meta",
+          },
+          2,
+        ),
+        synced({ scope: threadScope(), threadId, type: "thread/archived" }, 3),
+      ],
+      threadId,
+    });
+
+    const { thread } = await client.threads.get({ threadId });
+    expect(thread).toMatchObject({
+      originDocPath: "Offsite.md",
+      providerId: "codex",
+      title: "Offsite",
+    });
+    expect(thread.archivedAt).not.toBeNull();
+    expect(getThread(db, threadId)?.originNoteId).toBe("note-offsite");
+    for (const kind of ["title-changed", "origin-changed", "archived-changed"]) {
+      expect(changes.filter((change) => change === `${threadId} ${kind}`)).toHaveLength(1);
+    }
+  });
+
+  it("take a title stated after the thread's first line already named it", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const service = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier: noopNotifier,
+      origins: pathOnlyOrigins,
+    });
+    const threadId = "thr_remote";
+    const request: ThreadEvent = {
+      scope: threadScope(),
+      text: "plan it",
+      threadId,
+      type: "client/turn/requested",
+    };
+    service.applySyncedEvents({ cursor: 1, rows: [synced(request, 1)], threadId });
+    expect(await threadTitle(client, threadId)).toBe("plan it");
+
+    const meta: ThreadEvent = {
+      scope: threadScope(),
+      threadId,
+      title: "Offsite",
+      type: "thread/meta",
+    };
+    service.applySyncedEvents({ cursor: 2, rows: [synced(meta, 2)], threadId });
+    expect(await threadTitle(client, threadId)).toBe("Offsite");
+  });
+
+  it("are stated on the log with a thread's first request, and not with its next", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const { thread } = await client.threads.create({ originDocPath: "Plans.md" });
+    await client.threads.send({ text: "Tidy the intro", threadId: thread.id });
+    await client.threads.interrupt({ threadId: thread.id });
+    await client.threads.send({ text: "and the outro", threadId: thread.id });
+
+    const metas = listStoredThreadEvents(db, { threadId: thread.id }).flatMap(({ event }) =>
+      event.type === "thread/meta" ? [event] : [],
+    );
+    expect(metas).toEqual([
+      {
+        originDocPath: "Plans.md",
+        scope: threadScope(),
+        threadId: thread.id,
+        title: "Tidy the intro",
+        type: "thread/meta",
+      },
+    ]);
+  });
+
+  it("state a bound harness with the first turn a provider starts, once", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "unbound", threadId });
+    await client.threads.interrupt({ threadId });
+    setThreadProviderSession(db, { providerId: "codex", providerThreadId: "pt_1", threadId });
+    await client.threads.send({ text: "bound", threadId });
+    await client.threads.interrupt({ threadId });
+    await client.threads.send({ text: "again", threadId });
+
+    const stated = listStoredThreadEvents(db, { threadId }).flatMap(({ event }) =>
+      event.type === "thread/meta" && event.providerId !== undefined ? [event.providerId] : [],
+    );
+    expect(stated).toEqual(["codex"]);
+  });
+
+  it("state the origin's note id beside its path, so another device follows a move by id", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    await client.vault.write({
+      content: "---\nid: note-plans\n---\n# Plans\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
+    const threadId = await createThreadOver(client, "Plans.md");
+    await client.threads.send({ text: "go", threadId });
+
+    const identity = listStoredThreadEvents(db, { threadId }).find(
+      ({ event }) => event.type === "thread/meta",
+    )?.event;
+    expect(identity).toMatchObject({ originDocPath: "Plans.md", originNoteId: "note-plans" });
+  });
+
+  it("reach the log only for a thread that made a request", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const sent = await createThread(client);
+    await client.threads.send({ text: "go", threadId: sent });
+    const draft = await createThread(client);
+
+    await client.threads.archive({ threadId: sent });
+    await client.threads.archive({ threadId: draft });
+
+    const stated = listStoredThreadEvents(db, { threadId: sent }).map(({ event }) => event.type);
+    expect(stated).toContain("thread/archived");
+    expect(listStoredThreadEvents(db, { threadId: draft })).toEqual([]);
+  });
 });
 
 describe("the queue drain", () => {
@@ -266,6 +573,79 @@ describe("the queue drain", () => {
     ).toEqual(["first", "q1", "q2"]);
   });
 
+  it("drains a queued message after the turn it waited on fails", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    await client.threads.send({ text: "queued", threadId });
+
+    driver.completeTurn(threadId, started.turnId, "failed");
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued"]);
+    expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+  });
+
+  it("starts a stranded message before the send that found it, which queues behind", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    await client.threads.send({ text: "queued", threadId });
+    // a drain the previous process claimed and never finished: the settle finds nothing to start.
+    writeTransaction(db, (tx) => claimNextQueuedThreadMessageInTransaction(tx, threadId));
+    driver.completeTurn(threadId, started.turnId, "completed");
+    releaseAllQueuedMessageClaims(db);
+    expect(await getThreadStatus(client, threadId)).toBe("idle");
+
+    const later = await client.threads.send({ text: "later", threadId });
+    expect(later.kind).toBe("queued");
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued"]);
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["later"]);
+
+    const queuedTurn = driver.startedTurns.at(1);
+    if (!queuedTurn) {
+      throw new Error("expected the stranded message's turn");
+    }
+    driver.completeTurn(threadId, queuedTurn.turnId, "completed");
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued", "later"]);
+  });
+
+  it("settles a turn a restart orphaned without starting the message queued behind it", async () => {
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "first", threadId });
+    await client.threads.send({ text: "queued", threadId });
+
+    const drivers: FakeTurnDriver[] = [];
+    const revived = new ThreadService({
+      createTurnDriver: (sink) => {
+        const made = new FakeTurnDriver(sink, { mode: "manual" });
+        drivers.push(made);
+        return made;
+      },
+      db,
+      notifier: noopNotifier,
+      origins: pathOnlyOrigins,
+    });
+    const [revivedDriver] = drivers;
+    if (revivedDriver === undefined) {
+      throw new Error("the revived driver was not constructed");
+    }
+    revived.boot();
+    const recovered = await revived.get(threadId);
+    expect(recovered?.thread.status).toBe("error");
+    expect(revivedDriver.startedTurns).toEqual([]);
+
+    expect(revived.send({ text: "later", threadId }).kind).toBe("queued");
+    expect(revivedDriver.startedTurns.map((turn) => turn.text)).toEqual(["queued"]);
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["later"]);
+  });
+
   it("appends a drained message exactly once, even when its dispatch fails", async () => {
     const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
@@ -295,7 +675,9 @@ describe("the queue drain", () => {
     const threadId = await createThread(client);
     await client.threads.send({ text: "first", threadId });
     await client.threads.send({ text: "queued", threadId });
-    const claimed = claimNextQueuedThreadMessage(db, noopNotifier, threadId);
+    const claimed = writeTransaction(db, (tx) =>
+      claimNextQueuedThreadMessageInTransaction(tx, threadId),
+    );
     expect(claimed).not.toBeNull();
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
 
@@ -303,11 +685,11 @@ describe("the queue drain", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     revived.boot();
-    expect(revived.get(threadId)?.queuedMessages.map((message) => message.text)).toEqual([
-      "queued",
-    ]);
+    const recovered = await revived.get(threadId);
+    expect(recovered?.queuedMessages.map((message) => message.text)).toEqual(["queued"]);
     expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
   });
 
@@ -360,6 +742,7 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     expect(() => {
       service.ingestProviderEvents(threadId, [
@@ -392,9 +775,11 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
+      origins: pathOnlyOrigins,
     });
     revived.boot();
-    expect(revived.get(threadId)?.thread.status).toBe("error");
+    const recovered = await revived.get(threadId);
+    expect(recovered?.thread.status).toBe("error");
     expect(await getThreadStatus(client, threadId)).toBe("error");
     const rows = timelineRows(await fetchTimeline(client, threadId));
     const errorRow = rows.find((row) => row.kind === "error");
@@ -412,7 +797,8 @@ describe("turn identity and crash recovery", () => {
 
     // the request behind the orphan died with the process, so it settles interrupted rather than answerable.
     expect(getPendingInteraction(db, orphan.id)?.status).toBe("interrupted");
-    expect(revived.get(threadId)?.pendingInteractions).toEqual([]);
+    const settled = await revived.get(threadId);
+    expect(settled?.pendingInteractions).toEqual([]);
   });
 
   it("folds any dispatch throw into error status with a recorded provider/error", async () => {
@@ -428,6 +814,102 @@ describe("turn identity and crash recovery", () => {
       throw new Error("expected the recorded dispatch failure");
     }
     expect(errorRow.message).toBe("adapter exploded");
+  });
+});
+
+describe("stopping a turn", () => {
+  it("reads stopping until the provider reports the turn interrupted, and queues meanwhile", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    driver.settleOnInterrupt = false;
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "rewrite everything", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+
+    const stopped = await client.threads.interrupt({ threadId });
+    expect(stopped).toMatchObject({ stop: "requested", thread: { status: "stopping" } });
+    expect(driver.interruptedThreads).toEqual([threadId]);
+    const again = await client.threads.interrupt({ threadId });
+    expect(again.stop).toBe("requested");
+    const queued = await client.threads.send({ text: "do this instead", threadId });
+    expect(queued.kind).toBe("queued");
+
+    driver.completeTurn(threadId, started.turnId, "interrupted");
+    const turnRow = timelineRows(await fetchTimeline(client, threadId)).find(
+      (row) => row.kind === "turn" && row.turnId === started.turnId,
+    );
+    expect(turnRow).toMatchObject({ status: "interrupted" });
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual([
+      "rewrite everything",
+      "do this instead",
+    ]);
+  });
+
+  it("settles at once a stop whose turn never reached a provider", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "inert" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "start", threadId });
+    expect(await getThreadStatus(client, threadId)).toBe("starting");
+
+    const stopped = await client.threads.interrupt({ threadId });
+    expect(stopped).toMatchObject({
+      stop: "stopped",
+      thread: { activeTurnId: null, status: "idle" },
+    });
+    expect(driver.interruptedThreads).toEqual([threadId]);
+  });
+
+  it("answers not-running for a settled thread and NOT_FOUND for an unknown one", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const idle = await client.threads.interrupt({ threadId });
+    expect(idle).toMatchObject({ stop: "not-running", thread: { status: "idle" } });
+    expect(driver.interruptedThreads).toEqual([]);
+
+    const [missing] = await safe(client.threads.interrupt({ threadId: "thr_missing" }));
+    expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
+  });
+
+  it("refuses to stop a turn another device is running, and leaves it running", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const remote = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
+      db,
+      notifier: noopNotifier,
+      origins: pathOnlyOrigins,
+    });
+    const threadId = "thr_remote";
+    remote.applySyncedEvents({
+      cursor: 1,
+      rows: [
+        {
+          event: { scope: turnScope("turn_remote"), threadId, type: "turn/started" },
+          origin: { deviceId: "dev_other", deviceSeq: 1 },
+        },
+      ],
+      threadId,
+    });
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+
+    const [refusal] = await safe(client.threads.interrupt({ threadId }));
+    expect(isDefinedError(refusal) && refusal.code).toBe("CONFLICT");
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+    expect(driver.interruptedThreads).toEqual([]);
+  });
+
+  it("stops the turn an archive leaves behind, and starts nothing queued on the archived thread", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ text: "first", threadId });
+    await client.threads.send({ text: "queued", threadId });
+
+    const archived = await client.threads.archive({ threadId });
+    expect(archived.thread).toMatchObject({ status: "idle" });
+    expect(archived.thread.archivedAt).not.toBeNull();
+    expect(driver.interruptedThreads).toEqual([threadId]);
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first"]);
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
   });
 });
 

@@ -8,6 +8,7 @@ import type { MotionStyle } from "framer-motion";
 
 import { cn } from "@repo/ui/lib/cn";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
+import { PopupExit } from "@repo/ui/lib/popup-exit";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
@@ -111,25 +112,33 @@ const Tooltip = ({
               } else if (followCursor === "x") {
                 followStyle = { x: followOffset };
               }
-              // the cursor-follow transform and the enter/exit slide sit on separate elements so
-              // they do not fight
+              // the enter/exit slide rides the Popup element, the one Base UI waits on before it
+              // unmounts; the cursor-follow transform sits on the child so the two do not fight
               return (
-                <motion.div {...rest} style={motionStyle(baseStyle, followStyle)}>
+                <PopupExit exiting={exiting}>
                   <motion.div
-                    className={cn(
-                      "bg-foreground text-background text-body px-2 py-1",
-                      "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
-                      radius.bg,
-                      className,
-                    )}
-                    style={{ fontVariationSettings: fontWeights.medium }}
+                    {...rest}
+                    style={motionStyle(baseStyle)}
                     initial={{ opacity: 0, ...slideOffset }}
                     animate={exiting ? { opacity: 0, ...slideOffset } : { opacity: 1, x: 0, y: 0 }}
                     transition={exiting ? spring.fast.exit : spring.fast}
                   >
-                    {content}
+                    <motion.div
+                      className={cn(
+                        "bg-foreground text-background text-body px-2 py-1",
+                        "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
+                        radius.bg,
+                        className,
+                      )}
+                      style={motionStyle(
+                        { fontVariationSettings: fontWeights.medium },
+                        followStyle,
+                      )}
+                    >
+                      {content}
+                    </motion.div>
                   </motion.div>
-                </motion.div>
+                </PopupExit>
               );
             }}
           />

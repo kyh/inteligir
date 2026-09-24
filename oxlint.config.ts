@@ -31,6 +31,12 @@ export default defineConfig({
       },
     },
     {
+      // The server posts to MessagePorts and worker threads, never to a window, which is the
+      // only target that takes an origin.
+      files: ["apps/cli/src/server/**"],
+      rules: { "unicorn/require-post-message-target-origin": "off" },
+    },
+    {
       files: ["packages/notes/src/**"],
       rules: {
         "no-restricted-imports": [
@@ -49,6 +55,9 @@ export default defineConfig({
     },
   ],
   rules: {
+    // Its message asks for a `// SAFETY:` comment, which admits nothing now that
+    // `typescript/consistent-type-assertions` refuses every assertion.
+    "anti-slop/require-safety-comment-for-type-assertion": "off",
     // Sequential awaits in loops are deliberate here (ordered vault writes, rate-limited reads).
     "no-await-in-loop": "off",
     // Both shapes it flags are load-bearing idioms: an exhaustive `switch` over a
@@ -56,6 +65,9 @@ export default defineConfig({
     // function when a member is added) and `useEffect(() => { if (x) return; …;
     // return cleanup; })`, React's own contract for a conditional cleanup.
     "typescript/consistent-return": "off",
+    // No type assertion and no escape comment: parse at the boundary or narrow with a
+    // type guard. `as const` asserts no other type and stays legal.
+    "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
     // `instanceof Function` discriminates a `string | (() => T)` union now that
     // anti-slop owns the `typeof` spelling; every site checks a value this realm built.
     "unicorn/no-instanceof-builtins": ["error", { exclude: ["Function"] }],

@@ -17,18 +17,21 @@ not belong here.
 `.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
 "Doc" is a CLASSIFICATION, not a shape: it decides what the index projects and
 what a rename rewrites links in. It is deliberately WIDER than what the client
-writes — every note the UI creates is `.md`
-(`apps/desktop/src/renderer/app/vault-hooks.ts`,
-`packages/editor/src/note/vault-session.ts`), so a `.txt` in the vault is
-indexed and linkable but never minted here.
+writes — every note the UI creates is `.md` unless the name typed for it
+already ends in a doc extension (`withDocExtension`, read by
+`packages/editor/src/note/vault-session.ts` and the tree's inline create), so `Node.js` becomes
+`Node.js.md` and a `.txt` in the vault is indexed and linkable but minted only
+by name. It is also WIDER than what a link may leave off: `.md` alone, so a
+`.txt` note links as `[[todo.txt]]` (`wikiLinkName`, which the resolver keys).
 
 **note** — a doc as a user and the knowledge surfaces address it: the filename
-IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`).
+IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`). A
+name may not hold `[` or `]`, which would end a link to it.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor
 (`\r\n`, `\r`, `\n`). That rule is stated once, in `@repo/notes`'
-`knowledge/source-lines`, and read once, by `splitLines` — the task scan reads
-a checkbox's text under it and the projection cuts link snippets under it. A
+`text/source-lines`, and read once, by `splitLines` — the projection cuts
+link snippets under it. A
 second reading of "what a line is" anywhere else is a file-corruption bug
 waiting to happen; `text/line-diff`'s `splitLinesLf` is the one deliberate
 exception, LF-only because diff3 joins its segments back into the file's own
@@ -38,8 +41,8 @@ every line changed. Writes go through the vault's whole-file CAS, never through
 a re-joined split.
 
 **projection** — what ONE parse of a doc yields: title, headings, links, tags,
-aliases, tasks (`@repo/notes/knowledge/projection`, `projectDoc`). An index
-stores projections, not documents.
+aliases, the pin and the note's `id` (`@repo/notes/knowledge/projection`,
+`projectDoc`). An index stores projections, not documents.
 
 ## The agent
 
@@ -48,8 +51,9 @@ Read them together.
 
 **thread** — the durable conversation, a row in this app's own SQLite
 (`threads` in `@repo/db/schema`, id `thr_…`). It survives process restarts,
-owns its title, status, `activeTurnId` and — for a doc-attached action — the
-path it was spawned from. Everything the user can reopen lives here.
+owns its title, status, `activeTurnId` and — for a doc-attached action — its
+origin note (see **view context vs thread origin**). Everything the user can
+reopen lives here.
 
 **turn** — one request-to-settle exchange inside a thread. It names no table:
 a turn exists only as the SCOPE its events share (`@repo/db/ids`, id `turn_…`),
@@ -59,9 +63,12 @@ and `threads.activeTurnId` is the one the current status describes — bound by
 **session** — the PROVIDER's own conversation, `{ providerId, providerThreadId }`
 (`setThreadProviderSession` in `@repo/db/threads`, the one writer), cached on
 the thread row so a later turn resumes into it. A session is disposable: it is
-reaped when idle and dies with the provider process, while the thread and its
-events do not. Not to be confused with the auth **session** in `apps/web` — a
-signed-in user's row in D1 — which shares only the word.
+reaped when idle, closed when the host abandons a turn on it, and dies with
+the provider process, while the thread and its events do not. Only its
+`providerId` travels, in a `thread/meta` row: another device learns the
+harness, never the session id, and opens a session of its own. Not to be
+confused with the auth **session** in `apps/web` — a signed-in user's row in
+D1 — which shares only the word.
 
 **host turn id vs provider turn id** — TWO id spaces for one turn, and the
 distinction is load-bearing. The service mints the host id (`turn_…`) and hands
@@ -74,11 +81,14 @@ shown is the HOST id; the provider id is only ever spoken to the provider.
 
 **scope** — how far up an event's meaning reaches: `{ kind: "thread" }` or
 `{ kind: "turn", turnId }` (`@repo/domain/thread-event-scope`). Turn scope is
-the default reading; the per-type policy table names every exception and makes
-each state its reason, so an event that escapes turn chronology has to justify
-it in writing. The rule is enforced twice — the zod grammar at parse, a CHECK
-constraint on the `events` table — because a turn-scoped row with no turn id is
-a row no query can place.
+the default reading; each event type carries its own scope in the
+`threadEventSchema` union, and the exceptions (`client/turn/requested`,
+`provider/error`, and the thread's own facts `thread/meta` and
+`thread/archived`) state their reason beside it, so an event that escapes turn
+chronology has to justify it in writing and a consumer reads a turn event's
+`turnId` without a null branch. The rule is enforced twice — the zod grammar at
+parse, a CHECK constraint on the `events` table — because a turn-scoped row
+with no turn id is a row no query can place.
 
 **view context vs thread origin** — two answers to "which doc is this about",
 and they are not interchangeable. A **view context**
@@ -86,16 +96,24 @@ and they are not interchangeable. A **view context**
 bytes hashed to, taken at submit and consumed by that turn's prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
 message left from, which is what "this" and "here" in it refer to — so nothing
 has to reconcile it when the user navigates away. A **thread origin**
-(`threads.originDocPath`) is the DURABLE binding an action makes: the note it
-was composed over, surviving renames, and the thing the panel's note-first
-ordering resolves. A message can carry a view context into a thread with no
-origin — a composer send with the note chip detached has none.
+(`originDocPath` on the wire) is the DURABLE binding an action makes: the note
+it was composed over, found by the note's frontmatter id
+(`threads.origin_note_id`) so a move anywhere — Finder, a pull, an agent's
+`mv` — keeps it, the path at compose time answering for a note with no id; it
+is the thing the panel's note-first ordering resolves. A message can carry a
+view context into a thread with no origin — a composer send with the note chip
+detached has none. Neither is a
+**context path**: a note the user @-mentioned, which rides the message beside
+its text (`contextPaths` on `client/turn/requested`) and, being part of what
+was asked rather than a statement about the screen, survives the queue.
 
 **lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
 thread's metadata row (`@repo/api/cloud/sync/sync-schema`). It is what makes
 the sync log double as a dispatch mailbox — a `desktop`-lane thread pokes the
-desktop sockets, an `any`-lane one only bumps sync. There is no lane in the
-local server; locally a thread is just a thread.
+desktop sockets, an `any`-lane one only bumps sync. A desktop's push fills the
+row from the titled `thread/meta` events it carries, always `any`, since a
+thread a desktop runs is no dispatch; nothing sets `desktop` yet. There is no
+lane in the local server; locally a thread is just a thread.
 
 ## "event" means four things
 
@@ -106,8 +124,9 @@ state.
   (`@repo/domain/provider-event`, despite the file's name), one row in the
   `events` table, server-assigned `sequence` contiguous per thread. This is
   what a client replays and what syncs.
-- **provider event** — the runtime's EMITTED grammar: what a provider adapter
-  is allowed to produce (`@repo/agent-runtime/vocabulary/provider-event`). The two
+- **provider event** — the runtime's EMITTED grammar: exactly what the ACP
+  mapper constructs from an adapter's session updates
+  (`@repo/agent-runtime/vocabulary/provider-event`). The two
   grammars are near-twins with the same file name and are not the same set —
   the runtime constructs its events and never parses them, and
   `apps/cli/src/server/agents/event-mapping.ts` is the one place that narrows onto
@@ -120,10 +139,12 @@ state.
 - **filesystem event** — what the vault watcher reports
   (`apps/cli/src/server/vault/watcher`). Related but distinct: `fileChange` is a
   thread event ITEM type, the agent's own report of what it wrote, which is
-  what an agent commit stages.
+  what an agent commit stages, beside what the agent wrote through the
+  `inteligir` CLI from its own shell.
 
 The local realtime bus is deliberately NOT in this list. It carries **change
 kinds** — `events-appended`, `content-changed`, `status-changed`
-(`@repo/api/local/notifications`) — which are invalidation pings naming a
-subscription target, never payloads. A client told "events-appended" refetches;
-it is never handed the event.
+(`@repo/domain/change-kinds` declares them; `@repo/api/local/notifications` is
+the `/ws` frame grammar that carries them) — which are invalidation pings
+naming a subscription target, never payloads. A client told
+"events-appended" refetches; it is never handed the event.

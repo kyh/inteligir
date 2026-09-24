@@ -6,21 +6,26 @@
 import type { ProgressInfo, UpdateCheckResult, UpdateInfo } from "electron-updater";
 import {
   initialUpdateState,
-  reduceCheckFailure,
   reduceCheckStart,
   reduceDownloadComplete,
-  reduceDownloadFailure,
   reduceDownloadProgress,
   reduceDownloadStart,
-  reduceInstallFailure,
+  reduceFailure,
   reduceNoUpdate,
   reduceUpdateAvailable,
+  updateAction,
 } from "../update-state";
 import type { UpdateState } from "../update-state";
 import { toErrorMessage } from "../types";
 
 export const UPDATE_STARTUP_DELAY_MS = 15_000;
 export const UPDATE_POLL_INTERVAL_MS = 4 * 60_000;
+
+// every surface shows a failure's message as it stands, so the state never holds an empty one
+const failureReason = (cause: unknown): string => {
+  const message = toErrorMessage(cause);
+  return message.length > 0 ? message : "The updater gave no reason.";
+};
 
 // the version is all the policy reads; the rest of electron-updater's info stays on its side
 export type UpdateVersionInfo = Pick<UpdateInfo, "version">;
@@ -51,14 +56,16 @@ export interface UpdatesArgs {
   // the shell's own child; an adopted server outlives the shell and is nobody's to stop
   stopServer: () => Promise<void>;
   broadcast: (state: UpdateState) => void;
+  // Squirrel failed after the hand-off; the server is already down, so the shell cannot carry on
+  onInstallFailed: (message: string) => void;
   log: (message: string) => void;
   now?: () => string;
 }
 
 type InstallOutcome =
   | { kind: "quitting" }
-  | { kind: "refused"; state: UpdateState }
-  | { kind: "failed"; state: UpdateState };
+  | { kind: "refused" }
+  | { kind: "failed"; message: string };
 
 export interface Updates {
   state: () => UpdateState;
@@ -69,7 +76,8 @@ export interface Updates {
   install: () => Promise<InstallOutcome>;
 }
 
-type Step = "check" | "download" | "install";
+// "installing" once Squirrel holds the update: nothing awaits it, so its failure arrives as an event
+type Step = "check" | "download" | "install" | "installing";
 
 export const createUpdates = (args: UpdatesArgs): Updates => {
   const now = args.now ?? (() => new Date().toISOString());
@@ -101,16 +109,22 @@ export const createUpdates = (args: UpdatesArgs): Updates => {
   args.updater.subscribe({
     downloadProgress(progress) {
       const next = reduceDownloadProgress(state, progress.percent);
-      if (next.downloadPercent !== state.downloadPercent) {
+      if (next !== state) {
         setState(next);
       }
     },
-    // a step in flight reports its own rejection; this is the background case
+    // a step in flight reports its own rejection; this is the background case, and the installer's
     error(error) {
-      const message = toErrorMessage(error);
+      const message = failureReason(error);
       args.log(`updater error: ${message}`);
-      if (step === null && state.status !== "disabled") {
-        setState(reduceCheckFailure(state, message, now()));
+      if (step === "installing") {
+        step = null;
+        setState(reduceFailure(state, message));
+        args.onInstallFailed(message);
+        return;
+      }
+      if (step === null) {
+        setState(reduceFailure(state, message, now()));
       }
     },
     updateAvailable(info) {
@@ -142,26 +156,28 @@ export const createUpdates = (args: UpdatesArgs): Updates => {
     try {
       await args.updater.checkForUpdates();
     } catch (error) {
-      setState(reduceCheckFailure(state, toErrorMessage(error), now()));
+      setState(reduceFailure(state, failureReason(error), now()));
     } finally {
       release("check");
     }
     return state;
   };
 
+  // the policy runs a step only where the button offers it, so the two cannot disagree
   const download = async (): Promise<UpdateState> => {
-    if (state.availableVersion === null || state.downloadedVersion !== null) {
+    const offered = updateAction(state);
+    if (offered?.action !== "download") {
       return state;
     }
     if (!reserve("download")) {
       return state;
     }
-    setState(reduceDownloadStart(state));
-    args.log(`downloading ${state.availableVersion}`);
+    setState(reduceDownloadStart(state, offered.version));
+    args.log(`downloading ${offered.version}`);
     try {
       await args.updater.downloadUpdate();
     } catch (error) {
-      setState(reduceDownloadFailure(state, toErrorMessage(error)));
+      setState(reduceFailure(state, failureReason(error)));
     } finally {
       release("download");
     }
@@ -169,22 +185,25 @@ export const createUpdates = (args: UpdatesArgs): Updates => {
   };
 
   const install = async (): Promise<InstallOutcome> => {
-    if (state.downloadedVersion === null) {
-      return { kind: "refused", state };
+    const offered = updateAction(state);
+    if (offered?.action !== "install") {
+      return { kind: "refused" };
     }
     if (!reserve("install")) {
-      return { kind: "refused", state };
+      return { kind: "refused" };
     }
-    args.log(`installing ${state.downloadedVersion}: stopping the server`);
+    args.log(`installing ${offered.version}: stopping the server`);
     try {
       await args.stopServer();
       args.updater.quitAndInstall(true, true);
-      return { kind: "quitting" };
     } catch (error) {
-      setState(reduceInstallFailure(state, toErrorMessage(error)));
+      const message = failureReason(error);
+      setState(reduceFailure(state, message));
       release("install");
-      return { kind: "failed", state };
+      return { kind: "failed", message };
     }
+    step = "installing";
+    return { kind: "quitting" };
   };
 
   return {
@@ -193,7 +212,7 @@ export const createUpdates = (args: UpdatesArgs): Updates => {
     install,
     start() {
       if (state.status === "disabled") {
-        args.log(`updates disabled: ${state.message ?? "no reason given"}`);
+        args.log(`updates disabled: ${state.reason}`);
         return;
       }
       args.updater.disarmAutomation();

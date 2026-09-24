@@ -1,38 +1,50 @@
-// the entry walk duplicates vault/watcher/fork-channel.ts's on purpose: that file is vendored,
-// so house helpers stay out of it.
-
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { Worker } from "node:worker_threads";
+import { z } from "zod";
+import { messageOf } from "../error-message";
+import { resolveWorkerEntry } from "../worker-entry";
+import type { WorkerEntry } from "../worker-entry";
 import type {
   VoiceModelFiles,
+  VoiceStreamCommand,
   VoiceStreamEvent,
   VoiceStreamInit,
   VoiceWorkerRequest,
   VoiceWorkerResponse,
 } from "./worker-protocol";
 
+const failedFrameSchema = z.object({
+  kind: z.literal("failed"),
+  message: z.string(),
+  modelUnusable: z.boolean(),
+});
+
+const workerResponseSchema: z.ZodType<VoiceWorkerResponse> = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("probed") }),
+  z.object({ kind: z.literal("transcribed"), text: z.string() }),
+  failedFrameSchema,
+]);
+
+const streamEventSchema: z.ZodType<VoiceStreamEvent> = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("ready") }),
+  z.object({ kind: z.literal("partial"), text: z.string() }),
+  z.object({ kind: z.literal("final"), text: z.string() }),
+  failedFrameSchema,
+]);
+
+// a frame that does not parse is a worker this build did not write, not a fact about the model.
+const UNREADABLE_FRAME = "The transcription worker sent a message this build cannot read.";
+
 // a one-shot's work is bounded (two minutes of audio decodes in seconds, a load is under a
 // second), so anything near this is a wedged runtime. the streaming session is not bounded by it.
 const WORKER_BUDGET_MS = 60_000;
 
-const resolveWorkerEntry = (): string => {
-  const moduleDir = import.meta.dirname;
-  // packaged: the .mjs sits beside the node bundle; dev: the .ts source.
-  const candidates = ["transcribe-worker.mjs", "transcribe-worker.ts"];
-  for (const candidate of candidates) {
-    const candidatePath = path.join(moduleDir, candidate);
-    if (existsSync(candidatePath)) {
-      return candidatePath;
-    }
-  }
-  throw new Error(
-    `Transcription worker entry not found in ${moduleDir} (looked for ${candidates.join(", ")})`,
-  );
-};
+const transcribeWorkerEntry = (): WorkerEntry =>
+  resolveWorkerEntry(import.meta.dirname, "transcribe-worker");
 
 export const runVoiceWorker = async (request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> => {
-  const worker = new Worker(resolveWorkerEntry(), {
+  const entry = transcribeWorkerEntry();
+  const worker = new Worker(entry.path, {
+    ...entry.options,
     // transferred, not copied: the parent has no use for the buffer once the worker holds it.
     transferList: request.kind === "transcribe" ? [request.pcm] : [],
     workerData: request,
@@ -62,8 +74,13 @@ export const runVoiceWorker = async (request: VoiceWorkerRequest): Promise<Voice
       });
     }, WORKER_BUDGET_MS);
 
-    worker.on("message", (msg: VoiceWorkerResponse) => {
-      settle(msg);
+    worker.on("message", (frame) => {
+      const response = workerResponseSchema.safeParse(frame);
+      settle(
+        response.success
+          ? response.data
+          : { kind: "failed", message: UNREADABLE_FRAME, modelUnusable: false },
+      );
     });
     worker.on("error", (error: Error) => {
       settle({ kind: "failed", message: error.message, modelUnusable: false });
@@ -126,17 +143,30 @@ export const spawnVoiceStreamWorker = (
 
   let worker: Worker;
   try {
-    // workerData is any: an unannotated literal with a mistyped kind falls through to the
-    // one-shot path and answers modelUnusable, which nukes the model cache.
+    // workerData is any: the annotation is what turns a mistyped kind into a compile error
+    // rather than a worker that refuses its own start.
     const init: VoiceStreamInit = { kind: "stream", model };
-    worker = new Worker(resolveWorkerEntry(), { workerData: init });
+    const entry = transcribeWorkerEntry();
+    worker = new Worker(entry.path, { ...entry.options, workerData: init });
   } catch (error) {
     // a missing worker bundle is a packaging fault, not a corrupt model.
-    callbacks.onError(error instanceof Error ? error.message : String(error), false);
+    callbacks.onError(messageOf(error), false);
     return DEAD_HANDLE;
   }
 
-  worker.on("message", (event: VoiceStreamEvent) => {
+  const send = (command: VoiceStreamCommand, transfer: ArrayBuffer[] = []): void => {
+    if (!disposed && !settled) {
+      worker.postMessage(command, transfer);
+    }
+  };
+
+  worker.on("message", (frame) => {
+    const parsed = streamEventSchema.safeParse(frame);
+    if (!parsed.success) {
+      fail(UNREADABLE_FRAME, false);
+      return;
+    }
+    const event = parsed.data;
     switch (event.kind) {
       case "ready": {
         callbacks.onReady();
@@ -178,15 +208,11 @@ export const spawnVoiceStreamWorker = (
       await worker.terminate();
     },
     finalize: () => {
-      if (!disposed && !settled) {
-        // oxlint-disable-next-line unicorn/require-post-message-target-origin -- node worker_threads, not a browser window
-        worker.postMessage({ kind: "finalize" });
-      }
+      send({ kind: "finalize" });
     },
+    // transferred, not copied: the caller has no use for the buffer once the worker holds it.
     pushPcm: (pcm) => {
-      if (!disposed && !settled) {
-        worker.postMessage({ kind: "audio", pcm }, [pcm]);
-      }
+      send({ kind: "audio", pcm }, [pcm]);
     },
   };
 };

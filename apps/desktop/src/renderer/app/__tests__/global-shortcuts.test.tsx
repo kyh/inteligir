@@ -2,8 +2,8 @@
 
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
-import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import {
   bindingFor,
   GLOBAL_SHORTCUTS,
@@ -17,36 +17,53 @@ afterEach(cleanup);
 const keydown = (init: KeyboardEventInit): KeyboardEvent =>
   new KeyboardEvent("keydown", { key: "k", ...init });
 
-const mountListener = (modifier: ShortcutModifier): GlobalShortcutAction[] => {
+const mountListener = (modifier: ShortcutModifier, enabled = true) => {
   const fired: GlobalShortcutAction[] = [];
-  const Harnessed = () => {
-    useGlobalShortcuts(modifier, (action) => {
+  const Harnessed = ({ on }: { on: boolean }) => {
+    useGlobalShortcuts({ enabled: on, modifier }, (action) => {
       fired.push(action);
     });
     return <div />;
   };
-  render(<Harnessed />);
-  return fired;
+  const { rerender } = render(<Harnessed on={enabled} />);
+  return {
+    fired,
+    setEnabled: (next: boolean) => {
+      rerender(<Harnessed on={next} />);
+    },
+  };
 };
 
 describe("the window listener", () => {
   it("fires the table's action for a claimed key", () => {
-    const fired = mountListener("ctrl");
+    const { fired } = mountListener("ctrl");
     fireEvent.keyDown(window, { ctrlKey: true, key: "k" });
     expect(fired).toEqual(["open-action-composer"]);
   });
 
   it("ignores the other modifier", () => {
-    const fired = mountListener("ctrl");
+    const { fired } = mountListener("ctrl");
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(fired).toEqual([]);
   });
 
+  it("stands down while disabled, and leaves the chord to the page", () => {
+    const { fired, setEnabled } = mountListener("ctrl", false);
+    const chord = new KeyboardEvent("keydown", { cancelable: true, ctrlKey: true, key: "p" });
+    window.dispatchEvent(chord);
+    expect(fired).toEqual([]);
+    expect(chord.defaultPrevented).toBe(false);
+
+    setEnabled(true);
+    fireEvent.keyDown(window, { ctrlKey: true, key: "p" });
+    expect(fired).toEqual(["open-palette"]);
+  });
+
   it("covers every table row", () => {
-    const fired = mountListener("ctrl");
+    const { fired } = mountListener("ctrl");
     for (const shortcut of GLOBAL_SHORTCUTS) {
       fireEvent.keyDown(window, {
-        ctrlKey: true,
+        ctrlKey: shortcut.bare !== true,
         key: shortcut.key,
         shiftKey: shortcut.shift === true,
       });
@@ -89,11 +106,30 @@ describe("the matcher", () => {
       globalShortcutFor(keydown({ altKey: true, key: "f", metaKey: true, shiftKey: true }), "meta"),
     ).toBeNull();
   });
+
+  it("answers a bare key outside a field, and only with no modifier held", () => {
+    expect(globalShortcutFor(keydown({ key: "[" }), "meta")?.action).toBe("toggle-rail");
+    expect(globalShortcutFor(keydown({ key: "]" }), "ctrl")?.action).toBe("toggle-panel");
+    expect(globalShortcutFor(keydown({ key: "[", metaKey: true }), "meta")).toBeNull();
+    expect(globalShortcutFor(keydown({ ctrlKey: true, key: "]" }), "ctrl")).toBeNull();
+    expect(globalShortcutFor(keydown({ altKey: true, key: "[" }), "meta")).toBeNull();
+  });
+
+  it("leaves a bare key to the field it is typed into", () => {
+    const { fired } = mountListener("meta");
+    const field = document.createElement("input");
+    document.body.append(field);
+    fireEvent.keyDown(field, { key: "[" });
+    fireEvent.keyDown(document.body, { key: "[" });
+    field.remove();
+    expect(fired).toEqual(["toggle-rail"]);
+  });
 });
 
 describe("the spelling", () => {
   it("answers a binding by its action from the table", () => {
     expect(bindingFor("open-palette", "meta")).toBe("⌘P");
     expect(bindingFor("open-settings", "ctrl")).toBe("Ctrl+,");
+    expect(bindingFor("toggle-rail", "meta")).toBe("[");
   });
 });

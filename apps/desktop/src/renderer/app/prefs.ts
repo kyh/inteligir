@@ -1,4 +1,4 @@
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar";
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar-core";
 import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { spellcheckChoiceSchema } from "../../spellcheck-state";
@@ -85,7 +85,8 @@ export const writeRelatedOpen = (open: boolean): void => {
   write(KEYS.relatedOpen, open ? "true" : "false");
 };
 
-const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
+// in the order the rail's view menu lists them
+export const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
 export type RailView = (typeof RAIL_VIEWS)[number];
 
 // which of the rail's views is showing

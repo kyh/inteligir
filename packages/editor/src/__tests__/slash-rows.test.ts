@@ -11,15 +11,6 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-menu";
 
-// rows whose fresh insert is not yet its own fixpoint, each with why; a row here is asserted to
-// still churn, so the entry fails the day the defect is fixed and cannot outlive it.
-const NOT_YET_CANONICAL = new Map<string, string>([
-  [
-    "inline-equation",
-    "an empty inline equation serializes as `$$$$`, which re-parses as text and saves escaped",
-  ],
-]);
-
 const OPAQUE_TYPES = new Set(["opaqueBlock", "opaqueInline"]);
 
 const opaqueTypesIn = (nodes: readonly Descendant[]): string[] =>
@@ -30,31 +21,29 @@ const opaqueTypesIn = (nodes: readonly Descendant[]): string[] =>
     return OPAQUE_TYPES.has(node.type) ? [node.type] : opaqueTypesIn(node.children);
   });
 
-const startValue = (): Value => [{ children: [{ text: "x" }], type: "p" }];
+// the menu opens after text and on an empty line, and a row's bytes may differ between the two.
+const START_LINES = new Map<string, string>([
+  ["after text", "x"],
+  ["on an empty line", ""],
+]);
 
 describe("every slash row inserts a modeled construct", () => {
-  for (const { group, items } of GROUPS) {
-    for (const item of items) {
-      it(`${group} › ${item.label}`, () => {
-        const editor = createPlateEditor({ plugins: EDITOR_KIT, value: startValue() });
-        editor.tf.select(editor.api.end([0]));
-        item.onSelect(editor);
-        const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+  for (const [where, text] of START_LINES) {
+    for (const { group, items } of GROUPS) {
+      for (const item of items) {
+        it(`${group} › ${item.label}, ${where}`, () => {
+          const value: Value = [{ children: [{ text }], type: "p" }];
+          const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
+          editor.tf.select(editor.api.end([0]));
+          item.onSelect(editor);
+          const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
-        const parsed = parseMarkdown(md);
-        expect(parsed.ok, md).toBe(true);
-        expect(parsed.ok ? opaqueTypesIn(parsed.value) : [], md).toEqual([]);
-        if (NOT_YET_CANONICAL.has(item.value)) {
-          expect(roundTrip(md), NOT_YET_CANONICAL.get(item.value)).not.toBe(md);
-        } else {
+          const parsed = parseMarkdown(md);
+          expect(parsed.ok, md).toBe(true);
+          expect(parsed.ok ? opaqueTypesIn(parsed.value) : [], md).toEqual([]);
           expect(roundTrip(md), md).toBe(md);
-        }
-      });
+        });
+      }
     }
   }
-
-  it("names no row the menu does not have", () => {
-    const values = new Set(GROUPS.flatMap(({ items }) => items.map((item) => item.value)));
-    expect([...NOT_YET_CANONICAL.keys()].filter((value) => !values.has(value))).toEqual([]);
-  });
 });

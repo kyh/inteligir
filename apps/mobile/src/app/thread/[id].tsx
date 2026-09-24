@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useThread } from "@/lib/app-runtime";
 import type { ThreadDisplayItem } from "@/sync/thread-projection";
@@ -8,7 +8,7 @@ import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 const styles = StyleSheet.create({
   agentText: { fontSize: 16, lineHeight: 24 },
   body: { fontSize: 15, textAlign: "center" },
-  content: { gap: SPACE.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.lg },
+  content: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.lg },
   empty: { alignItems: "center", flex: 1, justifyContent: "center", paddingHorizontal: SPACE.xxl },
   notice: {
     borderRadius: RADIUS.md,
@@ -18,6 +18,7 @@ const styles = StyleSheet.create({
   },
   reasoning: { fontSize: 13, fontStyle: "italic" },
   screen: { flex: 1 },
+  separator: { height: SPACE.md },
   tool: { fontSize: 12 },
   userBubble: {
     borderBottomRightRadius: RADIUS.md,
@@ -73,6 +74,10 @@ const Row = ({ item }: { item: ThreadDisplayItem }) => {
   }
 };
 
+// a separator, not the container's gap: the list's windowing spacers are its siblings and would
+// take a gap each.
+const Separator = () => <View style={styles.separator} />;
+
 // A read-only view of one synced thread — the desktop agent's work, mirrored.
 // No composer: sending a turn (the desktop runs it) is a fast follow.
 const ThreadScreen = () => {
@@ -94,11 +99,14 @@ const ThreadScreen = () => {
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-          {thread.items.map((item) => (
-            <Row key={item.id} item={item} />
-          ))}
-        </ScrollView>
+        <FlatList
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          data={thread.items}
+          keyExtractor={(item) => item.id}
+          ItemSeparatorComponent={Separator}
+          renderItem={({ item }) => <Row item={item} />}
+        />
       )}
     </SafeAreaView>
   );

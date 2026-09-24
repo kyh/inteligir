@@ -1,13 +1,17 @@
 import { useRef, useState } from "react";
-import { unwrapLink } from "@platejs/link";
-import { ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
+import { getLinkAttributes, unwrapLink } from "@platejs/link";
+import { ArrowRightIcon, ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
 import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
+import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
+import { isHttpUrl, openExternalUrl } from "@repo/editor/lib/wire";
+import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
 
 const PopoverButton = ({
@@ -40,6 +44,12 @@ export const LinkElement = (props: PlateElementProps) => {
   const [draft, setDraft] = useState("");
 
   const url = stringProp(element, "url") ?? "";
+  const notePath = useOpenNotePath();
+  // a vault url opens in the app, and one the listing does not hold offers no Open: the
+  // browser has no route to a vault path. only an http(s) url is handed to the browser.
+  const linked = useVaultLinkTarget(url, notePath);
+  const vaultPath = linked?.path ?? null;
+  const { openFile } = useVaultActions();
 
   const close = () => {
     setOpen(false);
@@ -74,7 +84,7 @@ export const LinkElement = (props: PlateElementProps) => {
       className="cursor-pointer"
       attributes={{
         ...props.attributes,
-        href: url,
+        ...getLinkAttributes(editor, { children: element.children, type: element.type, url }),
         onClick: (event: React.MouseEvent) => {
           event.preventDefault();
           if (!readOnly) {
@@ -103,6 +113,9 @@ export const LinkElement = (props: PlateElementProps) => {
                   setDraft(e.target.value);
                 }}
                 onKeyDown={(e) => {
+                  if (isImeComposing(e)) {
+                    return;
+                  }
                   if (e.key === "Enter") {
                     e.preventDefault();
                     applyDraft();
@@ -112,12 +125,12 @@ export const LinkElement = (props: PlateElementProps) => {
                   }
                 }}
                 placeholder="https://…"
-                className="h-7 w-56 bg-transparent px-1.5 text-xs outline-none placeholder:text-muted-foreground"
+                className="h-7 w-56 bg-transparent px-1.5 text-body outline-none placeholder:text-muted-foreground"
               />
               <button
                 type="button"
                 onClick={applyDraft}
-                className="flex items-center rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+                className="flex items-center rounded-md px-2 py-1 text-body font-medium text-primary transition-colors hover:bg-primary/10"
               >
                 Apply
               </button>
@@ -125,19 +138,32 @@ export const LinkElement = (props: PlateElementProps) => {
           ) : (
             <div className="flex items-center gap-0.5">
               <span
-                className={cn("max-w-56 truncate px-1.5 text-xs text-muted-foreground")}
+                className={cn("max-w-56 truncate px-1.5 text-body text-muted-foreground")}
                 title={url}
               >
                 {url}
               </span>
-              <PopoverButton
-                title="Open link"
-                onClick={() => {
-                  window.open(url, "_blank");
-                }}
-              >
-                <ExternalLinkIcon />
-              </PopoverButton>
+              {isHttpUrl(url) && (
+                <PopoverButton
+                  title="Open link"
+                  onClick={() => {
+                    openExternalUrl(url);
+                  }}
+                >
+                  <ExternalLinkIcon />
+                </PopoverButton>
+              )}
+              {vaultPath !== null && (
+                <PopoverButton
+                  title="Open link"
+                  onClick={() => {
+                    close();
+                    openFile(vaultPath);
+                  }}
+                >
+                  <ArrowRightIcon />
+                </PopoverButton>
+              )}
               <PopoverButton
                 title="Edit link"
                 onClick={() => {

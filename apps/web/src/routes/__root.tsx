@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
+import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 
 import { siteConfig } from "@/lib/site-config";
-import { THEME_FALLBACK, THEME_STORAGE_KEY } from "@/components/theme-provider";
+import { THEME_FALLBACK, THEME_STORAGE_KEY, ThemeProvider } from "@/components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
 
@@ -28,16 +29,21 @@ const NotFound = () => (
   </div>
 );
 
+// the document's one theme provider: each writes .dark on <html>, so a page that mounted a
+// second would fight this one for the class
 const RootComponent = () => (
-  <RadiusProvider radius="rounded">
-    <SizeProvider size="compact">
-      <Outlet />
-    </SizeProvider>
-  </RadiusProvider>
+  <ThemeProvider>
+    <MotionPolicy>
+      <RadiusProvider radius="rounded">
+        <SizeProvider size="compact">
+          <Outlet />
+        </SizeProvider>
+      </RadiusProvider>
+    </MotionPolicy>
+  </ThemeProvider>
 );
 
 const RootDocument = ({ children }: { children: React.ReactNode }) => (
-  // no theme provider here: two nested @repo/ui providers both write .dark on <html> and the outer effect wins, so each page owns its own
   // suppressHydrationWarning: the inline script sets the theme class before hydration
   // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
   <html lang="en" suppressHydrationWarning>

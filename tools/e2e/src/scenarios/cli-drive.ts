@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { ExecResult } from "../harness/exec";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
 const NOTE_PATH = "notes/cli-drive.md";
@@ -22,8 +22,8 @@ const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string(
 export const cliDrive: Scenario = {
   description: "the CLI drives a real instance: vault write, search, action new+wait+show",
   name: "cli-drive",
-  // no build step: bin/inteligir runs src/ under tsx in a checkout; the published bundle is pnpm
-  // smoke:cli's to test.
+  // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
+  // the packed tarball pnpm smoke:cli's.
   async run(ctx) {
     const app = await ctx.boot({
       extraEnv: { INTELIGIR_AGENT: "scripted" },
@@ -51,7 +51,7 @@ export const cliDrive: Scenario = {
     expect(which.stdout.trim().length > 0, "`inteligir --version` answered");
 
     ctx.log("vault write + read through the CLI, verified on disk");
-    await cli("vault", "write", NOTE_PATH, "--content", NOTE_CONTENT);
+    await cli("vault", "write", NOTE_PATH, "--content", NOTE_CONTENT, "--if-absent");
     const readBack = await cli("vault", "read", NOTE_PATH);
     expectEq(readBack.stdout, NOTE_CONTENT, "CLI read-back matches");
     expectEq(
@@ -63,21 +63,22 @@ export const cliDrive: Scenario = {
     expect(listing.stdout.includes(NOTE_PATH), "the listing names the note");
 
     ctx.log("search finds the note (projection is async — poll)");
-    const searchDeadline = Date.now() + SEARCH_DEADLINE_MS;
-    for (;;) {
-      const search = await cli("search", NOTE_TOKEN, "--json");
-      const parsed = searchOutputSchema.safeParse(JSON.parse(search.stdout));
-      const results = parsed.success ? parsed.data.results : [];
-      if (results.length > 0) {
-        expect(
-          results.some((result) => searchHitSchema.safeParse(result).data?.path === NOTE_PATH),
-          "search names the written note",
-        );
-        break;
-      }
-      expect(Date.now() < searchDeadline, `search still empty after ${SEARCH_DEADLINE_MS}ms`);
-      await delay(250);
-    }
+    const results = await pollUntil(
+      async () => {
+        const search = await cli("search", NOTE_TOKEN, "--json");
+        const parsed = searchOutputSchema.safeParse(JSON.parse(search.stdout));
+        return parsed.success ? parsed.data.results : [];
+      },
+      (found) => found.length > 0,
+      {
+        deadlineMs: SEARCH_DEADLINE_MS,
+        describe: () => `search still empty after ${SEARCH_DEADLINE_MS}ms`,
+      },
+    );
+    expect(
+      results.some((result) => searchHitSchema.safeParse(result).data?.path === NOTE_PATH),
+      "search names the written note",
+    );
 
     ctx.log("action new + wait under the scripted driver");
     const created = await cli("action", "new", PROMPT, "--json");

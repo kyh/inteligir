@@ -14,6 +14,8 @@ afterEach(() => {
 
 const noViewContext = async () => null;
 
+const noteColumn = { current: document.body };
+
 describe("the composer under a refused first send", () => {
   it("keeps the prompt and retries into the already-created thread", async () => {
     const harness = await bootThreadHarness({ mode: "manual" });
@@ -32,6 +34,7 @@ describe("the composer under a refused first send", () => {
           docPath={null}
           readViewContext={noViewContext}
           onLaunched={onLaunched}
+          container={noteColumn}
         />
       </WorkspaceProvider>,
     );
@@ -41,7 +44,7 @@ describe("the composer under a refused first send", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(async () => {
-      const listed = await harness.client.threads.list();
+      const listed = await harness.client.threads.list({});
       expect(listed.threads).toHaveLength(1);
     });
     await waitFor(() => {
@@ -56,7 +59,7 @@ describe("the composer under a refused first send", () => {
       expect(onLaunched).toHaveBeenCalledTimes(1);
     });
 
-    const { threads } = await harness.client.threads.list();
+    const { threads } = await harness.client.threads.list({});
     expect(threads).toHaveLength(1);
     expect(onLaunched).toHaveBeenCalledWith(threads[0]?.id);
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -79,6 +82,7 @@ describe("the composer under a refused first send", () => {
           docPath={docPath}
           readViewContext={noViewContext}
           onLaunched={onLaunched}
+          container={noteColumn}
         />
       </WorkspaceProvider>
     );
@@ -88,7 +92,7 @@ describe("the composer under a refused first send", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(async () => {
-      const listed = await harness.client.threads.list();
+      const listed = await harness.client.threads.list({});
       expect(listed.threads).toHaveLength(1);
     });
     await waitFor(() => {
@@ -102,10 +106,64 @@ describe("the composer under a refused first send", () => {
       expect(onLaunched).toHaveBeenCalledTimes(1);
     });
 
-    const { threads } = await harness.client.threads.list();
+    const { threads } = await harness.client.threads.list({});
     expect(threads).toHaveLength(2);
     const started = harness.driver.startedTurns.map((turn) => turn.threadId);
     expect(started).toHaveLength(1);
     expect(threads.find((thread) => thread.id === started[0])?.originDocPath).toBe("b.md");
+  });
+});
+
+describe("the composer's @-mentions", () => {
+  it("ride the send beside the typed text, never inside it", async () => {
+    const harness = await bootThreadHarness({ mode: "manual" });
+    vi.stubGlobal("WebSocket", InertSocket);
+    routeRendererFetch(harness);
+    await harness.client.vault.write({
+      content: "# Plans\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
+
+    render(
+      <WorkspaceProvider>
+        <ActionComposer
+          open
+          onOpenChange={() => {}}
+          seed={null}
+          docPath={null}
+          readViewContext={noViewContext}
+          onLaunched={() => {}}
+          container={noteColumn}
+        />
+      </WorkspaceProvider>,
+    );
+
+    const field = screen.getByRole("combobox", { name: "Ask the agent" });
+    expect(field.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.change(field, { target: { value: "@Pla" } });
+    const option = await screen.findByRole("option", { name: /Plans/u });
+    const list = screen.getByRole("listbox", { name: "Mention a note" });
+    expect(field.getAttribute("aria-expanded")).toBe("true");
+    expect(field.getAttribute("aria-controls")).toBe(list.id);
+    expect(field.getAttribute("aria-activedescendant")).toBe(option.id);
+    expect(option.tabIndex).toBe(-1);
+
+    fireEvent.mouseDown(option);
+    fireEvent.change(field, { target: { value: "compare with the goals" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(harness.driver.startedTurns).toHaveLength(1);
+    });
+    expect(harness.driver.startedTurns[0]?.text).toBe("compare with the goals");
+    expect(harness.driver.startedTurns[0]?.contextPaths).toEqual(["Plans.md"]);
+    const { threads } = await harness.client.threads.list({});
+    const [thread] = threads;
+    expect(thread?.title).toBe("compare with the goals");
+    const timeline = await harness.client.threads.timeline({ threadId: thread?.id ?? "" });
+    const stored = timeline.kind === "full" ? timeline.timeline.rows[0] : undefined;
+    expect(stored?.kind === "conversation" && stored.text).toBe("compare with the goals");
+    expect(stored?.kind === "conversation" && stored.contextPaths).toEqual(["Plans.md"]);
   });
 });

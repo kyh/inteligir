@@ -10,8 +10,8 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { afterAll, describe, expect, it } from "vitest";
 import { createConnection } from "../connection";
-import { asMapping, isText } from "../json-source";
-import type { JsonValue } from "../json-source";
+import { asMapping, isText } from "./json-source";
+import type { JsonValue } from "./json-source";
 import { getSchemaVersion } from "../meta";
 import { listMigrationNames, runMigrations } from "../migrate";
 

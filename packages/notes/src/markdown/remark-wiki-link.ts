@@ -16,6 +16,8 @@ import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import type { Code, Effects, Extension as MicromarkExtension, State } from "micromark-util-types";
 import type { Plugin, Processor } from "unified";
 
+import { isEscapedAt } from "./line-scan";
+
 export interface WikiLink extends Node {
   type: "wikiLink";
   body: string;
@@ -183,21 +185,13 @@ export interface WikiBody {
 }
 
 // `targetRange` is the raw slice a rename rewrites; when the title carries `\#`/`\\` escapes it
-// maps the escaped bytes while `target` is unescaped, so span verification fails closed.
+// covers the escaped bytes while `target` is unescaped, so a rename writes its target escaped.
 export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
 
 // the resolved-link form puts the target note's uuid after the pipe.
 const UUID_ALIAS_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu;
 
 export const isUuidWikiAlias = (alias: string): boolean => UUID_ALIAS_RE.test(alias);
-
-const isEscapedAt = (text: string, index: number): boolean => {
-  let backslashes = 0;
-  for (let i = index - 1; i >= 0 && text[i] === "\\"; i -= 1) {
-    backslashes += 1;
-  }
-  return backslashes % 2 === 1;
-};
 
 // only the dialect's two escapes unescape; any other backslash is title text.
 const unescapeWikiText = (text: string): string =>
@@ -256,4 +250,54 @@ export const parseWikiBodyRange = (body: string): WikiBodyRange => {
 export const parseWikiBody = (body: string): WikiBody => {
   const { targetRange: _range, ...display } = parseWikiBodyRange(body);
   return display;
+};
+
+// the resolved-link uuid alias is identity plumbing, not display text: it shows as no alias.
+export const wikiLinkLabel = (body: string): string => {
+  const { alias, anchor, target } = parseWikiBody(body);
+  if (alias !== undefined && !isUuidWikiAlias(alias)) {
+    return alias;
+  }
+  return anchor === undefined ? target : `${target}#${anchor}`;
+};
+
+interface WikiBodyParts {
+  target: string;
+  anchor?: string | undefined;
+  alias?: string | undefined;
+}
+
+const escapeWikiText = (text: string): string => text.replaceAll(/[\\#]/gu, "\\$&");
+
+const plainWikiText = (text: string): string => text;
+
+// the tokenizer ends the construct at a bracket or a line break
+const UNCARRIABLE_RE = /[[\]\r\n]/u;
+
+const presentPart = (part: string | undefined): string | undefined =>
+  part === undefined || part === "" ? undefined : part;
+
+// The inverse of parseWikiBody, and the only writer of a body: the plain spelling when it parses
+// back to these parts, so `[[C# Notes]]` stays as people write it, else with every `\` and `#`
+// escaped. Null when neither parses back: a bracket or line break anywhere, a `|` the last-pipe
+// rule would split, or edge whitespace the parse trims.
+export const serializeWikiBody = (parts: WikiBodyParts): string | null => {
+  const { target } = parts;
+  const anchor = presentPart(parts.anchor);
+  const alias = presentPart(parts.alias);
+  for (const escape of [plainWikiText, escapeWikiText]) {
+    const head = anchor === undefined ? escape(target) : `${escape(target)}#${escape(anchor)}`;
+    const body = alias === undefined ? head : `${head}|${alias}`;
+    const parsed = parseWikiBody(body);
+    if (
+      body !== "" &&
+      !UNCARRIABLE_RE.test(body) &&
+      parsed.target === target &&
+      parsed.anchor === anchor &&
+      parsed.alias === alias
+    ) {
+      return body;
+    }
+  }
+  return null;
 };

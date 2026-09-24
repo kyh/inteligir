@@ -8,6 +8,7 @@ import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
   healthResponseSchema,
+  HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   VOICE_STREAM_PATH,
@@ -25,6 +26,7 @@ import type { VoiceStreamDownMessage } from "@repo/api/local/voice/voice-schema"
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { BROWSER_SESSION_COOKIE } from "../browser-session";
+import { HTML_FRAME_DOCUMENT } from "../html-block-frame";
 import { closeServer } from "../listen";
 import { authorizationHeader } from "../server-file";
 import { bootTestApp, listenTestApp, TEST_HOST, TEST_SERVER_TOKEN } from "./boot-app";
@@ -136,7 +138,7 @@ describe("the API over the in-process app", () => {
   });
 
   it("404s an unknown /rpc path, never the SPA shell", async () => {
-    const { bareRequest, request } = await bootTestApp({ clientDir: makeUi().clientDir });
+    const { request } = await bootTestApp({ clientDir: makeUi().clientDir });
 
     const rpcMiss = await request(`${RPC_PREFIX}/nope`, {
       headers: { accept: "text/html" },
@@ -144,7 +146,7 @@ describe("the API over the in-process app", () => {
     expect(rpcMiss.status).toBe(404);
     expect(await rpcMiss.text()).not.toContain("<title>inteligir</title>");
 
-    const spaMiss = await bareRequest("/some/spa/route", {
+    const spaMiss = await request("/some/spa/route", {
       headers: { accept: "text/html" },
     });
     expect(spaMiss.status).toBe(200);
@@ -194,19 +196,19 @@ describe("the workspace UI this server ships", () => {
   it("serves non-asset files no-store and answers every other path with the shell", async () => {
     const { clientDir } = makeUi();
     writeFileSync(nodePath.join(clientDir, "favicon.svg"), "<svg/>");
-    const { bareRequest } = await bootTestApp({ clientDir });
+    const { request } = await bootTestApp({ clientDir });
 
-    const file = await bareRequest("/favicon.svg");
+    const file = await request("/favicon.svg");
     expect(file.status).toBe(200);
     expect(file.headers.get("cache-control")).toBe("no-store");
 
-    const document = await bareRequest("/", { headers: { accept: "text/html" } });
+    const document = await request("/", { headers: { accept: "text/html" } });
     expect(document.status).toBe(200);
     expect(document.headers.get("cache-control")).toBe("no-store");
     expect(await document.text()).toContain("<title>inteligir</title>");
 
     // one answer per URL regardless of Accept: negotiating hands curl and a browser different answers for one path.
-    const nonHtml = await bareRequest("/some/spa/route");
+    const nonHtml = await request("/some/spa/route");
     expect(nonHtml.status).toBe(200);
     expect(await nonHtml.text()).toContain("<title>inteligir</title>");
   });
@@ -215,16 +217,30 @@ describe("the workspace UI this server ships", () => {
     const { clientDir } = makeUi();
     mkdirSync(nodePath.join(clientDir, "assets"));
     writeFileSync(nodePath.join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
-    const { bareRequest } = await bootTestApp({ clientDir });
+    const { request } = await bootTestApp({ clientDir });
 
-    const document = await bareRequest("/", { headers: { accept: "text/html" } });
+    const document = await request("/", { headers: { accept: "text/html" } });
     expect(document.headers.get("content-security-policy")).toContain("script-src 'self'");
     expect(document.headers.get("content-security-policy")).not.toContain("nonce");
     expect(document.headers.get("x-content-type-options")).toBe("nosniff");
     expect(document.headers.get("referrer-policy")).toBe("no-referrer");
 
-    const asset = await bareRequest("/assets/app-abc123.js");
+    const asset = await request("/assets/app-abc123.js");
     expect(asset.headers.get("content-security-policy")).toBeNull();
+  });
+
+  it("answers a note's html frame under its own sandbox policy, to a tab with no session", async () => {
+    const { clientDir } = makeUi();
+    const { bareRequest } = await bootTestApp({ clientDir });
+
+    const frame = await bareRequest(HTML_FRAME_PATH);
+    expect(frame.status).toBe(200);
+    expect(await frame.text()).toBe(HTML_FRAME_DOCUMENT);
+    const policy = frame.headers.get("content-security-policy") ?? "";
+    expect(policy).toContain("sandbox allow-scripts");
+    expect(policy).toContain("default-src 'none'");
+    expect(policy).toContain("script-src 'unsafe-inline'");
+    expect(policy).not.toContain("'self'");
   });
 
   it("refuses traversal out of the client dir", async () => {
@@ -241,6 +257,8 @@ describe("the device token", () => {
     const response = await bareRequest(STATUS_RPC_PATH, rpcPost({}));
     expect(response.status).toBe(401);
     expect(await response.text()).toContain("device token");
+    // the renderer tells the gate's 401 from a procedure's UNAUTHORIZED by this challenge alone.
+    expect(response.headers.get("www-authenticate")).toBe('Bearer realm="inteligir"');
   });
 
   it("refuses a WRONG token, and accepts each carrier's own secret", async () => {
@@ -306,13 +324,50 @@ describe("the device token", () => {
     expect(healthResponseSchema.parse(await response.json())).toEqual({ ok: true });
   });
 
-  it("hands out no cookie to a document request that brings no handoff", async () => {
+  it("answers a document request with no session the signed-out page, and no cookie", async () => {
     const { bareRequest } = await bootTestApp({ clientDir: makeUi().clientDir });
     for (const path of ["/", "/settings", `/?note=a.md`]) {
       const document = await bareRequest(path, { headers: { accept: "text/html" } });
-      expect(document.status).toBe(200);
-      expect(document.headers.get("set-cookie")).toBeNull();
+      expect(document.status, path).toBe(401);
+      expect(document.headers.get("set-cookie"), path).toBeNull();
+      expect(document.headers.get("cache-control"), path).toBe("no-store");
+      // the page runs nothing, so it is held to the inert policy rather than the app's.
+      expect(document.headers.get("content-security-policy"), path).toContain("default-src 'none'");
+      const page = await document.text();
+      expect(page, path).not.toContain("<title>inteligir</title>");
+      expect(page, path).toContain("inteligir open");
     }
+  });
+
+  it("serves the shell to a signed-in browser, and the signed-out page to a stale cookie", async () => {
+    const booted = await bootTestApp({ clientDir: makeUi().clientDir });
+    const secret = await signInBrowser(booted);
+    // a top-level navigation: typed, bookmarked or opened by another app, so no same-origin proof.
+    const navigation = { accept: "text/html", "sec-fetch-site": "none" };
+
+    const signedIn = await booted.bareRequest("/settings", {
+      headers: { ...navigation, cookie: `${BROWSER_SESSION_COOKIE}=${secret}` },
+    });
+    expect(signedIn.status).toBe(200);
+    expect(await signedIn.text()).toContain("<title>inteligir</title>");
+
+    // another boot's secret, as a tab holds after the server restarts.
+    const restarted = await bootTestApp({ clientDir: makeUi().clientDir });
+    const stale = await restarted.bareRequest("/settings", {
+      headers: { ...navigation, cookie: `${BROWSER_SESSION_COOKIE}=${secret}` },
+    });
+    expect(stale.status).toBe(401);
+    expect(await stale.text()).toContain("inteligir open");
+  });
+
+  it("lands a spent handoff on the signed-out page rather than the shell", async () => {
+    const { bareRequest } = await bootTestApp({ clientDir: makeUi().clientDir });
+    const spent = await bareRequest(`/?${BROWSER_HANDOFF_PARAM}=stale`);
+    expect(spent.status).toBe(303);
+    expect(spent.headers.get("set-cookie")).toBeNull();
+    const landed = await bareRequest(spent.headers.get("location") ?? "");
+    expect(landed.status).toBe(401);
+    expect(await landed.text()).toContain("inteligir open");
   });
 
   it("trades a handoff minted over the API once for the cookie, then drops it from the URL", async () => {
@@ -496,6 +551,22 @@ describe("the real socket upgrade", () => {
       type: "changed",
     });
   });
+
+  it("closes a bus socket as going-away when the listener tears down", async () => {
+    const booted = await bootTestApp();
+    const { server, port } = await listenTestApp(booted);
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}`, {
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+    });
+    const closeCode = Promise.withResolvers<number>();
+    socket.addEventListener("close", (event) => {
+      closeCode.resolve(event.code);
+    });
+    await awaitOpen(socket, "ws error");
+
+    await closeServer(server, booted.composed.upgradedSockets);
+    await expect(closeCode.promise).resolves.toBe(1001);
+  });
 });
 
 describe("the dictation stream socket", () => {
@@ -545,14 +616,13 @@ describe("the dictation stream socket", () => {
     // keep it open (mid-hold): a frame up, no finalize.
     socket.send(new Uint8Array([1, 0]).buffer);
 
-    await closeServer(server, {
-      closeAllClients: () => {
-        booted.composed.voiceStreamHub.closeAllClients();
-      },
-      terminateAllClients: () => {
-        booted.composed.voiceStreamHub.terminateAllClients();
-      },
-    });
+    await closeServer(server, booted.composed.upgradedSockets);
     socket.close();
+    await vi.waitFor(
+      () => {
+        expect(booted.composed.voiceStreamHub.size, "the closed socket's onClose disposes").toBe(0);
+      },
+      { timeout: 5000 },
+    );
   });
 });

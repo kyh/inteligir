@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 
+import { LINK_KINDS } from "./link-kinds";
 import type { StoredLink, DocProjection } from "./projection";
 
 const fail: (what: string) => never = (what) => {
@@ -15,11 +16,10 @@ const storedLinkRow = z.object({
   alias: z.string().nullish(),
   anchor: z.string().nullish(),
   embed: z.boolean(),
-  kind: z.enum(["wiki", "md", "image"]),
+  kind: z.enum(LINK_KINDS),
   line: z.number(),
   snippet: z.string(),
   target: z.string(),
-  targetSpan: z.object({ end: z.number(), start: z.number() }).nullish(),
 });
 
 const storedProjectionRow = z.object({
@@ -30,7 +30,6 @@ const storedProjectionRow = z.object({
   // not optional: a PROJECTION_VERSION mismatch wipes and rebuilds, so no stored row can lack a current field
   pinned: z.boolean(),
   tags: z.array(z.string()),
-  tasks: z.array(z.object({ checked: z.boolean(), line: z.number(), text: z.string() })),
   title: z.string(),
 });
 
@@ -49,11 +48,20 @@ const toStoredLink = (row: z.infer<typeof storedLinkRow>): StoredLink => {
   if (row.alias !== null && row.alias !== undefined) {
     link.alias = row.alias;
   }
-  if (row.targetSpan !== null && row.targetSpan !== undefined) {
-    link.targetSpan = { end: row.targetSpan.end, start: row.targetSpan.start };
-  }
   return link;
 };
+
+// whatever carried the row: the store's json column, or a structured clone from the thread that
+// projected it
+export const docProjectionSchema = storedProjectionRow.transform((row): DocProjection => ({
+  aliases: row.aliases,
+  headings: row.headings,
+  links: row.links.map(toStoredLink),
+  noteId: row.noteId,
+  pinned: row.pinned,
+  tags: row.tags,
+  title: row.title,
+}));
 
 export const parseStoredProjection = (json: string): DocProjection => {
   let source: unknown;
@@ -62,18 +70,9 @@ export const parseStoredProjection = (json: string): DocProjection => {
   } catch {
     fail("is not valid json");
   }
-  const row = storedProjectionRow.safeParse(source);
+  const row = docProjectionSchema.safeParse(source);
   if (!row.success) {
     fail(z.prettifyError(row.error));
   }
-  return {
-    aliases: row.data.aliases,
-    headings: row.data.headings,
-    links: row.data.links.map(toStoredLink),
-    noteId: row.data.noteId,
-    pinned: row.data.pinned,
-    tags: row.data.tags,
-    tasks: row.data.tasks,
-    title: row.data.title,
-  };
+  return row.data;
 };

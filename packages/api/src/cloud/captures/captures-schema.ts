@@ -24,22 +24,18 @@ export const captureRequestSchema = z
   .strict();
 export type CaptureRequest = z.infer<typeof captureRequestSchema>;
 
-export const captureResponseSchema = z
-  .object({
-    createdAt: z.number().int().nonnegative(),
-    duplicate: z.boolean(),
-    id: z.string().min(1),
-  })
-  .strict();
+export const captureResponseSchema = z.object({
+  createdAt: z.number().int().nonnegative(),
+  duplicate: z.boolean(),
+  id: z.string().min(1),
+});
 export type CaptureResponse = z.infer<typeof captureResponseSchema>;
 
-export const captureRowSchema = z
-  .object({
-    createdAt: z.number().int().nonnegative(),
-    id: z.string().min(1),
-    text: z.string(),
-  })
-  .strict();
+export const captureRowSchema = z.object({
+  createdAt: z.number().int().nonnegative(),
+  id: z.string().min(1),
+  text: z.string(),
+});
 export type CaptureRow = z.infer<typeof captureRowSchema>;
 
 export const claimCapturesRequestSchema = z
@@ -49,14 +45,12 @@ export const claimCapturesRequestSchema = z
   .strict();
 export type ClaimCapturesRequest = z.infer<typeof claimCapturesRequestSchema>;
 
-export const claimCapturesResponseSchema = z
-  .object({
-    captures: z.array(captureRowSchema),
-    // answered even with no rows: a nullable token is a branch every client must write
-    claimToken: z.string().min(1),
-    expiresAt: z.number().int().positive(),
-  })
-  .strict();
+export const claimCapturesResponseSchema = z.object({
+  captures: z.array(captureRowSchema),
+  // answered even with no rows: a nullable token is a branch every client must write
+  claimToken: z.string().min(1),
+  expiresAt: z.number().int().positive(),
+});
 export type ClaimCapturesResponse = z.infer<typeof claimCapturesResponseSchema>;
 
 export const ackCapturesRequestSchema = z
@@ -72,11 +66,9 @@ export type AckCapturesRequest = z.infer<typeof ackCapturesRequestSchema>;
 export const ackOutcomeSchema = z.enum(["deleted", "reclaimed", "unknown"]);
 export type AckOutcome = z.infer<typeof ackOutcomeSchema>;
 
-export const ackCapturesResponseSchema = z
-  .object({
-    results: z
-      .array(z.object({ id: z.string().min(1), outcome: ackOutcomeSchema }).strict())
-      .max(CLAIM_MAX_LIMIT),
-  })
-  .strict();
+export const ackCapturesResponseSchema = z.object({
+  results: z
+    .array(z.object({ id: z.string().min(1), outcome: ackOutcomeSchema }))
+    .max(CLAIM_MAX_LIMIT),
+});
 export type AckCapturesResponse = z.infer<typeof ackCapturesResponseSchema>;

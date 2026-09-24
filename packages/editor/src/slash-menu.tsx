@@ -1,4 +1,5 @@
-// every item inserts through a kit transform so its bytes are the canonical fixture form.
+// every item inserts through a kit transform whose bytes re-parse to a modeled node and are their
+// own fixpoint; an inline equation writes none until it holds TeX.
 
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { insertTable } from "@platejs/table";
@@ -32,14 +33,13 @@ import {
 import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
-import { useEffect, useState } from "react";
 
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { isTemplatePath } from "@repo/notes/templates/placeholders";
 
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import type { TurnIntoId } from "@repo/editor/block-transforms";
-import { getEditorHostIo } from "@repo/editor/host-io";
+import { useWikiTargets } from "@repo/editor/host";
 import { insertTemplate } from "@repo/editor/insert-template";
 import {
   insertCanvasBlock,
@@ -337,9 +337,9 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
     group: "Media",
     items: [
       {
-        description: "YouTube, tweet, PDF, or iframe by URL.",
+        description: "A video, tweet, PDF or page by URL, opened in your browser.",
         icon: <FilmIcon />,
-        keywords: ["youtube", "tweet", "twitter", "pdf", "iframe", "embed", "video"],
+        keywords: ["youtube", "tweet", "twitter", "pdf", "embed", "video", "link"],
         label: "Embed",
         onSelect: () => {
           openEmbedUrlDialog();
@@ -367,8 +367,8 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
 
 const TEMPLATES_GROUP = "Templates";
 
-// a template is a row only while it exists: the list is read when the menu opens rather than
-// pinned in GROUPS, and the group is absent when the folder is.
+// a template is a row only while it exists: the rows follow the host's live listing rather than
+// being pinned in GROUPS, and the group is absent when the folder is.
 const templateItems = (targets: readonly WikiTarget[]): SlashItem[] =>
   targets
     .filter((target) => isTemplatePath(target.path))
@@ -383,27 +383,7 @@ const templateItems = (targets: readonly WikiTarget[]): SlashItem[] =>
       value: `template:${target.path}`,
     }));
 
-const useTemplateItems = (): SlashItem[] => {
-  const [items, setItems] = useState<SlashItem[]>([]);
-  useEffect(() => {
-    let live = true;
-    const load = async (): Promise<void> => {
-      try {
-        const targets = await getEditorHostIo().listWikiTargets();
-        if (live) {
-          setItems(templateItems(targets));
-        }
-      } catch {
-        // an unanswered listing is no group, not an error to show
-      }
-    };
-    void load();
-    return () => {
-      live = false;
-    };
-  }, []);
-  return items;
-};
+const useTemplateItems = (): SlashItem[] => templateItems(useWikiTargets());
 
 const SlashInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
@@ -435,7 +415,7 @@ const SlashInputElement = (props: PlateElementProps) => {
                   </div>
                   <div className="ml-2.5 flex flex-1 flex-col truncate">
                     <span>{item.label}</span>
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="truncate text-body text-muted-foreground">
                       {item.description}
                     </span>
                   </div>

@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { NodeApi } from "platejs";
 import type { NodeEntry, SlateEditor, TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
 
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
-import { entryTextOf, formulaPropsFromEntry } from "@repo/editor/formulas/formula-entry";
+import {
+  entryTextOf,
+  formulaPropsFromEntry,
+  isFormulaPill,
+} from "@repo/editor/formulas/formula-entry";
 import type { FormulaNodeProps } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -14,7 +18,7 @@ const formulaEntriesById = (editor: SlateEditor, id: string): NodeEntry<TElement
   const out: NodeEntry<TElement>[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
+    match: isFormulaPill,
   })) {
     const meta = parseFormulaMeta(stringProp(entry[0], "meta"));
     if (meta.id === id) {
@@ -101,12 +105,15 @@ export const FormulaEditPopover = ({
         <input
           ref={inputRef}
           aria-label="Edit formula"
-          className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-xs outline-none"
+          className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-body outline-none"
           value={entry}
           onChange={(event) => {
             setEntry(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter") {
               event.preventDefault();
               save();

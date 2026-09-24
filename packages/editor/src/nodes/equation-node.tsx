@@ -7,6 +7,7 @@ import { PlateElement, useEditorRef, useElement, useReadOnly, useSelected } from
 import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
@@ -63,11 +64,14 @@ const EquationEditor = ({
         placeholder={placeholder}
         rows={isInline ? 1 : Math.max(2, draft.value.split("\n").length)}
         spellCheck={false}
-        className="max-h-[40vh] min-w-64 grow resize-none rounded-md border border-border bg-background px-2 py-1.5 font-mono text-sm outline-none"
+        className="max-h-[40vh] min-w-64 grow resize-none rounded-md border border-border bg-background px-2 py-1.5 font-mono text-subtitle outline-none"
         onChange={(e) => {
           write(e.target.value);
         }}
         onKeyDown={(e) => {
+          if (isImeComposing(e)) {
+            return;
+          }
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             onClose();
@@ -124,11 +128,11 @@ export const EquationElement = (props: PlateElementProps) => {
           contentEditable={false}
         >
           {expression.length > 0 ? (
-            <Suspense fallback={<span className="font-mono text-sm opacity-60">{expression}</span>}>
+            <Suspense fallback={<span className="font-mono opacity-60">{expression}</span>}>
               <KatexView tex={expression} displayMode className="[&_.katex-display]:my-0" />
             </Suspense>
           ) : (
-            <span className="flex h-7 items-center gap-2 text-sm whitespace-nowrap text-muted-foreground">
+            <span className="flex h-7 items-center gap-2 text-subtitle whitespace-nowrap text-muted-foreground">
               <RadicalIcon className="size-5" />
               Add a TeX equation
             </span>
@@ -177,7 +181,7 @@ export const InlineEquationElement = (props: PlateElementProps) => {
           contentEditable={false}
         >
           {expression.length > 0 ? (
-            <Suspense fallback={<span className="font-mono text-sm opacity-60">{expression}</span>}>
+            <Suspense fallback={<span className="font-mono opacity-60">{expression}</span>}>
               <KatexView
                 tex={expression}
                 displayMode={false}

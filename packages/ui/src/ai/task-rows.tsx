@@ -5,13 +5,14 @@ import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useSt
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
+import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/cn";
 
 export type TaskStatus = "pending" | "running" | "done" | "failed";
 
-const SpinnerRing = ({ active, children }: { active: boolean; children: ReactNode }) => {
+const SpinnerRing = ({ active, children }: { active: boolean; children?: ReactNode }) => {
   const size = 24;
   const stroke = 2;
   const radius = (size - stroke) / 2;
@@ -48,55 +49,27 @@ const SpinnerRing = ({ active, children }: { active: boolean; children: ReactNod
           />
         ) : null}
       </svg>
-      <span className="relative text-[10.5px] font-semibold tabular-nums text-ink">{children}</span>
+      {children === undefined ? null : (
+        <span className="relative text-caption font-semibold tabular-nums text-ink">
+          {children}
+        </span>
+      )}
     </span>
   );
 };
 
-const CHECK_ICON = (
-  <svg
-    aria-hidden
-    width="13"
-    height="13"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
-);
-
-const X_ICON = (
-  <svg
-    aria-hidden
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3.5"
-    strokeLinecap="round"
-  >
-    <path d="M18 6L6 18M6 6l12 12" />
-  </svg>
-);
-
-// text-white on the done fill: the palette has no success-foreground token
-const StatusBadge = ({ status, ordinal }: { status: TaskStatus; ordinal: number }) => {
+const StatusBadge = ({ status, ordinal }: { status: TaskStatus; ordinal: number | undefined }) => {
   if (status === "done") {
     return (
-      <span className="flex size-5.5 shrink-0 animate-in items-center justify-center rounded-full bg-emerald-500 text-white zoom-in-95">
-        {CHECK_ICON}
+      <span className="flex size-5.5 shrink-0 animate-in items-center justify-center rounded-full bg-success text-success-foreground zoom-in-95">
+        <CheckIcon size={13} strokeWidth={3.5} />
       </span>
     );
   }
   if (status === "failed") {
     return (
       <span className="flex size-5.5 shrink-0 animate-in items-center justify-center rounded-full bg-destructive text-destructive-foreground zoom-in-95">
-        {X_ICON}
+        <XIcon size={12} strokeWidth={3.5} />
       </span>
     );
   }
@@ -210,7 +183,7 @@ interface TaskItemRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSe
 
 const TaskItemRow = ({
   status,
-  ordinal = 1,
+  ordinal,
   onSelect,
   className,
   children,
@@ -238,19 +211,11 @@ const TaskItemRow = ({
           aria-hidden
           className="-ml-2 flex size-7 shrink-0 items-center justify-center rounded-full text-ink-3"
         >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          <ChevronDownIcon
+            size={15}
+            strokeWidth={2.2}
             className={cn("transition-transform duration-300", open && "rotate-180")}
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
+          />
         </span>
       ) : null}
     </button>
@@ -267,7 +232,7 @@ const TaskItemLabel = ({
   <span
     ref={ref}
     data-slot="task-item-label"
-    className={cn("min-w-0 flex-1 truncate text-[13px] font-medium text-ink", className)}
+    className={cn("min-w-0 flex-1 truncate text-subtitle font-medium text-ink", className)}
     {...props}
   >
     {children}
@@ -284,7 +249,7 @@ const TaskStatusLabel = ({
   <span
     ref={ref}
     data-slot="task-status"
-    className={cn("shrink-0 text-[12.5px] text-ink-2 tabular-nums", className)}
+    className={cn("shrink-0 text-body text-ink-2 tabular-nums", className)}
     {...props}
   >
     {children}
@@ -339,9 +304,9 @@ const TaskDetail = ({
     className={cn("flex items-center justify-between gap-2", className)}
     {...props}
   >
-    <span className="min-w-0 text-[12px] text-ink-2">{children}</span>
+    <span className="min-w-0 text-body text-ink-2">{children}</span>
     {meta === undefined ? null : (
-      <span className="shrink-0 font-mono text-[11.5px] text-ink-3 tabular-nums">{meta}</span>
+      <span className="shrink-0 font-mono text-caption text-ink-3 tabular-nums">{meta}</span>
     )}
   </div>
 );

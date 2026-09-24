@@ -4,13 +4,12 @@
 
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
-import type { TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { insertCommentMarkers, removeCommentMarkers } from "@repo/editor/comments/comment-markers";
-import { holdsCommentMarkers, scanBlockComments } from "@repo/editor/comments/comment-ranges";
+import { blockHoldsCommentMarkers, commentSpans } from "@repo/editor/comments/comment-ranges";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
 const editorWith = (md: string) => {
@@ -54,34 +53,66 @@ describe("comment markers", () => {
   });
 });
 
-const scanFirstBlock = (md: string) => {
+const spansOf = (md: string) => {
   const editor = editorWith(md);
-  const [block] = editor.children;
-  if (block === undefined || !("children" in block)) {
-    throw new Error("no block");
-  }
-  const element: TElement = block;
-  expect(holdsCommentMarkers(element)).toBe(true);
-  return scanBlockComments(editor, [element, [0]]);
+  const spans = commentSpans(editor).map(({ block, extent, ids, orphan }) => ({
+    block: editor.children.indexOf(block),
+    extent: extent === null ? null : editor.api.string(extent),
+    ids,
+    orphan,
+  }));
+  return { editor, spans };
 };
 
 describe("comment range pairing", () => {
   it("pairs a range and reads its ids", () => {
-    const scan = scanFirstBlock("x %%i:c1:start%%mid%%i:c1:end%% y\n");
-    expect(scan.unpairedIds).toEqual([]);
-    expect(scan.ranges).toHaveLength(1);
-    expect(scan.ranges[0]?.ids).toEqual(["c1"]);
+    const { editor, spans } = spansOf("x %%i:c1:start%%mid%%i:c1:end%% y\n");
+    expect(spans).toEqual([{ block: 0, extent: "mid", ids: ["c1"], orphan: false }]);
+    const [block] = editor.children;
+    expect(block !== undefined && blockHoldsCommentMarkers(block)).toBe(true);
   });
 
   it("pairs a multi-root marker once", () => {
-    const scan = scanFirstBlock("x %%i:a,b:start%%mid%%i:a,b:end%% y\n");
-    expect(scan.ranges).toHaveLength(1);
-    expect(scan.ranges[0]?.ids).toEqual(["a", "b"]);
+    const { spans } = spansOf("x %%i:a,b:start%%mid%%i:a,b:end%% y\n");
+    expect(spans).toEqual([{ block: 0, extent: "mid", ids: ["a", "b"], orphan: false }]);
   });
 
-  it("surfaces a lone edge as unpaired", () => {
-    const scan = scanFirstBlock("x %%i:c1:start%%never closed\n");
-    expect(scan.ranges).toEqual([]);
-    expect(scan.unpairedIds).toEqual(["c1"]);
+  it("surfaces a lone edge as an orphan over the block holding it", () => {
+    const { spans } = spansOf("x %%i:c1:start%%never closed\n");
+    expect(spans).toEqual([{ block: 0, extent: "x never closed", ids: ["c1"], orphan: true }]);
+  });
+
+  it("pairs a range across two paragraphs and holds it at the block it starts in", () => {
+    const { spans } = spansOf("first %%i:y:start%%para\n\nsecond para%%i:y:end%% tail\n");
+    expect(spans).toEqual([{ block: 0, extent: "parasecond para", ids: ["y"], orphan: false }]);
+  });
+
+  it("pairs markers on their own lines around a fence, the dialect's block comment", () => {
+    const { spans } = spansOf("%%i:x:start%%\n```js\ncode\n```\n%%i:x:end%%\n");
+    expect(spans).toEqual([{ block: 0, extent: "code", ids: ["x"], orphan: false }]);
+  });
+
+  it("orphans a start that a second start with the same ids replaced", () => {
+    const { spans } = spansOf("%%i:c1:start%%a\n\n%%i:c1:start%%b%%i:c1:end%%\n");
+    expect(spans).toEqual([
+      { block: 0, extent: "a", ids: ["c1"], orphan: true },
+      { block: 1, extent: "b", ids: ["c1"], orphan: false },
+    ]);
+  });
+
+  it("orphans an end with no start before it, even when a start follows", () => {
+    const { spans } = spansOf("a%%i:c1:end%%\n\n%%i:c1:start%%b\n");
+    expect(spans).toEqual([
+      { block: 0, extent: "a", ids: ["c1"], orphan: true },
+      { block: 1, extent: "b", ids: ["c1"], orphan: true },
+    ]);
+  });
+
+  it("pairs once per document, until the document changes", () => {
+    const editor = editorWith("x %%i:c1:start%%mid%%i:c1:end%% y\n");
+    const first = commentSpans(editor);
+    expect(commentSpans(editor)).toBe(first);
+    editor.tf.insertText("!", { at: { offset: 0, path: [0, 0] } });
+    expect(commentSpans(editor)).not.toBe(first);
   });
 });

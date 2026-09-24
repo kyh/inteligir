@@ -1,3 +1,5 @@
+import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
 import { createExecutionContext, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -39,7 +41,7 @@ const envWith = (EMAIL: SendEmail): Env => ({ ...env, EMAIL });
 const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
   await worker.fetch(
     new Request(`${ORIGIN}/api/auth/request-password-reset`, {
-      body: JSON.stringify({ email, redirectTo: "/auth/reset" }),
+      body: JSON.stringify({ email, redirectTo: AUTH_PAGE_PATHS.resetPage }),
       headers: { "content-type": "application/json", origin: ORIGIN },
       method: "POST",
     }),
@@ -136,7 +138,7 @@ describe("password reset", () => {
     await requestReset("page@example.com", envWith(EMAIL));
 
     const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
-    expect(landing.pathname).toBe("/auth/reset");
+    expect(landing.pathname).toBe(AUTH_PAGE_PATHS.resetPage);
     expect(landing.searchParams.get("token")).toMatch(/^[A-Za-z0-9]+$/u);
 
     const page = await SELF.fetch(landing.toString());
@@ -145,6 +147,23 @@ describe("password reset", () => {
     const html = await page.text();
     expect(html).toContain('id="reset-form"');
     expect(html).toContain("/api/auth/reset-password");
+    expect(html).toContain(`minlength="${PASSWORD_MIN_LENGTH}" maxlength="${PASSWORD_MAX_LENGTH}"`);
+  });
+
+  it("refuses a new password outside the contract's bounds, which Better Auth is configured with", async () => {
+    await signUpUser("bounds@example.com");
+    for (const newPassword of [
+      "x".repeat(PASSWORD_MIN_LENGTH - 1),
+      "x".repeat(PASSWORD_MAX_LENGTH + 1),
+    ]) {
+      const token = await issueToken("bounds@example.com");
+      const reset = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+        body: JSON.stringify({ newPassword, token }),
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      });
+      expect(reset.status, String(newPassword.length)).toBe(400);
+    }
   });
 
   it("a valid token changes the password: new sign-in works, old fails", async () => {
@@ -209,7 +228,7 @@ describe("password reset", () => {
     });
     expect(expired.status).toBe(400);
     const landing = await followGetLeg(link);
-    expect(landing.pathname).toBe("/auth/reset");
+    expect(landing.pathname).toBe(AUTH_PAGE_PATHS.resetPage);
     expect(landing.searchParams.get("error")).toBe("INVALID_TOKEN");
     expect(landing.searchParams.get("token")).toBeNull();
 

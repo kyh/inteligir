@@ -34,9 +34,22 @@ components.json  shadcn config: base-rhea, zinc, the @fluid registry
 - No `any`, type assertions, or non-null assertions.
 - Use `cssVars(...)` instead of casting `React.CSSProperties`.
 - `dropdown-menu` keeps `anchor` passthrough and `modal={false}`.
+- A framer popup renders its Base UI Popup as the motion element and wraps it
+  in `PopupExit`; Base UI waits on that element's own animations, never a
+  wrapper's.
+- `MotionPolicy` is mounted once at each app root; nothing else configures
+  reduced motion for framer.
 - `popover` keeps `anchor` passthrough.
-- `command` keeps `initialFocus`/`shouldFilter`; title and description stay
-  inside `DialogContent`.
+- "Added" and "done" draw the `success` / `success-foreground` tokens
+  (`styles/globals.css`), never a raw hue: each mode's `--success` reads as
+  text on a 15% tint of itself.
+- `command` keeps `initialFocus` and never filters (each palette page filters
+  its own rows); title and description stay inside `DialogContent`.
+- `SidebarProvider` listens for no key: the app's own shortcut table owns the
+  toggle, and the provider only shows the `shortcut` it is handed.
+- `dialog`'s `DialogPopup` is the bare popup — no card, no backdrop — with
+  `container`, `initialFocus` and `finalFocus` passthrough, for a non-modal
+  dialog that floats inside the region it serves (the ⌘K composer).
 - `sonner` uses `@repo/ui/lib/theme`, not `next-themes`.
 - `globals.css` keeps `@source "../**/*.{ts,tsx}"` so Tailwind sees this
   package through workspace imports.
@@ -60,7 +73,9 @@ document-class effect races the others.
 
 ## Verification
 
-`pnpm --filter @repo/ui test` runs the lib helpers' suites. The orphan
+`pnpm --filter @repo/ui test` runs the package's suites; the jsdom ones run
+the sources through the React Compiler as the shipped renderer does, which
+`components/__tests__/compiled-under-test.test.tsx` pins. The orphan
 invariant lives in `tools/repo-guards/src/ui-orphan-exports.test.ts`, PER
 EXPORT: every named export under the wildcard-exported directories needs a
 consumer outside the gallery or a reasoned allowance row. Knip alone cannot

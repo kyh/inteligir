@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, onTestFinished } from "vitest";
@@ -21,6 +21,13 @@ export interface TempDirOptions {
   // `suite` is for a beforeAll fixture, removed after the file's last test.
   lifetime?: "test" | "suite";
 }
+
+// macOS's APFS folds case by default and linux's ext4 does not, so a test of case spellings can
+// only run where two of them name one folder.
+export const TEMP_DIR_FOLDS_CASE = ((): boolean => {
+  const upper = tmpdir().toUpperCase();
+  return upper !== tmpdir() && existsSync(upper);
+})();
 
 export const makeTempDir = (prefix: string, options?: TempDirOptions): string => {
   const dir = mkdtempSync(path.join(tmpdir(), prefix));

@@ -36,7 +36,9 @@ src/
                       # workspaceFiles (src/** split shipped vs test),
                       # workspaceSourceFiles (the whole workspace dir — scripts/
                       # included), styleFiles, sourceOf (full-line comments
-                      # dropped, so prose cannot invent a package), importsOf
+                      # dropped, so prose cannot invent a package), importsOf,
+                      # and the turbo.json readers (turboTaskBodies,
+                      # workspaceTurboConfig)
   ui-package.ts       # @repo/ui's swept roots, read from its exports map, and
                       # the gallery dir that never counts as a consumer
   *.test.ts           # one guard per file — the table below
@@ -57,15 +59,16 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | and executed, never imported — `inteligir` → `@repo/agent-skills`); no    |
 |                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
 |                                | electron), `@repo/domain` declares only zod, no package imports an app,   |
-|                                | `@repo/web` reaches `@repo/api/cloud/*` and nothing else of the contract, |
-|                                | `src/cloud` never reaches `src/local` and a third bucket under            |
+|                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
+|                                | why it ships apart) reaches `@repo/api/cloud/*` and nothing else of the   |
+|                                | contract, `src/cloud` never reaches `src/local` and a third bucket under  |
 |                                | `packages/api/src` fails, and the Worker imports no package whose shipped |
 |                                | graph reaches `node:`.                                                    |
 | `dangling-references.test.ts`  | Every `@repo/*` name and every group-anchored path written in a tracked   |
 |                                | source, config, markdown or yaml file resolves to a workspace or a path   |
 |                                | on disk. What it reads is stated in its own section below.                |
 | `ci-verify-parity.test.ts`     | A gate workflow (`pull_request` or `push`) runs `pnpm verify` or every    |
-|                                | link of its chain in verify's order; every step on top is a               |
+|                                | link of its chain, each job in verify's order; every step on top is a     |
 |                                | `DECLARED_CI_EXTRAS` row with a reason; every workspace `smoke` script is |
 |                                | reachable from a root script; every root `smoke*` runs in a gate or is a  |
 |                                | `MANUAL_SMOKES` row; a `run:` step with no `name:` throws.                |
@@ -84,7 +87,8 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `elsewhere` row. Detection is textual and a lower bound — the shapes      |
 |                                | these were actually re-spelled in.                                        |
 | `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc`, `/health`,              |
-|                                | `/vault/asset` and `/voice/stream`; the cloud `VAULT_API_PATHS`) is       |
+|                                | `/vault/asset`, `/html-frame` and `/voice/stream`; the cloud              |
+|                                | `VAULT_API_PATHS`) is                                                     |
 |                                | spelled only at its contract home. The sweep covers `scripts/`, where the |
 |                                | smokes that drift live; tests are excluded, because a test deriving its   |
 |                                | URL from the contract could not catch the contract moving.                |
@@ -104,6 +108,10 @@ worktree under `.claude` is never read as this commit's tree.
 | `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the `/design`       |
 |                                | gallery or is a `NOT_DEMOED` row; `hooks` and `lib` are declared          |
 |                                | non-component roots.                                                      |
+| `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`, `packages/editor/src`,      |
+|                                | `packages/ui/src/components` and `packages/ui/src/ai` (minus              |
+|                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed note size |
+|                                | is a `PROSE_SIZES` row with its reason.                                   |
 | `compiled-hook-shapes.test.ts` | No react-importing source defines a `use*` hook inside another function — |
 |                                | the React Compiler hoists its closures to module scope and reports no     |
 |                                | diagnostic. The scanner is self-tested against braces in strings,         |
@@ -118,24 +126,31 @@ worktree under `.claude` is never read as this commit's tree.
 | `script-naming.test.ts`        | A root script suffixed with a workspace directory drives that workspace;  |
 |                                | every `--filter` target is a workspace.                                   |
 | `catalog-spelling.test.ts`     | A dependency two or more manifests name is spelled `catalog:`; a          |
-|                                | deliberate split is a `DECLARED_SPLITS` row.                              |
+|                                | deliberate split is a `DECLARED_SPLITS` row with its reason.              |
 | `tailwind-source.test.ts`      | Every `@source "…"` glob's static base is a directory that exists         |
 |                                | relative to the stylesheet — Tailwind answers a missing base with an      |
 |                                | empty scan, no error.                                                     |
 | `wrangler-compat-date.test.ts` | `apps/web/wrangler.jsonc`'s `compatibility_date` is the OLDEST workerd    |
 |                                | date `pnpm-lock.yaml` resolves — a workerd cannot emulate a date it       |
 |                                | predates.                                                                 |
+| `durable-git-stub.test.ts`     | The header of `apps/web/src/worker/types/durable-git.d.ts` names the      |
+|                                | durable-git version `pnpm-lock.yaml` resolves — tsc checks the Worker     |
+|                                | against that hand-written stub and never reads the package it bundles.    |
 | `d1-unique-index.test.ts`      | The schema every `d1-http` drizzle config pushes declares no `.unique()`  |
 |                                | column modifier — drizzle-kit 1.0 plans it as a table recreate, and D1's  |
 |                                | DROP cascade-wipes the children. Uniques are named `uniqueIndex` rows.    |
 | `agent-skills.test.ts`         | Every skill directory has a `SKILL.md` naming itself; the hub's Focused   |
 |                                | Contracts index lists every other skill and no phantom; the file the CLI  |
 |                                | resolver probes exists — a renamed probe answers null, not an error.      |
+| `control-bytes.test.ts`        | No tracked source, markdown, config or sql file carries a raw control     |
+|                                | byte other than tab, LF and CR — git diffs a file holding a NUL as        |
+|                                | binary and ripgrep skips it. A string literal spells it as an escape.     |
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
-`ALLOWED_EXPORTS`, `NOT_DEMOED`, `dispatchedIn`, `elsewhere`, `ELSEWHERE`,
-`RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`, `DECLARED_WITHOUT_PRODUCER`,
-`DECLARED_ARTIFACT_EDGES` —
+`ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,
+`elsewhere`, `ELSEWHERE`, `RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`,
+`DECLARED_WITHOUT_PRODUCER`, `DECLARED_ARTIFACT_EDGES`, `DECLARED_SPLITS`,
+`DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES` —
 has a companion assertion that no row is STALE: a row whose subject is gone, or
 whose gap has closed, fails too. An allowance that outlives what it excused only
 ever loosens.

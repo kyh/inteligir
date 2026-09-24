@@ -2,7 +2,6 @@ import { ORPCError } from "@orpc/server";
 
 import { base, refusals } from "../orpc";
 import { vaultWireError } from "../vault/vault-refusals";
-import { VaultServiceError } from "../vault/vault-service";
 import { CommentRefusedError } from "./comment-refused-error";
 import { SidecarConflictError } from "./sidecar-conflict-error";
 import { SidecarInvalidError } from "./sidecar-invalid-error";
@@ -21,17 +20,9 @@ const asWireError = (cause: unknown) => {
 
 const refusing = refusals(asWireError);
 
-const list = base.comments.list.handler(async ({ context, input }) => {
-  try {
-    return await context.comments.list(input.path);
-  } catch (error) {
-    // a missing note cannot reach here (list folds with unknown markers), and the row declares no NOT_FOUND.
-    if (error instanceof VaultServiceError && error.code === "not_found") {
-      throw error;
-    }
-    throw asWireError(error) ?? error;
-  }
-});
+const list = base.comments.list.handler(
+  async ({ context, input }) => await refusing(async () => await context.comments.list(input.path)),
+);
 
 const add = base.comments.add.handler(
   async ({ context, input }) => await refusing(async () => await context.comments.add(input)),

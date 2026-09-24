@@ -2,17 +2,24 @@ import { inArray, sql } from "drizzle-orm";
 import type { createDb } from "./db/client";
 import { rateLimit } from "./db/schema";
 
-// Fixed windows over Better Auth's own rate_limit table. Unauthenticated callers are keyed
-// on their address, verified devices on the device; the kill switch is read here, not per caller.
+// Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
+// writes: a row whose last request is older than its longest window goes, the Worker's included.
+// Unauthenticated callers are keyed on their address, verified devices on the device; the kill
+// switch is read here, not per caller.
 
 export interface RateWindow {
   readonly max: number;
   readonly windowMs: number;
 }
 
+// Better Auth's own window (./auth/auth.ts), in its unit. A row here keeps its window's start as
+// its last request, so a window no longer than this is pruned only after it lapsed; a longer one
+// would lose its count mid-window, which the rate-window guard refuses.
+export const AUTH_RATE_WINDOW_SECONDS = 60;
+
 // one upsert: a read-then-write limiter lets N concurrent requests all read the same count and
 // all pass, so the count is read from the write itself
-export const allowInWindow = async (
+const allowInWindow = async (
   env: Env,
   db: ReturnType<typeof createDb>,
   key: string,
@@ -44,12 +51,13 @@ const DEVICE_RATE_KEY_PREFIXES = {
   vaultRead: "vault-read:",
 } as const;
 
-export type DeviceRateFamily = keyof typeof DEVICE_RATE_KEY_PREFIXES;
+type DeviceRateFamily = keyof typeof DEVICE_RATE_KEY_PREFIXES;
 
 export const deviceRateKey = (family: DeviceRateFamily, deviceId: string): string =>
   `${DEVICE_RATE_KEY_PREFIXES[family]}${deviceId}`;
 
-// nothing else deletes a row here, so a sign-in-then-revoke loop would leave rows behind forever
+// Better Auth's prune reaches a row only after its window lapsed, and only when one of Better
+// Auth's own windows rolls over; a revoked device's budget names nobody, so it goes at once
 export const forgetDeviceBudgets = async (
   db: ReturnType<typeof createDb>,
   deviceIds: readonly string[],
@@ -70,7 +78,7 @@ const CALLER_RATE_KEY_PREFIXES = {
   login: "device-login:",
 } as const;
 
-export type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
+type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
 
 // the one address Cloudflare's edge writes itself; x-forwarded-for carries whatever the caller put
 // ahead of the edge's hop. Better Auth's limiter reads it too (./auth/auth.ts), so every window
@@ -79,3 +87,32 @@ export const CALLER_IP_HEADER = "cf-connecting-ip";
 
 export const callerRateKey = (family: CallerRateFamily, request: Request): string =>
   `${CALLER_RATE_KEY_PREFIXES[family]}${request.headers.get(CALLER_IP_HEADER) ?? "unknown"}`;
+
+// every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
+export const RATE_WINDOWS = {
+  // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
+  inviteSignUp: { max: 10, windowMs: 60_000 },
+  login: { max: 10, windowMs: 60_000 },
+  // set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
+  // device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
+  vaultGit: { max: 600, windowMs: 60_000 },
+  // the legitimate burst is one note's embeds, which the format does not bound; this breaks a
+  // runaway loop, and a note past it sees its tail answered 429
+  vaultRead: { max: 3000, windowMs: 60_000 },
+} as const satisfies Record<CallerRateFamily | DeviceRateFamily, RateWindow>;
+
+export const spendCallerBudget = async (
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  family: CallerRateFamily,
+  request: Request,
+): Promise<boolean> =>
+  await allowInWindow(env, db, callerRateKey(family, request), RATE_WINDOWS[family]);
+
+export const spendDeviceBudget = async (
+  env: Env,
+  db: ReturnType<typeof createDb>,
+  family: DeviceRateFamily,
+  deviceId: string,
+): Promise<boolean> =>
+  await allowInWindow(env, db, deviceRateKey(family, deviceId), RATE_WINDOWS[family]);

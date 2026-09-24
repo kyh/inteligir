@@ -11,8 +11,10 @@ Cloudflare Worker carrying the marketing site, Better Auth on D1, device
 login, cross-device thread sync, the capture inbox and the hosted vault git
 remote. This is the tool-agnostic guide for
 coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
-GitHub issues #542 and #611 the decision record, `CONTEXT.md` the domain
-glossary, `apps/web/README.md` the Worker's own routes and deploy.
+GitHub issues #542 and #611 the decision record, the `note` issues the declines
+register (#788, #645, #674, #603, #705; read them before raising a finding),
+`CONTEXT.md` the domain glossary, `apps/web/README.md` the Worker's own routes
+and deploy.
 
 ## Quickstart
 
@@ -37,14 +39,15 @@ root `packageManager`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
 The agent RUNTIME is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
-`off`; default `auto` — the ACP runtime when Claude Code or the Codex CLI is on
-PATH, else an unavailable driver whose reason `system.status` states under
-`agent`). WHICH harness runs is a thread's own `providerId`, never this
-variable.
+`off`; default `auto` — the ACP runtime, which looks for Claude Code or the
+Codex CLI on PATH at every send and refuses the send while neither is there,
+with the reason `system.status` states under `agent`). WHICH harness runs is a
+thread's own `providerId`, never this variable.
 **`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send an
 action message, watch the turn stream, find the note in the vault with an
-agent-attributed commit. `INTELIGIR_AGENT_MODEL` passes a model through.
+agent-attributed commit. `INTELIGIR_CLAUDE_MODEL` and `INTELIGIR_CODEX_MODEL`
+each pass a model to their own harness.
 
 **The `inteligir` CLI drives a running instance from the shell** — often
 faster than the browser for vault/search/action checks:
@@ -128,8 +131,10 @@ rather than moving the app somewhere the docs don't name.
 ## Rules that matter
 
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
-- **No `any`, no non-null `!`, no `as` casts** (lint-enforced). Kebab-case
-  filenames. Make illegal states unrepresentable.
+- **No `any`, no non-null `!`, no type assertions** (lint-enforced, with no
+  escape comment; `as const` and `satisfies` are fine): parse at the boundary
+  or narrow with a type guard. Kebab-case filenames. Make illegal states
+  unrepresentable.
 - **`@repo/notes` is pure and platform-neutral** — no node/react/ui imports
   (lint-enforced); callers inject platform capabilities (the SQL driver, the
   clock).

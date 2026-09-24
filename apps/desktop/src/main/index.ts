@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { z } from "zod";
+import type { z } from "zod";
 import path from "node:path";
 import { autoUpdater } from "electron-updater";
 import {
@@ -9,13 +9,15 @@ import {
   dialog,
   ipcMain,
   Menu,
+  MessageChannelMain,
   nativeImage,
   nativeTheme,
   session,
   shell,
   Tray,
+  utilityProcess,
 } from "electron";
-import type { MenuItemConstructorOptions } from "electron";
+import type { ForkOptions, MenuItemConstructorOptions, UtilityProcess } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
 import { socketCredentialFilter } from "./credential-scope";
 import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
@@ -26,8 +28,11 @@ import {
   classifyPermission,
   classifyWindowOpen,
   decideExternalOpen,
+  grantsActivation,
 } from "./origin-pin";
-import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
+import { registerAppProtocol, registerAppScheme } from "./protocol";
+import { APP_ORIGIN, carriesBearer } from "./protocol-handler";
+import { createForkBroker } from "./fork-broker";
 import { createServerProcess } from "./server-process";
 import type { ServerProcess } from "./server-process";
 import { createSpellcheck, senderIsWindow } from "./spellcheck";
@@ -37,6 +42,7 @@ import type { UpdaterPort, Updates } from "./updates";
 import { resolveVaultEntry } from "./vault-entry";
 import {
   browserSignInUrl,
+  bundledServerVersion,
   describeServerVerdict,
   planServerStart,
   resolveServerTarget,
@@ -45,9 +51,10 @@ import {
   sessionPartition,
   verifyServer,
 } from "./server-instance";
-import type { LiveServer, ServerTarget } from "./server-instance";
+import type { LiveServer, ServerTarget, ServerVerdict } from "./server-instance";
 import {
   forgetVault,
+  offeredRecentVaults,
   planVaultSwitch,
   readRecentVaults,
   rememberVault,
@@ -56,14 +63,14 @@ import {
   vaultRef,
   writeRecentVaults,
 } from "./vaults";
+import { forkRequestSchema } from "inteligir/server/child-host/fork-broker-wire";
 import { writeManagedVaultDir } from "inteligir/server/config";
 import { authorizationHeader } from "inteligir/server/server-file";
-import { pathActionRequestSchema } from "../path-action";
+import { INVOKE_ROUTES, SOCKET_ORIGIN_CHANNEL, UPDATE_STATE_PUSH } from "../ipc-contract";
+import type { InvokeRoute, PushRoute } from "../ipc-contract";
 import type { PathActionRequest, PathActionResult } from "../path-action";
-import { spellcheckChoiceSchema } from "../spellcheck-state";
-import { IPC_CHANNELS, toErrorMessage } from "../types";
-import { vaultPathSchema } from "../vaults-state";
-import type { VaultsState } from "../vaults-state";
+import { toErrorMessage } from "../types";
+import type { VaultSwitchAnswer, VaultsState } from "../vaults-state";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
 const RECENT_VAULTS_FILE_NAME = "recent-vaults.json";
@@ -86,6 +93,8 @@ let spellcheck: Spellcheck | null = null;
 // the shell's own, never a vault's: a vault is a git repo that leaves this machine
 let recentVaultsPath: string | null = null;
 let recentVaults: string[] = [];
+// a quit mid-boot stops the child the boot is waiting on, so the boot's failure is the quit's
+let quitRequested = false;
 
 // must precede `app.whenReady`; Electron enforces the ordering.
 registerAppScheme();
@@ -106,22 +115,51 @@ const requireTarget = (): ServerTarget => {
   return currentTarget;
 };
 
-// doubles as the child's readiness signal: a child that lost the port race must not be reported up about a stranger.
-const verifiedServerAnswered = async (target: ServerTarget): Promise<boolean> => {
-  const verdict = await verifyServer(target.dataDir);
-  if (verdict.kind === "verified") {
-    ({ live } = verdict);
-    return true;
-  }
-  if (verdict.kind !== "no-server") {
+const judgeServer = async (
+  target: ServerTarget,
+  expectedVersion: string,
+): Promise<ServerVerdict> => {
+  const verdict = await verifyServer(target.dataDir, expectedVersion);
+  if (verdict.kind !== "verified" && verdict.kind !== "none") {
     console.warn(`[desktop] ${describeServerVerdict(verdict, target.dataDir)}`);
   }
-  return false;
+  return verdict;
+};
+
+const forkServer = (modulePath: string, args: string[], options: ForkOptions): UtilityProcess => {
+  const server = utilityProcess.fork(modulePath, args, options);
+  const broker = createForkBroker({
+    createChannel: () => new MessageChannelMain(),
+    fork: (childPath, childArgs, childOptions) =>
+      utilityProcess.fork(childPath, childArgs, childOptions),
+    log: (message) => {
+      console.warn(`[desktop] ${message}`);
+    },
+    reply: (message, transfer) => {
+      server.postMessage(message, transfer);
+    },
+  });
+  server.on("message", (message) => {
+    const request = forkRequestSchema.safeParse(message);
+    if (request.success) {
+      broker.fork(request.data);
+    }
+  });
+  server.once("exit", () => {
+    broker.dispose();
+  });
+  return server;
 };
 
 const startServer = async (target: ServerTarget): Promise<void> => {
-  if (planServerStart(await verifiedServerAnswered(target)) === "adopt") {
+  const expectedVersion = bundledServerVersion(app.getAppPath());
+  const plan = planServerStart(await judgeServer(target, expectedVersion), target.dataDir);
+  if (plan.kind === "refuse") {
+    throw new Error(plan.reason);
+  }
+  if (plan.kind === "adopt") {
     console.log(`[desktop] adopting the server already serving ${target.dataDir}`);
+    ({ live } = plan);
     serverProcess = null;
     return;
   }
@@ -132,7 +170,16 @@ const startServer = async (target: ServerTarget): Promise<void> => {
   const child = createServerProcess({
     entryPath,
     env: serverProcessEnv(target, app.isPackaged),
-    isReady: async () => await verifiedServerAnswered(target),
+    fork: forkServer,
+    // a child that lost the port race must not be reported up about a stranger.
+    isReady: async () => {
+      const verdict = await judgeServer(target, expectedVersion);
+      if (verdict.kind !== "verified") {
+        return false;
+      }
+      ({ live } = verdict);
+      return true;
+    },
     log: (message) => {
       console.log(`[server] ${message}`);
     },
@@ -177,6 +224,10 @@ const lockDownSession = (partition: string): Electron.Session => {
 const attachSocketCredential = (windowSession: Electron.Session, server: LiveServer): void => {
   const urls = socketCredentialFilter(server.origin);
   windowSession.webRequest.onBeforeSendHeaders({ urls }, (details, respond) => {
+    if (!carriesBearer(details.initiatorOrigin)) {
+      respond({});
+      return;
+    }
     respond({
       requestHeaders: {
         ...details.requestHeaders,
@@ -241,6 +292,14 @@ const guardNavigation = (event: Electron.Event, url: string): void => {
   }
 };
 
+const loadWindow = async (window: BrowserWindow, url: string): Promise<void> => {
+  try {
+    await window.loadURL(url);
+  } catch (error) {
+    console.error(`[desktop] window failed to load ${url}: ${toErrorMessage(error)}`);
+  }
+};
+
 const createWindow = (target: ServerTarget): BrowserWindow => {
   const partition = sessionPartition(target.dataDir);
   const window = new BrowserWindow({
@@ -257,8 +316,10 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
     width: 1200,
   });
 
-  window.webContents.on("input-event", () => {
-    lastInputAt = Date.now();
+  window.webContents.on("input-event", (_event, input) => {
+    if (grantsActivation(input.type)) {
+      lastInputAt = Date.now();
+    }
   });
 
   window.webContents.setWindowOpenHandler((details) => {
@@ -285,7 +346,22 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
     }
   });
 
-  void window.loadURL(`${APP_ORIGIN}/`);
+  // the packaged smoke reads these lines: the fuses change what a page may load
+  window.webContents.once("did-finish-load", () => {
+    console.log("[desktop] window loaded");
+  });
+  window.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+      if (isMainFrame) {
+        console.error(
+          `[desktop] window failed to load ${validatedUrl}: ${String(errorCode)} ${errorDescription}`,
+        );
+      }
+    },
+  );
+
+  void loadWindow(window, `${APP_ORIGIN}/`);
   return window;
 };
 
@@ -324,21 +400,21 @@ const fromMainWindow = (event: Electron.IpcMainInvokeEvent): boolean =>
 
 // every page-facing channel refuses a stranger's webContents before it reads a frame, and
 // the frame is parsed here, at the boundary, so a handler only ever sees a value it knows
-const handleFromMainWindow = <TFrame, TAnswer>(
-  channel: string,
-  frameSchema: z.ZodType<TFrame>,
-  handler: (frame: TFrame) => TAnswer | Promise<TAnswer>,
+const handle = <Request extends z.ZodType, Answer extends z.ZodType>(
+  route: InvokeRoute<Request, Answer>,
+  handler: (request: z.output<Request>) => z.input<Answer> | Promise<z.input<Answer>>,
 ): void => {
-  ipcMain.handle(channel, async (event, frame) => {
+  ipcMain.handle(route.channel, async (event, frame) => {
     if (!fromMainWindow(event)) {
       throw new Error("refused");
     }
-    return await handler(frameSchema.parse(frame));
+    return await handler(route.request.parse(frame));
   });
 };
 
-// a channel carrying no frame
-const noFrame = z.undefined();
+const push = <Frame extends z.ZodType>(route: PushRoute<Frame>, frame: z.input<Frame>): void => {
+  mainWindow?.webContents.send(route.channel, frame);
+};
 
 const resolveRequestedEntry = (request: PathActionRequest) =>
   resolveVaultEntry({
@@ -351,45 +427,38 @@ const resolveRequestedEntry = (request: PathActionRequest) =>
 // and hands the OS nothing the vault does not physically contain. registered once per
 // launch: a second `handle` on a channel throws, so the handlers read the current vault
 const configurePathActionsIpc = (): void => {
-  handleFromMainWindow(
-    IPC_CHANNELS.REVEAL_PATH,
-    pathActionRequestSchema,
-    (frame): PathActionResult => {
-      const verdict = resolveRequestedEntry(frame);
-      if (!verdict.ok) {
-        return verdict;
-      }
-      shell.showItemInFolder(verdict.absPath);
-      return { ok: true };
-    },
-  );
-  handleFromMainWindow(
-    IPC_CHANNELS.OPEN_PATH,
-    pathActionRequestSchema,
-    async (frame): Promise<PathActionResult> => {
-      const verdict = resolveRequestedEntry(frame);
-      if (!verdict.ok) {
-        return verdict;
-      }
-      // answers "" when the OS took the file, else its own words for why not
-      const refusal = await shell.openPath(verdict.absPath);
-      return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
-    },
-  );
+  handle(INVOKE_ROUTES.paths.reveal, (request): PathActionResult => {
+    const verdict = resolveRequestedEntry(request);
+    if (!verdict.ok) {
+      return verdict;
+    }
+    shell.showItemInFolder(verdict.absPath);
+    return { ok: true };
+  });
+  handle(INVOKE_ROUTES.paths.open, async (request): Promise<PathActionResult> => {
+    const verdict = resolveRequestedEntry(request);
+    if (!verdict.ok) {
+      return verdict;
+    }
+    // answers "" when the OS took the file, else its own words for why not
+    const refusal = await shell.openPath(verdict.absPath);
+    return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
+  });
 };
 
-// the server is already down when this fails, so the honest move is to say so and quit
+// the server is already down when an install fails, so the honest move is to say so and quit
+const reportInstallFailure = (message: string): void => {
+  dialog.showErrorBox("Update failed", `${message} Reopen Inteligir to continue.`);
+  app.quit();
+};
+
 const installUpdate = async (): Promise<void> => {
   if (updates === null) {
     return;
   }
   const outcome = await updates.install();
   if (outcome.kind === "failed") {
-    dialog.showErrorBox(
-      "Update failed",
-      `${outcome.state.message ?? "The installer refused."} Reopen Inteligir to continue.`,
-    );
-    app.quit();
+    reportInstallFailure(outcome.message);
   }
 };
 
@@ -437,7 +506,7 @@ const checkForUpdatesFromMenu = async (): Promise<void> => {
         buttons: ["Download", "Later"],
         cancelId: 1,
         defaultId: 0,
-        message: `Inteligir ${state.availableVersion ?? ""} is available.`,
+        message: `Inteligir ${state.version} is available.`,
         title: "Update available",
         type: "info",
       });
@@ -445,32 +514,37 @@ const checkForUpdatesFromMenu = async (): Promise<void> => {
         return;
       }
       const downloaded = await updates.download();
-      if (downloaded.status === "downloaded" && downloaded.downloadedVersion !== null) {
-        await askToRestart(downloaded.downloadedVersion);
+      if (downloaded.status === "downloaded") {
+        await askToRestart(downloaded.version);
       } else if (downloaded.status === "error") {
-        dialog.showErrorBox(
-          "Download failed",
-          downloaded.message ?? "The download did not finish.",
-        );
+        dialog.showErrorBox("Download failed", downloaded.message);
       }
       return;
     }
     case "downloaded": {
-      await askToRestart(state.downloadedVersion ?? "");
+      await askToRestart(state.version);
       return;
     }
-    case "disabled":
+    case "disabled": {
+      await dialog.showMessageBox({
+        buttons: ["OK"],
+        message: state.reason,
+        title: "Updates are off",
+        type: "warning",
+      });
+      return;
+    }
     case "error": {
       await dialog.showMessageBox({
         buttons: ["OK"],
-        message: state.message ?? "Could not check for updates.",
-        title: state.status === "disabled" ? "Updates are off" : "Update check failed",
+        message: state.message,
+        title: "Update check failed",
         type: "warning",
       });
       return;
     }
     default: {
-      const exhaustive: never = state.status;
+      const exhaustive: never = state;
       return exhaustive;
     }
   }
@@ -509,25 +583,22 @@ const configureUpdates = (): Updates => {
   };
   const created = createUpdates({
     broadcast: (state) => {
-      mainWindow?.webContents.send(IPC_CHANNELS.UPDATE_STATE, state);
+      push(UPDATE_STATE_PUSH, state);
     },
     currentVersion: app.getVersion(),
     disabledReason: updateFeedDisabledReason(),
     log: logUpdater,
+    onInstallFailed: reportInstallFailure,
     // an adopted server is nobody's to stop and outlives the shell
     stopServer: async () => {
       await serverProcess?.stop();
     },
     updater: electronUpdaterPort(),
   });
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_GET_STATE, noFrame, () => created.state());
-  handleFromMainWindow(
-    IPC_CHANNELS.UPDATE_CHECK,
-    noFrame,
-    async () => await created.check("settings"),
-  );
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_DOWNLOAD, noFrame, async () => await created.download());
-  handleFromMainWindow(IPC_CHANNELS.UPDATE_INSTALL, noFrame, async () => {
+  handle(INVOKE_ROUTES.updates.getState, () => created.state());
+  handle(INVOKE_ROUTES.updates.check, async () => await created.check("settings"));
+  handle(INVOKE_ROUTES.updates.download, async () => await created.download());
+  handle(INVOKE_ROUTES.updates.install, async () => {
     await installUpdate();
     return created.state();
   });
@@ -544,13 +615,8 @@ const requireSpellcheck = (): Spellcheck => {
 // registered once per launch: a second `handle` on a channel throws, so every handler reads
 // the vault of the moment rather than closing over the first one
 const configureSpellcheckIpc = (): void => {
-  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_GET_STATE, noFrame, () =>
-    requireSpellcheck().state(),
-  );
-  // the frame is parsed here, at the boundary: the page's choice reaches the session typed or not at all
-  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_APPLY, spellcheckChoiceSchema, (frame) =>
-    requireSpellcheck().apply(frame),
-  );
+  handle(INVOKE_ROUTES.spellcheck.getState, () => requireSpellcheck().state());
+  handle(INVOKE_ROUTES.spellcheck.apply, (choice) => requireSpellcheck().apply(choice));
 };
 
 const vaultsState = (): VaultsState => {
@@ -559,10 +625,7 @@ const vaultsState = (): VaultsState => {
   return {
     blocked: blocked === null ? null : switchRefusalMessage(blocked),
     current: vaultRef(target.vaultDir),
-    // a folder that is gone (an unmounted drive) stays remembered and stays off the list
-    recent: recentVaults
-      .filter((vaultDir) => vaultDir !== target.vaultDir && existsSync(vaultDir))
-      .map(vaultRef),
+    recent: offeredRecentVaults(recentVaults, target.vaultDir, existsSync).map(vaultRef),
   };
 };
 
@@ -598,35 +661,47 @@ const bootVault = async (target: ServerTarget): Promise<void> => {
   mainWindow = createWindow(target);
 };
 
-const switchVault = async (vaultDir: string): Promise<void> => {
+// a refusal is decided before anything moves and answered as a value; a throw is a fault.
+// a rollback's refusal is `reported`: the window that asked is closed by then, so main said it
+type VaultSwitchOutcome =
+  | { ok: true }
+  | { ok: false; reason: string }
+  | { ok: false; reason: string; reported: true };
+
+const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
   const previous = requireTarget();
   const plan = planVaultSwitch({ current: previous, ownsServer: serverProcess !== null }, vaultDir);
   if (plan.kind === "refused") {
-    throw new Error(switchRefusalMessage(plan.reason));
+    return { ok: false, reason: switchRefusalMessage(plan.reason) };
   }
   // resolved and refused exactly as a boot would, before anything moves
   const candidate = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged, vaultDir });
   if (candidate.kind === "refused") {
-    throw new Error(candidate.error);
+    return { ok: false, reason: candidate.error };
   }
   if (switching) {
-    throw new Error("Another vault is already opening.");
+    return { ok: false, reason: "Another vault is already opening." };
   }
   switching = true;
   const previousWindow = mainWindow;
   try {
     await stopOwnedServer();
-    writeManagedVaultDir(previous.rootDataDir, candidate.target.vaultDir);
-    // re-read rather than reused: the child boots on what config.json now says, as the CLI would
-    const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
-    if (next.kind === "refused") {
-      throw new Error(next.error);
-    }
+    // from here the old child is gone, so any throw must put the previous vault back
+    let selectorWritten = false;
     try {
+      writeManagedVaultDir(previous.rootDataDir, candidate.target.vaultDir);
+      selectorWritten = true;
+      // re-read rather than reused: the child boots on what config.json now says, as the CLI would
+      const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
+      if (next.kind === "refused") {
+        throw new Error(next.error);
+      }
       await bootVault(next.target);
     } catch (error) {
       console.error("[desktop] the vault did not open; returning to the previous one", error);
-      writeManagedVaultDir(previous.rootDataDir, previous.vaultDir);
+      if (selectorWritten) {
+        writeManagedVaultDir(previous.rootDataDir, previous.vaultDir);
+      }
       await stopOwnedServer();
       try {
         await bootVault(previous);
@@ -639,14 +714,15 @@ const switchVault = async (vaultDir: string): Promise<void> => {
         throw reopenError;
       }
       previousWindow?.close();
-      throw new Error(`Could not open ${candidate.target.vaultDir}: ${toErrorMessage(error)}`, {
-        cause: error,
-      });
+      const reason = `Could not open ${candidate.target.vaultDir}: ${toErrorMessage(error)}`;
+      dialog.showErrorBox("Could not open the vault", reason);
+      return { ok: false, reason, reported: true };
     }
   } finally {
     switching = false;
   }
   previousWindow?.close();
+  return { ok: true };
 };
 
 // the folder is the user's pick, made in main: the page never names a path it was not handed
@@ -668,10 +744,14 @@ const pickVaultDir = async (): Promise<string | null> => {
 };
 
 const switchVaultFromMenu = async (vaultDir: string): Promise<void> => {
+  let outcome: VaultSwitchOutcome;
   try {
-    await switchVault(vaultDir);
+    outcome = await switchVault(vaultDir);
   } catch (error) {
-    dialog.showErrorBox("Could not open the vault", toErrorMessage(error));
+    outcome = { ok: false, reason: toErrorMessage(error) };
+  }
+  if (!outcome.ok && !("reported" in outcome)) {
+    dialog.showErrorBox("Could not open the vault", outcome.reason);
   }
 };
 
@@ -694,40 +774,41 @@ const pickAndSwitchFromMenu = async (): Promise<void> => {
   }
 };
 
+const answerSwitch = (outcome: VaultSwitchOutcome): VaultSwitchAnswer =>
+  outcome.ok ? { ok: true, state: vaultsState() } : { ok: false, reason: outcome.reason };
+
 const configureVaultsIpc = (): void => {
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_GET_STATE, noFrame, () => vaultsState());
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_PICK, noFrame, async () => {
+  handle(INVOKE_ROUTES.vaults.getState, () => vaultsState());
+  handle(INVOKE_ROUTES.vaults.pick, async () => {
     const picked = await pickVaultDir();
-    if (picked !== null) {
-      await switchVault(picked);
-    }
-    return vaultsState();
+    return answerSwitch(picked === null ? { ok: true } : await switchVault(picked));
   });
   // only a path this process handed out comes back: the list is the page's whole vocabulary
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_OPEN, vaultPathSchema, async (vaultDir) => {
+  handle(INVOKE_ROUTES.vaults.open, async (vaultDir): Promise<VaultSwitchAnswer> => {
     if (!recentVaults.includes(vaultDir)) {
-      throw new Error("That vault is not one the app remembers.");
+      return { ok: false, reason: "That vault is not one the app remembers." };
     }
-    await switchVault(vaultDir);
-    return vaultsState();
+    return answerSwitch(await switchVault(vaultDir));
   });
-  handleFromMainWindow(IPC_CHANNELS.VAULTS_FORGET, vaultPathSchema, (frame) => {
-    setRecentVaults(forgetVault(recentVaults, frame));
+  handle(INVOKE_ROUTES.vaults.forget, (vaultDir) => {
+    setRecentVaults(forgetVault(recentVaults, vaultDir));
     return vaultsState();
   });
 };
 
 const configureApplicationMenu = (): void => {
   const current = currentTarget?.vaultDir ?? null;
-  const recentItems: MenuItemConstructorOptions[] = recentVaults
-    .filter((vaultDir) => vaultDir !== current)
-    .map((vaultDir) => ({
-      click: () => {
-        void switchVaultFromMenu(vaultDir);
-      },
-      label: vaultRef(vaultDir).name,
-      sublabel: vaultDir,
-    }));
+  const recentItems: MenuItemConstructorOptions[] = offeredRecentVaults(
+    recentVaults,
+    current,
+    existsSync,
+  ).map((vaultDir) => ({
+    click: () => {
+      void switchVaultFromMenu(vaultDir);
+    },
+    label: vaultRef(vaultDir).name,
+    sublabel: vaultDir,
+  }));
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -844,7 +925,7 @@ const onAppReady = async (target: ServerTarget): Promise<void> => {
   recentVaults = readRecentVaults(recentVaultsPath, (message) => {
     console.warn(`[desktop] ${message}`);
   });
-  ipcMain.on(IPC_CHANNELS.SOCKET_ORIGIN, (event) => {
+  ipcMain.on(SOCKET_ORIGIN_CHANNEL, (event) => {
     event.returnValue = live?.origin ?? "";
   });
   configureSpellcheckIpc();
@@ -896,6 +977,11 @@ const startApp = async (target: ServerTarget): Promise<void> => {
     applyShellPath(await shellPath);
     await onAppReady(target);
   } catch (error) {
+    // the teardown in flight quits once the child is down; a modal here would hold main open
+    if (quitRequested) {
+      console.warn(`[desktop] startup ended by a quit: ${toErrorMessage(error)}`);
+      return;
+    }
     console.error("[desktop] fatal startup error", error);
     dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
     app.quit();
@@ -921,6 +1007,7 @@ if (target.kind === "refused") {
   // the child's SIGTERM teardown flushes the vault's pending commit; `before-quit` is where it still has time to run.
   let teardown: Promise<void> | null = null;
   app.on("before-quit", (event) => {
+    quitRequested = true;
     if (serverProcess === null || teardown !== null) {
       return;
     }

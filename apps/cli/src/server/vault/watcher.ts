@@ -7,7 +7,7 @@ import { createForkChannel } from "./watcher/fork-channel";
 import type { ParcelAsyncSubscription, ParcelWatcherBackend } from "./watcher/parcel-backend";
 import { toWatchErrorMessage } from "./watcher/parcel-backend";
 import { createParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
-import type { ParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
+import type { ChildChannel, ParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
 
 const DEBOUNCE_MS = 200;
 const MAX_WAIT_MS = 1000;
@@ -19,6 +19,8 @@ export interface VaultWatcherArgs {
   onChanged: (paths: readonly string[]) => void;
   onError?: (message: string) => void;
   backend?: ParcelWatcherBackend;
+  // how the proxy starts its child; absent, node forks it
+  spawnChannel?: () => ChildChannel;
 }
 
 export interface VaultWatcher {
@@ -35,7 +37,9 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
   const backend =
     args.backend ??
     (() => {
-      ownedProxy = createParcelWatcherProxy({ spawnChannel: createForkChannel });
+      ownedProxy = createParcelWatcherProxy({
+        spawnChannel: args.spawnChannel ?? createForkChannel,
+      });
       return ownedProxy;
     })();
 
@@ -99,6 +103,9 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
               scheduleResubscribe(start);
               return;
             }
+            // the first proof the watch is live: the proxy resolves a subscribe at once and
+            // reports a failed establish later, through this callback.
+            retryAttempt = 0;
             for (const event of events) {
               const rel = toVaultRelativePath(event.path);
               if (rel !== null) {
@@ -127,7 +134,6 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
         }
         return;
       }
-      retryAttempt = 0;
       subscription = established;
     })();
   };

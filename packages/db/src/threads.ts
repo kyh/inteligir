@@ -5,20 +5,26 @@ import type {
   ThreadLifecycleNoopReason,
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
-import { and, desc, eq, isNotNull, isNull, like } from "drizzle-orm";
-import { writeTransaction } from "./connection";
-import type { DbConnection, DbTransaction } from "./connection";
+import { isThreadRunning, threadStatusValues } from "@repo/domain/thread-status";
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { threads } from "./schema";
 
 export type ThreadRow = typeof threads.$inferSelect;
 
-type ThreadWriteConnection = DbConnection | DbTransaction;
+// the note's path at compose time and its frontmatter `id`, null for a note that has none; the
+// columns are independent, so this shape is what keeps an id from arriving without its path.
+export interface ThreadOriginInput {
+  path: string;
+  noteId: string | null;
+}
 
 export interface CreateThreadInput {
   title?: string;
-  originDocPath?: string;
+  origin?: ThreadOriginInput;
 }
 
 export const createThread = (
@@ -34,7 +40,8 @@ export const createThread = (
       archivedAt: null,
       createdAt: now,
       id: createThreadId(),
-      originDocPath: input.originDocPath ?? null,
+      originDocPath: input.origin?.path ?? null,
+      originNoteId: input.origin?.noteId ?? null,
       providerId: null,
       status: "idle",
       title: input.title ?? null,
@@ -52,7 +59,8 @@ export interface EnsureThreadOutcome {
 }
 
 // created with the log's id, not `createThread`'s: a device minting its own turns one synced
-// conversation into two. title and origin stay default because the event log carries neither.
+// conversation into two. created bare: its title, origin and harness arrive as the log's
+// thread/meta rows, through `applyThreadMetaInTransaction`.
 export const ensureThreadInTransaction = (tx: DbTransaction, id: string): EnsureThreadOutcome => {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
   if (existing !== undefined) {
@@ -67,82 +75,197 @@ export const ensureThreadInTransaction = (tx: DbTransaction, id: string): Ensure
   return { created: true, row };
 };
 
-export const getThread = (db: ThreadWriteConnection, id: string): ThreadRow | null =>
+export const getThread = (db: DbExecutor, id: string): ThreadRow | null =>
   db.select().from(threads).where(eq(threads.id, id)).get() ?? null;
 
-// two scans so each is answered by its own partial index instead of a temp b-tree sort.
-export const listThreads = (db: DbConnection): ThreadRow[] => {
-  const live = db
-    .select()
-    .from(threads)
-    .where(isNull(threads.archivedAt))
-    .orderBy(desc(threads.updatedAt))
-    .all();
-  const archived = db
-    .select()
-    .from(threads)
-    .where(isNotNull(threads.archivedAt))
-    .orderBy(desc(threads.updatedAt))
-    .all();
-  return [...live, ...archived];
+// a row's place in the listing: live before archived, then newest first, the id breaking a tie
+// on the millisecond.
+export interface ThreadListPosition {
+  archived: boolean;
+  updatedAt: number;
+  id: string;
+}
+
+export interface ThreadListQuery {
+  // the last row of the previous page; null starts at the top.
+  after: ThreadListPosition | null;
+  includeArchived: boolean;
+  limit: number;
+  // the note's path and, when it carries one, its frontmatter `id`: a thread bound to that id is
+  // the note's wherever it was composed, so the caller re-checks each row's resolved origin.
+  origin: ThreadOriginInput | null;
+  running: boolean;
+}
+
+export interface ThreadPage {
+  rows: ThreadRow[];
+  // the last row's position when more follow, else null.
+  next: ThreadListPosition | null;
+}
+
+const RUNNING_STATUSES = threadStatusValues.filter(isThreadRunning);
+
+const positionOf = (row: ThreadRow): ThreadListPosition => ({
+  archived: row.archivedAt !== null,
+  id: row.id,
+  updatedAt: row.updatedAt,
+});
+
+const originPredicate = (origin: ThreadOriginInput | null): SQL | undefined => {
+  if (origin === null) {
+    return undefined;
+  }
+  const byPath = eq(threads.originDocPath, origin.path);
+  return origin.noteId === null ? byPath : or(byPath, eq(threads.originNoteId, origin.noteId));
 };
 
-export const rebindThreadOrigins = (
+const listSegment = (
   db: DbConnection,
-  notifier: DbNotifier,
-  args: { from: string; to: string },
-): number => {
-  const moved = db
-    .update(threads)
-    .set({ originDocPath: args.to, updatedAt: Date.now() })
-    .where(eq(threads.originDocPath, args.from))
-    .returning({ id: threads.id })
-    .all();
-  // "/" appended so a sibling sharing the name's prefix (`Notes2/`) is never caught.
-  const prefix = `${args.from}/`;
-  const descendants = db
-    .select({ id: threads.id, originDocPath: threads.originDocPath })
+  query: ThreadListQuery,
+  archived: boolean,
+  take: number,
+): ThreadRow[] => {
+  const after = query.after?.archived === archived ? query.after : null;
+  return db
+    .select()
     .from(threads)
-    // drizzle's `like` emits no ESCAPE clause, so escaping the prefix's own wildcards would match
-    // a literal backslash and find nothing; the pattern over-matches and `startsWith` filters.
-    .where(like(threads.originDocPath, `${prefix}%`))
+    .where(
+      and(
+        archived ? isNotNull(threads.archivedAt) : isNull(threads.archivedAt),
+        after === null
+          ? undefined
+          : sql`(${threads.updatedAt}, ${threads.id}) < (${after.updatedAt}, ${after.id})`,
+        originPredicate(query.origin),
+        query.running ? inArray(threads.status, RUNNING_STATUSES) : undefined,
+      ),
+    )
+    .orderBy(desc(threads.updatedAt), desc(threads.id))
+    .limit(take)
     .all();
-  for (const row of descendants) {
-    if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
+};
+
+// one scan per segment, so each is answered by its own partial index instead of a temp b-tree
+// sort; one row past the limit says whether another page follows.
+export const listThreads = (db: DbConnection, query: ThreadListQuery): ThreadPage => {
+  const rows: ThreadRow[] = [];
+  const segments = query.includeArchived ? [false, true] : [false];
+  for (const archived of segments) {
+    if (query.after?.archived === true && !archived) {
       continue;
     }
-    db.update(threads)
-      .set({
-        originDocPath: `${args.to}/${row.originDocPath.slice(prefix.length)}`,
-        updatedAt: Date.now(),
-      })
-      .where(eq(threads.id, row.id))
-      .run();
-    moved.push({ id: row.id });
+    rows.push(...listSegment(db, query, archived, query.limit + 1 - rows.length));
+    if (rows.length > query.limit) {
+      break;
+    }
   }
-  for (const row of moved) {
-    notifier.notifyThread(row.id, ["origin-changed"]);
-  }
-  return moved.length;
+  const page = rows.slice(0, query.limit);
+  const last = page.at(-1);
+  return {
+    next: rows.length > query.limit && last !== undefined ? positionOf(last) : null,
+    rows: page,
+  };
 };
 
-export const archiveThread = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  id: string,
-): ThreadRow | null => {
-  const now = Date.now();
-  const updated = db
+// every one, unpaged: the boot's crash recovery must reach each turn left running.
+export const listRunningThreads = (db: DbConnection): ThreadRow[] =>
+  db.select().from(threads).where(inArray(threads.status, RUNNING_STATUSES)).all();
+
+// the paths threads are bound by alone: composed over a note with no id to give, or before the
+// id column existed.
+export const listPathOnlyOriginPaths = (db: DbExecutor): string[] =>
+  db
+    .selectDistinct({ path: threads.originDocPath })
+    .from(threads)
+    .where(and(isNotNull(threads.originDocPath), isNull(threads.originNoteId)))
+    .all()
+    .flatMap((row) => (row.path === null ? [] : [row.path]));
+
+// only rows still bound by that path alone: a thread/meta that restated an origin meanwhile is the
+// newer statement, and an id never pairs with another statement's path. updated_at stays, because
+// the listing orders by it and nothing about the thread changed.
+export const bindPathOnlyOrigins = (
+  db: DbExecutor,
+  args: { path: string; noteId: string },
+): void => {
+  db.update(threads)
+    .set({ originNoteId: args.noteId })
+    .where(and(eq(threads.originDocPath, args.path), isNull(threads.originNoteId)))
+    .run();
+};
+
+// fills an empty title only: an explicit one, or one an earlier message already set, stays.
+export const nameUntitledThreadInTransaction = (
+  tx: DbTransaction,
+  args: { threadId: string; title: string },
+): boolean =>
+  tx
     .update(threads)
-    .set({ archivedAt: now, updatedAt: now })
-    .where(and(eq(threads.id, id), isNull(threads.archivedAt)))
-    .returning()
-    .get();
-  if (updated !== undefined) {
-    notifier.notifyThread(id, ["archived-changed"]);
-    return updated;
+    .set({ title: args.title, updatedAt: Date.now() })
+    .where(and(eq(threads.id, args.threadId), isNull(threads.title)))
+    .returning({ id: threads.id })
+    .get() !== undefined;
+
+// true when this call archived it: a thread already archived keeps the time it was archived at.
+export const archiveThreadInTransaction = (tx: DbTransaction, id: string): boolean => {
+  const now = Date.now();
+  return (
+    tx
+      .update(threads)
+      .set({ archivedAt: now, updatedAt: now })
+      .where(and(eq(threads.id, id), isNull(threads.archivedAt)))
+      .returning({ id: threads.id })
+      .get() !== undefined
+  );
+};
+
+export interface ThreadMetaFacts {
+  title?: string | undefined;
+  originDocPath?: string | undefined;
+  originNoteId?: string | undefined;
+  providerId?: string | undefined;
+}
+
+export interface ThreadMetaChange {
+  title: boolean;
+  origin: boolean;
+}
+
+// a title and an origin take the latest statement: a title a skipping build pulls again lands
+// after the first message already named the thread. an origin is stated as its path and its note's
+// id together, so an id never pairs with another statement's path. a bound harness stays, because
+// this device's provider session was opened on it.
+export const applyThreadMetaInTransaction = (
+  tx: DbTransaction,
+  args: { threadId: string; facts: ThreadMetaFacts },
+): ThreadMetaChange => {
+  const row = getThread(tx, args.threadId);
+  if (row === null) {
+    return { origin: false, title: false };
   }
-  return getThread(db, id);
+  const { originDocPath, providerId, title } = args.facts;
+  const patch: Partial<typeof threads.$inferInsert> = {};
+  if (title !== undefined && title !== row.title) {
+    patch.title = title;
+  }
+  if (originDocPath !== undefined) {
+    const originNoteId = args.facts.originNoteId ?? null;
+    if (originDocPath !== row.originDocPath || originNoteId !== row.originNoteId) {
+      patch.originDocPath = originDocPath;
+      patch.originNoteId = originNoteId;
+    }
+  }
+  if (providerId !== undefined && row.providerId === null) {
+    patch.providerId = providerId;
+  }
+  const change = { origin: patch.originDocPath !== undefined, title: patch.title !== undefined };
+  if (!change.origin && !change.title && patch.providerId === undefined) {
+    return change;
+  }
+  tx.update(threads)
+    .set({ ...patch, updatedAt: Date.now() })
+    .where(eq(threads.id, args.threadId))
+    .run();
+  return change;
 };
 
 export interface SetThreadProviderSessionArgs {
@@ -184,11 +307,11 @@ export interface ApplyThreadLifecycleEventArgs {
   threadId: string;
 }
 
-const applyThreadLifecycleEventRecord = (
-  db: ThreadWriteConnection,
+export const applyThreadLifecycleEventInTransaction = (
+  tx: DbTransaction,
   args: ApplyThreadLifecycleEventArgs,
 ): ApplyThreadLifecycleEventOutcome => {
-  const thread = db.select().from(threads).where(eq(threads.id, args.threadId)).get();
+  const thread = tx.select().from(threads).where(eq(threads.id, args.threadId)).get();
   if (!thread) {
     return {
       applied: false,
@@ -215,7 +338,7 @@ const applyThreadLifecycleEventRecord = (
 
   // the turn id is in the predicate so a settle validated against turn a cannot land after
   // turn b bound.
-  const updated = db
+  const updated = tx
     .update(threads)
     .set({ activeTurnId: evaluation.activeTurnId, status: evaluation.to, updatedAt: Date.now() })
     .where(
@@ -238,20 +361,3 @@ const applyThreadLifecycleEventRecord = (
   }
   return { applied: true, thread: updated };
 };
-
-export const applyThreadLifecycleEvent = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  args: ApplyThreadLifecycleEventArgs,
-): ApplyThreadLifecycleEventOutcome => {
-  const outcome = writeTransaction(db, (tx) => applyThreadLifecycleEventRecord(tx, args));
-  if (outcome.applied) {
-    notifier.notifyThread(args.threadId, ["status-changed"]);
-  }
-  return outcome;
-};
-
-export const applyThreadLifecycleEventInTransaction = (
-  tx: DbTransaction,
-  args: ApplyThreadLifecycleEventArgs,
-): ApplyThreadLifecycleEventOutcome => applyThreadLifecycleEventRecord(tx, args);

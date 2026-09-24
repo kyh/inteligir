@@ -1,3 +1,5 @@
+import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -13,7 +15,7 @@ const mintCode = async (code: string): Promise<void> => {
 };
 
 const signUp = async (body: Record<string, string>): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/v1/auth/sign-up`, {
+  await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
     body: JSON.stringify(body),
     headers: { "content-type": "application/json", origin: ORIGIN },
     method: "POST",
@@ -80,18 +82,39 @@ describe("invite-gated sign-up", () => {
   });
 
   it("releases the claim when Better Auth rejects the sign-up", async () => {
-    await mintCode("INVITE-WEAK");
-    const response = await signUp({
-      email: "short@example.test",
-      inviteCode: "INVITE-WEAK",
-      name: "Short",
-      password: "abc",
-    });
+    await mintCode("INVITE-TAKEN");
+    await mintCode("INVITE-AGAIN");
+    const taken = { email: "taken@example.test", name: "Taken", password: PASSWORD };
+    const first = await signUp({ ...taken, inviteCode: "INVITE-TAKEN" });
+    expect(first.status).toBe(200);
+
+    const response = await signUp({ ...taken, inviteCode: "INVITE-AGAIN" });
     expect(response.status).not.toBe(200);
 
-    const row = await readCode("INVITE-WEAK");
+    const row = await readCode("INVITE-AGAIN");
     expect(row?.redeemedAt).toBeNull();
     expect(row?.redeemedBy).toBeNull();
+  });
+
+  it("refuses a password outside the contract's bounds before touching the invite", async () => {
+    await mintCode("INVITE-BOUNDS");
+    for (const password of [
+      "x".repeat(PASSWORD_MIN_LENGTH - 1),
+      "x".repeat(PASSWORD_MAX_LENGTH + 1),
+    ]) {
+      const response = await signUp({
+        email: "bounds@example.test",
+        inviteCode: "INVITE-BOUNDS",
+        name: "Bounds",
+        password,
+      });
+      expect(response.status, String(password.length)).toBe(400);
+      expect(await response.json()).toStrictEqual({
+        message: `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`,
+      });
+    }
+    const untouched = await readCode("INVITE-BOUNDS");
+    expect(untouched?.redeemedAt).toBeNull();
   });
 
   it("refuses a malformed body before touching the invite", async () => {

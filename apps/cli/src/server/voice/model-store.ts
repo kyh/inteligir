@@ -4,18 +4,25 @@
 
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { x as extractTar } from "tar";
 import unbzip2 from "unbzip2-stream";
 import { z } from "zod";
 import { errnoCode } from "../errno";
+import { messageOf } from "../error-message";
 import type { VoiceModelSpec } from "./model-catalog";
 import type { VoiceModelFiles } from "./worker-protocol";
 
+// each attempt stages in its own dir under this prefix: the model dir is per machine, so two
+// instances can install at once, and a staging dir they shared is one either could clear under
+// the other.
 const STAGING_SUFFIX = ".partial";
 const ARCHIVE_FILE_NAME = "download.tar.bz2";
+// a staging dir's mtime does not move while the archive inside it grows, so the age that marks
+// one abandoned must outlast any real download.
+const ABANDONED_STAGING_MS = 24 * 60 * 60_000;
 
 export const modelDirFor = (modelDir: string, spec: VoiceModelSpec): string =>
   path.join(modelDir, spec.id);
@@ -89,6 +96,9 @@ const extractArchive = async (
       cwd: outDir,
       filter: (entryPath) => required.has(path.basename(entryPath)),
       strip: 1,
+      // a recoverable warning (an absolute or `..` path, an entry it could not write) refuses the
+      // archive rather than skipping a file.
+      strict: true,
     }),
   );
 };
@@ -96,16 +106,47 @@ const extractArchive = async (
 // node types the fetch body's chunks loosely; the stream is the boundary.
 const bodyChunkSchema = z.instanceof(Uint8Array);
 
+// every staging dir of this model's attempts, or with `modifiedBefore` only those last touched
+// before it: an attempt still running in another instance is younger.
+const removeStagingDirs = async (
+  modelDir: string,
+  spec: VoiceModelSpec,
+  modifiedBefore?: number,
+): Promise<void> => {
+  let entries: string[];
+  try {
+    entries = await readdir(modelDir);
+  } catch (error) {
+    if (errnoCode(error) === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+  const staging = `${spec.id}${STAGING_SUFFIX}`;
+  for (const entry of entries) {
+    if (!entry.startsWith(staging)) {
+      continue;
+    }
+    const entryPath = path.join(modelDir, entry);
+    if (modifiedBefore !== undefined) {
+      const info = await stat(entryPath).catch(() => null);
+      if (info === null || info.mtimeMs >= modifiedBefore) {
+        continue;
+      }
+    }
+    await rm(entryPath, { force: true, recursive: true });
+  }
+};
+
 export const downloadModel = async (args: DownloadModelArgs): Promise<void> => {
   const { modelDir, spec, signal, onProgress } = args;
   const fetchImpl = args.fetchImpl ?? fetch;
   const finalDir = modelDirFor(modelDir, spec);
-  const stagingDir = `${finalDir}${STAGING_SUFFIX}`;
+  await mkdir(modelDir, { recursive: true });
+  // a process killed mid-download never reaches its own cleanup, and each leaves ~100MB behind.
+  await removeStagingDirs(modelDir, spec, Date.now() - ABANDONED_STAGING_MS);
+  const stagingDir = await mkdtemp(`${finalDir}${STAGING_SUFFIX}-`);
   const archivePath = path.join(stagingDir, ARCHIVE_FILE_NAME);
-
-  // a previous attempt's staging is not a valid model.
-  await rm(stagingDir, { force: true, recursive: true });
-  await mkdir(stagingDir, { recursive: true });
 
   try {
     let response: Response;
@@ -113,7 +154,7 @@ export const downloadModel = async (args: DownloadModelArgs): Promise<void> => {
       response = await fetchImpl(spec.url, { signal });
     } catch (error) {
       throw new ModelDownloadError(
-        `Could not reach ${new URL(spec.url).host}: ${error instanceof Error ? error.message : String(error)}`,
+        `Could not reach ${new URL(spec.url).host}: ${messageOf(error)}`,
       );
     }
     if (!response.ok || response.body === null) {
@@ -163,7 +204,15 @@ export const downloadModel = async (args: DownloadModelArgs): Promise<void> => {
 
     // one rename, so a reader never sees a half-populated dir.
     await rm(finalDir, { force: true, recursive: true });
-    await rename(stagingDir, finalDir);
+    try {
+      await rename(stagingDir, finalDir);
+    } catch (error) {
+      // another install landed between the rm and the rename; its bytes passed the same pin.
+      if (!(await isModelInstalled(modelDir, spec))) {
+        throw error;
+      }
+      await rm(stagingDir, { force: true, recursive: true });
+    }
   } catch (error) {
     await rm(stagingDir, { force: true, recursive: true });
     if (error instanceof ModelDownloadError) {
@@ -172,14 +221,11 @@ export const downloadModel = async (args: DownloadModelArgs): Promise<void> => {
     if (signal.aborted) {
       throw new ModelDownloadError("The download was stopped.");
     }
-    throw new ModelDownloadError(
-      `The download failed: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new ModelDownloadError(`The download failed: ${messageOf(error)}`);
   }
 };
 
 export const removeModel = async (modelDir: string, spec: VoiceModelSpec): Promise<void> => {
-  const finalDir = modelDirFor(modelDir, spec);
-  await rm(finalDir, { force: true, recursive: true });
-  await rm(`${finalDir}${STAGING_SUFFIX}`, { force: true, recursive: true });
+  await rm(modelDirFor(modelDir, spec), { force: true, recursive: true });
+  await removeStagingDirs(modelDir, spec);
 };

@@ -14,14 +14,12 @@ import {
 import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
+import { isPdfUrl } from "@repo/editor/lib/wire";
 
-import { MediaEmbedElement } from "@repo/editor/nodes/embed-node";
 import { FileElement } from "@repo/editor/nodes/pdf-node";
-import { VideoElement } from "@repo/editor/nodes/youtube-node";
+import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";
 
 export const EmbedBaseKit = [BaseVideoPlugin, BaseMediaEmbedPlugin, BaseFilePlugin];
-
-const PDF_RE = /\.pdf(?:[?#]|$)/iu;
 
 const embedTypeForUrl = (url: string): string => {
   if (parseVideoUrl(url) !== undefined) {
@@ -30,7 +28,7 @@ const embedTypeForUrl = (url: string): string => {
   if (parseTwitterUrl(url) !== undefined) {
     return KEYS.mediaEmbed;
   }
-  if (PDF_RE.test(url)) {
+  if (isPdfUrl(url)) {
     return KEYS.file;
   }
   return KEYS.mediaEmbed;
@@ -50,7 +48,7 @@ export const insertEmbedFromUrl = (editor: PlateEditor, url: string): void => {
   insertVoidAndEscape(editor, embedNodeForUrl(trimmed));
 };
 
-// Only video/tweet URLs auto-embed: a generic URL becoming an iframe on paste is a surprise.
+// Only video/tweet URLs auto-embed: a generic URL pasted as a link must stay a link.
 const BARE_URL_RE = /^https?:\/\/\S+$/iu;
 
 const isAutoEmbedUrl = (text: string): boolean =>
@@ -126,8 +124,8 @@ const AutoEmbedPlugin = createPlatePlugin({ key: "embedAutoPill" })
   }));
 
 export const EmbedKit = [
-  VideoPlugin.withComponent(VideoElement),
-  MediaEmbedPlugin.withComponent(MediaEmbedElement),
+  VideoPlugin.withComponent(remoteMediaElement("video")),
+  MediaEmbedPlugin.withComponent(remoteMediaElement("page")),
   FilePlugin.withComponent(FileElement),
   AutoEmbedPlugin,
 ];

@@ -4,7 +4,7 @@ import path from "node:path";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
+import { authorizationHeader, loopbackOrigin, readServerFile } from "inteligir/server/server-file";
 import type { LocalContract } from "@repo/api/local";
 import {
   browserHandoffUrl,
@@ -12,17 +12,22 @@ import {
   healthResponseSchema,
   RPC_PREFIX,
 } from "@repo/api/local/routes";
-import { hermeticProcessEnv } from "./exec";
+import { appLaunchEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
 
 const HEALTH_POLL_INTERVAL_MS = 250;
 const HEALTH_DEADLINE_MS = 60_000;
 
+// source: the bin a user's shell resolves, which in a checkout runs src/ under tsx. built: the
+// bundle a published install and the desktop shell run.
+export type LaunchMode = "source" | "built";
+
 export interface LaunchAppArgs {
   name: string;
   instanceDir: string;
   repoRoot: string;
+  mode: LaunchMode;
   vaultRemote?: string;
   extraEnv?: Readonly<Record<string, string>>;
   onLog: (line: string) => void;
@@ -46,10 +51,18 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
   "INTELIGIR_VAULT_DIR",
   "INTELIGIR_PORT",
   "INTELIGIR_VAULT_REMOTE",
+  "NODE_ENV",
 ]);
+
+interface LaunchCommand {
+  file: string;
+  argv: string[];
+  env: Readonly<Record<string, string>>;
+}
 
 const buildChildEnv = (
   args: LaunchAppArgs,
+  command: LaunchCommand,
   dataDir: string,
   vaultDir: string,
   port: number,
@@ -57,16 +70,13 @@ const buildChildEnv = (
   for (const key of Object.keys(args.extraEnv ?? {})) {
     if (HARNESS_OWNED_ENV_KEYS.has(key) || key.startsWith("GIT_")) {
       throw new Error(
-        `extraEnv must not set "${key}": the harness owns the instance paths, the port and git isolation`,
+        `extraEnv must not set "${key}": the harness owns the instance paths, the port, the runtime mode and git isolation`,
       );
     }
   }
-  // the outer shell's own INTELIGIR_* must not leak into an instance.
-  const env: NodeJS.ProcessEnv = Object.fromEntries(
-    Object.entries(hermeticProcessEnv()).filter(([key]) => !key.startsWith("INTELIGIR_")),
-  );
+  const env = appLaunchEnv();
   // extraEnv merges first; the harness-owned keys below always win.
-  Object.assign(env, args.extraEnv ?? {});
+  Object.assign(env, args.extraEnv ?? {}, command.env);
   env.INTELIGIR_DATA_DIR = dataDir;
   env.INTELIGIR_VAULT_DIR = vaultDir;
   env.INTELIGIR_PORT = String(port);
@@ -76,20 +86,26 @@ const buildChildEnv = (
   return env;
 };
 
-interface LaunchCommand {
-  file: string;
-  argv: string[];
-}
-
-// the same bin a user's shell resolves; under a checkout it runs the source under tsx.
-const resolveCommand = (cliDir: string): LaunchCommand => {
-  const ui = path.join(cliDir, "dist", "ui", "index.html");
-  if (!existsSync(ui)) {
+// a backstop: the runner builds these at suite start, so a miss means that build did not stage them.
+const requireBuilt = (file: string): void => {
+  if (!existsSync(file)) {
     throw new Error(
-      `the scenario suite needs the built workspace UI (missing ${ui}); run: pnpm --filter inteligir build`,
+      `the scenario suite needs ${file}, which the runner's suite-start build stages`,
     );
   }
-  return { argv: ["serve"], file: path.join(cliDir, "bin", "inteligir") };
+};
+
+// both modes serve dist/ui: a server with no workspace UI answers the API and 404s the browser.
+// built runs the bundle directly, as the bin does for a published install, because in a checkout
+// the bin always picks the source.
+const resolveCommand = (cliDir: string, mode: LaunchMode): LaunchCommand => {
+  requireBuilt(path.join(cliDir, "dist", "ui", "index.html"));
+  if (mode === "source") {
+    return { argv: ["serve"], env: {}, file: path.join(cliDir, "bin", "inteligir") };
+  }
+  const entry = path.join(cliDir, "dist", "index.js");
+  requireBuilt(entry);
+  return { argv: [entry, "serve"], env: { NODE_ENV: "production" }, file: process.execPath };
 };
 
 const healthAnswered = async (baseUrl: string): Promise<boolean> => {
@@ -110,6 +126,20 @@ const healthAnswered = async (baseUrl: string): Promise<boolean> => {
   }
 };
 
+// the bearer is read per call, not captured once: server.json is written after listen, a client
+// may be built before the health wait, and a restarted server mints a new token.
+export const createInstanceApi = (baseUrl: string, dataDir: () => string): InstanceApi => {
+  const link = new RPCLink({
+    headers: () => {
+      const server = readServerFile(dataDir());
+      return server === null ? {} : { authorization: authorizationHeader(server.token) };
+    },
+    origin: baseUrl,
+    url: RPC_PREFIX,
+  });
+  return createORPCClient(link);
+};
+
 const attachInstance = (
   args: LaunchAppArgs,
   child: TrackedProcess,
@@ -117,18 +147,8 @@ const attachInstance = (
   vaultDir: string,
   port: number,
 ): AppInstance => {
-  // read per call, not captured once: server.json is written after listen and this client is built
-  // before the health wait.
-  const link = new RPCLink({
-    headers: () => {
-      const server = readServerFile(dataDir);
-      return server === null ? {} : { authorization: authorizationHeader(server.token) };
-    },
-    origin: `http://127.0.0.1:${String(port)}`,
-    url: RPC_PREFIX,
-  });
-  const api: InstanceApi = createORPCClient(link);
-  const baseUrl = `http://127.0.0.1:${String(port)}`;
+  const baseUrl = loopbackOrigin(port);
+  const api = createInstanceApi(baseUrl, () => dataDir);
   return {
     ...child,
     api,
@@ -150,7 +170,7 @@ export const launchApp = async (args: LaunchAppArgs): Promise<AppInstance> => {
   await mkdir(dataDir, { recursive: true });
 
   const cliDir = path.join(args.repoRoot, "apps", "cli");
-  const command = resolveCommand(cliDir);
+  const command = resolveCommand(cliDir, args.mode);
 
   const instance = await bootWithPorts<AppInstance>({
     deadlineMs: HEALTH_DEADLINE_MS,
@@ -164,13 +184,13 @@ export const launchApp = async (args: LaunchAppArgs): Promise<AppInstance> => {
       const child = spawnSupervised({
         argv: command.argv,
         cwd: cliDir,
-        env: buildChildEnv(args, dataDir, vaultDir, port),
+        env: buildChildEnv(args, command, dataDir, vaultDir, port),
         file: command.file,
         name: args.name,
       });
       const handle = attachInstance(args, child, dataDir, vaultDir, port);
       args.register(handle);
-      args.onLog(`booting instance "${args.name}" on ${handle.baseUrl}`);
+      args.onLog(`booting ${args.mode} instance "${args.name}" on ${handle.baseUrl}`);
       return { child, handle };
     },
   });

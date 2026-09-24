@@ -1,18 +1,26 @@
 // not citty's runMain: it answers every failure with process.exit(1), flattening the exit-code contract
-// (2 wait timeout, 3 unreachable). failures go to stderr only: a --json caller parses stdout.
+// (each class's own, in cli-error.ts). failures go to stderr only: a --json caller parses stdout.
 
-import { ORPCError } from "@orpc/client";
+import { stripVTControlCharacters } from "node:util";
 import { runCommand, defineCommand, renderUsage } from "citty";
 import type { CommandDef } from "citty";
 import {
   CliExitError,
   EXIT_ERROR,
-  EXIT_UNREACHABLE,
+  START_SERVER_HINT,
   getErrorMessage,
   invalidUsage,
+  isOrpcError,
   isUnreachable,
 } from "./cli-error";
-import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
+import {
+  HELP_FLAGS,
+  VERSION_FLAGS,
+  argsOf,
+  assertKnownFlags,
+  assertPositionalArity,
+  resolveCommandPath,
+} from "./command-tree";
 import { agentsCommand } from "./commands/agents";
 import { connectorsCommand } from "./commands/connectors";
 import { foldersCommand } from "./commands/folders";
@@ -27,6 +35,7 @@ import {
   searchCommand,
   tagsCommand,
 } from "./commands/knowledge";
+import { openCommand } from "./commands/open";
 import { statusCommand } from "./commands/status";
 import { tagCommand } from "./commands/tag";
 import { cloudCommand } from "./commands/cloud";
@@ -59,6 +68,7 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       guide: guideCommand(deps),
       interactions: interactionsCommand(deps),
       matches: matchesCommand(deps),
+      open: openCommand(deps),
       problems: problemsCommand(deps),
       related: relatedCommand(deps),
       search: searchCommand(deps),
@@ -70,9 +80,6 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       vault: vaultCommand(deps),
     },
   });
-
-const HELP_FLAGS = new Set(["--help", "-h"]);
-const VERSION_FLAGS = new Set(["--version", "-v"]);
 
 const hasBuiltinFlag = (rawArgs: readonly string[], flags: ReadonlySet<string>): boolean => {
   for (const raw of rawArgs) {
@@ -86,42 +93,35 @@ const hasBuiltinFlag = (rawArgs: readonly string[], flags: ReadonlySet<string>):
   return false;
 };
 
+// citty picks colour once, at import, from the environment alone, so a pipe gets escapes unless they are cut here.
+const forStream = (text: string, stream: NodeJS.WriteStream): string =>
+  stream.isTTY ? text : stripVTControlCharacters(text);
+
 const printHelp = async (program: CommandDef, rawArgs: readonly string[], deps: CliDeps) => {
   const { command, parent } = resolveCommandPath(program, rawArgs);
-  writeOut(`${await renderUsage(command, parent)}\n${describeContext(deps.env)}\n`);
+  const usage = await renderUsage(command, parent);
+  writeOut(forStream(`${usage}\n${describeContext(deps.env)}\n`, process.stdout));
 };
 
-interface Failure {
-  code: string;
-  message: string;
-  exitCode: number;
-}
-
-// unparameterised, `instanceof ORPCError` narrows `code` to `any`.
-const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
-  cause instanceof ORPCError;
-
 // citty's CLIError (missing argument, unknown command, bad enum) is not exported, so it is recognised by name.
-const asFailure = (cause: unknown): Failure => {
+// its colour is stripped whatever the stream: a message is data, and a --json caller parses it.
+const asCliExitError = (cause: unknown): CliExitError => {
   if (cause instanceof CliExitError) {
-    return { code: cause.code, exitCode: cause.exitCode, message: cause.message };
+    return cause;
   }
   if (isOrpcError(cause)) {
-    return { code: cause.code, exitCode: EXIT_ERROR, message: cause.message };
+    return new CliExitError(cause.message, { serverClass: cause.code });
   }
   if (cause instanceof Error && cause.name === "CLIError") {
-    const local = invalidUsage(cause.message);
-    return { code: local.code, exitCode: local.exitCode, message: local.message };
+    return invalidUsage(stripVTControlCharacters(cause.message));
   }
   const message = getErrorMessage(cause);
   if (isUnreachable(cause)) {
-    return {
+    return new CliExitError(`${message} — no inteligir server answered. ${START_SERVER_HINT}.`, {
       code: "SERVER_UNREACHABLE",
-      exitCode: EXIT_UNREACHABLE,
-      message: `${message} — no inteligir server answered. Start one with \`inteligir serve\`.`,
-    };
+    });
   }
-  return { code: "UNEXPECTED", exitCode: EXIT_ERROR, message };
+  return new CliExitError(message, { code: "UNEXPECTED" });
 };
 
 export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<number> => {
@@ -139,16 +139,23 @@ export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<nu
     }
     const resolved = resolveCommandPath(program, rawArgs);
     if (resolved.command.run !== undefined) {
-      // the whole argv, not the post-name remainder: a flag typed before the subcommand name would slip past the gate.
-      assertKnownFlags(rawArgs, argsOf(resolved.command));
+      // citty hands a leaf only the argv after its name, so a flag before the name is never parsed: `--json vault
+      // read x` would print human text and exit 0. refused rather than hoisted, since a valued flag there loses its
+      // value to the name walk (`--limit 5 action list`); only the remainder is left to check.
+      const prefix = rawArgs.slice(0, rawArgs.length - resolved.rest.length);
+      if (prefix.some((token) => token.startsWith("-"))) {
+        throw invalidUsage("put flags after the command's name: inteligir <command> … --flag");
+      }
+      assertKnownFlags(resolved.rest, argsOf(resolved.command));
+      assertPositionalArity(resolved.rest, argsOf(resolved.command));
     } else if (rawArgs.length === 0) {
-      process.stderr.write(`${await renderUsage(program)}\n`);
+      process.stderr.write(forStream(`${await renderUsage(program)}\n`, process.stderr));
       return EXIT_ERROR;
     }
     await runCommand(program, { rawArgs: [...rawArgs] });
     return 0;
   } catch (error) {
-    const failure = asFailure(error);
+    const failure = asCliExitError(error);
     if (jsonMode) {
       process.stderr.write(
         `${JSON.stringify({ error: failure.code, message: failure.message })}\n`,

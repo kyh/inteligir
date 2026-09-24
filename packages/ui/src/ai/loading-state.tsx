@@ -3,8 +3,6 @@
 
 import { useEffect, useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
-import { cva } from "class-variance-authority";
-import type { VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -83,27 +81,16 @@ const useElapsedLabel = (startedAt: number | undefined): string => {
   return `${String(Math.floor(seconds / 60))}m ${(seconds % 60).toFixed(1)}s`;
 };
 
-const loadingStateVariants = cva("flex w-fit items-center gap-2.5", {
-  defaultVariants: { variant: "drive" },
-  variants: {
-    variant: {
-      dots: "",
-      drive: "",
-      orbit: "",
-    },
-  },
-});
-
-interface LoadingStateProps
-  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof loadingStateVariants> {
+interface LoadingStateProps extends HTMLAttributes<HTMLDivElement> {
   label: string;
+  variant?: LoadingVariant;
   startedAt?: number;
   showElapsed?: boolean;
 }
 
 const LoadingState = ({
   label,
-  variant,
+  variant = "drive",
   startedAt,
   showElapsed = true,
   className,
@@ -117,13 +104,13 @@ const LoadingState = ({
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the slot's ref and props are typed to HTMLDivElement
       role="status"
       data-slot="loading-state"
-      className={cn(loadingStateVariants({ variant }), className)}
+      className={cn("flex w-fit items-center gap-2.5", className)}
       {...props}
     >
-      <LoaderGrid variant={variant ?? "drive"} />
-      <span className="bui-shimmer-text text-[13px] font-medium">{label}</span>
+      <LoaderGrid variant={variant} />
+      <span className="bui-shimmer-text text-subtitle font-medium">{label}</span>
       {showElapsed ? (
-        <span className="font-mono text-[12px] text-ink-3 tabular-nums">{elapsed}</span>
+        <span className="font-mono text-body text-ink-3 tabular-nums">{elapsed}</span>
       ) : null}
     </div>
   );

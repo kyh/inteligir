@@ -13,9 +13,15 @@ const recordingCreateRuntime =
   (options) => {
     recorded.push(options);
     const runtime: AgentRuntime = {
+      cancelTurn: async () => {
+        await Promise.resolve();
+      },
+      closeThread: async () => {
+        await Promise.resolve();
+      },
       hasThread: () => false,
       reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
-      resumeThread: async () => await Promise.resolve({ providerThreadId: "prov_1" }),
+      resumeThread: async () => await Promise.resolve({ loaded: true, providerThreadId: "prov_1" }),
       runTurn: async () => {
         await Promise.resolve();
       },
@@ -40,7 +46,7 @@ describe("ACP runtime shell env wiring", () => {
           git: vault.git,
           hostEnv: { PATH: "/usr/bin" },
           mcpServers: () => [],
-          model: null,
+          models: { claude: null, codex: null },
           notifier: bus,
           reapIntervalMs: null,
           sessionFacts: () =>

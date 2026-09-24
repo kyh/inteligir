@@ -5,24 +5,25 @@
 
 import type { PromptInput } from "@repo/agent-runtime/types";
 import type { ViewContext } from "@repo/domain/view-context";
+import type { TurnRequest } from "../threads/turn-driver";
 
 export const composeViewContextBlock = (context: ViewContext): string =>
   `The user sent this while looking at ${context.resource} in the editor — "this", "here" and "the note" refer to that file. It hashed to sha-256 ${context.revision} when they sent it; if it no longer does, it changed afterwards.`;
 
-type TurnPromptText = Extract<PromptInput, { type: "text" }>;
+export const composeContextPathsBlock = (paths: readonly string[]): string =>
+  `The user attached these notes to the message; read them before answering:\n${paths.map((path) => `- ${path}`).join("\n")}`;
 
-export const turnPromptInput = (
-  text: string,
-  context?: ViewContext,
-  instructions?: string,
-): TurnPromptText[] => {
-  const blocks: TurnPromptText[] = [];
+export const turnPromptInput = (turn: TurnRequest, instructions?: string): PromptInput[] => {
+  const blocks: PromptInput[] = [];
   if (instructions !== undefined) {
     blocks.push({ text: instructions, type: "text" });
   }
-  if (context !== undefined) {
-    blocks.push({ text: composeViewContextBlock(context), type: "text" });
+  if (turn.viewContext !== undefined) {
+    blocks.push({ text: composeViewContextBlock(turn.viewContext), type: "text" });
   }
-  blocks.push({ text, type: "text" });
+  if (turn.contextPaths !== undefined && turn.contextPaths.length > 0) {
+    blocks.push({ text: composeContextPathsBlock(turn.contextPaths), type: "text" });
+  }
+  blocks.push({ text: turn.text, type: "text" });
   return blocks;
 };

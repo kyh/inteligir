@@ -3,8 +3,8 @@
 
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
-import { argsOf, collectLeafCommands } from "../command-tree";
-import type { LeafCommand } from "../command-tree";
+import { argsOf, collectGroupCommands, collectLeafCommands } from "../command-tree";
+import type { CommandAtPath } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
 import {
   FIXTURE_REVISION_SHA,
@@ -97,7 +97,7 @@ const boot = async (state: FixtureState): Promise<FixtureServer> => {
   return server;
 };
 
-const leaves = (): LeafCommand[] =>
+const leaves = (): CommandAtPath[] =>
   collectLeafCommands(testProgram()).filter((leaf) => !EXCLUDED_COMMANDS.has(leaf.path));
 
 const invocationFor = (path: string): readonly string[] => {
@@ -128,6 +128,20 @@ describe("CLI --json flag enforcement", () => {
       .filter(([path]) => !walked.has(path))
       .map(([path, why]) => `STALE EXCLUSION  ${path}\n  the reason was: ${why}`);
     expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("no command that routes to others declares args", () => {
+    const groups = collectGroupCommands(testProgram());
+    expect(groups.length).toBeGreaterThan(1);
+    const offenders = groups
+      .filter(({ command }) => Object.keys(argsOf(command)).length > 0)
+      .map(
+        ({ path }) =>
+          `GROUP WITH ARGS  ${path}\n  rule: a command with subcommands declares none — resolveCommandPath ` +
+          `(src/command-tree.ts) takes the first word that is not a flag as the next name, and a flag's ` +
+          `value would be that word`,
+      );
+    expect(offenders, `\n${offenders.join("\n\n")}\n`).toEqual([]);
   });
 
   it("every leaf command has a registered invocation — the table cannot fall behind", () => {

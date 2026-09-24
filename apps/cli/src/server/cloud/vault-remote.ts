@@ -6,14 +6,18 @@ import { readDeviceCredential } from "./credential-store";
 // credential rides per-invocation env, never the url: the engine persists the
 // remote url into <vault>/.git/config, which users back up and copy.
 
-export interface VaultRemoteSpec {
+// pending: signed in, but the /v1/account fetch that names the account has not landed yet.
+type VaultRemoteAccount = { state: "pending" } | { state: "known"; id: string };
+
+interface VaultRemoteBase {
   url: string;
-  source: "explicit" | "account";
-  /** what the engine's inteligir.account marker is compared against; absent, the fence is inert. */
-  account?: string;
   /** for the network git invocations (fetch/push/clone) only. */
   env?: Record<string, string>;
 }
+
+export type VaultRemoteSpec =
+  | (VaultRemoteBase & { source: "explicit" })
+  | (VaultRemoteBase & { source: "account"; account: VaultRemoteAccount });
 
 export type VaultRemoteProvider = () => VaultRemoteSpec | null;
 
@@ -38,7 +42,11 @@ export const createVaultRemoteProvider = (
       return null;
     }
     const url = hostedVaultRemoteUrl(args.cloudUrl);
-    const spec: VaultRemoteSpec = {
+    return {
+      account:
+        credential.userId === undefined
+          ? { state: "pending" }
+          : { id: credential.userId, state: "known" },
       env: {
         GIT_CONFIG_COUNT: "1",
         GIT_CONFIG_KEY_0: `http.${url}.extraHeader`,
@@ -47,10 +55,6 @@ export const createVaultRemoteProvider = (
       source: "account",
       url,
     };
-    if (credential.userId !== undefined) {
-      spec.account = credential.userId;
-    }
-    return spec;
   };
   return provider;
 };

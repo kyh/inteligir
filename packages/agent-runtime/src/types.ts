@@ -6,32 +6,17 @@ import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
-import type { ProviderEvent, ProviderEventUserContent } from "./vocabulary/provider-event.js";
+import type { ProviderEvent } from "./vocabulary/provider-event.js";
 
 export type AgentRuntimeShellEnvironment = Record<string, string>;
 
-export type PromptInput = ProviderEventUserContent;
-
-export interface AgentRuntimeProcessExitThreadState {
-  activeTurnId: string | null;
-  pendingTurnStart: boolean;
-  providerThreadId: string | null;
-  threadId: string;
-}
-
-export interface AgentRuntimeProcessExitInfo {
-  providerId: string;
-  threads: AgentRuntimeProcessExitThreadState[];
-  code: number | null;
-  expected: boolean;
-  signal: string | null;
-  stderr: string | null;
+export interface PromptInput {
+  type: "text";
+  text: string;
 }
 
 export interface AgentRuntimeOptions {
   workspacePath: string;
-
-  env?: Record<string, string>;
 
   // a getter read at every spawn, so a host-side edit reaches the next session without rebuilding
   // the runtime.
@@ -44,8 +29,6 @@ export interface AgentRuntimeOptions {
   ) => Promise<PendingInteractionResolution>;
 
   onStderr?: (line: string, threadId?: string) => void;
-
-  onProcessExit?: (info: AgentRuntimeProcessExitInfo) => void;
 }
 
 export interface StartThreadArgs {
@@ -65,6 +48,9 @@ export interface ResumeThreadArgs {
 
 export interface ResumeThreadResult {
   providerThreadId: string;
+  // true when the agent loaded the persisted session, history included; false when it could not
+  // and opened a fresh one, which remembers nothing it was told.
+  loaded: boolean;
 }
 
 export interface RunTurnArgs {
@@ -100,6 +86,15 @@ export interface AgentRuntime {
   ) => Promise<ReapIdleProviderSessionsResult>;
 
   hasThread: (threadId: string) => boolean;
+
+  // asks the agent to stop the thread's running turn and resolves once the ask is on the wire. the
+  // turn still ends through its own prompt, as interrupted; an agent that never answers is the
+  // host's to close. a thread with no running turn is a no-op.
+  cancelTurn: (threadId: string) => Promise<void>;
+
+  // ends the thread's provider session, whichever phase it is in, and resolves once its child is gone. a
+  // turn it was running emits nothing more: the host that closed it settles that turn itself.
+  closeThread: (threadId: string) => Promise<void>;
 
   shutdown: () => Promise<void>;
 }

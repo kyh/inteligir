@@ -12,7 +12,9 @@ import type {
   KnowledgeRelatedRequest,
   KnowledgeSearchRequest,
   KnowledgeUnlinkedMentionsRequest,
+  KnowledgeUnlinkedMentionsResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
+import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
 import { apiFor } from "../context";
@@ -22,10 +24,17 @@ import { jsonArg, out, outputJson, writeLines } from "../output";
 const parseLimit = (rawValue: string | undefined, max: number): number | undefined =>
   rawValue === undefined ? undefined : parseBoundedInteger(rawValue, "--limit", { max, min: 1 });
 
+// the bare stem may be another note's, so the rows are only actionable beside the link that names this one,
+// spelled as the writer escapes it (`[[Issue\#42]]`).
+const linkLine = (body: KnowledgeUnlinkedMentionsResponse): string => {
+  const wikiBody = body.linkTarget === null ? null : serializeWikiBody({ target: body.linkTarget });
+  return wikiBody === null ? `no wiki link can name ${body.path}` : `link as [[${wikiBody}]]`;
+};
+
 export const searchCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
-      limit: { description: "Maximum results", type: "string" },
+      limit: { description: `Maximum results (1–${KNOWLEDGE_SEARCH_MAX_LIMIT})`, type: "string" },
       query: { description: "The search query", required: true, type: "positional" },
       ...jsonArg,
     },
@@ -59,7 +68,7 @@ export const matchesCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
       "case-sensitive": { description: "Match case exactly", type: "boolean" },
-      limit: { description: "Maximum matches", type: "string" },
+      limit: { description: `Maximum matches (1–${KNOWLEDGE_MATCHES_MAX_LIMIT})`, type: "string" },
       text: { description: "The text to find, one line", required: true, type: "positional" },
       "whole-word": { description: "Match whole words only", type: "boolean" },
       ...jsonArg,
@@ -126,7 +135,7 @@ export const backlinksCommand = (deps: CliDeps) =>
 export const unlinkedCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
-      limit: { description: "Maximum notes", type: "string" },
+      limit: { description: `Maximum notes (1–${KNOWLEDGE_UNLINKED_MAX_LIMIT})`, type: "string" },
       path: { description: "The vault-relative path", required: true, type: "positional" },
       ...jsonArg,
     },
@@ -148,6 +157,7 @@ export const unlinkedCommand = (deps: CliDeps) =>
       }
       // columns count from 1 here, as editors do; the wire's are offsets
       writeLines([
+        linkLine(body),
         ...body.mentions.map(
           (mention) =>
             `${mention.path}:${mention.line}:${mention.column + 1}  ${mention.before}${mention.text}${mention.after}${
@@ -195,6 +205,11 @@ const problemLines = (body: KnowledgeProblemsResponse): string[] => [
     body.duplicateStems,
     (row) => `${row.stem}  ${row.paths.join(", ")}`,
   ),
+  ...problemFamilyLines(
+    "Duplicate ids",
+    body.duplicateIds,
+    (row) => `${row.id}  ${row.paths.join(", ")}`,
+  ),
 ];
 
 export const problemsCommand = (deps: CliDeps) =>
@@ -204,11 +219,14 @@ export const problemsCommand = (deps: CliDeps) =>
         description: "Count daily notes and templates as orphans too",
         type: "boolean",
       },
-      limit: { description: "Maximum rows per family", type: "string" },
+      limit: {
+        description: `Maximum rows per family (1–${KNOWLEDGE_PROBLEMS_MAX_LIMIT})`,
+        type: "string",
+      },
       ...jsonArg,
     },
     meta: {
-      description: "Dangling links, missing embeds, orphan notes and duplicate stems",
+      description: "Dangling links, missing embeds, orphan notes, duplicate stems and ids",
       name: "problems",
     },
     run: async ({ args }) => {
@@ -237,7 +255,7 @@ export const problemsCommand = (deps: CliDeps) =>
 export const relatedCommand = (deps: CliDeps) =>
   defineCommand({
     args: {
-      limit: { description: "Maximum results", type: "string" },
+      limit: { description: `Maximum results (1–${KNOWLEDGE_RELATED_MAX_LIMIT})`, type: "string" },
       path: { description: "The vault-relative path", required: true, type: "positional" },
       ...jsonArg,
     },

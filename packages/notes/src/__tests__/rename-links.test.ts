@@ -1,22 +1,37 @@
 import { describe, expect, it } from "vitest";
 
 import { scanDoc } from "../knowledge/link-extract";
-import { computeRenameEdits } from "../knowledge/rename-links";
+import { computeMoveEdits } from "../knowledge/rename-links";
 
+const moveEdits = (
+  docs: Record<string, string>,
+  moves: Record<string, string>,
+  extraFiles: string[] = [],
+): Map<string, string> => {
+  const map = new Map(Object.entries(docs));
+  const scans = [...map].map(([path, content]) => ({ path, scan: scanDoc(content) }));
+  return computeMoveEdits({
+    aliasEntries: scans.flatMap(({ path, scan }) =>
+      scan.aliases.map((alias): readonly [string, string] => [alias, path]),
+    ),
+    allFiles: [...map.keys(), ...extraFiles],
+    docs: map,
+    idEntries: scans.flatMap(({ path, scan }): (readonly [string, string])[] =>
+      scan.noteId === null ? [] : [[scan.noteId, path]],
+    ),
+    moves: new Map(Object.entries(moves)),
+  });
+};
+
+// a note's rename is the one-move case
 const edits = (
   docs: Record<string, string>,
   from: string,
   to: string,
   extraFiles: string[] = [],
-): Map<string, string> => {
-  const map = new Map(Object.entries(docs));
-  const aliases = [...map].flatMap(([path, content]) =>
-    scanDoc(content).aliases.map((alias): readonly [string, string] => [alias, path]),
-  );
-  return computeRenameEdits(map, [...map.keys(), ...extraFiles], aliases, from, to);
-};
+): Map<string, string> => moveEdits(docs, { [from]: to }, extraFiles);
 
-describe("computeRenameEdits — wiki links", () => {
+describe("computeMoveEdits — wiki links", () => {
   it("rewrites every form byte-surgically, preserving alias, anchor, and padding", () => {
     const hub = [
       "# Hub",
@@ -97,6 +112,28 @@ describe("computeRenameEdits — wiki links", () => {
     expect(collided.get("hub.md")).toBe("[[a/new]]\n");
   });
 
+  it("writes the extension when an extensionless file holds the path a link would spell", () => {
+    const result = edits(
+      { "a/note.md": "", "b/other.md": "", "c/note.md": "", "x.md": "[[a/note]]\n" },
+      "a/note.md",
+      "b/note.md",
+      ["b/note"],
+    );
+    expect(result.get("x.md")).toBe("[[b/note.md]]\n");
+
+    const root = edits({ "hub.md": "[[old]]\n", "old.md": "" }, "old.md", "new.md", ["new"]);
+    expect(root.get("hub.md")).toBe("[[new.md]]\n");
+  });
+
+  it("keeps a root note's bare path, which no folder's note of that name can take", () => {
+    const result = edits(
+      { "hub.md": "[[old]]\n", "old.md": "", "sub/new.md": "" },
+      "old.md",
+      "new.md",
+    );
+    expect(result.get("hub.md")).toBe("[[new]]\n");
+  });
+
   it("preserves an explicitly written extension", () => {
     const result = edits({ "hub.md": "see [[old.md]]\n", "old.md": "" }, "old.md", "new.md");
     expect(result.get("hub.md")).toBe("see [[new.md]]\n");
@@ -123,9 +160,38 @@ describe("computeRenameEdits — wiki links", () => {
     );
     expect(result.get("hub.md")).toBe("[[new]] but not [[older]] or [[missing]]\n");
   });
+
+  it("escapes a `#` the new name would split on, in the company of the link's anchor", () => {
+    const hub = "[[old]], [[old#sec]], [[old|shown]], [[C# old]]\n";
+    const result = edits({ "C# old.md": "", "hub.md": hub, "old.md": "" }, "old.md", "Issue#42.md");
+    expect(result.get("hub.md")).toBe(
+      "[[Issue\\#42]], [[Issue\\#42#sec]], [[Issue\\#42|shown]], [[C# old]]\n",
+    );
+    const plain = edits({ "hub.md": "[[old#sec]]\n", "old.md": "" }, "old.md", "C# Notes.md");
+    expect(plain.get("hub.md")).toBe("[[C# Notes#sec]]\n");
+  });
+
+  it("rewrites an escaped link like any other, keeping its anchor", () => {
+    const result = edits(
+      { "Issue#42.md": "", "hub.md": "[[Issue\\#42]] and [[Issue\\#42#sec]]\n" },
+      "Issue#42.md",
+      "Issue 42.md",
+    );
+    expect(result.get("hub.md")).toBe("[[Issue 42]] and [[Issue 42#sec]]\n");
+  });
+
+  it("writes a `.txt` note's name with its extension", () => {
+    const result = edits({ "hub.md": "[[old]]\n", "old.md": "" }, "old.md", "notes/todo.txt");
+    expect(result.get("hub.md")).toBe("[[todo.txt]]\n");
+  });
+
+  it("leaves a link no body can carry as written", () => {
+    const result = edits({ "hub.md": "[[old]]\n", "old.md": "" }, "old.md", "[draft].md");
+    expect(result.size).toBe(0);
+  });
 });
 
-describe("computeRenameEdits — md links", () => {
+describe("computeMoveEdits — md links", () => {
   it("rewrites relative urls with encoding, keeping fragment and ./ style", () => {
     const hub = "See [a](old%20note.md#sec) and [b](./old%20note.md) and [c](<old note.md>).\n";
     const result = edits({ "hub.md": hub, "old note.md": "" }, "old note.md", "new note.md");
@@ -171,7 +237,7 @@ describe("computeRenameEdits — md links", () => {
   });
 });
 
-describe("computeRenameEdits — asset renames", () => {
+describe("computeMoveEdits — asset renames", () => {
   it("rewrites md image links byte-surgically, preserving alt, ./ style, and encoding", () => {
     const hub =
       "Shot: ![the alt](old%20pic.png), styled ![x](./old%20pic.png), bare ![](<old pic.png>).\n";
@@ -224,7 +290,7 @@ describe("computeRenameEdits — asset renames", () => {
   });
 });
 
-describe("computeRenameEdits — shadow protection", () => {
+describe("computeMoveEdits — shadow protection", () => {
   it("qualifies another doc's short link when the rename would steal its tie-break", () => {
     const result = edits(
       { "a/note.md": "# The real note\n", "hub.md": "see [[note]]\n", "misc.md": "# Misc\n" },
@@ -260,7 +326,7 @@ describe("computeRenameEdits — shadow protection", () => {
   });
 });
 
-describe("computeRenameEdits — alias shadow protection", () => {
+describe("computeMoveEdits — alias shadow protection", () => {
   it("NEVER rewrites a pre-existing alias link to the moved doc (bytes unchanged)", () => {
     const result = edits(
       {
@@ -326,16 +392,16 @@ describe("computeRenameEdits — alias shadow protection", () => {
   });
 
   it("reads the alias owner from the vault's aliases, not from the docs it rewrites", () => {
-    const result = computeRenameEdits(
-      new Map([
+    const result = computeMoveEdits({
+      aliasEntries: [["Retro", "notes/owner.md"]],
+      allFiles: ["hub.md", "misc.md", "notes/owner.md"],
+      docs: new Map([
         ["hub.md", "see [[Retro]]\n"],
         ["misc.md", "# Misc\n"],
       ]),
-      ["hub.md", "misc.md", "notes/owner.md"],
-      [["Retro", "notes/owner.md"]],
-      "misc.md",
-      "Retro.md",
-    );
+      idEntries: [],
+      moves: new Map([["misc.md", "Retro.md"]]),
+    });
     expect(result.get("hub.md")).toBe("see [[notes/owner|Retro]]\n");
     expect(result.size).toBe(1);
   });
@@ -354,7 +420,154 @@ describe("computeRenameEdits — alias shadow protection", () => {
   });
 });
 
-describe("computeRenameEdits — no-ops", () => {
+describe("computeMoveEdits — the [[Title|uuid]] tier", () => {
+  const UUID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
+  const OTHER_UUID = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
+  it("retitles a uuid link by its id, though its title no longer names the note", () => {
+    const result = edits(
+      {
+        "hub.md": `see [[Old Title|${UUID}]] and [[Old Title#sec|${UUID}]]\n`,
+        "target.md": `---\nid: ${UUID}\n---\n# Target\n`,
+      },
+      "target.md",
+      "archive/New Name.md",
+    );
+    expect(result.get("hub.md")).toBe(`see [[New Name|${UUID}]] and [[New Name#sec|${UUID}]]\n`);
+  });
+
+  it("leaves a uuid link naming another note alone, though its title spells the renamed one", () => {
+    const result = edits(
+      {
+        "hub.md": `[[target]] and [[target|${OTHER_UUID}]]\n`,
+        "other.md": `---\nid: ${OTHER_UUID}\n---\n# Other\n`,
+        "target.md": "# Target\n",
+      },
+      "target.md",
+      "New.md",
+    );
+    expect(result.get("hub.md")).toBe(`[[New]] and [[target|${OTHER_UUID}]]\n`);
+  });
+
+  it("falls back to the title when no note carries the uuid", () => {
+    const result = edits(
+      { "hub.md": `[[target|${UUID}]]\n`, "target.md": "" },
+      "target.md",
+      "New.md",
+    );
+    expect(result.get("hub.md")).toBe(`[[New|${UUID}]]\n`);
+  });
+
+  it("qualifies a uuid link's title when the rename steals the name it spells", () => {
+    const result = edits(
+      {
+        "a/note.md": `---\nid: ${UUID}\n---\n# The real note\n`,
+        "hub.md": `see [[note|${UUID}]]\n`,
+        "misc.md": "# Misc\n",
+      },
+      "misc.md",
+      "note.md",
+    );
+    expect(result.get("hub.md")).toBe(`see [[a/note|${UUID}]]\n`);
+  });
+
+  it("never qualifies a uuid link whose title already spelled another note", () => {
+    const result = edits(
+      {
+        "a/note.md": "# A note\n",
+        "hub.md": `see [[note|${UUID}]]\n`,
+        "misc.md": "# Misc\n",
+        "owner.md": `---\nid: ${UUID}\n---\n# Owner\n`,
+      },
+      "misc.md",
+      "note.md",
+    );
+    expect(result.size).toBe(0);
+  });
+});
+
+const bomFirstLine = (name: string, eol: string): string =>
+  [
+    `\uFEFF[[${name}]] opens the note, [[${name}|friendly]] and ![[${name}]] follow`,
+    `md [x](${name}.md) and ![](${name}.md), while <div>[[old]]</div> and \`[[old]]\` stay`,
+    "",
+    `[ref]: ${name}.md`,
+    "",
+  ].join(eol);
+
+const bomUnderFrontmatter = (name: string, eol: string): string =>
+  ["\uFEFF---", "title: Hub", "---", `See [[${name}]] and [x](${name}.md).`, ""].join(eol);
+
+describe("computeMoveEdits — a note that starts with a BOM", () => {
+  it.each([
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+  ])("%s: changes exactly the target bytes", (_, eol) => {
+    const result = edits(
+      { "a.md": bomFirstLine("old", eol), "b.md": bomUnderFrontmatter("old", eol), "old.md": "" },
+      "old.md",
+      "new.md",
+    );
+    expect(result.get("a.md")).toBe(bomFirstLine("new", eol));
+    expect(result.get("b.md")).toBe(bomUnderFrontmatter("new", eol));
+  });
+});
+
+describe("computeMoveEdits — a folder move", () => {
+  it("rewrites links into the folder and out of it, and leaves links inside it alone", () => {
+    const result = moveEdits(
+      {
+        "hub.md": "Read [n](proj/note.md), [[proj/note]] and ![[proj/pic.png]].\n",
+        "proj/note.md":
+          "Up [h](../hub.md), across [s](sibling.md), [[proj/sibling]], [[sibling]].\n",
+        "proj/sibling.md": "",
+      },
+      {
+        "proj/note.md": "archive/project/note.md",
+        "proj/pic.png": "archive/project/pic.png",
+        "proj/sibling.md": "archive/project/sibling.md",
+      },
+      ["proj/pic.png"],
+    );
+    expect(result.get("hub.md")).toBe(
+      "Read [n](archive/project/note.md), [[note]] and ![[pic.png]].\n",
+    );
+    expect(result.get("archive/project/note.md")).toBe(
+      "Up [h](../../hub.md), across [s](sibling.md), [[sibling]], [[sibling]].\n",
+    );
+    expect([...result.keys()].toSorted()).toEqual(["archive/project/note.md", "hub.md"]);
+  });
+
+  it("qualifies a short name the move made ambiguous, whichever moved file it names", () => {
+    const result = moveEdits(
+      {
+        "hub.md": "[[proj/a/index]] and [[proj/b/index]]\n",
+        "proj/a/index.md": "",
+        "proj/b/index.md": "",
+      },
+      { "proj/a/index.md": "work/a/index.md", "proj/b/index.md": "work/b/index.md" },
+    );
+    expect(result.get("hub.md")).toBe("[[work/a/index]] and [[work/b/index]]\n");
+  });
+
+  it("qualifies a link whose tie-break a moved file takes over", () => {
+    const result = moveEdits(
+      { "deep/proj/note.md": "", "hub.md": "see [[note]]\n", "x/note.md": "" },
+      { "deep/proj/note.md": "a/note.md" },
+    );
+    expect(result.get("hub.md")).toBe("see [[x/note]]\n");
+  });
+
+  it("qualifies a link its moved target no longer wins the tie-break for", () => {
+    const result = moveEdits(
+      { "hub.md": "see [[note]]\n", "other/note.md": "", "proj/note.md": "" },
+      { "proj/note.md": "archive/proj/note.md" },
+    );
+    expect(result.get("hub.md")).toBe("see [[archive/proj/note]]\n");
+  });
+});
+
+describe("computeMoveEdits — no-ops", () => {
   it("returns nothing when no links point at the file", () => {
     expect(edits({ "hub.md": "# No links\n", "old.md": "" }, "old.md", "new.md").size).toBe(0);
   });

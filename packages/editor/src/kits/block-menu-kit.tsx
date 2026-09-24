@@ -10,6 +10,7 @@ import { KEYS, getPluginTypes } from "platejs";
 import { BlockContextMenu } from "@repo/editor/block-context-menu";
 import { BlockSelection } from "@repo/editor/block-selection";
 import { CursorOverlay } from "@repo/editor/cursor-overlay";
+import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
 
 export const BlockMenuKit = [
   BlockSelectionPlugin.configure(({ editor }) => ({
@@ -17,7 +18,7 @@ export const BlockMenuKit = [
       enableContextMenu: true,
       isSelectable: (element) =>
         !getPluginTypes(editor, [KEYS.column, KEYS.codeLine, KEYS.td]).includes(element.type) &&
-        element.type !== "frontmatter",
+        !isFrontmatterElement(element),
     },
     render: {
       belowRootNodes: (props) => {

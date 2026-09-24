@@ -2,6 +2,7 @@
 // rejection. frames arriving before the worker exists queue here; the total is capped.
 
 import { VOICE_MAX_AUDIO_SECONDS, VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
+import { messageOf } from "../error-message";
 import type { VoiceModelFiles } from "./worker-protocol";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "./voice-worker-host";
 
@@ -53,7 +54,7 @@ export class WorkerStreamSession implements StreamSession {
     try {
       prepared = await this.#deps.prepare();
     } catch (error) {
-      this.#failLocal(error instanceof Error ? error.message : String(error));
+      this.#failLocal(messageOf(error));
       return;
     }
     if (this.#dead) {

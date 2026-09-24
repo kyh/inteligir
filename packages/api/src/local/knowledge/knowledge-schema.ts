@@ -1,8 +1,11 @@
-// each schema mirrors an engine type: a field the engine adds passes structural assignment
-// unseen, and only the strict parse catches it. a capped response carries `total`, and
-// `array.length < total` is the truncation test; no second flag can disagree with the arrays.
+// each row schema mirrors an engine type, and `__tests__/engine-mirror.test.ts` holds the two
+// equal at compile time: a field the engine adds would otherwise pass structural assignment
+// unseen. the mirrored optionals are exactOptional because the engine's are exact. a capped
+// response carries `total`, and `array.length < total` is the truncation test; no second flag
+// can disagree with the arrays.
 
-import { isTagName } from "@repo/notes/knowledge/link-extract";
+import { LINK_KINDS } from "@repo/notes/knowledge/link-kinds";
+import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
 import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";
 
@@ -115,6 +118,9 @@ export type UnlinkedMentionWire = z.infer<typeof unlinkedMentionSchema>;
 
 export const knowledgeUnlinkedMentionsResponseSchema = z
   .object({
+    // the wiki target a Link writes, resolving back to `path` even where the bare name is
+    // another note's; null when no wiki link can name the note
+    linkTarget: z.string().min(1).nullable(),
     mentions: z.array(unlinkedMentionSchema).max(KNOWLEDGE_UNLINKED_MAX_LIMIT),
     path: z.string().min(1),
     total: z.number().int().min(0),
@@ -124,10 +130,10 @@ export type KnowledgeUnlinkedMentionsResponse = z.infer<
   typeof knowledgeUnlinkedMentionsResponseSchema
 >;
 
-export const linkKindSchema = z.enum(["wiki", "md", "image"]);
+export const linkKindSchema = z.enum(LINK_KINDS);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;
 
-// what the graph cannot resolve: four families, each capped on its own with its own total.
+// what the graph cannot resolve: five families, each capped on its own with its own total.
 // the limit applies per family; dailies and templates count as orphans only when asked
 export const knowledgeProblemsRequestSchema = z
   .object({
@@ -159,6 +165,12 @@ export const duplicateStemRowSchema = z
   .strict();
 export type DuplicateStemRowWire = z.infer<typeof duplicateStemRowSchema>;
 
+// one frontmatter `id` carried by several notes, which then share one comment store
+export const duplicateIdRowSchema = z
+  .object({ id: z.string().min(1), paths: z.array(z.string().min(1)).min(2) })
+  .strict();
+export type DuplicateIdRowWire = z.infer<typeof duplicateIdRowSchema>;
+
 const problemFamilySchema = <Row extends z.ZodType>(row: Row) =>
   z
     .object({
@@ -169,6 +181,7 @@ const problemFamilySchema = <Row extends z.ZodType>(row: Row) =>
 
 export const knowledgeProblemsResponseSchema = z
   .object({
+    duplicateIds: problemFamilySchema(duplicateIdRowSchema),
     duplicateStems: problemFamilySchema(duplicateStemRowSchema),
     missingEmbeds: problemFamilySchema(unresolvedLinkRowSchema),
     orphans: problemFamilySchema(orphanRowSchema),
@@ -179,7 +192,7 @@ export type KnowledgeProblemsResponse = z.infer<typeof knowledgeProblemsResponse
 
 export const backlinkEntrySchema = z
   .object({
-    alias: z.string().optional(),
+    alias: z.string().exactOptional(),
     embed: z.boolean(),
     kind: linkKindSchema,
     // 1-based
@@ -192,9 +205,10 @@ export type BacklinkEntryWire = z.infer<typeof backlinkEntrySchema>;
 
 export const wikiTargetSchema = z
   .object({
-    aliases: z.array(z.string()).optional(),
+    aliases: z.array(z.string()).exactOptional(),
+    id: z.string().min(1).exactOptional(),
     path: z.string().min(1),
-    pinned: z.boolean().optional(),
+    pinned: z.boolean().exactOptional(),
     title: z.string(),
     type: z.enum(["doc", "asset"]),
   })
@@ -265,9 +279,7 @@ export const knowledgeTagsResponseSchema = z
 export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
 
 // the inline grammar's own name rule, so a rename can only write a tag the scan would read back
-export const tagNameSchema = z.string().refine(isTagName, {
-  message: "a tag is letter-first: letters, digits, _ and -, with / between levels",
-});
+export const tagNameSchema = z.string().refine(isTagName, { message: TAG_NAME_RULE });
 
 export const KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT = 100;
 export const KNOWLEDGE_TAG_NOTES_MAX_LIMIT = 500;

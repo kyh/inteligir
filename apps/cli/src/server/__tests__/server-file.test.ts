@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BROWSER_SESSION_COOKIE } from "../browser-session";
 import {
   authorizationHeader,
+  loopbackOrigin,
   mintServerToken,
   presentedCredential,
   readServerFile,
@@ -14,13 +15,21 @@ import {
 } from "../server-file";
 import { makeTempDir } from "./temp-dir";
 
-const ROW = { pid: 42, port: 4664, token: "tok", vaultDir: "/vault" };
+// what a server wrote before it named its release.
+const OLDER_ROW = { pid: 42, port: 4664, token: "tok", vaultDir: "/vault" };
+const ROW = { ...OLDER_ROW, version: "1.2.3" };
 
 describe("the server file", () => {
-  it("round-trips the row a caller needs to reach this instance", () => {
+  it("round-trips the row a caller needs to reach this instance, its release included", () => {
     const dataDir = makeTempDir("inteligir-server-file-");
     writeServerFile(dataDir, ROW);
     expect(readServerFile(dataDir)).toEqual(ROW);
+  });
+
+  it("reads an older server's row, which names no release, as a server rather than none", () => {
+    const dataDir = makeTempDir("inteligir-server-file-");
+    writeFileSync(path.join(dataDir, SERVER_FILE_NAME), JSON.stringify(OLDER_ROW), "utf-8");
+    expect(readServerFile(dataDir)).toEqual(OLDER_ROW);
   });
 
   it("is owner-only, and stays so when it is rewritten", () => {
@@ -46,11 +55,23 @@ describe("the server file", () => {
   it("removes the row, so a stale one never sends the next caller at a dead port", () => {
     const dataDir = makeTempDir("inteligir-server-file-");
     writeServerFile(dataDir, ROW);
-    removeServerFile(dataDir);
+    removeServerFile(dataDir, ROW.token);
     expect(readServerFile(dataDir)).toBeNull();
     expect(() => {
-      removeServerFile(dataDir);
+      removeServerFile(dataDir, ROW.token);
     }).not.toThrow();
+  });
+
+  it("keeps a row another boot wrote: A's shutdown leaves B's address in place", () => {
+    const dataDir = makeTempDir("inteligir-server-file-");
+    const rowB = { ...ROW, pid: 43, port: 4665, token: "boot-b" };
+    writeServerFile(dataDir, rowB);
+    removeServerFile(dataDir, "boot-a");
+    expect(readServerFile(dataDir)).toEqual(rowB);
+  });
+
+  it("names the loopback server by address, never by name", () => {
+    expect(loopbackOrigin(4664)).toBe("http://127.0.0.1:4664");
   });
 
   it("mints a fresh token per boot — a persisted one is replayable", () => {

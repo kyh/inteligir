@@ -9,6 +9,10 @@ const READY_POLL_INTERVAL_MS = 250;
 const READY_DEADLINE_MS = 120_000;
 const SCHEMA_APPLY_TIMEOUT_MS = 120_000;
 
+// a scenario that boots a Worker: the schema apply and a cold first boot may each spend their whole
+// budget, and two minutes more is the scenario's own work.
+export const WORKER_SCENARIO_TIMEOUT_MS = SCHEMA_APPLY_TIMEOUT_MS + READY_DEADLINE_MS + 120_000;
+
 // the worker cannot sign sessions without one, and there is no .dev.vars in CI.
 const BETTER_AUTH_SECRET = "e2e-better-auth-secret-000000000000";
 

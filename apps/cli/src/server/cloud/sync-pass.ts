@@ -8,18 +8,24 @@ import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
 import { SYNC_OUTBOX_CODES } from "@repo/api/cloud/errors";
 import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import { pullPages } from "@repo/api/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
+import { writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
+import { MissingTurnStartedError } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
 import {
+  countSyncOutbox,
   deleteSyncOutboxThrough,
   pruneAppliedCaptures,
   readSyncState,
   recordAppliedCaptures,
+  recordSkippedRow,
   touchSyncedAt,
   unappliedCaptureIds,
   writeSyncCursor,
 } from "@repo/db/sync-outbox";
 import { messageOf } from "../error-message";
+import { ThreadEventThreadIdMismatchError } from "../threads/thread-event-mismatch-error";
 import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
 import type { CaptureVault } from "./captures";
 import { ackPushBatch, takePushBatch } from "./outbox";
@@ -47,6 +53,8 @@ export interface PassContext {
 
 export interface SyncPassDeps {
   db: DbConnection;
+  /** the running build, recorded beside a row it could not read so a different one pulls it again. */
+  build: string;
   vault: CaptureVault;
   debug: (message: string) => void;
   /** late-bound: the thread service is built after the runtime. */
@@ -57,17 +65,22 @@ export interface SyncPassDeps {
   setLastError: (message: string | null) => void;
 }
 
+// a retryable failure leaves the pass to carry on with its other steps; a terminal one has ended
+// the session, which fences the rest.
+const failedOrFenced = (deps: SyncPassDeps, failure: CloudFailure): SyncOutcome =>
+  deps.recordFailure(failure) === "continue" ? "failed" : "fenced";
+
 // an outbox refusal is not retried: the log already holds that position, so the
 // row can never land and would wedge everything behind it. the local log keeps
 // every event; only the cloud's copy is lost.
-const drain = async (deps: SyncPassDeps, context: PassContext): Promise<boolean> => {
+const drain = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
   for (let round = 0; round < MAX_PUSH_BATCHES_PER_PASS; round += 1) {
     if (!deps.fenced(context)) {
-      return false;
+      return "fenced";
     }
     const batch = takePushBatch(deps.db);
     if (batch === null) {
-      return true;
+      return "caught-up";
     }
     for (const row of batch.rejected) {
       deps.debug(`dropping outbox position ${row.deviceSeq}: ${row.reason}`);
@@ -79,7 +92,7 @@ const drain = async (deps: SyncPassDeps, context: PassContext): Promise<boolean>
     const result = await context.client.push(batch.request);
     // the ack deletes rows; a sign-in mid-flight re-numbered the queue, so an old session's ack deletes new work.
     if (!deps.fenced(context)) {
-      return false;
+      return "fenced";
     }
     if (!result.ok) {
       if (result.failure.kind === "refused" && SYNC_OUTBOX_CODES.has(result.failure.code)) {
@@ -91,12 +104,11 @@ const drain = async (deps: SyncPassDeps, context: PassContext): Promise<boolean>
         deps.setLastError(describeCloudFailure(result.failure));
         continue;
       }
-      return deps.recordFailure(result.failure) === "continue";
+      return failedOrFenced(deps, result.failure);
     }
     ackPushBatch(deps.db, batch);
-    deps.setLastError(null);
   }
-  return true;
+  return countSyncOutbox(deps.db) > 0 ? "more" : "caught-up";
 };
 
 const applyStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply" }>): void => {
@@ -122,6 +134,15 @@ const applyStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply
     try {
       target.applySyncedEvents({ cursor: row.seq, rows: [row], threadId: step.threadId });
     } catch (error) {
+      // only the log's own refusals of a row are skipped. anything else is this build's fault, and
+      // moving the cursor past it would lose the row for good: it fails the pass instead, with the
+      // cursor where the last commit left it and the error in the status.
+      if (
+        !(error instanceof MissingTurnStartedError) &&
+        !(error instanceof ThreadEventThreadIdMismatchError)
+      ) {
+        throw error;
+      }
       deps.debug(`skipping a synced ${row.event.type}: ${messageOf(error)}`);
       // nothing committed this row's position; move past it or the next pass replays the refusal forever.
       writeSyncCursor(deps.db, row.seq);
@@ -129,49 +150,66 @@ const applyStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply
   }
 };
 
-const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<boolean> =>
-  await pullPages({
-    applyPlan: (steps) => {
-      for (const step of steps) {
-        if (step.kind === "apply") {
-          applyStep(deps, step);
-        } else {
-          writeSyncCursor(deps.db, step.cursor);
-        }
-      }
-    },
-    client: context.client,
-    fenced: () => deps.fenced(context),
-    onPage: () => {
-      deps.setLastError(null);
-    },
-    onSkipped: (message) => {
-      deps.debug(message);
-    },
-    ownDeviceIds: context.ownDeviceIds,
-    readCursor: () => readSyncState(deps.db).cursor,
-    recordFailure: (failure) => deps.recordFailure(failure),
+const skipStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "skip" }>): void => {
+  const { firstUnparsed } = step;
+  writeTransaction(deps.db, (tx) => {
+    writeSyncCursor(tx, step.cursor);
+    if (firstUnparsed !== null) {
+      recordSkippedRow(tx, { build: deps.build, seq: firstUnparsed });
+    }
   });
+};
+
+// a throw is a row that did not land, and applyStep's refusal to move the cursor past it: this
+// step fails with the cursor where the last commit left it, and the captures still run.
+const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
+  try {
+    return await pullPages({
+      applyPlan: (steps) => {
+        for (const step of steps) {
+          if (step.kind === "apply") {
+            applyStep(deps, step);
+          } else {
+            skipStep(deps, step);
+          }
+        }
+      },
+      client: context.client,
+      fenced: () => deps.fenced(context),
+      onSkipped: (message) => {
+        deps.debug(message);
+      },
+      ownDeviceIds: context.ownDeviceIds,
+      readCursor: () => readSyncState(deps.db).cursor,
+      recordFailure: (failure) => deps.recordFailure(failure),
+    });
+  } catch (error) {
+    const message = messageOf(error);
+    deps.setLastError(message);
+    deps.debug(`applying the account's log failed: ${message}`);
+    return "failed";
+  }
+};
 
 // vault write, then ledger, then ack. the ledger closes the lapsed-claim window;
 // a crash between the write and the ledger (two stores, no shared transaction)
 // duplicates a bullet, and that direction is chosen: recording first would lose
 // the capture outright.
-const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<boolean> => {
+const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
   if (!deps.fenced(context)) {
-    return false;
+    return "fenced";
   }
   const claimed = await context.client.claimCaptures(CLAIM_DEFAULT_LIMIT);
   // what follows writes the vault — the one side effect that outlives the session.
   if (!deps.fenced(context)) {
-    return false;
+    return "fenced";
   }
   if (!claimed.ok) {
-    return deps.recordFailure(claimed.failure) === "continue";
+    return failedOrFenced(deps, claimed.failure);
   }
   const { captures } = claimed.value;
   if (captures.length === 0) {
-    return true;
+    return "caught-up";
   }
   const fresh = unappliedCaptureIds(
     deps.db,
@@ -181,12 +219,13 @@ const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<
   if (toWrite.length > 0) {
     const written = await appendToInbox(deps.vault, toWrite);
     if (!deps.fenced(context)) {
-      return false;
+      return "fenced";
     }
     if (!written.applied) {
       // nothing recorded, nothing acked: the claim lapses and these are redelivered.
       deps.debug(written.reason);
-      return true;
+      deps.setLastError(written.reason);
+      return "failed";
     }
     recordAppliedCaptures(
       deps.db,
@@ -199,10 +238,10 @@ const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<
     ids: captures.map((capture) => capture.id),
   });
   if (!deps.fenced(context)) {
-    return false;
+    return "fenced";
   }
   if (!acked.ok) {
-    return deps.recordFailure(acked.failure) === "continue";
+    return failedOrFenced(deps, acked.failure);
   }
   for (const outcome of acked.value.results) {
     if (outcome.outcome === "reclaimed") {
@@ -210,22 +249,38 @@ const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<
     }
   }
   pruneAppliedCaptures(deps.db, Date.now() - APPLIED_CAPTURE_RETENTION_MS);
-  return true;
+  // a full claim may have left more in the inbox behind it.
+  return captures.length < CLAIM_DEFAULT_LIMIT ? "caught-up" : "more";
 };
 
-export const runSyncPass = async (deps: SyncPassDeps, context: PassContext): Promise<void> => {
-  if (!(await drain(deps, context))) {
-    return;
-  }
-  if (!(await pullAndApply(deps, context))) {
-    return;
-  }
-  if (!(await applyCaptures(deps, context))) {
-    return;
+// a failed step does not stop the ones after it: an unreachable push says nothing about the pull.
+// only a pass whose every step reached the cloud and left nothing behind is stamped synced — a
+// quiet account included, since "checked" is the claim, or it would read as stale forever.
+export const runSyncPass = async (
+  deps: SyncPassDeps,
+  context: PassContext,
+): Promise<SyncOutcome> => {
+  const outcomes: SyncOutcome[] = [];
+  for (const step of [drain, pullAndApply, applyCaptures]) {
+    const outcome = await step(deps, context);
+    if (outcome === "fenced") {
+      return outcome;
+    }
+    outcomes.push(outcome);
   }
   if (!deps.fenced(context)) {
-    return;
+    return "fenced";
   }
-  // "checked" is not "caught up": a quiet account would otherwise read as stale forever.
+  // cleared once per pass, never per step: a later step's success would hide an earlier one's failure.
+  if (!outcomes.includes("failed")) {
+    deps.setLastError(null);
+  }
+  if (outcomes.includes("more")) {
+    return "more";
+  }
+  if (outcomes.includes("failed")) {
+    return "failed";
+  }
   touchSyncedAt(deps.db, Date.now());
+  return "caught-up";
 };

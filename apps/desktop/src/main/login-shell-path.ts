@@ -113,8 +113,9 @@ const killGroup = (pid: number | undefined): void => {
 };
 
 // detached: its own process group, and no terminal an interactive shell could take from a
-// launch that had one. the deadline ends the wait on its own: a daemon an rc file starts can
-// hold stdout open after the shell is gone, and "close" waits for stdout
+// launch that had one. a daemon an rc file starts can hold stdout open after the shell is gone,
+// and "close" waits for stdout, so the second marker ends the wait as soon as it arrives, and
+// the deadline ends it for a shell that never prints both
 export const runShell: RunShell = async (shell, args, timeoutMs) => {
   const child = spawn(shell, args, {
     detached: true,
@@ -122,21 +123,36 @@ export const runShell: RunShell = async (shell, args, timeoutMs) => {
     env: { ...process.env, DISABLE_AUTO_UPDATE: "true" },
     stdio: ["ignore", "pipe", "ignore"],
   });
+  const stop = (): void => {
+    child.stdout.destroy();
+    killGroup(child.pid);
+  };
   let stdout = "";
   child.stdout.setEncoding("utf-8");
+  const marked = Promise.withResolvers<"marked">();
   child.stdout.on("data", (chunk: string) => {
     stdout += chunk;
+    if (parseMarkedPath(stdout) !== null) {
+      marked.resolve("marked");
+    }
   });
   const deadline = AbortSignal.timeout(timeoutMs);
-  try {
+  const closed = async (): Promise<"closed"> => {
     await once(child, "close", { signal: deadline });
+    return "closed";
+  };
+  let ended: "marked" | "closed";
+  try {
+    ended = await Promise.race([marked.promise, closed()]);
   } catch (error) {
     if (!deadline.aborted) {
       throw error;
     }
-    child.stdout.destroy();
-    killGroup(child.pid);
+    stop();
     throw new Error(`${shell} did not answer within ${String(timeoutMs)}ms`, { cause: error });
+  }
+  if (ended === "marked") {
+    stop();
   }
   return stdout;
 };

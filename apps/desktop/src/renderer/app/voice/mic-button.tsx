@@ -4,7 +4,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
 import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
 import { MicIcon, MicOffIcon, SquareIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { socketOrigin } from "../socket-origin";
 import { downloadPercent } from "../voice-hooks";
 import { voiceStreamUrl } from "@repo/api/local/routes";
@@ -83,13 +83,10 @@ export const MicButton = ({ status, onTranscript, onPartial, disabled }: MicButt
 
   // The unmount cleanup needs the latest teardown: a stale `onPartial` would
   // leave the preview orphaned.
-  const stopSessionRef = useRef(stopSession);
-  useEffect(() => {
-    stopSessionRef.current = stopSession;
-  });
+  const stopOnUnmount = useEffectEvent(stopSession);
   useEffect(
     () => () => {
-      stopSessionRef.current();
+      stopOnUnmount();
     },
     [],
   );
@@ -137,25 +134,30 @@ export const MicButton = ({ status, onTranscript, onPartial, disabled }: MicButt
     });
     clientRef.current = client;
     client.start();
+    // The session may have been cancelled, and another begun, while permission was pending: a
+    // stale answer touches only its own capture, never the live session's.
     void (async () => {
+      let capture: StreamCaptureHandle;
       try {
-        captureRef.current = await startStreamingCapture((pcm) => {
+        capture = await startStreamingCapture((pcm) => {
           client.pushPcm(pcm);
         });
-        // The session may have been cancelled while permission was pending.
-        if (clientRef.current === client) {
-          setState({ kind: "recording", level: 0 });
-          // "" shows the preview as "Listening…" until the first partial.
-          onPartial("");
-        } else {
-          captureRef.current?.stop();
-          captureRef.current = null;
-        }
       } catch (error) {
-        stopSession();
-        setState({ kind: "idle" });
-        toast.error(microphoneProblem(error));
+        if (clientRef.current === client) {
+          stopSession();
+          setState({ kind: "idle" });
+          toast.error(microphoneProblem(error));
+        }
+        return;
       }
+      if (clientRef.current !== client) {
+        capture.stop();
+        return;
+      }
+      captureRef.current = capture;
+      setState({ kind: "recording", level: 0 });
+      // "" shows the preview as "Listening…" until the first partial.
+      onPartial("");
     })();
   };
 

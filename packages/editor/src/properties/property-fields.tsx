@@ -1,15 +1,18 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";
 
+import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
+import { TAGS_KEY } from "@repo/notes/markdown/frontmatter";
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 
 const FIELD_CLASS =
-  "h-7 border-transparent bg-transparent px-1.5 text-sm shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
+  "h-7 border-transparent bg-transparent px-1.5 text-body shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
 
 // buffered so the document isn't re-serialized on every keystroke.
 const useBuffer = (value: string, commit: (next: string) => void) => {
@@ -31,6 +34,9 @@ const useBuffer = (value: string, commit: (next: string) => void) => {
       setLocal(e.target.value);
     },
     onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => {
+      if (isImeComposing(e)) {
+        return;
+      }
       if (e.key === "Enter") {
         e.preventDefault();
         e.currentTarget.blur();
@@ -106,10 +112,20 @@ export const TagsField = ({
   onChange: (next: TypedProperty) => void;
 }) => {
   const [draft, setDraft] = useState("");
+  const [refused, setRefused] = useState(false);
+  const hintId = useId();
+  // the index reads a `tags` entry only when an inline `#` could spell it, so the panel writes
+  // no other; any other list key holds free text
+  const isTagList = prop.key === TAGS_KEY;
   const commitTag = () => {
-    const tag = draft.trim();
+    const tag = isTagList ? draft.trim().replace(/^#/u, "") : draft.trim();
     if (tag === "" || prop.value.includes(tag)) {
       setDraft("");
+      setRefused(false);
+      return;
+    }
+    if (isTagList && !isTagName(tag)) {
+      setRefused(true);
       return;
     }
     onChange({ ...prop, value: [...prop.value, tag] });
@@ -120,7 +136,7 @@ export const TagsField = ({
       {prop.value.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-0.5 rounded-[6px] bg-muted px-1.5 py-0.5 text-xs text-foreground"
+          className="inline-flex items-center gap-0.5 rounded-[6px] bg-muted px-1.5 py-0.5 text-caption text-foreground"
         >
           {tag}
           <Tooltip content={`Remove ${tag}`}>
@@ -141,9 +157,13 @@ export const TagsField = ({
         value={draft}
         onChange={(e) => {
           setDraft(e.target.value);
+          setRefused(false);
         }}
         onBlur={commitTag}
         onKeyDown={(e) => {
+          if (isImeComposing(e)) {
+            return;
+          }
           if (e.key === "Enter" || e.key === ",") {
             e.preventDefault();
             commitTag();
@@ -153,8 +173,15 @@ export const TagsField = ({
         }}
         placeholder={prop.value.length === 0 ? "Add tag" : ""}
         aria-label={`${prop.key} tags`}
-        className="min-w-16 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+        aria-invalid={refused || undefined}
+        aria-describedby={refused ? hintId : undefined}
+        className="min-w-16 flex-1 bg-transparent text-body outline-none placeholder:text-muted-foreground/60 aria-invalid:text-destructive"
       />
+      {refused ? (
+        <p id={hintId} className="basis-full text-body text-destructive">
+          {TAG_NAME_RULE}
+        </p>
+      ) : null}
     </div>
   );
 };
@@ -169,7 +196,7 @@ export const UnsupportedField = ({
       title="Unsupported YAML — preserved byte-for-byte."
       className={cn(
         "max-w-full overflow-x-auto rounded-[6px] bg-muted/60 px-1.5 py-0.5",
-        "font-mono text-xs whitespace-pre text-muted-foreground",
+        "font-mono text-body whitespace-pre text-muted-foreground",
       )}
     >
       {prop.rawYaml === "" ? "—" : prop.rawYaml}

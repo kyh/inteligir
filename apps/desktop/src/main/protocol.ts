@@ -4,19 +4,10 @@
 
 import { net, protocol } from "electron";
 import type { Session } from "electron";
-import { pathToFileURL } from "node:url";
-import path from "node:path";
 import { websocketOrigin } from "@repo/api/local/routes";
-import { bundleFile, isProxiedPath } from "./credential-scope";
-import { authorizationHeader } from "inteligir/server/server-file";
 import { documentSecurityHeaders } from "inteligir/server/csp";
-
-const APP_SCHEME = "inteligir";
-
-// `inteligir:///` has no origin to pin.
-const APP_HOST = "app";
-
-export const APP_ORIGIN = `${APP_SCHEME}://${APP_HOST}`;
+import { APP_SCHEME, createAppRequestHandler } from "./protocol-handler";
+import type { AppRenderer } from "./protocol-handler";
 
 // must run before `app.whenReady`; Electron enforces the ordering.
 // `standard` gives Chromium a real origin for the pin; `supportFetchAPI` lets `fetch` reach it at all.
@@ -33,27 +24,16 @@ export interface AppProtocolArgs {
   session: Session;
   serverOrigin: string;
   token: string;
-  renderer: { kind: "files"; dir: string } | { kind: "dev"; origin: string };
+  renderer: AppRenderer;
 }
 
-// headers are rebuilt, not mutated: a streamed Response may carry immutable ones and `set` silently no-ops.
-const withDocumentPolicy = (
-  response: Response,
-  documentHeaders: Record<string, string>,
-): Response => {
-  if (!(response.headers.get("content-type") ?? "").includes("text/html")) {
-    return response;
-  }
-  const headers = new Headers(response.headers);
-  for (const [name, value] of Object.entries(documentHeaders)) {
-    headers.set(name, value);
-  }
-  return new Response(response.body, { headers, status: response.status });
-};
-
 export const registerAppProtocol = (args: AppProtocolArgs): void => {
-  const documentHeaders = documentSecurityHeaders({
-    wsOrigin: websocketOrigin(args.serverOrigin),
+  const handler = createAppRequestHandler({
+    documentHeaders: documentSecurityHeaders({ wsOrigin: websocketOrigin(args.serverOrigin) }),
+    fetch: async (url, init) => await net.fetch(url, init),
+    renderer: args.renderer,
+    serverOrigin: args.serverOrigin,
+    token: args.token,
   });
 
   // a vault revisited in one launch gets a fresh child and a fresh token, so the handler is
@@ -61,39 +41,5 @@ export const registerAppProtocol = (args: AppProtocolArgs): void => {
   if (args.session.protocol.isProtocolHandled(APP_SCHEME)) {
     args.session.protocol.unhandle(APP_SCHEME);
   }
-  args.session.protocol.handle(APP_SCHEME, async (request) => {
-    const { pathname, search } = new URL(request.url);
-
-    if (isProxiedPath(pathname)) {
-      const headers = new Headers(request.headers);
-      headers.set("authorization", authorizationHeader(args.token));
-      // buffered, not streamed: Electron's `net.fetch` takes no `duplex`.
-      const init: RequestInit = { headers, method: request.method };
-      if (request.method !== "GET" && request.method !== "HEAD") {
-        init.body = await request.arrayBuffer();
-      }
-      return await net.fetch(`${args.serverOrigin}${pathname}${search}`, init);
-    }
-
-    if (args.renderer.kind === "dev") {
-      return await net.fetch(`${args.renderer.origin}${pathname}${search}`);
-    }
-
-    const file = bundleFile(args.renderer.dir, pathname);
-    if (file === null) {
-      return new Response("Not found", { status: 404 });
-    }
-    const response = await net.fetch(pathToFileURL(file).toString()).catch(() => null);
-    if (response !== null && response.ok) {
-      return withDocumentPolicy(response, documentHeaders);
-    }
-    // a missing asset answered with the SPA shell hands the module loader HTML and an opaque MIME error.
-    if (pathname.startsWith("/assets/")) {
-      return new Response("Not found", { status: 404 });
-    }
-    const shell = await net.fetch(
-      pathToFileURL(path.join(args.renderer.dir, "index.html")).toString(),
-    );
-    return withDocumentPolicy(shell, documentHeaders);
-  });
+  args.session.protocol.handle(APP_SCHEME, handler);
 };

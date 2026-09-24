@@ -2,6 +2,7 @@ import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { Label } from "@repo/ui/components/label";
+import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import {
   PromptBar,
   PromptBarAction,
@@ -19,9 +20,12 @@ import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const noop = (): void => undefined;
 
+type Transport = "http" | "stdio" | "oauth";
+
 export const InputsSection = () => {
   const [checked, setChecked] = useState(true);
   const [enabled, setEnabled] = useState(true);
+  const [transport, setTransport] = useState<Transport>("http");
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -72,6 +76,26 @@ export const InputsSection = () => {
         </DemoCase>
         <DemoCase label="disabled">
           <Switch checked disabled onCheckedChange={noop} />
+        </DemoCase>
+      </Demo>
+
+      <Demo
+        name="RadioGroup · RadioGroupItem"
+        purpose="One of a few choices, all on screen at once; one tab stop, the arrows move it."
+      >
+        <DemoCase label="live">
+          <RadioGroup aria-label="Transport" value={transport} onValueChange={setTransport}>
+            <RadioGroupItem value="http">URL</RadioGroupItem>
+            <RadioGroupItem value="stdio">Command</RadioGroupItem>
+            <RadioGroupItem value="oauth">OAuth</RadioGroupItem>
+          </RadioGroup>
+        </DemoCase>
+        <DemoCase label="disabled">
+          <RadioGroup aria-label="Theme" value="system" disabled>
+            <RadioGroupItem value="system">System</RadioGroupItem>
+            <RadioGroupItem value="light">Light</RadioGroupItem>
+            <RadioGroupItem value="dark">Dark</RadioGroupItem>
+          </RadioGroup>
         </DemoCase>
       </Demo>
 

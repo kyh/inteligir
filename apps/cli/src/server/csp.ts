@@ -17,7 +17,8 @@ export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): str
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    // one frame: inteligir-html's sandboxed srcdoc preview; remote frames stay refused.
+    // inteligir-html's two frames, the srcdoc preview and the loader in html-block-frame.ts that
+    // Run navigates to; remote frames stay refused, which also refuses a running block a way out.
     "frame-src 'self'",
     // an audioworklet module is fetched as a script, which is why dictation uses a scriptprocessornode.
     "worker-src 'none'",

@@ -12,6 +12,7 @@ import {
   handleEditorShortcut,
 } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut, ShortcutKeyEvent } from "@repo/editor/editor-shortcuts";
+import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { registerLiveEditor } from "@repo/editor/live-editor";
@@ -127,11 +128,14 @@ describe("editor shortcuts", () => {
   });
 });
 
+// is-hotkey matches a named key by its own code, not its name's first letter
+const NAMED_KEY_CODES = new Map([["enter", 13]]);
+
 // the chord a row spells, pressed: "mod" is ctrl where no Mac platform is detectable
 const chordEvent = (hotkey: string): ShortcutKeyEvent => {
   const parts = hotkey.split("+");
   const key = parts.at(-1) ?? "";
-  const keyCode = key.toUpperCase().codePointAt(0) ?? Number.NaN;
+  const keyCode = NAMED_KEY_CODES.get(key) ?? key.toUpperCase().codePointAt(0) ?? Number.NaN;
   return {
     altKey: parts.includes("alt"),
     ctrlKey: parts.includes("mod"),
@@ -149,6 +153,7 @@ describe("the shortcut tables", () => {
     const tables: readonly (readonly EditorShortcut<string>[])[] = [
       EDITOR_SHORTCUTS,
       FIND_BAR_SHORTCUTS,
+      COMMENT_SHORTCUTS,
     ];
     for (const rows of tables) {
       for (const row of rows) {

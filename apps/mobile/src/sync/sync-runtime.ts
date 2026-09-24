@@ -8,6 +8,7 @@ import {
   createSyncSession,
   pullPages,
 } from "@repo/api/cloud/sync/sync-session";
+import type { SyncOutcome, SyncSessionHandle } from "@repo/api/cloud/sync/sync-session";
 import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
 import type { CloudClient, CloudFailure, CloudResult } from "@repo/api/cloud/client";
 import { createExternalStore } from "../lib/external-store";
@@ -15,7 +16,10 @@ import type { ReadableStore } from "../lib/external-store";
 import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
 
+// restoring: no credential has been handed over yet, because the boot read of the stored one is
+// in flight. a screen deciding between signed in and out has no answer until it ends.
 export type SyncStatus =
+  | { state: "restoring" }
   | { state: "signed-out" }
   | { state: "unauthorized"; deviceId: string; detail: string }
   | {
@@ -33,29 +37,40 @@ export interface SyncRuntimeArgs {
   cloudUrl: string;
   createClient?: (credential: DeviceCredential) => CloudClient;
   pollIntervalMs?: number | null;
+  onDebug?: (message: string) => void;
 }
 
+// every other request under this sign-in rides the same session rather than a client of its own:
+// one fence for all of them, and a revocation any of them hears ends the sign-in and publishes.
+// a caller checks `fenced` after its await and before recording: recordFailure ends whichever
+// session is live, so a late refusal from an earlier sign-in would end the next one.
+export type SessionPort = Pick<
+  SyncSessionHandle<DeviceCredential>,
+  "current" | "fenced" | "recordFailure"
+>;
+
 export interface SyncRuntime extends ReadableStore<SyncStatus> {
+  // null leaves `restoring` for signed-out when the boot read found nothing
   setCredential: (next: DeviceCredential | null) => void;
   createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
   start: () => void;
   syncNow: () => Promise<void>;
+  session: SessionPort;
 }
 
 const sameCredential = (a: DeviceCredential, b: DeviceCredential): boolean =>
   a.deviceId === b.deviceId && a.credential === b.credential;
 
-const debug = (message: string): void => {
-  console.warn(`sync: ${message}`);
-};
-
 export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
   const pollIntervalMs = args.pollIntervalMs === undefined ? POLL_INTERVAL_MS : args.pollIntervalMs;
+  const debug = (message: string): void => {
+    args.onDebug?.(message);
+  };
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let lastError: string | null = null;
   let lastSyncedAt: number | null = null;
-  const status = createExternalStore<SyncStatus>({ state: "signed-out" });
+  const status = createExternalStore<SyncStatus>({ state: "restoring" });
 
   const clearTimer = (): void => {
     if (pollTimer !== null) {
@@ -81,6 +96,19 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
     },
   });
   const flight = createSingleFlight();
+
+  // never awaited: an unreachable cloud must not hold a sign-out open, and the row it leaves is the
+  // Devices page's to revoke. its own client, because closing the session aborts every request the
+  // session's client carries.
+  const signOutBestEffort = async (credential: DeviceCredential): Promise<void> => {
+    const client =
+      args.createClient?.(credential) ??
+      createCloudClient({ baseUrl: args.cloudUrl, credential: credential.credential });
+    const result = await client.signOut();
+    if (!result.ok) {
+      debug(`sign-out did not revoke this device: ${describeCloudFailure(result.failure)}`);
+    }
+  };
 
   const publish = (): void => {
     const current = session.current();
@@ -110,23 +138,32 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
     }
   };
 
+  // only a terminal refusal is the sign-in's business; any other failure is its caller's to show.
   const recordFailure = (failure: CloudFailure): "continue" | "ended" => {
-    lastError = describeCloudFailure(failure);
     const outcome = session.recordFailure(failure);
-    if (outcome === "continue") {
-      debug(lastError);
+    if (outcome === "ended") {
+      publish();
     }
-    publish();
     return outcome;
   };
 
-  const runPass = async (): Promise<void> => {
+  const recordPullFailure = (failure: CloudFailure): "continue" | "ended" => {
+    lastError = describeCloudFailure(failure);
+    const outcome = recordFailure(failure);
+    if (outcome === "continue") {
+      debug(lastError);
+      publish();
+    }
+    return outcome;
+  };
+
+  const runPass = async (): Promise<SyncOutcome> => {
     const current = session.current();
     if (current.kind !== "live") {
-      return;
+      return "fenced";
     }
     const sessionId = current.id;
-    const done = await pullPages({
+    const outcome = await pullPages({
       applyPlan: (steps) => {
         applyPlan(args.store, steps);
       },
@@ -140,16 +177,17 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       // the phone never pushes, so no earlier sign-in of its own can be in the log.
       ownDeviceIds: new Set([current.credential.deviceId]),
       readCursor: () => args.store.readCursor(),
-      recordFailure,
+      recordFailure: recordPullFailure,
     });
-    if (!done) {
-      return;
-    }
     if (!session.fenced(sessionId)) {
-      return;
+      return "fenced";
     }
-    lastSyncedAt = Date.now();
-    publish();
+    // a capped pull is still catching up and a failed one never reached the log: neither is synced.
+    if (outcome === "caught-up") {
+      lastSyncedAt = Date.now();
+      publish();
+    }
+    return outcome;
   };
 
   const syncNow = async (): Promise<void> => {
@@ -186,13 +224,23 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
           ok: false,
         };
       }
-      return await current.client.createCapture(request);
+      const result = await current.client.createCapture(request);
+      if (!result.ok && session.fenced(current.id)) {
+        recordFailure(result.failure);
+      }
+      return result;
     },
     get: status.get,
+    session: { current: session.current, fenced: session.fenced, recordFailure },
     setCredential(next) {
       const current = session.current();
       if (next !== null && current.kind === "live" && sameCredential(next, current.credential)) {
         return;
+      }
+      // a credential this phone drops still holds one of the account's device slots; an
+      // unauthorized one is already refused, so nothing is left to revoke
+      if (current.kind === "live") {
+        void signOutBestEffort(current.credential);
       }
       clearTimer();
       // a different credential may be a different account; the cursor and log must not carry over.

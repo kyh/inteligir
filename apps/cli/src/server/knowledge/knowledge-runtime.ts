@@ -1,26 +1,32 @@
 // announced paths are statted, never resolved through a listing of the whole
 // vault; a change naming no paths is a reconcile — a hash diff over the listing.
 // every query settles pending work first, which is why no `knowledge` ws change
-// kind exists.
+// kind exists. the scan behind every row runs in a worker; this thread reads the
+// bytes and writes the rows.
 
 import nodePath from "node:path";
 import { setImmediate as yieldTurn } from "node:timers/promises";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import { LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
 import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
+import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { notesInTagFamily } from "@repo/notes/knowledge/tag-notes";
 import { relatedNotes } from "@repo/notes/knowledge/related-notes";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
-import { projectDoc } from "@repo/notes/knowledge/projection";
+import type { DocProjection } from "@repo/notes/knowledge/projection";
+import type { DocSearchColumns } from "@repo/notes/knowledge/search-columns";
+import type { SearchResult } from "@repo/notes/knowledge/search-query";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
-import { bodyPrefilter, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
+import { bodyPrefilters, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import type { TextMatchOptions, VaultMatches } from "@repo/notes/knowledge/text-matches";
-import { findUnlinkedMentions, mentionNames } from "@repo/notes/knowledge/unlinked-mentions";
-import type { UnlinkedMentions } from "@repo/notes/knowledge/unlinked-mentions";
+import {
+  findUnlinkedMentions,
+  mentionLinkTarget,
+  mentionNames,
+} from "@repo/notes/knowledge/unlinked-mentions";
+import type { LinkableMentions } from "@repo/notes/knowledge/unlinked-mentions";
 import { collectVaultProblems } from "@repo/notes/knowledge/vault-problems";
 import type { VaultProblems, VaultProblemsOptions } from "@repo/notes/knowledge/vault-problems";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
@@ -31,8 +37,10 @@ import { createCoalescingTimer } from "../coalescing-timer";
 import { mapWithConcurrency } from "../concurrency";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
-import type { VaultFilesChange } from "../vault/vault-runtime";
+import type { VaultFilesChange } from "../vault/vault-changes";
 import { messageOf } from "../error-message";
+import type { RenameEditsJob, TagRenameEditsJob } from "./projection-protocol";
+import type { Projector } from "./projector";
 import { createSqliteDriver } from "./sqlite-driver";
 
 const KNOWLEDGE_DB_FILE_NAME = "knowledge.db";
@@ -40,8 +48,13 @@ const KNOWLEDGE_DB_FILE_NAME = "knowledge.db";
 // the watcher already debounces at 200ms; this only coalesces a service-write burst.
 const CHANGE_DEBOUNCE_MS = 100;
 
-// a latency bound on one uninterrupted synchronous unit, not a throughput knob.
+// docs per step (a page of hydration, a round of reads handed to the worker), and so how far a
+// pass runs past dispose().
 const BATCH_DOCS = 200;
+
+// a latency bound on one uninterrupted run of row writes, not a throughput knob: a batch of
+// large docs commits and yields once a slice passes it.
+const WRITE_SLICE_MS = 16;
 
 const READ_CONCURRENCY = 8;
 
@@ -60,6 +73,8 @@ export interface KnowledgeRuntimeArgs {
   dataDir: string;
   vault: KnowledgeVaultReader;
   vaultRoot: string;
+  // owned: dispose() disposes it first, so a pass mid-projection is released, not waited out
+  projector: Projector;
 }
 
 export interface KnowledgeRuntime {
@@ -75,9 +90,14 @@ export interface KnowledgeRuntime {
   backlinks: (path: string) => Promise<BacklinkEntry[]>;
   wikiTargets: () => Promise<WikiTarget[]>;
   // notes naming this one in prose without a link, one row per note on its first mention
-  unlinkedMentions: (path: string, limit: number) => Promise<UnlinkedMentions>;
+  unlinkedMentions: (path: string, limit: number) => Promise<LinkableMentions>;
   // what the resolver cannot answer, from the index alone
   problems: (options: VaultProblemsOptions) => Promise<VaultProblems>;
+  // every doc whose frontmatter `id` is this one, by path
+  noteIdOwners: (id: string) => Promise<string[]>;
+  // the doc whose frontmatter `id` this is: `lastPath` while it still is, else the id tier's own
+  // pick; null when no indexed doc carries it
+  pathForNoteId: (id: string, lastPath: string) => Promise<string | null>;
   relatedNotes: (path: string, limit: number) => Promise<RelatedNoteEntry[]>;
   tags: () => Promise<TagCount[]>;
   // the tag's family by path: a page of it and the whole count
@@ -86,9 +106,13 @@ export interface KnowledgeRuntime {
     limit: number,
     offset: number,
   ) => Promise<{ paths: string[]; total: number }>;
-  renameCandidates: (from: string, to: string) => Promise<string[]>;
+  // pre-move path to post-move path: one entry for a note, one per file under a folder
+  renameCandidates: (moves: ReadonlyMap<string, string>) => Promise<string[]>;
   // every doc holding the tag or one nested under it, computed with no reads
   tagRenameCandidates: (from: string) => Promise<string[]>;
+  // the rewrite sets' byte surgery scans every candidate, so it runs where projection does
+  renameEdits: (job: RenameEditsJob) => Promise<Map<string, string>>;
+  tagRenameEdits: (job: TagRenameEditsJob) => Promise<Map<string, string>>;
   readonly lastReconcile: ReconcileStats | null;
   dispose: () => Promise<void>;
 }
@@ -99,11 +123,23 @@ const assertUnhandledVerdict = (verdict: never): never => {
   throw new Error(`unhandled file verdict: ${JSON.stringify(verdict)}`);
 };
 
+// thrown at a step boundary so a pass stops within one step of dispose().
+class PassDisposedError extends Error {
+  constructor() {
+    super("the knowledge runtime was disposed mid-pass");
+    this.name = "PassDisposedError";
+  }
+}
+
 export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRuntime => {
   const store: SqlKnowledgeStore = createSqlKnowledgeStore(
     createSqliteDriver(nodePath.join(args.dataDir, KNOWLEDGE_DB_FILE_NAME)),
     args.vaultRoot,
   );
+  if (store.opened.kind === "discarded") {
+    console.warn("[knowledge] discarding the index db (will rebuild):", store.opened.reason);
+  }
+  const { projector } = args;
   const graph = new LinkGraphIndex();
   const hashes = new Map<string, string>();
   const others = new Set<string>();
@@ -115,15 +151,34 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   const pendingPaths = new Set<string>();
   let disposed = false;
 
+  // a failed read is the vault's trouble, not the index's: the prior row stands and every pass
+  // retries the path, since a permission fix announces nothing.
+  const unreadable = new Set<string>();
+  // the hash of bytes whose projection threw, so an unchanged doc is not re-projected by every
+  // reconcile; the path is indexed as an other meanwhile.
+  const unprojectable = new Map<string, string>();
+
   // at most one pass runs and one is queued; later triggers fold into the queued one.
   let runningPass: Promise<void> | null = null;
   let queuedPass: Promise<void> | null = null;
 
+  const assertLive = (): void => {
+    if (disposed) {
+      throw new PassDisposedError();
+    }
+  };
+
   const recover = (): void => {
+    // the store is closed or closing; a reset would reopen the file behind dispose's back.
+    if (disposed) {
+      return;
+    }
     graph.clear();
     hashes.clear();
     others.clear();
     pendingPaths.clear();
+    unreadable.clear();
+    unprojectable.clear();
     try {
       store.nuke();
     } catch (error) {
@@ -137,6 +192,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   const hydrateMirrors = async (): Promise<void> => {
     const cursor = store.hydrate(BATCH_DOCS);
     for (;;) {
+      assertLive();
       const page = cursor.next();
       if (page.kind === "done") {
         break;
@@ -163,25 +219,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     hash: string;
   }
 
-  const applyDocUpdates = (updates: readonly DocUpdate[]): void => {
-    if (updates.length === 0) {
-      return;
-    }
-    store.transaction(() => {
-      for (const update of updates) {
-        const projection = projectDoc(update.path, update.content);
-        store.upsertDoc(
-          { contentHash: update.hash, path: update.path, projection },
-          update.content,
-        );
-        graph.applyDoc(update.path, projection);
-        others.delete(update.path);
-        hashes.set(update.path, update.hash);
-      }
-    });
-  };
-
   const removeIndexed = (path: string): boolean => {
+    unprojectable.delete(path);
     const known = hashes.delete(path) || others.delete(path);
     if (!known) {
       return false;
@@ -203,11 +242,87 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     others.add(path);
   };
 
+  interface ProjectedUpdate {
+    path: string;
+    hash: string;
+    projection: DocProjection;
+    search: DocSearchColumns;
+  }
+
+  // one transaction, closed once the slice budget runs out; answers how many docs it wrote
+  const writeSlice = (docs: readonly ProjectedUpdate[]): number => {
+    const began = performance.now();
+    let written = 0;
+    store.transaction(() => {
+      for (const doc of docs) {
+        store.upsertDoc(
+          { contentHash: doc.hash, path: doc.path, projection: doc.projection },
+          doc.search,
+        );
+        written += 1;
+        if (performance.now() - began >= WRITE_SLICE_MS) {
+          break;
+        }
+      }
+    });
+    for (const doc of docs.slice(0, written)) {
+      graph.applyDoc(doc.path, doc.projection);
+      others.delete(doc.path);
+      hashes.set(doc.path, doc.hash);
+      unprojectable.delete(doc.path);
+    }
+    return written;
+  };
+
+  const writeDocRows = async (docs: readonly ProjectedUpdate[]): Promise<void> => {
+    let pending = docs;
+    while (pending.length > 0) {
+      pending = pending.slice(writeSlice(pending));
+      if (pending.length > 0) {
+        await yieldTurn();
+        assertLive();
+      }
+    }
+  };
+
+  // the worker projects one doc at a time: a doc the scan cannot take (a stack-deep nesting
+  // overflows it) costs that doc its searchable row, never the batch.
+  const applyDocUpdates = async (updates: readonly DocUpdate[]): Promise<void> => {
+    if (updates.length === 0) {
+      return;
+    }
+    const results = await projector.project(
+      updates.map((update) => ({ content: update.content, path: update.path })),
+    );
+    assertLive();
+    const projected: ProjectedUpdate[] = [];
+    for (const [index, update] of updates.entries()) {
+      const result = results[index];
+      if (result === undefined) {
+        continue;
+      }
+      if (result.kind === "projected") {
+        projected.push({
+          hash: update.hash,
+          path: update.path,
+          projection: result.projection,
+          search: result.search,
+        });
+        continue;
+      }
+      console.warn(`[knowledge] cannot index ${update.path}: ${result.reason}`);
+      indexOther(update.path);
+      unprojectable.set(update.path, update.hash);
+    }
+    await writeDocRows(projected);
+  };
+
   type FileVerdict =
     | { kind: "projected"; update: DocUpdate }
     | { kind: "unchanged" }
     | { kind: "other" }
-    | { kind: "missing" };
+    | { kind: "missing" }
+    | { kind: "unreadable"; reason: string };
 
   const readFileVerdict = async (path: string): Promise<FileVerdict> => {
     if (!isDocPath(path)) {
@@ -218,14 +333,14 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       ({ bytes } = await args.vault.readBytes(path));
     } catch (error) {
       if (!(error instanceof VaultServiceError)) {
-        throw error;
+        return { kind: "unreadable", reason: messageOf(error) };
       }
       // over the read cap: unsearchable, but still in the link-resolution universe.
       return error.code === "too_large" ? { kind: "other" } : { kind: "missing" };
     }
     // hash the bytes and decode only what moved; the common verdict is unchanged.
     const hash = await contentHashBytesHex(bytes);
-    if (hashes.get(path) === hash) {
+    if (hashes.get(path) === hash || unprojectable.get(path) === hash) {
       return { kind: "unchanged" };
     }
     return { kind: "projected", update: { content: utf8.decode(bytes), hash, path } };
@@ -233,6 +348,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
 
   const projectFiles = async (paths: readonly string[], stats?: ReconcileStats): Promise<void> => {
     for (let start = 0; start < paths.length; start += BATCH_DOCS) {
+      assertLive();
       const chunk = paths.slice(start, start + BATCH_DOCS);
       const verdicts = await mapWithConcurrency(chunk, READ_CONCURRENCY, readFileVerdict);
       const updates: DocUpdate[] = [];
@@ -241,6 +357,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         if (path === undefined) {
           continue;
         }
+        const wasUnreadable = unreadable.delete(path);
         switch (verdict.kind) {
           case "projected": {
             updates.push(verdict.update);
@@ -263,12 +380,21 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
             removeIndexed(path);
             break;
           }
+          case "unreadable": {
+            unreadable.add(path);
+            if (!wasUnreadable) {
+              console.warn(
+                `[knowledge] cannot read ${path}, keeping its last entry: ${verdict.reason}`,
+              );
+            }
+            break;
+          }
           default: {
             assertUnhandledVerdict(verdict);
           }
         }
       }
-      applyDocUpdates(updates);
+      await applyDocUpdates(updates);
       if (start + BATCH_DOCS < paths.length) {
         await yieldTurn();
       }
@@ -280,18 +406,38 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     return entries.filter((entry: VaultEntry) => entry.kind === "file").map((entry) => entry.path);
   };
 
+  const removeGone = (gone: readonly string[]): void => {
+    if (gone.length === 0) {
+      return;
+    }
+    // one snapshot, taken at the first folder: re-reading the live maps per path walks the whole index per deletion.
+    let indexed: string[] | undefined;
+    store.transaction(() => {
+      for (const path of gone) {
+        unreadable.delete(path);
+        // an indexed file has no indexed children, so only a folder pays for the prefix scan.
+        if (removeIndexed(path)) {
+          continue;
+        }
+        indexed ??= [...hashes.keys(), ...others];
+        const prefix = `${path}/`;
+        for (const candidate of indexed) {
+          if (candidate.startsWith(prefix)) {
+            removeIndexed(candidate);
+          }
+        }
+      }
+    });
+  };
+
   const reconcile = async (): Promise<ReconcileStats> => {
     const files = await listFiles();
     const current = new Set(files);
     const stats: ReconcileStats = { projected: 0, removed: 0, unchanged: 0 };
 
-    for (const path of [...hashes.keys(), ...others]) {
-      if (current.has(path)) {
-        continue;
-      }
-      removeIndexed(path);
-      stats.removed += 1;
-    }
+    const stale = [...hashes.keys(), ...others].filter((path) => !current.has(path));
+    removeGone(stale);
+    stats.removed = stale.length;
 
     await projectFiles(files, stats);
     return stats;
@@ -303,37 +449,37 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       READ_CONCURRENCY,
       async (path) => await args.vault.statEntry(path),
     );
-    // one snapshot before any removal: re-reading the live maps per path walks the whole index per deletion.
-    const indexedSnapshot: string[] = kinds.includes(null) ? [...hashes.keys(), ...others] : [];
-
-    const files: string[] = [];
+    // a set: a folder's expansion repeats the file events announced beside it.
+    const files = new Set<string>();
+    const gone: string[] = [];
     for (const [index, kind] of kinds.entries()) {
       const path = paths[index];
       if (path === undefined) {
         continue;
       }
       if (kind === "file") {
-        files.push(path);
+        files.add(path);
         continue;
       }
       if (kind === "dir") {
-        files.push(...(await args.vault.listFilesUnder(path)));
+        assertLive();
+        for (const file of await args.vault.listFilesUnder(path)) {
+          files.add(file);
+        }
         continue;
       }
-      const prefix = `${path}/`;
-      removeIndexed(path);
-      for (const indexed of indexedSnapshot) {
-        if (indexed.startsWith(prefix)) {
-          removeIndexed(indexed);
-        }
-      }
+      gone.push(path);
     }
-    await projectFiles(files);
+    removeGone(gone);
+    await projectFiles([...files]);
   };
 
   const passWork = async (): Promise<void> => {
     if (!hydrated) {
       await hydrateMirrors();
+    }
+    for (const path of unreadable) {
+      pendingPaths.add(path);
     }
     if (needsReconcile) {
       pendingPaths.clear();
@@ -362,6 +508,11 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     try {
       await passWork();
     } catch (error) {
+      // however it ended: dispose() stops the worker under a pass mid-projection, and nothing is
+      // rebuilt for a runtime that is going away.
+      if (disposed) {
+        return;
+      }
       // rebuild before this pass resolves: a caller awaiting it must not read the nuked index as a success.
       console.warn("[knowledge] pass failed — rebuilding the index:", messageOf(error));
       recover();
@@ -434,6 +585,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async dispose() {
       disposed = true;
       debounce.clear();
+      await projector.dispose();
       try {
         await queuedPass;
         await runningPass;
@@ -451,12 +603,17 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async matches(params) {
       return await readThroughIndex("matches", () =>
         collectVaultMatches(
-          store.docTexts(bodyPrefilter(params.needle)),
+          store.docTexts(bodyPrefilters([params.needle])),
           params.needle,
           params.options,
           params.limit,
         ),
       );
+    },
+
+    async noteIdOwners(id) {
+      await settle();
+      return graph.pathsWithNoteId(id);
     },
 
     noteVaultChange(change) {
@@ -473,31 +630,43 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       debounce.arm();
     },
 
+    async pathForNoteId(id, lastPath) {
+      await settle();
+      return graph.pathForNoteId(id, normalizePath(lastPath));
+    },
+
     async problems(options) {
-      return await readThroughIndex("problems", () => collectVaultProblems(graph, options));
+      await settle();
+      return collectVaultProblems(graph, options);
     },
 
     // the ranked read: the probe runs once per title token and keeps only the score, so search's excerpts would be wasted.
     async relatedNotes(path, limit) {
       const normalized = normalizePath(path);
       return await readThroughIndex("related notes", () =>
-        relatedNotes(graph, (query, probe) => store.searchRanked(query, probe), normalized, {
-          limit,
-        }),
+        relatedNotes(
+          graph,
+          (query, probe, options) => store.searchRanked(query, probe, options),
+          normalized,
+          { limit },
+        ),
       );
     },
 
-    async renameCandidates(from, to) {
+    async renameCandidates(moves) {
       await settle();
-      return renameCandidates(graph, from, to);
+      return moveCandidates(graph, moves);
     },
+
+    renameEdits: projector.renameEdits,
 
     async search(params) {
       return await readThroughIndex("search", () =>
         searchVaultNotes(
           {
-            notesWithTag: (tag) => graph.notesWithTag(tag),
+            notesInTag: (tag) => notesInTagFamily(graph, tag),
             search: (query, limit) => store.search(query, limit),
+            titleOf: (path) => graph.titleOf(path),
           },
           { limit: params.limit, query: params.query, tag: params.tag },
         ),
@@ -517,25 +686,28 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       return notesInTagFamily(graph, from);
     },
 
+    tagRenameEdits: projector.tagRenameEdits,
+
     async tags() {
       await settle();
       return graph.tags();
     },
 
-    // the literal scan again, over the stem and the aliases; a single ascii name lets the
-    // store pre-narrow, several names read every doc
+    // the literal scan again, over the stem and the aliases; ascii names let the store
+    // pre-narrow to the docs holding one of them
     async unlinkedMentions(path, limit) {
       const normalized = normalizePath(path);
       return await readThroughIndex("unlinked mentions", () => {
-        const target = graph.wikiTargets().find((candidate) => candidate.path === normalized);
-        const names = mentionNames(normalized, target?.aliases ?? []);
+        const names = mentionNames(normalized, graph.aliasesOf(normalized));
         const exclude = new Set([
           normalized,
           ...graph.backlinks(normalized).map((backlink) => backlink.sourcePath),
         ]);
-        const only = names.length === 1 ? names[0] : undefined;
-        const docs = store.docTexts(only === undefined ? null : bodyPrefilter(only));
-        return findUnlinkedMentions(docs, { exclude, limit, names });
+        const docs = store.docTexts(bodyPrefilters(names));
+        return {
+          ...findUnlinkedMentions(docs, { exclude, limit, names }),
+          linkTarget: mentionLinkTarget(normalized, (name) => graph.resolveWiki(name)),
+        };
       });
     },
 

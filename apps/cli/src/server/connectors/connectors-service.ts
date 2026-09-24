@@ -4,7 +4,13 @@ import type {
   ConnectorView,
 } from "@repo/api/local/connectors/connectors-schema";
 
-import type { ConnectorsStore, StoredConnector, StoredTransport } from "./connectors-store";
+import { oauthServerOf } from "./connectors-store";
+import type {
+  ConnectorsStore,
+  StoredConnector,
+  StoredOauthTransport,
+  StoredTransport,
+} from "./connectors-store";
 
 export class ConnectorConflictError extends Error {
   readonly kind: "already-exists" | "not-found";
@@ -21,23 +27,16 @@ interface SessionMcpServer {
   transport: StoredTransport;
 }
 
-interface ConnectorUpdate {
-  name: string;
-  transport: ConnectorTransportInput;
-}
-
 export interface ConnectorsService {
   list: () => ConnectorView[];
   add: (request: ConnectorAddRequest) => ConnectorView[];
-  // not a procedure: the one write that carries stored secrets across an endpoint edit.
-  update: (request: ConnectorUpdate) => ConnectorView[];
   remove: (name: string) => ConnectorView[];
   toggle: (name: string, enabled: boolean) => ConnectorView[];
   enabledForSessions: () => SessionMcpServer[];
 }
 
 const oauthStatus = (
-  transport: Extract<StoredTransport, { kind: "oauth" }>,
+  transport: StoredOauthTransport,
 ): "needs-reauth" | "needs-auth" | "connected" => {
   if (transport.needsReauth === true) {
     return "needs-reauth";
@@ -58,12 +57,10 @@ const toView = (row: StoredConnector): ConnectorView => {
       enabled: row.enabled,
       name: row.name,
       transport: {
-        authorizationEndpoint: row.transport.authorizationEndpoint,
-        clientId: row.transport.clientId,
+        ...oauthServerOf(row.transport),
         kind: "oauth",
         scopes: row.transport.scopes,
         status: oauthStatus(row.transport),
-        tokenEndpoint: row.transport.tokenEndpoint,
         url: row.transport.url,
       },
     };
@@ -79,39 +76,26 @@ const toView = (row: StoredConnector): ConnectorView => {
   };
 };
 
-const toStoredTransport = (
-  input: ConnectorTransportInput,
-  previous?: StoredTransport,
-): StoredTransport => {
+const toStoredTransport = (input: ConnectorTransportInput): StoredTransport => {
   if (input.kind === "stdio") {
     return { args: input.args, command: input.command, kind: "stdio" };
   }
   if (input.kind === "oauth") {
-    const next: StoredTransport = {
-      authorizationEndpoint: input.authorizationEndpoint,
-      clientId: input.clientId,
-      kind: "oauth",
-      scopes: input.scopes,
-      tokenEndpoint: input.tokenEndpoint,
-      url: input.url,
-    };
-    // an endpoint edit keeps the tokens: if it made them wrong, the next refresh fails into needs-reauth.
-    if (previous !== undefined && previous.kind === "oauth") {
-      if (previous.tokens !== undefined) {
-        next.tokens = previous.tokens;
-      }
-      if (previous.needsReauth === true) {
-        next.needsReauth = true;
-      }
+    const oauth: StoredOauthTransport = { kind: "oauth", scopes: input.scopes, url: input.url };
+    if (input.authorizationEndpoint !== undefined) {
+      oauth.authorizationEndpoint = input.authorizationEndpoint;
     }
-    return next;
+    if (input.tokenEndpoint !== undefined) {
+      oauth.tokenEndpoint = input.tokenEndpoint;
+    }
+    if (input.clientId !== undefined) {
+      oauth.clientId = input.clientId;
+    }
+    return oauth;
   }
-  const kept =
-    input.headers ??
-    (previous !== undefined && previous.kind === "http" ? previous.headers : undefined);
   const next: StoredTransport = { kind: "http", url: input.url };
-  if (kept !== undefined && Object.keys(kept).length > 0) {
-    next.headers = kept;
+  if (input.headers !== undefined && Object.keys(input.headers).length > 0) {
+    next.headers = input.headers;
   }
   return next;
 };
@@ -164,14 +148,6 @@ export const createConnectorsService = (store: ConnectorsStore): ConnectorsServi
   toggle(name: string, enabled: boolean): ConnectorView[] {
     const servers = store.read();
     requireRow(servers, name).enabled = enabled;
-    store.write(servers);
-    return servers.map(toView);
-  },
-
-  update(request: ConnectorUpdate): ConnectorView[] {
-    const servers = store.read();
-    const row = requireRow(servers, request.name);
-    row.transport = toStoredTransport(request.transport, row.transport);
     store.write(servers);
     return servers.map(toView);
   },

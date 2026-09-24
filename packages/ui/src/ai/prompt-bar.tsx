@@ -5,15 +5,24 @@ import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
   KeyboardEvent,
+  ReactElement,
   ReactNode,
   RefAttributes,
   TextareaHTMLAttributes,
 } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
+import { ArrowUpIcon, XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
-import { GlideList } from "@repo/ui/ai/glide-list";
+import { isImeComposing } from "@repo/ui/lib/ime";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/dropdown-menu";
 
 const promptBarVariants = cva(
   "flex w-full flex-col bg-surface-raised shadow-surface-2 transition-[border-radius] duration-200",
@@ -92,29 +101,19 @@ const PromptBarSource = ({
         onClick={onRemove}
         className="flex size-4 items-center justify-center rounded-full text-ink-3 hover:bg-hover hover:text-ink"
       >
-        <svg
-          aria-hidden
-          width="9"
-          height="9"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.6"
-          strokeLinecap="round"
-        >
-          <path d="M18 6L6 18M6 6l12 12" />
-        </svg>
+        <XIcon size={9} strokeWidth={2.6} />
       </button>
     )}
   </span>
 );
 PromptBarSource.displayName = "PromptBarSource";
 
+// controlled: the Enter-to-send check reads what the field holds
 export interface PromptBarFieldProps extends Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
   "onSubmit" | "value"
 > {
-  value?: string;
+  value: string;
   onSend?: () => void;
 }
 
@@ -142,10 +141,10 @@ const PromptBarField = ({
       if (event.defaultPrevented) {
         return;
       }
-      if (event.key !== "Enter" || event.shiftKey) {
+      if (event.key !== "Enter" || event.shiftKey || isImeComposing(event)) {
         return;
       }
-      if ((value ?? "").trim().length === 0) {
+      if (value.trim().length === 0) {
         return;
       }
       event.preventDefault();
@@ -223,52 +222,38 @@ const PromptBarSend = ({
     )}
     {...props}
   >
-    <svg
-      aria-hidden
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 19V5M5 12l7-7 7 7" />
-    </svg>
+    <ArrowUpIcon size={14} strokeWidth={2.4} />
   </button>
 );
 PromptBarSend.displayName = "PromptBarSend";
 
+export interface PromptBarMenuProps {
+  trigger: ReactElement;
+  className?: string | undefined;
+  children: ReactNode;
+}
+
 const PromptBarMenu = ({
+  trigger,
   className,
   children,
   ref,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
-    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <select> cannot render the icon and meta rows this menu draws
-    role="listbox"
-    data-slot="prompt-bar-menu"
-    className={cn(
-      "w-64 overflow-hidden rounded-xl bg-surface-raised p-1 shadow-surface-3",
-      "animate-in fade-in slide-in-from-bottom-1 duration-150 motion-reduce:animate-none",
-      className,
-    )}
-    {...props}
-  >
-    <GlideList className="flex flex-col gap-px" highlightClassName="inset-x-0 rounded-md">
+}: PromptBarMenuProps & RefAttributes<HTMLDivElement>) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger render={trigger} />
+    <DropdownMenuContent ref={ref} side="top" className={cn("w-64", className)}>
       {children}
-    </GlideList>
-  </div>
+    </DropdownMenuContent>
+  </DropdownMenu>
 );
 PromptBarMenu.displayName = "PromptBarMenu";
 
-export interface PromptBarMenuItemProps extends HTMLAttributes<HTMLButtonElement> {
+// a row with a value is a choice inside a DropdownMenuRadioGroup; without one it is an action
+export interface PromptBarMenuItemProps extends HTMLAttributes<HTMLDivElement> {
   icon?: ReactNode;
   meta?: ReactNode;
-  selected?: boolean;
+  value?: string;
+  disabled?: boolean;
 }
 
 const PromptBarMenuItem = ({
@@ -276,31 +261,37 @@ const PromptBarMenuItem = ({
   children,
   icon,
   meta,
-  selected = false,
+  value,
+  disabled = false,
   ref,
   ...props
-}: PromptBarMenuItemProps & RefAttributes<HTMLButtonElement>) => (
-  <button
-    ref={ref}
-    type="button"
-    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <option> cannot render the icon and meta rows this menu draws
-    role="option"
-    aria-selected={selected}
-    data-menu-row
-    data-slot="prompt-bar-menu-item"
-    className={cn(
-      "relative z-10 flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] text-ink",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
-      "[&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-ink-3",
-      className,
-    )}
-    {...props}
-  >
-    {icon}
-    <span className="min-w-0 flex-1 truncate">{children}</span>
-    {meta === undefined ? null : <span className="shrink-0 text-[11.5px] text-ink-3">{meta}</span>}
-  </button>
-);
+}: PromptBarMenuItemProps & RefAttributes<HTMLDivElement>) => {
+  const rowClassName = cn("[&_svg]:text-ink-3 [&_svg:not([class*='size-'])]:size-3.5", className);
+  const row = (
+    <>
+      {icon}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {meta === undefined ? null : (
+        <span className="shrink-0 text-[11.5px] text-ink-3">{meta}</span>
+      )}
+    </>
+  );
+  return value === undefined ? (
+    <DropdownMenuItem ref={ref} disabled={disabled} className={rowClassName} {...props}>
+      {row}
+    </DropdownMenuItem>
+  ) : (
+    <DropdownMenuRadioItem
+      ref={ref}
+      value={value}
+      disabled={disabled}
+      className={rowClassName}
+      {...props}
+    >
+      {row}
+    </DropdownMenuRadioItem>
+  );
+};
 PromptBarMenuItem.displayName = "PromptBarMenuItem";
 
 export {

@@ -4,6 +4,8 @@ import { configDefaults, defineConfig } from "vitest/config";
 const BOOTED_DOM_SUITES = "src/**/*.booted.test.tsx";
 
 const SETUP_FILES = ["src/renderer/app/__tests__/jsdom-stubs.ts"];
+// not on the booted suites: the server they boot in-process logs every refused call by design
+const CONSOLE_ERROR_GATE = "src/renderer/app/__tests__/console-error-gate.ts";
 
 export default defineConfig({
   test: {
@@ -20,7 +22,7 @@ export default defineConfig({
           exclude: [...configDefaults.exclude, BOOTED_DOM_SUITES],
           include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
           name: "desktop",
-          setupFiles: SETUP_FILES,
+          setupFiles: [...SETUP_FILES, CONSOLE_ERROR_GATE],
         },
       },
       {
@@ -28,7 +30,8 @@ export default defineConfig({
           environment: "./src/renderer/app/__tests__/jsdom-ssr-environment.ts",
           include: [BOOTED_DOM_SUITES],
           name: "desktop-booted-dom",
-          setupFiles: SETUP_FILES,
+          setupFiles: [...SETUP_FILES, "src/renderer/app/__tests__/booted-timeouts.ts"],
+          testTimeout: 20_000,
         },
       },
     ],

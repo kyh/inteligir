@@ -5,11 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useState } from "react";
 
-import { orpc } from "../api";
+import { client, orpc } from "../api";
 import { FoldSection } from "../fold-section";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useVaultTree } from "../vault-hooks";
-import { useWorkspace } from "../workspace-context";
 
 interface HistoryReader {
   vault: {
@@ -60,15 +59,13 @@ const Fact = ({
   </div>
 );
 
-const useNoteCreatedAt = (docPath: string) => {
-  const { api } = useWorkspace();
-  return useQuery({
-    queryFn: async () => await firstRevisionAuthoredAt(api, docPath),
+const useNoteCreatedAt = (docPath: string) =>
+  useQuery({
+    queryFn: async () => await firstRevisionAuthoredAt(client, docPath),
     queryKey: ["note-created", docPath],
     // a note with no revision yet gets one at the next auto-commit; a dated one never changes
     staleTime: (query) => (query.state.data === null ? 0 : Infinity),
   });
-};
 
 const createdLabel = (
   authoredAt: string | null | undefined,

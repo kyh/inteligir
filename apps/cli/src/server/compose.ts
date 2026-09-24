@@ -6,16 +6,14 @@ import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
-import { rebindThreadOrigins } from "@repo/db/threads";
 import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import { createAgentsService } from "./agents/agents-service";
 import { createBrowserSession } from "./browser-session";
-import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { createCommentsService } from "./comments/comments-service";
-import { systemOpenExternalUrl } from "./cloud/browser-opener";
-import type { OpenExternalUrl } from "./cloud/browser-opener";
+import { systemOpenExternalUrl } from "./browser-opener";
+import type { OpenExternalUrl } from "./browser-opener";
 import { createCloudRuntime } from "./cloud/sync-runtime";
 import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
@@ -26,17 +24,20 @@ import type { ConnectorsService } from "./connectors/connectors-service";
 import { ConnectorsStore } from "./connectors/connectors-store";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
 import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
+import { messageOf } from "./error-message";
 import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
 import { FoldersStore } from "./folders/folders-store";
 import { createKnowledgeRuntime } from "./knowledge/knowledge-runtime";
-import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
+import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowledge-runtime";
+import { createProjectionWorker } from "./knowledge/projector";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
 import type { AppServices } from "./orpc";
 import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
+import { createThreadOrigins } from "./threads/thread-origins";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
 import { VaultPrefsStore } from "./vault/vault-prefs-store";
@@ -51,6 +52,11 @@ export const registerListener = (teardown: ShutdownStep[], run: ShutdownStep["ru
   teardown.unshift(teardownStep("listener", run));
 };
 
+// push: whenever it is registered, the data dir is released only after the db behind it closes.
+export const registerLockRelease = (teardown: ShutdownStep[], run: ShutdownStep["run"]): void => {
+  teardown.push(teardownStep("lock", run));
+};
+
 interface ComposeDriverDeps {
   config: AppConfig;
   db: DbConnection;
@@ -63,8 +69,10 @@ interface ComposeDriverDeps {
 }
 
 export interface ComposePorts {
+  // a suite runs the scan inline: a worker booted from source costs every compose seconds
+  knowledge?: Pick<KnowledgeRuntimeArgs, "projector">;
   openExternalUrl?: OpenExternalUrl;
-  vault?: Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">;
+  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote" | "spawnWatcherChannel">>;
 }
 
 export interface ComposeRuntimeArgs {
@@ -133,6 +141,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   if (ports.vault?.gitEnv !== undefined) {
     vaultArgs.gitEnv = ports.vault.gitEnv;
   }
+  if (ports.vault?.spawnWatcherChannel !== undefined) {
+    vaultArgs.spawnWatcherChannel = ports.vault.spawnWatcherChannel;
+  }
   const vault = await createVaultRuntime(vaultArgs);
   const vaultPrefs = new VaultPrefsStore(config.dataDir);
   register("vault", async () => {
@@ -141,6 +152,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
 
   const knowledge = createKnowledgeRuntime({
     dataDir: config.dataDir,
+    projector: ports.knowledge?.projector ?? createProjectionWorker(),
     vault: vault.service,
     vaultRoot: config.vaultDir,
   });
@@ -178,9 +190,14 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
 
   // before the thread service, which takes the outbox hook at construction; attach() closes the other direction.
   const cloudArgs: CloudRuntimeArgs = {
+    build: args.version,
     cloudUrl: config.cloudUrl,
     dataDir: config.dataDir,
     db,
+    // the rail's one sync row reads the vault's git sync and this runtime together, so both ride one kind.
+    onStatusChanged: () => {
+      bus.notifyVault(["sync-status-changed"]);
+    },
     // the rebase's own files-changed notification carries the applied changes to the renderer.
     onVaultPing: () => {
       void vault.syncNow();
@@ -198,11 +215,21 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     createTurnDriver: agentDriver.createTurnDriver,
     db,
     notifier: bus,
+    origins: createThreadOrigins(vault.service, knowledge),
     sync: cloud,
   });
   // crash recovery writes (settles turns, frees claims, enqueues), so it runs in boot order, not in the constructor.
   threads.boot();
   cloud.attach(threads);
+  // off the critical path and guarded: it reads, and may write, a note per path-bound thread, and a
+  // failure costs only the bindings it did not reach, which the next boot retries.
+  void (async () => {
+    try {
+      await threads.backfillOriginNoteIds();
+    } catch (error) {
+      console.warn(`[threads] origin backfill skipped: ${messageOf(error)}`);
+    }
+  })();
 
   // scripted answers `ready` with no model and no native binding, so the scenario suite
   // drives everything above the decode for real.
@@ -216,13 +243,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const voiceStreamHub = new VoiceStreamHub(voice);
 
   const comments = createCommentsService(vault.service, () => Math.floor(Date.now() / 1000));
-  await migrateLegacyCommentSidecars({
-    comments,
-    vault: vault.service,
-    warn: (message) => {
-      console.warn(`[comments] ${message}`);
-    },
-  });
 
   // last, once every service it announces through exists; the bus has no clients before a socket is injected.
   cloud.start();
@@ -237,16 +257,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     folders,
     knowledge,
     openExternalUrl: ports.openExternalUrl ?? systemOpenExternalUrl,
+    recordAgentWrites: agentDriver.recordAgentWrites,
     renameNote: async (from: string, to: string) =>
-      await renameNoteWithLinkRewrite({
-        from,
-        knowledge,
-        rebindThreads: (movedFrom, movedTo) => {
-          rebindThreadOrigins(db, bus, { from: movedFrom, to: movedTo });
-        },
-        service: vault.service,
-        to,
-      }),
+      await renameNoteWithLinkRewrite({ from, knowledge, service: vault.service, to }),
     renameTag: async (from: string, to: string) =>
       await renameTagAcrossVault({ from, knowledge, service: vault.service, to }),
     system: {

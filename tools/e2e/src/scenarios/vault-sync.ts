@@ -30,7 +30,11 @@ export const vaultSync: Scenario = {
     const a = await ctx.boot({ extraEnv: NO_AUTO_SYNC, name: "a", vaultRemote: remote });
 
     ctx.log("A writes notes/shared.md and syncs");
-    await a.api.vault.write({ content: SHARED_CONTENT, path: "notes/shared.md" });
+    await a.api.vault.write({
+      content: SHARED_CONTENT,
+      guard: { kind: "overwrite" },
+      path: "notes/shared.md",
+    });
     await syncExpectClean(a.api, "A after write");
 
     const b = await ctx.boot({ extraEnv: NO_AUTO_SYNC, name: "b", vaultRemote: remote });
@@ -46,7 +50,11 @@ export const vaultSync: Scenario = {
     );
 
     ctx.log("seeding the conflict base on both sides");
-    await a.api.vault.write({ content: CONFLICT_BASE, path: "conflict.md" });
+    await a.api.vault.write({
+      content: CONFLICT_BASE,
+      guard: { kind: "overwrite" },
+      path: "conflict.md",
+    });
     await syncExpectClean(a.api, "A after base");
     await syncExpectClean(b.api, "B after base");
     expectEq(
@@ -56,10 +64,18 @@ export const vaultSync: Scenario = {
     );
 
     ctx.log("A edits the shared line and syncs; B edits it differently");
-    await a.api.vault.write({ content: CONFLICT_A, path: "conflict.md" });
+    await a.api.vault.write({
+      content: CONFLICT_A,
+      guard: { kind: "overwrite" },
+      path: "conflict.md",
+    });
     await syncExpectClean(a.api, "A after edit");
 
-    await b.api.vault.write({ content: CONFLICT_B, path: "conflict.md" });
+    await b.api.vault.write({
+      content: CONFLICT_B,
+      guard: { kind: "overwrite" },
+      path: "conflict.md",
+    });
 
     ctx.log("B syncs into the conflict");
     const conflicted = await b.api.vault.syncNow();

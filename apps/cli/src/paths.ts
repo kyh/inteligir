@@ -1,5 +1,6 @@
-// every src module is inlined into dist/index.js, so `import.meta.url` names the bundle there and this file here;
-// the same `../` reaches the package root from both only because this file sits one level under it.
+// every src module lands flat in dist/ (index.js or a chunk beside it), so `import.meta.url` names a file in dist/
+// there and this file here; the same `../` reaches the package root from both only because this file sits one level
+// under it.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";

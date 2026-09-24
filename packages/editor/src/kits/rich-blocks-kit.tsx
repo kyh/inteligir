@@ -1,23 +1,24 @@
 import { createSlatePlugin } from "platejs";
 import type { SlateEditor } from "platejs";
 
+import { CANVAS_BLOCK_KEY, CHART_BLOCK_KEY, HTML_BLOCK_KEY } from "@repo/editor/dialect-node-keys";
 import { CanvasElement } from "@repo/editor/nodes/canvas-node";
 import { ChartElement } from "@repo/editor/nodes/chart-node";
 import { HtmlElement } from "@repo/editor/nodes/html-node";
 import { GRID_HEADER } from "@repo/editor/nodes/canvas-header";
 
 const chartBasePlugin = createSlatePlugin({
-  key: "chart_block",
+  key: CHART_BLOCK_KEY,
   node: { isElement: true, isVoid: true },
 });
 
 const canvasBasePlugin = createSlatePlugin({
-  key: "canvas_block",
+  key: CANVAS_BLOCK_KEY,
   node: { isElement: true, isVoid: true },
 });
 
 const htmlBasePlugin = createSlatePlugin({
-  key: "html_block",
+  key: HTML_BLOCK_KEY,
   node: { isElement: true, isVoid: true },
 });
 
@@ -52,13 +53,13 @@ const insertRichBlock = (editor: SlateEditor, type: string, value: string): void
 };
 
 export const insertChartBlock = (editor: SlateEditor): void => {
-  insertRichBlock(editor, "chart_block", SEED_CHART);
+  insertRichBlock(editor, CHART_BLOCK_KEY, SEED_CHART);
 };
 
 export const insertCanvasBlock = (editor: SlateEditor): void => {
-  insertRichBlock(editor, "canvas_block", SEED_CANVAS);
+  insertRichBlock(editor, CANVAS_BLOCK_KEY, SEED_CANVAS);
 };
 
 export const insertHtmlBlock = (editor: SlateEditor): void => {
-  insertRichBlock(editor, "html_block", SEED_HTML);
+  insertRichBlock(editor, HTML_BLOCK_KEY, SEED_HTML);
 };

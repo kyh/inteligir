@@ -4,9 +4,6 @@ import { z } from "zod";
 export { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
 export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
 
-// these shapes are final at birth: .strict() on every response means a stale phone's parse
-// refuses an added field as malformed, so a field this wire might ever want has to be here now.
-
 export const VAULT_API_PATHS = {
   asset: "/v1/vault/asset",
   file: "/v1/vault/file",
@@ -43,31 +40,28 @@ const vaultPathSchema = z.string().superRefine((value, ctx) => {
   }
 });
 
+// the query schemas parse a URL's search params whole, where every value arrives as a string
 export const vaultTreeQuerySchema = z
   .object({
     after: vaultPathSchema.optional(),
-    limit: z.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
+    limit: z.coerce.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
     ref: commitShaSchema.optional(),
   })
   .strict();
 export type VaultTreeQuery = z.infer<typeof vaultTreeQuerySchema>;
 
-export const vaultTreeResponseSchema = z
-  .object({
-    commit: commitShaSchema,
-    entries: z
-      .array(
-        z
-          .object({
-            path: vaultPathSchema,
-            size: z.number().int().min(0),
-          })
-          .strict(),
-      )
-      .max(VAULT_TREE_MAX_ENTRIES),
-    next: z.string().nullable(),
-  })
-  .strict();
+export const vaultTreeResponseSchema = z.object({
+  commit: commitShaSchema,
+  entries: z
+    .array(
+      z.object({
+        path: vaultPathSchema,
+        size: z.number().int().min(0),
+      }),
+    )
+    .max(VAULT_TREE_MAX_ENTRIES),
+  next: z.string().nullable(),
+});
 export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
 
 export const vaultFileQuerySchema = z
@@ -78,14 +72,12 @@ export const vaultFileQuerySchema = z
   .strict();
 export type VaultFileQuery = z.infer<typeof vaultFileQuerySchema>;
 
-export const vaultFileResponseSchema = z
-  .object({
-    commit: commitShaSchema,
-    content: z.string(),
-    oid: gitOidSchema,
-    path: vaultPathSchema,
-  })
-  .strict();
+export const vaultFileResponseSchema = z.object({
+  commit: commitShaSchema,
+  content: z.string(),
+  oid: gitOidSchema,
+  path: vaultPathSchema,
+});
 export type VaultFileResponse = z.infer<typeof vaultFileResponseSchema>;
 
 // ref is required: a URL pinned to a commit names immutable bytes, which makes the URL the

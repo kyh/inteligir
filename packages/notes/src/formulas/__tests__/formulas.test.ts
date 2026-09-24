@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { collectFormulas, formulasById, noteIdOf } from "../collect-formulas";
+import { frontmatterId } from "../../markdown/frontmatter";
+import { collectFormulas, formulasById } from "../collect-formulas";
+import type { CollectedFormula } from "../collect-formulas";
 import { evaluateExpression, parseExpression } from "../expression";
 import { formatResult } from "../format-result";
 import { parseFormulaMeta, serializeFormulaMeta } from "../formula-meta";
-import { resolveExpression } from "../resolve-graph";
+import { loadFormulaGraph, resolveExpression } from "../resolve-graph";
 
 const noRefs = (): null => null;
 
@@ -115,7 +117,7 @@ describe("collection", () => {
       "```",
       "",
     ].join("\n");
-    expect(noteIdOf(md)).toBe("9e64c3df-c1e2-4a4d-8c07-91528f422413");
+    expect(frontmatterId(md)).toBe("9e64c3df-c1e2-4a4d-8c07-91528f422413");
     const formulas = collectFormulas(md);
     expect(formulas).toHaveLength(2);
     expect(formulas[0]?.expression).not.toBeNull();
@@ -195,5 +197,63 @@ describe("the graph (the skill's own type-scale example)", () => {
       local,
     );
     expect(outcome).toEqual({ ok: true, value: 200 });
+  });
+});
+
+// every note but "a", the open one, answered from its markdown
+const vault = (notes: Readonly<Record<string, string>>) => {
+  const reads: string[] = [];
+  const read = async (noteId: string): Promise<CollectedFormula[] | null> => {
+    reads.push(noteId);
+    const markdown = notes[noteId];
+    return await Promise.resolve(markdown === undefined ? null : collectFormulas(markdown));
+  };
+  return { read, reads };
+};
+
+const resolveFirst = async (
+  local: CollectedFormula[],
+  read: (noteId: string) => Promise<CollectedFormula[] | null>,
+  maxNotes?: number,
+) => {
+  const [first] = local;
+  if (first === undefined || first.expression === null) {
+    throw new Error("expected an executable pill");
+  }
+  const graph = await loadFormulaGraph(local, "a", read, maxNotes);
+  return resolveExpression(first.expression, graph, "a", local);
+};
+
+describe("loading the graph", () => {
+  it("follows a chain through a note the open one never names", async () => {
+    const { read, reads } = vault({
+      b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
+      c: "{{40|40|id=fc;name=c}}\n",
+    });
+    const local = collectFormulas("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
+
+    expect(await resolveFirst(local, read)).toEqual({ ok: true, value: 82 });
+    expect(reads).toEqual(["b", "c"]);
+  });
+
+  it("answers cyclic for a loop across notes, reading each note once and never itself", async () => {
+    const { read, reads } = vault({
+      b: "{{@(a#a#fa)+1|0|id=fb;name=b}}\n",
+    });
+    const local = collectFormulas("{{@(b#b#fb)+1|0|id=fa;name=a}}\n");
+
+    expect(await resolveFirst(local, read)).toEqual({ ok: false, reason: "cyclic" });
+    expect(reads).toEqual(["b"]);
+  });
+
+  it("stops reading at the cap, and a note past it answers missing-ref", async () => {
+    const { read, reads } = vault({
+      b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
+      c: "{{40|40|id=fc;name=c}}\n",
+    });
+    const local = collectFormulas("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
+
+    expect(await resolveFirst(local, read, 1)).toEqual({ ok: false, reason: "missing-ref" });
+    expect(reads).toEqual(["b"]);
   });
 });

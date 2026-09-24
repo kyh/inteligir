@@ -38,23 +38,36 @@ src/
                          # status, not a side field, and `stopping` has no
                          # run.started cell: a queued turn cannot reactivate it
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # seven item kinds, twelve event types, scope refined
-                         # at parse. `client/turn/requested` carries the
-                         # optional viewContext beside bb's `text`
-  thread-event-scope.ts  # thread | turn scope, and the per-type policy table
-                         # (`satisfies` keeps it total: a new type without a
-                         # row stops compiling; anything looser than turn
-                         # scope states its rationale in the row)
+                         # seven item kinds, fourteen event types, each with its
+                         # own scope. `client/turn/requested` carries the
+                         # optional viewContext and contextPaths beside bb's
+                         # `text`, which stays exactly what the user typed.
+                         # `thread/meta` (title, origin note, harness) and
+                         # `thread/archived` are local: the thread's own facts,
+                         # riding its log to every device
+                         # `mergeAdjacentDeltas` stores one item's adjacent
+                         # deltas as one row, a reset opening a new run and a
+                         # caller's cap bounding each. `settledReasoningText`
+                         # is the one reading of a settled thought both the
+                         # desktop's fold and the phone's run
+  thread-event-scope.ts  # thread | turn scope, each its own schema so an
+                         # event type names the one it takes (anything looser
+                         # than turn scope states why beside its member)
   view-context.ts        # the screen a message left from: `doc` + path +
                          # sha-256 revision. a single-member discriminatedUnion
                          # so a second surface breaks every consumer at compile
+  thread-title.ts        # `deriveThreadTitle`: a thread's name from its first
+                         # message, the one reading the server's naming and
+                         # the phone's projection both run; and
+                         # `MAX_THREAD_TITLE_LENGTH`, an explicit title's bound
+                         # on the create route and on `thread/meta`
   pending-interactions.ts  # the provider-neutral approval grammar — subjects
                          # (command | file_change), decisions, payload,
                          # resolution — and `parseApprovalResolution`, the ONE
                          # parser the answer route's 400 gate and the runtime
                          # share (deny is always accepted; anything else must
                          # be a decision the request offered)
-  pending-interaction-status.ts  # pending|resolving|resolved|interrupted, the
+  pending-interaction-status.ts  # pending|resolved|interrupted, the
                          # same tuple-feeds-both-sides shape as thread-status
   change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
                          # change kinds — pings naming a subscription target,
@@ -89,8 +102,8 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   settle validated against turn A cannot land after turn B bound.
 - **Vendored from bb, and the header says so.** Every file that came from bb
   keeps `// Vendored from bb (github.com/get-bb/bb), MIT.` on its first line;
-  the licence text is `tools/licenses/bb.LICENSE`; `view-context.ts` is this
-  repo's own. Rename, trim and restructure freely — the attribution line is
+  the licence text is `tools/licenses/bb.LICENSE`; `view-context.ts` and
+  `thread-title.ts` are this repo's own. Rename, trim and restructure freely — the attribution line is
   the one thing a vendored file must keep.
 - **A view context rides the message.** Never a thread column, never a
   mutable "current view": it describes the screen a message left from, so
@@ -105,7 +118,9 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   `NotificationBuffer` per ingest transaction and flushes it after the commit.
 - The change-kind tuples are the `/ws` bus's whole vocabulary:
   `packages/api/src/local/notifications.ts` reads them, and the repo guard's
-  ws-reachability test holds every kind to a producer and a consumer.
+  ws-reachability test holds every kind to a producer in shipped source and
+  every fired kind to the declaration; nothing checks that a client consumes
+  a kind.
 - `threadEventSchema` is what the cloud page planner
   (`packages/api/src/cloud/sync/plan-page.ts`) re-parses every pulled row
   through before it may move a cursor.
@@ -114,7 +129,11 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 
 `pnpm --filter @repo/domain test` — vitest. `provider-event.test` pins the
 scope refusals at parse, the either-scope `provider/error`, a streamed item's
-round trip, and that a delta's item ref invents no kind.
+round trip, that a delta's item ref invents no kind, and that a delta merge
+never joins across a boundary, an item, a turn, a delta type or a reset, nor
+past its byte limit, escapes and split characters included. That
+a merged log folds to the same rows is fuzzed where the fold is reachable,
+`apps/cli/src/server/agents/__tests__/event-coalescer.test.ts`.
 `thread-lifecycle.test` fuzzes random event sequences inside the declared
 statuses and turn-binding invariants: every absent cell is an
 `illegal-transition` no-op, a settle naming another turn is `stale-turn`, an

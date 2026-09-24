@@ -1,12 +1,15 @@
-/* oxlint-disable max-classes-per-file -- the refusal class is the store's contract; a consumer catches it where it constructs the store */
+/* oxlint-disable max-classes-per-file -- the refusal class is the store's contract; the rpc boundary puts its message on the wire */
 // The one shape every app-written JSON file in the data dir takes: not config.json, which is
 // read once at boot and never written by the app, but a file read per use so a Settings or
-// CLI edit reaches the next paste, thread or session without a reboot. Malformed bytes are an
-// ERROR, never the empty value: an empty value lets the next write erase what the bytes held.
+// CLI edit reaches the next paste, thread or session without a reboot. Only an absent file is
+// the empty value: unreadable or malformed bytes are an ERROR, because an empty value lets the
+// next write erase what the bytes held.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { z } from "zod";
+import { errnoCode } from "./errno";
+import { messageOf } from "./error-message";
 import { stagedWriteFileSync } from "./staged-write";
 
 export class JsonFileStoreError extends Error {
@@ -39,8 +42,14 @@ export class JsonFileStore<TSchema extends z.ZodType> {
     let raw: string;
     try {
       raw = readFileSync(this.path, "utf-8");
-    } catch {
-      return this.args.empty;
+    } catch (error) {
+      if (errnoCode(error) === "ENOENT") {
+        // a copy: a caller that edits what it read must not edit what the next absent read answers.
+        return structuredClone(this.args.empty);
+      }
+      throw new JsonFileStoreError(
+        `${this.path} could not be read (${errnoCode(error) ?? messageOf(error)}) — refusing to read it as empty`,
+      );
     }
     let parsed: unknown;
     try {
@@ -59,7 +68,13 @@ export class JsonFileStore<TSchema extends z.ZodType> {
     return verdict.data;
   }
 
+  // refused before the bytes land: a value the next read would refuse must never reach the disk.
   write(value: z.input<TSchema>): void {
+    if (!this.args.schema.safeParse(value).success) {
+      throw new JsonFileStoreError(
+        `refusing to write ${this.path}: the value does not match the ${this.args.fileName} shape`,
+      );
+    }
     const contents = `${JSON.stringify(value, null, 2)}\n`;
     if (this.args.mode === undefined) {
       stagedWriteFileSync(this.path, contents);

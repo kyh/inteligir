@@ -1,7 +1,7 @@
 # @repo/notes
 
 The pure, platform-neutral domain core: the knowledge engine
-(links/tags/search/tasks) over one markdown scan.
+(links/tags/search) over one markdown scan.
 
 ## Why it exists
 
@@ -23,33 +23,38 @@ src/
     link-extract.ts, link-resolve.ts, rename-links.ts  # scan → resolution
                        # (the `[[Title|uuid]]` id tier, then five path/alias
                        # tiers, aliases last) → byte-surgical rename
+    tag-grammar.ts, link-kinds.ts  # the tag name and the link kinds, with no
+                       # imports: the contract validates against both and must
+                       # not load the markdown parser to do it
     knowledge-store.ts, sql-knowledge-store.ts  # persistence port (types
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
                        # in-memory tiered lexical index (behavior pin)
-    task-ordinal.ts    # what an ordinal names: the ONE count of a doc's
-                       # checkboxes, and its index in that count
-    source-lines.ts    # what a LINE is — content excludes its terminator,
-                       # whichever flavor — stated once, for every reader
     vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
                        # command palette and `inteligir search`
     search-query.ts, search-excerpt.ts  # the ONE literal+stem query policy
                        # both engines run, and the excerpt both cut over the
                        # literal text (never FTS5's snippet())
+    search-columns.ts  # a doc's FTS row, stems included, computed apart from
+                       # the store so a host can stem where it projects
     projection-row.ts, rename-candidates.ts  # the stored projection's one
-                       # json column; which links a rename may rewrite
+                       # json column, and the schema any carrier of it is
+                       # parsed by; which links a rename may rewrite
     tag-index.ts, related-notes.ts, note-name.ts, doc-file.ts,
     vault-path.ts      # tags, related-notes scorer, name validation, doc
                        # test, posix path helpers
   markdown/            # the one scan, and what reads a doc's header
     scan-parse.ts      # the grammar every knowledge scan reads; TOTAL, and
-                       # disabling codeIndented/htmlFlow is what keeps its task
-                       # count equal to the set the editor draws
+                       # disabling codeIndented/htmlFlow is what keeps it
+                       # reading as prose what the editor draws as prose
     verbatim-spans.ts  # the ranges the EDITOR holds verbatim (opaque nodes,
                        # math) — what keeps rename byte-surgery out of them —
                        # and the literal ranges (code, math, frontmatter, jsx
                        # attributes) table-pipes' escape must not touch
-    remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways
+    remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways;
+                       # the body's one parse, one writer and one display
+                       # label (`wikiLinkLabel`), which every chip, preview
+                       # and snippet on desktop and phone draws
     remark-inline-constructs.ts, remark-opaque.ts, remark-tabs.ts,
     remark-mdx-agnostic.ts, table-pipes.ts, line-scan.ts
                        # the rest of the dialect's own remark plugins
@@ -57,21 +62,30 @@ src/
                        # can run it as a bare parse
     parse.ts           # the total parse the phone renders through; it answers
                        # the escaped text its offsets index
+    parsed-offsets.ts  # the one rebase every parse here runs: micromark
+                       # counts from past a leading BOM, so without it every
+                       # offset on a BOM note cuts one byte early
     mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
                        # node is, never discriminates structurally
     fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
                        # and ONE callout-payload grammar — the rule table, the
                        # scan and the mobile projection all read them
-    frontmatter.ts     # split/recombine (ONE `replaceFrontmatterYaml`, which
+    frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
+                       # CRLF aware), split/recombine (ONE
+                       # `replaceFrontmatterYaml`, which
                        # keeps a BOM and the note's line ending) + the
                        # typed-property ADT (YAML it cannot represent is
                        # preserved byte-exactly)
   comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
                        # marker ids, the sidecar schema
   formulas/            # {{source|display|meta}} pills: collection, expression
-                       # evaluation, the resolve graph and result formatting
+                       # evaluation, the resolve graph and the walk that loads
+                       # it across notes, and result formatting
   text/                # ONE Myers line diff under diff3 — the merge a 409'd
-                       # write retries through
+                       # write retries through; bounded by an edit budget,
+                       # past which the changed span is one hunk
+    source-lines.ts    # what a LINE is — content excludes its terminator,
+                       # whichever flavor — stated once, for every reader
 ```
 
 ## Invariants
@@ -103,4 +117,7 @@ src/
 `pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
 knowledge engine: resolver tiers (including an oracle equivalence for the
 basename buckets), rename byte surgery, the search policy against both
-engines, task ordinals against the editor's parse, and the diff3 merge.
+engines, the scan's prose against the editor's parse, and the diff3 merge. The
+suites run under a 512MB heap ceiling (`vitest.config.ts`), so an allocation
+that grows with a note's size, like a diff trace that copies the whole
+frontier every round, fails here rather than passing on a default heap.

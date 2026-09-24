@@ -29,19 +29,21 @@ export const COMMENT_SOURCES = ["user", "agent", "external"] as const;
 export const commentSourceSchema = z.enum(COMMENT_SOURCES);
 export type CommentSource = z.infer<typeof commentSourceSchema>;
 
-// the marker grammar's alphabet: every key must be legal inside a body marker
-export const COMMENT_ID_RE = /^[A-Za-z0-9_-]+$/u;
+// Every key must be legal inside a body marker, so the marker grammar is built from this one
+// spelling of the alphabet rather than restating it.
+export const COMMENT_ID_PATTERN = "[A-Za-z0-9_-]+";
+export const COMMENT_ID_RE = new RegExp(`^${COMMENT_ID_PATTERN}$`, "u");
 export const commentIdSchema = z.string().regex(COMMENT_ID_RE);
 
 const MINTED_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 const MINTED_ID_LENGTH = 10;
 
-// globalThis.crypto, not node:crypto: this package is platform-neutral. 36^10
-// makes a collision a non-event, so no caller checks.
-export const mintCommentId = (): string => {
-  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(MINTED_ID_LENGTH));
-  return [...bytes].map((byte) => MINTED_ID_ALPHABET[byte % MINTED_ID_ALPHABET.length]).join("");
-};
+// The caller injects the bytes: this package names no platform, and not every runtime it ships
+// to has globalThis.crypto. 36^10 makes a collision a non-event, so no caller checks.
+export const mintCommentId = (randomBytes: (length: number) => Uint8Array): string =>
+  [...randomBytes(MINTED_ID_LENGTH)]
+    .map((byte) => MINTED_ID_ALPHABET[byte % MINTED_ID_ALPHABET.length])
+    .join("");
 
 // looseObject: fields from an external writer this version never heard of must survive a rewrite
 /* oxlint-disable sort-keys -- zod emits parsed keys in declaration order, so this is the

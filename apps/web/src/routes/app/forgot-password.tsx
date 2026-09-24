@@ -1,38 +1,31 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
+import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
 import { Button } from "@repo/ui/components/button";
 
-import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-shell";
+import {
+  AuthError,
+  AuthField,
+  AuthShell,
+  fieldValue,
+  useAuthSubmit,
+} from "@/components/auth-shell";
 import { authClient, authErrorMessage } from "@/lib/auth-client";
 
-// the emailed link lands on the Worker-hosted form (src/worker/auth/reset-page.ts), which
-// must work with no app bundle; this route only requests the link
-const RESET_PAGE_PATH = "/auth/reset";
-
 const ForgotPasswordPage = () => {
-  const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  const onSubmit = (event: React.SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    setError(null);
-    void (async () => {
-      const { error: failure } = await authClient.requestPasswordReset({
-        email: fieldValue(form, "email"),
-        redirectTo: RESET_PAGE_PATH,
-      });
-      setBusy(false);
-      if (failure !== null) {
-        setError(authErrorMessage(failure));
-        return;
-      }
-      setSent(true);
-    })();
-  };
+  const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
+    const { error: failure } = await authClient.requestPasswordReset({
+      email: fieldValue(form, "email"),
+      redirectTo: AUTH_PAGE_PATHS.resetPage,
+    });
+    if (failure !== null) {
+      return authErrorMessage(failure);
+    }
+    setSent(true);
+    return null;
+  });
 
   return (
     <AuthShell
@@ -60,8 +53,8 @@ const ForgotPasswordPage = () => {
             autoFocus
           />
           <AuthError message={error} />
-          <Button type="submit" disabled={busy}>
-            {busy ? "Sending…" : "Send reset link"}
+          <Button type="submit" disabled={pending}>
+            {pending ? "Sending…" : "Send reset link"}
           </Button>
         </form>
       )}

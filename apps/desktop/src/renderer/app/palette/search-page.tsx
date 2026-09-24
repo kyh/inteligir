@@ -4,11 +4,11 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { KNOWLEDGE_MATCHES_DEFAULT_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
+import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { orpc } from "../api";
 import { PalettePage, SEARCH_DEBOUNCE_MS, useDebounced } from "./palette-page";
-import type { PageShell } from "./palette-page";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./vault-replace";
 
 interface MatchGroup {
@@ -68,33 +68,53 @@ interface ReplaceRun {
   controller: AbortController;
 }
 
-export interface SearchPageProps extends PageShell {
-  onOpenMatch: (match: VaultMatchWire, query: string) => void;
+export interface SearchPageProps {
+  open: boolean;
+  query: string;
+  onOpenMatch: (match: VaultMatchWire, needle: string, options: TextMatchOptions) => void;
   // settles when the run is over, cancelled or declined included; the page shows it running
   onReplaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
 }
 
-export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPageProps) => {
+export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPageProps) => {
   const queryClient = useQueryClient();
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
   const [replacement, setReplacement] = useState("");
   const [replaceRun, setReplaceRun] = useState<ReplaceRun | null>(null);
-  const settledQuery = useDebounced(shell.query, SEARCH_DEBOUNCE_MS);
+  const settledQuery = useDebounced(query, SEARCH_DEBOUNCE_MS);
 
+  const input = {
+    caseSensitive,
+    limit: KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+    q: settledQuery,
+    wholeWord,
+  };
+  const inputOptions: TextMatchOptions = {
+    caseSensitive: input.caseSensitive,
+    wholeWord: input.wholeWord,
+  };
   const vaultMatches = useQuery({
-    ...orpc.knowledge.matches.queryOptions({
-      input: {
-        caseSensitive,
-        limit: KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
-        q: settledQuery,
-        wholeWord,
-      },
-    }),
-    enabled: shell.open && settledQuery !== "",
+    ...orpc.knowledge.matches.queryOptions({ input }),
+    enabled: open && settledQuery !== "",
     // a toggle re-keys the read; the listing it had stays up until the new one lands
     placeholderData: (previous) => previous,
+    // a retry would hold that listing up for seconds over a refusal, and a pick would jump to a
+    // needle its row does not hold
+    retry: false,
   });
+
+  // A run outlives no palette: a close, however it comes, cancels it between notes, and the
+  // summary counts what the close left untouched.
+  const runController = replaceRun?.controller;
+  useEffect(() => {
+    if (!open || runController === undefined) {
+      return;
+    }
+    return () => {
+      runController.abort();
+    };
+  }, [open, runController]);
 
   const startReplace = (request: VaultReplaceRequest): void => {
     const controller = new AbortController();
@@ -121,10 +141,14 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
   // a cut listing names some of the notes a replace would touch, not all of them
   const truncated = matches.length < total;
   const paths = [...new Set(matches.map((match) => match.path))];
-  const canReplace = matches.length > 0 && !truncated && replaceRun === null;
+  // A replace rewrites what the rows showed, so they must answer `input`: no toggle's or keystroke's
+  // read still pending behind them, and no refetch about to move them.
+  const listingIsCurrent =
+    !vaultMatches.isPlaceholderData && !vaultMatches.isFetching && settledQuery === query;
+  const canReplace = listingIsCurrent && matches.length > 0 && !truncated && replaceRun === null;
 
   const emptySentence = (): string => {
-    if (shell.query === "") {
+    if (query === "") {
       return "Type to search every note.";
     }
     if (vaultMatches.isError) {
@@ -135,11 +159,6 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
 
   return (
     <PalettePage
-      {...shell}
-      title="Search the vault"
-      description="Every match, with the line it sits on"
-      placeholder="Search across the vault…"
-      wide
       toolbar={
         <>
           <div className="flex items-center gap-1 px-2 pt-1.5">
@@ -176,8 +195,8 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
               disabled={!canReplace}
               onClick={() => {
                 startReplace({
-                  needle: shell.query,
-                  options: { caseSensitive, wholeWord },
+                  needle: input.q,
+                  options: inputOptions,
                   paths,
                   replacement,
                 });
@@ -220,7 +239,7 @@ export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
               key={row.ordinal}
               action={`${group.title === "" ? group.path : group.title} line ${String(row.line)}`}
               onSelect={() => {
-                onOpenMatch(row, shell.query);
+                onOpenMatch(row, input.q, inputOptions);
               }}
             >
               <span className="min-w-0 flex-1 truncate">

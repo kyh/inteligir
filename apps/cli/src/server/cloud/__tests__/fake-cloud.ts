@@ -20,19 +20,30 @@ import {
   DEVICE_CREDENTIAL_PREFIX,
   deviceLoginRequestSchema,
 } from "@repo/api/cloud/device/device-schema";
-import type { DeviceLoginResponse } from "@repo/api/cloud/device/device-schema";
+import type {
+  DeviceLoginResponse,
+  RevokeDeviceResponse,
+} from "@repo/api/cloud/device/device-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
   SYNC_API_PATHS,
 } from "@repo/api/cloud/sync/sync-schema";
-import type { PullResponse, PushResponse, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
+import type {
+  PullResponse,
+  PushResponse,
+  SyncEventRow,
+  ThreadLane,
+} from "@repo/api/cloud/sync/sync-schema";
 import type { CloudFetch } from "@repo/api/cloud/client";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
 type RequestBody = z.infer<ReturnType<typeof z.json>>;
 
 const parseJson = (text: string): RequestBody => z.json().parse(JSON.parse(text));
+
+const typedEventSchema = z.object({ type: z.string() }).catchall(z.json());
 
 type AckCaptureResult = AckCapturesResponse["results"][number];
 
@@ -48,6 +59,12 @@ interface LogRow {
   deviceSeq: number;
   body: string;
   createdAt: number;
+}
+
+interface ThreadMetaRow {
+  lane: ThreadLane;
+  title: string | null;
+  updatedAt: number;
 }
 
 interface InboxRow {
@@ -67,6 +84,9 @@ export class FakeCloud {
     [FAKE_ACCOUNT.email, FAKE_ACCOUNT.password],
   ]);
   private readonly log: LogRow[] = [];
+  // the durable object's thread_meta: last writer wins on the client's clock, and a row with no
+  // title keeps the stored one.
+  private readonly threadMeta = new Map<string, ThreadMetaRow>();
   private readonly inbox: InboxRow[] = [];
   private nextDevice = 0;
   private nextSeq = 0;
@@ -78,6 +98,8 @@ export class FakeCloud {
   maxDevices = Number.POSITIVE_INFINITY;
   /** the login window is shut: every login answers rate-limited. */
   loginWindowShut = false;
+  /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
+  readonly unreadableTypes = new Set<string>();
 
   revoke(deviceId: string): void {
     for (const device of this.devices.values()) {
@@ -104,8 +126,16 @@ export class FakeCloud {
     return this.log.length;
   }
 
+  threadMetaRow(threadId: string): ThreadMetaRow | null {
+    return this.threadMeta.get(threadId) ?? null;
+  }
+
   deviceCount(): number {
     return this.devices.size;
+  }
+
+  activeDeviceCount(): number {
+    return [...this.devices.values()].filter((device) => !device.revoked).length;
   }
 
   readonly fetch: CloudFetch = async (input, init) =>
@@ -125,6 +155,11 @@ export class FakeCloud {
     const device = this.authorize(init);
     if (device === null) {
       return refuse("unauthorized", "No valid device credential.");
+    }
+    if (method === "POST" && url.pathname === DEVICE_API_PATHS.signOut) {
+      this.revoke(device.deviceId);
+      const response: RevokeDeviceResponse = { revoked: true };
+      return Response.json(response);
     }
     if (method === "POST" && url.pathname === SYNC_API_PATHS.push) {
       return this.push(device.deviceId, body);
@@ -176,13 +211,14 @@ export class FakeCloud {
     if (this.accounts.get(parsed.data.email) !== parsed.data.password) {
       return refuse("invalid-credentials", "Wrong email or password.");
     }
-    const active = [...this.devices.values()].filter((device) => !device.revoked).length;
-    if (active >= this.maxDevices) {
+    if (this.activeDeviceCount() >= this.maxDevices) {
       return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
-    const credential = `${DEVICE_CREDENTIAL_PREFIX}${String(this.nextDevice).padStart(64, "0")}`;
+    // random like the worker's, never derived from the per-cloud device counter: two fake clouds
+    // would mint one credential, and a sign-out sent to the other would revoke a stranger
+    const credential = `${DEVICE_CREDENTIAL_PREFIX}${randomBytes(32).toString("hex")}`;
     this.devices.set(credential, { deviceId, revoked: false });
     const response: DeviceLoginResponse = { credential, deviceId };
     return Response.json(response);
@@ -202,6 +238,16 @@ export class FakeCloud {
           "Batch positions must strictly increase.",
           event.deviceSeq,
         );
+      }
+    }
+    for (const thread of parsed.data.threads ?? []) {
+      const stored = this.threadMeta.get(thread.threadId);
+      if (stored === undefined || thread.updatedAt > stored.updatedAt) {
+        this.threadMeta.set(thread.threadId, {
+          lane: thread.lane,
+          title: thread.title ?? stored?.title ?? null,
+          updatedAt: thread.updatedAt,
+        });
       }
     }
     const mine = this.log.filter((row) => row.deviceId === deviceId);
@@ -264,12 +310,21 @@ export class FakeCloud {
       createdAt: row.createdAt,
       deviceId: row.deviceId,
       deviceSeq: row.deviceSeq,
-      event: parseJson(row.body),
+      event: this.served(row.body),
       seq: row.seq,
       threadId: row.threadId,
     }));
     const response: PullResponse = { events, hasMore, lastSeq: this.nextSeq };
     return Response.json(response);
+  }
+
+  private served(body: string): RequestBody {
+    const event = parseJson(body);
+    const typed = typedEventSchema.safeParse(event);
+    if (!typed.success || !this.unreadableTypes.has(typed.data.type)) {
+      return event;
+    }
+    return { ...typed.data, type: `${typed.data.type}@newer` };
   }
 
   private claim(body: RequestBody): Response {

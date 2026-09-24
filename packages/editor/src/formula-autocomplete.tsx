@@ -19,6 +19,7 @@ import {
   InlineComboboxItem,
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
+import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
 import { stringProp } from "@repo/editor/node-props";
 import { completeFormulaFromPicker, insertFormulaFromPicker } from "@repo/editor/formula-insert";
@@ -40,7 +41,7 @@ const collectNamedVariables = (editorChildren: readonly TElement[]): NamedVariab
       if (!ElementApi.isElement(node)) {
         continue;
       }
-      if (node.type === "formulaPill") {
+      if (node.type === FORMULA_PILL_KEY) {
         const meta = stringProp(node, "meta") ?? "";
         const parsed = parseFormulaMeta(meta);
         const source = stringProp(node, "source") ?? "";
@@ -105,7 +106,9 @@ const FormulaInputElement = (props: PlateElementProps) => {
                 <SigmaIcon className="mr-2 text-muted-foreground" />
                 <span className="flex min-w-0 flex-1 items-baseline gap-2">
                   <span className="truncate">{variable.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">{variable.display}</span>
+                  <span className="truncate text-body text-muted-foreground">
+                    {variable.display}
+                  </span>
                 </span>
               </InlineComboboxItem>
             ))}

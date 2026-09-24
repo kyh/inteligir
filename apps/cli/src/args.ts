@@ -21,3 +21,18 @@ export const parseBoundedInteger = (
   }
   return value;
 };
+
+// fractional allowed: half a second is a real wait.
+export const parsePositiveNumber = (
+  rawValue: string,
+  flag: string,
+  bounds: { max: number },
+): number => {
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value <= 0 || value > bounds.max) {
+    throw invalidUsage(
+      `${flag} must be a number above 0 and at most ${String(bounds.max)} (got "${rawValue}")`,
+    );
+  }
+  return value;
+};

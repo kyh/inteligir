@@ -1,4 +1,4 @@
-import type { LinkKind } from "./link-extract";
+import type { LinkKind } from "./link-kinds";
 import type { WikiTarget } from "./link-graph-index";
 import { buildResolver } from "./link-resolve";
 import { normalizePath } from "./vault-path";
@@ -9,23 +9,29 @@ export interface RenameCandidateGraph {
   wikiTargets: () => readonly WikiTarget[];
 }
 
-// a superset computed with no reads: the moved doc, its backlinks, and the shadow
-// population — every doc whose link would resolve to `to` afterwards (a rename to
-// `note.md` steals `[[note]]` from `a/note.md`), alias entries included
-export const renameCandidates = (
+// a superset computed with no reads, over `computeMoveEdits`' moves: every moved doc, their
+// backlinks, and the shadow population — every doc whose link would resolve to a moved file
+// afterwards (a rename to `note.md` steals `[[note]]` from `a/note.md`), alias entries included
+export const moveCandidates = (
   graph: RenameCandidateGraph,
-  from: string,
-  to: string,
+  moves: ReadonlyMap<string, string>,
 ): string[] => {
-  const fromPath = normalizePath(from);
-  const toPath = normalizePath(to);
-  const candidates = new Set<string>([fromPath]);
-  for (const entry of graph.backlinks(fromPath)) {
-    candidates.add(entry.sourcePath);
+  const normalizedMoves = new Map(
+    [...moves].map(([from, to]): readonly [string, string] => [
+      normalizePath(from),
+      normalizePath(to),
+    ]),
+  );
+  const candidates = new Set<string>(normalizedMoves.keys());
+  for (const from of normalizedMoves.keys()) {
+    for (const entry of graph.backlinks(from)) {
+      candidates.add(entry.sourcePath);
+    }
   }
 
   const targets = graph.wikiTargets();
-  const postPathOf = (path: string): string => (path === fromPath ? toPath : path);
+  const postPathOf = (path: string): string => normalizedMoves.get(path) ?? path;
+  const movedTo = new Set(normalizedMoves.values());
   const aliasEntries = targets.flatMap((target) =>
     (target.aliases ?? []).map((alias): readonly [string, string] => [
       alias,
@@ -47,7 +53,7 @@ export const renameCandidates = (
         link.kind === "wiki"
           ? postResolver.resolveWiki(link.target)
           : postResolver.resolveMd(link.target, sourcePost);
-      if (hit === toPath) {
+      if (hit !== null && movedTo.has(hit)) {
         candidates.add(target.path);
         break;
       }

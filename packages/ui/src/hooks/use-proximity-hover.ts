@@ -1,6 +1,7 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, MouseEvent, RefObject, SetStateAction } from "react";
+import { sameElements } from "@repo/ui/hooks/use-row-order";
 
 export interface ItemRect {
   top: number;
@@ -11,6 +12,9 @@ export interface ItemRect {
 
 interface UseProximityHoverOptions {
   axis?: "x" | "y" | "xy";
+  // how one item's box is read, in its container's layout space; the default is the whole
+  // offset box
+  measure?: (element: HTMLElement) => ItemRect;
 }
 
 interface UseProximityHoverReturn {
@@ -26,13 +30,30 @@ interface UseProximityHoverReturn {
     onMouseEnter: () => void;
     onMouseLeave: () => void;
   };
-  registerItem: (index: number, element: HTMLElement | null) => void;
+  // the items in the order their indices name; the container is observed while it holds any
+  setItems: (elements: readonly HTMLElement[]) => void;
   measureItems: () => void;
 }
 
 // a popup can be in the DOM a frame before it is laid out, so the remeasure retries rather than
 // publishing zeroed rects; the cap keeps a list hidden for good from spinning forever
 const measurementAttempts = 3;
+
+// offset*, not getBoundingClientRect: layout values ignore a transform on the container (the
+// popup's scale-in) and match the space position: absolute children use
+const offsetBox = (element: HTMLElement): ItemRect => ({
+  height: element.offsetHeight,
+  left: element.offsetLeft,
+  top: element.offsetTop,
+  width: element.offsetWidth,
+});
+
+const sameRect = (a: ItemRect | undefined, b: ItemRect): boolean =>
+  a !== undefined &&
+  a.top === b.top &&
+  a.left === b.left &&
+  a.width === b.width &&
+  a.height === b.height;
 
 const pickIndexXY = (
   container: HTMLElement,
@@ -132,8 +153,8 @@ export const useProximityHover = <T extends HTMLElement>(
   containerRef: RefObject<T | null>,
   options: UseProximityHoverOptions = {},
 ): UseProximityHoverReturn => {
-  const { axis = "y" } = options;
-  const itemsRef = useRef(new Map<number, HTMLElement>());
+  const { axis = "y", measure = offsetBox } = options;
+  const itemsRef = useRef<readonly HTMLElement[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [itemRects, setItemRects] = useState<ItemRect[]>([]);
   const [isMeasured, setIsMeasured] = useState(false);
@@ -148,52 +169,24 @@ export const useProximityHover = <T extends HTMLElement>(
       return false;
     }
     const rects: ItemRect[] = [];
-    let everyItemHasLayout = true;
-    for (const [index, element] of itemsRef.current) {
+    for (const element of itemsRef.current) {
       // an element in a display:none or not-yet-laid-out popup has no offsetParent and reports 0
       // for every offset, which would pin overlays to the top; position: fixed items also lack an
       // offsetParent but do have a size, so the box is the test
       const hasLayoutBox =
         element.offsetParent !== null || element.offsetWidth > 0 || element.offsetHeight > 0;
       if (!hasLayoutBox) {
-        everyItemHasLayout = false;
-        continue;
+        return false;
       }
-      // offset*, not getBoundingClientRect: layout values ignore the parent motion.div's scale
-      // transform and match the space position: absolute children use
-      rects[index] = {
-        height: element.offsetHeight,
-        left: element.offsetLeft,
-        top: element.offsetTop,
-        width: element.offsetWidth,
-      };
-    }
-    if (!everyItemHasLayout) {
-      return false;
+      rects.push(measure(element));
     }
     const prev = itemRectsRef.current;
-    let changed = prev.length !== rects.length;
-    for (let i = 0; !changed && i < rects.length; i += 1) {
-      const p = prev[i];
-      const r = rects[i];
-      // both undefined (sparse slot)
-      if (p === r) {
-        continue;
-      }
-      changed =
-        !p ||
-        !r ||
-        p.top !== r.top ||
-        p.left !== r.left ||
-        p.width !== r.width ||
-        p.height !== r.height;
-    }
-    if (changed) {
+    if (prev.length !== rects.length || rects.some((rect, i) => !sameRect(prev[i], rect))) {
       itemRectsRef.current = rects;
       setItemRects(rects);
     }
     return true;
-  }, [containerRef]);
+  }, [containerRef, measure]);
 
   const measureItems = useCallback(() => {
     runMeasurement();
@@ -225,33 +218,58 @@ export const useProximityHover = <T extends HTMLElement>(
     scheduleMeasurement(measurementAttempts);
   }, [scheduleMeasurement]);
 
-  // observes the items themselves, not only the container: a row changing size in place must
-  // invalidate the rects even after the container remounted under a different element
-  const itemRoRef = useRef<ResizeObserver | null>(null);
-  const getItemRo = useCallback(() => {
-    if (itemRoRef.current === null && globalThis.ResizeObserver !== undefined) {
-      itemRoRef.current = new ResizeObserver(() => {
+  // One observer over the items and their container. Readiness is not dropped on a resize: the
+  // item set is unchanged, and hiding the overlays on every reflow would flicker them. The items
+  // are observed, not only the container, because a row changing size in place moves every row
+  // under it while the container may keep its size.
+  const roRef = useRef<ResizeObserver | null>(null);
+  const observedContainerRef = useRef<HTMLElement | null>(null);
+  const getRo = useCallback(() => {
+    if (roRef.current === null && globalThis.ResizeObserver !== undefined) {
+      roRef.current = new ResizeObserver(() => {
         scheduleMeasurement(measurementAttempts);
       });
     }
-    return itemRoRef.current;
+    return roRef.current;
   }, [scheduleMeasurement]);
 
-  const registerItem = useCallback(
-    (index: number, element: HTMLElement | null) => {
-      if (element) {
-        itemsRef.current.set(index, element);
-        getItemRo()?.observe(element);
-      } else {
-        const previous = itemsRef.current.get(index);
-        if (previous) {
-          itemRoRef.current?.unobserve(previous);
+  const setItems = useCallback(
+    (elements: readonly HTMLElement[]) => {
+      const previous = itemsRef.current;
+      if (sameElements(previous, elements)) {
+        return;
+      }
+      itemsRef.current = elements;
+      const ro = getRo();
+      if (ro !== null) {
+        const next = new Set(elements);
+        for (const element of previous) {
+          if (!next.has(element)) {
+            ro.unobserve(element);
+          }
         }
-        itemsRef.current.delete(index);
+        const had = new Set(previous);
+        for (const element of elements) {
+          if (!had.has(element)) {
+            ro.observe(element);
+          }
+        }
+        // read with the items rather than once at mount: a popup's node mounts in a portal after
+        // the hook's owner, and an empty list has nothing to measure
+        const container = elements.length === 0 ? null : containerRef.current;
+        if (container !== observedContainerRef.current) {
+          if (observedContainerRef.current !== null) {
+            ro.unobserve(observedContainerRef.current);
+          }
+          if (container !== null) {
+            ro.observe(container);
+          }
+          observedContainerRef.current = container;
+        }
       }
       remeasure();
     },
-    [remeasure, getItemRo],
+    [containerRef, getRo, remeasure],
   );
 
   const handleMouseMove = useCallback(
@@ -297,22 +315,6 @@ export const useProximityHover = <T extends HTMLElement>(
     setActiveIndex(null);
   }, []);
 
-  // readiness is not dropped on a container resize: the item set is unchanged, and hiding the
-  // overlays on every reflow would flicker them
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || globalThis.ResizeObserver === undefined) {
-      return;
-    }
-    const ro = new ResizeObserver(() => {
-      scheduleMeasurement(measurementAttempts);
-    });
-    ro.observe(container);
-    return () => {
-      ro.disconnect();
-    };
-  }, [containerRef, scheduleMeasurement]);
-
   useEffect(
     () => () => {
       if (rafIdRef.current !== null) {
@@ -321,8 +323,12 @@ export const useProximityHover = <T extends HTMLElement>(
       if (remeasureRafIdRef.current !== null) {
         cancelAnimationFrame(remeasureRafIdRef.current);
       }
-      itemRoRef.current?.disconnect();
-      itemRoRef.current = null;
+      // forgotten with the observer: Fast Refresh re-runs the effects over the same items, and a
+      // setItems that found them unchanged would leave the new observer watching nothing
+      roRef.current?.disconnect();
+      roRef.current = null;
+      observedContainerRef.current = null;
+      itemsRef.current = [];
     },
     [],
   );
@@ -337,8 +343,8 @@ export const useProximityHover = <T extends HTMLElement>(
     isMeasured,
     itemRects,
     measureItems,
-    registerItem,
     session,
     setActiveIndex,
+    setItems,
   };
 };

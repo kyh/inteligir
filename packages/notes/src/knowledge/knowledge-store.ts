@@ -1,10 +1,12 @@
 // The store is a cache: recovery from corruption or a version mismatch is
 // delete-and-rebuild from the vault, so nothing durable may live in it.
-// Synchronous because the sqlite binding behind it is; the host chunks batches.
+// Synchronous because the sqlite binding behind it is; the host chunks batches, and hands
+// upsertDoc a doc already projected and stemmed so a write parses nothing.
 
-import type { SearchResult } from "./knowledge-index";
 import type { DocProjection } from "./projection";
+import type { DocSearchColumns } from "./search-columns";
 import type { SearchHit } from "./search-index";
+import type { SearchQueryOptions, SearchResult } from "./search-query";
 import type { DocText } from "./text-matches";
 
 export interface StoredDocRow {
@@ -14,27 +16,23 @@ export interface StoredDocRow {
 }
 
 export interface KnowledgeStore {
-  loadAll: () => { docs: StoredDocRow[]; others: { path: string }[] };
-
-  upsertDoc: (row: StoredDocRow, body: string) => void;
+  upsertDoc: (row: StoredDocRow, search: DocSearchColumns) => void;
 
   upsertOther: (path: string) => void;
 
   remove: (path: string) => void;
 
-  clear: () => void;
-
   search: (query: string, limit: number) => SearchResult[];
 
   /** paths and scores only — the related-notes probe shows no row, so no excerpt is cut. */
-  searchRanked: (query: string, limit: number) => SearchHit[];
+  searchRanked: (query: string, limit: number, options?: SearchQueryOptions) => SearchHit[];
 
   /**
-   * every doc's text for the literal scan, in path order; `prefilter` (text-matches'
-   * bodyPrefilter) lets the store drop docs that cannot hold the needle, case-insensitively
-   * over ascii, and null asks for all of them.
+   * every doc's text for the literal scan, in path order; `prefilters` (text-matches'
+   * bodyPrefilters) lets the store drop docs that hold none of them, case-insensitively over
+   * ascii, and null asks for all of them.
    */
-  docTexts: (prefilter: string | null) => DocText[];
+  docTexts: (prefilters: readonly string[] | null) => DocText[];
 
   transaction: (fn: () => void) => void;
 

@@ -41,20 +41,15 @@ const readStylesheet = () => {
 const colourOf = (rule: Rule): string | undefined =>
   /(?:^|;)\s*color\s*:\s*(?<colour>[^;]+)/u.exec(rule.body)?.groups?.colour?.trim();
 
-// a rule declaring only custom properties is theme plumbing, not a hook
-const isTokenBlock = (rule: Rule): boolean => {
-  const declarations = rule.body
-    .split(";")
-    .map((declaration) => declaration.trim())
-    .filter((declaration) => declaration.length > 0);
-  return declarations.length > 0 && declarations.every((line) => line.startsWith("--"));
-};
+// the theme's own scopes carry the syntax palette, not a hook; a class a kit emits that only sets
+// custom properties (the typeset scope) is still a hook
+const THEME_SCOPES = new Set([":root", ".dark"]);
 
 const selectorHooks = () => {
   const hooks = new Set<string>();
   const themeScopes = new Set<string>();
   for (const rule of readStylesheet().rules) {
-    if (isTokenBlock(rule)) {
+    if (THEME_SCOPES.has(rule.selector)) {
       continue;
     }
     for (const match of rule.selector.matchAll(/\.(?<className>[A-Za-z_][A-Za-z0-9_-]*)/gu)) {

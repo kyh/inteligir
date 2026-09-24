@@ -153,12 +153,27 @@ const writeTree = async (node: DirNode, objects: GitObject[]): Promise<string> =
   return tree.oid;
 };
 
+// a body sent with no length is what a stock git client streams for a large push, and it is
+// what sends durable-git's pack bytes to R2 rather than the cell's SQLite
+const streamOf = (bytes: Uint8Array): ReadableStream<Uint8Array> =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+
+interface PushOptions {
+  readonly parent?: string;
+  readonly length?: "declared" | "undeclared";
+}
+
 export const pushVaultFiles = async (
   credential: string,
   message: string,
   files: readonly PushFile[],
   oldOid: string,
-  parent?: string,
+  { length = "declared", parent }: PushOptions = {},
 ): Promise<{ response: Response; commit: string }> => {
   const root = emptyDir();
   for (const file of files) {
@@ -185,7 +200,7 @@ export const pushVaultFiles = async (
   const command = pktLine(`${oldOid} ${commit.oid} refs/heads/main\0report-status`);
   const body = concat([command, encoder.encode("0000"), await buildPack(unique)]);
   const response = await SELF.fetch(`${REMOTE}/git-receive-pack`, {
-    body,
+    body: length === "declared" ? body : streamOf(body),
     headers: {
       ...deviceHeaders(credential),
       "content-type": "application/x-git-receive-pack-request",
@@ -194,3 +209,56 @@ export const pushVaultFiles = async (
   });
   return { commit: commit.oid, response };
 };
+
+const OVERSIZED_CHUNK_BYTES = 1024 * 1024;
+
+// what a stock git client streams for a vault over the push cap: a command, then `packBytes` of
+// pack with no declared length. zeros past the header, since the cap has to refuse before a parse
+export const pushOversizedPack = async (
+  credential: string,
+  packBytes: number,
+): Promise<Response> => {
+  const header = new Uint8Array(12);
+  header.set(encoder.encode("PACK"));
+  new DataView(header.buffer).setUint32(4, 2);
+  new DataView(header.buffer).setUint32(8, 1);
+  const command = pktLine(`${ZERO_OID} ${"1".repeat(40)} refs/heads/main\0report-status`);
+  let sent = header.length;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent >= packBytes) {
+        controller.close();
+        return;
+      }
+      const chunk = new Uint8Array(Math.min(OVERSIZED_CHUNK_BYTES, packBytes - sent));
+      sent += chunk.length;
+      controller.enqueue(chunk);
+    },
+    start(controller) {
+      controller.enqueue(concat([command, encoder.encode("0000"), header]));
+    },
+  });
+  return await SELF.fetch(`${REMOTE}/git-receive-pack`, {
+    body,
+    headers: {
+      ...deviceHeaders(credential),
+      "content-type": "application/x-git-receive-pack-request",
+    },
+    method: "POST",
+  });
+};
+
+// a v0 full clone over side-band-64k: the one fetch durable-git keeps a pack cache for
+export const cloneVault = async (credential: string, head: string): Promise<Response> =>
+  await SELF.fetch(`${REMOTE}/git-upload-pack`, {
+    body: concat([
+      pktLine(`want ${head} side-band-64k\n`),
+      encoder.encode("0000"),
+      pktLine("done\n"),
+    ]),
+    headers: {
+      ...deviceHeaders(credential),
+      "content-type": "application/x-git-upload-pack-request",
+    },
+    method: "POST",
+  });

@@ -1,4 +1,5 @@
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
+import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
 import { cn } from "@repo/ui/lib/cn";
 import { FileTextIcon } from "lucide-react";
 
@@ -29,21 +30,19 @@ export const filterMentionTargets = (
   targets: readonly WikiTargetWire[],
   query: string,
   attached: ReadonlySet<string>,
-): WikiTargetWire[] => {
-  const needle = query.toLowerCase();
-  return targets
-    .filter((target) => target.type === "doc" && !attached.has(target.path))
-    .filter(
-      (target) =>
-        needle === "" ||
-        target.path.toLowerCase().includes(needle) ||
-        target.title.toLowerCase().includes(needle) ||
-        (target.aliases ?? []).some((alias) => alias.toLowerCase().includes(needle)),
-    )
-    .slice(0, MENTION_MAX_ROWS);
-};
+): WikiTargetWire[] =>
+  rankWikiTargets(
+    targets.filter((target) => target.type === "doc" && !attached.has(target.path)),
+    query,
+  ).slice(0, MENTION_MAX_ROWS);
+
+// the textarea keeps focus and names the lit row through aria-activedescendant, so a row carries
+// an id the field can point at.
+export const mentionOptionId = (listId: string, index: number): string =>
+  `${listId}-option-${String(index)}`;
 
 export interface MentionComboboxProps {
+  id: string;
   options: readonly WikiTargetWire[];
   activeIndex: number;
   onHover: (index: number) => void;
@@ -53,6 +52,7 @@ export interface MentionComboboxProps {
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- a popup listbox over the composer's textarea;
    a native select and its options are a different control entirely */
 export const MentionCombobox = ({
+  id,
   options,
   activeIndex,
   onHover,
@@ -63,18 +63,20 @@ export const MentionCombobox = ({
   }
   return (
     <div
+      id={id}
       role="listbox"
       aria-label="Mention a note"
       className="absolute inset-x-0 bottom-full z-10 mb-1 overflow-hidden rounded-lg border border-line bg-surface-raised py-1 shadow-surface-2"
     >
       {options.map((option, index) => (
-        <button
+        <div
           key={option.path}
-          type="button"
+          id={mentionOptionId(id, index)}
           role="option"
+          tabIndex={-1}
           aria-selected={index === activeIndex}
           className={cn(
-            "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-subtitle",
+            "flex w-full cursor-default items-center gap-2 px-2.5 py-1.5 text-left text-subtitle",
             index === activeIndex ? "bg-surface text-ink" : "text-ink-2",
           )}
           onMouseEnter={() => {
@@ -90,7 +92,7 @@ export const MentionCombobox = ({
           <span className="max-w-[45%] shrink-0 truncate text-caption text-ink-3">
             {option.path}
           </span>
-        </button>
+        </div>
       ))}
     </div>
   );

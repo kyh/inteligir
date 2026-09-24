@@ -10,19 +10,13 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { describeGateReason, safeGateReason } from "@repo/editor/note/markdown-gate";
 import type { GateReason } from "@repo/editor/note/markdown-gate";
+import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
 import { deriveOpenDoc, isMarkdownPath } from "@repo/editor/note/open-doc";
 import type { OpenDoc } from "@repo/editor/note/open-doc";
 
-const NO_NOTE_STATE: VaultEditorState = {
-  content: "",
-  dirty: false,
-  path: null,
-  root: "",
-  saving: false,
-};
-
-// keyed to the saved (path, content) it was computed for; analysis lags typing on purpose.
+// keyed to the (path, content) it was computed for, bytes from disk or a settled buffer;
+// analysis lags typing on purpose.
 interface Analyzed {
   rawReason: GateReason | null;
   content: string;
@@ -45,7 +39,7 @@ const INITIAL_ANALYZED: Analyzed = { content: "", path: null, rawReason: null };
 const INITIAL_STATE: OpenNoteState = {
   analyzed: INITIAL_ANALYZED,
   back: [],
-  editor: NO_NOTE_STATE,
+  editor: EMPTY_EDITOR_STATE,
   flush: null,
   forward: [],
   openDoc: { kind: "none" },
@@ -53,6 +47,34 @@ const INITIAL_STATE: OpenNoteState = {
 };
 
 const HISTORY_DEPTH = 50;
+
+// bounded, so a renderer that never idles still settles the verdict
+const IDLE_ANALYSIS_TIMEOUT_MS = 2000;
+
+// node has no idle queue, so a macrotask stands in there.
+const whenIdle = (run: () => void): (() => void) => {
+  if ("requestIdleCallback" in globalThis) {
+    const handle = requestIdleCallback(run, { timeout: IDLE_ANALYSIS_TIMEOUT_MS });
+    return () => {
+      cancelIdleCallback(handle);
+    };
+  }
+  const timer = setTimeout(run, 0);
+  return () => {
+    clearTimeout(timer);
+  };
+};
+
+const verdictFor = (path: string | null, content: string): GateReason | null =>
+  path !== null && isMarkdownPath(path) && content.trim() !== "" ? safeGateReason(content) : null;
+
+// a mid-session rich→raw flip swaps Plate for the textarea under the cursor; say
+// why once. a fresh open lands in the textarea and doesn't toast.
+const toastRawFlip = (was: Analyzed, path: string | null, rawReason: GateReason | null): void => {
+  if (was.path === path && was.rawReason === null && rawReason !== null) {
+    toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
+  }
+};
 
 const capped = (stack: readonly string[]): string[] =>
   stack.length > HISTORY_DEPTH ? stack.slice(stack.length - HISTORY_DEPTH) : [...stack];
@@ -116,35 +138,38 @@ export const createOpenNoteStore = (): OpenNoteStore => {
     });
   };
 
-  let pendingAnalysis: { path: string | null; content: string } | null = null;
+  let pendingAnalysis: { path: string | null; content: string; cancel: () => void } | null = null;
 
-  // a path change is analyzed synchronously with the editor update so the gate
-  // and the content never disagree; a same-path save is analyzed in a microtask
-  // because analyzeMarkdown is a full Slate construct + parse + serialize (up to
-  // 3 passes) and would block every autosave commit. a dirty buffer keeps the last verdict.
+  const dropPendingAnalysis = (): void => {
+    pendingAnalysis?.cancel();
+    pendingAnalysis = null;
+  };
+
+  // bytes from disk (a new path, a reload, a save's merge) are analyzed synchronously
+  // with the editor update, dirty or not: Plate re-seeds from them, and its next
+  // keystroke saves whatever it made of them. the buffer's own settle is analyzed
+  // once the renderer is idle, because analyzeMarkdown is a full Slate construct +
+  // parse + serialize (up to 3 passes) and a microtask would still run it before
+  // the settle's frame paints. a dirty edit keeps the last verdict.
   const publishEditor = (editor: VaultEditorState): void => {
     const s = store.getState();
-    const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
     const pathChanged = s.analyzed.path !== editor.path;
-    if ((pathChanged || s.analyzed.content !== editor.content) && !editor.dirty) {
-      if (pathChanged) {
-        pendingAnalysis = null;
-        const rawReason =
-          isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
-        apply({
-          analyzed: { content: editor.content, path: editor.path, rawReason },
-          editor,
-        });
-        return;
-      }
+    if (editor.diskSeq !== s.editor.diskSeq || (pathChanged && !editor.dirty)) {
+      dropPendingAnalysis();
+      const rawReason = verdictFor(editor.path, editor.content);
+      toastRawFlip(s.analyzed, editor.path, rawReason);
+      apply({
+        analyzed: { content: editor.content, path: editor.path, rawReason },
+        editor,
+      });
+      return;
+    }
+    if (s.analyzed.content !== editor.content && !editor.dirty) {
       const pending = pendingAnalysis;
       if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
+        dropPendingAnalysis();
         const target = { content: editor.content, path: editor.path };
-        pendingAnalysis = target;
-        queueMicrotask(() => {
-          if (pendingAnalysis !== target) {
-            return;
-          }
+        const cancel = whenIdle(() => {
           pendingAnalysis = null;
           // live state, not the snapshot captured at schedule time.
           const live = store.getState();
@@ -155,20 +180,11 @@ export const createOpenNoteStore = (): OpenNoteStore => {
           ) {
             return;
           }
-          const markdownOpen = target.path !== null && isMarkdownPath(target.path);
-          const rawReason =
-            markdownOpen && target.content.trim() !== "" ? safeGateReason(target.content) : null;
-          // a mid-session rich→raw flip swaps Plate for the textarea under the
-          // cursor; say why once. a fresh open lands in the textarea and doesn't toast.
-          if (
-            live.analyzed.path === target.path &&
-            live.analyzed.rawReason === null &&
-            rawReason !== null
-          ) {
-            toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
-          }
+          const rawReason = verdictFor(target.path, target.content);
+          toastRawFlip(live.analyzed, target.path, rawReason);
           apply({ analyzed: { content: target.content, path: target.path, rawReason } });
         });
+        pendingAnalysis = { ...target, cancel };
       }
     }
     apply({ editor });
@@ -191,7 +207,7 @@ export const createOpenNoteStore = (): OpenNoteStore => {
     }
     apply({ openPath: path });
     if (path === null) {
-      publishEditor(NO_NOTE_STATE);
+      publishEditor(EMPTY_EDITOR_STATE);
     }
   };
 

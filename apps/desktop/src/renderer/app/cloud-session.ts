@@ -3,18 +3,10 @@
 
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { orpc, refusalMessage } from "./api";
+import { failed, orpc, refusalMessage } from "./api";
 import { useVaultStatus } from "./vault-hooks";
-
-// Nothing on the ws bus announces a sync pass, so the status polls while a consumer is mounted.
-const STATUS_POLL_MS = 5000;
-
-const failed = (cause: Error, fallback: string): void => {
-  toast.error(refusalMessage(cause, fallback));
-};
 
 export interface CloudSession {
   status: CloudStatusResponse | undefined;
@@ -30,11 +22,7 @@ export interface CloudSession {
 export const useCloudSession = (): CloudSession => {
   const queryClient = useQueryClient();
   const { data: vaultStatus } = useVaultStatus();
-  const statusQuery = useQuery({
-    ...orpc.cloud.status.queryOptions(),
-    refetchInterval: STATUS_POLL_MS,
-    staleTime: 0,
-  });
+  const statusQuery = useQuery(orpc.cloud.status.queryOptions());
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const applyStatus = (next: CloudStatusResponse): void => {
@@ -76,7 +64,7 @@ export const useCloudSession = (): CloudSession => {
         vaultStatus.state !== "no-remote" &&
         vaultStatus.remoteSource === "account";
       const confirmed = await confirm({
-        body: `This machine forgets its credential and everything queued for the cloud.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here. The device stays listed on your account until you revoke it there.`,
+        body: `This machine forgets its credential and everything queued for the cloud, and revokes itself on your account if it can reach it.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here.`,
         confirmLabel: "Sign out",
         destructive: true,
         title: "Stop syncing this device?",

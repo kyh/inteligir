@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useHydrated } from "@tanstack/react-router";
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "@repo/ui/lib/theme";
 
@@ -21,16 +21,9 @@ const XIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// hydration gate: the server snapshot is false, the client snapshot true; nothing to subscribe to
-const neverChanges = () => () => {
-  /* empty */
-};
-const onClient = () => true;
-const onServer = () => false;
-
 const ThemeToggle = () => {
   const { resolved, setTheme } = useTheme();
-  const mounted = useSyncExternalStore(neverChanges, onClient, onServer);
+  const mounted = useHydrated();
 
   const isDark = resolved === "dark";
   // invisible before mount: the icon depends on localStorage, which the server render cannot see

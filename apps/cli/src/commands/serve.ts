@@ -2,6 +2,7 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { readCliVersion } from "../paths";
+import { systemOpenExternalUrl } from "../server/browser-opener";
 import { parsePortValue } from "../server/config";
 import type { ServeOverrides } from "../server/serve";
 import { out, writeOut } from "../output";
@@ -59,7 +60,8 @@ export const serveCommand = () =>
         overrides.INTELIGIR_VAULT_DIR = resolvePathFlag(args.vault, cwd);
       }
 
-      // dynamic import: a static one makes every client verb load hono, drizzle and the runtimes before reading argv (~60ms each).
+      // dynamic import: the bundle splits the server into a chunk of its own, and a static one would load hono, drizzle
+      // and the runtimes before every client verb reads argv (~50ms each, measured on the bundle).
       const { runServe } = await import("../server/serve");
       const { serverUrl, uiUrl } = await runServe(readCliVersion(), overrides);
       writeOut(`\n  inteligir is running — ${uiUrl ?? serverUrl}\n\n`);
@@ -71,7 +73,6 @@ export const serveCommand = () =>
         return;
       }
       // not fatal: a machine with no browser must not take the server down, and the URL is already printed.
-      const { systemOpenExternalUrl } = await import("../server/cloud/browser-opener");
       await systemOpenExternalUrl(uiUrl);
     },
   });

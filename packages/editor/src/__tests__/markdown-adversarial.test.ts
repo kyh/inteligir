@@ -4,8 +4,8 @@ import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 
 // Invariants: (a) analyzeMarkdown never throws; (b) canonical ⇒ roundTrip is
 // byte-stable modulo trailing whitespace; (c) roundTrip output re-parses and is a
-// fixpoint; (d) canonical ⇒ no letters invented or lost; (e) rawReason === null ⟺
-// roundTrip does not throw. Fix the pipeline, never relax an invariant.
+// fixpoint; (d) canonical ⇒ no letters invented or lost; (e) the gate refuses conversion ⟺
+// roundTrip throws. Fix the pipeline, never relax an invariant.
 
 type ViolationKind =
   | "a-analyze-throw"
@@ -40,7 +40,13 @@ const firstDiff = (a: string, b: string): string => {
 
 type Analysis = ReturnType<typeof analyzeMarkdown>;
 
-// (e): the rawReason gate and roundTrip must agree on whether the doc is convertible
+// a lossy round trip still converts: the gate refuses it without roundTrip throwing
+const refusesConversion = (analysis: Analysis): boolean =>
+  analysis.kind !== "canonical" &&
+  analysis.kind !== "normalizes" &&
+  analysis.kind !== "roundtrip-loss";
+
+// (e): the gate and roundTrip must agree on whether the doc is convertible
 const gateViolations = (
   md: string,
   analysis: Analysis,
@@ -48,20 +54,20 @@ const gateViolations = (
   rtError: string | null,
 ): Violation[] => {
   const found: Violation[] = [];
-  if (analysis.rawReason === null && out === null) {
+  if (!refusesConversion(analysis) && out === null) {
     found.push({
-      detail: `rawReason null but roundTrip threw: ${clip(String(rtError))}`,
+      detail: `gate ${analysis.kind} but roundTrip threw: ${clip(String(rtError))}`,
       input: md,
       kind: "e-gate-roundtrip-disagree",
       signature: `e|throw|${anonymize(String(rtError))}`,
     });
   }
-  if (analysis.rawReason !== null && out !== null) {
+  if (refusesConversion(analysis) && out !== null) {
     found.push({
-      detail: `rawReason ${analysis.rawReason.kind} but roundTrip succeeded`,
+      detail: `gate ${analysis.kind} but roundTrip succeeded`,
       input: md,
       kind: "e-gate-roundtrip-disagree",
-      signature: `e|ok|${analysis.rawReason.kind}`,
+      signature: `e|ok|${analysis.kind}`,
     });
   }
   return found;
@@ -164,7 +170,7 @@ const hunt = (md: string): Violation[] => {
   if (out !== null) {
     found.push(...idempotenceViolations(md, out));
   }
-  if (analysis.canonical) {
+  if (analysis.kind === "canonical") {
     found.push(...canonicalViolations(md, out, rtError));
   }
   return found;
@@ -353,7 +359,7 @@ const CORPUS = {
   "nbsp-list-marker": "- item\n",
   "nbsp-only": " ",
   "no-trailing-newline": "# Hi",
-  "nul-byte": "a b\n",
+  "nul-byte": "a\u0000b\n",
   "ordered-padded": "003. a\n",
   "ordered-paren-marker": "1) a\n",
   "ordered-start-zero": "0. a\n",

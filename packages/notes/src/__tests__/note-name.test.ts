@@ -9,7 +9,7 @@ type Row =
   | { input: string; ok: false; reason: ReturnType<typeof reject> };
 
 const reject = (
-  reason: "empty" | "separator" | "illegal-char" | "reserved" | "dot-edge" | "too-long",
+  reason: "empty" | "separator" | "illegal-char" | "bracket" | "reserved" | "dot-edge" | "too-long",
 ) => reason;
 
 const CORPUS: Row[] = [
@@ -50,6 +50,11 @@ const CORPUS: Row[] = [
   { input: "a\u0000b.md", ok: false, reason: reject("illegal-char") },
   { input: "a\u001Fb.md", ok: false, reason: reject("illegal-char") },
   { input: "a\u007Fb.md", ok: false, reason: reject("illegal-char") },
+
+  // a bracket ends a `[[link]]`, so no link could name the note
+  { input: "[draft] plan.md", ok: false, reason: reject("bracket") },
+  { input: "a]b", ok: false, reason: reject("bracket") },
+  { input: "Issue#42.md", ok: true },
 
   { input: ".hidden", ok: false, reason: reject("dot-edge") },
   { input: ".hidden.md", ok: false, reason: reject("dot-edge") },
@@ -111,6 +116,7 @@ describe("checkNoteName — golden corpus", () => {
       "empty",
       "separator",
       "illegal-char",
+      "bracket",
       "reserved",
       "dot-edge",
       "too-long",

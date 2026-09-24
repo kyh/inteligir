@@ -1,5 +1,4 @@
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-import type { VaultIO } from "@repo/editor/vault-editor";
+import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 import { diff3 } from "@repo/notes/text/diff3";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { isDefinedError, refusalMessage, safe } from "../api";
@@ -18,39 +17,52 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     return content;
   };
 
-  const create = async (path: string, content: string): Promise<void> => {
-    // ifAbsent and no hash: hashing content not yet on disk names bytes the
+  const create = async (path: string, content: string): Promise<CreateOutcome> => {
+    // absent, never a hash: hashing content not yet on disk names bytes the
     // server cannot match, so it refuses every create.
-    await api.vault.write({ content, ifAbsent: true, path });
-    bases.set(path, content);
+    const { error } = await safe(api.vault.write({ content, guard: { kind: "absent" }, path }));
+    if (error === null) {
+      bases.set(path, content);
+      return { kind: "created" };
+    }
+    if (isDefinedError(error) && error.code === "ALREADY_EXISTS") {
+      return { kind: "exists" };
+    }
+    throw error;
   };
 
-  const write = async (path: string, content: string): Promise<string> => {
+  const write = async (path: string, content: string): Promise<WriteOutcome> => {
     const base = bases.get(path);
     // Not inferred from `content`: that would let a concurrent edit merge to
     // the disk's bytes alone and drop this write silently.
     if (base === undefined) {
       throw new Error(`write ${path}: no base was read, so nothing can guard this write`);
     }
-    const expectedHash = await contentHashHex(base);
-    const { error } = await safe(api.vault.write({ content, expectedHash, path }));
+    const hash = await contentHashHex(base);
+    const { error } = await safe(
+      api.vault.write({ content, guard: { hash, kind: "expected" }, path }),
+    );
     if (error === null) {
       bases.set(path, content);
-      return content;
+      return { conflicted: false, content, kind: "landed" };
     }
-    // No `current` means a delete raced the write; nothing to merge against.
-    if (
-      isDefinedError(error) &&
-      error.code === "CAS_MISMATCH" &&
-      error.data.current !== undefined
-    ) {
+    if (isDefinedError(error) && error.code === "CAS_MISMATCH") {
+      // No `current` means a delete raced the write; nothing to merge against.
+      if (error.data.current === undefined) {
+        return { kind: "vanished" };
+      }
       const disk = error.data.current.content;
-      const { merged } = diff3(base, content, disk);
-      const retryHash = await contentHashHex(disk);
-      const retry = await safe(api.vault.write({ content: merged, expectedHash: retryHash, path }));
+      const { conflicted, merged } = diff3(base, content, disk);
+      const retry = await safe(
+        api.vault.write({
+          content: merged,
+          guard: { hash: await contentHashHex(disk), kind: "expected" },
+          path,
+        }),
+      );
       if (retry.error === null) {
         bases.set(path, merged);
-        return merged;
+        return { conflicted, content: merged, kind: "landed" };
       }
       throw new Error(
         `write ${path}: conflict retry refused (${refusalMessage(retry.error, "no reason given")})`,
@@ -59,17 +71,13 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     throw error;
   };
 
-  const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
+  // an absent file is as gone as a removed one.
+  const remove = async (path: string): Promise<void> => {
     const { error } = await safe(api.vault.remove({ path }));
-    if (error === null) {
-      bases.delete(path);
-      return { outcome: "removed" };
+    if (error !== null && !(isDefinedError(error) && error.code === "NOT_FOUND")) {
+      throw error;
     }
-    if (isDefinedError(error) && error.code === "NOT_FOUND") {
-      bases.delete(path);
-      return { outcome: "absent" };
-    }
-    throw error;
+    bases.delete(path);
   };
 
   return { create, read, remove, write };

@@ -1,7 +1,7 @@
 // Navigation: moving between places, and the frame that holds them.
 
+import { Sidebar } from "@repo/ui/components/sidebar";
 import {
-  Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
@@ -10,12 +10,14 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
+  SidebarProvider,
+} from "@repo/ui/components/sidebar-core";
+import {
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarProvider,
-} from "@repo/ui/components/sidebar";
+} from "@repo/ui/components/sidebar-menu";
 import { Button } from "@repo/ui/components/button";
 import { EllipsisIcon, PlusIcon, SearchIcon, SettingsIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";

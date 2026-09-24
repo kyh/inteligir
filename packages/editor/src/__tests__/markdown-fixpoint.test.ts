@@ -2,7 +2,7 @@ import type * as PlatejsMarkdown from "@platejs/markdown";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  ParseFailedError,
+  RoundTripError,
   analyzeMarkdown,
   describeGateReason,
   gateReasonFor,
@@ -38,6 +38,13 @@ vi.mock("@platejs/markdown", async (importOriginal) => {
     if (text.includes("drift lost")) {
       return "drift lost\n";
     }
+    // keeps every letter while joining two lines, or splitting one
+    if (text.includes("joined")) {
+      return "joinedlines\n";
+    }
+    if (text.includes("splitme")) {
+      return "splitme\n\nlines\n";
+    }
     return original.serializeMd(editor, options);
   };
   return { ...original, serializeMd };
@@ -46,37 +53,25 @@ vi.mock("@platejs/markdown", async (importOriginal) => {
 describe("bounded fixpoint check (≤3 passes)", () => {
   it("degrades a never-stabilizing round-trip to Raw, badge and Format agreeing", () => {
     const analysis = analyzeMarkdown("driftforever\n");
-    expect(analysis.canonical).toBe(false);
-    expect(analysis.richSafe).toBe(false);
-    expect(analysis.rawReason).toEqual({
-      kind: "parse-error",
-      line: null,
-      message: "Round-trip does not stabilize",
-    });
-    expect(() => roundTrip("driftforever\n")).toThrow(ParseFailedError);
-    expect(() => toCanonical("driftforever\n")).toThrow(ParseFailedError);
-    expect(gateReasonFor(analysis)).toEqual({
-      kind: "parse-error",
-      line: null,
-      message: "Round-trip does not stabilize",
-    });
+    expect(analysis).toEqual({ kind: "unstable" });
+    expect(() => roundTrip("driftforever\n")).toThrow(RoundTripError);
+    expect(() => toCanonical("driftforever\n")).toThrow(RoundTripError);
+    const gateReason = gateReasonFor(analysis);
+    expect(gateReason).toEqual({ kind: "unstable" });
+    expect(gateReason && describeGateReason(gateReason)).not.toMatch(/parse error/iu);
   });
 
   it("returns the settled form for a pass-2 stabilization (Format stays idempotent)", () => {
     expect(roundTrip("driftslow\n")).toBe("drift  slow\n");
     expect(toCanonical(toCanonical("driftslow\n"))).toBe("drift  slow\n");
     const analysis = analyzeMarkdown("driftslow\n");
-    expect(analysis.canonical).toBe(false);
-    expect(analysis.richSafe).toBe(true);
-    expect(analysis.rawReason).toBeNull();
+    expect(analysis).toEqual({ kind: "normalizes" });
     expect(gateReasonFor(analysis)).toBeNull();
   });
 
   it("refuses rich mode when the stabilization chain loses letters", () => {
     const analysis = analyzeMarkdown("driftlossy\n");
-    expect(analysis.canonical).toBe(false);
-    expect(analysis.richSafe).toBe(false);
-    expect(analysis.rawReason).toBeNull();
+    expect(analysis).toEqual({ kind: "roundtrip-loss" });
     const gateReason = gateReasonFor(analysis);
     expect(gateReason).toEqual({ kind: "roundtrip-loss" });
     expect(gateReason && describeGateReason(gateReason)).toBe(
@@ -84,10 +79,17 @@ describe("bounded fixpoint check (≤3 passes)", () => {
     );
   });
 
+  it("refuses rich mode when a save joins two lines without losing a letter", () => {
+    expect(gateReasonFor(analyzeMarkdown("joined\nlines\n"))).toEqual({ kind: "roundtrip-loss" });
+  });
+
+  it("keeps rich mode when a save splits a line", () => {
+    expect(analyzeMarkdown("splitme lines\n")).toEqual({ kind: "normalizes" });
+  });
+
   it("keeps byte-identical output on the single-pass fast path", () => {
     const md = "# Hi\n\n- a\n- b\n";
-    expect(analyzeMarkdown(md).canonical).toBe(true);
-    expect(gateReasonFor(analyzeMarkdown(md))).toBeNull();
+    expect(analyzeMarkdown(md)).toEqual({ kind: "canonical" });
     expect(roundTrip(md)).toBe(md);
   });
 });

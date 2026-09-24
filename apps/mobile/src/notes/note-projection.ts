@@ -3,7 +3,7 @@ import type { Code, List, Paragraph, PhrasingContent, Root, RootContent } from "
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 import { parseMdast } from "@repo/notes/markdown/parse";
-import { parseWikiBodyRange } from "@repo/notes/markdown/remark-wiki-link";
+import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 import { isCalloutLang, RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 
@@ -72,12 +72,11 @@ type LeafPhrasing = Exclude<PhrasingContent, { type: "strong" | "emphasis" | "de
 const wikiSpan = (
   node: Extract<PhrasingContent, { type: "wikiLink" | "wikiEmbed" }>,
 ): InlineSpan => {
-  const body = parseWikiBodyRange(node.body);
-  const label =
-    body.alias ?? (body.anchor === undefined ? body.target : `${body.target}#${body.anchor}`);
-  return node.type === "wikiEmbed" && isMobileImageTarget(body.target)
-    ? { kind: "image-embed", label, target: body.target }
-    : { kind: "wiki-link", label, target: body.target };
+  const { target } = parseWikiBody(node.body);
+  const label = wikiLinkLabel(node.body);
+  return node.type === "wikiEmbed" && isMobileImageTarget(target)
+    ? { kind: "image-embed", label, target }
+    : { kind: "wiki-link", label, target };
 };
 
 const imageAltText = (alt: string | null | undefined): string =>

@@ -16,8 +16,11 @@ src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 
 The window loads `inteligir://app`, a scheme registered `standard` (so Chromium
 gives it a real origin), `secure`, `supportFetchAPI` and `stream`.
-`src/main/protocol.ts` answers everything on it: the built bundle, and — proxied
-to the loopback server — `/rpc/*` and `/vault/asset`.
+`src/main/protocol.ts` registers it and `src/main/protocol-handler.ts` (pure,
+unit-tested over a fake fetch) answers everything on it: the built bundle,
+`/html-frame` (the document a note's html block runs in, under its own sandbox
+policy rather than the page's), and — proxied to the loopback server — `/rpc/*`
+and `/vault/asset`.
 
 That shape is what keeps the page same-origin with its own API without putting
 CORS on the loopback server, and **the renderer never holds the device token**:
@@ -32,6 +35,16 @@ stream dial the loopback origin directly, main attaches the bearer to those
 upgrades with `onBeforeSendHeaders`, and the preload hands the renderer that
 origin as `window.desktopBridge.socketOrigin` — because `window.location.origin`
 is now `inteligir://app` and names no server.
+
+**Both carriers lend the bearer to the page alone.** Chromium tells main which
+origin made each request (`initiatorOrigin`), and neither the page nor a frame
+inside it can forge it. The handler forwards a proxied path only when that is
+`inteligir://app`, or absent for a request the browser started itself, and
+answers anything else 403; the socket filter attaches the header under the same
+rule (`carriesBearer`). A note's own frame is the case it exists for: an
+`inteligir-html` block runs sandboxed, so its origin is opaque (`"null"`), and
+what a note carries must never act with the device token. The gate runs ahead
+of both renderers, because `pnpm dev` serves no CSP.
 
 ## The origin pin is the whole security surface
 
@@ -64,7 +77,9 @@ Two more, on the window's session:
   window loads.
 - **A page-initiated URL reaches the system browser only with a recent user
   gesture.** Electron exposes no activation flag on `setWindowOpenHandler` or
-  `will-navigate`, so the shell measures it from `webContents`'s `input-event`;
+  `will-navigate`, so the shell measures it from `webContents`'s `input-event`,
+  counting only HTML's activation-triggering inputs (a press, a key, a tap —
+  `grantsActivation`), never a pointer passing over the page or a wheel;
   without it a script loop calling `window.open` becomes a loop of OS browser
   launches. Menu and tray items bypass the gate — the click IS the gesture.
 
@@ -74,9 +89,22 @@ Two more, on the window's session:
 argument: `serve`.
 
 Why a child rather than in-process: the server opens `better-sqlite3`
-synchronously, forks a `@parcel/watcher` child and shells out to `git`.
+synchronously, runs a `@parcel/watcher` child and shells out to `git`.
 In-process, all of that would share the event loop that paints the window and
 the lifetime of the compositor.
+
+**Main forks the server's node children too** (`src/main/fork-broker.ts`). A
+utility process cannot fork one of its own, and the packaged binary's
+`runAsNode` fuse is off, so `child_process` cannot run node under it either:
+nothing runs this binary as a plain Node interpreter. The server asks over its
+parent port for the vault watcher and for each ACP adapter; main forks each as a
+utility process, hands the server and the child the two ends of one
+`MessageChannelMain` so they talk directly, reports the child's exit, and kills
+whatever is still running once the server exits. The frames are the CLI's
+(`inteligir/server/child-host/fork-broker-wire`), parsed on both ends; how the
+server rides them is `apps/cli/README.md` § What ships. Nothing here polices
+what the server asks for: it is this app's own child and already runs whatever
+it likes.
 
 Why `utilityProcess` rather than a supervisor of our own: it IS a managed Node
 child with owned bookkeeping, so the process handle, the piped stdio and the
@@ -93,13 +121,23 @@ shutdown listens for: it flushes the vault's pending git commit and closes the
 database. `kill()` sends it on POSIX, and the grace behind it is DERIVED from
 the server's own `SHUTDOWN_TIMEOUT_MS` rather than written down twice — a shell
 that kills early lands SIGKILL on the commit the ordering exists to protect.
+The wait ends on the child's `exit` event, not a poll, so a quick teardown
+costs a quit, a vault switch or an install nothing extra; after a SIGKILL the
+shell still waits for that exit before the next child may claim the data dir.
 
 **A running server is ADOPTED, not fought.** The shell verifies the responder by
 calling `system.status` with the token from the data dir it resolved, and
 adopting requires that call to succeed AND the responder to name that same data
-dir. A port squatter has no token; a neighbouring checkout names another dir.
-Quitting leaves an adopted server running — the shell only kills the child it
-started.
+dir AND to run the version bundled in this app — the renderer and the server
+speak `/local`, whose two ends are free to break together. A port squatter has
+no token; a neighbouring checkout names another dir. Quitting leaves an adopted
+server running — the shell only kills the child it started.
+
+The judgement is the CLI's own (`inteligir/server/server-probe`), the reading
+`serve`'s guard runs before it boots. So a server whose pid is alive but which
+does not answer in time is **silent**, live to both: the shell says so in a
+dialog instead of spawning a child that server's lock would refuse. A server of
+another version is refused the same way, naming both versions and its origin.
 
 ## One config resolution
 
@@ -118,14 +156,14 @@ ambient `NODE_ENV`: a packaged install is the production one (`~/.inteligir`,
 
 An app opened from Finder or the Dock inherits launchd's PATH
 (`/usr/bin:/bin:/usr/sbin:/sbin`), which holds neither agent CLI, and the server
-turns the agent off when it cannot find one on PATH. So before the first fork
+refuses every send while it cannot find one on PATH. So before the first fork
 the packaged shell runs `$SHELL -ilc` once, reads the PATH it prints, and puts
 those entries ahead of the inherited ones on main's own environment, which every
 child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,
 fails or prints nothing leaves the usual install dirs that exist
 (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`) in its place. A dev
-launch skips it: its terminal already has the user's PATH. The smoke never runs
-main, so the unit tests are what cover this.
+launch skips it: its terminal already has the user's PATH. The unit tests pin
+the parse; the smoke's launches run it for real.
 
 ## Running it
 
@@ -148,8 +186,19 @@ pnpm dev -- --remote-debugging-port=9222
 agent-browser connect 9222
 ```
 
-That is the only way to check a change to the window — the shell's unit tests
-cover the policy, never the rendering.
+The shell's unit tests cover the policy, never the glue. `pnpm e2e`'s
+`desktop-shell` scenario (`tools/e2e/src/scenarios/desktop-shell.ts`) is the
+automated form of the same thing: it launches the built shell on a scratch home
+and user-data dir with that flag, and asserts over DevTools that the window is
+on `inteligir://app`, that the rail's listing and a note ride the protocol
+handler's bearer, that an API write reaches the open editor (so the socket
+upgrade carried the bearer), that `window.open` is denied, that Reveal refuses a
+symlink out of the vault and a `..`, that a switch to a remembered vault stops
+the child and boots one on the new vault's data dir, and that a SIGTERM quit
+stops that child and retracts its `server.json`. It runs on the checkout's
+build, not the packaged `.app`, so the fuses, the signature and the login
+shell's PATH stay the smoke's and the unit tests'. On Linux it needs a display:
+CI runs the suite under `xvfb-run`.
 
 ## Packaging
 
@@ -169,12 +218,23 @@ before the task begins. A tree with no cert or no `.release/` still packages
 — both steps are skipped with a warning — but that artifact opens only on the
 machine that built it.
 
-The smoke boots the packaged server exactly as the shell does — the app's own
-Electron binary with `ELECTRON_RUN_AS_NODE=1` — and checks that the native
-modules load under Electron's runtime, that the SPA and API answer, that the
-bundled CLI is executable where the agent's PATH resolver looks for it, and that
-SIGTERM exits 0. **It does not open the window**: `BrowserWindow` needs a
-display, so the origin pin is proven by its unit tests and by nothing here.
+The smoke LAUNCHES the packaged app — the binary runs no JavaScript as plain
+Node, so main is the only way in — on its own `--user-data-dir` (an installed
+Inteligir neither blocks it nor sees it) and a mock keychain (an unsigned pack
+must not stop on a prompt for the installed app's cookie key), with the data and
+vault dirs pinned by environment. It checks that the native modules load under
+Electron's runtime, that the SPA and API answer, that the watcher main forked
+reports an external write, that an agent turn reaches a live adapter (codex, on
+a scratch `CODEX_HOME`: main forks the adapter, the adapter starts its bundled
+native codex, and codex refuses the session for want of a sign-in, which only a
+live adapter can say), that the bundled CLI is executable where the agent's PATH
+resolver looks for it, and that SIGTERM to main stops the server cleanly and
+exits 0. **The window opens, and the smoke checks nothing in it**: the origin
+pin is proven by its unit tests, and the window, the protocol handler, the
+bridge and the vault switch are the `desktop-shell` scenario's, over the
+checkout's build. CI's `test-macos` job runs it on every push and pull request,
+unsigned: `CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through
+to the `package` task, because turbo's strict env mode would strip it.
 
 There is no native-rebuild step, and that is a fact rather than an omission: the
 three native modules are Node-API addons shipping per-platform prebuilds, and
@@ -185,6 +245,15 @@ build.
 
 `node_modules` is unpacked from the asar because a child process cannot be
 spawned from inside an archive and a `.node` binary cannot be loaded from one.
+
+`electronFuses` in `electron-builder.yml` flips the binary's fuses before it is
+signed: `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are ignored, so
+no local process can run the signed app as a node interpreter, `file://` pages
+get no extra privileges, and cookies are encrypted at rest. The flip invalidates
+Electron's own ad-hoc signature, which Apple Silicon kills at launch, so
+`resetAdHocDarwinSignature` re-signs the app ad-hoc right after it: an unsigned
+build (no Developer ID, `CSC_IDENTITY_AUTO_DISCOVERY=false` or
+`-c.mac.identity=null`) runs as it is, and a signed one is re-signed over it.
 
 ### The release path
 
@@ -220,12 +289,15 @@ after launch and every 4 minutes, and the download and the restart are each a
 button — in Settings › About, or the app menu's Check for Updates… with native
 dialogs. Install stops the server child first (the same SIGTERM + grace as
 quit, so the vault's pending commit flushes), then hands Squirrel a silent
-forced relaunch. One step at a time: a poll during a download is skipped, not
-queued. An unpackaged build, or one with no `app-update.yml`, reports itself
-disabled with the reason instead of checking a feed it does not have. The state
-is one plain value (`src/update-state.ts`) reduced in main and parsed off the
-bridge by the page; the policy is unit-tested against a fake updater
-(`src/main/__tests__/updates.test.ts`).
+forced relaunch. Squirrel installs after that call returns, so a failure there
+reaches the shell only as the updater's `error` event: the install step owns
+it, and the shell says so and quits, since the server is already down. One
+step at a time: a poll during a download is skipped, not queued. An unpackaged
+build, or one with no `app-update.yml`, reports itself disabled with the reason
+instead of checking a feed it does not have. The state is one plain value
+(`src/update-state.ts`), a union by status in which each status carries only
+what it knows, reduced in main and parsed off the bridge by the page; the
+policy is unit-tested against a fake updater (`src/main/__tests__/updates.test.ts`).
 
 ## What is deliberately not here
 
@@ -237,4 +309,10 @@ bridge by the page; the policy is unit-tested against a fake updater
   `WebSocket` cannot be proxied; the updater, the spell checker and the vault
   switch, because each lives in main; and Reveal/Open of a vault entry,
   because only main may hand the OS a path. Every other question the page
-  has, it asks its own server over `/rpc`.
+  has, it asks its own server over `/rpc`. Each channel is one row in
+  `src/ipc-contract.ts`, its name beside its request and answer schemas, and a
+  refusal crosses as a value rather than a throw, which Electron would reword.
+  `src/main/__tests__/ipc-contract.test.ts` holds both ends to every row: main
+  registers each channel exactly once, the preload calls it, and neither side
+  spells a channel as a literal, because a row one end forgot fails only at
+  runtime ("No handler registered", or a handler nothing calls).

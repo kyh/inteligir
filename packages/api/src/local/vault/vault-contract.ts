@@ -6,6 +6,7 @@ import { ALREADY_EXISTS, CAS_MISMATCH, INVALID_PATH } from "../local-errors";
 import {
   vaultAssetWriteRequestSchema,
   vaultAssetWriteResponseSchema,
+  vaultCommitRequestSchema,
   vaultCommitResponseSchema,
   vaultDeletedResponseSchema,
   vaultDeleteRequestSchema,
@@ -29,14 +30,15 @@ import {
 } from "./vault-schema";
 
 export const vaultContract = {
+  // CONFLICT: a file stands where the attachments folder must be.
   assetWrite: oc
     .input(vaultAssetWriteRequestSchema)
     .output(vaultAssetWriteResponseSchema)
-    .errors({ INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
+    .errors({ CONFLICT: {}, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
 
   // a restore checkpoints first: the auto-commit is session-shaped, so the bytes being replaced
   // may be in no revision yet.
-  commitNow: oc.output(vaultCommitResponseSchema),
+  commitNow: oc.input(vaultCommitRequestSchema).output(vaultCommitResponseSchema),
 
   // the recovery surface: there is no trash folder, the git log is the record of what was deleted.
   deleted: oc.output(vaultDeletedResponseSchema),
@@ -69,8 +71,8 @@ export const vaultContract = {
     .output(vaultRenameResponseSchema)
     .errors({ CONFLICT: {}, INVALID_PATH, NOT_FOUND: {} }),
 
-  // no vault.restore: restore is the client composing this with write + expectedHash (or
-  // ifAbsent for a deleted note), so there is one cas.
+  // no vault.restore: restore is the client composing this with an `expected`-guarded write (or
+  // an `absent` one for a deleted note), so there is one cas.
   revision: oc
     .input(vaultRevisionRequestSchema)
     .output(vaultRevisionResponseSchema)
@@ -88,8 +90,8 @@ export const vaultContract = {
 
   tree: oc.output(vaultTreeResponseSchema),
 
-  // ALREADY_EXISTS is ifAbsent's refusal; every other collision answers CONFLICT, so no other
-  // row declares it.
+  // ALREADY_EXISTS is the `absent` guard's refusal; every other collision answers CONFLICT, so no
+  // other row declares it.
   write: oc
     .input(vaultWriteRequestSchema)
     .output(vaultWriteResponseSchema)

@@ -75,6 +75,35 @@ describe("duplicate stems", () => {
     expect(duplicates.rows).toEqual([{ paths: ["Guide.md", "a/Guide.md"], stem: "Guide" }]);
     expect(duplicates.total).toBe(1);
   });
+
+  it("groups by the name a link spells, so only `.md` hides its extension", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("todo.md", "# a\n");
+    index.setDoc("todo.txt", "b\n");
+    index.setDoc("x/todo.txt", "c\n");
+    expect(index.problems({ limit: 50 }).duplicateStems.rows).toEqual([
+      { paths: ["todo.txt", "x/todo.txt"], stem: "todo.txt" },
+    ]);
+  });
+});
+
+describe("duplicate ids", () => {
+  const ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+
+  it("groups the docs a byte copy left carrying one frontmatter id, and drops it once one is re-keyed", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("Plan.md", `---\nid: ${ID}\n---\n# Plan\n`);
+    index.setDoc("Plan copy.md", `---\nid: ${ID}\n---\n# Plan\n`);
+    index.setDoc("Other.md", "---\nid: another-id\n---\n# Other\n");
+    index.setDoc("Plain.md", "# Plain\n");
+
+    const duplicates = index.problems({ limit: 50 }).duplicateIds;
+    expect(duplicates.rows).toEqual([{ id: ID, paths: ["Plan copy.md", "Plan.md"] }]);
+    expect(duplicates.total).toBe(1);
+
+    index.setDoc("Plan copy.md", "---\nid: fresh-id\n---\n# Plan\n");
+    expect(index.problems({ limit: 50 }).duplicateIds).toEqual({ rows: [], total: 0 });
+  });
 });
 
 describe("the cap", () => {

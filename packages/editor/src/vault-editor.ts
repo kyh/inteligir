@@ -1,61 +1,101 @@
-// held outside React: every async edge (save-vs-reload, open-vs-reload, root switch,
-// delete-vs-save) needs a guard that reads and writes in one tick, which render-timed refs
-// cannot give.
+// held outside React: every async edge (save-vs-reload, open-vs-reload, delete-vs-save) needs
+// a guard that reads and writes in one tick, which render-timed refs cannot give.
 
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import { diff3 } from "@repo/notes/text/diff3";
+import type { Diff3Result } from "@repo/notes/text/diff3";
+
+// `landed` carries the bytes that landed: a host that merges in a concurrent change lands more than
+// it was sent, and `conflicted` says that merge kept the sent lines where both changed the same
+// ones. `vanished` is a file deleted since its bytes were read, which no retry can land.
+export type WriteOutcome =
+  | { readonly kind: "landed"; readonly content: string; readonly conflicted: boolean }
+  | { readonly kind: "vanished" };
+
+// `exists` is an exclusive create finding the path taken, which a caller may step past under
+// another name; every other failure rejects.
+export type CreateOutcome = { readonly kind: "created" } | { readonly kind: "exists" };
 
 export interface VaultIO {
   read: (path: string) => Promise<string>;
-  // answers the bytes that landed: a host that merges in a concurrent change lands more than it was sent.
-  write: (path: string, content: string) => Promise<string>;
-  // refuses an existing path.
-  create: (path: string, content: string) => Promise<void>;
-  // answers the outcome: the host can hold a delete, and closing the note anyway would report
-  // a deletion that did not happen.
-  remove: (path: string) => Promise<DeleteVaultEntryResult>;
+  // rejects on any failure a later attempt might get past.
+  write: (path: string, content: string) => Promise<WriteOutcome>;
+  create: (path: string, content: string) => Promise<CreateOutcome>;
+  // rejects when the host cannot say the file is gone, so the note stays open over it.
+  remove: (path: string) => Promise<void>;
 }
 
+export type SaveError =
+  | { readonly kind: "vanished" }
+  | { readonly kind: "refused"; readonly message: string };
+
 export interface VaultEditorState {
-  readonly root: string;
   readonly path: string | null;
   readonly content: string;
   readonly dirty: boolean;
-  readonly saving: boolean;
+  // the last write's failure, held until a write lands or the buffer is replaced; `dirty` stays set under it.
+  readonly saveError: SaveError | null;
+  // moves when bytes from the IO rather than an edit replace the buffer: a surface re-seeds from
+  // them and its next keystroke saves them, so they are gated before it does, dirty or not.
+  readonly diskSeq: number;
 }
 
-const EMPTY: VaultEditorState = { content: "", dirty: false, path: null, root: "", saving: false };
+export const EMPTY_EDITOR_STATE: VaultEditorState = {
+  content: "",
+  dirty: false,
+  diskSeq: 0,
+  path: null,
+  saveError: null,
+};
+
+const ignoreRejection = (): void => {
+  /* the write reports its own failure */
+};
 
 const drainNothing = (): void => {
   /* no surface holds edits back */
 };
 
+const tellNobody = (): void => {
+  /* no host is told about a merge conflict */
+};
+
 // `landed` replaced `from` as the bytes the IO writes against, so the buffer's edits since `from`
 // move onto it: kept over `from`, the next save would erase whatever else `landed` carries.
-const rebase = (from: string, buffer: string, landed: string): string => {
+const rebase = (from: string, buffer: string, landed: string): Diff3Result => {
   if (buffer === from) {
-    return landed;
+    return { conflicted: false, merged: landed };
   }
   if (landed === from) {
-    return buffer;
+    return { conflicted: false, merged: buffer };
   }
-  return diff3(from, buffer, landed).merged;
+  return diff3(from, buffer, landed);
 };
 
 export class VaultEditorController {
-  private st: VaultEditorState = EMPTY;
+  private st: VaultEditorState = EMPTY_EDITOR_STATE;
   // only the latest read applies, so a slow read can't land over a newer one.
   private readSeq = 0;
   private writing: Promise<void> | null = null;
+  // a reload a write pre-empted runs once the write settles: the bytes that write landed can
+  // predate the change that asked for it, and no other echo is coming to show that change.
+  private reloadDeferred = false;
   private readonly subs = new Set<() => void>();
   private readonly io: VaultIO;
   // hands over edits a surface still holds back (the rich editor's serialize debounce) before
   // bytes from disk replace the buffer, so they are rebased rather than replayed over those bytes.
   private readonly drain: () => void;
+  // told when a write's merge or a rebase kept the buffer's lines over a concurrent change to the
+  // same ones: that change's lines there are gone from the file, or will be at the next save.
+  private readonly onMergeConflict: () => void;
 
-  constructor(io: VaultIO, drain: () => void = drainNothing) {
+  constructor(
+    io: VaultIO,
+    drain: () => void = drainNothing,
+    onMergeConflict: () => void = tellNobody,
+  ) {
     this.io = io;
     this.drain = drain;
+    this.onMergeConflict = onMergeConflict;
   }
 
   // bound so they can be passed straight to useSyncExternalStore.
@@ -74,29 +114,13 @@ export class VaultEditorController {
     }
   }
 
-  setRoot(root: string): void {
-    if (root !== this.st.root) {
-      this.emit({ root });
-    }
+  externalChange(): void {
+    void this.reloadOpen();
   }
 
-  // the empty sentinel before the root is first known is not a switch, or the user's own first
-  // autosave broadcast would wipe their edits.
-  externalChange(nextRoot: string): void {
-    const rootChanged = this.st.root !== "" && nextRoot !== this.st.root;
-    if (rootChanged) {
-      // cancel in-flight reads against the old root
-      this.readSeq += 1;
-      this.st = { ...EMPTY, root: nextRoot };
-      for (const fn of this.subs) {
-        fn();
-      }
-      return;
-    }
-    if (nextRoot !== this.st.root) {
-      this.emit({ root: nextRoot });
-    }
-    void this.reloadOpen();
+  // an echo of the buffer's own bytes (every save's) replaces nothing, so it leaves the seq alone.
+  private diskSeqFor(content: string): number {
+    return content === this.st.content ? this.st.diskSeq : this.st.diskSeq + 1;
   }
 
   async open(path: string, initial?: string): Promise<boolean> {
@@ -108,7 +132,13 @@ export class VaultEditorController {
     this.readSeq += 1;
     const seq = this.readSeq;
     if (initial !== undefined) {
-      this.emit({ content: initial, dirty: false, path });
+      this.emit({
+        content: initial,
+        diskSeq: this.st.diskSeq + 1,
+        dirty: false,
+        path,
+        saveError: null,
+      });
       return true;
     }
     try {
@@ -117,13 +147,19 @@ export class VaultEditorController {
       if (this.readSeq !== seq) {
         return true;
       }
-      this.emit({ content: text, dirty: false, path });
+      this.emit({
+        content: text,
+        diskSeq: this.st.diskSeq + 1,
+        dirty: false,
+        path,
+        saveError: null,
+      });
     } catch {
       if (this.readSeq !== seq) {
         return true;
       }
       // unreadable (deleted between click and read): don't revive it as an empty buffer.
-      this.emit({ content: "", dirty: false, path: null });
+      this.emit(EMPTY_EDITOR_STATE);
     }
     return true;
   }
@@ -136,98 +172,146 @@ export class VaultEditorController {
   }
 
   private async writeSnapshot(path: string, snapshot: string): Promise<void> {
-    let landed: string;
+    let outcome: WriteOutcome;
     try {
-      landed = await this.io.write(path, snapshot);
-    } catch {
-      // leave dirty set so a later flush retries
-      this.emit({ saving: false });
+      outcome = await this.io.write(path, snapshot);
+    } catch (error) {
+      // dirty stays set, so a later flush retries
+      if (this.st.path === path) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emit({ saveError: { kind: "refused", message } });
+      }
       return;
     }
+    // a file switch landed mid-write: stay dirty
     if (this.st.path !== path) {
-      // a file switch landed mid-write — stay dirty
-      this.emit({ saving: false });
       return;
     }
+    if (outcome.kind === "vanished") {
+      this.emit({ saveError: { kind: "vanished" } });
+      return;
+    }
+    const landed = outcome.content;
     if (landed !== snapshot) {
       this.drain();
     }
     // a newer edit made mid-write stays dirty, on top of what landed
-    const content = rebase(snapshot, this.st.content, landed);
-    this.emit({ content, dirty: content !== landed, saving: false });
+    const rebased = rebase(snapshot, this.st.content, landed);
+    this.emit({
+      content: rebased.merged,
+      diskSeq: this.diskSeqFor(rebased.merged),
+      dirty: rebased.merged !== landed,
+      saveError: null,
+    });
+    if (outcome.conflicted || rebased.conflicted) {
+      this.onMergeConflict();
+    }
   }
 
   async flush(): Promise<void> {
     if (this.writing) {
-      await this.writing.catch(() => {
-        /* empty */
-      });
+      await this.writing.catch(ignoreRejection);
     }
     const { path } = this.st;
     if (path === null || !this.st.dirty) {
       return;
     }
     const snapshot = this.st.content;
-    this.emit({ saving: true });
     const writing = this.writeSnapshot(path, snapshot);
     this.writing = writing;
     await writing;
     if (this.writing === writing) {
       this.writing = null;
+      if (this.reloadDeferred) {
+        this.reloadDeferred = false;
+        void this.reloadOpen();
+      }
     }
   }
 
   // waits for the in-flight write so it can't recreate the file after the delete; dirty is
   // cleared at the end, not up front, so flush's own bookkeeping stays intact while it runs.
-  async remove(): Promise<DeleteVaultEntryResult | null> {
+  async remove(): Promise<boolean> {
     const { path } = this.st;
     if (path === null) {
-      return null;
+      return false;
     }
     if (this.writing) {
-      await this.writing.catch(() => {
-        /* empty */
-      });
+      await this.writing.catch(ignoreRejection);
     }
     // cancel any in-flight read of this path
     this.readSeq += 1;
-    let outcome: DeleteVaultEntryResult | null = null;
     try {
-      outcome = await this.io.remove(path);
+      await this.io.remove(path);
     } catch {
       // the file's fate is unknown, so the note stays.
+      return false;
     }
-    if (outcome !== null && outcome.outcome !== "held") {
-      this.emit({ content: "", dirty: false, path: null });
+    this.emit(EMPTY_EDITOR_STATE);
+    return true;
+  }
+
+  // the file was deleted under unsaved edits, so no write can land: create it again from the
+  // buffer. false when the create is refused, as it is when anything landed at the path since.
+  async recreate(): Promise<boolean> {
+    const { path } = this.st;
+    if (path === null) {
+      return false;
     }
-    return outcome;
+    if (this.writing) {
+      await this.writing.catch(ignoreRejection);
+    }
+    const snapshot = this.st.content;
+    const outcome = await this.io.create(path, snapshot).catch(() => null);
+    if (outcome?.kind !== "created") {
+      return false;
+    }
+    if (this.st.path === path) {
+      this.emit({ dirty: this.st.content !== snapshot, saveError: null });
+    }
+    return true;
   }
 
   // a buffer dirty before the read is left to its save, whose CAS merges the external bytes in.
   private async reloadOpen(): Promise<void> {
     this.drain();
     const { path, content: before } = this.st;
-    if (path === null || this.st.dirty || this.writing) {
+    if (this.writing !== null) {
+      this.reloadDeferred = true;
+      return;
+    }
+    if (path === null || this.st.dirty) {
       return;
     }
     this.readSeq += 1;
     const seq = this.readSeq;
     try {
       const text = await this.io.read(path);
-      if (this.readSeq !== seq || this.st.path !== path || this.writing !== null) {
+      if (this.readSeq !== seq || this.st.path !== path) {
+        return;
+      }
+      if (this.writing !== null) {
+        this.reloadDeferred = true;
         return;
       }
       // the read moved the IO's base to `text`: an edit made while it was in flight is rebased,
       // because left alone the next save would pass the CAS and erase the external bytes.
       this.drain();
-      const content = rebase(before, this.st.content, text);
-      this.emit({ content, dirty: content !== text });
+      const rebased = rebase(before, this.st.content, text);
+      this.emit({
+        content: rebased.merged,
+        diskSeq: this.diskSeqFor(rebased.merged),
+        dirty: rebased.merged !== text,
+      });
+      if (rebased.conflicted) {
+        this.onMergeConflict();
+      }
     } catch {
       if (this.readSeq !== seq) {
         return;
       }
       if (this.st.path === path && !this.st.dirty) {
-        this.emit({ content: "", dirty: false, path: null });
+        this.emit(EMPTY_EDITOR_STATE);
       }
     }
   }

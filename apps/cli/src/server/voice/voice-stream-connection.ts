@@ -4,14 +4,14 @@ import {
 } from "@repo/api/local/voice/voice-schema";
 import type { VoiceStreamDownMessage } from "@repo/api/local/voice/voice-schema";
 import { z } from "zod";
-import { terminateTransport } from "../ws-bus";
 import type { StreamSession } from "./stream-session";
 
 export interface VoiceStreamSocket {
   send: (data: string) => void;
   close: (code?: number, reason?: string) => void;
   readonly readyState: number;
-  readonly raw?: unknown;
+  // the transport under hono's wrapper; only the idle reap terminates through it.
+  readonly raw?: { terminate: () => void };
 }
 
 export type VoiceStreamFrame = string | Blob | ArrayBufferLike;
@@ -22,8 +22,6 @@ export const STREAM_IDLE_TIMEOUT_MS = 10_000;
 
 const SOCKET_OPEN_STATE = 1;
 const NORMAL_CLOSE_CODE = 1000;
-// rfc 6455 going away, so the page can tell a deliberate stop from a dropped connection.
-const GOING_AWAY_CLOSE_CODE = 1001;
 const POLICY_CLOSE_CODE = 1008;
 
 export class VoiceStreamConnection {
@@ -65,7 +63,7 @@ export class VoiceStreamConnection {
 
   #reapIdle(): void {
     // the peer stopped sending without closing; its onClose may never come.
-    this.terminate();
+    this.#terminate();
     void this.dispose();
   }
 
@@ -115,26 +113,21 @@ export class VoiceStreamConnection {
     this.#close(NORMAL_CLOSE_CODE);
   }
 
-  #close(code: number, reason?: string): void {
+  #close(code: number): void {
     this.#clearIdle();
     try {
-      this.#socket.close(code, reason);
+      this.#socket.close(code);
     } catch {
-      // Already closing; dispose / the terminate pass is the backstop.
+      // Already closing; its onClose disposes.
     }
   }
 
-  // does not forget this connection: the terminate pass must still reach a socket that ignores
-  // the frame.
-  goAway(): void {
-    this.#close(GOING_AWAY_CLOSE_CODE, "server-shutting-down");
-    const session = this.#session;
-    this.#session = null;
-    void session?.dispose();
-  }
-
-  terminate(): void {
-    terminateTransport(this.#socket);
+  #terminate(): void {
+    try {
+      this.#socket.raw?.terminate();
+    } catch {
+      // A socket already gone is the outcome we wanted.
+    }
   }
 
   async dispose(): Promise<void> {

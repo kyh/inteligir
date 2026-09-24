@@ -18,9 +18,15 @@ const PRELOAD_OUTPUT = {
   format: "cjs",
 } as const;
 
+// every dependency is inlined, stated rather than left to the rebuild above that drops the
+// preset's `external` today: `inteligir`'s server modules export TS source Node cannot load, and
+// a sandboxed preload can require no package at all.
+const EXTERNALIZE_DEPS = false;
+
 export default defineConfig({
   main: {
     build: {
+      externalizeDeps: EXTERNALIZE_DEPS,
       outDir: ".output/app/main",
       rolldownOptions: {
         external: ELECTRON_RUNTIME,
@@ -30,6 +36,7 @@ export default defineConfig({
   },
   preload: {
     build: {
+      externalizeDeps: EXTERNALIZE_DEPS,
       outDir: ".output/app/preload",
       rolldownOptions: {
         external: ELECTRON_RUNTIME,

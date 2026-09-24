@@ -5,9 +5,9 @@ import { Switch } from "@repo/ui/components/switch";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
-import { orpc } from "../api";
+import { failed, orpc } from "../api";
 import { downloadPercent, useVoiceStatus } from "../voice-hooks";
-import { failed, Row, SectionHeading } from "./settings-chrome";
+import { Row, SectionHeading } from "./settings-chrome";
 
 const megabytes = (bytes: number): string => `${Math.round(bytes / 1_000_000)} MB`;
 

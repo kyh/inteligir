@@ -14,6 +14,7 @@ export interface SendToThreadArgs {
   activeTurnId: string | null;
   // carried on the retry too: start-vs-queue is the server's call, and it drops a queued message's context.
   viewContext?: ViewContext;
+  contextPaths?: readonly string[];
 }
 
 const SEND_REFUSED = "The send was refused.";
@@ -26,6 +27,9 @@ const sendRequest = (args: SendToThreadArgs, expectedTurnId: string | null): Sen
   }
   if (args.viewContext !== undefined) {
     request.viewContext = args.viewContext;
+  }
+  if (args.contextPaths !== undefined && args.contextPaths.length > 0) {
+    request.contextPaths = [...args.contextPaths];
   }
   return request;
 };

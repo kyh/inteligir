@@ -1,8 +1,9 @@
-// renders completed items only and lets streaming deltas pass: the completed item carries their
-// final text.
+// renders completed items only: each carries the final text of the deltas the store never holds.
 
-import type { StoredThread } from "./sync-store";
+import type { StoredThread, StoredThreadEvent } from "./sync-store";
+import { settledReasoningText } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
+import { deriveThreadTitle, firstVisibleLine } from "@repo/domain/thread-title";
 
 export type ThreadDisplayItem =
   | { kind: "user"; id: string; text: string }
@@ -14,16 +15,10 @@ export type ThreadDisplayItem =
 export interface ThreadProjection {
   threadId: string;
   title: string;
+  archived: boolean;
   items: readonly ThreadDisplayItem[];
   preview: string;
 }
-
-const TITLE_MAX = 60;
-
-const firstLine = (text: string): string => {
-  const line = text.split("\n", 1)[0] ?? "";
-  return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1)}…` : line;
-};
 
 const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): string | null => {
   const { item } = event;
@@ -32,7 +27,7 @@ const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): str
       return item.server === undefined ? item.tool : `${item.server}/${item.tool}`;
     }
     case "commandExecution": {
-      return firstLine(item.command);
+      return firstVisibleLine(item.command) ?? item.command;
     }
     case "fileChange": {
       const paths = item.changes.map((change) => change.path);
@@ -57,7 +52,7 @@ const itemFailed = (event: Extract<ThreadEvent, { type: "item/completed" }>): bo
   );
 };
 
-const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null => {
+const itemFrom = (event: StoredThreadEvent, index: number): ThreadDisplayItem | null => {
   switch (event.type) {
     case "client/turn/requested": {
       return { id: `${event.threadId}:req:${index}`, kind: "user", text: event.text };
@@ -74,7 +69,7 @@ const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null =
         return { id: item.id, kind: "agent", text: item.text };
       }
       if (item.type === "reasoning") {
-        const text = [...item.summary, ...item.content].join("\n").trim();
+        const text = settledReasoningText(item).trim();
         return text === "" ? null : { id: item.id, kind: "reasoning", text };
       }
       if (item.type === "plan") {
@@ -85,12 +80,9 @@ const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null =
         ? null
         : { failed: itemFailed(event), id: item.id, kind: "tool", label };
     }
-    case "item/agentMessage/delta":
-    case "item/commandExecution/outputDelta":
-    case "item/plan/delta":
-    case "item/reasoning/summaryTextDelta":
-    case "item/reasoning/textDelta":
     case "item/started":
+    case "thread/archived":
+    case "thread/meta":
     case "thread/tokenUsage/updated":
     case "turn/completed":
     case "turn/started": {
@@ -100,9 +92,17 @@ const itemFrom = (event: ThreadEvent, index: number): ThreadDisplayItem | null =
   }
 };
 
-export const projectThread = (thread: StoredThread): ThreadProjection => {
+const foldThread = (thread: StoredThread): ThreadProjection => {
   const items: ThreadDisplayItem[] = [];
+  let statedTitle: string | null = null;
+  let archived = false;
   for (const [index, event] of thread.events.entries()) {
+    if (event.type === "thread/meta" && event.title !== undefined) {
+      statedTitle = event.title;
+    }
+    if (event.type === "thread/archived") {
+      archived = true;
+    }
     const item = itemFrom(event, index);
     if (item !== null) {
       items.push(item);
@@ -110,10 +110,34 @@ export const projectThread = (thread: StoredThread): ThreadProjection => {
   }
   const firstUser = items.find((item) => item.kind === "user");
   const lastText = items.toReversed().find((item) => item.kind !== "tool");
+  // a log written before threads stated their titles still names them by the first line.
+  const firstLineTitle = firstUser === undefined ? null : deriveThreadTitle(firstUser.text);
   return {
+    archived,
     items,
-    preview: lastText === undefined ? "" : firstLine(lastText.text),
+    preview: lastText === undefined ? "" : (firstVisibleLine(lastText.text) ?? ""),
     threadId: thread.threadId,
-    title: firstUser === undefined ? "Untitled thread" : firstLine(firstUser.text),
+    title: statedTitle ?? firstLineTitle ?? "Untitled thread",
   };
+};
+
+// the desktop's order: live threads first, then archived ones, each run keeping its recency.
+export const liveThreadsFirst = (threads: readonly ThreadProjection[]): ThreadProjection[] => [
+  ...threads.filter((thread) => !thread.archived),
+  ...threads.filter((thread) => thread.archived),
+];
+
+// keyed on the held events, not the snapshot: the fold reads nothing else, and a step of deltas
+// alone publishes a new snapshot over the same array, so a streaming page re-folds nothing. an
+// array is never mutated, so a change to one thread re-folds that thread alone.
+const projections = new WeakMap<readonly StoredThreadEvent[], ThreadProjection>();
+
+export const projectThread = (thread: StoredThread): ThreadProjection => {
+  const cached = projections.get(thread.events);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const projection = foldThread(thread);
+  projections.set(thread.events, projection);
+  return projection;
 };

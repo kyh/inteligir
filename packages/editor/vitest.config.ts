@@ -8,15 +8,14 @@ const alias = { "@repo/editor": path.resolve(import.meta.dirname, "src") };
 // import is stubbed.
 const inlineDeps = [/@platejs\/math/u];
 
-// kit-parity pulls @repo/ui .tsx sources, which need the jsx transform in the node project too.
-const plugins = [react()];
-
 export default defineConfig({
   test: {
     maxWorkers: 2,
     projects: [
       {
-        plugins,
+        // kit-parity pulls @repo/ui .tsx sources, which need the jsx transform here too. The
+        // compiler would be inert: it skips the ssr transform a node project runs.
+        plugins: [react()],
         resolve: { alias },
         test: {
           include: ["src/**/*.test.ts"],
@@ -25,7 +24,10 @@ export default defineConfig({
         },
       },
       {
-        plugins,
+        // Compiled like the shipped renderer, so a component the compiler memoizes wrongly fails
+        // here rather than only in the built app. Test files stay uncompiled: a fixture hook
+        // minted inside a factory is hoisted to module scope with no diagnostic.
+        plugins: [react({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
         resolve: { alias },
         test: {
           environment: "jsdom",

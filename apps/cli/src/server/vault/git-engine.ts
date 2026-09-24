@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
 import type {
   VaultConflict,
   VaultDeletedEntry,
@@ -8,19 +9,26 @@ import type {
 } from "@repo/api/local/vault/vault-schema";
 import type { VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
 import { ACCOUNT_MARKER_KEY } from "./git-bootstrap";
-import { readDeletedNotes, readNoteHistory, readNoteRevision } from "./git-history";
+import {
+  cachedDeletionLog,
+  readDeletedNotes,
+  readNoteHistory,
+  readNoteRevision,
+} from "./git-history";
 import type { NoteHistoryPage } from "./git-history";
 import { entryPaths, isUnmerged, readPorcelain } from "./git-porcelain";
 import type { PorcelainEntry } from "./git-porcelain";
 import {
+  classifyNetworkFailure,
+  gitPath,
   identityEnv,
-  isAuthRefusal,
   isMissingRemoteRef,
   NETWORK_GIT_TIMEOUT_MS,
   redactRemoteUrl,
   runGit,
 } from "./git-run";
-import type { CommitAuthor, RunGitOptions } from "./git-run";
+import type { CommitAuthor, NetworkFailure, RunGitOptions } from "./git-run";
+import type { VaultFilesChange } from "./vault-changes";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 
 // a 15s pause ends an editing session, so the log stays answerable ("the version from before
@@ -43,10 +51,12 @@ export interface GitEngineArgs {
   root: string;
   // re-read every pass so a sign-in or sign-out flips sync live without a restart.
   remote: VaultRemoteProvider;
-  // fired on a sync transition, never on a commit: the state is dirty on both sides of a
-  // commit, and each announcement costs every client a porcelain read under the repo lock.
+  // fired on a sync transition, never on a commit that lands: the state is dirty on both sides
+  // of a commit, and each announcement costs every client a porcelain read under the repo lock.
+  // a flush that fails, and the commit that lands after it, move the reported error, so both fire.
   onStatusChanged?: () => void;
-  onFilesChanged?: () => void;
+  // fired mid-pass, when a rebase moved the tree.
+  onFilesChanged?: (change: VaultFilesChange) => void;
   onError?: (message: string) => void;
   quietMs?: number;
   maxWaitMs?: number;
@@ -56,9 +66,11 @@ export interface GitEngineArgs {
 export interface GitEngine {
   // the flush stages the window's union of paths; no paths means "whatever is dirty" and makes
   // the whole window's flush unscoped. a change nobody announced waits for a whole-tree caller
-  // (a sync pass, commitNow, shutdown, the next boot).
+  // (a sync pass, an unscoped commitNow, shutdown, the next boot).
   scheduleCommit: (paths?: readonly string[]) => void;
-  commitNow: () => Promise<{ files: number } | null>;
+  // with paths, only those, as the engine and allowed under a hold: a checkpoint of one note must
+  // leave a running turn's writes to the turn's own commit. without, the whole dirty tree.
+  commitNow: (paths?: readonly string[]) => Promise<{ files: number } | null>;
   // stages adds, edits and deletions under the paths, never the whole dirty tree; allowed
   // under a hold, being the hold's release path.
   commitPaths: (
@@ -90,21 +102,46 @@ interface RecordedConflict {
   remote: string;
 }
 
+// where a push the remote refused as too large was met. while the remote tip stands and the
+// branch only grew from the refused head, every pack a push would send holds the refused one, so
+// the pass skips a push that could only upload the same refusal again.
+interface RefusedPush {
+  url: string;
+  head: string;
+  remote: string | null;
+}
+
+const pushTooLargeMessage = (remote: VaultRemoteSpec): string =>
+  remote.source === "account"
+    ? `This vault's unsynced history is over the hosted vault's ` +
+      `${String(VAULT_GIT_MAX_PUSH_BYTES / (1024 * 1024))} MiB push limit.`
+    : "The git remote refused the push as too large.";
+
+// what the latest pass to reach a verdict concluded; a pass that ends before one (a pending
+// account, a hold taken during its fetch, a dispose) leaves the last one standing. "none" leaves
+// the report to the tree. "broken" is final: no pass runs after it. "account-mismatch" runs no
+// network step, since a push would upload this vault into an account that never held it.
+// "unreachable" outranks the tree because a failed fetch leaves the tracking ref stale, so
+// "unpushed" would read clean.
+type SyncOutcome =
+  | { kind: "none" }
+  | { kind: "broken" }
+  | { kind: "conflict"; recorded: RecordedConflict }
+  | { kind: "account-mismatch" }
+  | { kind: "detached" }
+  | { kind: "unreachable"; failure: NetworkFailure };
+
 export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const { root } = args;
   const extraEnv = args.env ?? {};
 
   let lastSyncAt: number | null = null;
   let lastError: string | null = null;
-  let lastConflict: RecordedConflict | null = null;
-  let broken = false;
-  // one value, not two booleans: "offline" heals on its own while "unauthorized" refuses every
-  // retry until the user signs in again, and the latest outcome wins. it outranks the porcelain read because
-  // a failed fetch leaves the tracking ref stale, so "unpushed" would read clean.
-  let networkFailure: "offline" | "unauthorized" | null = null;
-  // while true no network invocation runs: pushing would upload this vault into an account
-  // that never held it.
-  let accountMismatch = false;
+  // reported ahead of lastError until a flush or a whole-tree commit lands: a tree the
+  // auto-commit left dirty says why nowhere else, and a vault with no remote runs no pass.
+  let flushError: string | null = null;
+  let lastOutcome: SyncOutcome = { kind: "none" };
+  let refusedPush: RefusedPush | null = null;
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -130,33 +167,55 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const run = async (gitArgs: readonly string[], options: RunGitOptions = {}) =>
     await runGit(root, gitArgs, { ...options, env: { ...extraEnv, ...options.env } });
 
+  const deletionLog = cachedDeletionLog(run);
+
   const runNetwork = async (gitArgs: readonly string[], env?: Record<string, string>) => {
-    try {
-      const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
-      if (env) {
-        options.env = env;
-      }
-      return await run(gitArgs, options);
-    } catch (error) {
-      networkFailure = isAuthRefusal(error) ? "unauthorized" : "offline";
-      throw error;
+    const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
+    if (env) {
+      options.env = env;
+    }
+    return await run(gitArgs, options);
+  };
+
+  const recordNetworkFailure = (failure: NetworkFailure | "lost-race"): void => {
+    // a remote that did not answer says nothing about the tips a recorded conflict was met
+    // between, so the conflict stands; a lost race leaves the tree to say "unpushed".
+    if (failure !== "lost-race" && lastOutcome.kind !== "conflict") {
+      lastOutcome = { failure, kind: "unreachable" };
     }
   };
 
   const porcelain = async (paths: readonly string[] = []): Promise<PorcelainEntry[]> =>
     await readPorcelain(run, paths);
 
+  // --no-verify: a commit the user's hooks refuse leaves the tree dirty for good, and every
+  // sync pass behind it.
+  const commit = async (subject: string, author?: CommitAuthor): Promise<void> => {
+    await run(["-c", "commit.gpgsign=false", "commit", "--no-verify", "-m", subject], {
+      env: identityEnv(author),
+    });
+  };
+
+  const clearFlushError = (): void => {
+    if (flushError !== null) {
+      flushError = null;
+      args.onStatusChanged?.();
+    }
+  };
+
+  // a whole-tree commit that succeeds leaves nothing a failed flush stranded, whoever ran it: a
+  // sync pass or a checkpoint clears the report as a later flush would.
   const commitIfDirty = async (): Promise<{ files: number } | null> => {
     const dirty = entryPaths(await porcelain());
     if (dirty.length === 0) {
+      clearFlushError();
       return null;
     }
     // unscoped: the scoped form passes every path as argv, and a large vault's first commit
     // would exceed ARG_MAX.
     await run(["add", "-A"]);
-    await run(["-c", "commit.gpgsign=false", "commit", "-m", autoCommitSubject(dirty)], {
-      env: identityEnv(),
-    });
+    await commit(autoCommitSubject(dirty));
+    clearFlushError();
     return { files: dirty.length };
   };
 
@@ -175,16 +234,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     // -A with a pathspec stages deletions under it too; the commit takes only the index.
     await run(["add", "-A", "--", ...dirty]);
-    await run(
-      [
-        "-c",
-        "commit.gpgsign=false",
-        "commit",
-        "-m",
-        subject instanceof Function ? subject(dirty) : subject,
-      ],
-      { env: identityEnv(author) },
-    );
+    await commit(subject instanceof Function ? subject(dirty) : subject, author);
     return { files: dirty.length };
   };
 
@@ -218,8 +268,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     } catch (error) {
       // whatever failed is still dirty and its paths are spent: the next flush sweeps everything.
       pendingCommitPaths = null;
-      args.onError?.(error instanceof Error ? error.message : "auto-commit failed");
+      flushError = error instanceof Error ? error.message : "auto-commit failed";
+      args.onError?.(flushError);
+      args.onStatusChanged?.();
+      return;
     }
+    clearFlushError();
   };
 
   const commitScheduler = createDebouncedCallbackScheduler({
@@ -282,9 +336,14 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  const rebaseInProgress = (): boolean =>
-    existsSync(path.join(root, ".git", "rebase-merge")) ||
-    existsSync(path.join(root, ".git", "rebase-apply"));
+  let rebaseStateDirs: readonly string[] | null = null;
+  const rebaseInProgress = async (): Promise<boolean> => {
+    rebaseStateDirs ??= [
+      await gitPath(run, root, "rebase-merge"),
+      await gitPath(run, root, "rebase-apply"),
+    ];
+    return rebaseStateDirs.some((dir) => existsSync(dir));
+  };
 
   const revListCount = async (range: string): Promise<number> => {
     const { stdout } = await run(["rev-list", "--count", range]);
@@ -294,6 +353,60 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const revParse = async (rev: string): Promise<string> => {
     const { stdout } = await run(["rev-parse", rev]);
     return stdout.trim();
+  };
+
+  // what `push origin <branch>` sends, against the tip it is measured from.
+  const pushTips = async (
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<Omit<RefusedPush, "url">> => ({
+    head: await revParse(`refs/heads/${branch}`),
+    remote: remoteHasBranch ? await revParse(`refs/remotes/origin/${branch}`) : null,
+  });
+
+  // a failed check reads as "not an ancestor", which resends the push: the answer a doubt earns.
+  const isAncestor = async (ancestor: string, rev: string): Promise<boolean> => {
+    try {
+      await run(["merge-base", "--is-ancestor", ancestor, rev]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // under the lock, before the push. true ends the pass on the refusal already recorded.
+  const repeatsRefusedPush = async (
+    remote: VaultRemoteSpec,
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<boolean> => {
+    const refused = refusedPush;
+    if (refused === null || refused.url !== remote.url) {
+      return false;
+    }
+    const tips = await pushTips(branch, remoteHasBranch);
+    if (tips.remote !== refused.remote || !(await isAncestor(refused.head, tips.head))) {
+      return false;
+    }
+    lastOutcome = { failure: "too-large", kind: "unreachable" };
+    lastError = pushTooLargeMessage(remote);
+    return true;
+  };
+
+  // what a rebase from a clean tree rewrote on disk. --no-renames: a moved note is a path gone
+  // and a path added, and a consumer has to hear about both.
+  const reportMovedTree = async (from: string, to: string): Promise<void> => {
+    let paths: string[];
+    try {
+      const { stdout } = await run(["diff", "--name-only", "-z", "--no-renames", from, to, "--"]);
+      paths = stdout.split("\0").filter((changed) => changed.length > 0);
+    } catch {
+      args.onFilesChanged?.({ kind: "unknown" });
+      return;
+    }
+    if (paths.length > 0) {
+      args.onFilesChanged?.({ kind: "paths", paths });
+    }
   };
 
   const unmergedPaths = async (): Promise<string[]> => {
@@ -328,8 +441,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     tips: { head: string; remote: string },
   ): Promise<"recorded" | "unhandled"> => {
     // git's own unmerged set, read before the abort wipes it.
-    const conflictFiles = rebaseInProgress() ? await unmergedPathsOr([]) : [];
-    if (rebaseInProgress()) {
+    const conflictFiles = (await rebaseInProgress()) ? await unmergedPathsOr([]) : [];
+    if (await rebaseInProgress()) {
       // never leave the repo mid-rebase.
       await run(["rebase", "--abort"]).catch(() => {
         /* empty */
@@ -337,23 +450,24 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     // a swallowed failed abort would leave every later commit landing in rebase state.
     const stillUnmerged = await unmergedPathsOr(["unknown"]);
-    if (rebaseInProgress() || stillUnmerged.length > 0) {
-      broken = true;
+    if ((await rebaseInProgress()) || stillUnmerged.length > 0) {
+      lastOutcome = { kind: "broken" };
       lastError =
         `a failed rebase could not be aborted; manual recovery needed: ` +
         `run \`git rebase --abort\` in ${root}, then restart inteligir`;
+      // a tree left mid-rebase is no diff between two commits. a clean abort needs no report:
+      // it puts back the tree the pass started from.
+      args.onFilesChanged?.({ kind: "unknown" });
       return "recorded";
     }
     if (conflictFiles.length > 0) {
       const remoteRef = `refs/remotes/origin/${branch}`;
-      lastConflict = {
-        ...tips,
-        conflict: {
-          files: conflictFiles,
-          ours: { commits: await revListCount(`${remoteRef}..HEAD`).catch(() => 0) },
-          theirs: { commits: await revListCount(`HEAD..${remoteRef}`).catch(() => 0) },
-        },
+      const conflict: VaultConflict = {
+        files: conflictFiles,
+        ours: { commits: await revListCount(`${remoteRef}..HEAD`).catch(() => 0) },
+        theirs: { commits: await revListCount(`HEAD..${remoteRef}`).catch(() => 0) },
       };
+      lastOutcome = { kind: "conflict", recorded: { ...tips, conflict } };
       return "recorded";
     }
     return "unhandled";
@@ -361,31 +475,33 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
   // under the lock, before the fetch. answers the branch to sync, or null to end the pass.
   const preparePass = async (remote: VaultRemoteSpec): Promise<string | null> => {
-    if (remote.source === "account" && remote.account === undefined) {
-      // fail closed: the account id is not known yet (the /v1/account fetch is in flight), and
-      // a pass now would skip the marker check, the window a new sign-in pushes the old vault
-      // through. the thread sync retries that fetch and pings this engine when it lands.
-      return null;
-    }
-    if (remote.source === "account" && remote.account !== undefined) {
+    if (remote.source === "account") {
+      if (remote.account.state === "pending") {
+        // fail closed: a pass now would skip the marker check, the window a new sign-in pushes
+        // the old vault through. the thread sync retries the account fetch and pings this
+        // engine when it lands.
+        return null;
+      }
       const marker = await readAccountMarker();
-      if (marker !== null && marker !== remote.account) {
-        accountMismatch = true;
-        // a conflict from the previous account describes a repo this pass will not touch, and
-        // statusSnapshot ranks conflict above mismatch.
-        lastConflict = null;
+      if (marker !== null && marker !== remote.account.id) {
+        lastOutcome = { kind: "account-mismatch" };
         lastError =
           "This vault last synced with a different account. Sign out, or move this vault aside " +
           "and restart to pull the new account's vault.";
         return null;
       }
     }
-    accountMismatch = false;
     await commitIfDirty();
     await ensureOriginRemote(remote.url);
     const branch = await currentBranch();
     if (branch === null) {
+      lastOutcome = { kind: "detached" };
       lastError = "vault HEAD is detached; sync needs a branch";
+      return null;
+    }
+    // past the fence and on a branch: neither of this step's own verdicts holds any more.
+    if (lastOutcome.kind === "account-mismatch" || lastOutcome.kind === "detached") {
+      lastOutcome = { kind: "none" };
     }
     return branch;
   };
@@ -404,22 +520,32 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     const remoteRef = `refs/remotes/origin/${branch}`;
     const tips = { head: await revParse("HEAD"), remote: await revParse(remoteRef) };
-    if (lastConflict?.head === tips.head && lastConflict.remote === tips.remote) {
+    if (
+      lastOutcome.kind === "conflict" &&
+      lastOutcome.recorded.head === tips.head &&
+      lastOutcome.recorded.remote === tips.remote
+    ) {
       return false;
     }
     try {
       // --empty=drop: a local commit already landed upstream would otherwise halt the merge
       // backend as a conflict naming no files.
-      await run(["-c", "commit.gpgsign=false", "rebase", "--empty=drop", remoteRef]);
+      // a replayed commit is committed anew, and git refuses to guess a committer on a host
+      // whose name carries no domain (a Linux box, a container); the authors stay the originals.
+      await run(["-c", "commit.gpgsign=false", "rebase", "--empty=drop", remoteRef], {
+        env: identityEnv(),
+      });
     } catch (error) {
       if ((await recoverFailedRebase(branch, tips)) === "unhandled") {
         throw error;
       }
       return false;
     }
-    lastConflict = null;
-    if ((await revParse("HEAD")) !== tips.head) {
-      args.onFilesChanged?.();
+    // the push decides what this pass reports.
+    lastOutcome = { kind: "none" };
+    const head = await revParse("HEAD");
+    if (head !== tips.head) {
+      await reportMovedTree(tips.head, head);
     }
     return true;
   };
@@ -437,69 +563,55 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       await runNetwork(["fetch", "origin", branch], remote.env);
     } catch (error) {
       if (!isMissingRemoteRef(error)) {
+        recordNetworkFailure(classifyNetworkFailure(error));
         throw error;
       }
-      // a fresh remote: the push below creates the branch. it answered, so it is not offline.
-      networkFailure = null;
+      // a fresh remote: the push below creates the branch. it answered, and it holds nothing a
+      // recorded conflict could be about.
+      lastOutcome = { kind: "none" };
       remoteHasBranch = false;
     }
 
-    if (!(await withRepoLock(async () => await integrateFetched(branch, remoteHasBranch)))) {
+    const pushing = await withRepoLock(
+      async () =>
+        (await integrateFetched(branch, remoteHasBranch)) &&
+        !(await repeatsRefusedPush(remote, branch, remoteHasBranch)),
+    );
+    if (!pushing) {
       return;
     }
 
-    await runNetwork(["push", "origin", branch], remote.env);
-    const { account } = remote;
-    if (remote.source === "account" && account !== undefined) {
+    try {
+      await runNetwork(["push", "origin", branch], remote.env);
+    } catch (error) {
+      const failure = classifyNetworkFailure(error);
+      recordNetworkFailure(failure);
+      if (failure !== "too-large") {
+        throw error;
+      }
+      // read after the refusal: the branch only grows past what the push sent, and a head that
+      // holds the refused one is as large.
+      const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
+      refusedPush = { url: remote.url, ...tips };
+      throw new Error(pushTooLargeMessage(remote), { cause: error });
+    }
+    refusedPush = null;
+    if (remote.source === "account" && remote.account.state === "known") {
+      const accountId = remote.account.id;
       await withRepoLock(async () => {
         if ((await readAccountMarker()) === null) {
-          await run(["config", ACCOUNT_MARKER_KEY, account]);
+          await run(["config", ACCOUNT_MARKER_KEY, accountId]);
         }
       });
     }
-    lastConflict = null;
+    lastOutcome = { kind: "none" };
     lastSyncAt = Date.now();
     lastError = null;
-    networkFailure = null;
   };
 
-  const statusSnapshot = async (): Promise<VaultStatusResponse> => {
-    const currentRemote = args.remote();
-    if (currentRemote === null) {
-      return { lastError, lastSyncAt, state: "no-remote" };
-    }
-    // redacted: an https remote carries the token, and this string reaches logs and the ui.
-    const remote = redactRemoteUrl(currentRemote.url);
-    const remoteSource = currentRemote.source;
-    if (syncing) {
-      return { lastError, lastSyncAt, remote, remoteSource, state: "syncing" };
-    }
-    if (broken) {
-      return { lastError, lastSyncAt, remote, remoteSource, state: "broken" };
-    }
-    if (lastConflict !== null) {
-      return {
-        conflict: lastConflict.conflict,
-        lastError,
-        lastSyncAt,
-        remote,
-        remoteSource,
-        state: "conflict",
-      };
-    }
-    // these outrank the porcelain read: under a hold or after a failed fetch, clean/dirty
-    // would be a claim about the remote this engine cannot make.
-    if (commitHoldCount > 0) {
-      return { lastError, lastSyncAt, remote, remoteSource, state: "held" };
-    }
-    if (accountMismatch) {
-      return { lastError, lastSyncAt, remote, remoteSource, state: "account-mismatch" };
-    }
-    if (networkFailure !== null) {
-      return { lastError, lastSyncAt, remote, remoteSource, state: networkFailure };
-    }
-    // behind the repo lock so a status never reports a sync's half-way tree.
-    return await withRepoLock(async () => {
+  // behind the repo lock so a status never reports a sync's half-way tree.
+  const treeState = async (): Promise<"clean" | "dirty"> =>
+    await withRepoLock(async () => {
       const dirtyPaths = await porcelain()
         .then((entries) => entries.length)
         .catch(() => 0);
@@ -511,11 +623,55 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
           unpushed = await revListCount(`refs/remotes/origin/${branch}..HEAD`).catch(() => 1);
         }
       }
-      if (dirtyPaths > 0 || unpushed > 0) {
-        return { lastError, lastSyncAt, remote, remoteSource, state: "dirty" };
-      }
-      return { lastError, lastSyncAt, remote, remoteSource, state: "clean" };
+      return dirtyPaths > 0 || unpushed > 0 ? "dirty" : "clean";
     });
+
+  const statusSnapshot = async (): Promise<VaultStatusResponse> => {
+    const reportedError = flushError ?? lastError;
+    const currentRemote = args.remote();
+    if (currentRemote === null) {
+      return { lastError: reportedError, lastSyncAt, state: "no-remote" };
+    }
+    const fields = {
+      lastError: reportedError,
+      lastSyncAt,
+      // redacted: an https remote carries the token, and this string reaches logs and the ui.
+      remote: redactRemoteUrl(currentRemote.url),
+      remoteSource: currentRemote.source,
+    };
+    if (syncing) {
+      return { ...fields, state: "syncing" };
+    }
+    const outcome = lastOutcome;
+    // a verdict about the repo outranks a hold, and a hold outranks the rest: under a hold or
+    // after a failed fetch, clean/dirty would be a claim about the remote this engine cannot make.
+    if (outcome.kind === "broken") {
+      return { ...fields, state: "broken" };
+    }
+    if (outcome.kind === "conflict") {
+      return { ...fields, conflict: outcome.recorded.conflict, state: "conflict" };
+    }
+    if (commitHoldCount > 0) {
+      return { ...fields, state: "held" };
+    }
+    switch (outcome.kind) {
+      case "account-mismatch": {
+        return { ...fields, state: "account-mismatch" };
+      }
+      case "detached": {
+        return { ...fields, state: "detached" };
+      }
+      case "unreachable": {
+        return { ...fields, state: outcome.failure };
+      }
+      case "none": {
+        return { ...fields, state: await treeState() };
+      }
+      default: {
+        const exhaustive: never = outcome;
+        return exhaustive;
+      }
+    }
   };
 
   const runSyncPass = async (remote: VaultRemoteSpec): Promise<void> => {
@@ -535,7 +691,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     // says "held" rather than reporting clean as if a pass ran. the provider is read once so
     // the gate and the pass agree on the remote.
     const remote = args.remote();
-    if (remote === null || broken || commitHoldCount > 0) {
+    if (remote === null || lastOutcome.kind === "broken" || commitHoldCount > 0) {
       return await statusSnapshot();
     }
     syncing = true;
@@ -555,14 +711,21 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   };
 
   return {
-    async commitNow() {
-      return await withRepoLock(async () => await commitIfDirty());
+    async commitNow(paths?: readonly string[]) {
+      return await withRepoLock(
+        async () =>
+          await (paths === undefined
+            ? commitIfDirty()
+            : commitPathsIfDirty(paths, undefined, autoCommitSubject)),
+      );
     },
     async commitPaths(paths, author, subject) {
       return await withRepoLock(async () => await commitPathsIfDirty(paths, author, subject));
     },
     async deleted() {
-      return await readDeletedNotes(run, (notePath) => existsSync(path.join(root, notePath)));
+      return await readDeletedNotes(run, deletionLog, (notePath) =>
+        existsSync(path.join(root, notePath)),
+      );
     },
     async dispose() {
       disposed = true;

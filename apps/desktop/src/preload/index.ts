@@ -1,77 +1,61 @@
-// read synchronously at load: the renderer needs the origin before it opens its first socket.
-
 import { contextBridge, ipcRenderer } from "electron";
 import type { z } from "zod";
 
-import { IPC_CHANNELS, socketOriginSchema, toErrorMessage } from "../types";
-import type { IpcFrame, DesktopBridge } from "../types";
-import { pathActionResultSchema } from "../path-action";
-import type { PathActionRequest } from "../path-action";
-import { spellcheckStateSchema } from "../spellcheck-state";
-import { updateStateSchema } from "../update-state";
-import { vaultsStateSchema } from "../vaults-state";
+import {
+  INVOKE_ROUTES,
+  SOCKET_ORIGIN_CHANNEL,
+  socketOriginSchema,
+  UPDATE_STATE_PUSH,
+} from "../ipc-contract";
+import type { InvokeRoute } from "../ipc-contract";
+import type { DesktopBridge } from "../types";
 
-const socketOrigin = socketOriginSchema.parse(ipcRenderer.sendSync(IPC_CHANNELS.SOCKET_ORIGIN));
+// read synchronously at load: the renderer needs the origin before it opens its first socket.
+const socketOrigin = socketOriginSchema.parse(ipcRenderer.sendSync(SOCKET_ORIGIN_CHANNEL));
 
-// the IPC boundary: every frame is parsed here, so the page only ever sees the state it knows;
-// a refusal crosses as Electron's wrapped error, and the page gets the sentence main wrote
-const INVOKE_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/u;
-
-const invokeParsed = async <T>(
-  schema: z.ZodType<T>,
-  channel: string,
-  ...frames: readonly IpcFrame[]
-): Promise<T> => {
-  try {
-    return schema.parse(await ipcRenderer.invoke(channel, ...frames));
-  } catch (error) {
-    throw new Error(toErrorMessage(error).replace(INVOKE_PREFIX, ""), { cause: error });
-  }
-};
+// the IPC boundary: every answer is parsed here, so the page only ever sees a value it knows.
+// A throw that crosses is a fault, not a refusal, and the page words it itself.
+const invoke = async <Request extends z.ZodType, Answer extends z.ZodType>(
+  route: InvokeRoute<Request, Answer>,
+  ...request: z.input<Request> extends undefined ? [] : [z.input<Request>]
+): Promise<z.output<Answer>> =>
+  route.answer.parse(await ipcRenderer.invoke(route.channel, ...request));
 
 const updates: DesktopBridge["updates"] = {
-  check: async () => await invokeParsed(updateStateSchema, IPC_CHANNELS.UPDATE_CHECK),
-  download: async () => await invokeParsed(updateStateSchema, IPC_CHANNELS.UPDATE_DOWNLOAD),
-  getState: async () => await invokeParsed(updateStateSchema, IPC_CHANNELS.UPDATE_GET_STATE),
-  install: async () => await invokeParsed(updateStateSchema, IPC_CHANNELS.UPDATE_INSTALL),
+  check: async () => await invoke(INVOKE_ROUTES.updates.check),
+  download: async () => await invoke(INVOKE_ROUTES.updates.download),
+  getState: async () => await invoke(INVOKE_ROUTES.updates.getState),
+  install: async () => await invoke(INVOKE_ROUTES.updates.install),
   onState: (listener) => {
     // typed by electron's own listener signature, so the frame is parsed, never declared
     const relay: Parameters<typeof ipcRenderer.on>[1] = (_event, frame) => {
-      const parsed = updateStateSchema.safeParse(frame);
+      const parsed = UPDATE_STATE_PUSH.frame.safeParse(frame);
       if (parsed.success) {
         listener(parsed.data);
       }
     };
-    ipcRenderer.on(IPC_CHANNELS.UPDATE_STATE, relay);
+    ipcRenderer.on(UPDATE_STATE_PUSH.channel, relay);
     return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_STATE, relay);
+      ipcRenderer.removeListener(UPDATE_STATE_PUSH.channel, relay);
     };
   },
 };
 
 const spellcheck: DesktopBridge["spellcheck"] = {
-  apply: async (choice) =>
-    await invokeParsed(spellcheckStateSchema, IPC_CHANNELS.SPELLCHECK_APPLY, choice),
-  getState: async () =>
-    await invokeParsed(spellcheckStateSchema, IPC_CHANNELS.SPELLCHECK_GET_STATE),
+  apply: async (choice) => await invoke(INVOKE_ROUTES.spellcheck.apply, choice),
+  getState: async () => await invoke(INVOKE_ROUTES.spellcheck.getState),
 };
 
 const paths: DesktopBridge["paths"] = {
-  open: async (path) =>
-    await invokeParsed(pathActionResultSchema, IPC_CHANNELS.OPEN_PATH, {
-      path,
-    } satisfies PathActionRequest),
-  reveal: async (path) =>
-    await invokeParsed(pathActionResultSchema, IPC_CHANNELS.REVEAL_PATH, {
-      path,
-    } satisfies PathActionRequest),
+  open: async (path) => await invoke(INVOKE_ROUTES.paths.open, { path }),
+  reveal: async (path) => await invoke(INVOKE_ROUTES.paths.reveal, { path }),
 };
 
 const vaults: DesktopBridge["vaults"] = {
-  forget: async (path) => await invokeParsed(vaultsStateSchema, IPC_CHANNELS.VAULTS_FORGET, path),
-  getState: async () => await invokeParsed(vaultsStateSchema, IPC_CHANNELS.VAULTS_GET_STATE),
-  open: async (path) => await invokeParsed(vaultsStateSchema, IPC_CHANNELS.VAULTS_OPEN, path),
-  pick: async () => await invokeParsed(vaultsStateSchema, IPC_CHANNELS.VAULTS_PICK),
+  forget: async (path) => await invoke(INVOKE_ROUTES.vaults.forget, path),
+  getState: async () => await invoke(INVOKE_ROUTES.vaults.getState),
+  open: async (path) => await invoke(INVOKE_ROUTES.vaults.open, path),
+  pick: async () => await invoke(INVOKE_ROUTES.vaults.pick),
 };
 
 contextBridge.exposeInMainWorld("desktopBridge", {

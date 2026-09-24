@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { createConnection } from "../connection";
+import { closeConnection, createConnection } from "../connection";
 import type { DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
@@ -119,6 +119,27 @@ describe("boot", () => {
     // synchronous=NORMAL reads back as 1.
     expect(db.$client.pragma("synchronous", { simple: true })).toBe(1);
     expect(db.$client.pragma("foreign_keys", { simple: true })).toBe(1);
+  });
+
+  it("hands a deleted row's pages back to the disk on close", () => {
+    const databasePath = path.join(makeTempDir("inteligir-db-test-"), "test.db");
+    const db = createConnection(databasePath);
+    runMigrations(db);
+    db.$client.exec("CREATE TABLE scratch (body TEXT NOT NULL)");
+    const insert = db.$client.prepare("INSERT INTO scratch (body) VALUES (?)");
+    for (let row = 0; row < 500; row += 1) {
+      insert.run("x".repeat(1000));
+    }
+    db.$client.exec("DELETE FROM scratch");
+    expect(db.$client.pragma("freelist_count", { simple: true })).toBeGreaterThan(100);
+
+    closeConnection(db);
+    // a second close is the teardown running after a test closed it itself.
+    closeConnection(db);
+
+    const reopened = createConnection(databasePath);
+    expect(reopened.$client.pragma("freelist_count", { simple: true })).toBe(0);
+    closeConnection(reopened);
   });
 });
 

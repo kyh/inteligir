@@ -1,11 +1,11 @@
 // the other guards read source, not prose, so prose and configuration rot unwatched;
 // this walks what the repo says (comments, markdown, configs, strings) against what it has.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, workspaceGlobs, workspaces } from "./repo";
+import { REPO_ROOT, trackedFiles, workspaceGlobs, workspaces } from "./repo";
 
 const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/u;
 
@@ -23,12 +23,10 @@ const DATA_FILES = new Map<string, string>([
 
 // each is a guard's own negative fixture; a blanket ignore-under-tests would hide the rot, which is
 // mostly in tests and configs.
-const DELIBERATE_NON_REFERENCES = new Map<string, string>([
-  [
-    "@repo/gone",
-    "script-naming.test.ts — a workspace that is NOT there is the point of the assertion",
-  ],
-]);
+const DELIBERATE_NON_REFERENCES = new Map<string, string>();
+
+// this file names every key of the table above, so a hit here would keep a stale row alive.
+const GUARD_FILE = path.relative(REPO_ROOT, import.meta.filename);
 
 // an untracked path (dist/, .wrangler/, .dev.vars) is a fact about the machine, not the repo; asked
 // from git rather than pattern-matched so the ignore rules stay in .gitignore and this guard cannot
@@ -59,27 +57,16 @@ const ignoredByGit = (paths: readonly string[]): Set<string> => {
   return ignored;
 };
 
-// git's index, not a directory walk, so build output and ignored sidecars are not read as claims.
-const scannedFiles = (): string[] => {
-  const tracked = execFileSync("git", ["ls-files", "-z"], {
-    cwd: REPO_ROOT,
-    encoding: "utf-8",
-    maxBuffer: 64 * 1024 * 1024,
-  })
-    .split("\0")
-    .filter((file) => file.length > 0);
-  return tracked.filter(
+const scannedFiles = (): string[] =>
+  trackedFiles().filter(
     (file) =>
       SCANNED_FILE.test(file) &&
       !GENERATED_FILE.test(file) &&
       // dot-directories hold tooling state.
       !file.split("/").some((segment) => segment.startsWith(".")) &&
       !DATA_DIR.test(file) &&
-      !DATA_FILES.has(file) &&
-      // the index still lists a file deleted in the working tree.
-      fs.existsSync(path.join(REPO_ROOT, file)),
+      !DATA_FILES.has(file),
   );
-};
 
 interface Reference {
   text: string;
@@ -113,26 +100,42 @@ const repoPathPattern = (): RegExp => {
   return new RegExp(`(?<reference>(?:${groups.join("|")})\\/[A-Za-z0-9._@/-]+[A-Za-z0-9_])`, "gu");
 };
 
-const danglingIn = (pattern: RegExp, resolves: (text: string) => boolean): string[] => {
-  const dangling: string[] = [];
+interface Sweep {
+  dangling: string[];
+  // the DELIBERATE_NON_REFERENCES keys this sweep actually excused.
+  excused: Set<string>;
+}
+
+const danglingIn = (pattern: RegExp, resolves: (text: string) => boolean): Sweep => {
+  const sweep: Sweep = { dangling: [], excused: new Set() };
   for (const file of scannedFiles()) {
     for (const reference of referencesIn(file, pattern)) {
       if (resolves(reference.text)) {
         continue;
       }
       if (DELIBERATE_NON_REFERENCES.has(reference.text)) {
+        if (reference.file !== GUARD_FILE) {
+          sweep.excused.add(reference.text);
+        }
         continue;
       }
-      dangling.push(`  ${reference.file}:${reference.line}  ${reference.text}`);
+      sweep.dangling.push(`  ${reference.file}:${reference.line}  ${reference.text}`);
     }
   }
-  return dangling;
+  return sweep;
 };
+
+const sweepWorkspaceNames = (): Sweep => {
+  const live = new Set(workspaces().map((workspace) => workspace.name));
+  return danglingIn(WORKSPACE_NAME, (text) => live.has(text));
+};
+
+const sweepRepoPaths = (): Sweep =>
+  danglingIn(repoPathPattern(), (text) => fs.existsSync(path.join(REPO_ROOT, text)));
 
 describe("dangling references", () => {
   it("every @repo/* name written anywhere is a workspace that exists", () => {
-    const live = new Set(workspaces().map((workspace) => workspace.name));
-    const dangling = danglingIn(WORKSPACE_NAME, (text) => live.has(text));
+    const { dangling } = sweepWorkspaceNames();
     expect(
       dangling,
       `These name a @repo/* workspace that does not exist.\n` +
@@ -143,9 +146,7 @@ describe("dangling references", () => {
   });
 
   it("every repo-relative path written anywhere is a file or directory that exists", () => {
-    const referenced = danglingIn(repoPathPattern(), (text) =>
-      fs.existsSync(path.join(REPO_ROOT, text)),
-    );
+    const referenced = sweepRepoPaths().dangling;
     // node_modules/ sits behind a symlink check-ignore refuses to walk, so it is answered here.
     const named = referenced.map((line) => line.trim().split(/\s+/u).slice(1).join(" "));
     const ignored = ignoredByGit(named.filter((text) => !text.includes("node_modules/")));
@@ -169,6 +170,15 @@ describe("dangling references", () => {
     expect(
       missing,
       `DATA_FILES names files that no longer exist:\n${missing.map((file) => `  ${file}`).join("\n")}`,
+    ).toEqual([]);
+
+    const excused = new Set([...sweepWorkspaceNames().excused, ...sweepRepoPaths().excused]);
+    const spent = [...DELIBERATE_NON_REFERENCES.keys()].filter((key) => !excused.has(key));
+    expect(
+      spent,
+      `DELIBERATE_NON_REFERENCES rows that excuse nothing — no swept file outside this guard writes the name, or it now resolves:\n` +
+        `${spent.map((key) => `  ${key}`).join("\n")}\n` +
+        `  fix: delete the row from tools/repo-guards/src/dangling-references.test.ts`,
     ).toEqual([]);
   });
 });

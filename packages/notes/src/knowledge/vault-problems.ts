@@ -3,8 +3,8 @@
 // that fixes it. Each family is capped on its own; the totals say what the cap hid.
 
 import { DAILY_NOTES_FOLDER, TEMPLATES_FOLDER } from "../templates/placeholders";
-import { docStem, isDocPath } from "./doc-file";
-import type { LinkKind } from "./link-extract";
+import { isDocPath, wikiLinkName } from "./doc-file";
+import type { LinkKind } from "./link-kinds";
 import type { BacklinkEntry, ForwardLinkEntry, WikiTarget } from "./link-graph-index";
 import { extnamePath } from "./vault-path";
 
@@ -28,6 +28,13 @@ export interface DuplicateStemRow {
   paths: string[];
 }
 
+// a byte copy (Finder's duplicate, an agent's `cp`) carries the `id:` line along, and the id keys
+// the comment store and the `[[Title|uuid]]` tier, so the two notes share both
+export interface DuplicateIdRow {
+  id: string;
+  paths: string[];
+}
+
 export interface ProblemFamily<T> {
   rows: T[];
   total: number;
@@ -38,6 +45,7 @@ export interface VaultProblems {
   missingEmbeds: ProblemFamily<UnresolvedLinkRow>;
   orphans: ProblemFamily<OrphanRow>;
   duplicateStems: ProblemFamily<DuplicateStemRow>;
+  duplicateIds: ProblemFamily<DuplicateIdRow>;
 }
 
 export interface ProblemsGraph {
@@ -80,6 +88,8 @@ export const collectVaultProblems = (
   const missingEmbeds: UnresolvedLinkRow[] = [];
   const orphans: OrphanRow[] = [];
   const byStem = new Map<string, string[]>();
+  // the rows come by path, so a duplicate's paths come out sorted
+  const byId = new Map<string, string[]>();
 
   for (const doc of docs) {
     // once per source and target: a note naming [[Nowhere]] twice is one problem
@@ -114,12 +124,22 @@ export const collectVaultProblems = (
       }
     }
 
-    const stem = docStem(doc.path).toLowerCase();
+    // the name a bare link answers to, not the title: `a.md` and `a.txt` are `[[a]]` and `[[a.txt]]`
+    const stem = wikiLinkName(doc.path).toLowerCase();
     const paths = byStem.get(stem);
     if (paths === undefined) {
       byStem.set(stem, [doc.path]);
     } else {
       paths.push(doc.path);
+    }
+
+    if (doc.id !== undefined) {
+      const sharing = byId.get(doc.id);
+      if (sharing === undefined) {
+        byId.set(doc.id, [doc.path]);
+      } else {
+        sharing.push(doc.path);
+      }
     }
   }
 
@@ -129,10 +149,18 @@ export const collectVaultProblems = (
     if (paths.length < 2 || first === undefined) {
       continue;
     }
-    duplicateStems.push({ paths, stem: docStem(first) });
+    duplicateStems.push({ paths, stem: wikiLinkName(first) });
+  }
+
+  const duplicateIds: DuplicateIdRow[] = [];
+  for (const [id, paths] of byId) {
+    if (paths.length > 1) {
+      duplicateIds.push({ id, paths });
+    }
   }
 
   return {
+    duplicateIds: capped(duplicateIds, options.limit),
     duplicateStems: capped(duplicateStems, options.limit),
     missingEmbeds: capped(missingEmbeds, options.limit),
     orphans: capped(orphans, options.limit),

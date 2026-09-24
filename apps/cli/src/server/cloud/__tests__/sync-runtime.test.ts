@@ -1,14 +1,21 @@
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
+import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
+import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
+import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { closeConnection, createConnection, writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
+import { MissingTurnStartedError } from "@repo/db/events";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import nodePath from "node:path";
+import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { z } from "zod";
 import { CAPTURE_INBOX_PATH } from "../captures";
 import type { CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
@@ -43,7 +50,7 @@ const makeVault = (): FakeVault => {
       return await Promise.resolve({ content, path });
     },
     writeGuarded: async (path, content, guard) => {
-      if ("ifAbsent" in guard) {
+      if (guard.kind === "absent") {
         if (files.has(path)) {
           return await Promise.resolve({ applied: false, reason: "exists" });
         }
@@ -72,6 +79,8 @@ interface Harness {
   applied: { threadId: string; events: readonly ThreadEvent[]; cursor: number }[];
   socketOpens: OpenCloudSocketArgs[];
   vaultPings: () => number;
+  /** the status as each onStatusChanged found it. */
+  statusNotices: CloudStatusResponse[];
 }
 
 const makeHarness = (
@@ -94,6 +103,10 @@ const makeHarness = (
   const applied: Harness["applied"] = [];
   const socketOpens: OpenCloudSocketArgs[] = [];
   let vaultPings = 0;
+  const statusNotices: CloudStatusResponse[] = [];
+  // null before the constructor returns (a stored credential opens its session inside it) and
+  // after the teardown closes the db status() reads.
+  let asked: CloudRuntime | null = null;
   const sink: SyncedEventSink = {
     applySyncedEvents: (args) => {
       applied.push({
@@ -116,18 +129,26 @@ const makeHarness = (
     transport.pollIntervalMs = options.pollIntervalMs;
   }
   const runtime = createCloudRuntime({
+    build: "0.0.0-test",
     cloudUrl: CLOUD_URL,
     dataDir,
     db,
     onDebug: () => {},
+    onStatusChanged: () => {
+      if (asked !== null) {
+        statusNotices.push(asked.status());
+      }
+    },
     onVaultPing: () => {
       vaultPings += 1;
     },
     transport,
     vault,
   });
+  asked = runtime;
   runtime.attach(sink);
   onTestFinished(() => {
+    asked = null;
     void runtime.dispose();
     closeConnection(db);
   });
@@ -138,6 +159,7 @@ const makeHarness = (
     db,
     runtime,
     socketOpens,
+    statusNotices,
     vault,
     vaultPings: () => vaultPings,
   };
@@ -183,7 +205,7 @@ describe("sync is off until someone signs in", () => {
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
-  it("makes no request after a logout either", async () => {
+  it("makes no request after a logout either, past the one that revokes the device", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     await signIn(harness);
     append(harness, [message("thr_1", "before")]);
@@ -194,7 +216,11 @@ describe("sync is off until someone signs in", () => {
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
     append(harness, [message("thr_1", "after")]);
     await harness.runtime.syncNow();
-    expect(harness.cloud.requests).toHaveLength(requestsWhileSignedIn);
+    // settles the sign-out, which the logout itself never waits for.
+    await harness.runtime.dispose();
+    expect(harness.cloud.requests.slice(requestsWhileSignedIn)).toEqual([
+      `POST ${DEVICE_API_PATHS.signOut}`,
+    ]);
   });
 });
 
@@ -356,6 +382,101 @@ describe("a revoked device", () => {
   });
 });
 
+type Json = z.infer<ReturnType<typeof z.json>>;
+
+const jsonArraySchema = z.array(z.json());
+const jsonObjectSchema = z.record(z.string(), z.json());
+
+// every object a newer worker answers gains a field this build never declared, except an event
+// body, which the wire carries opaque
+const grown = (value: Json): Json => {
+  const array = jsonArraySchema.safeParse(value);
+  if (array.success) {
+    return array.data.map(grown);
+  }
+  const object = jsonObjectSchema.safeParse(value);
+  if (!object.success) {
+    return value;
+  }
+  return {
+    ...Object.fromEntries(
+      Object.entries(object.data).map(([key, inner]) => [
+        key,
+        key === "event" ? inner : grown(inner),
+      ]),
+    ),
+    addedByANewerWorker: { nested: [1] },
+  };
+};
+
+const fromANewerWorker =
+  (cloud: FakeCloud): CloudFetch =>
+  async (input, init) => {
+    const response = await cloud.fetch(input, init);
+    const body = z.json().parse(await response.json());
+    return Response.json(grown(body), { status: response.status });
+  };
+
+describe("a worker newer than this build", () => {
+  it("signs in, pushes, pulls, claims and acks through answers that grew a field", async () => {
+    const cloud = new FakeCloud();
+    const peer = makeHarness({ cloud, pollIntervalMs: null });
+    await signIn(peer);
+    append(peer, [message("thr_peer", "from the other device")]);
+    await peer.runtime.syncNow();
+
+    const harness = makeHarness({ cloud, fetch: fromANewerWorker(cloud), pollIntervalMs: null });
+    await signIn(harness);
+    append(harness, [message("thr_mine", "from this device")]);
+    cloud.capture("buy oat milk");
+    const status = await harness.runtime.syncNow();
+
+    expect(status).toMatchObject({ lastError: null, state: "signed-in" });
+    expect(harness.applied.map((batch) => batch.threadId)).toEqual(["thr_peer"]);
+    expect(cloud.logSize()).toBe(2);
+    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
+    expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
+  });
+
+  it("still hears a revocation whose refusal grew a field", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({ cloud, fetch: fromANewerWorker(cloud), pollIntervalMs: null });
+    const deviceId = await signIn(harness);
+
+    cloud.revoke(deviceId);
+    await harness.runtime.syncNow();
+
+    expect(harness.runtime.status().state).toBe("unauthorized");
+  });
+
+  it("reads a refusal code it does not know as a fault to retry, in the worker's words", async () => {
+    const cloud = new FakeCloud();
+    let paused = false;
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) =>
+        paused && new URL(input).pathname === SYNC_API_PATHS.pull
+          ? Response.json(
+              { error: { code: "account-paused", message: "This account is paused." } },
+              { status: 403 },
+            )
+          : await cloud.fetch(input, init),
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+
+    paused = true;
+    const refused = await harness.runtime.syncNow();
+    expect(refused.state).toBe("signed-in");
+    expect(refused.state === "signed-in" ? refused.lastError : null).toMatch(
+      /This account is paused\./u,
+    );
+
+    paused = false;
+    expect(await harness.runtime.syncNow()).toMatchObject({ lastError: null, state: "signed-in" });
+  });
+});
+
 describe("the invalidation socket", () => {
   it("ignores a sync ping this device's cursor already covers", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
@@ -400,11 +521,192 @@ describe("the invalidation socket", () => {
       throw new Error("expected a socket dial");
     }
 
-    // 1008: the cloud severing a revoked device.
     harness.cloud.revoke(deviceId);
-    dial.onClose(1008);
+    dial.onClose(SYNC_WS_REVOKED_CLOSE_CODE);
     await harness.runtime.syncNow();
     expect(harness.runtime.status().state).toBe("unauthorized");
+  });
+
+  it("catches up once it opens: a ping sent while it was down reached nothing", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    const [dial] = harness.socketOpens;
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
+    const quiet = harness.cloud.requests.length;
+
+    dial.onOpen();
+
+    await vi.waitFor(() => {
+      expect(harness.cloud.requests.length).toBeGreaterThan(quiet);
+    });
+    // joins the requested pass, so the teardown does not close the db under it.
+    await harness.runtime.syncNow();
+    expect(harness.statusNotices).toContainEqual(expect.objectContaining({ connected: true }));
+  });
+});
+
+describe("the status bus", () => {
+  it("announces a sign-in, the end of every pass and a revocation, so nothing polls", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    const deviceId = await signIn(harness);
+    expect(harness.statusNotices.at(-1)).toMatchObject({ deviceId, state: "signed-in" });
+
+    harness.statusNotices.length = 0;
+    append(harness, [message("thr_1", "pushed by the next pass")]);
+    await harness.runtime.syncNow();
+    expect(harness.statusNotices.at(-1)).toMatchObject({ pending: 0, state: "signed-in" });
+
+    harness.cloud.revoke(deviceId);
+    await harness.runtime.syncNow();
+    expect(harness.statusNotices).toContainEqual(
+      expect.objectContaining({ state: "unauthorized" }),
+    );
+  });
+});
+
+describe("a pass that did not reach the cloud", () => {
+  it("leaves lastSyncedAt where the last whole pass put it, and says why", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    const cloud = new FakeCloud();
+    let offline = false;
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) => {
+        if (offline && new URL(input).pathname === SYNC_API_PATHS.pull) {
+          throw new Error("network is down");
+        }
+        return await cloud.fetch(input, init);
+      },
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+    expect(harness.runtime.status()).toMatchObject({ lastError: null, lastSyncedAt: 1_000_000 });
+
+    offline = true;
+    vi.setSystemTime(2_000_000);
+    const after = await harness.runtime.syncNow();
+
+    expect(after).toMatchObject({ lastSyncedAt: 1_000_000, state: "signed-in" });
+    expect(after.state === "signed-in" ? after.lastError : null).toMatch(/network is down/u);
+  });
+
+  it("keeps a failed push's error when the pull after it succeeds", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    const cloud = new FakeCloud();
+    let pushDown = false;
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) =>
+        pushDown && new URL(input).pathname === SYNC_API_PATHS.push
+          ? new Response(null, { status: 503 })
+          : await cloud.fetch(input, init),
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+
+    pushDown = true;
+    append(harness, [message("thr_1", "the push cannot land")]);
+    vi.setSystemTime(2_000_000);
+    const after = await harness.runtime.syncNow();
+
+    expect(after).toMatchObject({ lastSyncedAt: 1_000_000, pending: 1, state: "signed-in" });
+    expect(after.state === "signed-in" ? after.lastError : null).toMatch(/HTTP 503/u);
+  });
+
+  it("says why a capture it claimed could not be written", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    harness.vault.writeGuarded = async () =>
+      await Promise.resolve({ applied: false, reason: "exists" });
+
+    harness.cloud.capture("buy oat milk");
+    const after = await harness.runtime.syncNow();
+
+    expect(after.state === "signed-in" ? after.lastError : null).toMatch(
+      /appeared under the capture write/u,
+    );
+  });
+});
+
+// pages of one row, so three passes' worth of pages is a few dozen rows rather than fifteen thousand.
+const onePerPage =
+  (cloud: FakeCloud, onPull: () => void = () => {}): CloudFetch =>
+  async (input, init) => {
+    const url = new URL(input);
+    if (url.pathname === SYNC_API_PATHS.pull) {
+      url.searchParams.set("limit", "1");
+      onPull();
+    }
+    return await cloud.fetch(url.toString(), init);
+  };
+
+const BACKLOG = 3 * MAX_PULL_PAGES_PER_PASS;
+
+const writeBacklog = async (cloud: FakeCloud): Promise<void> => {
+  const writer = makeHarness({ cloud, pollIntervalMs: null });
+  await signIn(writer);
+  append(
+    writer,
+    Array.from({ length: BACKLOG }, (_, index) => message("thr_backlog", `row ${index}`)),
+  );
+  await writer.runtime.syncNow();
+  expect(cloud.logSize()).toBe(BACKLOG);
+};
+
+describe("a backlog past one pass's cap", () => {
+  it("is applied whole by one sync, and only its last pass is stamped synced", async () => {
+    const cloud = new FakeCloud();
+    await writeBacklog(cloud);
+    const stampsAtPull: (number | null)[] = [];
+    let reader: Harness | null = null;
+    reader = makeHarness({
+      cloud,
+      fetch: onePerPage(cloud, () => {
+        if (reader !== null) {
+          stampsAtPull.push(readSyncState(reader.db).lastSyncedAt);
+        }
+      }),
+      pollIntervalMs: null,
+    });
+
+    // the login's pass is the one sync: it starts from an empty cursor with the whole log ahead.
+    await loginAs(reader.runtime, "Reader");
+
+    expect(readSyncState(reader.db).cursor).toBe(BACKLOG);
+    expect(reader.applied.flatMap((entry) => entry.events)).toHaveLength(BACKLOG);
+    // three capped passes of one-row pages, back to back.
+    expect(stampsAtPull).toHaveLength(BACKLOG);
+    expect(stampsAtPull.filter((stamp) => stamp !== null)).toEqual([]);
+    expect(readSyncState(reader.db).lastSyncedAt).not.toBeNull();
+  });
+
+  it("holds a teardown for the pass it lands in, not for the backlog behind it", async () => {
+    const cloud = new FakeCloud();
+    await writeBacklog(cloud);
+    let pulls = 0;
+    let runtime: CloudRuntime | null = null;
+    const reader = makeHarness({
+      cloud,
+      fetch: onePerPage(cloud, () => {
+        pulls += 1;
+        // the first page of the second pass.
+        if (pulls === MAX_PULL_PAGES_PER_PASS + 1) {
+          void runtime?.dispose();
+        }
+      }),
+      pollIntervalMs: null,
+    });
+    ({ runtime } = reader);
+
+    // resolves once the flight settles, which is the wait a teardown has.
+    await loginAs(reader.runtime, "Reader");
+
+    expect(pulls).toBe(MAX_PULL_PAGES_PER_PASS + 1);
+    expect(readSyncState(reader.db).cursor).toBe(MAX_PULL_PAGES_PER_PASS);
   });
 });
 
@@ -564,6 +866,115 @@ describe("dispose", () => {
   });
 });
 
+// a logout never waits for its sign-out, so the cloud's side lands a beat later
+const activeDevicesSettle = async (cloud: FakeCloud, count: number): Promise<void> => {
+  await vi.waitFor(() => {
+    expect(cloud.activeDeviceCount()).toBe(count);
+  });
+};
+
+describe("signing out", () => {
+  it("gives the device's slot back, so sign-in cycles never meet the account's cap", async () => {
+    const cloud = new FakeCloud();
+    cloud.maxDevices = 20;
+    const harness = makeHarness({ cloud, pollIntervalMs: null });
+
+    for (let cycle = 0; cycle < 25; cycle += 1) {
+      const outcome = await loginAs(harness.runtime, `Laptop ${cycle}`);
+      expect(outcome.kind).toBe("logged-in");
+      harness.runtime.logout();
+      await activeDevicesSettle(cloud, 0);
+    }
+    expect(cloud.deviceCount()).toBe(25);
+  });
+
+  it("gives the previous sign-in's slot back when signing in again without signing out", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    await loginAs(harness.runtime, "Laptop again");
+
+    await activeDevicesSettle(harness.cloud, 1);
+    expect(harness.runtime.status()).toMatchObject({ deviceId: "dev_2", state: "signed-in" });
+  });
+
+  it("lands after the session it ended, and a shutdown waits for it", async () => {
+    const cloud = new FakeCloud();
+    const gate = gatedFetch(cloud, DEVICE_API_PATHS.signOut);
+    const harness = makeHarness({ cloud, fetch: gate.fetch, pollIntervalMs: null });
+    await signIn(harness);
+
+    gate.arm();
+    harness.runtime.logout();
+    await gate.reached;
+    let disposed = false;
+    const disposing = (async () => {
+      await harness.runtime.dispose();
+      disposed = true;
+    })();
+    await tick();
+    expect(disposed).toBe(false);
+
+    gate.release();
+    await disposing;
+    expect(cloud.activeDeviceCount()).toBe(0);
+  });
+
+  it("holds a shutdown for a sign-out the cloud never answers only until the grace runs out", async () => {
+    const cloud = new FakeCloud();
+    const gate = gatedFetch(cloud, DEVICE_API_PATHS.signOut);
+    const harness = makeHarness({ cloud, fetch: gate.fetch, pollIntervalMs: null });
+    await signIn(harness);
+
+    gate.arm();
+    harness.runtime.logout();
+    await gate.reached;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let disposed = false;
+    const disposing = (async () => {
+      await harness.runtime.dispose();
+      disposed = true;
+    })();
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(disposed).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await disposing;
+    expect(cloud.activeDeviceCount()).toBe(1);
+  });
+
+  it("signs out here even when the cloud cannot hear it", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({
+      cloud,
+      fetch: async (input, init) => {
+        if (new URL(input).pathname === DEVICE_API_PATHS.signOut) {
+          throw new Error("network is down");
+        }
+        return await cloud.fetch(input, init);
+      },
+      pollIntervalMs: null,
+    });
+    await signIn(harness);
+
+    expect(harness.runtime.logout()).toEqual({ cloudUrl: CLOUD_URL, state: "signed-out" });
+    expect(readDeviceCredential(harness.dataDir)).toBeNull();
+    await harness.runtime.dispose();
+    expect(cloud.activeDeviceCount()).toBe(1);
+  });
+
+  it("asks nothing of the cloud for a credential it already refused", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    harness.cloud.revoke(await signIn(harness));
+    await harness.runtime.syncNow();
+    expect(harness.runtime.status().state).toBe("unauthorized");
+    const requestsAtRefusal = harness.cloud.requests.length;
+
+    harness.runtime.logout();
+    await harness.runtime.dispose();
+    expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
+  });
+});
+
 describe("every cloud call carries a deadline", () => {
   it("attaches a signal to every request, login included", async () => {
     const cloud = new FakeCloud();
@@ -607,7 +1018,11 @@ describe("applying the account's log", () => {
         }
         const [only] = args.rows;
         if (only?.event.type === "client/turn/requested" && only.event.text === "two") {
-          throw new Error("this row is refused");
+          throw new MissingTurnStartedError({
+            eventType: only.event.type,
+            threadId: args.threadId,
+            turnId: "turn_never_started",
+          });
         }
         cursors.push(args.cursor);
         writeSyncCursor(harness.db, args.cursor);
@@ -617,6 +1032,59 @@ describe("applying the account's log", () => {
 
     expect(cursors).toEqual([1, 3]);
     expect(readSyncState(harness.db).cursor).toBe(3);
+  });
+
+  it("never moves past a row for a fault the log did not refuse: the pass fails and says so", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({ cloud, pollIntervalMs: null });
+    const writer = makeHarness({ cloud, pollIntervalMs: null });
+    await signIn(writer);
+    append(writer, [message("thr_1", "one"), message("thr_1", "two"), message("thr_1", "three")]);
+    await writer.runtime.syncNow();
+
+    harness.runtime.attach({
+      applySyncedEvents: (args) => {
+        const [only] = args.rows;
+        if (
+          args.rows.length > 1 ||
+          (only?.event.type === "client/turn/requested" && only.event.text === "two")
+        ) {
+          throw new Error("the disk is full");
+        }
+        writeSyncCursor(harness.db, args.cursor);
+      },
+    });
+    await loginAs(harness.runtime, "Reader");
+
+    expect(readSyncState(harness.db).cursor).toBe(1);
+    expect(harness.runtime.status()).toMatchObject({
+      lastError: "the disk is full",
+      lastSyncedAt: null,
+    });
+  });
+
+  it("still lands the captures while a row it cannot apply holds the cursor", async () => {
+    const cloud = new FakeCloud();
+    const harness = makeHarness({ cloud, pollIntervalMs: null });
+    const writer = makeHarness({ cloud, pollIntervalMs: null });
+    await signIn(writer);
+    append(writer, [message("thr_1", "one")]);
+    await writer.runtime.syncNow();
+
+    harness.runtime.attach({
+      applySyncedEvents: () => {
+        throw new Error("the disk is full");
+      },
+    });
+    cloud.capture("buy oat milk");
+    await loginAs(harness.runtime, "Reader");
+
+    expect(readSyncState(harness.db).cursor).toBe(0);
+    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
+    expect(harness.runtime.status()).toMatchObject({
+      lastError: "the disk is full",
+      lastSyncedAt: null,
+    });
   });
 
   it("skips this device's own rows and settles the cursor on the rest", async () => {

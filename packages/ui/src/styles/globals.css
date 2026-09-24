@@ -4,35 +4,6 @@
 @import "@fontsource-variable/inter";
 @import "./typeset.css";
 
-/* the appearance dials publish --editor-* on <html>; the fallback is for an app with no such funnel */
-.typeset-docs {
-  --typeset-font-body: var(--editor-font, var(--font-body));
-  --typeset-font-heading: var(--editor-font, var(--font-body));
-  --typeset-font-mono: var(--editor-mono, var(--font-code));
-  --typeset-size: var(--editor-size, 14px);
-  --typeset-leading: var(--editor-line-height, 1.75);
-  --typeset-flow: 1.25em;
-}
-
-/* plain class selectors out-specify typeset's zero-specificity :where() rules */
-.typeset table {
-  width: auto;
-  border-collapse: collapse;
-}
-.typeset :is(td, th) {
-  border: 1px solid var(--border);
-  padding: 0.375em 0.75em;
-  text-align: left;
-  vertical-align: top;
-}
-.typeset :is(td, th) > * {
-  margin-block: 0;
-}
-.typeset th {
-  background-color: var(--muted);
-  font-weight: 600;
-}
-
 /* Tailwind cannot auto-detect this package through the node_modules symlink; scanning apps/** from
    here would make every app ship every other app's classes */
 @source "../**/*.{ts,tsx}";
@@ -43,7 +14,7 @@
   /* Fluid's type scale, at the compact step the product pins
      (`apps/desktop/src/renderer/app/workspace-context.tsx`). The numbers are the compact column
      of `typeScale` in lib/size-context.tsx, which is the scale's one declaration; a region on
-     the default step reads it through `useTypeScale` rather than these utilities.
+     the default step reads `typeScale` or `useSize().text` rather than these utilities.
      `type-scale.test.ts` keeps the two in step. */
   --text-display: 24px;
   --text-display--line-height: 1.2;
@@ -58,14 +29,6 @@
   --font-heading: var(--font-sans);
   --font-sans: var(--font-body);
   --font-mono: var(--font-code);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -76,12 +39,12 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
@@ -141,18 +104,21 @@
   --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.205 0 0);
-  --popover: oklch(1 0 0);
+  /* the rung an Elevated menu sits on, so a `bg-popover` surface and a menu are one level; .dark
+     restates the rung, never this */
+  --popover: var(--surface-3);
   --popover-foreground: oklch(0.205 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.955 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: #ffffff;
+  /* dark enough to read as text on a 15% tint of itself: "added" and "done" are words, not only fills */
+  --success: oklch(0.49 0.115 163);
+  --success-foreground: oklch(1 0 0);
   --border: oklch(0.945 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -163,15 +129,6 @@
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
   --radius: 0.625rem;
-
-  --sidebar: oklch(0.955 0 0);
-  --sidebar-foreground: oklch(0.205 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.922 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.91 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 
   --surface-1: #fafafa;
   --surface-2: #fcfcfc;
@@ -233,18 +190,17 @@
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.239 0 0);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.239 0 0);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: #f5f5f5;
+  --success: oklch(0.765 0.177 163.2);
+  --success-foreground: oklch(0.205 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -254,14 +210,6 @@
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.552 0.016 285.938);
 
   --surface-1: #171717;
   --surface-2: #1e1e1e;
@@ -408,22 +356,6 @@
   }
 }
 
-/* holds at 92% over the typical ~14s cold start so the bar never looks stuck at 100% while later
-   steps finish; a real percent takes over from there */
-@keyframes progress-fill {
-  0% {
-    transform: scaleX(0.02);
-  }
-  100% {
-    transform: scaleX(0.92);
-  }
-}
-
-.animate-progress-fill {
-  transform-origin: left center;
-  animation: progress-fill 14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
 @keyframes spinner-move {
   to {
     stroke-dashoffset: -100;
@@ -438,19 +370,6 @@
   50% {
     stroke-dasharray: 40 60;
   }
-}
-
-/* radius-switch cross-fade; !important so the beat wins over per-component transition utilities */
-.transitioning *,
-html.transitioning ::before,
-html.transitioning ::after {
-  transition:
-    border-radius 0.18s ease-in-out,
-    background-color 0.18s ease-in-out,
-    color 0.18s ease-in-out,
-    border-color 0.18s ease-in-out,
-    fill 0.18s ease-in-out,
-    stroke 0.18s ease-in-out !important;
 }
 
 /* Popup motion ported from joshpuckett/bloom (MIT). Base UI holds the popup mounted through
@@ -588,5 +507,17 @@ html.transitioning ::after {
   .bloom-popup-items[data-closed] > * {
     animation-duration: 1ms;
     animation-delay: 0ms;
+  }
+}
+
+/* tw-animate's animate-in and animate-out read their timing from these two, so one rule reaches
+   every use, variant-prefixed ones like `data-open:animate-in` included. 1ms rather than none:
+   Base UI still sees a closing popup's animation end, and unmounts on it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    --tw-animation-duration: 1ms;
+    --tw-animation-delay: 0s;
   }
 }

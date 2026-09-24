@@ -82,6 +82,16 @@ describe("relatedNotes (KnowledgeIndex composition)", () => {
     expect(related.map((entry) => entry.path)).not.toContain("notes/gardening.md");
   });
 
+  it("probes a title's finished words, never a stopword or a prefix", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("notes/plan.md", "# The Plan for Q3\n\nDraft.\n");
+    index.setDoc("notes/planet.md", "# Orbit\n\nA planet far away.\n");
+    index.setDoc("notes/forests.md", "# Woods\n\nOld forests there.\n");
+    index.setDoc("notes/planning.md", "# Notes\n\nQuarterly planning.\n");
+    const paths = index.relatedNotes("notes/plan.md").map((entry) => entry.path);
+    expect(paths).toEqual(["notes/planning.md"]);
+  });
+
   it("returns empty for a note with no connections, and for an unknown path", () => {
     expect(seed().relatedNotes("notes/unrelated.md")).toEqual([]);
     expect(seed().relatedNotes("nowhere/ghost.md")).toEqual([]);

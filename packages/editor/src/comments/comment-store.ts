@@ -63,3 +63,10 @@ export const clearCommentMeta = (path: string): void => {
 export const setPendingCreate = (pending: PendingCreate | null): void => {
   useCommentSurface.setState({ pendingCreate: pending });
 };
+
+// a save that resolves late must not clear a create armed after it
+export const clearPendingCreate = (id: string): void => {
+  useCommentSurface.setState((state) =>
+    state.pendingCreate?.id === id ? { pendingCreate: null } : state,
+  );
+};

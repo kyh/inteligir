@@ -12,10 +12,15 @@ import { clearCanvasGrid, paintCanvasCells, strokeSegmentCells } from "./canvas-
 import type { CanvasCell } from "./canvas-sketch";
 import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
 import { setBlockValue } from "./rich-block-value";
-import { GRID_HEADER, isGridHeader, labelLinePrefix } from "@repo/editor/nodes/canvas-header";
+import {
+  CANVAS_COLS,
+  CANVAS_ROWS,
+  GRID_HEADER,
+  isGridHeader,
+  isLabelsLine,
+  LABELS_PREFIX,
+} from "@repo/editor/nodes/canvas-header";
 
-const COLS = 120;
-const ROWS = 60;
 const CELL = 6;
 
 const labelSchema = z
@@ -24,13 +29,13 @@ const labelSchema = z
       .number()
       .int()
       .min(0)
-      .max(COLS - 1),
+      .max(CANVAS_COLS - 1),
     id: z.string().min(1),
     row: z
       .number()
       .int()
       .min(0)
-      .max(ROWS - 1),
+      .max(CANVAS_ROWS - 1),
     text: z.string().min(1),
   })
   .strict();
@@ -47,12 +52,11 @@ export const parseCanvasPayload = (value: string): CanvasParse => {
   }
   let rowStart = 1;
   let labels: z.infer<typeof labelSchema>[] = [];
-  const labelPrefix = labelLinePrefix(labelLine);
-  if (labelLine !== undefined && labelPrefix !== null) {
+  if (isLabelsLine(labelLine)) {
     if (!labelLine.endsWith("]]")) {
       return { ok: false, reason: "The labels line does not close." };
     }
-    const raw = labelLine.slice(labelPrefix.length, -1);
+    const raw = labelLine.slice(LABELS_PREFIX.length, -1);
     let json: unknown;
     try {
       json = JSON.parse(raw);
@@ -66,9 +70,9 @@ export const parseCanvasPayload = (value: string): CanvasParse => {
     labels = parsed.data;
     rowStart = 2;
   }
-  const rows = lines.slice(rowStart, rowStart + ROWS);
+  const rows = lines.slice(rowStart, rowStart + CANVAS_ROWS);
   const grid = rows.map((row) =>
-    Array.from({ length: Math.min(COLS, row.length) }, (_, col) => {
+    Array.from({ length: Math.min(CANVAS_COLS, row.length) }, (_, col) => {
       const cell = row[col];
       return cell !== undefined && cell !== "." && cell !== " ";
     }),
@@ -90,7 +94,7 @@ const CanvasSvg = ({
   const usedRows = usedRowsOf(grid, labels);
   return (
     <svg
-      viewBox={`0 0 ${String(COLS * CELL)} ${String(usedRows * CELL)}`}
+      viewBox={`0 0 ${String(CANVAS_COLS * CELL)} ${String(usedRows * CELL)}`}
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
       role="img"
       aria-label="canvas sketch"
@@ -147,14 +151,14 @@ const SketchSurface = ({
   onStroke: (cells: CanvasCell[], ink: boolean) => void;
   tool: SketchTool;
 }) => {
-  const rowsShown = Math.min(ROWS, Math.max(24, usedRowsOf(grid, labels) + 6));
+  const rowsShown = Math.min(CANVAS_ROWS, Math.max(24, usedRowsOf(grid, labels) + 6));
   const [pending, setPending] = useState<ReadonlyMap<string, CanvasCell>>(new Map());
   const lastCell = useRef<CanvasCell | null>(null);
 
   const cellAt = (event: ReactPointerEvent<SVGSVGElement>): CanvasCell => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
-      col: Math.floor(((event.clientX - rect.left) / rect.width) * COLS),
+      col: Math.floor(((event.clientX - rect.left) / rect.width) * CANVAS_COLS),
       row: Math.floor(((event.clientY - rect.top) / rect.height) * rowsShown),
     };
   };
@@ -174,7 +178,7 @@ const SketchSurface = ({
   const erasing = tool === "eraser";
   return (
     <svg
-      viewBox={`0 0 ${String(COLS * CELL)} ${String(rowsShown * CELL)}`}
+      viewBox={`0 0 ${String(CANVAS_COLS * CELL)} ${String(rowsShown * CELL)}`}
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline <svg> cannot be an <img>; role="img" is what makes AT read it as one named graphic.
       role="img"
       aria-label="canvas sketch surface"
@@ -268,7 +272,7 @@ const SketchToolButton = ({
   <button
     type="button"
     className={cn(
-      "rounded-sm px-1.5 py-0.5 text-xs",
+      "rounded-sm px-1.5 py-0.5 text-body",
       active ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
     )}
     onClick={onClick}
@@ -292,7 +296,7 @@ const CanvasActions = ({
     return (
       <button
         type="button"
-        className="text-xs text-muted-foreground hover:text-foreground"
+        className="text-body text-muted-foreground hover:text-foreground"
         onClick={() => {
           onMode("view");
         }}
@@ -309,7 +313,7 @@ const CanvasActions = ({
       {canSketch ? (
         <button
           type="button"
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-body text-muted-foreground hover:text-foreground"
           onClick={() => {
             onMode("sketch");
           }}
@@ -319,7 +323,7 @@ const CanvasActions = ({
       ) : null}
       <button
         type="button"
-        className="text-xs text-muted-foreground hover:text-foreground"
+        className="text-body text-muted-foreground hover:text-foreground"
         onClick={() => {
           onMode("raw");
         }}

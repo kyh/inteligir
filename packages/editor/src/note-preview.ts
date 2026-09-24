@@ -1,8 +1,10 @@
 // regex-level on purpose: a hover tooltip earns a cheap approximation, not a parse.
 
+import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
+import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
+
 const PREVIEW_MAX_LINES = 20;
 
-const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n?/u;
 const COMMENT_MARKER_RE = /%%i:[^%]*%%/gu;
 const WIKI_LINK_RE = /\[\[(?<inner>[^\]]*)\]\]/gu;
 const MD_LINK_RE = /!?\[(?<label>[^\]]*)\]\([^)]*\)/gu;
@@ -11,13 +13,8 @@ const HEADING_RE = /^#{1,6}\s+/u;
 const BLOCKQUOTE_RE = /^>\s?/u;
 const EMPHASIS_RE = /(?:\*\*|__|\*|_|~~|`)/gu;
 
-const wikiBodyLabel = (body: string): string => {
-  const pipe = body.lastIndexOf("|");
-  return pipe === -1 ? body : body.slice(pipe + 1);
-};
-
 export const notePreviewHead = (markdown: string): string => {
-  const body = markdown.replace(FRONTMATTER_RE, "");
+  const { body } = splitFrontmatter(markdown);
   const lines: string[] = [];
   for (const raw of body.split("\n")) {
     if (lines.length >= PREVIEW_MAX_LINES) {
@@ -25,7 +22,7 @@ export const notePreviewHead = (markdown: string): string => {
     }
     const line = raw
       .replace(COMMENT_MARKER_RE, "")
-      .replace(WIKI_LINK_RE, (_, inner: string) => wikiBodyLabel(inner))
+      .replace(WIKI_LINK_RE, (_, inner: string) => wikiLinkLabel(inner))
       .replace(MD_LINK_RE, "$<label>")
       .replace(FORMULA_RE, "")
       .replace(HEADING_RE, "")

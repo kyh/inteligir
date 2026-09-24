@@ -7,14 +7,41 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
 import { ArchiveIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { useState } from "react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const BADGE_COLORS = ["gray", "red", "amber", "green", "teal", "violet"] as const;
+const SORTS = ["Name", "Modified"] as const;
+
+const SortMenu = () => {
+  const [sort, setSort] = useState<string>("Name");
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Sort notes"
+        className="inline-flex h-9 items-center rounded-lg border border-border px-3 text-[13px] outline-none hover:bg-hover"
+      >
+        Sort by {sort}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuRadioGroup value={sort} onValueChange={setSort}>
+          {SORTS.map((option) => (
+            <DropdownMenuRadioItem key={option} value={option}>
+              {option}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 export const ActionsSection = () => (
   <GallerySection id="actions" title="Actions">
@@ -125,6 +152,13 @@ export const ActionsSection = () => (
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+    </Demo>
+
+    <Demo
+      name="DropdownMenu — one choice"
+      purpose="A menu whose rows are one setting's values: the picked row carries the check."
+    >
+      <SortMenu />
     </Demo>
   </GallerySection>
 );

@@ -17,6 +17,7 @@ product by typing `inteligir …` in bash.
 
 ```sh
 inteligir serve --open      # zero-install: `npx inteligir serve --open`
+inteligir open              # another signed-in browser tab on the running server
 pnpm cli status             # in a checkout, against this checkout's instance
 apps/cli/bin/inteligir --help
 ```
@@ -35,16 +36,24 @@ following — the directory holding the link has no `dist/` beside it.
 ## Which server, and may I talk to it
 
 Both answers come out of ONE file. On boot the server writes
-`<dataDir>/server.json` at `0600` — `{ port, token, vaultDir, pid }` — and
-removes it on ordered shutdown. A client reads it and sends
-`Authorization: Bearer <token>`.
+`<dataDir>/server.json` at `0600` — `{ port, token, vaultDir, pid, version }` —
+and removes it on ordered shutdown, if the row is still its own. A client reads
+it and sends `Authorization: Bearer <token>`. A verb refuses a server whose
+`version` is not its own release (`SERVER_VERSION_MISMATCH`, exit 3), a row
+with none included: `/local` may break between releases, and this binary
+installs and updates apart from the desktop app. Which process may serve a data
+dir at all is a different file: `serve` holds `<dataDir>/serve.lock` from before
+it composes until after its db closes, so a second boot is refused even while
+the first has not published its row yet.
 
 A browser cannot send that header, and it never sees the bearer. The link
 `serve` prints (and opens, under `--open`) carries a single-use handoff that the
 server trades once for a session cookie of the browser's own, answering with the
-same URL minus the handoff; the desktop's Open in Browser mints a fresh one over
-`system.browserHandoff`. A plain GET sets no cookie, and a request naming any
-host but `127.0.0.1` or `localhost` is refused before it reaches a route.
+same URL minus the handoff; `inteligir open` and the desktop's Open in Browser
+mint a fresh one over `system.browserHandoff`. A plain GET sets no cookie and
+gets a signed-out page naming those ways in, never the workspace, and a request
+naming any host but `127.0.0.1` or `localhost` is refused before it reaches a
+route.
 
 There is no probing. A derived dev port may have been probed upward at bind, so
 a client that dialled the derived value could reach a NEIGHBOURING checkout's
@@ -68,16 +77,21 @@ agent shells are given.
 
 ## Command surface
 
-`serve` · `vault
-list|read|history|revision|restore|write|rename|delete|deleted|mkdir|status|sync` ·
-`search` (`tag:` terms pass through) · `backlinks` · `related` · `tags` ·
-`action list|new|send|show|wait|archive` · `comment
-list|add|reply|resolve|remove` · `interactions list|answer` · `connectors
+`serve` · `open` · `vault
+list|read|history|revision|restore|write|rename|delete|deleted|mkdir|attachments|open|status|sync`
+· `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
+`unlinked` · `problems` · `tags` · `tag notes|rename` · `action
+list|new|send|show|stop|wait|archive` · `comment list|add|reply|resolve|remove` ·
+`interactions list|answer` · `agents list|default` · `connectors
 list|add|remove` · `folders list|add|remove` · `cloud status|login|sync` ·
 `status` · `guide`.
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
-2 `action wait` timeout · 3 no server reachable.
+2 `action wait` timeout · 3 no server reachable · 4 `action wait
+--until-input` met an approval · 130 interrupted. Each class the CLI raises
+itself carries its exit code in one table, `CLI_FAILURE_EXIT_CODES` in
+`src/cli-error.ts`, so a class cannot leave with another's code, and
+`guide-covers-commands.test.ts` holds the served guide to naming every row.
 
 **A refusal can never be printed as an answer.** The oRPC client throws on a
 typed error, and `src/program.ts` turns that into a failure on stderr with the
@@ -116,34 +130,73 @@ instructions drop the CLI pointer — instructions never promise a command the
 shell cannot run. The e2e `cli-drive` scenario invokes the bare name through
 that same composed env.
 
+Under `INTELIGIR_THREAD_ID` every call names its thread in an
+`x-inteligir-thread` header (`src/server/agent-thread-header.ts`), so a note the
+agent writes, renames, re-tags or attaches through the CLI lands in that turn's
+agent-authored commit, like an edit its own tools reported, rather than in the
+next auto-commit. The header is attribution, not authority: the bearer already
+admitted the call, and a thread with no turn running records nothing.
+
 ## Doc-sync discipline
 
 The served manual (`src/server/guide/cli-skill.ts`) must name every leaf
 command AND every flag those leaves accept —
 `src/__tests__/guide-covers-commands.test.ts` walks the real citty tree against
-the guide's rendered bytes (not its source: a comment used to satisfy it).
+the guide's rendered bytes (not its source: a comment used to satisfy it), and
+against § Command surface above, which must list every leaf and no other.
 `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree and
 EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits with
 empty stdout when the server refuses.
 
 Both read the tree through `src/command-tree.ts`, which is shipped rather than
 test-only: `--help` resolves the deepest command through the same walk, and so
-does the gate that refuses a flag the command never declared. citty parses with
-node's `parseArgs` in NON-strict mode, so without that gate `vault write
-notes/a.md --contentt x` would silently read stdin and exit 0.
+does the gate that refuses what citty would drop — a flag the command never
+declared, long or short, and a word past its last positional. citty parses with
+node's `parseArgs` in NON-strict mode and binds positionals in order, so
+without that gate `vault write notes/a.md --contentt x` would silently read
+stdin and exit 0, and `search two words` would search for `two`. Only the words
+before `--` are counted: what follows is a leaf's own channel
+(`connectors add x -- npx -y srv`). The walk is exact only while no command
+with subcommands declares args, and the enforcement test holds every group to
+that.
 
 ## What ships
 
-`dist/index.js` is the whole program, bundled by esbuild — every workspace
-package is inlined, because they export TypeScript source a published install
-cannot resolve. What stays external is what a bundler cannot swallow: the three
-NATIVE modules (`better-sqlite3`, `@parcel/watcher`, `sherpa-onnx-node`, all
-N-API prebuilds) and the two ACP adapters, which are resolved at runtime with
-`require.resolve` and spawned as children.
+`dist/index.js` and the `dist/chunk-*.js` beside it are the whole program,
+bundled by esbuild — every workspace package is inlined, because they export
+TypeScript source a published install cannot resolve. What stays external is
+what a bundler cannot swallow: the three NATIVE modules (`better-sqlite3`,
+`@parcel/watcher`, `sherpa-onnx-node`, all N-API prebuilds) and the two ACP
+adapters, which are resolved at runtime with `require.resolve` and spawned as
+children.
 
-Two bundles cannot ride inside the entry and each says why beside itself: the
-vault watcher is a forked CHILD PROCESS and the transcriber is a WORKER THREAD,
-so both need a real file on disk resolved as a sibling of the running entry.
+The bundle is SPLIT at every dynamic import, so a client verb never parses the
+server `serve` loads. The chunks sit FLAT beside the entry: `src/paths.ts` and
+the two sibling lookups below resolve from whichever file they landed in, so
+every file in `dist/` has to answer them the same way.
+
+Four bundles cannot ride inside the entry and each says why beside itself: the
+vault watcher is a CHILD PROCESS, the stdio host runs each ACP adapter in the
+desktop shell, and the transcriber and the knowledge projector are WORKER
+THREADS, so each needs a real file on disk resolved as a sibling of the running
+entry. In a checkout the two workers run their `.ts` source under tsx's hook
+instead (`src/server/worker-entry.ts`).
+
+**Who starts a node child depends on who runs the server**
+(`src/server/child-host/node-children.ts`). Run by node (`serve`, npx, a suite),
+it forks the watcher and spawns each adapter with `child_process` over its own
+`process.execPath`. Run by the desktop shell, it is an Electron utility process:
+its `execPath` is Electron's helper, which the packaged binary's `runAsNode`
+fuse keeps from running JavaScript, and a utility process cannot fork one of its
+own. So it asks main over `process.parentPort` (`fork-broker-wire.ts`, parsed on
+both ends), main forks the child as a utility process of its own and hands each
+side one end of a MessageChannel, and the two talk directly. The watcher's IPC
+rides that port; an adapter speaks ACP over stdin and stdout, which a utility
+process cannot be given, so `stdio-port-host` carries its three streams over the
+port as frames and `brokered-adapter.ts` stands in for its `ChildProcess`. codex
+is the one adapter that runs a node script of its own (its bundled launcher,
+through `process.execPath`), so the harness row names the native binary that
+launcher would start as `CODEX_PATH`.
 
 Four trees are staged as CONTENT rather than code: the committed SQL
 migrations, the dialect skills the agent reads with its own shell, the
@@ -157,8 +210,10 @@ migrate a dev database past what the running code carries. The UI stays
 staged-first, which is why the two resolvers read differently.
 
 `pnpm smoke:cli` proves all of it against a real `npm install` of the packed
-tarball: the layout, the execute bit, the licence texts, a boot, the three
-native modules, a graceful SIGTERM.
+tarball: the layout (every file the build emitted, chunks included), the
+execute bit, the licence texts, a boot, the three native modules, a graceful
+SIGTERM. The e2e `built-cli-boot` scenario boots the same bundle from the
+checkout on every CI run.
 
 The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in

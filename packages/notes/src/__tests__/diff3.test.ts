@@ -3,6 +3,12 @@ import { diff3 } from "../text/diff3";
 
 const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;
 
+const numbered = (count: number, label: string): string[] =>
+  Array.from({ length: count }, (_, index) => `${label} ${String(index)}`);
+
+const edit = (from: readonly string[], at: readonly number[], label: string): string[] =>
+  from.map((line, index) => (at.includes(index) ? `${line} ${label}` : line));
+
 describe("diff3", () => {
   describe("trivial cases", () => {
     it("returns the text when nothing changed", () => {
@@ -233,6 +239,39 @@ describe("diff3", () => {
       expect(diff3(base, mine, theirs)).toEqual({
         conflicted: false,
         merged: doc("-", "item edited", "-", "item", "-", "appended"),
+      });
+    });
+  });
+
+  describe("a side past the line diff's budget", () => {
+    // mine rewrites 1000..2199 but keeps every tenth line: 2160 edits, past the budget of 2000.
+    const baseLines = numbered(3000, "line");
+    const mineLines = baseLines.map((line, index) =>
+      index >= 1000 && index < 2200 && index % 10 !== 0 ? `${line} mine` : line,
+    );
+
+    it("still merges the other side's edits outside its span", () => {
+      const theirsLines = edit(baseLines, [10, 2500], "theirs");
+      expect(diff3(doc(...baseLines), doc(...mineLines), doc(...theirsLines))).toEqual({
+        conflicted: false,
+        merged: doc(...edit(mineLines, [10, 2500], "theirs")),
+      });
+    });
+
+    it("reports an edit inside its span as a conflict, even on a line it kept", () => {
+      const theirsLines = edit(baseLines, [10, 1500], "theirs");
+      expect(diff3(doc(...baseLines), doc(...mineLines), doc(...theirsLines))).toEqual({
+        conflicted: true,
+        merged: doc(...edit(mineLines, [10], "theirs")),
+      });
+    });
+
+    it("keeps mine over two whole rewrites of a long note without walking either", () => {
+      const base = doc(...numbered(10_000, "line"));
+      const mine = doc(...numbered(10_000, "mine"));
+      expect(diff3(base, mine, doc(...numbered(10_000, "theirs")))).toEqual({
+        conflicted: true,
+        merged: mine,
       });
     });
   });

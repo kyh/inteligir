@@ -5,6 +5,7 @@ export const DEVICE_API_PATHS = {
   list: "/v1/device/list",
   login: "/v1/device/login",
   revoke: "/v1/device/revoke",
+  signOut: "/v1/device/sign-out",
 } as const;
 
 // the prefix routes a bearer to the device table without asking better auth, so a session
@@ -22,8 +23,9 @@ export const normalizeDeviceName = (raw: string): string => {
   return name.length === 0 ? "this device" : name;
 };
 
-// better auth's own bounds: a password refused here is one it would refuse too, and a longer
-// one is hashing cost an unauthenticated caller chooses
+// the Worker configures Better Auth with these, so a password refused here is one it would
+// refuse too; the ceiling is there because a longer one is hashing cost an unauthenticated
+// caller chooses
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
@@ -57,25 +59,21 @@ const deviceCredentialFields = {
 export const deviceCredentialSchema = z.object(deviceCredentialFields).strict();
 export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
 
-export const deviceLoginResponseSchema = z.object(deviceCredentialFields).strict();
+export const deviceLoginResponseSchema = z.object(deviceCredentialFields);
 export type DeviceLoginResponse = z.infer<typeof deviceLoginResponseSchema>;
 
-export const deviceSchema = z
-  .object({
-    createdAt: z.number().int(),
-    id: z.string().min(1),
-    lastSeenAt: z.number().int().nullable(),
-    name: z.string(),
-    revokedAt: z.number().int().nullable(),
-  })
-  .strict();
+export const deviceSchema = z.object({
+  createdAt: z.number().int(),
+  id: z.string().min(1),
+  lastSeenAt: z.number().int().nullable(),
+  name: z.string(),
+  revokedAt: z.number().int().nullable(),
+});
 export type Device = z.infer<typeof deviceSchema>;
 
-export const listDevicesResponseSchema = z
-  .object({
-    devices: z.array(deviceSchema),
-  })
-  .strict();
+export const listDevicesResponseSchema = z.object({
+  devices: z.array(deviceSchema),
+});
 export type ListDevicesResponse = z.infer<typeof listDevicesResponseSchema>;
 
 export const revokeDeviceRequestSchema = z
@@ -85,9 +83,8 @@ export const revokeDeviceRequestSchema = z
   .strict();
 export type RevokeDeviceRequest = z.infer<typeof revokeDeviceRequestSchema>;
 
-export const revokeDeviceResponseSchema = z
-  .object({
-    revoked: z.literal(true),
-  })
-  .strict();
+// also the sign-out's answer: that route is this revoke with the credential naming the device
+export const revokeDeviceResponseSchema = z.object({
+  revoked: z.literal(true),
+});
 export type RevokeDeviceResponse = z.infer<typeof revokeDeviceResponseSchema>;

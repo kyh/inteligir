@@ -33,13 +33,17 @@
   "type": "module",
   "exports": {
     "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
+    "./server/child-host/fork-broker-wire": "./src/server/child-host/fork-broker-wire.ts",
     "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
+    "./server/cloud/sync-cadence": "./src/server/cloud/sync-cadence.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
     "./server/dev-instance": "./src/server/dev-instance.ts",
+    "./server/html-block-frame": "./src/server/html-block-frame.ts",
     "./server/local-client": "./src/server/local-client.ts",
     "./server/path-containment": "./src/server/path-containment.ts",
     "./server/server-file": "./src/server/server-file.ts",
+    "./server/server-probe": "./src/server/server-probe.ts",
     "./server/shutdown": "./src/server/shutdown.ts",
     "./server/staged-write": "./src/server/staged-write.ts",
     "./server/vault-switch": "./src/server/vault-switch.ts",
@@ -58,9 +62,9 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "catalog:",
+    "@agentclientprotocol/codex-acp": "catalog:",
     "@parcel/watcher": "catalog:",
-    "@zed-industries/claude-code-acp": "catalog:",
-    "@zed-industries/codex-acp": "catalog:",
     "better-sqlite3": "catalog:",
     "sherpa-onnx-node": "catalog:"
   },

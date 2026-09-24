@@ -7,7 +7,8 @@ import type { Node, PhrasingContent, Root } from "mdast";
 import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
-import { splitLinesKeepingTerminators } from "../knowledge/source-lines";
+import { splitLinesKeepingTerminators } from "../text/source-lines";
+import { isMdastRoot } from "./mdast-nodes";
 
 type RootChild = Root["children"][number];
 type PanelContent = Exclude<RootChild, { type: "yaml" | "tabGroup" | "tabPanel" }>;
@@ -242,8 +243,6 @@ const rewriteRoot = (root: Root): void => {
   }
 };
 
-const isRoot = (node: Node): node is Root => node.type === "root";
-
 const tabsToMarkdown: ToMarkdownExtension = {
   handlers: {
     tabGroup: (node: TabGroup, _parent, state, info) => {
@@ -263,7 +262,7 @@ export const remarkTabs: Plugin = function remarkTabs(this: Processor): Transfor
   const data = this.data();
   (data.toMarkdownExtensions ??= []).push(tabsToMarkdown);
   return (tree) => {
-    if (isRoot(tree)) {
+    if (isMdastRoot(tree)) {
       rewriteRoot(tree);
     }
   };

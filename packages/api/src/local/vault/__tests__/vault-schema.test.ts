@@ -9,6 +9,7 @@ import {
   vaultHistoryRequestSchema,
   vaultRevisionSchema,
   vaultRevisionShaSchema,
+  vaultWriteRequestSchema,
 } from "../vault-schema";
 
 describe("the content hash", () => {
@@ -76,6 +77,36 @@ describe("a history request", () => {
   });
 });
 
+describe("a write's guard", () => {
+  const hash = "a".repeat(64);
+
+  it("is required: a write that names none is refused, not last-writer-wins", () => {
+    expect(vaultWriteRequestSchema.safeParse({ content: "x", path: "a.md" }).success).toBe(false);
+  });
+
+  it("takes exactly one of expected, absent and overwrite", () => {
+    for (const guard of [{ hash, kind: "expected" }, { kind: "absent" }, { kind: "overwrite" }]) {
+      expect(vaultWriteRequestSchema.parse({ content: "x", guard, path: "a.md" }).guard).toEqual(
+        guard,
+      );
+    }
+  });
+
+  it("refuses a hash on anything but expected, and expected without a well-formed one", () => {
+    for (const guard of [
+      { hash, kind: "absent" },
+      { hash, kind: "overwrite" },
+      { kind: "expected" },
+      { hash: "ABC123", kind: "expected" },
+      { kind: "if-match" },
+    ]) {
+      expect(vaultWriteRequestSchema.safeParse({ content: "x", guard, path: "a.md" }).success).toBe(
+        false,
+      );
+    }
+  });
+});
+
 describe("the asset bound", () => {
   it("never exceeds the hosted route's own ceiling", () => {
     expect(VAULT_ASSET_MAX_BYTES).toBeLessThanOrEqual(CLOUD_ASSET_MAX_BYTES);
@@ -83,20 +114,25 @@ describe("the asset bound", () => {
 });
 
 describe("assetWrite", () => {
+  const file = new Blob([new Uint8Array([0])]);
+
   it("holds `dir` to the vault path grammar", () => {
     expect(
-      vaultAssetWriteRequestSchema.safeParse({
-        baseName: "a.png",
-        bytesBase64: "AA==",
-        dir: "../outside",
-      }).success,
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "../outside", file })
+        .success,
     ).toBe(false);
     expect(
-      vaultAssetWriteRequestSchema.safeParse({
-        baseName: "a.png",
-        bytesBase64: "AA==",
-        dir: "assets",
-      }).success,
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "assets", file }).success,
     ).toBe(true);
+  });
+
+  it("takes the bytes as a Blob, never as text, and refuses an empty one", () => {
+    expect(
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "", file: "AA==" }).success,
+    ).toBe(false);
+    expect(
+      vaultAssetWriteRequestSchema.safeParse({ baseName: "a.png", dir: "", file: new Blob([]) })
+        .success,
+    ).toBe(false);
   });
 });

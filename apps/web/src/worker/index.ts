@@ -1,9 +1,10 @@
-import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
+import { ACCOUNT_API_PATHS, AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
+import { refuse } from "./cloud-http";
 import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
@@ -24,6 +25,11 @@ const OWNED_PREFIXES = ["/api/", "/v1/", "/auth/"] as const;
 export const ownsPath = (pathname: string): boolean =>
   OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
+// every client of /v1 parses the error envelope, and a bare-text 5xx reads to it as an
+// unreachable cloud; the git mount answers git clients, whose stderr would print JSON as noise
+const speaksCloudEnvelope = (pathname: string): boolean =>
+  pathname.startsWith("/v1/") && !pathname.startsWith(VAULT_GIT_PATH);
+
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
 
@@ -31,11 +37,11 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await createAuth(env, url.origin).handler(request);
   }
 
-  if (request.method === "GET" && url.pathname === "/auth/reset") {
+  if (request.method === "GET" && url.pathname === AUTH_PAGE_PATHS.resetPage) {
     return handleResetPage();
   }
 
-  if (request.method === "POST" && url.pathname === "/v1/auth/sign-up") {
+  if (request.method === "POST" && url.pathname === AUTH_PAGE_PATHS.signUp) {
     return await handleInviteSignUp(request, env);
   }
 
@@ -63,7 +69,9 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await handleAccountRoute(request, env);
   }
 
-  return new Response("not found", { status: 404 });
+  return speaksCloudEnvelope(url.pathname)
+    ? refuse("not-found", "No such route.")
+    : new Response("not found", { status: 404 });
 };
 
 export default {
@@ -72,7 +80,9 @@ export default {
       return await route(request, env, ctx);
     } catch (error) {
       logUnhandled("worker", request, error);
-      return new Response("internal error", { status: 500 });
+      return speaksCloudEnvelope(new URL(request.url).pathname)
+        ? refuse("internal", "Something went wrong on our side.")
+        : new Response("internal error", { status: 500 });
     }
   },
 } satisfies ExportedHandler<Env>;

@@ -9,12 +9,18 @@
         "src/index.ts",
         "src/**/__tests__/**/*.test.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
+        "src/server/child-host/stdio-port-host-entry.ts",
         "src/server/voice/transcribe-worker.ts",
+        "src/server/knowledge/projection-worker.ts",
         "scripts/*.mjs"
       ],
       "project": ["src/**/*.ts", "scripts/**/*.mjs"],
       // the ACP adapters are resolved with require from the running bundle, never imported
-      "ignoreDependencies": ["@zed-industries/claude-code-acp", "@zed-industries/codex-acp", "tsx"]
+      "ignoreDependencies": [
+        "@agentclientprotocol/claude-agent-acp",
+        "@agentclientprotocol/codex-acp",
+        "tsx"
+      ]
     },
     "apps/desktop": {
       "entry": [
@@ -51,12 +57,17 @@
     },
     "packages/domain": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": true,
+      "ignoreExportsUsedInFile": true
     },
     "packages/agent-runtime": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,mjs}"],
-      "ignoreDependencies": ["@zed-industries/claude-code-acp", "@zed-industries/codex-acp"]
+      "entry": ["src/**/__tests__/**/*.test.ts", "scripts/*.ts"],
+      "project": ["src/**/*.{ts,mjs}", "scripts/*.ts"],
+      "ignoreDependencies": [
+        "@agentclientprotocol/claude-agent-acp",
+        "@agentclientprotocol/codex-acp"
+      ]
     },
     "packages/api": {
       "entry": ["src/**/__tests__/**/*.test.ts"],

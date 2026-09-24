@@ -2,26 +2,10 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode, RefAttributes } from "react";
+import { SearchIcon, XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { GlideList } from "@repo/ui/ai/glide-list";
-
-const SEARCH_ICON = (
-  <svg
-    aria-hidden
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    className="shrink-0 text-ink-3"
-  >
-    <circle cx="11" cy="11" r="7" />
-    <path d="M21 21l-4.3-4.3" />
-  </svg>
-);
 
 const SearchPanel = ({
   className,
@@ -40,8 +24,9 @@ const SearchPanel = ({
 );
 SearchPanel.displayName = "SearchPanel";
 
+// controlled: the clear button shows for what the field holds
 export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "value"> {
-  value?: string;
+  value: string;
   onClear?: () => void;
 }
 
@@ -52,13 +37,13 @@ const SearchField = ({
   ref,
   ...props
 }: SearchFieldProps & RefAttributes<HTMLInputElement>) => {
-  const filled = (value ?? "").length > 0;
+  const filled = value.length > 0;
   return (
     <div
       data-slot="search-field"
       className="flex h-10 items-center gap-2 border-b border-line px-3 transition-colors duration-100 hover:bg-hover"
     >
-      {SEARCH_ICON}
+      <SearchIcon size={14} strokeWidth={2} className="shrink-0 text-ink-3" />
       <input
         ref={ref}
         value={value}
@@ -77,21 +62,10 @@ const SearchField = ({
           className={cn(
             "flex size-6 items-center justify-center rounded-full text-ink-3",
             "transition-colors duration-100 hover:bg-line/70 hover:text-ink",
-            "animate-in fade-in duration-150 motion-reduce:animate-none",
+            "animate-in fade-in duration-150",
           )}
         >
-          <svg
-            aria-hidden
-            width="11"
-            height="11"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-          >
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
+          <XIcon size={11} strokeWidth={2.2} />
         </button>
       ) : null}
     </div>
@@ -125,7 +99,7 @@ const SearchResult = ({
     data-slot="search-result"
     className={cn(
       "relative z-10 flex h-8 w-full items-center rounded-md px-2 text-left text-[13px] text-ink",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       className,
     )}
     {...props}
@@ -149,25 +123,13 @@ const SearchEmpty = ({
     data-slot="search-empty"
     className={cn(
       "flex flex-col items-center justify-center gap-1 px-4 py-8",
-      "animate-in fade-in duration-200 motion-reduce:animate-none",
+      "animate-in fade-in duration-200",
       className,
     )}
     {...props}
   >
     <span className="mb-1.5 flex size-8 items-center justify-center rounded-lg bg-surface-inset text-ink-3 shadow-surface-1">
-      <svg
-        aria-hidden
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      >
-        <circle cx="11" cy="11" r="7" />
-        <path d="M21 21l-4.3-4.3" />
-      </svg>
+      <SearchIcon size={15} strokeWidth={1.8} />
     </span>
     <span className="text-[13px] font-medium text-ink">{children}</span>
     {hint === undefined ? null : <span className="text-[12px] text-ink-3">{hint}</span>}

@@ -6,9 +6,8 @@ import {
 } from "@repo/api/local/vault/vault-schema";
 import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
 import { removeEntryWithComments } from "../comments/remove-with-comments";
-import { base, refusals } from "../orpc";
+import { attributeWrites, base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
-import type { GuardedWriteGuard } from "./vault-service";
 
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
@@ -38,15 +37,15 @@ const revision = base.vault.revision.handler(
 const write = base.vault.write.handler(
   async ({ context, input, errors }) =>
     await refusing(async () => {
-      if (input.expectedHash === undefined && input.ifAbsent === undefined) {
-        return await context.vault.service.write(input.path, input.content);
+      const { guard } = input;
+      if (guard.kind === "overwrite") {
+        const written = await context.vault.service.write(input.path, input.content);
+        attributeWrites(context, [written.path]);
+        return written;
       }
-      const guard: GuardedWriteGuard =
-        input.expectedHash === undefined
-          ? { ifAbsent: true }
-          : { expectedHash: input.expectedHash };
       const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
       if (result.applied) {
+        attributeWrites(context, [result.path]);
         return { path: result.path };
       }
       if (result.reason === "exists") {
@@ -66,21 +65,26 @@ const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors
       message: `${input.baseName} is not an image type this vault serves`,
     });
   }
-  const byteLength = Math.floor((input.bytesBase64.length * 3) / 4);
-  if (byteLength > VAULT_ASSET_MAX_BYTES) {
+  if (input.file.size > VAULT_ASSET_MAX_BYTES) {
     throw errors.PAYLOAD_TOO_LARGE({
-      message: `attachment is ~${byteLength} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`,
+      message: `attachment is ${input.file.size} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`,
     });
   }
-  const bytes = new Uint8Array(Buffer.from(input.bytesBase64, "base64"));
-  return await refusing(
-    async () => await context.vault.service.writeAsset(input.dir, input.baseName, bytes),
-  );
+  const bytes = new Uint8Array(await input.file.arrayBuffer());
+  return await refusing(async () => {
+    const written = await context.vault.service.writeAsset(input.dir, input.baseName, bytes);
+    attributeWrites(context, [written.path]);
+    return written;
+  });
 });
 
 const rename = base.vault.rename.handler(
   async ({ context, input }) =>
-    await refusing(async () => await context.renameNote(input.from, input.to)),
+    await refusing(async () => {
+      const renamed = await context.renameNote(input.from, input.to);
+      attributeWrites(context, [input.from, renamed.path, ...renamed.rewritten]);
+      return renamed;
+    }),
 );
 
 const mkdir = base.vault.mkdir.handler(
@@ -95,13 +99,13 @@ const deleted = base.vault.deleted.handler(async ({ context }) => ({
 const remove = base.vault.remove.handler(
   async ({ context, input }) =>
     await refusing(async () => {
-      await removeEntryWithComments(context.vault.service, input.path);
+      await removeEntryWithComments(context.vault.service, input.path, context.knowledge);
       return { ok: true } as const;
     }),
 );
 
-const commitNow = base.vault.commitNow.handler(async ({ context }) => {
-  const committed = await context.vault.git.commitNow();
+const commitNow = base.vault.commitNow.handler(async ({ context, input }) => {
+  const committed = await context.vault.git.commitNow(input?.paths);
   return { files: committed?.files ?? 0 };
 });
 

@@ -1,9 +1,5 @@
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
-import type {
-  BacklinkEntry,
-  ForwardLinkEntry,
-  WikiTarget,
-} from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import type { StoreApi } from "zustand/vanilla";
 
 // The host as a module singleton rather than context: kit factories and paste handlers run
@@ -17,8 +13,15 @@ export interface VaultEntry {
   kind: "doc" | "other";
 }
 
+// `exists` names a taken path without a notice, so a caller can step past it; `refused` is final,
+// and the session has said whatever there was to say.
+export type CreateNewFileResult =
+  | { readonly kind: "created"; readonly path: string }
+  | { readonly kind: "exists"; readonly path: string }
+  | { readonly kind: "refused" };
+
 export interface VaultActions {
-  /** Also raises the editor surface; a failed flush of the current note refuses to navigate. */
+  /** A failed flush of the current note refuses to navigate. */
   openFile: (path: string) => void;
   /** Keyed by path: a teardown or surface switch can emit after the open note changed, and those bytes must no-op. */
   editNote: (path: string, content: string) => void;
@@ -28,87 +31,58 @@ export interface VaultActions {
   createFile: (path: string, content?: string) => Promise<void>;
   /** Creates without opening; an existing file counts as success. */
   createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
+  /** Creates without opening, exclusively: a caller moving bytes into the file would drop them if an existing one counted as success. */
+  createNewFileAt: (path: string, seedContent: string) => Promise<CreateNewFileResult>;
   renameEntry: (from: string, to: string) => Promise<boolean>;
   deleteEntry: (path: string) => Promise<void>;
   flush: () => Promise<boolean>;
-  refreshVault: () => void;
 }
 
-export interface WikiResolver {
-  /** Identity changes when the listing or aliases refresh, so chips re-render on that alone. */
-  resolveWikiTarget: (target: string) => string | null;
+// The knowledge index's resolver over the listing, so a link the editor draws lands where the
+// index (and so Problems and a rename) says it does. Identity changes when the listing or aliases
+// refresh, so a link re-renders on that alone.
+export interface LinkResolver {
+  resolveWikiTarget: (target: string, alias?: string) => string | null;
+  /** `target` is an md url as `mdLinkTarget` reads it; tried beside `fromPath`, then from the root. */
+  resolveMdTarget: (target: string, fromPath: string) => string | null;
+  /** The index's wiki targets the resolver was built over: notes first, then attachments. */
+  targets: readonly WikiTarget[];
 }
 
 // The read half only: the app owns the writer. A store rather than a field because the resolver
 // is rebuilt on every vault refresh while the actions never change, so only its readers re-render.
-export type WikiResolverStore = Pick<
-  StoreApi<WikiResolver>,
+export type LinkResolverStore = Pick<
+  StoreApi<LinkResolver>,
   "getState" | "getInitialState" | "subscribe"
 >;
 
 // A Blob, not base64: the asset route already answers the media type, and re-deriving it from the extension is a second allowlist.
 export type ReadVaultAssetResult = { ok: true; bytes: Blob } | { ok: false; error: string };
 
-export interface HeldDeletions {
-  /** What the rolling window would hold after this call, not this call's own count. */
-  readonly deletions: number;
-  readonly liveCount: number;
-  readonly limit: number;
-  readonly windowMs: number;
-  readonly sample: readonly string[];
-}
+// `files` moved a listing row (a create, rename, delete or a change the watcher saw), and
+// `paths: null` is one nobody could attribute, so every reader re-checks; `content` rewrote one
+// file in place and moved no row.
+export type VaultChangedEvent =
+  | { readonly kind: "files"; readonly paths: readonly string[] | null }
+  | { readonly kind: "content"; readonly path: string };
 
-export type DeleteVaultEntryResult =
-  | { readonly outcome: "removed" }
-  | { readonly outcome: "absent" }
-  | { readonly outcome: "held"; readonly held: HeldDeletions };
-
-// `changed` is null when the host re-announced without diffing; callers must re-read.
-export interface VaultChangedEvent {
-  readonly root: string;
-  readonly changed: {
-    readonly upserted: readonly string[];
-    readonly removed: readonly string[];
-  } | null;
-}
-
-export const vaultChangeTouches = (event: VaultChangedEvent, path: string): boolean => {
-  const { changed } = event;
-  if (changed === null) {
-    return true;
-  }
-  return changed.upserted.includes(path) || changed.removed.includes(path);
-};
-
-export const heldDeletionMessage = (held: HeldDeletions): string => {
-  const named = held.sample.map((path) => `"${path}"`).join(", ");
-  const more = held.sample.length < held.deletions ? ", …" : "";
-  return (
-    `Held: this would make ${held.deletions} deletions inside ` +
-    `${Math.round(held.windowMs / 60_000)} minutes, past the limit of ` +
-    `${Math.round(held.limit)} for a vault of ${held.liveCount} files. ` +
-    `Nothing was deleted (${named}${more}). The count is a rolling window that drains on ` +
-    `its own — wait for it to clear, then delete again.`
-  );
-};
+export const vaultChangeTouches = (event: VaultChangedEvent, path: string): boolean =>
+  event.kind === "files" ? event.paths === null || event.paths.includes(path) : event.path === path;
 
 export interface EditorHostIo {
   actions: VaultActions;
-  wikiResolver: WikiResolverStore;
+  linkResolver: LinkResolverStore;
   readVaultFile: (payload: { path: string }) => Promise<string>;
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
   /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */
   writeVaultAsset: (payload: { baseName: string; file: Blob }) => Promise<{ path: string }>;
-  /** Notes first, then attachments. */
-  listWikiTargets: () => Promise<WikiTarget[]>;
-  getBacklinks: (payload: { path: string }) => Promise<BacklinkEntry[]>;
   readNoteFormulas: (payload: { noteId: string }) => Promise<{
     path: string;
     formulas: CollectedFormula[];
   } | null>;
-  getForwardLinks: (payload: { path: string }) => Promise<ForwardLinkEntry[]>;
   onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
-  onKnowledgeUpdated: (listener: () => void) => () => void;
+  /** Where a note's html block runs: a same-origin document answered under its own sandbox policy, since a srcdoc frame inherits the page's and runs no inline script. */
+  htmlFrameUrl: string;
 }
 
 let installed: EditorHostIo | null = null;

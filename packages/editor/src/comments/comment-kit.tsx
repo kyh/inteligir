@@ -1,22 +1,39 @@
 import { useEffect, useRef, useState } from "react";
-import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
+import { KEYS } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
 
-import { matchesHotkey } from "@repo/editor/editor-shortcuts";
+import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
+import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Textarea } from "@repo/ui/components/textarea";
 import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
+import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
 
-import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
+import { commentSpans } from "./comment-ranges";
 import { findCommentMarker, insertCommentMarkers, removeCommentMarkers } from "./comment-markers";
-import { setPendingCreate, useCommentMeta, useCommentSurface } from "./comment-store";
+import {
+  clearPendingCreate,
+  setPendingCreate,
+  useCommentMeta,
+  useCommentSurface,
+} from "./comment-store";
+
+// exported alone as well: the empty Comments tab says how to make the first one
+export const ADD_COMMENT_SHORTCUT: EditorShortcut<"add-comment"> = {
+  action: "add-comment",
+  hotkey: "mod+shift+a",
+  label: "Comment on the selection",
+};
+
+export const COMMENT_SHORTCUTS: readonly EditorShortcut<"add-comment">[] = [ADD_COMMENT_SHORTCUT];
 
 const rangeClassName = (state: {
   orphan: boolean;
@@ -32,9 +49,14 @@ const rangeClassName = (state: {
   return "bg-amber-300/20 hover:bg-amber-300/30";
 };
 
+type CommentDecoration = DecoratedRange & {
+  commentIds: string;
+  commentRange: true;
+  commentOrphan?: true;
+};
+
 const CommentRangeLeaf = (props: PlateLeafProps) => {
-  const raw = stringProp(props.leaf, "commentIds") ?? "";
-  const ids = raw.split(",").filter((id) => id !== "");
+  const ids = splitMarkerIds(stringProp(props.leaf, "commentIds") ?? "");
   const orphan = props.leaf.commentOrphan === true;
   const actions = useCommentSurface((state) => state.actions);
   const notePath = useOpenNotePath();
@@ -75,7 +97,7 @@ const beginCreate = (editor: SlateEditor): boolean => {
     domSelection !== null && domSelection.rangeCount > 0
       ? domSelection.getRangeAt(0).getBoundingClientRect()
       : null;
-  const id = mintCommentId();
+  const id = mintCommentId((length) => crypto.getRandomValues(new Uint8Array(length)));
   if (!insertCommentMarkers(editor, id)) {
     return false;
   }
@@ -103,7 +125,8 @@ const CommentCreateHost = () => {
   const armed = useCommentSurface((state) => state.pendingCreate);
   const actions = useCommentSurface((state) => state.actions);
   const [text, setText] = useState("");
-  const [saving, setSaving] = useState(false);
+  // keyed by the create it saves, so a create armed meanwhile is not held by another's save
+  const [savingId, setSavingId] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
   // drawn only over the note that minted it, so cancel and save act on the document holding the markers
@@ -128,9 +151,15 @@ const CommentCreateHost = () => {
     return null;
   }
 
+  const saving = savingId === pending.id;
+
+  // a save in flight owns the markers: its answer decides whether they stay
   const cancel = (): void => {
+    if (saving) {
+      return;
+    }
     removeCommentMarkers(editor, [pending.id]);
-    setPendingCreate(null);
+    clearPendingCreate(pending.id);
   };
 
   const save = (): void => {
@@ -138,14 +167,15 @@ const CommentCreateHost = () => {
     if (trimmed === "" || saving || actions === null) {
       return;
     }
-    setSaving(true);
+    const { id } = pending;
+    setSavingId(id);
     void (async () => {
-      const ok = await actions.create(pending.id, trimmed).catch(() => false);
-      setSaving(false);
+      const ok = await actions.create(id, trimmed).catch(() => false);
+      setSavingId((current) => (current === id ? null : current));
       if (!ok) {
-        removeCommentMarkers(editor, [pending.id]);
+        removeCommentMarkers(editor, [id]);
       }
-      setPendingCreate(null);
+      clearPendingCreate(id);
     })();
   };
 
@@ -173,6 +203,9 @@ const CommentCreateHost = () => {
             setText(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               save();
@@ -180,7 +213,7 @@ const CommentCreateHost = () => {
           }}
         />
         <div className="flex justify-end gap-1.5">
-          <Button size="compact" variant="ghost" onClick={cancel}>
+          <Button size="compact" variant="ghost" disabled={saving} onClick={cancel}>
             Cancel
           </Button>
           <Button size="compact" disabled={saving || text.trim() === ""} onClick={save}>
@@ -208,65 +241,31 @@ export const scrollToCommentMarker = (editor: SlateEditor, rootId: string): bool
 
 export const CommentKit = [
   createPlatePlugin({
-    // Text-level: Plate applies a decoration only to the node it was returned for,
-    // so a block-level range never reaches the leaves.
+    // Returned for the root alone: Slate splits a root range across every block it crosses and
+    // re-renders only a block whose share moved, so a range minted over three paragraphs tints
+    // the untouched middle one. Returned per node, a block that did not change keeps the
+    // decorations it last rendered with.
     decorate: ({ editor, entry }) => {
-      const [node, path] = entry;
-      if (!TextApi.isText(node)) {
+      if (entry[1].length > 0) {
         return;
       }
-      const parentPath = path.slice(0, -1);
-      const parent = NodeApi.get(editor, parentPath);
-      if (!ElementApi.isElement(parent) || !holdsCommentMarkers(parent)) {
-        return;
-      }
-      const scan = scanBlockComments(editor, [parent, parentPath]);
-      const index = path.at(-1);
-      if (index === undefined) {
-        return;
-      }
-      const decorations: DecoratedRange[] = [];
-      const clip = (
-        anchor: { path: number[]; offset: number },
-        focus: { path: number[]; offset: number },
-        ids: readonly string[],
-        orphan: boolean,
-      ): void => {
-        const from = anchor.path.at(-1);
-        const to = focus.path.at(-1);
-        if (from === undefined || to === undefined || index < from || index > to) {
-          return;
-        }
-        const startOffset = index === from ? anchor.offset : 0;
-        const endOffset = index === to ? focus.offset : node.text.length;
-        if (startOffset >= endOffset) {
-          return;
-        }
-        const decorated: DecoratedRange & {
-          commentIds: string;
-          commentRange: true;
-          commentOrphan?: true;
-        } = {
-          anchor: { offset: startOffset, path },
-          commentIds: ids.join(","),
-          commentRange: true,
-          focus: { offset: endOffset, path },
-        };
-        if (orphan) {
-          decorated.commentOrphan = true;
-        }
-        decorations.push(decorated);
-      };
-      for (const range of scan.ranges) {
-        clip(range.anchor, range.focus, range.ids, false);
-      }
-      if (scan.unpairedIds.length > 0) {
-        const start = editor.api.start(parentPath);
-        const end = editor.api.end(parentPath);
-        if (start && end) {
-          clip(start, end, scan.unpairedIds, true);
-        }
-      }
+      const decorations = commentSpans(editor).flatMap(
+        ({ extent, ids, orphan }): CommentDecoration[] => {
+          if (extent === null) {
+            return [];
+          }
+          // the ids ride as the joined string: a decoration is compared shallowly per render
+          const decorated: CommentDecoration = {
+            ...extent,
+            commentIds: ids.join(","),
+            commentRange: true,
+          };
+          if (orphan) {
+            decorated.commentOrphan = true;
+          }
+          return [decorated];
+        },
+      );
       return decorations.length > 0 ? decorations : undefined;
     },
     key: "commentRange",
@@ -279,7 +278,7 @@ export const CommentKit = [
   }).extend(() => ({
     handlers: {
       onKeyDown: ({ editor, event }) => {
-        if (!matchesHotkey("mod+shift+a", event)) {
+        if (editorShortcutFor(COMMENT_SHORTCUTS, event)?.action !== "add-comment") {
           return;
         }
         if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) {

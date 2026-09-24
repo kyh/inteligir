@@ -10,7 +10,13 @@ import {
   useMemo,
   useRef,
 } from "react";
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, RefAttributes } from "react";
+import type {
+  ButtonHTMLAttributes,
+  HTMLAttributes,
+  ReactNode,
+  RefAttributes,
+  RefObject,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HTMLMotionProps } from "framer-motion";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
@@ -27,9 +33,6 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-// bare keys: ⌘[ / ⌘] are the browser's history shortcuts
-const SIDEBAR_KEYBOARD_SHORTCUT = "[";
-const SIDEBAR_KEYBOARD_SHORTCUT_RIGHT = "]";
 // exported: every persisted width preference clamps to these
 export const SIDEBAR_MIN_WIDTH = 192;
 export const SIDEBAR_MAX_WIDTH = 360;
@@ -49,6 +52,7 @@ interface SidebarContextValue {
   toggleSidebar: () => void;
   width: string;
   setWidth: (width: string) => void;
+  onWidthCommitted?: ((px: number) => void) | undefined;
   widthMobile: string;
   mobileBreakpoint: number;
   side: SidebarSide;
@@ -60,10 +64,6 @@ interface SidebarContextValue {
   isResizing: boolean;
   setIsResizing: React.Dispatch<React.SetStateAction<boolean>>;
 }
-
-// the toggle listener is global (the key works without focus in the sidebar), so only one
-// provider may answer: the innermost containing focus, else the outermost mounted one
-const mountedProviders: HTMLElement[] = [];
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
@@ -92,11 +92,22 @@ const useIsMobile = (breakpoint: number): boolean => {
   return isMobile === true;
 };
 
+// what an owner may ask of its sidebar: the toggle a click on the rail runs, which opens the
+// sheet below the mobile breakpoint, where nothing else reaches it
+export interface SidebarActions {
+  toggle: () => void;
+}
+
 interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  // the chord that toggles this sidebar, spelled for the keyboard in use, for the rail's tooltip
+  // alone: the app's own key table owns the binding, so no provider listens for a key
   shortcut?: string | null;
+  // once per resize, when the drag ends or collapses the sidebar, never per frame
+  onWidthCommitted?: (px: number) => void;
+  actionsRef?: RefObject<SidebarActions | null>;
   mobileBreakpoint?: number;
   peek?: "hover" | "click" | "none";
   width?: string;
@@ -107,7 +118,9 @@ const SidebarProvider = ({
   defaultOpen = true,
   open: openProp,
   onOpenChange,
-  shortcut: shortcutProp,
+  shortcut = null,
+  onWidthCommitted,
+  actionsRef,
   mobileBreakpoint = 768,
   peek = "none",
   width: widthProp = SIDEBAR_WIDTH,
@@ -121,21 +134,6 @@ const SidebarProvider = ({
   const isMobile = useIsMobile(mobileBreakpoint);
   const [openMobile, setOpenMobile] = useState(false);
   const [side, setSide] = useState<SidebarSide>("left");
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) {
-      return;
-    }
-    mountedProviders.push(el);
-    return () => {
-      const i = mountedProviders.indexOf(el);
-      if (i !== -1) {
-        mountedProviders.splice(i, 1);
-      }
-    };
-  }, []);
   const registerSide = useCallback((next: SidebarSide) => {
     setSide(next);
   }, []);
@@ -147,10 +145,6 @@ const SidebarProvider = ({
     setWidth(widthProp);
   }
   const [isResizing, setIsResizing] = useState(false);
-
-  const defaultShortcut =
-    side === "right" ? SIDEBAR_KEYBOARD_SHORTCUT_RIGHT : SIDEBAR_KEYBOARD_SHORTCUT;
-  const shortcut = shortcutProp === undefined ? defaultShortcut : shortcutProp;
 
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = openProp ?? internalOpen;
@@ -175,65 +169,16 @@ const SidebarProvider = ({
     }
   }, [isMobile, setOpen]);
 
+  useEffect(() => {
+    if (actionsRef !== undefined) {
+      actionsRef.current = { toggle: toggleSidebar };
+    }
+  }, [actionsRef, toggleSidebar]);
+
   const [isPeeking, setIsPeeking] = useState(false);
   if (isPeeking && (open || peek === "none")) {
     setIsPeeking(false);
   }
-
-  useEffect(() => {
-    if (shortcut === null) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== shortcut.toLowerCase()) {
-        return;
-      }
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-      const { target } = event;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.tagName === "SELECT" ||
-        target.isContentEditable
-      ) {
-        return;
-      }
-      // providers nest, so containment alone is not enough: the innermost containing focus wins
-      const root = wrapperRef.current;
-      if (!root) {
-        return;
-      }
-      if (root.contains(target)) {
-        if (
-          mountedProviders.some((el) => el !== root && root.contains(el) && el.contains(target))
-        ) {
-          return;
-        }
-      } else {
-        if (mountedProviders.some((el) => el !== root && el.contains(target))) {
-          return;
-        }
-        // focus outside every provider: the outermost answers; mount order is unreliable
-        const outermost = mountedProviders.find(
-          (el) => !mountedProviders.some((other) => other !== el && other.contains(el)),
-        );
-        if (outermost !== root) {
-          return;
-        }
-      }
-      event.preventDefault();
-      toggleSidebar();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [shortcut, toggleSidebar]);
 
   const value = useMemo<SidebarContextValue>(
     () => ({
@@ -241,6 +186,7 @@ const SidebarProvider = ({
       isPeeking,
       isResizing,
       mobileBreakpoint,
+      onWidthCommitted,
       open,
       openMobile,
       peek,
@@ -264,6 +210,7 @@ const SidebarProvider = ({
       isMobile,
       toggleSidebar,
       width,
+      onWidthCommitted,
       widthMobile,
       mobileBreakpoint,
       side,
@@ -278,7 +225,7 @@ const SidebarProvider = ({
   return (
     <SidebarContext.Provider value={value}>
       <div
-        ref={composeRefs(wrapperRef, ref)}
+        ref={ref}
         data-slot="sidebar-wrapper"
         className={cn("group/sidebar-wrapper relative flex min-h-svh w-full", className)}
         style={cssVars({
@@ -311,17 +258,10 @@ type MotionSafeDivProps = Omit<HTMLMotionProps<"div">, "ref" | "children"> & {
 };
 
 const ShortcutKbd = ({ children }: { children: ReactNode }) => (
-  <kbd className="-my-1 flex h-4 min-w-4 items-center justify-center rounded border border-background/30 px-1 font-sans text-[10px] text-background/80">
+  <kbd className="-my-1 flex h-4 min-w-4 items-center justify-center rounded border border-background/30 px-1 font-sans text-caption text-background/80">
     {children}
   </kbd>
 );
-
-const useShortcutKey = (): string => {
-  const { side, shortcut } = useSidebar();
-  return (
-    shortcut ?? (side === "right" ? SIDEBAR_KEYBOARD_SHORTCUT_RIGHT : SIDEBAR_KEYBOARD_SHORTCUT)
-  );
-};
 
 type SidebarRailProps = HTMLAttributes<HTMLButtonElement>;
 
@@ -330,10 +270,15 @@ const SidebarRail = ({
   ref,
   ...props
 }: SidebarRailProps & RefAttributes<HTMLButtonElement>) => {
-  const { toggleSidebar, setOpen, setWidth, side, setIsResizing } = useSidebar();
-  const shortcutKey = useShortcutKey();
+  const { toggleSidebar, setOpen, setWidth, onWidthCommitted, side, setIsResizing, shortcut } =
+    useSidebar();
   const railRef = useRef<HTMLButtonElement | null>(null);
-  const dragRef = useRef<{ startX: number; startWidth: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startWidth: number;
+    width: number;
+    moved: boolean;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -342,7 +287,12 @@ const SidebarRail = ({
     if (!panel) {
       return;
     }
-    dragRef.current = { moved: false, startWidth: panel.offsetWidth, startX: event.clientX };
+    dragRef.current = {
+      moved: false,
+      startWidth: panel.offsetWidth,
+      startX: event.clientX,
+      width: panel.offsetWidth,
+    };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -368,22 +318,37 @@ const SidebarRail = ({
       setDragging(false);
       setIsResizing(false);
       setWidth(`${SIDEBAR_MIN_WIDTH}px`);
+      onWidthCommitted?.(SIDEBAR_MIN_WIDTH);
       setOpen(false);
       return;
     }
     const next = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, raw));
+    drag.width = next;
     setWidth(`${next}px`);
   };
 
-  const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+  // A cancelled drag, or one whose capture the browser took back, still lands the width it
+  // reached; only a press let go where it began is a click.
+  const endDrag = (toggleOnClick: boolean): void => {
     const drag = dragRef.current;
     dragRef.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
     setDragging(false);
     setIsResizing(false);
-    if (drag && !drag.moved) {
+    if (drag?.moved === true) {
+      onWidthCommitted?.(drag.width);
+    } else if (toggleOnClick && drag !== null) {
       toggleSidebar();
     }
+  };
+
+  // ended before the release, which may report the lost capture before it returns
+  const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    endDrag(true);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const onDragInterrupted = (): void => {
+    endDrag(false);
   };
 
   const semibold = { fontVariationSettings: fontWeights.semibold };
@@ -403,7 +368,7 @@ const SidebarRail = ({
             <span className="[text-box:trim-both_cap_alphabetic]">
               <span style={semibold}>Click</span> to collapse
             </span>
-            <ShortcutKbd>{shortcutKey}</ShortcutKbd>
+            {shortcut === null ? null : <ShortcutKbd>{shortcut}</ShortcutKbd>}
           </span>
         </span>
       }
@@ -417,6 +382,8 @@ const SidebarRail = ({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onDragInterrupted}
+        onLostPointerCapture={onDragInterrupted}
         className={cn(
           "absolute inset-y-0 z-20 w-2 cursor-col-resize outline-none",
           // positioned from context, not group-data selectors, so a className offset can win the merge
@@ -847,7 +814,7 @@ const SidebarGroupLabel = ({
         className={cn(
           "flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none select-none",
           "transition-colors duration-80 hover:text-muted-foreground focus-visible:text-muted-foreground",
-          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+          "focus-visible:ring-1 focus-visible:ring-focus-ring",
           radius.item,
           textClass,
           className,
@@ -907,7 +874,7 @@ const SidebarGroupAction = ({
       className={cn(
         "flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none",
         "transition-colors duration-80 hover:bg-muted/60 hover:text-foreground focus-visible:text-foreground",
-        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        "focus-visible:ring-1 focus-visible:ring-focus-ring",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         radius.item,
         className,

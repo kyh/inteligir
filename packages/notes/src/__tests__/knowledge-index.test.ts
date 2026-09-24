@@ -86,57 +86,6 @@ describe("KnowledgeIndex — forward links", () => {
   });
 });
 
-describe("KnowledgeIndex — graph", () => {
-  it("emits doc nodes, flagged phantom nodes, and typed deduped edges", () => {
-    const graph = seeded().graph();
-    const ids = graph.nodes.map((n) => n.id);
-    expect(ids).toContain("wiki/hub.md");
-    expect(ids).toContain("wiki/target note.md");
-    const phantom = graph.nodes.find((n) => n.phantom);
-    expect(phantom).toMatchObject({ id: "phantom:missing note", title: "missing note" });
-    expect(phantom?.path).toBeUndefined();
-
-    const hubToTarget = graph.edges.find(
-      (e) => e.source === "wiki/hub.md" && e.target === "wiki/target note.md",
-    );
-    expect(hubToTarget).toMatchObject({ count: 2, kind: "wiki" });
-    const mdEdge = graph.edges.find(
-      (e) => e.source === "wiki/hub.md" && e.target === "notes/other.md",
-    );
-    expect(mdEdge?.kind).toBe("md");
-
-    const hub = graph.nodes.find((n) => n.id === "wiki/hub.md");
-    // ->target, ->phantom, ->other, <-other; asset references stay off the graph
-    expect(hub?.degree).toBe(4);
-  });
-
-  it("keeps the graph a notes graph: no asset nodes, edges, or phantoms", () => {
-    const index = seeded();
-    index.setDoc("gallery.md", "![](../diagram.png) and ![gone](missing.png) and [[lost.pdf]]\n");
-    const graph = index.graph();
-    const ids = graph.nodes.map((n) => n.id);
-    expect(ids).not.toContain("diagram.png");
-    expect(ids.filter((id) => id.startsWith("phantom:"))).toEqual(["phantom:missing note"]);
-    expect(graph.edges.some((e) => e.source === "gallery.md")).toBe(false);
-  });
-
-  it("collapses a self-link into one edge counted once in the degree", () => {
-    const index = new KnowledgeIndex();
-    index.setDoc("self.md", "# Self\n\n[[self]] and again [[self]]\n");
-    const graph = index.graph();
-    expect(graph.edges).toEqual([{ count: 2, kind: "wiki", source: "self.md", target: "self.md" }]);
-    expect(graph.nodes.find((n) => n.id === "self.md")?.degree).toBe(1);
-  });
-
-  it("folds differently-cased dangling targets into one phantom node", () => {
-    const index = new KnowledgeIndex();
-    index.setDoc("a.md", "[[Ghost]]\n");
-    index.setDoc("b.md", "[[ghost]]\n");
-    const phantoms = index.graph().nodes.filter((n) => n.phantom);
-    expect(phantoms).toEqual([{ degree: 2, id: "phantom:ghost", phantom: true, title: "Ghost" }]);
-  });
-});
-
 describe("KnowledgeIndex — case-colliding paths", () => {
   // a case-sensitive fs (linux) can hold both
   it("keeps Note.md and note.md distinct without double-counting links", () => {
@@ -148,7 +97,7 @@ describe("KnowledgeIndex — case-colliding paths", () => {
     expect(targets).toEqual(["Note.md", "note.md", "Note.md"]);
     expect(index.backlinks("Note.md")).toHaveLength(2);
     expect(index.backlinks("note.md")).toHaveLength(1);
-    expect(index.graph().nodes.filter((n) => n.phantom)).toHaveLength(0);
+    expect(index.problems({ limit: 10 }).unresolvedLinks.rows).toEqual([]);
   });
 });
 
@@ -160,7 +109,7 @@ describe("KnowledgeIndex — incremental updates", () => {
     expect(index.backlinks("missing note.md")).toEqual([
       expect.objectContaining({ sourcePath: "wiki/hub.md" }),
     ]);
-    expect(index.graph().nodes.some((n) => n.phantom)).toBe(false);
+    expect(index.problems({ limit: 10 }).unresolvedLinks.rows).toEqual([]);
   });
 
   it("turns links dangling when their target is removed", () => {

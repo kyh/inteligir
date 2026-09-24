@@ -2,7 +2,7 @@
 // math before gfm/mdx; opaque last, over the finished tree and the complete set of stringify
 // extensions.
 
-import type { ListItem, Nodes, ThematicBreak } from "mdast";
+import type { Break, ListItem, Nodes, ThematicBreak } from "mdast";
 import type { Handle, Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import type { Plugin } from "unified";
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item";
@@ -24,6 +24,37 @@ const thematicBreakNeverFrontmatter: Handle = (node: ThematicBreak, parent, stat
     return "***";
   }
   return defaultHandlers.thematicBreak(node, parent, state);
+};
+
+// a bare url runs to the next whitespace, so a hard break spelled `\` after one reads back as the
+// url's last character and the url grows a `\` on every save; two trailing spaces are the same
+// break. an emphasis mark closing after the url does not end it either.
+const BARE_URL_TAIL = /(?:https?:\/\/|www\.)\S*$/iu;
+
+const endsWithBareUrl = (node: Nodes): boolean => {
+  switch (node.type) {
+    case "text":
+    case "html":
+    case "opaqueInline": {
+      return BARE_URL_TAIL.test(node.value);
+    }
+    case "delete":
+    case "emphasis":
+    case "strong": {
+      const last = node.children.at(-1);
+      return last !== undefined && endsWithBareUrl(last);
+    }
+    default: {
+      return false;
+    }
+  }
+};
+
+const hardBreakAfterBareUrl: Handle = (node: Break, parent, state, info) => {
+  const spelled = defaultHandlers.break(node, parent, state, info);
+  const siblings: readonly Nodes[] = parent?.children ?? [];
+  const before = siblings[siblings.indexOf(node) - 1];
+  return spelled === "\\\n" && before !== undefined && endsWithBareUrl(before) ? "  \n" : spelled;
 };
 
 // options.handlers replace extension handlers wholesale, so the wrapper delegates to gfm's own.
@@ -62,6 +93,7 @@ const listItemEmptyTodoPlaceholder: Handle = (node: Nodes, parent, state, info) 
 export const MD_STRINGIFY = {
   bullet: "-",
   handlers: {
+    break: hardBreakAfterBareUrl,
     listItem: listItemEmptyTodoPlaceholder,
     thematicBreak: thematicBreakNeverFrontmatter,
   },

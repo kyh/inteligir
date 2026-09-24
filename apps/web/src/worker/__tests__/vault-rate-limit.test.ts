@@ -9,7 +9,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
-import { deviceHeaders, ORIGIN, loginDevice, sessionHeaders, signUpUser } from "./cloud-helpers";
+import {
+  deviceHeaders,
+  emitted,
+  ORIGIN,
+  loginDevice,
+  postSignOut,
+  sessionHeaders,
+  signUpUser,
+} from "./cloud-helpers";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
@@ -42,7 +50,7 @@ describe("the hosted vault's per-device budgets", () => {
 
     const refused = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
     expect(refused.status).toBe(429);
-    expect(cloudErrorSchema.parse(await refused.json()).error.code).toBe("rate-limited");
+    expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
 
     const allowed = await SELF.fetch(TREE, { headers: deviceHeaders(laptop.credential) });
     expect(allowed.status).not.toBe(429);
@@ -62,7 +70,7 @@ describe("the hosted vault's per-device budgets", () => {
     expect(refused.status).toBe(429);
   });
 
-  it("drops a revoked device's rows — nothing else ever deletes one", async () => {
+  it("drops a revoked device's rows at once, not on Better Auth's next prune", async () => {
     const { bearer } = await signUpUser("vault-budget-revoke@example.test");
     const device = await loginDevice(bearer, "Laptop");
     const key = deviceRateKey("vaultRead", device.deviceId);
@@ -88,5 +96,25 @@ describe("the hosted vault's per-device budgets", () => {
       headers: { authorization: "Bearer igd_not-a-real-credential" },
     });
     expect(unauthorized.status).toBe(401);
+  });
+});
+
+// outside the window above: a fourth sign-up there meets better auth's own sign-up throttle
+describe("a signed-out device's budgets", () => {
+  it("go with it, as a revoked device's do", async () => {
+    const { bearer } = await signUpUser("vault-budget-signout@example.test");
+    const device = await loginDevice(bearer, "Laptop");
+    const key = deviceRateKey("vaultRead", device.deviceId);
+    await spendBudget(key);
+
+    const signedOut = await postSignOut(deviceHeaders(device.credential));
+    expect(signedOut.status).toBe(200);
+
+    const rows = await createDb(env.DB)
+      .select()
+      .from(rateLimit)
+      .where(eq(rateLimit.key, key))
+      .all();
+    expect(rows).toEqual([]);
   });
 });

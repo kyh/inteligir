@@ -4,11 +4,15 @@
 // file-relative, then root-relative, no alias tiers.
 
 import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
+import { IMPLIED_LINK_EXTENSION, wikiLinkName, wikiLinkPath } from "./doc-file";
 import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./vault-path";
 
 export interface TargetResolver {
   resolveWiki: (target: string, alias?: string) => string | null;
   resolveMd: (target: string, fromPath: string) => string | null;
+  // the doc whose frontmatter `id` this is; a copied file carries its original's, so it breaks
+  // like every other tier
+  resolveNoteId: (id: string) => string | null;
 }
 
 const pickBest = (candidates: readonly string[]): string | null => {
@@ -30,6 +34,15 @@ const pickBest = (candidates: readonly string[]): string | null => {
     }
   }
   return best;
+};
+
+// the keys the name tier files a path under: its basename, and that without the extension a link
+// may leave off. a bare name (no `/`) answers to exactly the paths filed under it, case aside: the
+// exact tiers reach only root files, which are filed there too
+export const wikiNameKeys = (path: string): readonly string[] => {
+  const base = basenamePath(path);
+  const name = wikiLinkName(path);
+  return name === base ? [base] : [base, name];
 };
 
 const push = (map: Map<string, string[]>, key: string, path: string): void => {
@@ -62,13 +75,9 @@ export const buildResolver = (
     }
     exact.add(path);
     push(exactLower, path.toLowerCase(), path);
-    const base = basenamePath(path);
-    push(byName, base, path);
-    push(byNameLower, base.toLowerCase(), path);
-    if (extnamePath(base).toLowerCase() === ".md") {
-      const stem = base.slice(0, -3);
-      push(byName, stem, path);
-      push(byNameLower, stem.toLowerCase(), path);
+    for (const key of wikiNameKeys(path)) {
+      push(byName, key, path);
+      push(byNameLower, key.toLowerCase(), path);
     }
   }
 
@@ -106,7 +115,7 @@ export const buildResolver = (
     if (clean.includes("/")) {
       // every path ending in `/${clean}` or `/${clean}.md` is keyed in byName under
       // basenamePath(clean), so that bucket holds every suffix candidate
-      const suffixes = [`/${clean}`, `/${clean}.md`];
+      const suffixes = [`/${clean}`, `/${clean}${IMPLIED_LINK_EXTENSION}`];
       const key = basenamePath(clean);
       const cs = pickBest(
         (byName.get(key) ?? []).filter((p) => suffixes.some((s) => p.endsWith(s))),
@@ -128,10 +137,12 @@ export const buildResolver = (
     return pickBest(byNameLower.get(clean.toLowerCase()) ?? []);
   };
 
+  const resolveNoteId = (id: string): string | null => pickBest(idOwners.get(id) ?? []);
+
   const resolveWiki = (target: string, alias?: string): string | null => {
     // a uuid-shaped alias names the target by frontmatter id; a display alias never does
     if (alias !== undefined && isUuidWikiAlias(alias)) {
-      const owned = pickBest(idOwners.get(alias) ?? []);
+      const owned = resolveNoteId(alias);
       if (owned !== null) {
         return owned;
       }
@@ -141,7 +152,7 @@ export const buildResolver = (
       return null;
     }
 
-    for (const candidate of [clean, `${clean}.md`]) {
+    for (const candidate of [clean, `${clean}${IMPLIED_LINK_EXTENSION}`]) {
       const hit = lookupExact(candidate);
       if (hit !== null) {
         return hit;
@@ -173,7 +184,10 @@ export const buildResolver = (
       candidates.push(rooted);
     }
     for (const candidate of candidates) {
-      const tryPaths = extnamePath(candidate) === "" ? [candidate, `${candidate}.md`] : [candidate];
+      const tryPaths =
+        extnamePath(candidate) === ""
+          ? [candidate, `${candidate}${IMPLIED_LINK_EXTENSION}`]
+          : [candidate];
       for (const path of tryPaths) {
         const hit = lookupExact(path);
         if (hit !== null) {
@@ -184,5 +198,19 @@ export const buildResolver = (
     return null;
   };
 
-  return { resolveMd, resolveWiki };
+  return { resolveMd, resolveNoteId, resolveWiki };
+};
+
+// the shortest target that resolves back to `path`: its name, else its path, spelled without the
+// extension a link may leave off, else the whole path, which an extensionless file of the same
+// name would otherwise shadow. a path the resolver does not know yet gets the qualified spelling
+export const wikiTargetForPath = (
+  path: string,
+  resolveWiki: (target: string) => string | null,
+): string => {
+  const qualified = wikiLinkPath(path);
+  return (
+    [wikiLinkName(path), qualified, path].find((target) => resolveWiki(target) === path) ??
+    qualified
+  );
 };

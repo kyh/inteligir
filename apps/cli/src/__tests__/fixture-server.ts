@@ -24,7 +24,12 @@ import type {
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
-import { findUnlinkedMentions, mentionNames } from "@repo/notes/knowledge/unlinked-mentions";
+import { buildResolver } from "@repo/notes/knowledge/link-resolve";
+import {
+  findUnlinkedMentions,
+  mentionLinkTarget,
+  mentionNames,
+} from "@repo/notes/knowledge/unlinked-mentions";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/api/local/system/system-schema";
@@ -34,7 +39,7 @@ import type {
   QueuedThreadMessage,
   Thread,
 } from "@repo/api/local/threads/threads-schema";
-import { DEFAULT_ATTACHMENT_LOCATION } from "@repo/api/local/vault/vault-schema";
+import { DEFAULT_ATTACHMENT_LOCATION, contentHashHex } from "@repo/api/local/vault/vault-schema";
 import type {
   VaultEntry,
   VaultPrefsResponse,
@@ -46,6 +51,8 @@ import { boundAddressSchema } from "../server/__tests__/bound-address";
 
 // required so a command that reaches the wire without the bearer fails rather than passes.
 export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
+
+export const FIXTURE_HANDOFF_NONCE = "fixture-handoff";
 
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
 
@@ -63,6 +70,11 @@ export interface FixtureState {
   failWith: { code: "BAD_REQUEST" | "INTERNAL_SERVER_ERROR"; message: string } | null;
   refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
   vault: Map<string, string>;
+  // every commitNow and landed write, in order, so a composition's ordering is assertable.
+  vaultLog: string[];
+  // bytes another writer lands just after the next read of that path is answered: the race a
+  // guarded write exists to refuse.
+  concurrentWrite: { path: string; content: string } | null;
   // newest first.
   revisions: Map<string, { revision: VaultRevision; content: string }[]>;
   searchResults: SearchResultWire[];
@@ -70,6 +82,8 @@ export interface FixtureState {
   backlinks: BacklinkEntryWire[];
   related: RelatedNoteWire[];
   connectors: ConnectorsResponse;
+  // the header values each add carried: the listing reduces them to hasAuth, as the real store's does.
+  connectorHeaders: Map<string, Record<string, string>>;
   folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
@@ -95,6 +109,19 @@ export const makeThread = (overrides: Partial<Thread> & Pick<Thread, "id">): Thr
   ...overrides,
 });
 
+export const makeInteraction = (
+  overrides: Partial<PendingInteraction> & Pick<PendingInteraction, "id" | "threadId">,
+): PendingInteraction => ({
+  createdAt: 1_700_000_000_000,
+  payload: null,
+  requestKey: `req_${overrides.id}`,
+  resolution: null,
+  resolvedAt: null,
+  status: "pending",
+  turnId: "turn_1",
+  ...overrides,
+});
+
 export const FIXTURE_REVISION_SHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c";
 
 export const makeRevision = (
@@ -113,6 +140,8 @@ export const makeFixtureState = (): FixtureState => ({
   backlinks: [],
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, state: "signed-out" },
   comments: new Map(),
+  concurrentWrite: null,
+  connectorHeaders: new Map(),
   connectors: { servers: [] },
   dataDir: "/fixture/data",
   failWith: null,
@@ -126,6 +155,7 @@ export const makeFixtureState = (): FixtureState => ({
   tags: [],
   threads: [],
   vault: new Map(),
+  vaultLog: [],
   vaultPrefs: { attachments: DEFAULT_ATTACHMENT_LOCATION },
   vaultStatus: { lastError: null, lastSyncAt: null, state: "no-remote" },
 });
@@ -259,6 +289,9 @@ const connectorsRouter = {
     if (context.connectors.servers.some((row) => row.name === input.name)) {
       throw errors.ALREADY_EXISTS({ message: `"${input.name}" exists` });
     }
+    if (input.transport.kind === "http" && input.transport.headers !== undefined) {
+      context.connectorHeaders.set(input.name, input.transport.headers);
+    }
     context.connectors.servers.push({
       enabled: true,
       name: input.name,
@@ -383,6 +416,7 @@ const knowledgeRouter = {
   })),
   // the real scan over the fixture vault, excluding what the fixture's backlinks already link
   unlinkedMentions: base.knowledge.unlinkedMentions.handler(({ context, input }) => ({
+    linkTarget: mentionLinkTarget(input.path, buildResolver(context.vault.keys()).resolveWiki),
     path: input.path,
     ...findUnlinkedMentions(
       [...context.vault].map(([path, body]) => ({ body, path, title: docStem(path) })),
@@ -397,7 +431,7 @@ const knowledgeRouter = {
 };
 
 const systemRouter = {
-  browserHandoff: base.system.browserHandoff.handler(() => ({ nonce: "fixture-handoff" })),
+  browserHandoff: base.system.browserHandoff.handler(() => ({ nonce: FIXTURE_HANDOFF_NONCE })),
   guide: base.system.guide.handler(({ context }) => ({ markdown: context.guideMarkdown })),
   status: base.system.status.handler(({ context }) => {
     const status: SystemStatusResponse = {
@@ -466,8 +500,23 @@ const threadsRouter = {
       thread: entry.thread,
     };
   }),
-  list: base.threads.list.handler(({ context }) => ({
-    threads: context.threads.map((entry) => entry.thread),
+  interrupt: base.threads.interrupt.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
+    if (entry === undefined) {
+      throw errors.NOT_FOUND({ message: "Not found" });
+    }
+    if (entry.thread.status === "idle" || entry.thread.status === "error") {
+      return { stop: "not-running", thread: entry.thread };
+    }
+    entry.thread = { ...entry.thread, status: "stopping" };
+    return { stop: "requested", thread: entry.thread };
+  }),
+  // one page whatever the limit: paging is the real composition's (action-list.test.ts).
+  list: base.threads.list.handler(({ context, input }) => ({
+    nextCursor: null,
+    threads: context.threads
+      .map((entry) => entry.thread)
+      .filter((thread) => input.includeArchived === true || thread.archivedAt === null),
   })),
   listInteractions: base.threads.listInteractions.handler(({ context, input }) => ({
     interactions: context.threads
@@ -494,11 +543,19 @@ const threadsRouter = {
   }),
 };
 
+const parentFolders = (path: string): string[] => {
+  const segments = path.split("/");
+  return segments.slice(1).map((_, index) => segments.slice(0, index + 1).join("/"));
+};
+
 const vaultRouter = {
   assetWrite: base.vault.assetWrite.handler(({ input }) => ({
     path: `${input.dir}/${input.baseName}`,
   })),
-  commitNow: base.vault.commitNow.handler(() => ({ files: 0 })),
+  commitNow: base.vault.commitNow.handler(({ context, input }) => {
+    context.vaultLog.push(input === undefined ? "commitNow" : `commitNow ${input.paths.join(" ")}`);
+    return { files: 0 };
+  }),
   // a path with revisions and no bytes on disk: the fixture's "deleted".
   deleted: base.vault.deleted.handler(({ context }) => ({
     entries: [...context.revisions]
@@ -519,6 +576,11 @@ const vaultRouter = {
     const content = context.vault.get(input.path);
     if (content === undefined) {
       throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
+    }
+    const racing = context.concurrentWrite;
+    if (racing?.path === input.path) {
+      context.concurrentWrite = null;
+      context.vault.set(racing.path, racing.content);
     }
     return { content, path: input.path };
   }),
@@ -557,11 +619,28 @@ const vaultRouter = {
     name: "vault",
     root: "/fixture/vault",
   })),
-  write: base.vault.write.handler(({ context, input, errors }) => {
-    if (input.ifAbsent === true && context.vault.has(input.path)) {
+  // the real route's refusals, spelled as it spells them.
+  write: base.vault.write.handler(async ({ context, input, errors }) => {
+    const current = context.vault.get(input.path);
+    const { guard } = input;
+    if (guard.kind === "absent" && current !== undefined) {
       throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
     }
+    if (parentFolders(input.path).some((folder) => context.vault.has(folder))) {
+      throw errors.CONFLICT({ message: `A file shadows a parent folder of ${input.path}` });
+    }
+    if (guard.kind === "expected") {
+      const message = `${input.path} changed since the base this write was derived from`;
+      if (current === undefined) {
+        throw errors.CAS_MISMATCH({ data: {}, message });
+      }
+      const hash = await contentHashHex(current);
+      if (hash !== guard.hash) {
+        throw errors.CAS_MISMATCH({ data: { current: { content: current, hash } }, message });
+      }
+    }
     context.vault.set(input.path, input.content);
+    context.vaultLog.push(`write ${input.path}`);
     return { path: input.path };
   }),
 };

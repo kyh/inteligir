@@ -5,6 +5,9 @@ import {
   docStem,
   isDocPath,
   isVaultMetadataPath,
+  wikiLinkName,
+  wikiLinkPath,
+  withDocExtension,
 } from "../knowledge/doc-file";
 
 describe("what counts as a doc", () => {
@@ -63,5 +66,33 @@ describe("the stem a title surface edits", () => {
     expect(`${docStem("notes/spec.markdown")}${docExtension("notes/spec.markdown")}`).toBe(
       "spec.markdown",
     );
+  });
+});
+
+describe("the name a new note is given", () => {
+  it("appends the default extension to a title, whatever dots it holds", () => {
+    expect(withDocExtension("Next.js")).toBe("Next.js.md");
+    expect(withDocExtension("Release 1.2")).toBe("Release 1.2.md");
+    expect(withDocExtension("notes/Plan")).toBe("notes/Plan.md");
+  });
+
+  it("keeps a doc extension the name already carries", () => {
+    expect(withDocExtension("todo.txt")).toBe("todo.txt");
+    expect(withDocExtension("a.md")).toBe("a.md");
+  });
+});
+
+describe("the name a wiki link spells", () => {
+  it("leaves off `.md` alone, in any case", () => {
+    expect(wikiLinkName("notes/Plan.md")).toBe("Plan");
+    expect(wikiLinkName("Notes.MD")).toBe("Notes");
+    expect(wikiLinkPath("notes/Plan.md")).toBe("notes/Plan");
+  });
+
+  it("keeps every other extension, doc or not", () => {
+    expect(wikiLinkName("notes/todo.txt")).toBe("todo.txt");
+    expect(wikiLinkName("spec.markdown")).toBe("spec.markdown");
+    expect(wikiLinkName("assets/logo.png")).toBe("logo.png");
+    expect(wikiLinkPath("notes/todo.txt")).toBe("notes/todo.txt");
   });
 });

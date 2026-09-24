@@ -1,4 +1,4 @@
-import { getLiveEditor } from "@repo/editor/live-editor";
+import { useLiveEditor } from "@repo/editor/live-editor";
 import {
   TaskItem,
   TaskItemLabel,
@@ -12,6 +12,8 @@ import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
+import { isImeComposing } from "@repo/ui/lib/ime";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { toast } from "@repo/ui/components/sonner";
 import {
   ArchiveIcon,
@@ -19,26 +21,30 @@ import {
   ArrowLeftIcon,
   PinIcon,
   PinOffIcon,
+  SquareIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 
-import { orpc } from "../api";
+import { client, failed, orpc, safe } from "../api";
 import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
-import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
+import { useFollowBottom } from "./follow-bottom";
+import { THREAD_ACTIVITY_LABELS, threadActivity, threadStopControl } from "../thread-activity";
 import type { ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
-import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
+import { useNoteThreads, useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 import { NoteFacts } from "./note-facts";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
 import type { CommentFocus } from "./comments-tab";
 import { HistoryTab } from "./history-tab";
-import { TimelineRowView } from "./timeline-rows";
+import { ReadRefusal } from "./read-refusal";
+import { QueuedReplyView, TimelineRowView } from "./timeline-rows";
 import { usePinnedPaths } from "../vault-hooks";
-import { useWorkspace } from "../workspace-context";
+import { bindingFor } from "../global-shortcuts";
 
 export type PanelTab = "actions" | "comments" | "history" | "metadata";
 
@@ -59,6 +65,8 @@ interface NoteMetadataActions {
 
 export interface ActionsPanelProps {
   docPath: string | null;
+  // the keyboard the workspace listens with, so the empty states spell its chords
+  modifier: ShortcutModifier;
   tab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
   commentFocus: CommentFocus | null;
@@ -68,7 +76,7 @@ export interface ActionsPanelProps {
   noteMetadata: NoteMetadataActions;
 }
 
-const InlineProperties = ({
+export const InlineProperties = ({
   docPath,
   open,
   onOpenChange,
@@ -77,7 +85,7 @@ const InlineProperties = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
-  const editor = open ? getLiveEditor(docPath) : null;
+  const editor = useLiveEditor(open ? docPath : null);
   return (
     <FoldSection label="Properties" open={open} onOpenChange={onOpenChange}>
       <div className="px-3 pb-2">
@@ -188,6 +196,29 @@ const ActionRow = ({
   );
 };
 
+const ShowMoreActions = ({
+  pages,
+  label,
+}: {
+  pages: Pick<UseInfiniteQueryResult, "fetchNextPage" | "hasNextPage" | "isFetchingNextPage">;
+  label: string;
+}) =>
+  pages.hasNextPage ? (
+    <div className="px-2 py-1">
+      <Button
+        variant="ghost"
+        size="compact"
+        aria-label={label}
+        disabled={pages.isFetchingNextPage}
+        onClick={() => {
+          void pages.fetchNextPage();
+        }}
+      >
+        Show more
+      </Button>
+    </div>
+  ) : null;
+
 const ActionDetail = ({
   threadId,
   onBack,
@@ -197,26 +228,16 @@ const ActionDetail = ({
   onBack: () => void;
   onOpenDoc: (path: string) => void;
 }) => {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const detailQuery = useThreadDetail(threadId);
-  const timeline = useThreadTimeline(threadId);
+  const transcript = useThreadTimeline(threadId);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const { contentRef, onScroll, scrollRef } = useFollowBottom();
 
   const thread = detailQuery.data?.thread ?? null;
   const pending = detailQuery.data?.pendingInteractions ?? [];
-  const rowCount = timeline?.rows.length ?? 0;
-  const pendingCount = pending.length;
-
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (scroller === null || rowCount + pendingCount === 0) {
-      return;
-    }
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [rowCount, pendingCount]);
+  const queued = detailQuery.data?.queuedMessages ?? [];
 
   const invalidate = (): void => {
     void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
@@ -230,7 +251,7 @@ const ActionDetail = ({
     setSending(true);
     void (async () => {
       try {
-        const outcome = await sendToThread(api, {
+        const outcome = await sendToThread(client, {
           activeTurnId: detailQuery.data?.thread.activeTurnId ?? null,
           text: trimmed,
           threadId,
@@ -240,32 +261,45 @@ const ActionDetail = ({
         } else {
           setText("");
         }
-      } catch {
-        toast.error("Could not reach the agent.");
+      } catch (error) {
+        failed(error, "Could not reach the agent.");
       }
       setSending(false);
       invalidate();
     })();
   };
 
-  const answerInteraction = (interactionId: string, resolution: string): void => {
-    void (async () => {
-      try {
-        await api.threads.answerInteraction({ interactionId, resolution, threadId });
-      } catch {
-        toast.error("Could not answer the approval.");
-      }
-      invalidate();
-    })();
+  // rethrown so the card hands its options back for another try
+  const answerInteraction = async (interactionId: string, resolution: string): Promise<void> => {
+    const { error } = await safe(
+      client.threads.answerInteraction({ interactionId, resolution, threadId }),
+    );
+    invalidate();
+    if (error !== null) {
+      failed(error, "Could not answer the approval.");
+      throw error;
+    }
   };
 
   const archive = (): void => {
     void (async () => {
       try {
-        await api.threads.archive({ threadId });
+        await client.threads.archive({ threadId });
         onBack();
-      } catch {
-        toast.error("Could not archive the action.");
+      } catch (error) {
+        failed(error, "Could not archive the action.");
+      }
+      invalidate();
+    })();
+  };
+
+  const stopControl = thread === null ? "none" : threadStopControl(thread);
+
+  const stop = (): void => {
+    void (async () => {
+      const { error } = await safe(client.threads.interrupt({ threadId }));
+      if (error !== null) {
+        failed(error, "Could not stop the action.");
       }
       invalidate();
     })();
@@ -289,21 +323,40 @@ const ActionDetail = ({
             {thread.originDocPath}
           </button>
         ) : null}
+        {stopControl === "none" ? null : (
+          <Button
+            size="icon-compact"
+            variant="ghost"
+            aria-label={stopControl === "requested" ? "Stopping action" : "Stop action"}
+            disabled={stopControl === "requested"}
+            onClick={stop}
+          >
+            <SquareIcon />
+          </Button>
+        )}
         <Button size="icon-compact" variant="ghost" aria-label="Archive action" onClick={archive}>
           <ArchiveIcon />
         </Button>
       </div>
-      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3">
-        {timeline?.rows.map((row) => (
-          <TimelineRowView key={row.id} row={row} />
-        ))}
-        {pending.map((interaction) => (
-          <ApprovalCard
-            key={interaction.id}
-            interaction={interaction}
-            onAnswer={answerInteraction}
-          />
-        ))}
+      <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+        <div ref={contentRef} className="flex flex-col gap-3">
+          {transcript.state === "refused" ? (
+            <ReadRefusal lead="The transcript could not be read." error={transcript.error} />
+          ) : null}
+          {transcript.state === "read"
+            ? transcript.timeline.rows.map((row) => <TimelineRowView key={row.id} row={row} />)
+            : null}
+          {queued.map((message) => (
+            <QueuedReplyView key={message.id} text={message.text} />
+          ))}
+          {pending.map((interaction) => (
+            <ApprovalCard
+              key={interaction.id}
+              interaction={interaction}
+              onAnswer={answerInteraction}
+            />
+          ))}
+        </div>
       </div>
       <div className="border-t border-line p-2">
         <Textarea
@@ -316,6 +369,9 @@ const ActionDetail = ({
             setText(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) {
+              return;
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               submit();
@@ -336,13 +392,14 @@ export const ActionsPanel = ({
   onSelectThread,
   onOpenDoc,
   noteMetadata,
+  modifier,
 }: ActionsPanelProps) => {
   const [propertiesOpen, setPropertiesOpen] = useState(true);
-  const threadsQuery = useThreads();
-  const threads = threadsQuery.data?.threads ?? [];
-
-  const noteActions = docPath === null ? [] : threads.filter((t) => t.originDocPath === docPath);
-  const otherActions = threads.filter((t) => docPath === null || t.originDocPath !== docPath);
+  const recentQuery = useThreads();
+  const noteQuery = useNoteThreads(docPath);
+  const recent = recentQuery.data ?? [];
+  const noteActions = noteQuery.data ?? [];
+  const otherActions = recent.filter((t) => docPath === null || t.originDocPath !== docPath);
 
   return (
     <Tabs
@@ -365,7 +422,7 @@ export const ActionsPanel = ({
         </TabsList>
       </div>
       <TabsContent value="comments">
-        <CommentsTab docPath={docPath} focus={commentFocus} />
+        <CommentsTab docPath={docPath} focus={commentFocus} modifier={modifier} />
       </TabsContent>
       <TabsContent value="history">
         <HistoryTab key={docPath} docPath={docPath} />
@@ -392,9 +449,10 @@ export const ActionsPanel = ({
                     <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
                   ))}
                 </TaskList>
+                <ShowMoreActions pages={noteQuery} label="Show more for this note" />
               </>
             ) : null}
-            {otherActions.length > 0 ? (
+            {otherActions.length > 0 || recentQuery.hasNextPage ? (
               <>
                 <p className="px-2 pt-2 pb-0.5 text-caption font-medium text-muted-foreground uppercase">
                   Recent
@@ -404,11 +462,13 @@ export const ActionsPanel = ({
                     <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
                   ))}
                 </TaskList>
+                <ShowMoreActions pages={recentQuery} label="Show more recent actions" />
               </>
             ) : null}
-            {threads.length === 0 ? (
+            {recent.length === 0 && noteActions.length === 0 ? (
               <p className="p-3 text-subtitle text-muted-foreground">
-                No actions yet. Press ⌘K to ask the agent.
+                No actions yet. Press {bindingFor("open-action-composer", modifier)} to ask the
+                agent.
               </p>
             ) : null}
           </div>

@@ -1,11 +1,12 @@
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
+import { MAX_THREAD_TITLE_LENGTH } from "@repo/domain/thread-title";
 import { viewContextSchema } from "@repo/domain/view-context";
 import type { ViewContext } from "@repo/domain/view-context";
 import { z } from "zod";
 import { threadTimelineSchema, timelineDeltaSchema } from "../thread-timeline";
-import { vaultPathSchema } from "../vault/vault-schema";
+import { contentHashSchema, vaultPathSchema } from "../vault/vault-schema";
 
 export const threadSchema = z
   .object({
@@ -39,8 +40,6 @@ export const pendingInteractionSchema = z
   .strict();
 export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
 
-const MAX_THREAD_TITLE_LENGTH = 200;
-
 export const createThreadRequestSchema = z
   .object({
     // a stored path nothing downstream re-validates.
@@ -53,7 +52,59 @@ export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 export const threadResponseSchema = z.object({ thread: threadSchema }).strict();
 export type ThreadResponse = z.infer<typeof threadResponseSchema>;
 
-export const listThreadsResponseSchema = z.object({ threads: z.array(threadSchema) }).strict();
+export const THREADS_LIST_DEFAULT_LIMIT = 50;
+export const THREADS_LIST_MAX_LIMIT = 200;
+
+// where a page left off: the last row's segment, updatedAt and id, the key the listing sorts by.
+export interface ThreadListCursor {
+  archived: boolean;
+  updatedAt: number;
+  id: string;
+}
+
+const CURSOR_PATTERN = /^(?<segment>[la])\.(?<updatedAt>\d{1,16})\.(?<id>.+)$/u;
+
+// a string, so a shell can hand back what `inteligir action list` printed.
+export const encodeThreadListCursor = (cursor: ThreadListCursor): string =>
+  `${cursor.archived ? "a" : "l"}.${String(cursor.updatedAt)}.${cursor.id}`;
+
+const threadListCursorSchema = z.string().transform((value, ctx): ThreadListCursor => {
+  const groups = CURSOR_PATTERN.exec(value)?.groups;
+  const updatedAt = Number(groups?.updatedAt);
+  if (
+    groups?.segment === undefined ||
+    groups.id === undefined ||
+    !Number.isSafeInteger(updatedAt)
+  ) {
+    ctx.addIssue({ code: "custom", message: "cursor is not one a thread listing answered" });
+    return z.NEVER;
+  }
+  return { archived: groups.segment === "a", id: groups.id, updatedAt };
+});
+
+export const listThreadsQuerySchema = z
+  .object({
+    // the previous page's `nextCursor`.
+    cursor: threadListCursorSchema.optional(),
+    includeArchived: z.boolean().optional(),
+    limit: z.number().int().min(1).max(THREADS_LIST_MAX_LIMIT).optional(),
+    originDocPath: vaultPathSchema.optional(),
+    // only threads whose turn is in flight; true or absent, one spelling of "any status".
+    running: z.literal(true).optional(),
+  })
+  .strict();
+export type ListThreadsQuery = z.input<typeof listThreadsQuerySchema>;
+export type ParsedListThreadsQuery = z.output<typeof listThreadsQuerySchema>;
+
+// live threads come first, newest first within each segment; no `total`, since a count would
+// cost the scan paging avoids.
+export const listThreadsResponseSchema = z
+  .object({
+    // null once the listing is exhausted.
+    nextCursor: z.string().nullable(),
+    threads: z.array(threadSchema).max(THREADS_LIST_MAX_LIMIT),
+  })
+  .strict();
 export type ListThreadsResponse = z.infer<typeof listThreadsResponseSchema>;
 
 export const threadIdQuerySchema = z
@@ -100,7 +151,24 @@ export const archiveThreadRequestSchema = z
   .strict();
 export type ArchiveThreadRequest = z.infer<typeof archiveThreadRequestSchema>;
 
-// the resource reaches a prompt with no further validation.
+export const interruptThreadRequestSchema = z
+  .object({
+    threadId: z.string().min(1),
+  })
+  .strict();
+
+// requested: the agent was asked to stop and the thread reads stopping until its turn ends;
+// stopped: the turn never reached the agent, so the stop settled at once; not-running: nothing to stop.
+export const threadStopSchema = z.enum(["requested", "stopped", "not-running"]);
+export type ThreadStop = z.infer<typeof threadStopSchema>;
+
+export const interruptThreadResponseSchema = z
+  .object({ stop: threadStopSchema, thread: threadSchema })
+  .strict();
+export type InterruptThreadResponse = z.infer<typeof interruptThreadResponseSchema>;
+
+// the resource and the revision reach a prompt with no further validation. the stored grammar
+// stays looser so a row written before either rule still parses.
 const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
   const resource = vaultPathSchema.safeParse(value.resource);
   if (!resource.success) {
@@ -111,11 +179,33 @@ const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewCont
     });
     return z.NEVER;
   }
+  if (!contentHashSchema.safeParse(value.revision).success) {
+    ctx.addIssue({
+      code: "custom",
+      message: "viewContext.revision is not a content hash",
+      path: ["revision"],
+    });
+    return z.NEVER;
+  }
   return { ...value, resource: resource.data };
 });
 
+export const MAX_CONTEXT_PATHS = 16;
+
+// absent, never empty, when nothing is attached: one spelling of "none".
+const contextPathsSchema = z
+  .array(vaultPathSchema)
+  .min(1)
+  .max(MAX_CONTEXT_PATHS)
+  .refine((paths) => new Set(paths).size === paths.length, {
+    message: "contextPaths names a note twice",
+  });
+
 export const sendMessageRequestSchema = z
   .object({
+    // the notes the user attached; the server names them to the agent in a block of their own,
+    // so `text` stays exactly what was typed.
+    contextPaths: contextPathsSchema.optional(),
     // the turn the client believes is running; when it no longer names the open turn the send
     // answers 409 rather than starting one.
     expectedTurnId: z.string().min(1).optional(),

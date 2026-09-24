@@ -1,10 +1,11 @@
 // a null payload still renders with Deny alone: deny is the one decision every request
 // accepts, and a dead card is a turn that times out.
 
-import type {
-  ApprovalPendingInteractionPayload,
-  PendingInteractionApprovalDecision,
+import {
+  answerableDecisions,
+  pendingInteractionApprovalDecisionSchema,
 } from "@repo/domain/pending-interactions";
+import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import {
   ApprovalCard as ApprovalCardView,
@@ -19,19 +20,16 @@ const DECISION_LABELS = {
   deny: "Deny",
 } satisfies Record<PendingInteractionApprovalDecision, string>;
 
-const DECISIONS: readonly PendingInteractionApprovalDecision[] = [
-  "allow_once",
-  "allow_for_session",
-  "deny",
-];
-
 const isDecision = (value: string): value is PendingInteractionApprovalDecision =>
-  DECISIONS.some((decision) => decision === value);
+  pendingInteractionApprovalDecisionSchema.safeParse(value).success;
 
 export interface ApprovalCardProps {
   interaction: PendingInteraction;
-  onAnswer: (interactionId: string, resolution: PendingInteractionApprovalDecision) => void;
-  disabled?: boolean;
+  // a rejection hands the card back its options, so a refused answer can be sent again
+  onAnswer: (
+    interactionId: string,
+    resolution: PendingInteractionApprovalDecision,
+  ) => Promise<void>;
 }
 
 interface ApprovalView {
@@ -40,11 +38,12 @@ interface ApprovalView {
   decisions: PendingInteractionApprovalDecision[];
 }
 
-const approvalView = (payload: ApprovalPendingInteractionPayload | null): ApprovalView => {
+export const approvalOffer = ({ payload }: PendingInteraction): ApprovalView => {
   if (payload === null) {
-    return { decisions: [], reason: null, summary: "The agent asked for approval." };
+    return { decisions: ["deny"], reason: null, summary: "The agent asked for approval." };
   }
-  const { subject, reason, availableDecisions: decisions } = payload;
+  const { subject, reason } = payload;
+  const decisions = answerableDecisions(payload);
   switch (subject.kind) {
     case "command": {
       return { decisions, reason, summary: `$ ${subject.command}` };
@@ -66,15 +65,6 @@ const approvalView = (payload: ApprovalPendingInteractionPayload | null): Approv
   }
 };
 
-export const approvalOffer = (interaction: PendingInteraction): ApprovalView => {
-  const view = approvalView(interaction.payload);
-  return {
-    decisions: [...view.decisions.filter((decision) => decision !== "deny"), "deny"],
-    reason: view.reason,
-    summary: view.summary,
-  };
-};
-
 export const decisionFromAnswers = (
   answers: readonly ApprovalAnswer[],
 ): PendingInteractionApprovalDecision | null => {
@@ -83,17 +73,14 @@ export const decisionFromAnswers = (
   return picked !== undefined && isDecision(picked) ? picked : null;
 };
 
-export const ApprovalCard = ({ interaction, onAnswer, disabled = false }: ApprovalCardProps) => {
+export const ApprovalCard = ({ interaction, onAnswer }: ApprovalCardProps) => {
   const offer = approvalOffer(interaction);
   return (
     <ApprovalCardView
-      onSubmit={(answers) => {
-        if (disabled) {
-          return;
-        }
+      onSubmit={async (answers) => {
         const decision = decisionFromAnswers(answers);
         if (decision !== null) {
-          onAnswer(interaction.id, decision);
+          await onAnswer(interaction.id, decision);
         }
       }}
       sentLabel="Answer sent"

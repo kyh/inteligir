@@ -42,9 +42,17 @@ describe("linking an unlinked mention", () => {
     expect(api.writes).toEqual([
       {
         content: "We revisit the [[Roadmap|roadmap]] on Monday.\n",
-        expectedHash: await contentHashHex(content),
+        guard: { hash: await contentHashHex(content), kind: "expected" },
         path: "a.md",
       },
+    ]);
+  });
+
+  it("writes the target the index answered, which names the note even where the bare name does not", async () => {
+    const api = apiOver("We revisit the roadmap on Monday.\n");
+    await linkMentionInNote(api, mention, "zz/Roadmap");
+    expect(api.writes.map((write) => write.content)).toEqual([
+      "We revisit the [[zz/Roadmap|roadmap]] on Monday.\n",
     ]);
   });
 

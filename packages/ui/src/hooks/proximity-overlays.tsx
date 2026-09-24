@@ -20,7 +20,7 @@ const ProximityFocusRing = ({ rect, radius }: ProximityFocusRingProps) => {
     <AnimatePresence>
       {rect && (
         <motion.div
-          className={`absolute ${resolved.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
+          className={`absolute ${resolved.focusRing} pointer-events-none z-20 border border-focus-ring`}
           initial={false}
           animate={{
             height: rect.height + 4,

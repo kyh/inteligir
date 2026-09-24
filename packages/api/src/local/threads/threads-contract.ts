@@ -16,8 +16,11 @@ import {
   archiveThreadRequestSchema,
   createThreadRequestSchema,
   getThreadResponseSchema,
+  interruptThreadRequestSchema,
+  interruptThreadResponseSchema,
   listInteractionsQuerySchema,
   listInteractionsResponseSchema,
+  listThreadsQuerySchema,
   listThreadsResponseSchema,
   sendMessageRequestSchema,
   sendMessageResponseSchema,
@@ -42,7 +45,13 @@ export const threadsContract = {
 
   get: oc.input(threadIdQuerySchema).output(getThreadResponseSchema).errors({ NOT_FOUND: {} }),
 
-  list: oc.output(listThreadsResponseSchema),
+  // CONFLICT: the running turn belongs to another device, whose provider nothing here can reach.
+  interrupt: oc
+    .input(interruptThreadRequestSchema)
+    .output(interruptThreadResponseSchema)
+    .errors({ CONFLICT: {}, NOT_FOUND: {} }),
+
+  list: oc.input(listThreadsQuerySchema).output(listThreadsResponseSchema),
 
   listInteractions: oc.input(listInteractionsQuerySchema).output(listInteractionsResponseSchema),
 

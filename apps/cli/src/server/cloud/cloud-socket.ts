@@ -12,6 +12,11 @@ import { z } from "zod";
 
 // answered by the worker's auto-response table without waking the hibernated object.
 const KEEPALIVE_INTERVAL_MS = 45_000;
+// a half-open connection neither answers nor closes, so silence is the only sign of one. two
+// intervals, not one: a tick that runs late behind a busy loop must not drop a live socket.
+const KEEPALIVE_DEADLINE_MS = 2 * KEEPALIVE_INTERVAL_MS;
+// rfc 6455's "closed abnormally", reported to the link and never sent: the peer is not answering.
+const UNANSWERED_CLOSE_CODE = 1006;
 
 export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
   const url = new URL(SYNC_WS_PATH, args.baseUrl);
@@ -23,6 +28,7 @@ export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
   });
   let keepalive: ReturnType<typeof setInterval> | null = null;
   let finished = false;
+  let lastFrameAt = 0;
 
   const stopKeepalive = (): void => {
     if (keepalive !== null) {
@@ -41,7 +47,15 @@ export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
   };
 
   socket.addEventListener("open", () => {
+    lastFrameAt = Date.now();
     keepalive = setInterval(() => {
+      if (Date.now() - lastFrameAt > KEEPALIVE_DEADLINE_MS) {
+        // reported here, not left to the close event: a closing handshake nobody answers takes
+        // as long to give up as the silence it is reporting.
+        finish(UNANSWERED_CLOSE_CODE);
+        socket.close();
+        return;
+      }
       try {
         socket.send(SYNC_WS_KEEPALIVE_PING);
       } catch {
@@ -54,6 +68,7 @@ export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
   });
 
   socket.addEventListener("message", (event) => {
+    lastFrameAt = Date.now();
     const frame = z.string().safeParse(event.data);
     if (!frame.success) {
       return;

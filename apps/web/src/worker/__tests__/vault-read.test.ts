@@ -7,8 +7,11 @@ import {
 } from "@repo/api/cloud/vault/vault-schema";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { deviceHeaders, ORIGIN, loginDevice, signUpUser } from "./cloud-helpers";
+import { vaultRepoName } from "../vault/git-remote";
+import { treeListingSlot } from "../vault/tree-listing";
+import { deviceHeaders, emitted, ORIGIN, loginDevice, signUpUser, userIdOf } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
@@ -16,7 +19,7 @@ const FILE = `${ORIGIN}${VAULT_API_PATHS.file}`;
 const ASSET = `${ORIGIN}${VAULT_API_PATHS.asset}`;
 
 const errorCode = async (response: Response): Promise<string> =>
-  cloudErrorSchema.parse(await response.json()).error.code;
+  emitted(cloudErrorSchema, await response.text()).error.code;
 
 const loginAndPush = async (email: string, files: Parameters<typeof pushVaultFiles>[2]) => {
   const { bearer } = await signUpUser(email);
@@ -24,8 +27,47 @@ const loginAndPush = async (email: string, files: Parameters<typeof pushVaultFil
   const pushed = await pushVaultFiles(credential, "vault: initialize", files, ZERO_OID);
   expect(pushed.response.status).toBe(200);
   expect(await pushed.response.text()).toContain("unpack ok");
-  return { commit: pushed.commit, credential };
+  return { bearer, commit: pushed.commit, credential };
 };
+
+// the phone's paging: the first page resolves the head, every later one pins what it answered.
+const pageWholeTree = async (credential: string, limit: number, ref?: string) => {
+  const paths: string[] = [];
+  const commits = new Set<string>();
+  let pinned = ref;
+  let after: string | undefined;
+  do {
+    const query = new URLSearchParams({ limit: String(limit) });
+    if (pinned !== undefined) {
+      query.set("ref", pinned);
+    }
+    if (after !== undefined) {
+      query.set("after", after);
+    }
+    const response = await SELF.fetch(`${TREE}?${query.toString()}`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.status).toBe(200);
+    const page = emitted(vaultTreeResponseSchema, await response.text());
+    commits.add(page.commit);
+    paths.push(...page.entries.map((entry) => entry.path));
+    pinned = page.commit;
+    after = page.next ?? undefined;
+  } while (after !== undefined);
+  return { commits: [...commits], paths };
+};
+
+const MANY_FOLDERS = [
+  "a.md",
+  "inbox/today.md",
+  "notes/b.md",
+  "notes/deep/c.md",
+  "notes/deep/d.md",
+  "notes/deep/deeper/e.md",
+  "projects/f.md",
+  "projects/x/g.md",
+  "z.md",
+];
 
 describe("vault read rows", () => {
   it("refuses the wire without a credential", async () => {
@@ -51,7 +93,7 @@ describe("vault read rows", () => {
 
     const first = await SELF.fetch(`${TREE}?limit=2`, { headers: deviceHeaders(credential) });
     expect(first.status).toBe(200);
-    const pageOne = vaultTreeResponseSchema.parse(await first.json());
+    const pageOne = emitted(vaultTreeResponseSchema, await first.text());
     expect(pageOne.commit).toBe(commit);
     expect(pageOne.entries.map((entry) => entry.path)).toEqual(["a.md", "notes/b.md"]);
     expect(pageOne.next).toBe("notes/b.md");
@@ -60,10 +102,48 @@ describe("vault read rows", () => {
       `${TREE}?limit=2&ref=${pageOne.commit}&after=${encodeURIComponent(pageOne.next ?? "")}`,
       { headers: deviceHeaders(credential) },
     );
-    const pageTwo = vaultTreeResponseSchema.parse(await second.json());
+    const pageTwo = emitted(vaultTreeResponseSchema, await second.text());
     expect(pageTwo.commit).toBe(commit);
     expect(pageTwo.entries.map((entry) => entry.path)).toEqual(["notes/deep/c.md"]);
     expect(pageTwo.next).toBeNull();
+  });
+
+  it("keeps the head's listing once, and pages a many-folder vault from it", async () => {
+    const { bearer, commit, credential } = await loginAndPush(
+      "vault-read-kept@example.test",
+      MANY_FOLDERS.map((path) => ({ content: `# ${path}\n`, path })),
+    );
+    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(bearer)));
+
+    expect(await pageWholeTree(credential, 1)).toEqual({ commits: [commit], paths: MANY_FOLDERS });
+    const kept = await slot.read(commit);
+    expect(kept?.map((entry) => entry.path)).toEqual(MANY_FOLDERS);
+
+    // what the slot holds is what a pinned page answers, which is how a page skips the walk
+    await slot.write(commit, [{ path: "only-in-the-slot.md", size: 1 }]);
+    const pinned = await SELF.fetch(`${TREE}?ref=${commit}`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(
+      emitted(vaultTreeResponseSchema, await pinned.text()).entries.map((entry) => entry.path),
+    ).toEqual(["only-in-the-slot.md"]);
+  });
+
+  it("walks a pinned page the slot does not hold, and leaves the slot to the newer head", async () => {
+    const { bearer, commit, credential } = await loginAndPush(
+      "vault-read-walked@example.test",
+      MANY_FOLDERS.map((path) => ({ content: `# ${path}\n`, path })),
+    );
+    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(bearer)));
+    const newerHead = "b".repeat(40);
+    await slot.write(newerHead, []);
+
+    expect(await pageWholeTree(credential, 1, commit)).toEqual({
+      commits: [commit],
+      paths: MANY_FOLDERS,
+    });
+    expect(await slot.read(newerHead)).toEqual([]);
+    expect(await slot.read(commit)).toBeNull();
   });
 
   it("omits an entry the contract's path grammar refuses, rather than failing the page", async () => {
@@ -76,7 +156,7 @@ describe("vault read rows", () => {
     const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
     expect(tree.status).toBe(200);
     expect(
-      vaultTreeResponseSchema.parse(await tree.json()).entries.map((entry) => entry.path),
+      emitted(vaultTreeResponseSchema, await tree.text()).entries.map((entry) => entry.path),
     ).toEqual(["a.md"]);
   });
 
@@ -88,7 +168,7 @@ describe("vault read rows", () => {
       headers: deviceHeaders(credential),
     });
     expect(response.status).toBe(200);
-    const file = vaultFileResponseSchema.parse(await response.json());
+    const file = emitted(vaultFileResponseSchema, await response.text());
     expect(file.commit).toBe(commit);
     expect(file.path).toBe("notes/hello.md");
     expect(file.content).toBe("# hello\n\nfrom the vault\n");
@@ -103,10 +183,10 @@ describe("vault read rows", () => {
       headers: deviceHeaders(credential),
     });
     expect(response.status).toBe(200);
-    expect(vaultFileResponseSchema.parse(await response.json()).content).toBe("# done\n");
+    expect(emitted(vaultFileResponseSchema, await response.text()).content).toBe("# done\n");
     const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
     expect(
-      vaultTreeResponseSchema.parse(await tree.json()).entries.map((entry) => entry.path),
+      emitted(vaultTreeResponseSchema, await tree.text()).entries.map((entry) => entry.path),
     ).toContain("100%done.md");
   });
 

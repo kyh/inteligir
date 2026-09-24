@@ -1,35 +1,11 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import nodePath from "node:path";
-import { noopNotifier } from "@repo/domain/notifier";
-import { describe, expect, it, onTestFinished } from "vitest";
-import { makeTempDir } from "../../__tests__/temp-dir";
-import { createVaultService } from "../../vault/vault-service";
+import { describe, expect, it } from "vitest";
 import type { VaultService } from "../../vault/vault-service";
-import { createKnowledgeRuntime } from "../knowledge-runtime";
-import type { KnowledgeRuntime } from "../knowledge-runtime";
 import { renameTagAcrossVault } from "../rename-tag";
-import { identityLock } from "../../__tests__/identity-lock";
+import { bootIndexedVault, makeVaultDirs } from "./indexed-vault";
 
-const boot = () => {
-  const instanceDir = makeTempDir("inteligir-knowledge-rename-tag-");
-  const root = nodePath.join(instanceDir, "vault");
-  const dataDir = nodePath.join(instanceDir, "data");
-  mkdirSync(root, { recursive: true });
-  mkdirSync(dataDir, { recursive: true });
-  let sink: KnowledgeRuntime | null = null;
-  const service = createVaultService({
-    lock: identityLock,
-    notifier: noopNotifier,
-    onMutated: (paths) => sink?.noteVaultChange({ kind: "paths", paths }),
-    root,
-  });
-  const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
-  sink = knowledge;
-  onTestFinished(async () => {
-    await knowledge.dispose();
-  });
-  return { knowledge, root, service };
-};
+const boot = () => bootIndexedVault(makeVaultDirs("inteligir-knowledge-rename-tag-"));
 
 describe("a tag rename across the vault", () => {
   it("rewrites every note holding the tag or its family, and the index agrees afterwards", async () => {

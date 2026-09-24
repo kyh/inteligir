@@ -1,7 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
-import { writeTransaction } from "./connection";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -26,6 +25,8 @@ const requireClaimedQueuedThreadMessage = (
 export interface CreateQueuedThreadMessageInput {
   threadId: string;
   text: string;
+  // the stored text, null for none: the caller that parses the column back owns its encoding too.
+  contextPaths: string | null;
 }
 
 // fixed-width ms timestamp so lexicographic order is arrival order; extended past the tail when
@@ -55,6 +56,7 @@ export const createQueuedThreadMessageInTransaction = (
     .values({
       claimToken: null,
       claimedAt: null,
+      contextPaths: input.contextPaths,
       createdAt: now,
       id: createQueuedThreadMessageId(),
       sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),
@@ -64,16 +66,6 @@ export const createQueuedThreadMessageInTransaction = (
     })
     .returning()
     .get();
-};
-
-export const createQueuedThreadMessage = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  input: CreateQueuedThreadMessageInput,
-): QueuedThreadMessageRow => {
-  const row = writeTransaction(db, (tx) => createQueuedThreadMessageInTransaction(tx, input));
-  notifier.notifyThread(input.threadId, ["queue-changed"]);
-  return row;
 };
 
 export const listQueuedThreadMessages = (
@@ -132,20 +124,6 @@ export const claimNextQueuedThreadMessageInTransaction = (
   return requireClaimedQueuedThreadMessage(updated);
 };
 
-export const claimNextQueuedThreadMessage = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  threadId: string,
-): ClaimedQueuedThreadMessageRow | null => {
-  const claimed = writeTransaction(db, (tx) =>
-    claimNextQueuedThreadMessageInTransaction(tx, threadId),
-  );
-  if (claimed) {
-    notifier.notifyThread(claimed.threadId, ["queue-changed"]);
-  }
-  return claimed;
-};
-
 export interface ClaimedQueuedThreadMessageKey {
   id: string;
   claimToken: string;
@@ -162,25 +140,6 @@ export const deleteClaimedQueuedThreadMessageInTransaction = (
     )
     .returning({ threadId: queuedThreadMessages.threadId })
     .get() !== undefined;
-
-export const deleteClaimedQueuedThreadMessage = (
-  db: DbConnection,
-  notifier: DbNotifier,
-  key: ClaimedQueuedThreadMessageKey,
-): boolean => {
-  const result = db
-    .delete(queuedThreadMessages)
-    .where(
-      and(eq(queuedThreadMessages.id, key.id), eq(queuedThreadMessages.claimToken, key.claimToken)),
-    )
-    .returning({ threadId: queuedThreadMessages.threadId })
-    .get();
-  if (result !== undefined) {
-    notifier.notifyThread(result.threadId, ["queue-changed"]);
-    return true;
-  }
-  return false;
-};
 
 // a claim has no ttl, so a kill between the drain's ingest commit and its delete would hide the
 // row forever. one server owns a data dir, so no claim can be live at boot.

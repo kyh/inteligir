@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
-import { exec, hermeticProcessEnv } from "../harness/exec";
+import { buildProcessEnv, exec } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
 
 // a cold vite build of the whole Worker; a cached one returns at once.
@@ -10,12 +10,14 @@ const BUILD_TIMEOUT_MS = 300_000;
 export const builtWorkerBoot: Scenario = {
   description: "the vite-built Worker bundle boots under wrangler dev and answers its routes",
   name: "built-worker-boot",
+  // the build's own budget plus a cold wrangler dev boot.
+  timeoutMs: BUILD_TIMEOUT_MS + 180_000,
   async run(context) {
     // built through turbo, not looked for on disk: a present artifact may be stale and boot last
     // week's Worker.
     await exec("pnpm", ["turbo", "run", "build", "--filter=@repo/web"], {
       cwd: context.repoRoot,
-      env: hermeticProcessEnv(),
+      env: buildProcessEnv(),
       timeoutMs: BUILD_TIMEOUT_MS,
     });
     const builtConfig = path.join(

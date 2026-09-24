@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { threadStatusValues } from "@repo/domain/thread-status";
+import { isThreadRunning, threadStatusValues } from "@repo/domain/thread-status";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +12,8 @@ import {
   renderWithQueries,
   stubKnowledgeFetch,
 } from "../palette/__tests__/palette-harness";
-import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
+import { THREAD_ACTIVITY_LABELS, threadActivity, threadStopControl } from "../thread-activity";
+import { rendererSources } from "./renderer-sources";
 
 afterEach(cleanup);
 
@@ -38,8 +39,30 @@ describe("threadActivity", () => {
     expect(threadActivity(thread({ status: "idle" }))).toBe("done");
   });
 
-  it("archived beats the lifecycle", () => {
-    expect(threadActivity(thread({ archivedAt: 1, status: "active" }))).toBe("archived");
+  it("archived beats the lifecycle, while the status alone still says the turn runs", () => {
+    const archivedRunning = thread({ archivedAt: 1, status: "active" });
+    expect(threadActivity(archivedRunning)).toBe("archived");
+    expect(isThreadRunning(archivedRunning.status)).toBe(true);
+  });
+});
+
+describe("threadStopControl", () => {
+  it("offers a stop while a turn runs, holds it once requested, and offers none when settled", () => {
+    const controls = threadStatusValues.map((status) => [
+      status,
+      threadStopControl(thread({ status })),
+    ]);
+    expect(Object.fromEntries(controls)).toEqual({
+      active: "stop",
+      error: "none",
+      idle: "none",
+      starting: "stop",
+      stopping: "requested",
+    });
+  });
+
+  it("still offers a stop on an archived thread whose turn runs", () => {
+    expect(threadStopControl(thread({ archivedAt: 1, status: "active" }))).toBe("stop");
   });
 });
 
@@ -62,21 +85,20 @@ describe("the palette renders that answer and no other", () => {
 });
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../../..");
-const sourceOf = (relative: string): string =>
-  readFileSync(path.join(REPO_ROOT, relative), "utf-8");
+const RENDERER = path.join(REPO_ROOT, "apps/desktop/src/renderer");
+const THREAD_STATUS = path.join(REPO_ROOT, "packages/domain/src/thread-status.ts");
 
-describe("only one module reads a thread's lifecycle", () => {
+describe("no renderer module reads a thread's lifecycle", () => {
   const LIFECYCLE = /["'](?:starting|stopping)["']/u;
 
-  it.each([
-    "apps/desktop/src/renderer/app/actions/actions-panel.tsx",
-    "apps/desktop/src/renderer/app/actions/action-composer.tsx",
-    "apps/desktop/src/renderer/app/palette/command-palette.tsx",
-  ])("%s derives none of its own", (relative) => {
-    expect(sourceOf(relative)).not.toMatch(LIFECYCLE);
+  it("every surface asks isThreadRunning or threadActivity", () => {
+    const spelled = rendererSources(RENDERER)
+      .filter((file) => LIFECYCLE.test(readFileSync(file, "utf-8")))
+      .map((file) => path.relative(REPO_ROOT, file));
+    expect(spelled, "a status spelled here drifts from @repo/domain/thread-status").toEqual([]);
   });
 
-  it("names thread-activity.ts as the one that does", () => {
-    expect(sourceOf("apps/desktop/src/renderer/app/thread-activity.ts")).toMatch(LIFECYCLE);
+  it("names @repo/domain/thread-status as the one that does", () => {
+    expect(readFileSync(THREAD_STATUS, "utf-8")).toMatch(LIFECYCLE);
   });
 });

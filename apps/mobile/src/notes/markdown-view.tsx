@@ -77,69 +77,66 @@ const Spans = ({
   spans: readonly InlineSpan[];
   theme: Theme;
   onWikiLink: (target: string) => void;
-}) => (
-  <>
-    {spans.map((span, index) => {
-      switch (span.kind) {
-        case "text": {
-          return (
-            <Text
-              key={spanKey(index)}
-              style={[
-                span.bold === true && styles.bold,
-                span.italic === true && styles.italic,
-                span.strike === true && styles.strike,
-                span.code === true && [styles.mono, { backgroundColor: theme.muted }],
-              ]}
-            >
-              {span.text}
-            </Text>
-          );
-        }
-        case "wiki-link":
-        case "image-embed": {
-          return (
-            <Text
-              key={spanKey(index)}
-              style={{ color: theme.primary }}
-              onPress={() => {
-                onWikiLink(span.target);
-              }}
-            >
-              {span.label}
-            </Text>
-          );
-        }
-        case "formula": {
-          return (
-            <Text
-              key={spanKey(index)}
-              style={[styles.mono, { backgroundColor: theme.muted, color: theme.foreground }]}
-            >
-              {span.label}
-            </Text>
-          );
-        }
-        case "link": {
-          return (
-            <Text
-              key={spanKey(index)}
-              style={{ color: theme.primary }}
-              onPress={() => {
-                void openExternalLink(span.url);
-              }}
-            >
-              {span.label}
-            </Text>
-          );
-        }
-        default: {
-          return null;
-        }
+}) => {
+  const renderSpan = (span: InlineSpan, index: number) => {
+    switch (span.kind) {
+      case "text": {
+        return (
+          <Text
+            key={spanKey(index)}
+            style={[
+              span.bold === true && styles.bold,
+              span.italic === true && styles.italic,
+              span.strike === true && styles.strike,
+              span.code === true && [styles.mono, { backgroundColor: theme.muted }],
+            ]}
+          >
+            {span.text}
+          </Text>
+        );
       }
-    })}
-  </>
-);
+      case "wiki-link":
+      case "image-embed": {
+        return (
+          <Text
+            key={spanKey(index)}
+            style={{ color: theme.primary }}
+            onPress={() => {
+              onWikiLink(span.target);
+            }}
+          >
+            {span.label}
+          </Text>
+        );
+      }
+      case "formula": {
+        return (
+          <Text
+            key={spanKey(index)}
+            style={[styles.mono, { backgroundColor: theme.muted, color: theme.foreground }]}
+          >
+            {span.label}
+          </Text>
+        );
+      }
+      case "link": {
+        return (
+          <Text
+            key={spanKey(index)}
+            style={{ color: theme.primary }}
+            onPress={() => {
+              void openExternalLink(span.url);
+            }}
+          >
+            {span.label}
+          </Text>
+        );
+      }
+      // no default
+    }
+  };
+  return <>{spans.map((span, index) => renderSpan(span, index))}</>;
+};
 
 const blockKey = (index: number): string => `b${String(index)}`;
 
@@ -194,128 +191,114 @@ export const MarkdownBlocks = ({
   resolveAsset: (target: string) => VaultAssetSource | null;
 }) => {
   const theme = useTheme();
-  return (
-    <>
-      {blocks.map((block, index) => {
-        switch (block.kind) {
-          case "heading": {
-            return (
-              <Text
-                key={blockKey(index)}
-                style={[
-                  styles.heading,
-                  { color: theme.foreground, fontSize: HEADING_SIZES[block.depth] },
-                ]}
-              >
-                <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
-              </Text>
-            );
-          }
-          case "paragraph": {
-            return (
-              <Text key={blockKey(index)} style={[styles.paragraph, { color: theme.foreground }]}>
-                <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
-              </Text>
-            );
-          }
-          case "image": {
-            const source = resolveAsset(block.target);
-            if (source === null) {
-              return <Notice key={blockKey(index)} text={unavailable(block.label)} theme={theme} />;
-            }
-            return (
-              <EmbedImage key={blockKey(index)} source={source} label={block.label} theme={theme} />
-            );
-          }
-          case "list-item": {
-            return (
-              <View
-                key={blockKey(index)}
-                style={[styles.listRow, { paddingLeft: SPACE.lg * (block.depth + 1) }]}
-              >
-                <Text style={[styles.listMarker, { color: theme.mutedForeground }]}>
-                  {listMarker(block.checked, block.ordinal)}
-                </Text>
-                <Text style={[styles.listBody, { color: theme.foreground }]}>
-                  <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
-                </Text>
-              </View>
-            );
-          }
-          case "code": {
-            return (
-              <View
-                key={blockKey(index)}
-                style={[styles.codeBlock, { backgroundColor: theme.muted }]}
-              >
-                <Text style={[styles.mono, styles.codeText, { color: theme.foreground }]}>
-                  {block.text}
-                </Text>
-              </View>
-            );
-          }
-          case "callout": {
-            return (
-              <View
-                key={blockKey(index)}
-                style={[styles.callout, { backgroundColor: theme.card, borderColor: theme.border }]}
-              >
-                <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
-                  {block.label.toUpperCase()}
-                </Text>
-                <MarkdownBlocks
-                  blocks={block.blocks}
-                  onWikiLink={onWikiLink}
-                  resolveAsset={resolveAsset}
-                />
-              </View>
-            );
-          }
-          case "quote": {
-            return (
-              <View key={blockKey(index)} style={[styles.quote, { borderLeftColor: theme.border }]}>
-                <MarkdownBlocks
-                  blocks={block.blocks}
-                  onWikiLink={onWikiLink}
-                  resolveAsset={resolveAsset}
-                />
-              </View>
-            );
-          }
-          case "divider": {
-            return (
-              <View
-                key={blockKey(index)}
-                style={[styles.divider, { backgroundColor: theme.border }]}
-              />
-            );
-          }
-          case "unsupported": {
-            return (
-              <Notice
-                key={blockKey(index)}
-                text={`${block.label} — open on your desktop`}
-                theme={theme}
-              />
-            );
-          }
-          case "raw": {
-            return (
-              <View
-                key={blockKey(index)}
-                style={[styles.codeBlock, { backgroundColor: theme.muted }]}
-              >
-                <Text style={[styles.mono, styles.codeText, { color: theme.mutedForeground }]}>
-                  {block.text}
-                </Text>
-              </View>
-            );
-          }
-          default: {
-            return null;
-          }
+  const renderBlock = (block: NoteBlock, index: number) => {
+    switch (block.kind) {
+      case "heading": {
+        return (
+          <Text
+            key={blockKey(index)}
+            style={[
+              styles.heading,
+              { color: theme.foreground, fontSize: HEADING_SIZES[block.depth] },
+            ]}
+          >
+            <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
+          </Text>
+        );
+      }
+      case "paragraph": {
+        return (
+          <Text key={blockKey(index)} style={[styles.paragraph, { color: theme.foreground }]}>
+            <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
+          </Text>
+        );
+      }
+      case "image": {
+        const source = resolveAsset(block.target);
+        if (source === null) {
+          return <Notice key={blockKey(index)} text={unavailable(block.label)} theme={theme} />;
         }
-      })}
-    </>
-  );
+        return (
+          <EmbedImage key={blockKey(index)} source={source} label={block.label} theme={theme} />
+        );
+      }
+      case "list-item": {
+        return (
+          <View
+            key={blockKey(index)}
+            style={[styles.listRow, { paddingLeft: SPACE.lg * (block.depth + 1) }]}
+          >
+            <Text style={[styles.listMarker, { color: theme.mutedForeground }]}>
+              {listMarker(block.checked, block.ordinal)}
+            </Text>
+            <Text style={[styles.listBody, { color: theme.foreground }]}>
+              <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
+            </Text>
+          </View>
+        );
+      }
+      case "code": {
+        return (
+          <View key={blockKey(index)} style={[styles.codeBlock, { backgroundColor: theme.muted }]}>
+            <Text style={[styles.mono, styles.codeText, { color: theme.foreground }]}>
+              {block.text}
+            </Text>
+          </View>
+        );
+      }
+      case "callout": {
+        return (
+          <View
+            key={blockKey(index)}
+            style={[styles.callout, { backgroundColor: theme.card, borderColor: theme.border }]}
+          >
+            <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
+              {block.label.toUpperCase()}
+            </Text>
+            <MarkdownBlocks
+              blocks={block.blocks}
+              onWikiLink={onWikiLink}
+              resolveAsset={resolveAsset}
+            />
+          </View>
+        );
+      }
+      case "quote": {
+        return (
+          <View key={blockKey(index)} style={[styles.quote, { borderLeftColor: theme.border }]}>
+            <MarkdownBlocks
+              blocks={block.blocks}
+              onWikiLink={onWikiLink}
+              resolveAsset={resolveAsset}
+            />
+          </View>
+        );
+      }
+      case "divider": {
+        return (
+          <View key={blockKey(index)} style={[styles.divider, { backgroundColor: theme.border }]} />
+        );
+      }
+      case "unsupported": {
+        return (
+          <Notice
+            key={blockKey(index)}
+            text={`${block.label} — open on your desktop`}
+            theme={theme}
+          />
+        );
+      }
+      case "raw": {
+        return (
+          <View key={blockKey(index)} style={[styles.codeBlock, { backgroundColor: theme.muted }]}>
+            <Text style={[styles.mono, styles.codeText, { color: theme.mutedForeground }]}>
+              {block.text}
+            </Text>
+          </View>
+        );
+      }
+      // no default
+    }
+  };
+  return <>{blocks.map((block, index) => renderBlock(block, index))}</>;
 };

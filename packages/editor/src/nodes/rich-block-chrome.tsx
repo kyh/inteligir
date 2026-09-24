@@ -19,7 +19,7 @@ export const RichBlockCard = ({
     className="group/richblock relative my-2 rounded-md border border-border bg-muted/20"
   >
     <div className="flex items-center gap-1 border-b border-border/60 px-2 py-1">
-      <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase select-none">
+      <span className="font-mono text-caption tracking-wide text-muted-foreground uppercase select-none">
         {label}
       </span>
       <span className="flex-1" />
@@ -33,8 +33,8 @@ export const RichBlockCard = ({
 
 export const DegradedPayloadView = ({ reason, value }: { reason: string; value: string }) => (
   <div>
-    <p className="px-2 pt-1 text-xs text-amber-600 dark:text-amber-500">{reason}</p>
-    <pre className="overflow-x-auto px-3 py-2 font-mono text-xs whitespace-pre text-muted-foreground">
+    <p className="px-2 pt-1 text-body text-amber-600 dark:text-amber-500">{reason}</p>
+    <pre className="overflow-x-auto px-3 py-2 font-mono text-body whitespace-pre text-muted-foreground">
       {value}
     </pre>
   </div>
@@ -61,7 +61,7 @@ export const PayloadEditor = ({
         rows={Math.min(16, Math.max(4, value.split("\n").length + 1))}
         spellCheck={false}
         className={cn(
-          "w-full resize-y rounded-md border bg-background p-2 font-mono text-xs",
+          "w-full resize-y rounded-md border bg-background p-2 font-mono text-body",
           refusal === null ? "border-border" : "border-destructive",
         )}
         onChange={(event) => {
@@ -69,18 +69,18 @@ export const PayloadEditor = ({
           setRefusal(null);
         }}
       />
-      {refusal === null ? null : <p className="pt-1 text-xs text-destructive">{refusal}</p>}
+      {refusal === null ? null : <p className="pt-1 text-body text-destructive">{refusal}</p>}
       <div className="flex justify-end gap-2 pt-1.5">
         <button
           type="button"
-          className="rounded-md px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+          className="rounded-md px-2 py-0.5 text-body text-muted-foreground hover:text-foreground"
           onClick={onCancel}
         >
           Cancel
         </button>
         <button
           type="button"
-          className="rounded-md bg-primary px-2 py-0.5 text-xs text-primary-foreground"
+          className="rounded-md bg-primary px-2 py-0.5 text-body text-primary-foreground"
           onClick={() => {
             const verdict = validate(value);
             if (verdict === null) {

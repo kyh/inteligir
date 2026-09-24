@@ -37,30 +37,56 @@ const shared = {
 
 await rm(distDir, { force: true, recursive: true });
 
+// split so a client verb parses the client alone: every dynamic import is a chunk loaded on use.
+// the chunks sit flat beside index.js, because `import.meta.url` and `import.meta.dirname` in any
+// of them must name dist/ (src/paths.ts, and the sibling lookups of the bundles below).
 await build({
   ...shared,
+  chunkNames: "chunk-[hash]",
+  entryNames: "[name]",
   entryPoints: [path.join(packageRoot, "src", "index.ts")],
   external: NATIVE,
-  outfile: path.join(distDir, "index.js"),
+  outdir: distDir,
+  splitting: true,
 });
 
-// the watcher is a forked child process, so it needs its own file beside the entry
-await build({
-  ...shared,
-  entryPoints: [
-    path.join(packageRoot, "src", "server", "vault", "watcher", "parcel-child-entry.ts"),
-  ],
-  external: ["@parcel/watcher"],
-  outfile: path.join(distDir, "parcel-watcher-child.mjs"),
-});
+// each runs outside the entry's process or thread, so each needs its own file beside it.
+const SIBLING_BUNDLES = [
+  // a child process, forked by node or by the desktop shell's main
+  {
+    entry: path.join(packageRoot, "src", "server", "vault", "watcher", "parcel-child-entry.ts"),
+    external: ["@parcel/watcher"],
+    outfile: "parcel-watcher-child.mjs",
+  },
+  // the host the desktop shell runs each ACP adapter under, in a utility process of its own
+  // (src/server/child-host/node-children.ts)
+  {
+    entry: path.join(packageRoot, "src", "server", "child-host", "stdio-port-host-entry.ts"),
+    external: [],
+    outfile: "stdio-port-host.mjs",
+  },
+  // the transcriber, a worker thread (src/server/worker-entry.ts)
+  {
+    entry: path.join(packageRoot, "src", "server", "voice", "transcribe-worker.ts"),
+    external: ["sherpa-onnx-node"],
+    outfile: "transcribe-worker.mjs",
+  },
+  // the projector, a worker thread (src/server/worker-entry.ts)
+  {
+    entry: path.join(packageRoot, "src", "server", "knowledge", "projection-worker.ts"),
+    external: [],
+    outfile: "projection-worker.mjs",
+  },
+];
 
-// the transcriber is a worker thread, so it needs its own file beside the entry
-await build({
-  ...shared,
-  entryPoints: [path.join(packageRoot, "src", "server", "voice", "transcribe-worker.ts")],
-  external: ["sherpa-onnx-node"],
-  outfile: path.join(distDir, "transcribe-worker.mjs"),
-});
+for (const { entry, external, outfile } of SIBLING_BUNDLES) {
+  await build({
+    ...shared,
+    entryPoints: [entry],
+    external,
+    outfile: path.join(distDir, outfile),
+  });
+}
 
 await cp(path.join(repoRoot, "packages", "db", "drizzle"), path.join(distDir, "drizzle"), {
   recursive: true,

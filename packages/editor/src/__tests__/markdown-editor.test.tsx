@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 const mocks = vi.hoisted(() => ({
   currentMarkdown: "seed",
@@ -38,6 +39,7 @@ vi.mock("@repo/editor/editor-chrome", () => ({
 }));
 
 vi.mock("@repo/editor/live-editor", () => ({
+  announceLiveEditorEdit: vi.fn(),
   registerLiveEditor: vi.fn(() => () => {}),
 }));
 
@@ -88,6 +90,7 @@ const props = (overrides?: {
 
 describe("MarkdownEditor lifecycle", () => {
   beforeEach(() => {
+    installFakeEditorHost();
     vi.useFakeTimers();
     vi.clearAllMocks();
     mocks.currentMarkdown = "seed";

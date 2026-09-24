@@ -46,14 +46,13 @@ const gatedReads = (client: BootedTestApp["client"]) => {
 };
 
 const NOTE = "notes/plans.md";
-const ROOT = "/vault";
 const BASE = "# Plans\n\nintro\n\nfooter\n";
 const EXTERNAL = `${BASE}external-appended-line\n`;
 
 // the surface stands in for the rich editor: what it types waits in its serialize debounce
 // until the runtime drains it.
 const openRuntime = async (api: GuardedVaultApi) => {
-  const runtime = createNoteRuntime(NOTE, ROOT, createGuardedVaultIo(api), {
+  const runtime = createNoteRuntime(NOTE, createGuardedVaultIo(api), {
     onVanished: () => {},
   });
   let held: string | null = null;
@@ -75,66 +74,92 @@ const openRuntime = async (api: GuardedVaultApi) => {
 };
 
 describe("the guarded vault io", () => {
-  it("creates with ifAbsent and no base, and refuses where a file already is", async () => {
+  it("creates under the absent guard with no base, and answers exists where a file already is", async () => {
     const { client, vaultDir } = await bootTestApp();
     const { api, sent } = recordingWrites(client);
     const io = createGuardedVaultIo(api);
 
-    await io.create(NOTE, "# Plans\n");
-    expect(sent).toStrictEqual([{ content: "# Plans\n", ifAbsent: true, path: NOTE }]);
+    expect(await io.create(NOTE, "# Plans\n")).toStrictEqual({ kind: "created" });
+    expect(sent).toStrictEqual([{ content: "# Plans\n", guard: { kind: "absent" }, path: NOTE }]);
     expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("# Plans\n");
 
-    await expect(io.create(NOTE, "clobber")).rejects.toMatchObject({
-      code: "ALREADY_EXISTS",
-      name: "ORPCError",
-    });
+    expect(await io.create(NOTE, "clobber")).toStrictEqual({ kind: "exists" });
     expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("# Plans\n");
   });
 
   it("writes with the hash of the base it read, then of what it wrote", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await client.vault.write({ content: "v1", path: NOTE });
+    await client.vault.write({ content: "v1", guard: { kind: "overwrite" }, path: NOTE });
     const { api, sent } = recordingWrites(client);
     const io = createGuardedVaultIo(api);
 
     expect(await io.read(NOTE)).toBe("v1");
-    expect(await io.write(NOTE, "v2")).toBe("v2");
-    expect(await io.write(NOTE, "v3")).toBe("v3");
+    expect(await io.write(NOTE, "v2")).toStrictEqual({
+      conflicted: false,
+      content: "v2",
+      kind: "landed",
+    });
+    expect(await io.write(NOTE, "v3")).toStrictEqual({
+      conflicted: false,
+      content: "v3",
+      kind: "landed",
+    });
     expect(sent).toStrictEqual([
-      { content: "v2", expectedHash: await contentHashHex("v1"), path: NOTE },
-      { content: "v3", expectedHash: await contentHashHex("v2"), path: NOTE },
+      { content: "v2", guard: { hash: await contentHashHex("v1"), kind: "expected" }, path: NOTE },
+      { content: "v3", guard: { hash: await contentHashHex("v2"), kind: "expected" }, path: NOTE },
     ]);
     expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe("v3");
   });
 
   it("merges a CAS refusal's current bytes with diff3 and retries against them", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await client.vault.write({ content: BASE, path: NOTE });
+    await client.vault.write({ content: BASE, guard: { kind: "overwrite" }, path: NOTE });
     const { api, sent } = recordingWrites(client);
     const io = createGuardedVaultIo(api);
     await io.read(NOTE);
 
-    await client.vault.write({ content: EXTERNAL, path: NOTE });
+    await client.vault.write({ content: EXTERNAL, guard: { kind: "overwrite" }, path: NOTE });
 
     const landed = await io.write(NOTE, "# Plans\n\nintro rewritten\n\nfooter\n");
 
-    expect(sent.map((request) => request.expectedHash)).toStrictEqual([
-      await contentHashHex(BASE),
-      await contentHashHex(EXTERNAL),
+    expect(sent.map((request) => request.guard)).toStrictEqual([
+      { hash: await contentHashHex(BASE), kind: "expected" },
+      { hash: await contentHashHex(EXTERNAL), kind: "expected" },
     ]);
     const onDisk = await readFile(path.join(vaultDir, NOTE), "utf-8");
-    expect(landed).toBe(onDisk);
+    expect(landed).toStrictEqual({ conflicted: false, content: onDisk, kind: "landed" });
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
     expect(onDisk).not.toContain("\nintro\n");
   });
 
+  it("says a merge kept the buffer's line over the external change to the same one", async () => {
+    const { client, vaultDir } = await bootTestApp();
+    await client.vault.write({ content: BASE, guard: { kind: "overwrite" }, path: NOTE });
+    const io = createGuardedVaultIo(recordingWrites(client).api);
+    await io.read(NOTE);
+
+    await client.vault.write({
+      content: "# Plans\n\nintro by the agent\n\nfooter\n",
+      guard: { kind: "overwrite" },
+      path: NOTE,
+    });
+
+    const mine = "# Plans\n\nintro rewritten\n\nfooter\n";
+    expect(await io.write(NOTE, mine)).toStrictEqual({
+      conflicted: true,
+      content: mine,
+      kind: "landed",
+    });
+    expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe(mine);
+  });
+
   it("keeps a merged-in external edit through the controller's next save", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await client.vault.write({ content: BASE, path: NOTE });
+    await client.vault.write({ content: BASE, guard: { kind: "overwrite" }, path: NOTE });
     const controller = new VaultEditorController(createGuardedVaultIo(recordingWrites(client).api));
     await controller.open(NOTE);
-    await client.vault.write({ content: EXTERNAL, path: NOTE });
+    await client.vault.write({ content: EXTERNAL, guard: { kind: "overwrite" }, path: NOTE });
 
     controller.edit("# Plans\n\nintro rewritten\n\nfooter\n");
     await controller.flush();
@@ -151,12 +176,12 @@ describe("the guarded vault io", () => {
 
   it("merges a keystroke held in the serialize debounce when an external write arrives", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await client.vault.write({ content: BASE, path: NOTE });
+    await client.vault.write({ content: BASE, guard: { kind: "overwrite" }, path: NOTE });
     const { runtime, surface } = await openRuntime(recordingWrites(client).api);
-    await client.vault.write({ content: EXTERNAL, path: NOTE });
+    await client.vault.write({ content: EXTERNAL, guard: { kind: "overwrite" }, path: NOTE });
 
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
-    runtime.controller.externalChange(ROOT);
+    runtime.controller.externalChange();
     expect(runtime.controller.getState().dirty).toBe(true);
 
     expect(await runtime.flush()).toBe(true);
@@ -169,13 +194,13 @@ describe("the guarded vault io", () => {
 
   it("merges a keystroke typed while an external reload's read is in flight", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await client.vault.write({ content: BASE, path: NOTE });
+    await client.vault.write({ content: BASE, guard: { kind: "overwrite" }, path: NOTE });
     const reads = gatedReads(client);
     const { runtime, surface } = await openRuntime(reads.api);
-    await client.vault.write({ content: EXTERNAL, path: NOTE });
+    await client.vault.write({ content: EXTERNAL, guard: { kind: "overwrite" }, path: NOTE });
 
     const gate = reads.hold();
-    runtime.controller.externalChange(ROOT);
+    runtime.controller.externalChange();
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
     gate.resolve();
     await vi.waitFor(() => {
@@ -187,6 +212,19 @@ describe("the guarded vault io", () => {
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
     runtime.dispose();
+  });
+
+  it("names a write to a note deleted since it was read as vanished, and never recreates it", async () => {
+    const { client, vaultDir } = await bootTestApp();
+    await client.vault.write({ content: "v1", guard: { kind: "overwrite" }, path: NOTE });
+    const io = createGuardedVaultIo(recordingWrites(client).api);
+    await io.read(NOTE);
+    await client.vault.remove({ path: NOTE });
+
+    expect(await io.write(NOTE, "v2")).toStrictEqual({ kind: "vanished" });
+    await expect(readFile(path.join(vaultDir, NOTE), "utf-8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("refuses a write for a path it never read rather than guessing a base", async () => {

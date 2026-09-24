@@ -16,7 +16,8 @@ Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 `host-io.ts` (`EditorHostIo`) and `note/vault-session.ts` (`VaultSessionPorts`);
 the app implements both. The package also ships ONE
 stylesheet, `styles.css` (toggle collapse, the callout marker swap, the hljs
-theme), inert until the host `@import`s `@repo/editor/styles.css` —
+theme, the prose scope the appearance dials feed and typeset's table rules),
+inert until the host `@import`s `@repo/editor/styles.css` —
 `style-hooks.ts` spells the selectors it reads, and
 `__tests__/style-hooks.test.ts` pins the two together.
 
@@ -29,8 +30,15 @@ src/
                        # shows the open note
   markdown/
     md-rules.ts        # the Slate↔mdast rules — one per node type
+    alert-marker.ts    # the `> [!NOTE]` alert grammar, spelled once: the
+                       # renderer, the serializer and turn-into read it alike
+    md-to-slate.ts     # the ONE markdown→Slate conversion, so the gate, a paste
+                       # and a template refuse the same inputs for the same reasons
     markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
-                       # a BOUNDED FIXPOINT so a second save is a no-op
+                       # a BOUNDED FIXPOINT so a second save is a no-op, and the
+                       # gate's verdict as one union (`DocAnalysis`)
+  dialect-node-keys.ts # every dialect node's Slate type, spelled once; a leaf, so
+                       # the kits, the rules and the walks import it without a cycle
   kits/
     editor-kit.ts      # the React composition Plate actually runs
     base-kit.ts        # the headless mirror, for the serializer
@@ -40,7 +48,7 @@ src/
     open-note-store.ts, open-note-context.tsx
                        # the open-note store (zustand) and React's door to it
     vault-session.ts   # the open note's ORDERING, drivable without React
-    note-runtime.ts    # controller + autosave debounce + vanish watcher
+    note-runtime.ts    # controller + autosave debounce + save retry + vanish watcher
     open-doc.ts, markdown-gate.ts, open-note-flush.ts
                        # the open-document union, the raw/rich gate, the flush
                        # that visits every registered store
@@ -49,8 +57,8 @@ src/
   properties/          # the typed frontmatter panel
   lib/                 # debounce, the dark-class hook, the wire helper
   host-io.ts, host.ts  # the injected host as a MODULE SINGLETON (vault actions,
-                       # the listing store, IO, change events) and the two hooks
-                       # React reads it through
+                       # the wiki resolver store, IO, change events) and the two
+                       # hooks React reads it through
   node-props.ts        # the Slate decode boundary: a node's dialect fields ride
                        # TElement's open index signature, so every read arrives
                        # unknown and becomes a domain value here, once
@@ -62,12 +70,15 @@ src/
                        # be inserted from, and the transforms behind them
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
   formula-*.ts(x)      # the `{{` picker and its insertion
-  agent-request.ts, search-request.ts
-                       # one-shot stores the app adopts ("Ask agent", a `#tag`
-                       # search), so the editor never imports the shell
+  agent-request.ts     # the action registry the app fills at mount (Ask agent,
+                       # a `#tag` chip's showTag), so a deep node reaches the
+                       # shell without the editor importing it; the comment
+                       # surface keeps its own (comments/comment-store.ts)
   style-hooks.ts, styles.css
                        # the behaviour rules the host @imports, and the one
                        # spelling of every selector hook they read
+  test-support/        # the fake EditorHostIo, for any suite that mounts the
+                       # editor (the desktop's included)
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
 ```
 
@@ -90,7 +101,11 @@ src/
   JSX, `{…}` expressions, raw HTML — are opaque nodes
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte. Only a real parse failure (a mismatched tag, an
-  unbalanced brace) opens Raw, byte-exact.
+  unbalanced brace), or one of the editor's own limits — nesting deeper than
+  the conversion holds, a conversion that leaves text outside any block, a
+  round trip that never settles, or one that would lose a letter or join two
+  lines (a rule or serializer bug) — opens Raw, byte-exact, and the gate's
+  reason says which (`GateReason` in `markdown/markdown-doc.ts`).
 - **View state keys by note path.** The workspace holds ONE open-note store
   (an instance, `note/open-note-context.tsx`), and every module holding view
   state — heading folds included — keys by the note's own path: a module
@@ -101,19 +116,32 @@ src/
 
 - `host-io.ts` — the injected host, `EditorHostIo`, as a MODULE SINGLETON
   because kit factories and paste handlers run outside React: the vault
-  actions, the listing store (entries + the wiki resolver — subscribed to
-  rather than read, because it moves with every refresh while the actions
-  never do), vault reads, asset bytes in and out, the knowledge queries, and
-  the change events that invalidate them. The editor never reaches the server
-  for any of it; the app installs it once
+  actions, the link resolver store (the knowledge index's own `buildResolver` over
+  the listing, for wiki targets and md urls alike, and the wiki targets it was
+  built over, which the `[[` picker and the slash menu's templates list —
+  subscribed to rather than read, because it moves with every refresh while the
+  actions never do), vault reads, asset bytes in and out, the knowledge queries,
+  and the change events that invalidate them. The editor never reaches the
+  server for any of it; the app installs it once
   (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), and `host.ts` is
-  React's door (`useVaultActions`, `useWikiResolver`).
+  React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
+  `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
+  resolves it from the note it is written in — the open note, or the one an
+  embed shows — so an image or a link lands where the index says it does).
 - `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
   is driven through: boot, list, rename, the `VaultIO` it reads and writes
-  notes with (`vault-editor.ts`: read/write/create/remove), and the
-  publish/notify callbacks. Drivable without React.
+  notes with (`vault-editor.ts`: read/write/create/remove), the
+  publish/notify callbacks, and the one question it asks the user
+  (`askVanished`). Drivable without React.
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.
+- `live-editor.ts` — the path-keyed registry the shell reaches a mounted
+  editor through (the pin, comments, the Metadata tab's properties). A render
+  SUBSCRIBES — `useLiveEditor`, or `subscribeLiveEditors` for a snapshot of
+  the document — and never reads: the editor registers after the render that
+  asked for it, and the compiler memoizes a render-time read on its inputs,
+  so it never re-runs. `MarkdownEditor` announces every edit on the same
+  channel, because Slate's one `onChange` slot is Plate's.
 
 ## Testing
 
@@ -123,6 +151,8 @@ pnpm --filter @repo/editor test
 
 Two vitest projects: `editor` (node, `*.test.ts`) for the pipeline, the
 fixtures, the property/adversarial harnesses and the open-note store;
-`editor-dom` (jsdom, `*.test.tsx`) for the components. Component tests drive
-the DOM with `fireEvent` — `@testing-library/user-event` is deliberately not a
-dependency.
+`editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
+sources through the React Compiler as the shipped renderer does, so a
+memoized read that goes stale fails here (`compiled-under-test.test.tsx`
+fails if the plugin goes). Component tests drive the DOM with `fireEvent` —
+`@testing-library/user-event` is deliberately not a dependency.

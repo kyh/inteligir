@@ -10,9 +10,17 @@ const LOOSE = { caseSensitive: false, wholeWord: false };
 describe("replacing across the vault", () => {
   it("rewrites only files whose hash matched at read, and names the one that moved", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await client.vault.write({ content: "Deploy on Friday\nnever deploy\n", path: "a.md" });
-    await client.vault.write({ content: "deploy later\n", path: "b.md" });
-    await client.vault.write({ content: "nothing\n", path: "c.md" });
+    await client.vault.write({
+      content: "Deploy on Friday\nnever deploy\n",
+      guard: { kind: "overwrite" },
+      path: "a.md",
+    });
+    await client.vault.write({
+      content: "deploy later\n",
+      guard: { kind: "overwrite" },
+      path: "b.md",
+    });
+    await client.vault.write({ content: "nothing\n", guard: { kind: "overwrite" }, path: "c.md" });
 
     // b.md moves under the read: an agent's write landing between the listing and the rewrite
     const api: ReplaceVaultApi = {
@@ -20,7 +28,11 @@ describe("replacing across the vault", () => {
         read: async (input) => {
           const answer = await client.vault.read(input);
           if (input.path === "b.md") {
-            await client.vault.write({ content: "deploy moved\n", path: "b.md" });
+            await client.vault.write({
+              content: "deploy moved\n",
+              guard: { kind: "overwrite" },
+              path: "b.md",
+            });
           }
           return answer;
         },
@@ -52,7 +64,11 @@ describe("replacing across the vault", () => {
   it("reports a count after every note, and a cancel stops between notes, never inside one", async () => {
     const { client, vaultDir } = await bootTestApp();
     for (const name of ["a", "b", "c"]) {
-      await client.vault.write({ content: "deploy\n", path: `${name}.md` });
+      await client.vault.write({
+        content: "deploy\n",
+        guard: { kind: "overwrite" },
+        path: `${name}.md`,
+      });
     }
     const progress: [number, number][] = [];
     const controller = new AbortController();
@@ -83,8 +99,8 @@ describe("replacing across the vault", () => {
 
   it("counts every note of a run that finishes", async () => {
     const { client } = await bootTestApp();
-    await client.vault.write({ content: "deploy\n", path: "a.md" });
-    await client.vault.write({ content: "nothing\n", path: "b.md" });
+    await client.vault.write({ content: "deploy\n", guard: { kind: "overwrite" }, path: "a.md" });
+    await client.vault.write({ content: "nothing\n", guard: { kind: "overwrite" }, path: "b.md" });
     const progress: [number, number][] = [];
     await replaceInVault(
       { vault: client.vault },

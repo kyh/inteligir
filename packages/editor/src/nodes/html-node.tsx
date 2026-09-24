@@ -1,12 +1,14 @@
-// Preview mounts a sandboxed srcdoc iframe with no permissions; Run re-mounts it with
-// allow-scripts, a user-initiated escalation. Never allow-same-origin: with scripts on it would
-// hand the payload this origin's storage and API. The CSP's `frame-src 'self'` admits the srcdoc
-// frame, so the sandbox is what contains the payload.
+// Preview mounts a srcdoc iframe sandboxed with no permissions: it inherits the page's policy,
+// which allows inline style and no script, so it draws the static first frame. Run is a
+// user-initiated escalation to the host's html frame, a same-origin document under a sandbox
+// policy of its own that runs inline script and reaches nothing. Never allow-same-origin: with
+// scripts on it would hand the payload this origin's storage and API.
 
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
+import { getEditorHostIo } from "@repo/editor/host-io";
 import { stringProp } from "@repo/editor/node-props";
 
 import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
@@ -14,18 +16,41 @@ import { setBlockValue } from "./rich-block-value";
 
 type HtmlMode = "source" | "preview" | "run";
 
+const FRAME_CLASS = "h-96 w-full border-0 bg-white print:hidden";
+
 const SourceView = ({ value }: { value: string }) => {
   const lines = value.split("\n");
   const head = lines.slice(0, 12).join("\n");
   return (
-    <pre className="max-h-48 overflow-auto px-3 py-2 font-mono text-xs whitespace-pre text-muted-foreground">
+    <pre className="max-h-48 overflow-auto px-3 py-2 font-mono text-body whitespace-pre text-muted-foreground">
       {head}
       {lines.length > 12 ? `\n… ${String(lines.length - 12)} more lines` : ""}
     </pre>
   );
 };
 
-// a sandboxed srcdoc frame prints blank on some engines; print gets the source.
+// the frame's document.write fires its load again, so the bytes are posted on the first load
+// alone. "*": an opaque origin has no name to target, and the frame is this origin's own loader.
+const RunFrame = ({ value }: { value: string }) => {
+  const posted = useRef(false);
+  return (
+    <iframe
+      title="HTML run"
+      src={getEditorHostIo().htmlFrameUrl}
+      sandbox="allow-scripts"
+      className={FRAME_CLASS}
+      onLoad={(event) => {
+        if (posted.current) {
+          return;
+        }
+        posted.current = true;
+        event.currentTarget.contentWindow?.postMessage(value, "*");
+      }}
+    />
+  );
+};
+
+// a sandboxed frame prints blank on some engines; print gets the source.
 const HtmlBody = ({
   editing,
   mode,
@@ -52,13 +77,11 @@ const HtmlBody = ({
   }
   return (
     <>
-      <iframe
-        key={mode}
-        title="HTML preview"
-        srcDoc={value}
-        sandbox={mode === "run" ? "allow-scripts" : ""}
-        className="h-96 w-full border-0 bg-white print:hidden"
-      />
+      {mode === "run" ? (
+        <RunFrame key={value} value={value} />
+      ) : (
+        <iframe title="HTML preview" srcDoc={value} sandbox="" className={FRAME_CLASS} />
+      )}
       <div className="hidden print:block">
         <SourceView value={value} />
       </div>
@@ -77,8 +100,8 @@ export const HtmlElement = (props: PlateElementProps) => {
       aria-pressed={mode === target}
       className={
         mode === target
-          ? "text-xs font-medium text-foreground"
-          : "text-xs text-muted-foreground hover:text-foreground"
+          ? "text-body font-medium text-foreground"
+          : "text-body text-muted-foreground hover:text-foreground"
       }
       onClick={() => {
         setMode(target);
@@ -99,7 +122,7 @@ export const HtmlElement = (props: PlateElementProps) => {
             {modeButton("run", "Run")}
             <button
               type="button"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-body text-muted-foreground hover:text-foreground"
               onClick={() => {
                 setEditing(true);
               }}

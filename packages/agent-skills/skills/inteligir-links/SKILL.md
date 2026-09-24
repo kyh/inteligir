@@ -36,6 +36,8 @@ write toward a note that does not exist yet.
 Rules worth the keystrokes:
 
 - Match the target's real filename. Check it; do not guess from a heading.
+- `.md` is the one extension a link may leave off: a `todo.txt` note is
+  `[[todo.txt]]`, never `[[todo]]`.
 - `[[#Heading]]` stays inside the current note.
 - Escape a literal hash in a title as `\#`; a `#` surrounded by spaces is title
   text, not an anchor.
@@ -64,6 +66,9 @@ Never author `javascript:`, `data:`, `file:`, or a URL carrying credentials.
 
 `![[Some Note]]` pulls that note's content in for reading; it does not copy the
 bytes, so the source note stays the one place to edit it.
+
+Nothing remote loads inside a note: a remote image, video, tweet or page shows as
+a card that opens in the browser. An image the note must show goes in the vault.
 
 Vault media lives under `assets/` and is referenced by that relative path. Do
 not write `file://` or absolute local paths — they break for every other person

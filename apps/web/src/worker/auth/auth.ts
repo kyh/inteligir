@@ -3,12 +3,13 @@ import { betterAuth } from "better-auth";
 // reads `db._.relations`, which `createDb` populates.
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { bearer } from "better-auth/plugins";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
 import { sql } from "drizzle-orm";
 import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
-import { CALLER_IP_HEADER } from "../rate-limit";
+import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
 import { purgeThreadSync } from "../sync/routes";
 import { sendResetEmail } from "./reset-email";
 
@@ -43,10 +44,14 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
     emailAndPassword: {
       disableSignUp,
       enabled: true,
+      // set from the contract, not left at the defaults: the invite gate, device login and the
+      // reset page bound a password by the same two numbers, so none can drift from what this enforces
+      maxPasswordLength: PASSWORD_MAX_LENGTH,
+      minPasswordLength: PASSWORD_MIN_LENGTH,
       // sessions only, not device credentials: most resets are the owner rotating a password,
       // and cutting every signed-in device would sign their own machines out; per-device revoke is the hatch
       revokeSessionsOnPasswordReset: true,
-      // the client requests with redirectTo "/auth/reset", so the URL's GET leg lands on ./reset-page.ts
+      // the client requests with redirectTo AUTH_PAGE_PATHS.resetPage, so the URL's GET leg lands on ./reset-page.ts
       sendResetPassword: async ({ user, url }) => {
         await sendResetEmail(env, user.email, url);
       },
@@ -61,7 +66,7 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       enabled: env.RATE_LIMIT_DISABLED !== "true",
       max: 10,
       storage: "database",
-      window: 60,
+      window: AUTH_RATE_WINDOW_SECONDS,
     },
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: trustedOrigins(env),
