@@ -1294,7 +1294,9 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   not in the sync client. The cloud vault-path grammar is `parseVaultPath`
   with the parse required to be the identity. The `[[Title|uuid]]` tier lives in
   `buildResolver` (tier 0); the desktop reaches it through the `id` its
-  wiki-targets rows carry, and the mobile listing carries none yet.
+  wiki-targets rows carry, a rename's surgery through the same rows' ids (so
+  a stale title follows the note its uuid names, never the note it spells),
+  and the mobile listing carries none yet.
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime` and the login flow publish stores the screens subscribe to, so

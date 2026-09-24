@@ -61,6 +61,9 @@ export const renameNoteWithLinkRewrite = async (
   const aliasEntries = targets.flatMap((target) =>
     (target.aliases ?? []).map((alias): readonly [string, string] => [alias, target.path]),
   );
+  const idEntries = targets.flatMap((target): (readonly [string, string])[] =>
+    target.id === undefined ? [] : [[target.id, target.path]],
+  );
   const candidates = linkedDocs.filter(isDocPath);
   const { docs, skipped } = await snapshotDocs(service, candidates);
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
@@ -81,6 +84,7 @@ export const renameNoteWithLinkRewrite = async (
     allFiles,
     docs,
     from: fromPath,
+    idEntries,
     to: renamed.path,
   });
   const rewritten: string[] = [];

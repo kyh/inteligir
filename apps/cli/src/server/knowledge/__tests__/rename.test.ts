@@ -125,6 +125,24 @@ describe("rename with link rewrite", () => {
     expect(backlinks.map((entry) => entry.sourcePath)).toEqual(["hub.md"]);
   });
 
+  it("retitles a [[Title|uuid]] link by the id the index holds, though its title is stale", async () => {
+    const { root, service, knowledge } = boot();
+    const uuid = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
+    await service.write("target.md", `---\nid: ${uuid}\n---\n# Target\n`);
+    await service.write("hub.md", `see [[Old Title|${uuid}]]\n`);
+    await knowledge.settle();
+
+    const result = await renameNoteWithLinkRewrite({
+      from: "target.md",
+      knowledge,
+      rebindThreads: noRebind,
+      service,
+      to: "New Name.md",
+    });
+    expect(result.rewritten).toContain("hub.md");
+    expect(readFileSync(path.join(root, "hub.md"), "utf-8")).toBe(`see [[New Name|${uuid}]]\n`);
+  });
+
   it("passes a directory rename straight through", async () => {
     const { root, service, knowledge } = boot();
     await service.write("dir/inner.md", "# Inner\n");

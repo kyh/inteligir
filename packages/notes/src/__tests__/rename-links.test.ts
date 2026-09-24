@@ -10,10 +10,19 @@ const edits = (
   extraFiles: string[] = [],
 ): Map<string, string> => {
   const map = new Map(Object.entries(docs));
-  const aliases = [...map].flatMap(([path, content]) =>
-    scanDoc(content).aliases.map((alias): readonly [string, string] => [alias, path]),
-  );
-  return computeRenameEdits(map, [...map.keys(), ...extraFiles], aliases, from, to);
+  const scans = [...map].map(([path, content]) => ({ path, scan: scanDoc(content) }));
+  return computeRenameEdits({
+    aliasEntries: scans.flatMap(({ path, scan }) =>
+      scan.aliases.map((alias): readonly [string, string] => [alias, path]),
+    ),
+    allFiles: [...map.keys(), ...extraFiles],
+    docs: map,
+    from,
+    idEntries: scans.flatMap(({ path, scan }): (readonly [string, string])[] =>
+      scan.noteId === null ? [] : [[scan.noteId, path]],
+    ),
+    to,
+  });
 };
 
 describe("computeRenameEdits — wiki links", () => {
@@ -355,16 +364,17 @@ describe("computeRenameEdits — alias shadow protection", () => {
   });
 
   it("reads the alias owner from the vault's aliases, not from the docs it rewrites", () => {
-    const result = computeRenameEdits(
-      new Map([
+    const result = computeRenameEdits({
+      aliasEntries: [["Retro", "notes/owner.md"]],
+      allFiles: ["hub.md", "misc.md", "notes/owner.md"],
+      docs: new Map([
         ["hub.md", "see [[Retro]]\n"],
         ["misc.md", "# Misc\n"],
       ]),
-      ["hub.md", "misc.md", "notes/owner.md"],
-      [["Retro", "notes/owner.md"]],
-      "misc.md",
-      "Retro.md",
-    );
+      from: "misc.md",
+      idEntries: [],
+      to: "Retro.md",
+    });
     expect(result.get("hub.md")).toBe("see [[notes/owner|Retro]]\n");
     expect(result.size).toBe(1);
   });
@@ -380,6 +390,72 @@ describe("computeRenameEdits — alias shadow protection", () => {
       "retro.md",
     );
     expect(result.get("hub.md")).toBe("see [[notes/owner|retro]]\n");
+  });
+});
+
+describe("computeRenameEdits — the [[Title|uuid]] tier", () => {
+  const UUID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
+  const OTHER_UUID = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
+  it("retitles a uuid link by its id, though its title no longer names the note", () => {
+    const result = edits(
+      {
+        "hub.md": `see [[Old Title|${UUID}]] and [[Old Title#sec|${UUID}]]\n`,
+        "target.md": `---\nid: ${UUID}\n---\n# Target\n`,
+      },
+      "target.md",
+      "archive/New Name.md",
+    );
+    expect(result.get("hub.md")).toBe(`see [[New Name|${UUID}]] and [[New Name#sec|${UUID}]]\n`);
+  });
+
+  it("leaves a uuid link naming another note alone, though its title spells the renamed one", () => {
+    const result = edits(
+      {
+        "hub.md": `[[target]] and [[target|${OTHER_UUID}]]\n`,
+        "other.md": `---\nid: ${OTHER_UUID}\n---\n# Other\n`,
+        "target.md": "# Target\n",
+      },
+      "target.md",
+      "New.md",
+    );
+    expect(result.get("hub.md")).toBe(`[[New]] and [[target|${OTHER_UUID}]]\n`);
+  });
+
+  it("falls back to the title when no note carries the uuid", () => {
+    const result = edits(
+      { "hub.md": `[[target|${UUID}]]\n`, "target.md": "" },
+      "target.md",
+      "New.md",
+    );
+    expect(result.get("hub.md")).toBe(`[[New|${UUID}]]\n`);
+  });
+
+  it("qualifies a uuid link's title when the rename steals the name it spells", () => {
+    const result = edits(
+      {
+        "a/note.md": `---\nid: ${UUID}\n---\n# The real note\n`,
+        "hub.md": `see [[note|${UUID}]]\n`,
+        "misc.md": "# Misc\n",
+      },
+      "misc.md",
+      "note.md",
+    );
+    expect(result.get("hub.md")).toBe(`see [[a/note|${UUID}]]\n`);
+  });
+
+  it("never qualifies a uuid link whose title already spelled another note", () => {
+    const result = edits(
+      {
+        "a/note.md": "# A note\n",
+        "hub.md": `see [[note|${UUID}]]\n`,
+        "misc.md": "# Misc\n",
+        "owner.md": `---\nid: ${UUID}\n---\n# Owner\n`,
+      },
+      "misc.md",
+      "note.md",
+    );
+    expect(result.size).toBe(0);
   });
 });
 

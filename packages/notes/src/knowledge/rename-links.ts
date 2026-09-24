@@ -1,7 +1,10 @@
 // Only verified target spans are spliced, so aliases, anchors, alts and `<>`
-// wrappers survive. The retarget branch keys on the path-only pre-resolver: a
-// link reaching the moved doc through one of its aliases still resolves after
-// the rename, and rewriting it would replace the author's word vault-wide.
+// wrappers survive. The retarget branch keys on a pre-resolver of paths and ids,
+// never aliases: a link reaching the moved doc through one of its aliases still
+// resolves after the rename, and rewriting it would replace the author's word
+// vault-wide. A `[[Title|uuid]]` link's title is the app's word, not the author's,
+// and its uuid decides which note it names, so its title follows that note and
+// never the note the title happens to spell.
 
 import { parseWikiBodyRange, serializeWikiBody } from "../markdown/remark-wiki-link";
 import { wikiLinkName, wikiLinkPath } from "./doc-file";
@@ -11,8 +14,8 @@ import { buildResolver } from "./link-resolve";
 import type { TargetResolver } from "./link-resolve";
 import { basenamePath, dirnamePath, extnamePath, normalizePath, relativePath } from "./vault-path";
 
-// the rename, plus the resolvers the branches read: before, after, after-without-the-renamed-
-// file (to prove a short name is unambiguous) and before-with-aliases
+// the rename, plus the resolvers the branches read: before (paths and ids), after,
+// after-without-the-renamed-file (to prove a short name is unambiguous) and before-with-aliases
 interface RenameContext {
   fromPath: string;
   toPath: string;
@@ -111,7 +114,12 @@ const shadowedText = (
     }
     return null;
   }
-  if (ctx.postResolver.resolveWiki(link.target) !== resolved) {
+  // a uuid link's title may spell another note than its uuid names; only a title that named the
+  // link's note is one the rename can steal
+  const stolen =
+    ctx.preResolver.resolveWiki(link.target) === resolved &&
+    ctx.postResolver.resolveWiki(link.target) !== resolved;
+  if (stolen) {
     // the renamed file now wins this short name's tie-break; qualify so the link keeps its meaning
     return wikiSpanText(link, qualifiedWikiTarget(resolved, link));
   }
@@ -142,7 +150,7 @@ const relinkText = (
 ): string | null => {
   const resolved =
     link.kind === "wiki"
-      ? ctx.preResolver.resolveWiki(link.target)
+      ? ctx.preResolver.resolveWiki(link.target, link.alias)
       : ctx.preResolver.resolveMd(link.target, docPath);
   if (resolved === ctx.fromPath) {
     return link.kind === "wiki"
@@ -158,16 +166,26 @@ const relinkText = (
   return null;
 };
 
-// `docs` and `aliasEntries` are keyed by pre-rename path; the result holds changed docs only,
-// keyed by post-rename path. The aliases are the whole vault's, never derived from `docs`:
-// those are the rewrite candidates, and an alias owner that links nowhere is never one.
-export const computeRenameEdits = (
-  docs: ReadonlyMap<string, string>,
-  allFiles: Iterable<string>,
-  aliasEntries: Iterable<readonly [alias: string, path: string]>,
-  from: string,
-  to: string,
-): Map<string, string> => {
+// `docs`, `aliasEntries` and `idEntries` are keyed by pre-rename path; the result holds changed
+// docs only, keyed by post-rename path. The aliases and ids are the whole vault's, never derived
+// from `docs`: those are the rewrite candidates, and an owner that links nowhere is never one.
+interface RenameEditsInput {
+  docs: ReadonlyMap<string, string>;
+  allFiles: Iterable<string>;
+  aliasEntries: Iterable<readonly [alias: string, path: string]>;
+  idEntries: Iterable<readonly [id: string, path: string]>;
+  from: string;
+  to: string;
+}
+
+export const computeRenameEdits = ({
+  docs,
+  allFiles,
+  aliasEntries,
+  idEntries,
+  from,
+  to,
+}: RenameEditsInput): Map<string, string> => {
   const edits = new Map<string, string>();
   const fromPath = normalizePath(from);
   const toPath = normalizePath(to);
@@ -179,14 +197,14 @@ export const computeRenameEdits = (
   const postFiles = files.map((p) => (p === fromPath ? toPath : p));
 
   const ctx: RenameContext = {
-    // alias-shadow detection only; the retarget branch must stay path-only
+    // alias-shadow detection only; the retarget branch must never read aliases
     aliasPreResolver: buildResolver(files, aliasEntries),
     fromPath,
     movedDirs: dirnamePath(fromPath) !== dirnamePath(toPath),
     // everything except the renamed file: proves a short name is unambiguous, not merely winning a tie-break
     othersResolver: buildResolver(postFiles.filter((p) => p !== toPath)),
     postResolver: buildResolver(postFiles),
-    preResolver: buildResolver(files),
+    preResolver: buildResolver(files, [], idEntries),
     toPath,
   };
 
