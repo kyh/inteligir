@@ -75,8 +75,12 @@ import { hasInsetTitleBar } from "./title-bar";
 import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
-  openNote: string | null;
+  // read once, at boot: after that the note store owns the open note and `onOpenNote` mirrors it
+  bootNote: string | null;
   onOpenNote: (path: string | null) => void;
+  // another surface draws over the workspace: it goes inert and its window-level chords stand
+  // down. Its root isolates the z-indices inside, so a later sibling covers every one of them.
+  covered: boolean;
 }
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
@@ -129,7 +133,7 @@ const SidebarWidthPersistence = ({ write }: { write: (px: number) => void }) => 
   return null;
 };
 
-export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
+export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const treeQuery = useVaultTree();
@@ -251,16 +255,9 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   }, [noteStore]);
 
   const actionsRef = useRef<VaultActions | null>(null);
-  const setOpenNote = useCallback(
-    (path: string | null): void => {
-      if (path === null) {
-        onOpenNote(null);
-        return;
-      }
-      actionsRef.current?.openFile(path);
-    },
-    [onOpenNote],
-  );
+  const setOpenNote = useCallback((path: string): void => {
+    actionsRef.current?.openFile(path);
+  }, []);
 
   // Ordinary opens: the store's stacks recognize a back/forward move by value.
   const goTo = useCallback((target: string | null): void => {
@@ -419,9 +416,17 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   });
 
   const navigate = useNavigate();
+  // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
+  // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette is
+  // a portaled dialog, which the cover would not hide.
   const onOpenSettings = useCallback((): void => {
-    void navigate({ to: "/settings" });
-  }, [navigate]);
+    closePalette();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    void flushOpenNote();
+    void navigate({ search: true, to: "/settings" });
+  }, [closePalette, navigate]);
 
   useEffect(() => {
     setAgentRequestActions({
@@ -445,7 +450,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
     };
   }, [chooseRailView]);
 
-  useGlobalShortcuts(shortcutModifier, (action) => {
+  useGlobalShortcuts({ enabled: !covered, modifier: shortcutModifier }, (action) => {
     switch (action) {
       case "open-action-composer": {
         setComposerSeed(null);
@@ -581,12 +586,12 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
 
   return (
     <VaultProvider
-      initialPath={openNote}
+      initialPath={bootNote}
       onOpenPath={onOpenNote}
       actionsRef={actionsRef}
       store={noteStore}
     >
-      <div className="flex h-dvh flex-col bg-surface text-ink print:h-auto">
+      <div inert={covered} className="isolate flex h-dvh flex-col bg-surface text-ink print:h-auto">
         <SidebarProvider
           className="min-h-0 flex-1 overflow-hidden print:h-auto print:overflow-visible"
           open={railOpen && !zen}
@@ -602,7 +607,7 @@ export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
           <SidebarWidthPersistence write={writeSidebarWidth} />
           <Sidebar variant="floating" className="h-full print:hidden">
             <SidebarRailContent
-              openPath={openNote}
+              openPath={openPath}
               onOpenFile={setOpenNote}
               ops={treeOps}
               onMoveRequest={(path) => {

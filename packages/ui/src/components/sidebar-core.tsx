@@ -203,11 +203,12 @@ const SidebarProvider = ({
       ) {
         return;
       }
-      // providers nest, so containment alone is not enough: the innermost containing focus wins
       const root = wrapperRef.current;
-      if (!root) {
+      // inert stops focus and pointer but not a window listener, so a covered sidebar opts out
+      if (!root || root.closest("[inert]") !== null) {
         return;
       }
+      // providers nest, so containment alone is not enough: the innermost containing focus wins
       if (root.contains(target)) {
         if (
           mountedProviders.some((el) => el !== root && root.contains(el) && el.contains(target))

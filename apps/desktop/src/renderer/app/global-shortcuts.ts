@@ -61,8 +61,14 @@ export const globalShortcutFor = (
   );
 };
 
+interface GlobalShortcutOptions {
+  modifier: ShortcutModifier;
+  // off, the listener is detached: a chord the table claims reaches the page, or the browser
+  enabled: boolean;
+}
+
 export const useGlobalShortcuts = (
-  modifier: ShortcutModifier,
+  { modifier, enabled }: GlobalShortcutOptions,
   onShortcut: (action: GlobalShortcutAction) => void,
 ): void => {
   const latest = useRef(onShortcut);
@@ -70,6 +76,9 @@ export const useGlobalShortcuts = (
     latest.current = onShortcut;
   });
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     const onKeyDown = (event: KeyboardEvent): void => {
       const shortcut = globalShortcutFor(event, modifier);
       if (shortcut === null) {
@@ -82,5 +91,5 @@ export const useGlobalShortcuts = (
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [modifier]);
+  }, [modifier, enabled]);
 };

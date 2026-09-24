@@ -1658,6 +1658,27 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `apps/desktop/src/renderer/app/workspace-context.tsx` and
   `apps/desktop/src/renderer/app/__tests__/changed-message.test.ts`.
 
+- **THE NOTE STORE OWNS THE OPEN NOTE, THE URL MIRRORS IT, AND SETTINGS
+  COVERS A WORKSPACE THAT STAYS MOUNTED** (owner decision). `?note=` is read
+  once, at boot, as the deep link, and every open after that is mirrored into
+  it with `replace` on whichever route shows, so the store's back/forward
+  stacks are the one history and the rail, the top bar and the panel all read
+  the store's `openPath`: a pushed entry per open let a browser Back move the
+  rail's highlight off the note the editor still held. Settings is a child of
+  the pathless `_workspace` layout, drawn in a full-window layer over the
+  workspace rather than as a sibling route, which unmounted the note, its undo
+  history, the composer and zen, and re-walked the vault on the way back.
+  `search: true` carries `?note=` both ways. Covered, the workspace is `inert`,
+  its `GLOBAL_SHORTCUTS` listener is detached and an inert sidebar answers no
+  `[`/`]`, because inert stops focus and pointer but not a window listener; the
+  way in blurs the focused element and flushes the open note, since no unmount
+  settles a title mid-rename or an edit inside the debounce any more. The layer
+  is the layout's, not the page's, so a child's crash boundary lands inside it
+  rather than below a workspace it left inert.
+  `apps/desktop/src/renderer/routes/_workspace.tsx`,
+  `apps/desktop/src/renderer/app/__tests__/workspace-runtime-mount.test.tsx`
+  and `apps/desktop/src/renderer/app/__tests__/workspace-routing.booted.test.tsx`.
+
 ### Repo guards, vendoring and tooling
 
 - **No coverage tooling, on purpose.** Targeted structural invariants instead:

@@ -17,33 +17,50 @@ afterEach(cleanup);
 const keydown = (init: KeyboardEventInit): KeyboardEvent =>
   new KeyboardEvent("keydown", { key: "k", ...init });
 
-const mountListener = (modifier: ShortcutModifier): GlobalShortcutAction[] => {
+const mountListener = (modifier: ShortcutModifier, enabled = true) => {
   const fired: GlobalShortcutAction[] = [];
-  const Harnessed = () => {
-    useGlobalShortcuts(modifier, (action) => {
+  const Harnessed = ({ on }: { on: boolean }) => {
+    useGlobalShortcuts({ enabled: on, modifier }, (action) => {
       fired.push(action);
     });
     return <div />;
   };
-  render(<Harnessed />);
-  return fired;
+  const { rerender } = render(<Harnessed on={enabled} />);
+  return {
+    fired,
+    setEnabled: (next: boolean) => {
+      rerender(<Harnessed on={next} />);
+    },
+  };
 };
 
 describe("the window listener", () => {
   it("fires the table's action for a claimed key", () => {
-    const fired = mountListener("ctrl");
+    const { fired } = mountListener("ctrl");
     fireEvent.keyDown(window, { ctrlKey: true, key: "k" });
     expect(fired).toEqual(["open-action-composer"]);
   });
 
   it("ignores the other modifier", () => {
-    const fired = mountListener("ctrl");
+    const { fired } = mountListener("ctrl");
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(fired).toEqual([]);
   });
 
+  it("stands down while disabled, and leaves the chord to the page", () => {
+    const { fired, setEnabled } = mountListener("ctrl", false);
+    const chord = new KeyboardEvent("keydown", { cancelable: true, ctrlKey: true, key: "p" });
+    window.dispatchEvent(chord);
+    expect(fired).toEqual([]);
+    expect(chord.defaultPrevented).toBe(false);
+
+    setEnabled(true);
+    fireEvent.keyDown(window, { ctrlKey: true, key: "p" });
+    expect(fired).toEqual(["open-palette"]);
+  });
+
   it("covers every table row", () => {
-    const fired = mountListener("ctrl");
+    const { fired } = mountListener("ctrl");
     for (const shortcut of GLOBAL_SHORTCUTS) {
       fireEvent.keyDown(window, {
         ctrlKey: true,
