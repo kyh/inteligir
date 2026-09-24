@@ -671,6 +671,27 @@ to the END of its group.
   `apps/cli/src/server/vault/vault-changes.ts`,
   `apps/cli/src/server/vault/vault-runtime.ts`.
 
+- **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT THE BUFFER OVER
+  AN OVERLAP SAYS SO.** `diffLines` (`@repo/notes/text/line-diff`) runs inside
+  a save's CAS retry and the editor's rebase, where copying the whole frontier
+  every round cost gigabytes for two long, far-apart notes. Its trace keeps
+  each round's live diagonals alone, so memory grows with the edit distance
+  squared, and past `maxEditDistance` (2000) it answers `overBudget`: one hunk
+  over the span between the shared ends. diff3 reads that as one changed
+  region, so the other side's edits outside it still merge and one inside it
+  is an overlap, `conflicted` like any other. Conflicting on every
+  over-budget merge is rejected: it would warn when nothing was lost. A
+  conflicted merge anywhere in the save path (the guarded write's retry, the
+  rebase after a write or a reload) reaches the host through the session's
+  `notifyMergeConflict`, and the desktop's toast opens that note's History
+  (owner decision). History's own diff reads `overBudget` and says it could
+  not pair the lines. Residual: History holds the replaced lines only once
+  they were committed, and an agent's write mid-turn or an external edit
+  inside the auto-commit's quiet window never was. `@repo/notes` runs its
+  suites under a 512MB heap ceiling so an allocation that grows with a note
+  fails there. `packages/editor/src/vault-editor.ts`,
+  `apps/desktop/src/renderer/app/note/vault-provider.tsx`.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile

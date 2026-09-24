@@ -36,7 +36,7 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
     const { error } = await safe(api.vault.write({ content, expectedHash, path }));
     if (error === null) {
       bases.set(path, content);
-      return { content, kind: "landed" };
+      return { conflicted: false, content, kind: "landed" };
     }
     if (isDefinedError(error) && error.code === "CAS_MISMATCH") {
       // No `current` means a delete raced the write; nothing to merge against.
@@ -44,12 +44,12 @@ export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
         return { kind: "vanished" };
       }
       const disk = error.data.current.content;
-      const { merged } = diff3(base, content, disk);
+      const { conflicted, merged } = diff3(base, content, disk);
       const retryHash = await contentHashHex(disk);
       const retry = await safe(api.vault.write({ content: merged, expectedHash: retryHash, path }));
       if (retry.error === null) {
         bases.set(path, merged);
-        return { content: merged, kind: "landed" };
+        return { conflicted, content: merged, kind: "landed" };
       }
       throw new Error(
         `write ${path}: conflict retry refused (${refusalMessage(retry.error, "no reason given")})`,

@@ -97,8 +97,16 @@ describe("the guarded vault io", () => {
     const io = createGuardedVaultIo(api);
 
     expect(await io.read(NOTE)).toBe("v1");
-    expect(await io.write(NOTE, "v2")).toStrictEqual({ content: "v2", kind: "landed" });
-    expect(await io.write(NOTE, "v3")).toStrictEqual({ content: "v3", kind: "landed" });
+    expect(await io.write(NOTE, "v2")).toStrictEqual({
+      conflicted: false,
+      content: "v2",
+      kind: "landed",
+    });
+    expect(await io.write(NOTE, "v3")).toStrictEqual({
+      conflicted: false,
+      content: "v3",
+      kind: "landed",
+    });
     expect(sent).toStrictEqual([
       { content: "v2", expectedHash: await contentHashHex("v1"), path: NOTE },
       { content: "v3", expectedHash: await contentHashHex("v2"), path: NOTE },
@@ -122,10 +130,27 @@ describe("the guarded vault io", () => {
       await contentHashHex(EXTERNAL),
     ]);
     const onDisk = await readFile(path.join(vaultDir, NOTE), "utf-8");
-    expect(landed).toStrictEqual({ content: onDisk, kind: "landed" });
+    expect(landed).toStrictEqual({ conflicted: false, content: onDisk, kind: "landed" });
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
     expect(onDisk).not.toContain("\nintro\n");
+  });
+
+  it("says a merge kept the buffer's line over the external change to the same one", async () => {
+    const { client, vaultDir } = await bootTestApp();
+    await client.vault.write({ content: BASE, path: NOTE });
+    const io = createGuardedVaultIo(recordingWrites(client).api);
+    await io.read(NOTE);
+
+    await client.vault.write({ content: "# Plans\n\nintro by the agent\n\nfooter\n", path: NOTE });
+
+    const mine = "# Plans\n\nintro rewritten\n\nfooter\n";
+    expect(await io.write(NOTE, mine)).toStrictEqual({
+      conflicted: true,
+      content: mine,
+      kind: "landed",
+    });
+    expect(await readFile(path.join(vaultDir, NOTE), "utf-8")).toBe(mine);
   });
 
   it("keeps a merged-in external edit through the controller's next save", async () => {

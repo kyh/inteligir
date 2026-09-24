@@ -15,6 +15,7 @@ const FLUSH_PASSES = 3;
 
 export interface NoteRuntimeCallbacks {
   onVanished: (path: string) => void;
+  onMergeConflict?: (path: string) => void;
 }
 
 export type NoteRuntime = ReturnType<typeof createNoteRuntime>;
@@ -27,9 +28,15 @@ export const createNoteRuntime = (
   initial?: string,
 ) => {
   let preFlush: (() => void) | null = null;
-  const controller = new VaultEditorController(io, () => {
-    preFlush?.();
-  });
+  const controller = new VaultEditorController(
+    io,
+    () => {
+      preFlush?.();
+    },
+    () => {
+      cb.onMergeConflict?.(path);
+    },
+  );
 
   const autosave = createDebouncer(() => {
     void controller.flush();

@@ -1,5 +1,7 @@
 // a genuine overlap keeps mine (the buffer is the user's work) and reports the conflict.
 // unstable regions not separated by a stable line are grouped, as classic diff3 does.
+// a side past the line diff's budget arrives as one hunk, so the other side's edits inside it
+// are overlaps and conflict, while its edits outside it still merge.
 
 import { diffLines, splitLinesLf } from "./line-diff";
 import type { DiffHunk } from "./line-diff";
@@ -10,7 +12,7 @@ export interface Diff3Result {
 }
 
 interface SideCursor {
-  hunks: DiffHunk[];
+  hunks: readonly DiffHunk[];
   index: number;
   sideLine: number;
 }
@@ -41,9 +43,13 @@ export const diff3 = (base: string, mine: string, theirs: string): Diff3Result =
   const mineLines = splitLinesLf(mine);
   const theirsLines = splitLinesLf(theirs);
 
-  const mineCursor: SideCursor = { hunks: diffLines(baseLines, mineLines), index: 0, sideLine: 0 };
+  const mineCursor: SideCursor = {
+    hunks: diffLines(baseLines, mineLines).hunks,
+    index: 0,
+    sideLine: 0,
+  };
   const theirsCursor: SideCursor = {
-    hunks: diffLines(baseLines, theirsLines),
+    hunks: diffLines(baseLines, theirsLines).hunks,
     index: 0,
     sideLine: 0,
   };

@@ -1,5 +1,7 @@
 import { useCommentSurface } from "@repo/editor/comments/comment-store";
+import { getEditorHostIo } from "@repo/editor/host-io";
 import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { RouterProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { bootThreadHarness } from "inteligir/server/testing";
@@ -23,7 +25,9 @@ const selectedTab = (): string | null =>
     ?.textContent ?? null;
 
 // the socket is inert, so whatever the server should already hold is seeded before the mount
-const bootWorkspace = async (seed?: (harness: ThreadHarness) => Promise<void>): Promise<void> => {
+const bootWorkspace = async (
+  seed?: (harness: ThreadHarness) => Promise<void>,
+): Promise<ThreadHarness> => {
   const harness = await bootThreadHarness({ mode: "manual" });
   vi.stubGlobal("WebSocket", InertSocket);
   routeRendererFetch(harness);
@@ -35,6 +39,7 @@ const bootWorkspace = async (seed?: (harness: ThreadHarness) => Promise<void>): 
   render(<RouterProvider router={router} />);
   await screen.findByRole("tablist", { name: "Panel tabs" });
   expect(sidebarState("right")).toBe("collapsed");
+  return harness;
 };
 
 const paletteRows = () => within(screen.getByRole("listbox"));
@@ -109,5 +114,27 @@ describe("an entry that shows something in the closed panel", () => {
     expect(sidebarState("left")).toBe("expanded");
     expect(selectedTab()).toBe("Comments");
     expect(readPanelOpen()).toBe(true);
+  });
+});
+
+describe("a save that kept this device's lines over a change made elsewhere", () => {
+  it("says so, and its action opens the panel on History", async () => {
+    const note = "Welcome.md";
+    const harness = await bootWorkspace(async ({ client }) => {
+      await client.vault.write({ content: "# Welcome\n\nintro\n", path: note });
+    });
+    await screen.findByText("intro");
+
+    await harness.client.vault.write({ content: "# Welcome\n\nintro by the agent\n", path: note });
+    getEditorHostIo().actions.editNote(note, "# Welcome\n\nintro rewritten\n");
+    await act(async () => {
+      await flushOpenNote();
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open History" }));
+    await waitFor(() => {
+      expect(sidebarState("right")).toBe("expanded");
+    });
+    expect(selectedTab()).toBe("History");
   });
 });

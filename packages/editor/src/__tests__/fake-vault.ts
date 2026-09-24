@@ -3,8 +3,9 @@ import type { VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `hangReads` never settles a read, so a runtime can be observed before its first
 // load; `manualRead`/`manualWrite` park each call in pendingReads/pendingWrites until the test settles it;
-// `landAs` makes a write land other bytes than it was sent, as a host's merge does. A write to a
-// path with no file answers vanished, as a guarded write does; a remove takes a folder's files with it.
+// `landAs` makes a write land other bytes than it was sent, as a host's merge does, and
+// `landsConflicted` says that merge overlapped. A write to a path with no file answers vanished,
+// as a guarded write does; a remove takes a folder's files with it.
 export class FakeVault implements VaultIO {
   files = new Map<string, string>();
   writes = 0;
@@ -15,6 +16,7 @@ export class FakeVault implements VaultIO {
   pendingReads: PromiseWithResolvers<string>[] = [];
   pendingWrites: PromiseWithResolvers<void>[] = [];
   landAs: ((sent: string) => string) | null = null;
+  landsConflicted = false;
 
   read = async (path: string): Promise<string> => {
     if (this.hangReads) {
@@ -43,7 +45,7 @@ export class FakeVault implements VaultIO {
       this.pendingWrites.push(pending);
       await pending.promise;
     }
-    return { content: landed, kind: "landed" };
+    return { conflicted: this.landsConflicted, content: landed, kind: "landed" };
   };
 
   create = async (path: string, content: string): Promise<void> => {
