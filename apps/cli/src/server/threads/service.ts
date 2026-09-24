@@ -53,6 +53,7 @@ import { getThreadEventScopeTurnId, threadScope, turnScope } from "@repo/domain/
 import { deriveThreadTitle } from "@repo/domain/thread-title";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
+import { isThreadRunning } from "@repo/domain/thread-status";
 import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
@@ -631,8 +632,7 @@ export class ThreadService implements ProviderEventSink {
         buffer.notifyThread(threadId, ["status-changed"]);
         // a queued reply follows the turn it waited on however that turn ended. a recovery
         // settle does not drain: a restart never starts a turn on its own, and the next send takes the head.
-        const settled = outcome.thread.status === "idle" || outcome.thread.status === "error";
-        if (settled && args.origin === "local") {
+        if (!isThreadRunning(outcome.thread.status) && args.origin === "local") {
           const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
           if (claimed !== null) {
             buffer.notifyThread(threadId, ["queue-changed"]);
@@ -681,11 +681,7 @@ export class ThreadService implements ProviderEventSink {
   private recoverWedgedThreads(): void {
     const message = "The server restarted while this turn was running";
     for (const thread of listThreads(this.db)) {
-      if (
-        thread.status !== "starting" &&
-        thread.status !== "active" &&
-        thread.status !== "stopping"
-      ) {
+      if (!isThreadRunning(thread.status)) {
         continue;
       }
       const { activeTurnId } = thread;

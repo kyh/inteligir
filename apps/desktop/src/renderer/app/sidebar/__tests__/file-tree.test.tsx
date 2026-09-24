@@ -54,9 +54,6 @@ const renderTree = (
       openPath={null}
       onOpenFile={onOpenFile}
       ops={ops}
-      pendingCreate={null}
-      onPendingCreateDone={() => {}}
-      reveal={null}
       onMoveRequest={() => {}}
       pinnedPaths={NO_PINS}
       sort="name"
@@ -79,7 +76,10 @@ const row = (path: string): HTMLElement => {
   return element;
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("rendering", () => {
   it("shows top-level entries with folders collapsed", () => {
@@ -107,6 +107,39 @@ describe("rendering", () => {
     renderTree({ openPath: "notes/daily/2026-08-16.md" });
     expect(screen.getByText("2026-08-16.md")).toBeDefined();
   });
+
+  it("expands to the open note without setting the rail's state during the tree's render", () => {
+    const logged = vi.spyOn(console, "error");
+    renderTree({ openPath: "notes/daily/2026-08-16.md" });
+    expect(logged).not.toHaveBeenCalled();
+  });
+});
+
+describe("a reveal from the breadcrumb", () => {
+  it("opens the way to a folder, opens the folder and focuses its row", () => {
+    renderTree({ reveal: { nonce: 1, path: "notes/daily" } });
+    expect(screen.getByText("2026-08-16.md")).toBeDefined();
+    expect(document.activeElement).toBe(row("notes/daily"));
+    expect(createDir()).toBe("notes/daily");
+  });
+
+  it("is focused once, so a tree mounted again for a create keeps the input's focus", () => {
+    const { ops } = renderTree({ reveal: { nonce: 1, path: "notes" } });
+    expect(document.activeElement).toBe(row("notes"));
+    fireEvent.click(screen.getByText("Rail other view"));
+    fireEvent.click(screen.getByText("Rail new note"));
+    const input = screen.getByLabelText("Name");
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: "Fresh" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(ops.createNote).toHaveBeenCalledWith("notes/Fresh.md");
+  });
+
+  it("leaves an open name input its focus when the two land together", () => {
+    renderTree({ reveal: { nonce: 1, path: "notes" }, startHidden: true });
+    fireEvent.click(screen.getByText("Rail new note"));
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"));
+  });
 });
 
 describe("a tree with no rows says WHY it has none", () => {
@@ -131,10 +164,13 @@ describe("a tree with no rows says WHY it has none", () => {
 });
 
 describe("keyboard navigation", () => {
-  it("has exactly one tab stop (roving tabindex)", () => {
+  it("has exactly one tab stop, the container included (roving tabindex)", () => {
     renderTree();
-    const stops = document.querySelectorAll('[role="treeitem"][tabindex="0"]');
-    expect(stops).toHaveLength(1);
+    const tree = screen.getByRole("tree");
+    const stops = [tree, ...tree.querySelectorAll("*")].filter(
+      (element) => element.getAttribute("tabindex") === "0",
+    );
+    expect(stops).toEqual([row("notes")]);
   });
 
   it("moves focus down and up with the arrow keys", () => {
@@ -226,21 +262,19 @@ describe("inline rename", () => {
 });
 
 describe("inline create", () => {
-  it("a pending root create renders the input and commits with .md appended", () => {
-    const onPendingCreateDone = vi.fn<FileTreeProps["onPendingCreateDone"]>();
-    const { ops } = renderTree({
-      onPendingCreateDone,
-      pendingCreate: { kind: "file", parentDir: "" },
-    });
+  it("the rail's create renders the input and commits with .md appended", () => {
+    const { ops } = renderTree();
+    fireEvent.click(screen.getByText("Rail new note"));
     const input = screen.getByLabelText("Name");
     fireEvent.change(input, { target: { value: "Fresh" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(ops.createNote).toHaveBeenCalledWith("Fresh.md");
-    expect(onPendingCreateDone).toHaveBeenCalled();
+    expect(screen.queryByLabelText("Name")).toBeNull();
   });
 
   it("a name with a dot in it is a title, so it still becomes a note", () => {
-    const { ops } = renderTree({ pendingCreate: { kind: "file", parentDir: "" } });
+    const { ops } = renderTree();
+    fireEvent.click(screen.getByText("Rail new note"));
     const input = screen.getByLabelText("Name");
     fireEvent.change(input, { target: { value: "Node.js" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -248,23 +282,37 @@ describe("inline create", () => {
   });
 
   it("keeps a doc extension the name already carries", () => {
-    const { ops } = renderTree({ pendingCreate: { kind: "file", parentDir: "" } });
+    const { ops } = renderTree();
+    fireEvent.click(screen.getByText("Rail new note"));
     const input = screen.getByLabelText("Name");
     fireEvent.change(input, { target: { value: "todo.txt" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(ops.createNote).toHaveBeenCalledWith("todo.txt");
   });
 
-  it("a cancelled create is reported done too", () => {
-    const onPendingCreateDone = vi.fn<FileTreeProps["onPendingCreateDone"]>();
-    renderTree({ onPendingCreateDone, pendingCreate: { kind: "file", parentDir: "" } });
+  it("a cancelled create ends it", () => {
+    const { ops } = renderTree();
+    fireEvent.click(screen.getByText("Rail new note"));
     fireEvent.keyDown(screen.getByLabelText("Name"), { key: "Escape" });
-    expect(onPendingCreateDone).toHaveBeenCalled();
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(ops.createNote).not.toHaveBeenCalled();
   });
 
-  it("a folder create passes the name through untouched", () => {
-    const { ops } = renderTree({ pendingCreate: { kind: "dir", parentDir: "" } });
-    const input = screen.getByLabelText("Name");
+  it("a create in a folded folder opens it, so the input is in the first paint", () => {
+    renderTree();
+    fireEvent.click(row("notes"));
+    fireEvent.click(row("notes"));
+    expect(screen.queryByText("ideas.md")).toBeNull();
+    fireEvent.click(screen.getByText("Rail new note"));
+    expect(screen.getByLabelText("Name")).toBeDefined();
+    expect(screen.getByText("ideas.md")).toBeDefined();
+  });
+
+  it("a folder create passes the name through untouched", async () => {
+    const { ops } = renderTree();
+    fireEvent.contextMenu(screen.getByRole("tree"));
+    fireEvent.click(await screen.findByText("New folder"));
+    const input = await screen.findByLabelText("Name");
     fireEvent.change(input, { target: { value: "projects" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(ops.createFolder).toHaveBeenCalledWith("projects");

@@ -1,3 +1,4 @@
+import { isThreadRunning } from "@repo/domain/thread-status";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 
@@ -7,12 +8,10 @@ export const threadActivity = (thread: Thread): ThreadActivity => {
   if (thread.archivedAt !== null) {
     return "archived";
   }
+  if (isThreadRunning(thread.status)) {
+    return "running";
+  }
   switch (thread.status) {
-    case "starting":
-    case "active":
-    case "stopping": {
-      return "running";
-    }
     case "error": {
       return "failed";
     }

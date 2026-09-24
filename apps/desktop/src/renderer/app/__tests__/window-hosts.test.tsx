@@ -95,6 +95,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   observeRpcStatus(200);
 });
 
@@ -130,6 +131,8 @@ describe("the window-level hosts", () => {
 
   it("show one signed-out notice in place of a toast per refused call, until the server answers", async () => {
     vi.stubGlobal("fetch", serverAnswering(401));
+    // the client logs every refused call in dev
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     mountAtSettings();
     const call = await screen.findByText("Call");
     fireEvent.click(call);
@@ -150,6 +153,7 @@ describe("the window-level hosts", () => {
     });
     fireEvent.click(screen.getByText("Refuse"));
     expect(await screen.findByText(REFUSAL)).toBeDefined();
+    expect(logged).toHaveBeenCalled();
   });
 
   const ROOT_ALONE = [

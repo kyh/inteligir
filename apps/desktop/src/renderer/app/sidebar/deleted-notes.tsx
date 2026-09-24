@@ -12,7 +12,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc, refusalMessage } from "../api";
-import { relativeTimeLabel } from "../relative-time";
+import { relativeTimeLabel, useNow } from "../relative-time";
 import { useWorkspace } from "../workspace-context";
 
 // The rail's third view: what the vault's history holds and the tree no longer does, one row per
@@ -22,6 +22,7 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const deletedQuery = useQuery(orpc.vault.deleted.queryOptions());
+  const now = useNow();
   const [menu, setMenu] = useState<{ entry: VaultDeletedEntry; anchor: HTMLElement } | null>(null);
 
   // The same composition as a history restore, with no bytes on disk to base it on:
@@ -43,11 +44,25 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
   });
 
   const entries = deletedQuery.data?.entries ?? [];
-  // Not Date.now(): a clock read in render is impure, and the query refetches on every mount.
-  const now = deletedQuery.dataUpdatedAt;
 
   if (deletedQuery.isPending) {
     return <p className="px-2 py-2 text-body text-muted-foreground">Loading…</p>;
+  }
+  if (deletedQuery.isLoadingError) {
+    return (
+      <div className="px-2 py-2 text-body">
+        <p className="text-destructive">Could not read the vault&apos;s history.</p>
+        <button
+          type="button"
+          onClick={() => {
+            void deletedQuery.refetch();
+          }}
+          className="mt-1 rounded px-1 py-0.5 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
   if (entries.length === 0) {
     return <p className="px-2 py-2 text-body text-muted-foreground">Nothing has been deleted.</p>;
