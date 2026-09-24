@@ -4,7 +4,7 @@ import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { COMMENTS_STORE_DIR } from "@repo/notes/comments/sidecar-schema";
-import { ThemeProvider, useTheme } from "@repo/ui/lib/theme";
+import { ThemeProvider } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
@@ -13,7 +13,7 @@ import type { VaultEntry, VaultTreeResponse } from "@repo/api/local/vault/vault-
 import { createContext, useContext, useEffect, useState } from "react";
 import { workspaceSocketUrl } from "@repo/api/local/routes";
 import { AppearanceProvider } from "./appearance";
-import { client, orpc } from "./api";
+import { orpc } from "./api";
 import { socketOrigin } from "./socket-origin";
 import { browserInvalidationSocket, InvalidationClient } from "./invalidation-client";
 import { readTheme, writeTheme } from "./prefs";
@@ -32,7 +32,6 @@ interface ThreadEvents {
 }
 
 export interface WorkspaceRuntime {
-  api: typeof client;
   vaultChanges: VaultChanges;
   threadEvents: ThreadEvents;
 }
@@ -269,16 +268,6 @@ export const createWorkspaceQueryClient = (): QueryClient =>
     },
   });
 
-// The editor keys off `data-theme` on :root, the chrome off ThemeProvider's
-// `.dark` class; stamping the resolved theme (never "system") keeps them agreeing.
-const EditorThemeCarrier = () => {
-  const { resolved } = useTheme();
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolved;
-  }, [resolved]);
-  return null;
-};
-
 export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) => {
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [runtime] = useState(() => {
@@ -311,11 +300,7 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
         };
       },
     };
-    const contextValue: WorkspaceRuntime = {
-      api: client,
-      threadEvents,
-      vaultChanges,
-    };
+    const contextValue: WorkspaceRuntime = { threadEvents, vaultChanges };
     return { contextValue, emitVaultChange, notifyThread, queryClient };
   });
 
@@ -364,7 +349,6 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
 
   return (
     <ThemeProvider theme={theme} setTheme={chooseTheme}>
-      <EditorThemeCarrier />
       <RadiusProvider radius="rounded">
         <SizeProvider size="compact">
           <AppearanceProvider>

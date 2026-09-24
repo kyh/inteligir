@@ -12,13 +12,12 @@ import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { isDefinedError, orpc, refusalMessage, safe } from "../api";
+import { client, isDefinedError, orpc, refusalMessage, safe } from "../api";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useWorkspace } from "../workspace-context";
 import { diffRows } from "./history-diff";
 import type { DiffRow } from "./history-diff";
 import { ReadRefusal } from "./read-refusal";
@@ -110,7 +109,6 @@ const RevisionDetail = ({
   revision: VaultRevision;
   onBack: () => void;
 }) => {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   // no retries: a revision git cannot show is as missing on the third ask as on the first.
   const revisionQuery = useQuery({
@@ -133,9 +131,9 @@ const RevisionDetail = ({
         };
       }
       // the auto-commit is session-shaped, so bytes saved seconds ago are in no revision yet.
-      await api.vault.commitNow();
+      await client.vault.commitNow();
       const { error } = await safe(
-        api.vault.write({
+        client.vault.write({
           content: bytes,
           expectedHash: await contentHashHex(current),
           path: docPath,
@@ -231,8 +229,9 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
   // no retries: an off-lock `git log` refusal is deterministic. A larger page keeps the rows it
   // grows from on screen, so Show older neither blanks the list nor loses the scroll.
   const historyQuery = useQuery({
-    ...orpc.vault.history.queryOptions({ input: { limit, path: docPath ?? "" } }),
-    enabled: docPath !== null,
+    ...orpc.vault.history.queryOptions({
+      input: docPath === null ? skipToken : { limit, path: docPath },
+    }),
     placeholderData: (previous) => previous,
     retry: false,
     staleTime: 0,

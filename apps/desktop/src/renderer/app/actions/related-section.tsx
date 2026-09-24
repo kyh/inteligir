@@ -9,10 +9,9 @@ import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useState } from "react";
 
-import { orpc } from "../api";
+import { client, orpc } from "../api";
 import { readRelatedOpen, writeRelatedOpen } from "../prefs";
 import { FoldSection } from "../fold-section";
-import { useWorkspace } from "../workspace-context";
 import { linkMentionInNote, linkMentionMessage } from "./link-mention";
 
 export interface RelatedRow {
@@ -158,7 +157,6 @@ export const RelatedInline = ({
   onOpenDoc: (path: string) => void;
 }) => {
   const [open, setOpen] = useState(readRelatedOpen);
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const { backlinksQuery, relatedQuery, unlinkedQuery } = useRelatedRows(docPath, open);
 
@@ -171,7 +169,7 @@ export const RelatedInline = ({
   // the sweep on files-changed moves the row to backlinks; the refetch here only shortens the wait
   const link = (mention: UnlinkedMentionWire, target: string): void => {
     void (async () => {
-      const outcome = await linkMentionInNote(api, mention, target);
+      const outcome = await linkMentionInNote(client, mention, target);
       toast[outcome.kind === "written" ? "success" : "error"](
         linkMentionMessage(outcome, mention.path),
       );

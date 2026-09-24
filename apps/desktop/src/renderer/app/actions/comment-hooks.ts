@@ -1,6 +1,6 @@
 import { clearCommentMeta, setCommentMeta } from "@repo/editor/comments/comment-store";
 import type { CommentsResponse } from "@repo/api/local/comments/comments-schema";
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -8,8 +8,7 @@ import { orpc } from "../api";
 
 export const useNoteComments = (path: string | null): UseQueryResult<CommentsResponse> =>
   useQuery({
-    ...orpc.comments.list.queryOptions({ input: { path: path ?? "" } }),
-    enabled: path !== null,
+    ...orpc.comments.list.queryOptions({ input: path === null ? skipToken : { path } }),
     // a refusal is an unparseable sidecar; retrying shows "Loading…" over an answer that will not change.
     retry: false,
   });

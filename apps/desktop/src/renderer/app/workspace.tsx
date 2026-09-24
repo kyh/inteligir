@@ -11,7 +11,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { orpc } from "./api";
+import { client, orpc } from "./api";
 import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
@@ -72,7 +72,6 @@ import {
 } from "./prefs";
 import type { RailView } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
-import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
   // read once, at boot: after that the note store owns the open note and `onOpenNote` mirrors it
@@ -122,7 +121,6 @@ const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Pro
 };
 
 export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const treeQuery = useVaultTree();
   const statusQuery = useVaultStatus();
@@ -152,7 +150,8 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const [composerSeed, setComposerSeed] = useState<string | null>(null);
   const [zen, setZen] = useState(false);
   // Narrow selectors only: the store settles on every keystroke.
-  const noteStore = useMemo(() => createOpenNoteStore(), []);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [noteStore] = useState(createOpenNoteStore);
   const openPath = useStore(noteStore.store, (state) => state.openPath);
   // Trails `openPath` across a switch; the comment tint keys on it.
   const loadedPath = useStore(noteStore.store, (state) => openDocPath(state.openDoc));
@@ -210,7 +209,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         }
         await flushOpenNote();
         try {
-          await api.comments.add({ id, path, text });
+          await client.comments.add({ id, path, text });
         } catch {
           return false;
         }
@@ -224,7 +223,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     return () => {
       setCommentActions(null);
     };
-  }, [api, queryClient, noteStore, revealPanel]);
+  }, [queryClient, noteStore, revealPanel]);
 
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
     const { path } = noteStore.state().editor;
@@ -237,7 +236,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       },
       read: () => {
         const current = noteStore.state().editor;
-        return { content: current.path === path ? current.content : "" };
+        return current.path === path ? { content: current.content } : null;
       },
     });
   }, [noteStore]);
@@ -357,11 +356,11 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       }
       // the open note's buffer lands first, so its file is not the one that "changed since read"
       await flushOpenNote();
-      const outcomes = await replaceInVault(api, request, port);
+      const outcomes = await replaceInVault(client, request, port);
       const summary = summarizeReplace(outcomes, noteCount - outcomes.length);
       toast[summary.tone](summary.message);
     },
-    [api],
+    [],
   );
 
   // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
@@ -371,7 +370,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     void (async () => {
       let content = dailyNoteTemplate(now);
       try {
-        const template = await api.vault.read({ path: DAILY_TEMPLATE_PATH });
+        const template = await client.vault.read({ path: DAILY_TEMPLATE_PATH });
         content = dailyNoteFromTemplate(template.content, now);
       } catch {
         // no template in this vault
@@ -379,14 +378,14 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       // Create-exclusive rather than checking the tree first, which can be stale.
       await createNote(dailyNotePath(now), content);
     })();
-  }, [api, createNote]);
+  }, [createNote]);
 
   const newNoteFromTemplate = useCallback(
     (templatePath: string): void => {
       void (async () => {
         let template: string;
         try {
-          ({ content: template } = await api.vault.read({ path: templatePath }));
+          ({ content: template } = await client.vault.read({ path: templatePath }));
         } catch {
           toast.error("Could not read the template.");
           return;
@@ -396,7 +395,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         await createNote(path, removeFrontmatterId(body));
       })();
     },
-    [api, treeQuery.data, createNote],
+    [treeQuery.data, createNote],
   );
 
   const insertTemplateIntoNote = useCallback(
@@ -412,18 +411,15 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
-  const setPinned = useCallback(
-    (path: string, pinned: boolean): void => {
-      void pinAndReport(api, path, pinned);
-    },
-    [api],
-  );
+  const setPinned = useCallback((path: string, pinned: boolean): void => {
+    void pinAndReport(client, path, pinned);
+  }, []);
   const pinnedPaths = usePinnedPaths();
   const openPinned = openPath !== null && pinnedPaths.has(openPath);
 
   const treeOps = useTreeOps({
     actions: actionsRef,
-    api,
+    api: client,
     createNote,
     setPinned,
   });

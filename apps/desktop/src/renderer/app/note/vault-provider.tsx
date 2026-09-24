@@ -24,10 +24,9 @@ import type { ReactNode, RefObject } from "react";
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
-import { safe } from "../api";
+import { client, safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
 import { useWorkspace } from "../workspace-context";
-import type { WorkspaceRuntime } from "../workspace-context";
 import { createGuardedVaultIo } from "./guarded-vault-io";
 import { createNoteFormulas } from "./note-formulas";
 import type { NoteFormulas } from "./note-formulas";
@@ -46,7 +45,7 @@ const NO_RESOLVER: LinkResolver = {
   targets: [],
 };
 
-type Api = WorkspaceRuntime["api"];
+type Api = typeof client;
 
 const listingEntries = (tree: VaultTreeResponse): VaultEntry[] =>
   tree.entries.flatMap((entry) =>
@@ -237,10 +236,7 @@ export const VaultProvider = ({
   actionsRef,
   store,
 }: VaultProviderProps) => {
-  // Captured once: a later navigation must not re-run the boot preference.
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [bootPath] = useState(initialPath);
-  const { api, vaultChanges } = useWorkspace();
+  const { vaultChanges } = useWorkspace();
   const queryClient = useQueryClient();
 
   const wikiTargetsQuery = useWikiTargets();
@@ -249,9 +245,11 @@ export const VaultProvider = ({
     [wikiTargetsQuery.data],
   );
 
-  const port = useMemo<VaultPort>(
-    () => createVaultPort({ api, bootPath, queryClient, store }),
-    [api, bootPath, queryClient, store],
+  // Built once per mount: a later navigation must not re-run the boot preference, and a second
+  // session would re-boot the vault.
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [port] = useState(() =>
+    createVaultPort({ api: client, bootPath: initialPath, queryClient, store }),
   );
   const { session } = port;
 
@@ -281,7 +279,7 @@ export const VaultProvider = ({
     const io: EditorHostIo = {
       actions: session.actions,
       getBacklinks: async ({ path }) => {
-        const body = await api.knowledge.backlinks({ path }).catch(() => null);
+        const body = await client.knowledge.backlinks({ path }).catch(() => null);
         if (body === null) {
           return [];
         }
@@ -305,17 +303,17 @@ export const VaultProvider = ({
         }
         return { bytes: await response.blob(), ok: true };
       },
-      readVaultFile: async ({ path }) => await readFile(api, path),
+      readVaultFile: async ({ path }) => await readFile(client, path),
       // the choice is read per paste, not cached: the CLI can change it between two pastes.
       writeVaultAsset: async ({ baseName, file }) => {
-        const { attachments } = await api.vault.prefs();
+        const { attachments } = await client.vault.prefs();
         const dir = attachmentDir(attachments, store.state().openPath);
         const bytesBase64 = base64FromBytes(new Uint8Array(await file.arrayBuffer()));
-        return await api.vault.assetWrite({ baseName, bytesBase64, dir });
+        return await client.vault.assetWrite({ baseName, bytesBase64, dir });
       },
     };
     setEditorHostIo(io);
-  }, [api, vaultChanges, port, session, store]);
+  }, [vaultChanges, port, session, store]);
 
   useEffect(() => {
     void session.start();

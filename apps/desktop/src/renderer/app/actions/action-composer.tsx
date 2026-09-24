@@ -10,8 +10,7 @@ import { FileTextIcon, XIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import type { RefObject } from "react";
 
-import { failed } from "../api";
-import { useWorkspace } from "../workspace-context";
+import { client, failed } from "../api";
 import type { ViewContextSource } from "../thread-activity";
 import { spliceIntoComposer } from "../voice/dictation";
 import { MicButton } from "../voice/mic-button";
@@ -51,7 +50,6 @@ export const ActionComposer = ({
   onLaunched,
   container,
 }: ActionComposerProps) => {
-  const { api } = useWorkspace();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   // the thread a refused send already created; the retry reuses it only over the same note,
@@ -168,7 +166,7 @@ export const ActionComposer = ({
     void (async () => {
       try {
         const viewContext = attachedPath === null ? null : await readViewContext();
-        const created = await createAction(api, {
+        const created = await createAction(client, {
           contextPaths: mentions,
           docPath: attachedPath,
           prompt: trimmed,

@@ -4,7 +4,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
 import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
 import { MicIcon, MicOffIcon, SquareIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { socketOrigin } from "../socket-origin";
 import { downloadPercent } from "../voice-hooks";
 import { voiceStreamUrl } from "@repo/api/local/routes";
@@ -83,13 +83,10 @@ export const MicButton = ({ status, onTranscript, onPartial, disabled }: MicButt
 
   // The unmount cleanup needs the latest teardown: a stale `onPartial` would
   // leave the preview orphaned.
-  const stopSessionRef = useRef(stopSession);
-  useEffect(() => {
-    stopSessionRef.current = stopSession;
-  });
+  const stopOnUnmount = useEffectEvent(stopSession);
   useEffect(
     () => () => {
-      stopSessionRef.current();
+      stopOnUnmount();
     },
     [],
   );

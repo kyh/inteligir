@@ -10,17 +10,14 @@ import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { orpc } from "../api";
+import { client, orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 
 export const useThreads = (): UseQueryResult<ListThreadsResponse> =>
   useQuery(orpc.threads.list.queryOptions());
 
-export const useThreadDetail = (threadId: string | null): UseQueryResult<GetThreadResponse> =>
-  useQuery({
-    ...orpc.threads.get.queryOptions({ input: { threadId: threadId ?? "none" } }),
-    enabled: threadId !== null,
-  });
+export const useThreadDetail = (threadId: string): UseQueryResult<GetThreadResponse> =>
+  useQuery(orpc.threads.get.queryOptions({ input: { threadId } }));
 
 // total over the kinds: one not weighed here is a row the user never sees until they reopen the thread.
 const MOVES_THE_TIMELINE = {
@@ -44,7 +41,7 @@ type ThreadTimelineRead =
 const READING: ThreadTimelineRead = { state: "reading" };
 
 export const useThreadTimeline = (threadId: string | null): ThreadTimelineRead => {
-  const { api, threadEvents } = useWorkspace();
+  const { threadEvents } = useWorkspace();
   const [read, setRead] = useState<ThreadTimelineRead>(READING);
 
   // drop the previous thread's rows as the id arrives, not one commit later.
@@ -64,7 +61,7 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimelineRead =
     let rerun = false;
 
     const fetchFull = async (): Promise<ThreadTimeline | null> => {
-      const response = await api.threads.timeline({ threadId });
+      const response = await client.threads.timeline({ threadId });
       return response.kind === "full" ? response.timeline : null;
     };
 
@@ -81,7 +78,7 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimelineRead =
           if (held === null) {
             next = await fetchFull();
           } else {
-            const response = await api.threads.timeline({
+            const response = await client.threads.timeline({
               afterSequence: held.maxSequence,
               threadId,
             });
@@ -119,7 +116,7 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimelineRead =
       disposed = true;
       unsubscribe();
     };
-  }, [api, threadEvents, threadId]);
+  }, [threadEvents, threadId]);
 
   return read;
 };

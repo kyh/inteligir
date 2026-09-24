@@ -33,7 +33,7 @@ describe("readNoteViewContext", () => {
       revision: await contentHashHex(disk.content),
       surface: "doc",
     });
-    expect(context.revision).not.toBe(await contentHashHex("# Plans\n"));
+    expect(context?.revision).not.toBe(await contentHashHex("# Plans\n"));
   });
 
   it("still answers when the save failed — the buffer is what the user sees", async () => {
@@ -47,6 +47,24 @@ describe("readNoteViewContext", () => {
 
     const context = await readNoteViewContext("Notes/Plans.md", view);
 
-    expect(context.revision).toBe(await contentHashHex(buffer));
+    expect(context?.revision).toBe(await contentHashHex(buffer));
+  });
+
+  it("states nothing when another note replaced this one during the flush", async () => {
+    const calls: string[] = [];
+    const view: OpenNoteView = {
+      flush: async () => {
+        calls.push("flush");
+      },
+      read: () => {
+        calls.push("read");
+        return null;
+      },
+    };
+
+    const context = await readNoteViewContext("Notes/Plans.md", view);
+
+    expect(calls).toEqual(["flush", "read"]);
+    expect(context).toBeNull();
   });
 });

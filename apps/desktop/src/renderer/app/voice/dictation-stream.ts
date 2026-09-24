@@ -2,7 +2,10 @@
 // server sees every frame before it is asked for the final.
 
 import { voiceStreamDownMessageSchema } from "@repo/api/local/voice/voice-schema";
+import type { VoiceStreamUpMessage } from "@repo/api/local/voice/voice-schema";
 import { z } from "zod";
+
+const FINALIZE: VoiceStreamUpMessage = { type: "finalize" };
 
 export interface DictationSocket {
   send: (data: string | ArrayBuffer) => void;
@@ -53,7 +56,7 @@ export class DictationStreamClient {
       }
       this.#pending = [];
       if (this.#finalizeRequested) {
-        socket.send(JSON.stringify({ type: "finalize" }));
+        socket.send(JSON.stringify(FINALIZE));
       }
     };
     socket.onMessage = (event) => {
@@ -132,7 +135,7 @@ export class DictationStreamClient {
     }
     this.#finalizing = true;
     if (this.#socket !== null && this.#open) {
-      this.#socket.send(JSON.stringify({ type: "finalize" }));
+      this.#socket.send(JSON.stringify(FINALIZE));
     } else {
       this.#finalizeRequested = true;
     }

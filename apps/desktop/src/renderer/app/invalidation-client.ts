@@ -2,8 +2,14 @@ import {
   realtimeSubscriptionTargetKey,
   serverMessageLenientSchema,
 } from "@repo/api/local/notifications";
-import type { ChangedMessage, RealtimeSubscriptionTarget } from "@repo/api/local/notifications";
+import type {
+  ChangedMessage,
+  ClientMessage,
+  RealtimeSubscriptionTarget,
+} from "@repo/api/local/notifications";
 import { z } from "zod";
+
+const encodeFrame = (frame: ClientMessage): string => JSON.stringify(frame);
 
 export interface InvalidationSocket {
   send: (data: string) => void;
@@ -94,7 +100,7 @@ export class InvalidationClient {
       this.reconnectAttempt = 0;
       const targets = [...this.held.values()].map((holder) => holder.target);
       for (const target of targets) {
-        socket.send(JSON.stringify({ target, type: "subscribe" }));
+        socket.send(encodeFrame({ target, type: "subscribe" }));
       }
       if (this.hasConnectedBefore) {
         this.args.onReconnected?.(targets);
@@ -141,13 +147,10 @@ export class InvalidationClient {
     }, delayMs);
   }
 
-  private sendFrame(frame: {
-    type: "subscribe" | "unsubscribe";
-    target: RealtimeSubscriptionTarget;
-  }): void {
+  private sendFrame(frame: ClientMessage): void {
     // not queued when closed: the open handler replays every held target.
     if (this.socket !== null && this.socketOpen) {
-      this.socket.send(JSON.stringify(frame));
+      this.socket.send(encodeFrame(frame));
     }
   }
 

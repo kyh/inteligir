@@ -11,15 +11,13 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@repo/ui/compon
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { orpc, refusalMessage } from "../api";
+import { client, orpc, refusalMessage } from "../api";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useWorkspace } from "../workspace-context";
 
 // The rail's third view: what the vault's history holds and the tree no longer does, one row per
 // deleted note, newest first. A click restores it where it was and opens it; the right-click
 // names the verb. Mounted only while the view shows, so the log is read only then.
 export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => void }) => {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const deletedQuery = useQuery(orpc.vault.deleted.queryOptions());
   const now = useNow();
@@ -29,9 +27,9 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
   // create-exclusively, so a note re-created there since is refused rather than replaced.
   const restore = useMutation({
     mutationFn: async (entry: VaultDeletedEntry) => {
-      const { content } = await api.vault.revision({ path: entry.path, sha: entry.sha });
-      const restored = await api.vault.write({ content, ifAbsent: true, path: entry.path });
-      await restoreCommentStore(api, content, entry.sha);
+      const { content } = await client.vault.revision({ path: entry.path, sha: entry.sha });
+      const restored = await client.vault.write({ content, ifAbsent: true, path: entry.path });
+      await restoreCommentStore(client, content, entry.sha);
       return restored;
     },
     onError: (error, entry) => {
