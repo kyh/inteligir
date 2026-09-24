@@ -1,6 +1,7 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, MouseEvent, RefObject, SetStateAction } from "react";
+import { sameElements } from "@repo/ui/hooks/use-row-order";
 
 export interface ItemRect {
   top: number;
@@ -38,8 +39,8 @@ interface UseProximityHoverReturn {
 // publishing zeroed rects; the cap keeps a list hidden for good from spinning forever
 const measurementAttempts = 3;
 
-// offset*, not getBoundingClientRect: layout values ignore the parent motion.div's scale
-// transform and match the space position: absolute children use
+// offset*, not getBoundingClientRect: layout values ignore a transform on the container (the
+// popup's scale-in) and match the space position: absolute children use
 const offsetBox = (element: HTMLElement): ItemRect => ({
   height: element.offsetHeight,
   left: element.offsetLeft,
@@ -235,10 +236,7 @@ export const useProximityHover = <T extends HTMLElement>(
   const setItems = useCallback(
     (elements: readonly HTMLElement[]) => {
       const previous = itemsRef.current;
-      if (
-        previous.length === elements.length &&
-        previous.every((element, i) => element === elements[i])
-      ) {
+      if (sameElements(previous, elements)) {
         return;
       }
       itemsRef.current = elements;

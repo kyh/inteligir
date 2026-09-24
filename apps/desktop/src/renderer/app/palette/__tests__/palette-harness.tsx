@@ -1,7 +1,7 @@
-// The palette reads its pages through the one oRPC client, so a test answers the wire
-// rather than injecting a source: `fetch` is stubbed with the RPC body shape the client
-// speaks (`{ json }` in, `{ json }` out), and each render gets a QueryClient of its own, built
-// with the shipped defaults so a cache the bus never sweeps stays stale here as it does there.
+// The palette reads its pages through the one oRPC client, so a test answers the wire rather
+// than injecting a source, and each render gets a QueryClient of its own built with the shipped
+// defaults, retries included: a cache the bus never sweeps stays stale here as it does there, and
+// a refusal lands only as fast as the query's own retry policy lets it.
 
 import type {
   KnowledgeMatchesRequest,
@@ -10,7 +10,6 @@ import type {
   KnowledgeSearchRequest,
   KnowledgeSearchResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
-import { RPC_PREFIX } from "@repo/api/local/routes";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -23,6 +22,7 @@ import type {
   PaletteNote,
   PaletteRequest,
 } from "../command-palette";
+import { stubRpc } from "../../__tests__/rpc-stub";
 import { createWorkspaceQueryClient } from "../../workspace-context";
 
 export interface KnowledgeFakes {
@@ -47,7 +47,6 @@ const noProblems: KnowledgeProblemsResponse = {
   unresolvedLinks: EMPTY_FAMILY,
 };
 
-const requestBodySchema = z.object({ json: z.unknown() });
 const matchesRequestSchema = z.object({
   caseSensitive: z.boolean(),
   limit: z.number(),
@@ -56,39 +55,18 @@ const matchesRequestSchema = z.object({
 });
 const searchRequestSchema = z.object({ limit: z.number(), q: z.string() });
 
-const answer = (
-  json: KnowledgeMatchesResponse | KnowledgeProblemsResponse | KnowledgeSearchResponse,
-): Response =>
-  Response.json(
-    { json },
-    {
-      headers: { "content-type": "application/json" },
-      status: 200,
-    },
-  );
-
 // every procedure the palette's pages call; anything else is a 404 the query reports as an error
-export const stubKnowledgeFetch = (fakes: KnowledgeFakes): void => {
-  vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(String(input instanceof Request ? input.url : input), "http://localhost");
-    const procedure = url.pathname.slice(`${RPC_PREFIX}/`.length);
-    // the oRPC client always sends a string body; anything else is a stub answering the wrong call
-    const body = requestBodySchema.parse(JSON.parse(z.string().parse(init?.body ?? "{}")));
-    if (procedure === "knowledge/matches" && fakes.matches !== undefined) {
-      return answer(await fakes.matches(matchesRequestSchema.parse(body.json)));
-    }
-    if (procedure === "knowledge/problems") {
-      return answer(fakes.problems === undefined ? noProblems : fakes.problems());
-    }
-    if (procedure === "knowledge/search") {
-      const request = searchRequestSchema.parse(body.json);
-      return answer(
-        fakes.search === undefined
-          ? { results: [] }
-          : await fakes.search(request, init?.signal ?? undefined),
-      );
-    }
-    return new Response("not stubbed", { status: 404 });
+export const stubKnowledgeFetch = ({ matches, problems, search }: KnowledgeFakes): void => {
+  stubRpc({
+    "knowledge/matches":
+      matches === undefined
+        ? undefined
+        : async (input) => await matches(matchesRequestSchema.parse(input)),
+    "knowledge/problems": () => (problems === undefined ? noProblems : problems()),
+    "knowledge/search": async (input, signal) => {
+      const request = searchRequestSchema.parse(input);
+      return search === undefined ? { results: [] } : await search(request, signal);
+    },
   });
 };
 
@@ -133,9 +111,6 @@ const palette = (props: CommandPaletteProps) => (
 
 export const renderWithQueries = (props: CommandPaletteProps) => {
   const queryClient = createWorkspaceQueryClient();
-  queryClient.setDefaultOptions({
-    queries: { ...queryClient.getDefaultOptions().queries, retry: false },
-  });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
@@ -357,6 +358,41 @@ describe("commands", () => {
   });
 });
 
+const ACTION: Thread = {
+  activeTurnId: null,
+  archivedAt: null,
+  createdAt: 1,
+  id: "thr_1",
+  originDocPath: "Welcome.md",
+  providerId: null,
+  status: "idle",
+  title: "Tidy the intro",
+  updatedAt: 1,
+};
+
+describe("the actions page", () => {
+  it("opens the picked action", () => {
+    const { actions } = renderPalette({ threads: [ACTION] });
+    fireEvent.click(rows().getByText("Actions"));
+    fireEvent.click(rows().getByText("Tidy the intro"));
+    expect(actions.openThread).toHaveBeenCalledWith("thr_1");
+  });
+
+  it("says there are none only when none are loaded, since it searches the recent ones alone", () => {
+    renderPalette();
+    fireEvent.click(rows().getByText("Actions"));
+    expect(rows().getByText("No actions yet.")).toBeDefined();
+    cleanup();
+    renderPalette({ threads: [ACTION] });
+    fireEvent.click(rows().getByText("Actions"));
+    fireEvent.change(screen.getByPlaceholderText("Find an action…"), {
+      target: { value: "nowhere" },
+    });
+    expect(rows().getByText("No recent action matches.")).toBeDefined();
+    expect(rows().queryByText("No actions yet.")).toBeNull();
+  });
+});
+
 describe("a page switch", () => {
   it("keeps the one dialog and its field, with the caret still in it", async () => {
     renderPalette();
@@ -672,6 +708,29 @@ describe("the search page", () => {
     await waitFor(() => {
       expect(screen.queryByText(/Replacing…/u)).toBeNull();
     });
+  });
+
+  it("drops the last listing when the scan refuses, and says so", async () => {
+    // the client logs every refused call in dev
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderPalette({
+      fakes: {
+        matches: (request) => {
+          if (request.q === "bigger") {
+            throw new Error("scan down");
+          }
+          return twoMatches(2)(request);
+        },
+      },
+      request: { nonce: 1, page: "search" },
+    });
+    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
+    await rows().findByText("again");
+    fireEvent.change(vaultSearchBox(), { target: { value: "bigger" } });
+    // the last listing stands in while the read is in flight, so only the refusal clears it
+    expect(await rows().findByText("Could not search just now.")).toBeDefined();
+    expect(rows().queryByText("again")).toBeNull();
+    expect(logged).toHaveBeenCalled();
   });
 
   it("refuses to replace while the listing is cut, and says so", async () => {

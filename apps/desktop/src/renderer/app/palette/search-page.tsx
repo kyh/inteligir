@@ -99,6 +99,9 @@ export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPag
     enabled: open && settledQuery !== "",
     // a toggle re-keys the read; the listing it had stays up until the new one lands
     placeholderData: (previous) => previous,
+    // a retry would hold that listing up for seconds over a refusal, and a pick would jump to a
+    // needle its row does not hold
+    retry: false,
   });
 
   // A run outlives no palette: a close, however it comes, cancels it between notes, and the

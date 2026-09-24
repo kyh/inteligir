@@ -10,8 +10,7 @@ import { PopupExit } from "@repo/ui/lib/popup-exit";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
-import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
-import { surfaceClasses } from "@repo/ui/lib/surface-classes";
+import { Elevated } from "@repo/ui/lib/elevated";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { useSidebar, SidebarShell } from "@repo/ui/components/sidebar-core";
 import type {
@@ -35,8 +34,6 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
   // the panel takes initial focus itself: left to the primitive, the trap lands on the top nav
   // row, and Chrome grants :focus-visible to script-driven focus, so it shows the keyboard ring
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const substrate = useSurface();
-  const level = Math.min(substrate + 2, 8);
 
   const offscreen = side === "left" ? "-100%" : "100%";
 
@@ -78,8 +75,10 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
             const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
             return (
               <PopupExit exiting={exiting}>
-                <motion.div
+                <Elevated
                   {...rest}
+                  offset={2}
+                  shadowLevel={3}
                   // merge, don't replace: the primitive needs its own handle on the panel
                   ref={composeRefs(panelRef, baseRef)}
                   tabIndex={-1}
@@ -90,15 +89,14 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
                     "fixed inset-y-0 z-50 flex flex-col overflow-hidden outline-none",
                     exiting && "pointer-events-none",
                     side === "left" ? "left-0" : "right-0",
-                    surfaceClasses(level, 3),
                   )}
                   style={motionStyle(baseStyle, { width: widthMobile })}
                   initial={{ x: offscreen }}
                   animate={{ opacity: exiting ? 0.9999 : 1, x: exiting ? offscreen : 0 }}
                   transition={exiting ? spring.moderate.exit : spring.moderate}
                 >
-                  <SurfaceProvider value={level}>{children}</SurfaceProvider>
-                </motion.div>
+                  {children}
+                </Elevated>
               </PopupExit>
             );
           }}

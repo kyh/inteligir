@@ -72,21 +72,11 @@ type ThreadTimelineRead =
 
 const READING: ThreadTimelineRead = { state: "reading" };
 
-export const useThreadTimeline = (threadId: string | null): ThreadTimelineRead => {
+export const useThreadTimeline = (threadId: string): ThreadTimelineRead => {
   const { threadEvents } = useWorkspace();
   const [read, setRead] = useState<ThreadTimelineRead>(READING);
 
-  // drop the previous thread's rows as the id arrives, not one commit later.
-  const [shownFor, setShownFor] = useState(threadId);
-  if (shownFor !== threadId) {
-    setShownFor(threadId);
-    setRead(READING);
-  }
-
   useEffect(() => {
-    if (threadId === null) {
-      return;
-    }
     let disposed = false;
     let held: ThreadTimeline | null = null;
     let inFlight = false;

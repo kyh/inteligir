@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { orpc } from "../../api";
 import { createWorkspaceQueryClient } from "../../workspace-context";
 import { SyncRow } from "../sidebar";
-import { stubRpc } from "./rpc-stub";
+import { stubRpc } from "../../__tests__/rpc-stub";
 
 const SIGNED_OUT: CloudStatusResponse = { cloudUrl: "https://cloud.test", state: "signed-out" };
 

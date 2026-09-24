@@ -49,7 +49,7 @@ const DialogCard = ({ popupProps, exiting, className, style, ...props }: DialogC
   const radius = useRadius();
   const { style: baseStyle, ...rest } = motionProps(popupProps);
   // centering rides CSS translate utilities, not motion x/y, so a consumer className can
-  // override one axis (the command palette pins `top-1/3 translate-y-0`)
+  // override one axis
   return (
     <PopupExit exiting={exiting}>
       <Elevated
@@ -107,7 +107,6 @@ const DialogContent = ({
 
   // no `if (!open) return null`: Base UI's Popup unmounts itself after the motion tween finishes
   // (via getAnimations()), and an early return would cut the closing animation.
-  // CommandItem restyles itself through `in-data-[slot=dialog-content]`.
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Backdrop render={renderDialogBackdrop} />

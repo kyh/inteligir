@@ -3,29 +3,26 @@
 // server one walk between the two, and the session's own re-list is never served from the cache.
 
 import { QueryObserver } from "@tanstack/react-query";
-import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { readVaultTree } from "../vault-hooks";
 import { ChangeBatch, createWorkspaceQueryClient } from "../workspace-context";
+import { stubRpc } from "./rpc-stub";
 
-const TREE: VaultTreeResponse = {
+const TREE = {
   entries: [{ kind: "file", path: "a.md" }],
   name: "vault",
   root: "/vault",
-};
+} satisfies VaultTreeResponse;
 
-// the oRPC client speaks `{ json }` both ways; any other procedure is a 404.
 const countTreeWalks = (): (() => number) => {
   let walks = 0;
-  vi.stubGlobal("fetch", async (input: string | URL | Request) => {
-    const url = new URL(String(input instanceof Request ? input.url : input), "http://localhost");
-    if (url.pathname !== `${RPC_PREFIX}/vault/tree`) {
-      return new Response("not stubbed", { status: 404 });
-    }
-    walks += 1;
-    return await Promise.resolve(Response.json({ json: TREE }));
+  stubRpc({
+    "vault/tree": () => {
+      walks += 1;
+      return TREE;
+    },
   });
   return () => walks;
 };
