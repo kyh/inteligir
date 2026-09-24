@@ -1,11 +1,11 @@
 // a null payload still renders with Deny alone: deny is the one decision every request
 // accepts, and a dead card is a turn that times out.
 
-import { pendingInteractionApprovalDecisionSchema } from "@repo/domain/pending-interactions";
-import type {
-  ApprovalPendingInteractionPayload,
-  PendingInteractionApprovalDecision,
+import {
+  answerableDecisions,
+  pendingInteractionApprovalDecisionSchema,
 } from "@repo/domain/pending-interactions";
+import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import {
   ApprovalCard as ApprovalCardView,
@@ -38,11 +38,12 @@ interface ApprovalView {
   decisions: PendingInteractionApprovalDecision[];
 }
 
-const approvalView = (payload: ApprovalPendingInteractionPayload | null): ApprovalView => {
+export const approvalOffer = ({ payload }: PendingInteraction): ApprovalView => {
   if (payload === null) {
-    return { decisions: [], reason: null, summary: "The agent asked for approval." };
+    return { decisions: ["deny"], reason: null, summary: "The agent asked for approval." };
   }
-  const { subject, reason, availableDecisions: decisions } = payload;
+  const { subject, reason } = payload;
+  const decisions = answerableDecisions(payload);
   switch (subject.kind) {
     case "command": {
       return { decisions, reason, summary: `$ ${subject.command}` };
@@ -62,15 +63,6 @@ const approvalView = (payload: ApprovalPendingInteractionPayload | null): Approv
       return exhaustive;
     }
   }
-};
-
-export const approvalOffer = (interaction: PendingInteraction): ApprovalView => {
-  const view = approvalView(interaction.payload);
-  return {
-    decisions: [...view.decisions.filter((decision) => decision !== "deny"), "deny"],
-    reason: view.reason,
-    summary: view.summary,
-  };
 };
 
 export const decisionFromAnswers = (

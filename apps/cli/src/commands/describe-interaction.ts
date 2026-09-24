@@ -1,4 +1,5 @@
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import { answerableDecisions } from "@repo/domain/pending-interactions";
 import type {
   ApprovalPendingInteractionPayload,
   PendingInteractionApprovalSubject,
@@ -18,9 +19,8 @@ const subjectText = (subject: PendingInteractionApprovalSubject): string => {
   }
 };
 
-// deny is always accepted, offered or not: every cancel path answers with it.
 const answerText = (payload: ApprovalPendingInteractionPayload): string =>
-  `answer: ${[...new Set([...payload.availableDecisions, "deny"])].join(", ")}`;
+  `answer: ${answerableDecisions(payload).join(", ")}`;
 
 // what an approval would allow, so nobody answers one blind.
 export const describeInteraction = (row: PendingInteraction): string[] => {

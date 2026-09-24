@@ -59,8 +59,15 @@ export type ApprovalResolutionParse =
   | { ok: true; resolution: ApprovalPendingInteractionResolution }
   | { ok: false; reason: string };
 
-// one parser for the answer route's 400 gate and the runtime. deny is always accepted (every
-// cancel path answers with it); any other decision must be one the request offered.
+// deny is always accepted (every cancel path answers with it)
+export const answerableDecisions = (
+  payload: ApprovalPendingInteractionPayload,
+): PendingInteractionApprovalDecision[] => [
+  ...payload.availableDecisions.filter((decision) => decision !== "deny"),
+  "deny",
+];
+
+// one parser for the answer route's 400 gate and the runtime: the decision must be answerable.
 export const parseApprovalResolution = (
   raw: string,
   payload: ApprovalPendingInteractionPayload,
@@ -88,10 +95,11 @@ export const parseApprovalResolution = (
     }
     parsed = result.data;
   }
-  if (parsed.decision !== "deny" && !payload.availableDecisions.includes(parsed.decision)) {
+  const answerable = answerableDecisions(payload);
+  if (!answerable.includes(parsed.decision)) {
     return {
       ok: false,
-      reason: `The request offers ${payload.availableDecisions.join(", ")}; "${parsed.decision}" is not among them`,
+      reason: `The request offers ${answerable.join(", ")}; "${parsed.decision}" is not among them`,
     };
   }
   return { ok: true, resolution: parsed };

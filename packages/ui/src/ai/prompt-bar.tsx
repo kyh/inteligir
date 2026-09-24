@@ -144,7 +144,7 @@ const PromptBarField = ({
       if (event.key !== "Enter" || event.shiftKey || isImeComposing(event)) {
         return;
       }
-      if ((value ?? "").trim().length === 0) {
+      if (value.trim().length === 0) {
         return;
       }
       event.preventDefault();

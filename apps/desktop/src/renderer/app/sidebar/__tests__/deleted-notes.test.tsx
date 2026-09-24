@@ -9,7 +9,7 @@ import { z } from "zod";
 import { InertSocket } from "../../__tests__/inert-socket";
 import { createWorkspaceQueryClient, WorkspaceProvider } from "../../workspace-context";
 import { DeletedNotes } from "../deleted-notes";
-import { stubRpc } from "./rpc-stub";
+import { stubRpc } from "../../__tests__/rpc-stub";
 
 const GONE: VaultDeletedEntry = {
   deletedAt: "2026-09-01T10:00:00.000Z",

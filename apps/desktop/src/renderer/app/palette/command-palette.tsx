@@ -402,6 +402,9 @@ export const CommandPalette = ({
     }),
     enabled: open && page.page === "root" && asksIndex,
     placeholderData: (previous) => previous,
+    // a retry holds the last query's hits on screen for seconds, where a pick opens a note that
+    // does not match the box
+    retry: false,
   });
   // an error leaves no data, so a refusing index falls back like an empty one
   const indexHits = asksIndex ? (indexQuery.data?.results ?? []) : [];
@@ -570,7 +573,9 @@ export const CommandPalette = ({
           .slice(0, 30);
         return (
           <PalettePage>
-            <CommandEmpty>No actions yet.</CommandEmpty>
+            <CommandEmpty>
+              {threads.length === 0 ? "No actions yet." : "No recent action matches."}
+            </CommandEmpty>
             <CommandGroup heading="Recent">
               {visibleThreads.map((thread) => (
                 <CommandItem

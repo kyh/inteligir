@@ -9,7 +9,7 @@ import { flushSync } from "react-dom";
 
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
-const sameElements = (a: readonly HTMLElement[], b: readonly HTMLElement[]): boolean =>
+export const sameElements = (a: readonly HTMLElement[], b: readonly HTMLElement[]): boolean =>
   a.length === b.length && a.every((element, index) => element === b[index]);
 
 const orderIn = (

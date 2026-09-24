@@ -1,4 +1,4 @@
-import { parseApprovalResolution } from "@repo/domain/pending-interactions";
+import { answerableDecisions, parseApprovalResolution } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { CliExitError, invalidUsage } from "../cli-error";
@@ -16,7 +16,7 @@ const assertResolutionValid = (interaction: PendingInteraction, resolution: stri
   const parsed = parseApprovalResolution(resolution, payload);
   if (!parsed.ok) {
     throw invalidUsage(
-      `${parsed.reason}. Pass a bare decision verb (${payload.availableDecisions.join(", ")}, deny) ` +
+      `${parsed.reason}. Pass a bare decision verb (${answerableDecisions(payload).join(", ")}) ` +
         `or the resolution JSON.`,
     );
   }

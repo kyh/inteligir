@@ -16,7 +16,7 @@ import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { failed, orpc } from "../api";
-import { relativeTimeLabel } from "../relative-time";
+import { relativeTimeLabel, useNow } from "../relative-time";
 import { useNoteComments } from "./comment-hooks";
 import { ReadRefusal } from "./read-refusal";
 
@@ -222,6 +222,7 @@ export const CommentsTab = ({
 }) => {
   const queryClient = useQueryClient();
   const query = useNoteComments(docPath);
+  const asOfMs = useNow();
   // stamped with the focus it was made under: a newer focus on a resolved thread shows the
   // resolved list again, while Hide still hides it under the focus that opened it
   const [resolvedToggle, setResolvedToggle] = useState<{
@@ -253,8 +254,6 @@ export const CommentsTab = ({
     resolvedToggle.shown ||
     (resolvedToggle.underNonce !== focusNonce &&
       resolved.some((thread) => focusNonceFor(thread) !== null));
-  // not `Date.now()`: reading the clock during render is impure, and every verb re-reads the sidecar anyway.
-  const asOfMs = query.dataUpdatedAt;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2">
