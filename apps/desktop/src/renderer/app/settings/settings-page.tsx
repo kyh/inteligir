@@ -128,7 +128,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   };
 
   return (
-    <div className="min-h-dvh overflow-y-auto bg-surface text-ink">
+    <div className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-3xl gap-10 px-6 py-10">
         <nav className="sticky top-10 hidden w-40 shrink-0 self-start md:block">
           <Button variant="ghost" size="compact" className="-ml-2 mb-6 gap-1.5" onClick={onBack}>
