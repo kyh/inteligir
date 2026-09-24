@@ -1,4 +1,4 @@
-import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
+import { ACCOUNT_API_PATHS, AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { createAuth } from "./auth/auth";
@@ -37,11 +37,11 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await createAuth(env, url.origin).handler(request);
   }
 
-  if (request.method === "GET" && url.pathname === "/auth/reset") {
+  if (request.method === "GET" && url.pathname === AUTH_PAGE_PATHS.resetPage) {
     return handleResetPage();
   }
 
-  if (request.method === "POST" && url.pathname === "/v1/auth/sign-up") {
+  if (request.method === "POST" && url.pathname === AUTH_PAGE_PATHS.signUp) {
     return await handleInviteSignUp(request, env);
   }
 

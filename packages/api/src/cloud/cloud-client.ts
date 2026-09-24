@@ -131,6 +131,21 @@ const readValue = async <TSchema extends z.ZodType>(
   return { ok: true, value: parsed.data };
 };
 
+// every HTTP call on the wire is read through this, the site's cookie-authed pages included, so a
+// fetch that throws is `unreachable` and never an exception one caller forgot to catch
+export const readCloudCall = async <TSchema extends z.ZodType>(
+  send: () => Promise<Response>,
+  schema: TSchema,
+): Promise<CloudResult<z.infer<TSchema>>> => {
+  let response: Response;
+  try {
+    response = await send();
+  } catch (error) {
+    return { failure: unreachable(error), ok: false };
+  }
+  return await readValue(response, schema);
+};
+
 // every call runs inside the single-flight pass, so a black-holed request stalls the whole
 // loop and the teardown waiting on it; undici's own default is 300s of headers timeout.
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -178,18 +193,16 @@ export const postDeviceLogin = async (
   request: DeviceLoginRequest,
 ): Promise<CloudResult<DeviceLoginResponse>> => {
   const call = endpoint.fetch ?? fetch;
-  let response: Response;
-  try {
-    response = await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.login), {
-      body: JSON.stringify(request),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-      signal: callSignal(endpoint.signal),
-    });
-  } catch (error) {
-    return { failure: unreachable(error), ok: false };
-  }
-  return await readValue(response, deviceLoginResponseSchema);
+  return await readCloudCall(
+    async () =>
+      await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.login), {
+        body: JSON.stringify(request),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+        signal: callSignal(endpoint.signal),
+      }),
+    deviceLoginResponseSchema,
+  );
 };
 
 export interface CloudClient {
@@ -237,13 +250,10 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
             method: "POST",
             signal,
           };
-    let response: Response;
-    try {
-      response = await call(endpointUrl(args.baseUrl, path), init);
-    } catch (error) {
-      return { failure: unreachable(error), ok: false };
-    }
-    return await readValue(response, schema);
+    return await readCloudCall(
+      async () => await call(endpointUrl(args.baseUrl, path), init),
+      schema,
+    );
   };
 
   return {

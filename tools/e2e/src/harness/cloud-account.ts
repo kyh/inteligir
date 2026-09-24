@@ -1,3 +1,5 @@
+import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
+import type { SignUpRequest } from "@repo/api/cloud/account/account-schema";
 import { deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
 import { z } from "zod";
 import { expect } from "./assert";
@@ -9,8 +11,9 @@ export const OWNER = { email: "e2e-owner@inteligir.local", password: "e2e-passwo
 const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
 export const signUp = async (origin: string): Promise<{ bearer: string; userId: string }> => {
-  const response = await fetch(`${origin}/v1/auth/sign-up`, {
-    body: JSON.stringify({ name: "E2E Owner", ...OWNER, inviteCode: E2E_INVITE_CODE }),
+  const request: SignUpRequest = { name: "E2E Owner", ...OWNER, inviteCode: E2E_INVITE_CODE };
+  const response = await fetch(`${origin}${AUTH_PAGE_PATHS.signUp}`, {
+    body: JSON.stringify(request),
     headers: { "content-type": "application/json", origin },
     method: "POST",
   });

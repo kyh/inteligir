@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { accountResponseSchema } from "../account/account-schema";
+import { accountResponseSchema, signUpRequestSchema } from "../account/account-schema";
 import {
   ackCapturesRequestSchema,
   ackCapturesResponseSchema,
@@ -22,7 +22,7 @@ import {
   PASSWORD_MIN_LENGTH,
   revokeDeviceResponseSchema,
 } from "../device/device-schema";
-import { createCloudClient } from "../cloud-client";
+import { createCloudClient, readCloudCall } from "../cloud-client";
 import type { CloudFailure } from "../cloud-client";
 import {
   EVENT_MAX_BYTES,
@@ -112,6 +112,16 @@ describe("a failure the cloud did not word", () => {
 
   it("calls any other unreadable answer malformed", async () => {
     expect(await failureKind(edgePage(403))).toBe("malformed");
+  });
+
+  it("reads a request that never left as unreachable, for a reader with no client", async () => {
+    const result = await readCloudCall(async () => {
+      throw new TypeError("Failed to fetch");
+    }, accountResponseSchema);
+    expect(result).toStrictEqual({
+      failure: { kind: "unreachable", message: "Failed to fetch" },
+      ok: false,
+    });
   });
 });
 
@@ -334,6 +344,46 @@ describe("device login", () => {
       expect(isDeviceLoginRefusal(refusal)).toBe(true);
     }
     expect(isDeviceLoginRefusal("unauthorized")).toBe(false);
+  });
+});
+
+describe("invite sign-up request", () => {
+  const SIGN_UP = {
+    email: "owner@example.test",
+    inviteCode: "INVITE-1",
+    name: "Owner",
+    password: "correct horse battery",
+  };
+
+  it("trims every field but the password", () => {
+    expect(
+      signUpRequestSchema.parse({
+        email: " owner@example.test ",
+        inviteCode: " INVITE-1 ",
+        name: " Owner ",
+        password: " padded pw ",
+      }),
+    ).toStrictEqual({ ...SIGN_UP, password: " padded pw " });
+  });
+
+  it("bounds the password to the window device login and better auth hold", () => {
+    for (const [length, accepted] of [
+      [PASSWORD_MIN_LENGTH - 1, false],
+      [PASSWORD_MIN_LENGTH, true],
+      [PASSWORD_MAX_LENGTH, true],
+      [PASSWORD_MAX_LENGTH + 1, false],
+    ] as const) {
+      const password = "x".repeat(length);
+      expect(signUpRequestSchema.safeParse({ ...SIGN_UP, password }).success, String(length)).toBe(
+        accepted,
+      );
+    }
+  });
+
+  it("refuses a blank name or address and a field it does not know", () => {
+    expect(signUpRequestSchema.safeParse({ ...SIGN_UP, name: "  " }).success).toBe(false);
+    expect(signUpRequestSchema.safeParse({ ...SIGN_UP, email: "" }).success).toBe(false);
+    expect(signUpRequestSchema.safeParse({ ...SIGN_UP, rememberMe: true }).success).toBe(false);
   });
 });
 

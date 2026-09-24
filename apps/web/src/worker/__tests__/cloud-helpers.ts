@@ -1,3 +1,4 @@
+import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
 import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
 import type { DeviceLoginRequest } from "@repo/api/cloud/device/device-schema";
 import { syncPingSchema } from "@repo/api/cloud/sync/sync-ws";
@@ -17,7 +18,7 @@ let inviteCounter = 0;
 export const signUpUser = async (email: string): Promise<{ bearer: string; password: string }> => {
   const code = `CLOUD-TEST-${(inviteCounter += 1)}`;
   await createDb(env.DB).insert(inviteCode).values({ code });
-  const response = await SELF.fetch(`${ORIGIN}/v1/auth/sign-up`, {
+  const response = await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
     headers: { "content-type": "application/json", origin: ORIGIN },
     method: "POST",

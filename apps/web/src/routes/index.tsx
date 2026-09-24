@@ -4,7 +4,6 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { createDownloadUrlReader, downloadHref } from "@/lib/download-url";
 import { SiteHeader } from "@/components/site-header";
-import { ThemeProvider } from "@/components/theme-provider";
 
 // three.js is most of this page's weight; imported statically it would hold hydration, and the CTA with it
 const HeroOrb = lazy(async () => {
@@ -30,7 +29,7 @@ const Page = () => {
   const href = downloadHref(Route.useLoaderData());
 
   return (
-    <ThemeProvider>
+    <>
       <SiteHeader />
       <main className="flex min-h-dvh w-full flex-col">
         <div className="flex flex-1 flex-col items-center justify-center">
@@ -60,7 +59,7 @@ const Page = () => {
           <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
         </div>
       </main>
-    </ThemeProvider>
+    </>
   );
 };
 

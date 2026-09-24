@@ -5,22 +5,19 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 
 import { GalleryPage } from "@/components/gallery/gallery-page";
-import { ThemeProvider } from "@/components/theme-provider";
 
 const DesignPage = () => {
   const navigate = useNavigate();
   return (
-    <ThemeProvider>
-      <TooltipProvider>
-        <GalleryPage
-          onBack={() => {
-            void navigate({ to: "/" });
-          }}
-        />
-        <ConfirmDialogHost />
-        <Toaster position="bottom-right" />
-      </TooltipProvider>
-    </ThemeProvider>
+    <TooltipProvider>
+      <GalleryPage
+        onBack={() => {
+          void navigate({ to: "/" });
+        }}
+      />
+      <ConfirmDialogHost />
+      <Toaster position="bottom-right" />
+    </TooltipProvider>
   );
 };
 
