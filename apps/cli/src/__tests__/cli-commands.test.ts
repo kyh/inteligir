@@ -641,6 +641,38 @@ describe("action commands", () => {
     });
     expect(archive.stdout).toBe("✔ Archived thr_1\n");
   });
+
+  it("stops a running action, and says so when there is nothing to stop", async () => {
+    const state = seededState();
+    state.threads.push(
+      {
+        pendingInteractions: [],
+        thread: makeThread({ activeTurnId: "turn_1", id: "thr_1", status: "active" }),
+        timeline: SHOW_TIMELINE,
+      },
+      { pendingInteractions: [], thread: makeThread({ id: "thr_2" }), timeline: EMPTY_TIMELINE },
+    );
+    const server = await boot(state);
+    const stop = await runCliForTest({
+      argv: ["action", "stop", "thr_1"],
+      baseUrl: server.baseUrl,
+    });
+    expect(stop.code).toBe(0);
+    expect(stop.stdout).toBe("✔ Stopping thr_1\n");
+
+    const idle = await runCliForTest({
+      argv: ["action", "stop", "thr_2", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(idle.stdout)).toMatchObject({ stop: "not-running", thread: { id: "thr_2" } });
+
+    const missing = await runCliForTest({
+      argv: ["action", "stop", "thr_missing"],
+      baseUrl: server.baseUrl,
+    });
+    expect(missing.code).toBe(1);
+    expect(missing.stdout).toBe("");
+  });
 });
 
 describe("interactions commands", () => {

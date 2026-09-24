@@ -100,6 +100,22 @@ export const archiveThreadRequestSchema = z
   .strict();
 export type ArchiveThreadRequest = z.infer<typeof archiveThreadRequestSchema>;
 
+export const interruptThreadRequestSchema = z
+  .object({
+    threadId: z.string().min(1),
+  })
+  .strict();
+
+// requested: the agent was asked to stop and the thread reads stopping until its turn ends;
+// stopped: the turn never reached the agent, so the stop settled at once; not-running: nothing to stop.
+export const threadStopSchema = z.enum(["requested", "stopped", "not-running"]);
+export type ThreadStop = z.infer<typeof threadStopSchema>;
+
+export const interruptThreadResponseSchema = z
+  .object({ stop: threadStopSchema, thread: threadSchema })
+  .strict();
+export type InterruptThreadResponse = z.infer<typeof interruptThreadResponseSchema>;
+
 // the resource reaches a prompt with no further validation.
 const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
   const resource = vaultPathSchema.safeParse(value.resource);

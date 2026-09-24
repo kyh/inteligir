@@ -93,6 +93,9 @@ interface AcpAdapter {
 interface AcpTurn {
   mapper: AcpTurnMapper;
   settled: Promise<void>;
+  // aborted once the client cancels the turn: the protocol has every permission request still
+  // open answered cancelled from then on, whatever the host's own answer would have been.
+  cancel: AbortController;
 }
 
 // registered only once the agent has named its session, so every registered session can be prompted.
@@ -153,6 +156,24 @@ const drained = async (stream: Readable): Promise<void> => {
   }
 };
 
+const CANCELLED_PERMISSION: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
+
+const whenAborted = async (signal: AbortSignal): Promise<null> => {
+  if (!signal.aborted) {
+    // oxlint-disable-next-line promise/avoid-new -- adapts the signal's one-shot "abort" event
+    await new Promise<void>((resolve) => {
+      signal.addEventListener(
+        "abort",
+        () => {
+          resolve();
+        },
+        { once: true },
+      );
+    });
+  }
+  return null;
+};
+
 export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRuntime => {
   // a thread's one child in whichever phase, until it exits; `sessions` holds the ones that can be
   // prompted.
@@ -201,24 +222,35 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     params: RequestPermissionRequest,
   ): Promise<RequestPermissionResponse> => {
     const handler = options.onInteractiveRequest;
-    const turnId = current?.turn?.mapper.turnId;
-    if (current === undefined || turnId === undefined || handler === undefined) {
-      return { outcome: { outcome: "cancelled" } };
+    const turn = current?.turn ?? null;
+    if (
+      current === undefined ||
+      turn === null ||
+      handler === undefined ||
+      turn.cancel.signal.aborted
+    ) {
+      return CANCELLED_PERMISSION;
     }
-    let resolution: PendingInteractionResolution;
+    let resolution: PendingInteractionResolution | null;
     try {
-      resolution = await handler({
-        payload: toApprovalPayload(params),
-        providerId: current.adapter.providerId,
-        providerRequestId: params.toolCall.toolCallId,
-        providerThreadId: current.providerThreadId,
-        threadId: current.adapter.threadId,
-        turnId,
-      });
+      resolution = await Promise.race([
+        handler({
+          payload: toApprovalPayload(params),
+          providerId: current.adapter.providerId,
+          providerRequestId: params.toolCall.toolCallId,
+          providerThreadId: current.providerThreadId,
+          threadId: current.adapter.threadId,
+          turnId: turn.mapper.turnId,
+        }),
+        whenAborted(turn.cancel.signal),
+      ]);
     } catch {
-      return { outcome: { outcome: "cancelled" } };
+      return CANCELLED_PERMISSION;
     }
-    return { outcome: toPermissionOutcome(params, resolution) };
+    // a host that clears its own waiters on a stop answers deny, and that answer can land first.
+    return resolution === null || turn.cancel.signal.aborted
+      ? CANCELLED_PERMISSION
+      : { outcome: toPermissionOutcome(params, resolution) };
   };
 
   const sessionUpdate = (current: AcpSession | undefined, params: SessionNotification): void => {
@@ -273,6 +305,13 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     await kill(adapter);
   };
 
+  const cancelPrompt = async (session: AcpSession, turn: AcpTurn): Promise<void> => {
+    turn.cancel.abort();
+    await session.adapter.connection.agent.notify("session/cancel", {
+      sessionId: session.providerThreadId,
+    });
+  };
+
   const closeThread = async (threadId: string): Promise<void> => {
     const adapter = adapters.get(threadId);
     if (adapter === undefined) {
@@ -287,9 +326,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       await Promise.race([
         (async () => {
           try {
-            await adapter.connection.agent.notify("session/cancel", {
-              sessionId: session.providerThreadId,
-            });
+            await cancelPrompt(session, turn);
             await turn.settled;
           } catch {
             // an adapter that cannot take the cancel meets the kill below.
@@ -461,6 +498,15 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   };
 
   const runtime: AgentRuntime = {
+    async cancelTurn(threadId: string): Promise<void> {
+      const session = sessions.get(threadId);
+      const turn = session?.turn ?? null;
+      if (session === undefined || turn === null || turn.cancel.signal.aborted) {
+        return;
+      }
+      await cancelPrompt(session, turn);
+    },
+
     closeThread,
 
     hasThread(threadId: string): boolean {
@@ -532,7 +578,11 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         turnId: mintTurnId(),
       });
       emit(mapper.started());
-      session.turn = { mapper, settled: runPrompt(session, mapper, args.input) };
+      session.turn = {
+        cancel: new AbortController(),
+        mapper,
+        settled: runPrompt(session, mapper, args.input),
+      };
       // resolve once the prompt is on the wire, not when it settles: the send must return while the
       // turn streams.
       await Promise.resolve();

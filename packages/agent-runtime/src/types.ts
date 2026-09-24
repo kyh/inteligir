@@ -84,6 +84,11 @@ export interface AgentRuntime {
 
   hasThread: (threadId: string) => boolean;
 
+  // asks the agent to stop the thread's running turn and resolves once the ask is on the wire. the
+  // turn still ends through its own prompt, as interrupted; an agent that never answers is the
+  // host's to close. a thread with no running turn is a no-op.
+  cancelTurn: (threadId: string) => Promise<void>;
+
   // ends the thread's provider session, whichever phase it is in, and resolves once its child is gone. a
   // turn it was running emits nothing more: the host that closed it settles that turn itself.
   closeThread: (threadId: string) => Promise<void>;

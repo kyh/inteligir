@@ -58,6 +58,7 @@ import type {
   PendingInteraction,
   SendMessageRequest,
   Thread,
+  ThreadStop,
   TimelineQuery,
   TimelineResponse,
 } from "@repo/api/local/threads/threads-schema";
@@ -99,6 +100,15 @@ type SendDecision =
   // the queue's head starts, and the send that found it answers for its own message, queued behind it.
   | { kind: "drain"; claimed: ClaimedQueuedThreadMessageRow; outcome: QueuedSendOutcome }
   | { kind: "done"; outcome: SendOutcome };
+
+export type InterruptOutcome =
+  | { kind: "answered"; stop: ThreadStop; thread: Thread }
+  | { kind: "not-found" }
+  | { kind: "remote"; message: string };
+
+type InterruptDecision =
+  | { kind: "interrupt"; turnId: string | null }
+  | { kind: "done"; outcome: InterruptOutcome };
 
 export type AnswerInteractionOutcome =
   | { kind: "resolved"; interaction: PendingInteraction }
@@ -213,6 +223,76 @@ const queueInTransaction = (
   return { kind: "queued", queuedMessageId: queued.id };
 };
 
+// a queued reply follows the turn it waited on however that turn ended, a stop included: it is
+// claimed here, in the settle's transaction, and dispatched after commit.
+const projectLifecycleInTransaction = (
+  tx: DbTransaction,
+  args: { threadId: string; event: ThreadLifecycleEvent; drain: boolean },
+  buffer: NotificationBuffer,
+): ClaimedQueuedThreadMessageRow | null => {
+  const { threadId, event } = args;
+  const outcome = applyThreadLifecycleEventInTransaction(tx, { event, threadId });
+  if (!outcome.applied) {
+    // a late completion for a superseded turn is expected traffic.
+    console.warn(
+      `thread ${threadId}: ${event.type} not applied (${outcome.reason}): ${outcome.detail}`,
+    );
+    return null;
+  }
+  buffer.notifyThread(threadId, ["status-changed"]);
+  const settled = outcome.thread.status === "idle" || outcome.thread.status === "error";
+  if (!settled || !args.drain) {
+    return null;
+  }
+  const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
+  if (claimed !== null) {
+    buffer.notifyThread(threadId, ["queue-changed"]);
+  }
+  return claimed;
+};
+
+// a turn another device runs is refused: its provider answers to that process alone.
+const requestStopInTransaction = (
+  tx: DbTransaction,
+  threadId: string,
+  buffer: NotificationBuffer,
+): InterruptDecision => {
+  const thread = getThread(tx, threadId);
+  if (thread === null) {
+    return { kind: "done", outcome: { kind: "not-found" } };
+  }
+  switch (thread.status) {
+    case "idle":
+    case "error": {
+      return {
+        kind: "done",
+        outcome: { kind: "answered", stop: "not-running", thread: toWireThread(thread) },
+      };
+    }
+    case "starting":
+    case "active":
+    case "stopping": {
+      const turnId = thread.activeTurnId;
+      if (turnId !== null && turnStartOriginDeviceId(tx, { threadId, turnId }) !== null) {
+        return {
+          kind: "done",
+          outcome: { kind: "remote", message: "That turn is running on another device" },
+        };
+      }
+      // a second stop finds the thread already stopping, and asks the driver again.
+      const requested = applyThreadLifecycleEventInTransaction(tx, {
+        event: { type: "stop.requested" },
+        threadId,
+      });
+      if (requested.applied) {
+        buffer.notifyThread(threadId, ["status-changed"]);
+      }
+      return { kind: "interrupt", turnId };
+    }
+    // no default
+  }
+};
+
 export class ThreadService implements ProviderEventSink {
   private readonly db: DbConnection;
   private readonly notifier: DbNotifier;
@@ -284,9 +364,55 @@ export class ThreadService implements ProviderEventSink {
     return rows.map(toWirePendingInteraction);
   }
 
+  // the stop comes after the archive: a settled stop drains the queue, and only an archived thread
+  // refuses the turn that drain would start.
   archive(threadId: string): Thread | null {
-    const archived = archiveThread(this.db, this.notifier, threadId);
-    return archived === null ? null : toWireThread(archived);
+    if (archiveThread(this.db, this.notifier, threadId) === null) {
+      return null;
+    }
+    this.interrupt(threadId);
+    const thread = getThread(this.db, threadId);
+    return thread === null ? null : toWireThread(thread);
+  }
+
+  interrupt(threadId: string): InterruptOutcome {
+    const buffer = new NotificationBuffer();
+    const decision = writeTransaction(this.db, (tx) =>
+      requestStopInTransaction(tx, threadId, buffer),
+    );
+    buffer.flushTo(this.notifier);
+    if (decision.kind === "done") {
+      return decision.outcome;
+    }
+    const interrupt = this.driver.interruptTurn(threadId);
+    if (interrupt === "not-running") {
+      this.settleStop(threadId, decision.turnId);
+    }
+    const thread = getThread(this.db, threadId);
+    if (thread === null) {
+      return { kind: "not-found" };
+    }
+    return {
+      kind: "answered",
+      stop: interrupt === "settling" ? "requested" : "stopped",
+      thread: toWireThread(thread),
+    };
+  }
+
+  // nothing at a provider will ever report this turn's end, so the stop settles here.
+  private settleStop(threadId: string, turnId: string | null): void {
+    const buffer = new NotificationBuffer();
+    const claimed = writeTransaction(this.db, (tx) =>
+      projectLifecycleInTransaction(
+        tx,
+        { drain: true, event: { turnId, type: "stop.settled" }, threadId },
+        buffer,
+      ),
+    );
+    buffer.flushTo(this.notifier);
+    if (claimed !== null) {
+      this.dispatchQueuedMessage(threadId, claimed);
+    }
   }
 
   send(request: SendMessageRequest): SendOutcome {
@@ -560,27 +686,15 @@ export class ThreadService implements ProviderEventSink {
         if (lifecycleEvent === null) {
           continue;
         }
-        const outcome = applyThreadLifecycleEventInTransaction(tx, {
-          event: lifecycleEvent,
-          threadId,
-        });
-        if (!outcome.applied) {
-          // a late completion for a superseded turn is expected traffic.
-          console.warn(
-            `thread ${threadId}: ${lifecycleEvent.type} not applied (${outcome.reason}): ${outcome.detail}`,
-          );
-          continue;
-        }
-        buffer.notifyThread(threadId, ["status-changed"]);
-        // a queued reply follows the turn it waited on however that turn ended. a recovery
-        // settle does not drain: a restart never starts a turn on its own, and the next send takes the head.
-        const settled = outcome.thread.status === "idle" || outcome.thread.status === "error";
-        if (settled && args.origin === "local") {
-          const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
-          if (claimed !== null) {
-            buffer.notifyThread(threadId, ["queue-changed"]);
-            drains.push(claimed);
-          }
+        // a recovery settle does not drain: a restart never starts a turn on its own, and the
+        // next send takes the head.
+        const claimed = projectLifecycleInTransaction(
+          tx,
+          { drain: args.origin === "local", event: lifecycleEvent, threadId },
+          buffer,
+        );
+        if (claimed !== null) {
+          drains.push(claimed);
         }
       }
     });

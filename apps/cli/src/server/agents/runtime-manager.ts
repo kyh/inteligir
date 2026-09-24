@@ -31,6 +31,7 @@ import type {
   ProviderEventSink,
   TurnDriver,
   TurnDriverStartArgs,
+  TurnInterrupt,
 } from "../threads/turn-driver";
 import type { GitEngine } from "../vault/git-engine";
 import { beginAgentTurnWrites, createVaultPathResolver } from "./agent-commits";
@@ -60,6 +61,10 @@ const DEFAULT_TURN_IDLE_TIMEOUT_MS = 10 * 60_000;
 // re-arming a timeout per frame buys nothing over a bounded-lag check.
 const WATCHDOG_SWEEP_INTERVAL_MS = 1000;
 
+// long enough for an agent to stop the tools it started, short enough that a stop still reads
+// as a brake to someone watching the vault change.
+const DEFAULT_STOP_GRACE_MS = 5000;
+
 export interface AcpRuntimeManagerDeps {
   db: DbConnection;
   notifier: DbNotifier;
@@ -79,6 +84,8 @@ export interface AcpRuntimeManagerDeps {
   reapIntervalMs?: number | null;
   // null disables.
   turnIdleTimeoutMs?: number | null;
+  // how long a cancelled turn has to end itself before its session is closed.
+  stopGraceMs?: number;
   onDebug?: (message: string) => void;
 }
 
@@ -88,7 +95,14 @@ export interface AcpRuntimeManager {
 }
 
 // the first turn/started binds the provider's turn id (null when it names none) to the host's.
-type TurnPhase = { kind: "dispatched" } | { kind: "started"; providerTurnId: string | null };
+// a started turn the user stopped carries the timer that closes its session if it never ends.
+type TurnPhase =
+  | { kind: "dispatched" }
+  | {
+      kind: "started";
+      providerTurnId: string | null;
+      stopDeadline: ReturnType<typeof setTimeout> | null;
+    };
 
 // in the map from startTurn until the turn settles, so membership is the unsettled test.
 interface ActiveTurn {
@@ -364,6 +378,70 @@ class AcpTurnDriver implements TurnDriver {
     return isHarnessId(providerId) ? HARNESSES[providerId] : undefined;
   }
 
+  interruptTurn(threadId: string): TurnInterrupt {
+    const state = this.turnsByThreadId.get(threadId);
+    if (state === undefined || this.disposed) {
+      return "not-running";
+    }
+    if (state.phase.kind === "dispatched") {
+      // nothing reached the provider: the dispatch finds its turn gone at its next await and
+      // stops, and what it was opening is closed so the next send opens afresh, instructions first.
+      this.settleTurn(threadId);
+      this.abandonProviderSession(threadId);
+      return "not-running";
+    }
+    if (state.phase.stopDeadline !== null) {
+      return "settling";
+    }
+    state.phase.stopDeadline = setTimeout(() => {
+      this.closeStoppedTurn(threadId, state);
+    }, this.deps.stopGraceMs ?? DEFAULT_STOP_GRACE_MS);
+    state.phase.stopDeadline.unref();
+    // the cancel first: it answers the agent's open permission requests cancelled, and the
+    // waiters' deny below only clears the cards.
+    this.cancelProviderTurn(threadId);
+    this.waiters.cancel(threadId);
+    interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
+    return "settling";
+  }
+
+  private cancelProviderTurn(threadId: string): void {
+    const { runtime } = this;
+    if (runtime === null) {
+      return;
+    }
+    void (async () => {
+      try {
+        await runtime.cancelTurn(threadId);
+      } catch (error) {
+        this.debug(`cancelling the turn on thread ${threadId} failed: ${messageOf(error)}`);
+      }
+    })();
+  }
+
+  // an agent that never answered the cancel: closing its session is what stops it, and a closed
+  // session reports nothing more, so the host settles the turn itself.
+  private closeStoppedTurn(threadId: string, stopped: ActiveTurn): void {
+    if (this.disposed || this.turnsByThreadId.get(threadId) !== stopped) {
+      return;
+    }
+    this.debug(
+      `turn ${stopped.ourTurnId} on thread ${threadId} did not stop within its grace; closing its session`,
+    );
+    // closed before the settle, whose ingest can dispatch the next queued turn: that turn must not
+    // find this session.
+    this.abandonProviderSession(threadId);
+    this.settleTurn(threadId);
+    this.sink.ingestProviderEvents(threadId, [
+      {
+        scope: turnScope(stopped.ourTurnId),
+        status: "interrupted",
+        threadId,
+        type: "turn/completed",
+      },
+    ]);
+  }
+
   onInteractionResolved(interaction: PendingInteraction): void {
     this.waiters.resolve(interaction);
   }
@@ -428,6 +506,7 @@ class AcpTurnDriver implements TurnDriver {
     state.phase = {
       kind: "started",
       providerTurnId: event.scope.kind === "turn" ? event.scope.turnId : null,
+      stopDeadline: null,
     };
     const mapped = mapProviderEvent(event, state.ourTurnId);
     if (mapped.kind === "mapped") {
@@ -469,6 +548,9 @@ class AcpTurnDriver implements TurnDriver {
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined) {
       return;
+    }
+    if (state.phase.kind === "started" && state.phase.stopDeadline !== null) {
+      clearTimeout(state.phase.stopDeadline);
     }
     this.turnsByThreadId.delete(threadId);
     this.waiters.cancel(threadId);

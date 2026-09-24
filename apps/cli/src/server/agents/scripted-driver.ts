@@ -10,6 +10,7 @@ import type {
   ProviderEventSink,
   TurnDriver,
   TurnDriverStartArgs,
+  TurnInterrupt,
 } from "../threads/turn-driver";
 import { beginAgentTurnWrites } from "./agent-commits";
 import { agentMessageEvents } from "./agent-message-events";
@@ -46,6 +47,12 @@ class ScriptedTurnDriver implements TurnDriver {
       ...agentMessageEvents({ itemId, scope, text, threadId: args.threadId }),
     ]);
     this.lastTurn = this.runFileHalf(args, scope);
+  }
+
+  // a scripted turn has no provider to cancel, and its file half always reports the turn's end.
+  // oxlint-disable-next-line class-methods-use-this -- the TurnDriver's instance API: the service calls it on the driver it was handed
+  interruptTurn(): TurnInterrupt {
+    return "settling";
   }
 
   private async runFileHalf(

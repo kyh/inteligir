@@ -1,4 +1,5 @@
 // FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent |
+// slow (a command left running until session/cancel, then the cancelled stop the real ones answer) |
 // authOnSessionOpen | authOnPrompt (a signed-out vendor, refusing at the step the real ones do) |
 // crashOnBoot (exits before the handshake, saying why on stderr, as a missing module would).
 // session ids carry the pid, so two adapters never mint the same one.
@@ -11,6 +12,10 @@ const mode = process.env.FAKE_ACP_MODE ?? "message";
 const filePath = process.env.FAKE_ACP_FILE ?? null;
 
 let sessionCounter = 0;
+
+// a slow prompt's release by session id: session/cancel is a notification, so nothing else can
+// answer the prompt it names.
+const releases = new Map();
 
 /**
  * @param {import("@agentclientprotocol/sdk").AgentContext} client The connection this fake agent
@@ -31,6 +36,26 @@ const prompt = async (client, params) => {
     return await new Promise(() => {
       /* empty */
     });
+  }
+  if (mode === "slow") {
+    // registered before the first update, so a cancel sent as soon as the host sees work lands.
+    // oxlint-disable-next-line promise/avoid-new -- the prompt is released by a notification, which no combinator expresses
+    const released = new Promise((resolve) => {
+      releases.set(sessionId, resolve);
+    });
+    await update({
+      kind: "execute",
+      sessionUpdate: "tool_call",
+      status: "in_progress",
+      title: "sleep 600",
+      toolCallId: "call_slow",
+    });
+    await update({
+      content: { text: "working on it", type: "text" },
+      sessionUpdate: "agent_message_chunk",
+    });
+    await released;
+    return { stopReason: "cancelled" };
   }
   if (mode === "promptEcho") {
     const leading = params.prompt.find((block) => block.type === "text");
@@ -54,6 +79,10 @@ const prompt = async (client, params) => {
         toolCallId: "call_1",
       },
     });
+    // a permission answered cancelled means the client cancelled the turn.
+    if (outcome.outcome.outcome === "cancelled") {
+      return { stopReason: "cancelled" };
+    }
     if (outcome.outcome.outcome === "selected" && outcome.outcome.optionId === "yes") {
       await update({
         content: { text: "approved and done", type: "text" },
@@ -117,8 +146,9 @@ if (mode === "crashOnBoot") {
       return {};
     })
     .onRequest("session/prompt", async ({ client, params }) => await prompt(client, params))
-    .onNotification("session/cancel", () => {
-      /* empty */
+    .onNotification("session/cancel", ({ params }) => {
+      releases.get(params.sessionId)?.();
+      releases.delete(params.sessionId);
     })
     .connect(ndJsonStream(Writable.toWeb(process.stdout), Readable.toWeb(process.stdin)));
 }

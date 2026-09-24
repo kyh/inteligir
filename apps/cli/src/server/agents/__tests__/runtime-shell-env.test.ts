@@ -13,6 +13,9 @@ const recordingCreateRuntime =
   (options) => {
     recorded.push(options);
     const runtime: AgentRuntime = {
+      cancelTurn: async () => {
+        await Promise.resolve();
+      },
       closeThread: async () => {
         await Promise.resolve();
       },

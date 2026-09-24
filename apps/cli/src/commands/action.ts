@@ -1,6 +1,10 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ORPCError } from "@orpc/client";
-import type { PendingInteraction, Thread } from "@repo/api/local/threads/threads-schema";
+import type {
+  InterruptThreadResponse,
+  PendingInteraction,
+  Thread,
+} from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { parsePositiveNumber } from "../args";
 import { CliExitError, getErrorMessage } from "../cli-error";
@@ -39,6 +43,21 @@ const describeSendOutcome = (outcome: SendOutcome): string => {
   }
 };
 
+const describeStop = (body: InterruptThreadResponse): string => {
+  switch (body.stop) {
+    case "requested": {
+      return `Stopping ${body.thread.id}`;
+    }
+    case "stopped": {
+      return `Stopped ${body.thread.id}`;
+    }
+    case "not-running": {
+      return `${body.thread.id} has no running turn`;
+    }
+    // no default
+  }
+};
+
 // the re-wrap keeps the refusal's own class so a --json caller branches on the same vocabulary a bare send gives.
 const sendFailure = (cause: unknown): CliFailure =>
   cause instanceof ORPCError ? { serverClass: String(cause.code) } : { code: "SEND_FAILED" };
@@ -59,7 +78,7 @@ export const actionCommand = (deps: CliDeps) =>
           id: { description: "The thread id", required: true, type: "positional" },
           ...jsonArg,
         },
-        meta: { description: "Archive a thread", name: "archive" },
+        meta: { description: "Archive a thread, stopping a turn it is running", name: "archive" },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.threads.archive({ threadId: args.id });
@@ -184,6 +203,25 @@ export const actionCommand = (deps: CliDeps) =>
                 ]),
             ...(rendered.length > 0 ? ["", rendered] : []),
           ]);
+        },
+      }),
+
+      stop: defineCommand({
+        args: {
+          id: { description: "The thread id", required: true, type: "positional" },
+          ...jsonArg,
+        },
+        meta: {
+          description: "Stop the action's running turn; a message queued behind it starts next",
+          name: "stop",
+        },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const body = await api.threads.interrupt({ threadId: args.id });
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(describeStop(body));
         },
       }),
 
