@@ -1976,6 +1976,24 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `vi.spyOn(console, "error")`. The booted suites are not gated: the server
   they boot in-process logs every refused call by design.
 
+- **A PARSER COST WE CANNOT WAIT OUT UPSTREAM IS A pnpm PATCH, AND A TEST FAILS
+  WITHOUT IT.** micromark merges a paragraph's text fragments with one splice
+  per line, and GFM's email autolink literal splits the text at every word, so
+  one long paragraph (a pasted log, prose with no blank lines) parsed in time
+  quadratic in its lines: 20k lines cost the scan seconds, and the editor's
+  grammar and the verbatim-span pass run the same parser.
+  `patches/micromark@4.0.2.patch` is upstream's own open fix
+  (micromark/micromark#233), applied through `patchedDependencies` in
+  `pnpm-workspace.yaml` to every consumer, the CLI's bundle included, which
+  inlines the patched copy; a micromark bump fails the install until the patch
+  is re-cut or dropped. A workaround in `@repo/notes` was rejected: the only
+  lever there is splitting the paragraph, which changes what it parses to.
+  `packages/notes/src/__tests__/projection-cost.test.ts` compares a 20k-line
+  paragraph's projection with an eighth of it, so losing the patch fails a
+  suite. Still superlinear upstream, and not patched: a paragraph dense with
+  emphasis (attention's resolver splices per pair) or with inline nodes
+  (mdast-util-find-and-replace looks each text node up by `indexOf`).
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The `note` issues are
