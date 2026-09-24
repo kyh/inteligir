@@ -4,3 +4,5 @@ export const EDITOR = '[data-slate-editor="true"]';
 export const COMPOSER = 'textarea[aria-label="Ask the agent"]';
 // prefix-matched: the placeholder ends in an ellipsis that is awkward to quote through a shell.
 export const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
+// a note or folder in the rail's Files view, which a fresh profile opens on.
+export const treeRow = (vaultPath: string): string => `[role="tree"] [data-path="${vaultPath}"]`;

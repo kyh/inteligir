@@ -173,8 +173,19 @@ pnpm dev -- --remote-debugging-port=9222
 agent-browser connect 9222
 ```
 
-That is the only way to check a change to the window — the shell's unit tests
-cover the policy, never the rendering.
+The shell's unit tests cover the policy, never the glue. `pnpm e2e`'s
+`desktop-shell` scenario (`tools/e2e/src/scenarios/desktop-shell.ts`) is the
+automated form of the same thing: it launches the built shell on a scratch home
+and user-data dir with that flag, and asserts over DevTools that the window is
+on `inteligir://app`, that the rail's listing and a note ride the protocol
+handler's bearer, that an API write reaches the open editor (so the socket
+upgrade carried the bearer), that `window.open` is denied, that Reveal refuses a
+symlink out of the vault and a `..`, that a switch to a remembered vault stops
+the child and boots one on the new vault's data dir, and that a SIGTERM quit
+stops that child and retracts its `server.json`. It runs on the checkout's
+build, not the packaged `.app`, so the fuses, the signature and the login
+shell's PATH stay the smoke's and the unit tests'. On Linux it needs a display:
+CI runs the suite under `xvfb-run`.
 
 ## Packaging
 
@@ -199,7 +210,8 @@ Electron binary with `ELECTRON_RUN_AS_NODE=1` — and checks that the native
 modules load under Electron's runtime, that the SPA and API answer, that the
 bundled CLI is executable where the agent's PATH resolver looks for it, and that
 SIGTERM exits 0. **It does not open the window**: `BrowserWindow` needs a
-display, so the origin pin is proven by its unit tests and by nothing here.
+display, so the window, the protocol handler, the bridge and the vault switch
+are the `desktop-shell` scenario's, over the checkout's build.
 CI's `test-macos` job runs it on every push and pull request, unsigned:
 `CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through to the
 `package` task, because turbo's strict env mode would strip it.
@@ -281,3 +293,7 @@ policy is unit-tested against a fake updater (`src/main/__tests__/updates.test.t
   has, it asks its own server over `/rpc`. Each channel is one row in
   `src/ipc-contract.ts`, its name beside its request and answer schemas, and a
   refusal crosses as a value rather than a throw, which Electron would reword.
+  `src/main/__tests__/ipc-contract.test.ts` holds both ends to every row: main
+  registers each channel exactly once, the preload calls it, and neither side
+  spells a channel as a literal, because a row one end forgot fails only at
+  runtime ("No handler registered", or a handler nothing calls).

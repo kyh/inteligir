@@ -132,6 +132,20 @@ const healthAnswered = async (baseUrl: string): Promise<boolean> => {
   }
 };
 
+// the bearer is read per call, not captured once: server.json is written after listen, a client
+// may be built before the health wait, and a restarted server mints a new token.
+export const createInstanceApi = (baseUrl: string, dataDir: () => string): InstanceApi => {
+  const link = new RPCLink({
+    headers: () => {
+      const server = readServerFile(dataDir());
+      return server === null ? {} : { authorization: authorizationHeader(server.token) };
+    },
+    origin: baseUrl,
+    url: RPC_PREFIX,
+  });
+  return createORPCClient(link);
+};
+
 const attachInstance = (
   args: LaunchAppArgs,
   child: TrackedProcess,
@@ -140,17 +154,7 @@ const attachInstance = (
   port: number,
 ): AppInstance => {
   const baseUrl = loopbackOrigin(port);
-  // read per call, not captured once: server.json is written after listen and this client is built
-  // before the health wait.
-  const link = new RPCLink({
-    headers: () => {
-      const server = readServerFile(dataDir);
-      return server === null ? {} : { authorization: authorizationHeader(server.token) };
-    },
-    origin: baseUrl,
-    url: RPC_PREFIX,
-  });
-  const api: InstanceApi = createORPCClient(link);
+  const api = createInstanceApi(baseUrl, () => dataDir);
   return {
     ...child,
     api,
