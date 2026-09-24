@@ -28,6 +28,7 @@ import { SpellcheckRows } from "./spellcheck-rows";
 import { SyncSection } from "./sync-section";
 import { UpdatesRow } from "./updates-row";
 import { VaultsRow } from "./vaults-rows";
+import { VersionRow } from "./version-row";
 import { VoiceSection } from "./voice-section";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
@@ -74,9 +75,7 @@ const AboutSection = ({ system }: { system: SystemStatus }) => (
   <section id="about" className="scroll-mt-10 space-y-2 pb-16">
     <SectionHeading>About</SectionHeading>
     <dl className="space-y-1.5">
-      <Row label="Version">
-        <span className="font-mono text-body">{system?.version ?? "…"}</span>
-      </Row>
+      <VersionRow version={system?.version} />
       <UpdatesRow />
       <Row label="Data dir">
         <span className="block truncate font-mono text-body" title={system?.dataDir}>

@@ -145,6 +145,11 @@ worktree under `.claude` is never read as this commit's tree.
 | `control-bytes.test.ts`        | No tracked source, markdown, config or sql file carries a raw control     |
 |                                | byte other than tab, LF and CR — git diffs a file holding a NUL as        |
 |                                | binary and ripgrep skips it. A string literal spells it as an escape.     |
+| `changelog.test.ts`            | `CHANGELOG.md` is titled, every section is `## Unreleased` (top only) or  |
+|                                | `## <version> — <date>`, releases run newest first, and the newest names  |
+|                                | `apps/desktop`'s version — a release's notes are its top section. The     |
+|                                | release-notes script, run over staged trees and the real one, prints that |
+|                                | section only when it is titled for the package's version.                 |
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
 `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,
