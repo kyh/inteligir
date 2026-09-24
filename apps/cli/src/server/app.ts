@@ -7,6 +7,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
+  HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   VOICE_STREAM_PATH,
@@ -23,6 +24,7 @@ import { isSameOriginBrowserRequest } from "./browser-request";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
+import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "./html-block-frame";
 import { INERT_PAGE_HEADERS } from "./inert-page";
 import { JsonFileStoreError } from "./json-file-store";
 import type { UpgradedSocket } from "./listen";
@@ -288,6 +290,9 @@ export const createApp = (args: CreateAppArgs) => {
         c.res.headers.set(name, value);
       }
     };
+
+    // ahead of the shell's route: its stamp would hand the frame the page's `script-src 'self'`.
+    app.get(HTML_FRAME_PATH, (c) => c.body(HTML_FRAME_DOCUMENT, 200, HTML_FRAME_HEADERS));
 
     // only /assets/* carries content hashes, so only it may be immutable; an asset miss must 404,
     // since answering with the shell hands the module loader html and an opaque mime error.

@@ -1,6 +1,8 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import { HTML_FRAME_PATH } from "@repo/api/local/routes";
+import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "inteligir/server/html-block-frame";
 import { authorizationHeader } from "inteligir/server/server-file";
 import { APP_ORIGIN, carriesBearer, createAppRequestHandler } from "../protocol-handler";
 import type { AppRenderer } from "../protocol-handler";
@@ -17,6 +19,7 @@ const BUNDLE = {
 } satisfies Record<string, { body: string; type: string }>;
 
 const FILES_RENDERER = { dir: DIR, kind: "files" } satisfies AppRenderer;
+const DEV_RENDERER = { kind: "dev", origin: "http://localhost:31000" } satisfies AppRenderer;
 
 interface FetchCall {
   url: string;
@@ -163,6 +166,21 @@ describe("the bundle", () => {
     await handler(appRequest("/rpcx/steal", { initiatorOrigin: APP_ORIGIN }));
     expect(calls.some((call) => call.url.startsWith(SERVER))).toBe(false);
   });
+});
+
+describe("a note's html frame", () => {
+  it.each([FILES_RENDERER, DEV_RENDERER])(
+    "is answered under its own sandbox policy, never the page's, by the $kind renderer",
+    async (renderer) => {
+      const { calls, handler } = mount(renderer);
+      const response = await handler(appRequest(HTML_FRAME_PATH, { initiatorOrigin: APP_ORIGIN }));
+      expect(await response.text()).toBe(HTML_FRAME_DOCUMENT);
+      expect(response.headers.get("content-security-policy")).toBe(
+        HTML_FRAME_HEADERS["content-security-policy"],
+      );
+      expect(calls).toEqual([]);
+    },
+  );
 });
 
 describe("carriesBearer", () => {

@@ -19,51 +19,58 @@ const renderNode = (type: string, url: string) => {
   );
 };
 
-describe("media_embed scheme gate", () => {
-  it.each(["https://example.com/widget", "http://example.com/widget"])(
-    "renders an iframe for %s",
-    (url) => {
-      const { container } = renderNode(KEYS.mediaEmbed, url);
-      const frame = container.querySelector("iframe");
-      expect(frame).not.toBeNull();
-      expect(frame?.getAttribute("src")).toBe(url);
-    },
-  );
+const REMOTE = [
+  [KEYS.mediaEmbed, "https://example.com/widget"],
+  [KEYS.mediaEmbed, "http://example.com/widget"],
+  [KEYS.mediaEmbed, "https://twitter.com/user/status/1234567890"],
+  [KEYS.video, "https://www.youtube.com/watch?v=dQw4w9WgXcQ"],
+  [KEYS.video, "https://vimeo.com/76979871"],
+  [KEYS.file, "https://example.com/paper.pdf"],
+] as const;
 
-  it("sandboxes the frame to allow-scripts only (no popups, no same-origin)", () => {
-    const { container } = renderNode(KEYS.mediaEmbed, "https://example.com/widget");
-    expect(container.querySelector("iframe")?.getAttribute("sandbox")).toBe("allow-scripts");
+// the page's CSP refuses every remote frame, so a live one would only ever draw broken.
+describe("a remote embed is a card that loads nothing", () => {
+  it.each(REMOTE)("%s %s mounts no frame and names itself unloaded", (type, url) => {
+    const { container, getByText } = renderNode(type, url);
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(getByText("Remote content, not loaded")).toBeDefined();
+    expect(getByText(url)).toBeDefined();
   });
 
+  it.each(REMOTE)("%s %s opens in the browser with no handle back to this window", (type, url) => {
+    const opened = vi.spyOn(window, "open").mockReturnValue(null);
+    fireEvent.click(renderNode(type, url).getByRole("button", { name: "Open in browser" }));
+    expect(opened).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
+    opened.mockRestore();
+  });
+});
+
+describe("media_embed scheme gate", () => {
   it.each([
     // oxlint-disable-next-line no-script-url -- the blocked scheme is this test's input, not a live URL.
     "javascript:alert(1)",
     "data:text/html,<script>alert(1)</script>",
     "file:///etc/passwd",
     "relative/page.html",
-  ])("blocks %s — fallback text, no iframe", (url) => {
-    const { container, getByText } = renderNode(KEYS.mediaEmbed, url);
+  ])("blocks %s — fallback text, no frame, nothing to open", (url) => {
+    const { container, getByText, queryByRole } = renderNode(KEYS.mediaEmbed, url);
     expect(container.querySelector("iframe")).toBeNull();
     expect(getByText(url)).toBeDefined();
+    expect(queryByRole("button", { name: "Open in browser" })).toBeNull();
   });
 });
 
-describe("file (pdf) scheme gate", () => {
-  it("renders the viewer iframe for an http(s) pdf URL", () => {
-    const url = "https://example.com/paper.pdf";
-    const { container } = renderNode(KEYS.file, url);
-    expect(container.querySelector("iframe")?.getAttribute("src")).toBe(url);
-  });
-
+describe("file scheme gate", () => {
   it.each([
     // oxlint-disable-next-line no-script-url -- the blocked scheme is this test's input, not a live URL.
     "javascript:alert(1)//x.pdf",
     "data:application/pdf;base64,AAAA#x.pdf",
     "file:///tmp/secret.pdf",
     "assets/local.pdf",
-  ])("blocks %s — inert card, no iframe, no live href", (url) => {
-    const { container } = renderNode(KEYS.file, url);
+  ])("blocks %s — inert card, no frame, no live href", (url) => {
+    const { container, queryByRole } = renderNode(KEYS.file, url);
     expect(container.querySelector("iframe")).toBeNull();
+    expect(queryByRole("button", { name: "Open in browser" })).toBeNull();
     for (const anchor of container.querySelectorAll("a")) {
       expect(anchor.getAttribute("href")).toBeNull();
     }
@@ -74,27 +81,5 @@ describe("file (pdf) scheme gate", () => {
     const { container } = renderNode(KEYS.file, url);
     expect(container.querySelector("iframe")).toBeNull();
     expect(container.querySelector("a")?.getAttribute("href")).toBe(url);
-  });
-});
-
-describe("the media toolbar's Open original", () => {
-  it("opens an http(s) url with no handle back to this window", () => {
-    const opened = vi.spyOn(window, "open").mockReturnValue(null);
-    const url = "https://example.com/report.docx";
-    fireEvent.click(renderNode(KEYS.file, url).getByRole("button", { name: "Open original" }));
-    expect(opened).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
-    opened.mockRestore();
-  });
-
-  it.each([
-    // oxlint-disable-next-line no-script-url -- the blocked scheme is this test's input, not a live URL.
-    "javascript:alert(1)//x.pdf",
-    "file:///tmp/secret.pdf",
-    "assets/local.pdf",
-  ])("opens nothing for %s", (url) => {
-    const opened = vi.spyOn(window, "open").mockReturnValue(null);
-    fireEvent.click(renderNode(KEYS.file, url).getByRole("button", { name: "Open original" }));
-    expect(opened).not.toHaveBeenCalled();
-    opened.mockRestore();
   });
 });

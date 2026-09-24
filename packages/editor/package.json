@@ -95,6 +95,7 @@
     "./nodes/link-node": "./src/nodes/link-node.tsx",
     "./nodes/media-toolbar": "./src/nodes/media-toolbar.tsx",
     "./nodes/pdf-node": "./src/nodes/pdf-node.tsx",
+    "./nodes/remote-content-card": "./src/nodes/remote-content-card.tsx",
     "./nodes/rich-block-chrome": "./src/nodes/rich-block-chrome.tsx",
     "./nodes/table-node": "./src/nodes/table-node.tsx",
     "./nodes/tag-chip-node": "./src/nodes/tag-chip-node.tsx",
@@ -160,8 +161,6 @@
     "mermaid": "^12.0.0",
     "platejs": "^53.3.14",
     "react-day-picker": "^10.0.1",
-    "react-lite-youtube-embed": "^3.7.0",
-    "react-tweet": "^3.3.1",
     "zod": "catalog:",
     "zustand": "catalog:"
   },

@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckIcon, ExternalLinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { Button } from "@repo/ui/components/button";
 
-import { openExternalUrl } from "@repo/editor/lib/wire";
 import { stringProp } from "@repo/editor/node-props";
 
 const BUTTON_CLASS = "rounded-md text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
@@ -101,17 +100,6 @@ export const MediaToolbar = () => {
             }}
           >
             <PencilIcon />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            title="Open original"
-            className={BUTTON_CLASS}
-            onClick={() => {
-              openExternalUrl(url);
-            }}
-          >
-            <ExternalLinkIcon />
           </Button>
           <Button
             variant="ghost"

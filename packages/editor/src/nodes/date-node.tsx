@@ -5,7 +5,7 @@ import { Suspense, lazy, useState } from "react";
 import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { formatIsoDate } from "@repo/notes/iso-date";
+import { formatIsoDate, parseIsoDate } from "@repo/notes/iso-date";
 
 import { stringProp } from "@repo/editor/node-props";
 
@@ -18,21 +18,10 @@ const Calendar = lazy(
     await import("@repo/editor/nodes/calendar").then((mod) => ({ default: mod.Calendar })),
 );
 
-const ISO_RE = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
-
-// `new Date("YYYY-MM-DD")` is UTC midnight and renders a day early west of Greenwich.
-const fromIso = (value: string): Date | null => {
-  const groups = ISO_RE.exec(value)?.groups;
-  if (!groups) {
-    return null;
-  }
-  return new Date(Number(groups.year), Number(groups.month) - 1, Number(groups.day));
-};
-
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
 const label = (value: string): string => {
-  const date = fromIso(value);
+  const date = parseIsoDate(value);
   if (!date) {
     return value || "Pick a date";
   }
@@ -84,7 +73,7 @@ export const DateElement = (props: PlateElementProps) => {
             <Calendar
               autoFocus
               mode="single"
-              selected={fromIso(value) ?? undefined}
+              selected={parseIsoDate(value) ?? undefined}
               onSelect={(date) => {
                 const at = editor.api.findPath(element);
                 if (date && at) {

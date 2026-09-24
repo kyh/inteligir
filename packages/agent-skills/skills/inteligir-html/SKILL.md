@@ -51,11 +51,14 @@ Size belongs in the document's CSS, not on the fence line.
 The frame is isolated, and that is the point — a note should never be able to
 reach the app or the vault. What that costs you:
 
-- Inline CSS and JavaScript work. Start behavior on `DOMContentLoaded`.
+- Inline CSS and JavaScript work. Script runs only once the reader presses Run;
+  Preview draws the document with script off. Start behavior on
+  `DOMContentLoaded`.
 - `localStorage`, cookies, same-origin fetches, and any parent-window API are
   unavailable. Do not design around state that outlives a reload.
-- Network requests may be blocked entirely. **The first frame must be useful
-  with no network and no script.**
+- Network requests are blocked: no fetch, and no remote script, stylesheet,
+  image or font. **The first frame must be useful with no network and no
+  script.**
 - Vault-relative paths like `assets/x.png` do not resolve inside the frame. A
   small required image must be an inline `data:` URI. Never use `file://` or an
   absolute local path.

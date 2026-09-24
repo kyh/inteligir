@@ -2,14 +2,12 @@
 // (existing payloads use arbitrary ink), and rows are padded only as far as a painted cell requires.
 
 import {
+  CANVAS_COLS,
+  CANVAS_ROWS,
   GRID_HEADER,
   isGridHeader,
-  LABELS_PREFIX,
-  labelLinePrefix,
+  isLabelsLine,
 } from "@repo/editor/nodes/canvas-header";
-
-export const CANVAS_COLS = 120;
-export const CANVAS_ROWS = 60;
 
 export interface CanvasCell {
   col: number;
@@ -27,13 +25,8 @@ const splitPayload = (value: string): SplitPayload | null => {
   if (!isGridHeader(headerLine)) {
     return null;
   }
-  const labelPrefix = labelLinePrefix(labelLine);
-  const gridStart = labelPrefix === null ? 1 : 2;
-  const head =
-    labelPrefix === null || labelLine === undefined
-      ? [GRID_HEADER]
-      : [GRID_HEADER, LABELS_PREFIX + labelLine.slice(labelPrefix.length)];
-  return { head, rows: lines.slice(gridStart) };
+  const head = isLabelsLine(labelLine) ? [GRID_HEADER, labelLine] : [GRID_HEADER];
+  return { head, rows: lines.slice(head.length) };
 };
 
 // off-grid cells are ignored, not clamped: clamping would ink a border cell the pointer never touched.

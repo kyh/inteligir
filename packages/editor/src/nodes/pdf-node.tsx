@@ -1,16 +1,15 @@
-// A note is untrusted content: only http(s) URLs reach a live iframe or a clickable href.
+// A note is untrusted content: only an http(s) URL reaches a clickable href.
 
 import { FileTextIcon } from "lucide-react";
 import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { isHttpUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/wire";
 import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
-
-const PDF_RE = /\.pdf(?:[?#]|$)/iu;
+import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";
 
 export const FileElement = (props: PlateElementProps) => {
   const selected = useSelected();
@@ -18,22 +17,11 @@ export const FileElement = (props: PlateElementProps) => {
   const url = stringProp(props.element, "url") ?? "";
   const name = stringProp(props.element, "name") ?? null;
 
-  // The pdf iframe has no sandbox: Chromium blocks the native PDF viewer inside any sandboxed
-  // frame (every token set yields ERR_BLOCKED_BY_CLIENT). It hosts only the http(s) URL the
-  // author wrote — the same trust as clicking the link.
   return (
     <PlateElement {...props} className="py-2.5">
       <figure className="group/media relative m-0 w-full" contentEditable={false}>
-        {PDF_RE.test(url) && isHttpUrl(url) ? (
-          // oxlint-disable-next-line react/iframe-missing-sandbox
-          <iframe
-            className={cn(
-              "h-[70vh] w-full rounded-md border border-border",
-              focused && selected && "ring-2 ring-ring ring-offset-2",
-            )}
-            src={url}
-            title={name ?? "PDF document"}
-          />
+        {isPdfUrl(url) && isHttpUrl(url) ? (
+          <RemoteContentCard kind="pdf" selected={focused && selected} url={url} />
         ) : (
           <a
             href={isHttpUrl(url) ? url : undefined}

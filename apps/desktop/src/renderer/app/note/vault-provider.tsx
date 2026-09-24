@@ -14,7 +14,7 @@ import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { base64FromBytes } from "@repo/api/cloud/bytes";
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
-import { vaultAssetUrl } from "@repo/api/local/routes";
+import { HTML_FRAME_PATH, vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -286,6 +286,8 @@ export const VaultProvider = ({
           return row;
         });
       },
+      // root-relative: the page and the frame share the one origin that serves both.
+      htmlFrameUrl: HTML_FRAME_PATH,
       linkResolver: port.linkResolver,
       onVaultChanged: (listener) => vaultChanges.subscribe(listener),
       readNoteFormulas: port.formulas.read,

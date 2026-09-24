@@ -4,6 +4,8 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { HTML_FRAME_PATH } from "@repo/api/local/routes";
+import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "inteligir/server/html-block-frame";
 import { authorizationHeader } from "inteligir/server/server-file";
 import { bundleFile, isProxiedPath } from "./credential-scope";
 
@@ -53,6 +55,12 @@ export const createAppRequestHandler =
   (args: AppRequestHandlerArgs) =>
   async (request: Request): Promise<Response> => {
     const { pathname, search } = new URL(request.url);
+
+    // answered here for both renderers, never from the bundle: `withDocumentPolicy` would hand the
+    // frame the page's `script-src 'self'`.
+    if (pathname === HTML_FRAME_PATH) {
+      return new Response(HTML_FRAME_DOCUMENT, { headers: HTML_FRAME_HEADERS });
+    }
 
     // gated ahead of both renderers: `pnpm dev` serves no CSP, so a note's frame can run there.
     if (isProxiedPath(pathname)) {
