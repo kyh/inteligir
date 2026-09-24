@@ -62,7 +62,7 @@ src/
                          # parser the answer route's 400 gate and the runtime
                          # share (deny is always accepted; anything else must
                          # be a decision the request offered)
-  pending-interaction-status.ts  # pending|resolving|resolved|interrupted, the
+  pending-interaction-status.ts  # pending|resolved|interrupted, the
                          # same tuple-feeds-both-sides shape as thread-status
   change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
                          # change kinds — pings naming a subscription target,

@@ -6,6 +6,7 @@ import {
   VAULT_CHANGE_KINDS,
 } from "@repo/domain/change-kinds";
 import { z } from "zod";
+import { assertUnreachable } from "./assert-unreachable";
 
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
   z
@@ -45,10 +46,6 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-const assertUnreachable: (value: never) => never = (value) => {
-  throw new Error(`Unreachable case: ${String(value)}`);
-};
-
 export const realtimeSubscriptionTargetKey = (target: RealtimeSubscriptionTarget): string => {
   switch (target.kind) {
     case "vault": {
@@ -63,9 +60,10 @@ export const realtimeSubscriptionTargetKey = (target: RealtimeSubscriptionTarget
   }
 };
 
-// `strict` validates the server's outgoing broadcasts; a client must not parse inbound traffic
-// with it, or a long-lived tab against a newer server drops whole messages over an additive
-// change. `lenient` strips unknown fields and filters unknown kinds instead.
+// `strict` types the server's outgoing broadcasts and is what the bus's tests parse them with;
+// nothing parses a broadcast at runtime. a client must not parse inbound traffic with it, or a
+// long-lived tab against a newer server drops whole messages over an additive change. `lenient`
+// strips unknown fields and filters unknown kinds instead.
 const changedMessagePair = <
   TEntity extends string,
   TKind extends string,

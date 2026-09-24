@@ -130,10 +130,10 @@ describe("thread wait on a thread blocked by an approval", () => {
     });
   });
 
-  it("does not stop for an approval already answered and still resolving", async () => {
+  it("does not stop for an approval already answered", async () => {
     const server = await bootWithThread(
       ["active", "idle"],
-      [makeInteraction({ id: "int_done", status: "resolving", threadId: "thr_wait" })],
+      [makeInteraction({ id: "int_done", status: "resolved", threadId: "thr_wait" })],
     );
     const result = await runCliForTest({
       argv: ["action", "wait", "thr_wait", "--until-input", "--poll-interval", "20"],

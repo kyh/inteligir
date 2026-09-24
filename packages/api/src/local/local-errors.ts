@@ -12,6 +12,15 @@ export const INVALID_PATH = {
   message: "That path is not one this vault can address",
 } as const;
 
+// every class a vault-backed row can refuse with; the server's refusal table is typed against
+// these keys. PAYLOAD_TOO_LARGE is reachable from a comment store past the vault's read cap.
+export const VAULT_REFUSAL_ERRORS = {
+  CONFLICT: {},
+  INVALID_PATH,
+  NOT_FOUND: {},
+  PAYLOAD_TOO_LARGE: {},
+} as const;
+
 export const ALREADY_EXISTS = {
   message: "Something is already there",
 } as const;

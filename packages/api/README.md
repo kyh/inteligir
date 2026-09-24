@@ -123,9 +123,10 @@ src/
 - **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
   the literal strings behind `@repo/api/local/routes` and `VAULT_API_PATHS`
   and refuses a second spelling outside the file that owns it.
-- **The `/ws` frame grammar is strict outbound, lenient inbound.** The server
-  validates what it broadcasts with `.strict()`; a client parses with the
-  lenient twin, or a long-lived tab against a newer server drops whole
+- **The `/ws` frame grammar is strict outbound, lenient inbound.** The
+  `.strict()` schemas type what the server broadcasts and are what its tests
+  parse the frames with; no broadcast is parsed at runtime. A client parses
+  with the lenient twin, or a long-lived tab against a newer server drops whole
   messages over an additive change. Client→server frames stay strict: an
   unknown field is an unknown client, closed 1008.
 - **A turn row's `sourceSeqEnd` names its own contributors**, not every

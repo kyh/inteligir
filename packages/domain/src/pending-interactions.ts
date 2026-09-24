@@ -67,8 +67,9 @@ export const parseApprovalResolution = (
 ): ApprovalResolutionParse => {
   const trimmed = raw.trim();
   let parsed: ApprovalPendingInteractionResolution;
-  if (trimmed === "deny" || trimmed === "allow_once" || trimmed === "allow_for_session") {
-    parsed = { decision: trimmed };
+  const bare = pendingInteractionApprovalDecisionSchema.safeParse(trimmed);
+  if (bare.success) {
+    parsed = { decision: bare.data };
   } else {
     let json: unknown;
     try {
