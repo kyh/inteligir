@@ -24,7 +24,21 @@ export interface NotesListProps {
   limit?: number;
 }
 
-// One list by recency, the pinned rows first: folders are the tree view's business.
+// One list by recency, the pinned rows first: folders are the tree view's business. The cap
+// counts the unpinned rows alone, so a pin never pushes a recent note out.
+export const recentRows = (
+  entries: VaultTreeResponse["entries"],
+  pinnedPaths: ReadonlySet<string>,
+  limit?: number,
+): FileEntry[] => {
+  const notes = entries
+    .filter((entry): entry is FileEntry => entry.kind === "file" && isDocPath(entry.path))
+    .toSorted((a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0));
+  const pinned = notes.filter((note) => pinnedPaths.has(note.path));
+  const unpinned = notes.filter((note) => !pinnedPaths.has(note.path));
+  return [...pinned, ...(limit === undefined ? unpinned : unpinned.slice(0, limit))];
+};
+
 export const NotesList = ({
   entries,
   openPath,
@@ -36,17 +50,11 @@ export const NotesList = ({
   const pinnedPaths = usePinnedPaths();
   const now = useNow();
   const [menu, setMenu] = useState<{ path: string; anchor: HTMLElement } | null>(null);
-  const notes = entries
-    .filter((entry): entry is FileEntry => entry.kind === "file" && isDocPath(entry.path))
-    .toSorted((a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0));
+  const rows = recentRows(entries, pinnedPaths, limit);
 
-  if (notes.length === 0) {
+  if (rows.length === 0) {
     return <p className="px-2 py-2 text-body text-muted-foreground">{emptyText}</p>;
   }
-
-  const pinned = notes.filter((note) => pinnedPaths.has(note.path));
-  const unpinned = notes.filter((note) => !pinnedPaths.has(note.path));
-  const rest = limit === undefined ? unpinned : unpinned.slice(0, limit);
 
   // The menu row: the name is the label and the age rides its trailing edge. The pin's slot is
   // always drawn, so every date sits in one column whether or not the note is pinned. The row's
@@ -90,10 +98,7 @@ export const NotesList = ({
 
   return (
     <>
-      <SidebarMenu aria-label="Notes">
-        {pinned.map(row)}
-        {rest.map(row)}
-      </SidebarMenu>
+      <SidebarMenu aria-label="Notes">{rows.map(row)}</SidebarMenu>
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {

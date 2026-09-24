@@ -1509,14 +1509,18 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   tag is the workspace's for the same reason. THERE IS
   NO FOLDER SCOPE: the top bar's breadcrumb REVEALS rather than narrows —
   a segment shows Files, opens the way to that folder and selects it
-  (`revealInTree` in `sidebar/tree-state.ts`, applied where the fold state
-  lives, and the tree's one effect focuses the row that render drew). A
+  (`useTreeState` in `sidebar/tree-state.ts`, applied where the fold state
+  lives, and the tree's one effect focuses the row that render drew, once,
+  and never over an open name input, whose blur would cancel it). A
   second listing root was a second answer to "what is this list?" and made
-  the recents' folder hints relative to it. The tree's fold and selection
-  are the rail's state (`sidebar/tree-state.ts`), not the tree's: Collapse
-  all clears that set and a create lands where an IDE's would, in the tree's
-  selected folder, else at the vault root; the group's pending create is a
-  plain prop the tree reports done. Find in note, comments and the panel
+  the recents' folder hints relative to it. The tree's fold, selection and
+  name input are the rail's state (`sidebar/tree-state.ts`), not the
+  tree's: Collapse all clears that set and a create lands where an IDE's
+  would, in the tree's selected folder, else at the vault root, opening that
+  folder in the same update. What the state follows — the listing, the open
+  note, the reveal — is applied during the rail's own render; the tree only
+  reads it, because a component setting its owner's state while it renders
+  is a React error. Find in note, comments and the panel
   toggle live above the note; copy link, export and share sit under its ⋯
   menu. One `useVaultSwitch` and one `RecentVaultLabel`
   (`app/desktop-vaults.tsx`) serve the rail's vault row and Settings alike.
@@ -1729,6 +1733,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   `.wrangler/deploy/**`, `apps/web/turbo.json`), and `NODE_ENV` is hashed
   `globalEnv`, not a passthrough: vite emits React's dev build under
   `development`, and the dev shell hands that value to every agent shell.
+
+- **A DESKTOP TEST THAT LOGS A console.error FAILS.** React reports a setState
+  during another component's render, a missing key or an update outside
+  `act` as a console.error and nothing else, so a suite that only logs it
+  stays green over a real defect. The gate
+  (`apps/desktop/src/renderer/app/__tests__/console-error-gate.ts`) fails the
+  test that logged; a test that provokes one on purpose (every refused call
+  is logged by the dev client in `app/api.ts`) silences it with its own
+  `vi.spyOn(console, "error")`. The booted suites are not gated: the server
+  they boot in-process logs every refused call by design.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

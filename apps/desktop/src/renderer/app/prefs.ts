@@ -85,7 +85,8 @@ export const writeRelatedOpen = (open: boolean): void => {
   write(KEYS.relatedOpen, open ? "true" : "false");
 };
 
-const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
+// in the order the rail's view menu lists them
+export const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
 export type RailView = (typeof RAIL_VIEWS)[number];
 
 // which of the rail's views is showing

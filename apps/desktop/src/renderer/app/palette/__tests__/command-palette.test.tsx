@@ -173,6 +173,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("note search", () => {
@@ -250,6 +251,8 @@ describe("note search", () => {
   });
 
   it("falls back to the filenames when the index refuses", async () => {
+    // the client logs every refused call in dev
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     renderPalette({
       fakes: {
         search: (request) => {
@@ -268,6 +271,7 @@ describe("note search", () => {
       expect(rows().queryByText("Big Ideas")).toBeNull();
     });
     expect(rows().getByText("notes/ideas.md")).toBeDefined();
+    expect(logged).toHaveBeenCalled();
   });
 
   it("debounces: a query superseded within the window never reaches the index", async () => {

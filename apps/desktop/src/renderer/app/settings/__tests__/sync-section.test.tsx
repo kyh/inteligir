@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SignedInDetails, SignInForm } from "../sync-section";
+import { SignInForm } from "../../sign-in-form";
+import { SignedInDetails } from "../sync-section";
 
 afterEach(cleanup);
 

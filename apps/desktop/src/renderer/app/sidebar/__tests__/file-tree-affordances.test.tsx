@@ -40,9 +40,6 @@ const renderTree = (overrides: Partial<React.ComponentProps<typeof RailTree>> = 
       openPath={null}
       onOpenFile={vi.fn<FileTreeProps["onOpenFile"]>()}
       ops={ops}
-      pendingCreate={null}
-      onPendingCreateDone={() => {}}
-      reveal={null}
       onMoveRequest={() => {}}
       pinnedPaths={NO_PINS}
       sort="name"
