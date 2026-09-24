@@ -59,6 +59,17 @@ scratch dir and tears everything down afterwards:
 - `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
+- `desktopShell({ seedVault?, seedUserData? })` — the checkout's built Electron
+  shell, launched with `--remote-debugging-port` on a scratch `HOME` and
+  `--user-data-dir` (never `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which
+  would make it refuse a vault switch), a pinned server port and
+  `INTELIGIR_AGENT=scripted`. Its `cdpPort` is what an agent-browser session
+  `connect`s to; `api` is the oRPC client over whichever server it runs now;
+  `target()` is the data and vault dir it resolves now, derived as main derives
+  them; `quit()` sends main alone the SIGTERM an OS quit would. The Electron
+  binary is fetched by electron's own installer on first use (pnpm runs no
+  install script). Registered for teardown like an instance. On Linux with no
+  display it skips: run the suite under `xvfb-run -a`.
 - `browser(label)` — an agent-browser session registered for teardown like an
   instance, so a failed or abandoned scenario still closes it. It is callable
   with any agent-browser command, and `openWorkspace(app, { path?, launchArgs? })`
@@ -96,6 +107,11 @@ what each one is FOR.
 |                           | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
 |                           | write, hears an on-disk write through its forked watcher, and answers a   |
 |                           | client verb run from the same split bundle                                |
+| desktop-shell             | the built Electron shell over DevTools: the window is on `inteligir://`,  |
+|                           | the rail and a note ride the protocol handler's bearer, an API write      |
+|                           | reaches the open editor through the socket, `window.open` is denied,      |
+|                           | Reveal refuses a symlink out of the vault, a switch boots a new child on  |
+|                           | the new vault, and a SIGTERM quit stops it and retracts `server.json`     |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline                |
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
 |                           | CAS write guards the save (typed conflict, current bytes in the body);    |
@@ -167,6 +183,10 @@ mode, state under the scenario's scratch dir; secrets ride `--var`, so no
 browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
+The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
+after a sysctl that lets Chromium's namespace sandbox run under Ubuntu's
+AppArmor (the shell is never launched with `--no-sandbox`); with no display on
+Linux, `desktop-shell` skips, and under `--require-browser` that skip fails.
 The first browser a run asks for probes the environment with `about:blank`, once
 per run and in a session of its own, so every scenario's session still launches
 with its own flags. Only a failure THERE (the browser cannot launch at all)

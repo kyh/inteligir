@@ -106,7 +106,9 @@ every gate independently (each step runs even if an earlier one fails), so a
 red format cannot hide test regressions behind it.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
-(pinned) and runs the scenario suite. ONE run, because there is one build —
+(pinned), lets Chromium's namespace sandbox run under Ubuntu's AppArmor, and
+runs the scenario suite under `xvfb-run`, since the desktop shell's scenario
+opens a real window. ONE run, because there is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
@@ -129,5 +131,6 @@ span workspaces (the dep DAG, ws change kinds, CI parity, dangling references,
 the per-export orphan guard over `@repo/ui`).
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
-vaults, scratch git remotes, a headless browser) and is deliberately outside
+vaults, scratch git remotes, a headless browser, and the Electron shell itself,
+driven over DevTools) and is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager.

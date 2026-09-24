@@ -4,6 +4,8 @@ import { createScenarioBrowser } from "./agent-browser";
 import type { HeadlessProbe, ScenarioBrowser } from "./agent-browser";
 import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
+import { launchDesktopShell } from "./desktop-shell";
+import type { DesktopShell, DesktopShellOptions } from "./desktop-shell";
 import { exec, hermeticProcessEnv } from "./exec";
 import { launchApp } from "./instance";
 import type { AppInstance, LaunchAppArgs, LaunchMode } from "./instance";
@@ -26,6 +28,8 @@ export interface ScenarioContext {
   boot: (options: BootOptions) => Promise<AppInstance>;
   bareRemote: (name?: string) => Promise<string>;
   cloudWorker: (options?: { builtConfig?: string }) => Promise<CloudWorker>;
+  // the built Electron shell on a scratch home, driven over DevTools; skips with no display.
+  desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
   // skips the scenario when no headless browser can launch; closed at teardown like an instance.
   browser: (label: string) => Promise<ScenarioBrowser>;
 }
@@ -106,6 +110,17 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       launch.builtConfig = options.builtConfig;
     }
     return await launchCloudWorker(launch);
+  },
+  async desktopShell(options = {}) {
+    return await launchDesktopShell({
+      ...options,
+      onLog: args.log,
+      register: (shell) => {
+        args.instances.push(shell);
+      },
+      repoRoot: args.repoRoot,
+      scratchDir: args.scratchDir,
+    });
   },
   log: args.log,
   repoRoot: args.repoRoot,

@@ -5,7 +5,7 @@ import { parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR } from "../harness/selectors";
+import { EDITOR, treeRow } from "../harness/selectors";
 
 // not the note the virgin boot opens (the listing puts folders first), so the pin is a closed
 // note's guarded write and the reload below names the moved note rather than trusting the boot.
@@ -25,7 +25,6 @@ const FOLDER_NOTE = "Zebra.md";
 const DISK_DEADLINE_MS = 30_000;
 const IMAGE_DEADLINE_MS = 30_000;
 
-const row = (vaultPath: string): string => `[role="tree"] [data-path="${vaultPath}"]`;
 // the row's actions button is a sibling of the row, not a child: a button cannot nest a button
 const rowActions = (vaultPath: string): string =>
   `[role="tree"] li:has([data-path="${vaultPath}"]) [data-sidebar="menu-action"]`;
@@ -59,7 +58,7 @@ export const treeOpsBrowser: Scenario = {
     await agentBrowser.openWorkspace(app);
 
     ctx.log("the rail opens on Files on a fresh profile");
-    await agentBrowser(["wait", row(NOTE)], 30_000);
+    await agentBrowser(["wait", treeRow(NOTE)], 30_000);
 
     ctx.log("Pin from the row menu lands pinned: true in the frontmatter");
     await agentBrowser(["click", rowActions(NOTE)]);
@@ -75,7 +74,7 @@ export const treeOpsBrowser: Scenario = {
     expect(pinned.endsWith(DOC), `the pin rewrote more than the frontmatter:\n${pinned}`);
 
     ctx.log(`dragging ${NOTE} onto ${FOLDER}/ moves it`);
-    await agentBrowser(["drag", row(NOTE), row(FOLDER)]);
+    await agentBrowser(["drag", treeRow(NOTE), treeRow(FOLDER)]);
     const { moved } = await pollUntil(
       async (): Promise<MoveState> => ({
         moved: await readOrNull(path.join(app.vaultDir, FOLDER, NOTE)),

@@ -15,6 +15,7 @@ import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
+import { desktopShell } from "./scenarios/desktop-shell";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
@@ -39,6 +40,7 @@ const SCENARIOS: readonly Scenario[] = [
   threadSyncHosted,
   builtWorkerBoot,
   builtCliBoot,
+  desktopShell,
   threadsScripted,
   actionScripted,
   cliDrive,

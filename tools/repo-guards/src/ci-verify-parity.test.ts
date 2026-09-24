@@ -26,6 +26,10 @@ const DECLARED_CI_EXTRAS = new Map<string, string>([
     "installs agent-browser and its system deps globally on the runner; a developer installs it once, so making `verify` do it on every run would be a minutes-long tax on the static gate",
   ],
   [
+    "ci.yml:check:Electron sandbox",
+    "a kernel setting on the runner, so the desktop-shell scenario's Electron can use Chromium's namespace sandbox under Ubuntu's AppArmor; a developer's machine needs no such change, and the scenario it serves runs outside `verify` already",
+  ],
+  [
     "ci.yml:check:E2E",
     "boots real instances and drives them over the wire — `pnpm e2e` is deliberately outside `verify`'s test task (tools/e2e/package.json), because every unit passes while the composition fails",
   ],

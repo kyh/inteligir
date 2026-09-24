@@ -2,7 +2,8 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023"],
+    // the harness derives its deadlines from apps/cli's server modules, which target ES2024.
+    "lib": ["ES2024"],
     "types": ["node"]
   },
   "include": ["src"]

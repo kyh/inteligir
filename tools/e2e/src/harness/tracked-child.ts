@@ -17,6 +17,8 @@ export interface TrackedProcess {
 
 export interface SupervisedChild extends TrackedProcess {
   exited: () => boolean;
+  // the leader alone, where stop() signals the whole group: what an OS quit sends an app
+  signalLeader: (signal: NodeJS.Signals) => void;
 }
 
 // module scope: the runner's signal handlers need one place naming every group to kill.
@@ -139,6 +141,11 @@ export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
     exited: () => exited,
     name: args.name,
     outputTail: (lines = 40) => outputLines.slice(-lines).join("\n"),
+    signalLeader: (signal) => {
+      if (pid !== undefined && !exited) {
+        process.kill(pid, signal);
+      }
+    },
     async stop() {
       stopPromise ??= pid === undefined ? Promise.resolve() : stopProcessGroup(pid, args.name);
       await stopPromise;

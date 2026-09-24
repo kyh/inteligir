@@ -70,11 +70,19 @@ jobs:
         # rides no lockfile and no release cooldown
         run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
 
+      - name: Electron sandbox
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        # Ubuntu's AppArmor denies unprivileged user namespaces, so the Electron shell the
+        # desktop-shell scenario launches aborts before its window opens; this lets Chromium's own
+        # sandbox run rather than launching the shell with --no-sandbox, which ships nowhere
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # the step above installed the browser, so one that cannot launch is a broken install:
-        # --require-browser fails those scenarios instead of skipping them behind a green step
-        run: pnpm e2e --require-browser
+        # "E2E browser" installed the browser, so one that cannot launch is a broken install:
+        # --require-browser fails those scenarios instead of skipping them behind a green step.
+        # xvfb-run: the desktop shell opens a real window, and the runner has no display
+        run: xvfb-run -a pnpm e2e --require-browser
 
   # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
   # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the

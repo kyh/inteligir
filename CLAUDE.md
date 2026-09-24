@@ -2147,8 +2147,9 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   because the catalog bound only the manifests that spell it; `@types/node`
   tracks `engines.node`; `compatibility_date` is the lockfile's oldest workerd,
   held by `tools/repo-guards/src/wrangler-compat-date.test.ts`; `pnpm e2e` boots
-  the built Worker bundle (`tools/e2e/src/scenarios/built-worker-boot.ts`) and
-  the built CLI bundle (`tools/e2e/src/scenarios/built-cli-boot.ts`);
+  the built Worker bundle (`tools/e2e/src/scenarios/built-worker-boot.ts`), the
+  built CLI bundle (`tools/e2e/src/scenarios/built-cli-boot.ts`) and the built
+  desktop shell (`tools/e2e/src/scenarios/desktop-shell.ts`);
   agent-browser is pinned by hand in `.github/workflows/ci.yml` because a global
   install rides no lockfile. The arguments are `pnpm-workspace.yaml`'s comments.
 
@@ -2200,6 +2201,26 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   suite. Still superlinear upstream, and not patched: a paragraph dense with
   emphasis (attention's resolver splices per pair) or with inline nodes
   (mdast-util-find-and-replace looks each text node up by `indexOf`).
+
+- **THE SHELL'S GLUE RUNS IN E2E OVER DEVTOOLS, AND ITS BRIDGE IS A GUARD.**
+  The shell's policies are pure and unit-tested; what joins them (the protocol
+  handler over `net.fetch`, the socket credential, the preload, every
+  `ipcMain` handler, the vault switch, the quit) is
+  `tools/e2e/src/scenarios/desktop-shell.ts`: the checkout's built shell,
+  launched with `--remote-debugging-port` and driven by agent-browser. It
+  reaches its scratch through `HOME` and `--user-data-dir`, never
+  `INTELIGIR_DATA_DIR` or `INTELIGIR_VAULT_DIR`, because the shell refuses a
+  switch while either pins the launch; the server port is pinned instead, so
+  one API client follows the switch, re-reading the bearer per call. Linux CI
+  runs the suite under `xvfb-run`, after a sysctl that lets Chromium's
+  namespace sandbox run under Ubuntu's AppArmor: launching with `--no-sandbox`
+  was rejected, because no user runs the shell that way. Not the packaged
+  `.app`: packing is minutes on the macOS job, and the fuses, the signature
+  and the login shell's PATH stay `pnpm smoke:desktop`'s and the unit tests'.
+  The cheap half is `apps/desktop/src/main/__tests__/ipc-contract.test.ts`:
+  every row `apps/desktop/src/ipc-contract.ts` declares is registered exactly
+  once in main and called from the preload, and neither end spells a channel
+  as a literal, because a row one end forgot fails only at runtime.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
