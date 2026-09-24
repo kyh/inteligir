@@ -252,6 +252,15 @@ export const parseWikiBody = (body: string): WikiBody => {
   return display;
 };
 
+// the resolved-link uuid alias is identity plumbing, not display text: it shows as no alias.
+export const wikiLinkLabel = (body: string): string => {
+  const { alias, anchor, target } = parseWikiBody(body);
+  if (alias !== undefined && !isUuidWikiAlias(alias)) {
+    return alias;
+  }
+  return anchor === undefined ? target : `${target}#${anchor}`;
+};
+
 interface WikiBodyParts {
   target: string;
   anchor?: string | undefined;

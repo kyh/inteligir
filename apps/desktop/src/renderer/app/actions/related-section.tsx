@@ -2,7 +2,7 @@
 
 import type { UnlinkedMentionWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
+import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
@@ -25,13 +25,7 @@ export interface RelatedRow {
 
 export const plainSnippet = (snippet: string): string =>
   snippet
-    .replaceAll(/!?\[\[(?<body>[^\]]+)\]\]/gu, (_match, body: string) => {
-      const parts = body.split("|");
-      const target = parts[0] ?? body;
-      const alias = parts.length > 1 ? parts.at(-1) : undefined;
-      const label = alias !== undefined && !isUuidWikiAlias(alias) ? alias : target;
-      return label.split("#")[0] ?? label;
-    })
+    .replaceAll(/!?\[\[(?<body>[^\]]+)\]\]/gu, (_match, body: string) => wikiLinkLabel(body))
     .replaceAll(/\{\{(?<body>[^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
     .replaceAll(/%%i:[^%]*%%/gu, "")
     .replace(/^[\s>#*-]+/u, "")

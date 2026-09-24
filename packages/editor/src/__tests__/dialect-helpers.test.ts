@@ -65,6 +65,11 @@ describe("notePreviewHead", () => {
     );
   });
 
+  it("labels a wiki link as its chip does, never by its uuid", () => {
+    const md = "See [[Plan|9e64c3df-c1e2-4a4d-8c07-91528f422413]] and [[C\\#Sharp]].";
+    expect(notePreviewHead(md)).toBe("See Plan and C#Sharp.");
+  });
+
   it.each([
     ["a BOM", "\uFEFF---\nid: abc\n---\nBody\n"],
     ["CRLF", "---\r\nid: abc\r\n---\r\nBody\r\n"],

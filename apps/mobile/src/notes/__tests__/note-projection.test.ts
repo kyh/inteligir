@@ -79,6 +79,14 @@ describe("projectNote", () => {
     ]);
   });
 
+  it("labels a resolved link by its title, never its uuid", () => {
+    const [paragraph] = noteBlocks("[[Plan|9e64c3df-c1e2-4a4d-8c07-91528f422413]]\n");
+    expect(paragraph).toEqual({
+      kind: "paragraph",
+      spans: [{ kind: "wiki-link", label: "Plan", target: "Plan" }],
+    });
+  });
+
   it("never leaks comment markers, and shows a formula's display half", () => {
     const blocks = noteBlocks("%%i:abc:start%%Priced at {{=A1*2|$12}} today.%%i:abc:end%%\n");
     const [paragraph] = blocks;

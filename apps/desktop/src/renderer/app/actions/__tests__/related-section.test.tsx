@@ -91,6 +91,9 @@ describe("linked-mention previews", () => {
     expect(plainSnippet("see [[Use Cases|f2745aa0-f394-4469-963d-438f2dd9fd5a]] first")).toBe(
       "see Use Cases first",
     );
+    expect(plainSnippet("notes on [[C# Notes]] and [[Plan#Goals]]")).toBe(
+      "notes on C# Notes and Plan#Goals",
+    );
   });
 
   it("groups mentions by their source note", () => {

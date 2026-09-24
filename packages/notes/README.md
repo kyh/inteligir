@@ -52,7 +52,10 @@ src/
                        # math) — what keeps rename byte-surgery out of them —
                        # and the literal ranges (code, math, frontmatter, jsx
                        # attributes) table-pipes' escape must not touch
-    remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways
+    remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways;
+                       # the body's one parse, one writer and one display
+                       # label (`wikiLinkLabel`), which every chip, preview
+                       # and snippet on desktop and phone draws
     remark-inline-constructs.ts, remark-opaque.ts, remark-tabs.ts,
     remark-mdx-agnostic.ts, table-pipes.ts, line-scan.ts
                        # the rest of the dialect's own remark plugins
