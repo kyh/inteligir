@@ -28,8 +28,7 @@ const runJob = (job: ProjectionJob): ProjectionResult => {
       return { docs: job.docs.map(projectOne), kind: "projected" };
     }
     case "rename-edits": {
-      const edits = computeMoveEdits(job.docs, job.allFiles, job.aliasEntries, job.moves);
-      return { edits, kind: "edits" };
+      return { edits: computeMoveEdits(job), kind: "edits" };
     }
     case "tag-rename-edits": {
       return { edits: computeTagRenameEdits(job.docs, job.from, job.to), kind: "edits" };

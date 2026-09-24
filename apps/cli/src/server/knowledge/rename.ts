@@ -76,6 +76,9 @@ export const renameNoteWithLinkRewrite = async (
   const aliasEntries = targets.flatMap((target) =>
     (target.aliases ?? []).map((alias): readonly [string, string] => [alias, target.path]),
   );
+  const idEntries = targets.flatMap((target): (readonly [string, string])[] =>
+    target.id === undefined ? [] : [[target.id, target.path]],
+  );
   const candidates = linkedDocs.filter(isDocPath);
   const { docs, skipped } = await snapshotDocs(service, candidates);
 
@@ -91,7 +94,7 @@ export const renameNoteWithLinkRewrite = async (
     oldStem !== "" &&
     oldStem.toLowerCase() !== docStem(renamed.path).toLowerCase();
 
-  const edits = await knowledge.renameEdits({ aliasEntries, allFiles, docs, moves });
+  const edits = await knowledge.renameEdits({ aliasEntries, allFiles, docs, idEntries, moves });
   // a moved doc's edit is keyed at its new path; its snapshot sits at the old one.
   const movedFrom = new Map([...moves].map(([from, to]): [string, string] => [to, from]));
   const rewritten: string[] = [];

@@ -1,7 +1,10 @@
 // Only verified target spans are spliced, so aliases, anchors, alts and `<>`
-// wrappers survive. The retarget branch keys on the path-only pre-resolver: a
-// link reaching a moved doc through one of its aliases still resolves after
-// the move, and rewriting it would replace the author's word vault-wide.
+// wrappers survive. The retarget branch keys on a pre-resolver of paths and ids,
+// never aliases: a link reaching a moved doc through one of its aliases still
+// resolves after the move, and rewriting it would replace the author's word
+// vault-wide. A `[[Title|uuid]]` link's title is the app's word, not the author's,
+// and its uuid decides which note it names, so its title follows that note and
+// never the note the title happens to spell.
 
 import { parseWikiBodyRange, serializeWikiBody } from "../markdown/remark-wiki-link";
 import { wikiLinkName, wikiLinkPath } from "./doc-file";
@@ -11,8 +14,8 @@ import { buildResolver, wikiNameKeys } from "./link-resolve";
 import type { TargetResolver } from "./link-resolve";
 import { basenamePath, dirnamePath, extnamePath, normalizePath, relativePath } from "./vault-path";
 
-// the moves, plus what the branches read: the resolvers before, after and before-with-aliases,
-// and every post-move file under each lowercased name key
+// the moves, plus what the branches read: the resolvers before (paths and ids), after and
+// before-with-aliases, and every post-move file under each lowercased name key
 interface MoveContext {
   moves: ReadonlyMap<string, string>;
   preResolver: TargetResolver;
@@ -116,7 +119,12 @@ const shadowedText = (
     }
     return null;
   }
-  if (ctx.postResolver.resolveWiki(link.target) !== resolved) {
+  // a uuid link's title may spell another note than its uuid names; only a title that named the
+  // link's note is one the move can steal
+  const stolen =
+    ctx.preResolver.resolveWiki(link.target) === resolved &&
+    ctx.postResolver.resolveWiki(link.target) !== resolved;
+  if (stolen) {
     // a moved file now wins this short name's tie-break; qualify so the link keeps its meaning
     return wikiSpanText(link, qualifiedWikiTarget(resolved, link));
   }
@@ -146,7 +154,7 @@ const relinkText = (
 ): string | null => {
   const resolved =
     link.kind === "wiki"
-      ? ctx.preResolver.resolveWiki(link.target)
+      ? ctx.preResolver.resolveWiki(link.target, link.alias)
       : ctx.preResolver.resolveMd(link.target, doc.path);
   if (resolved === null) {
     return link.kind === "wiki" ? aliasShadowedText(link, ctx) : null;
@@ -161,16 +169,25 @@ const relinkText = (
 };
 
 // `moves` maps each moved file's pre-move path to its post-move path: one entry for a note, one
-// per file under it for a folder. `docs` and `aliasEntries` are keyed by pre-move path; the
-// result holds changed docs only, keyed by post-move path. The aliases are the whole vault's,
-// never derived from `docs`: those are the rewrite candidates, and an alias owner that links
-// nowhere is never one.
-export const computeMoveEdits = (
-  docs: ReadonlyMap<string, string>,
-  allFiles: Iterable<string>,
-  aliasEntries: Iterable<readonly [alias: string, path: string]>,
-  moves: ReadonlyMap<string, string>,
-): Map<string, string> => {
+// per file under it for a folder. `docs`, `aliasEntries` and `idEntries` are keyed by pre-move
+// path; the result holds changed docs only, keyed by post-move path. The aliases and ids are the
+// whole vault's, never derived from `docs`: those are the rewrite candidates, and an owner that
+// links nowhere is never one.
+interface MoveEditsInput {
+  docs: ReadonlyMap<string, string>;
+  allFiles: Iterable<string>;
+  aliasEntries: Iterable<readonly [alias: string, path: string]>;
+  idEntries: Iterable<readonly [id: string, path: string]>;
+  moves: ReadonlyMap<string, string>;
+}
+
+export const computeMoveEdits = ({
+  docs,
+  allFiles,
+  aliasEntries,
+  idEntries,
+  moves,
+}: MoveEditsInput): Map<string, string> => {
   const edits = new Map<string, string>();
   const normalizedMoves = new Map<string, string>();
   for (const [from, to] of moves) {
@@ -200,12 +217,12 @@ export const computeMoveEdits = (
   }
 
   const ctx: MoveContext = {
-    // alias-shadow detection only; the retarget branch must stay path-only
+    // alias-shadow detection only; the retarget branch must never read aliases
     aliasPreResolver: buildResolver(files, aliasEntries),
     moves: normalizedMoves,
     postNameOwners,
     postResolver: buildResolver(postFiles),
-    preResolver: buildResolver(files),
+    preResolver: buildResolver(files, [], idEntries),
   };
 
   for (const [docPath, content] of docs) {

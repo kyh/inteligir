@@ -4,6 +4,7 @@
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { computeTagRenameEdits } from "@repo/notes/knowledge/rename-tags";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { RenameEditsJob } from "../projection-protocol";
 import { createProjectionWorker } from "../projector";
 import type { Projector } from "../projector";
 
@@ -40,25 +41,24 @@ describe("the projection worker", () => {
   it(
     "computes both rewrite sets as the pure functions do",
     async () => {
+      const uuid = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
       const docs = new Map([
-        ["a.md", "See [[Old]] and #project/alpha.\n"],
+        ["a.md", `See [[Old]], [[Gone|${uuid}]] and #project/alpha.\n`],
         ["b.md", "---\ntags: [project]\n---\nNothing linked.\n"],
       ]);
-      const allFiles = ["a.md", "b.md", "Old.md"];
-      const moves = new Map([["Old.md", "New.md"]]);
-      const renamed = computeMoveEdits(docs, allFiles, [], moves);
+      const rename: RenameEditsJob = {
+        aliasEntries: [],
+        allFiles: ["a.md", "b.md", "Old.md"],
+        docs,
+        idEntries: [[uuid, "Old.md"]],
+        moves: new Map([["Old.md", "New.md"]]),
+      };
+      const renamed = computeMoveEdits(rename);
       const retagged = computeTagRenameEdits(docs, "project", "work");
-      expect([...renamed.keys()]).toEqual(["a.md"]);
+      expect(renamed.get("a.md")).toBe(`See [[New]], [[New|${uuid}]] and #project/alpha.\n`);
       expect([...retagged.keys()]).toEqual(["a.md", "b.md"]);
 
-      expect(
-        await projector.renameEdits({
-          aliasEntries: [],
-          allFiles,
-          docs,
-          moves,
-        }),
-      ).toEqual(renamed);
+      expect(await projector.renameEdits(rename)).toEqual(renamed);
       expect(await projector.tagRenameEdits({ docs, from: "project", to: "work" })).toEqual(
         retagged,
       );
