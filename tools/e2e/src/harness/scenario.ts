@@ -1,5 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { createScenarioBrowser } from "./agent-browser";
+import type { HeadlessProbe, ScenarioBrowser } from "./agent-browser";
 import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { exec, hermeticProcessEnv } from "./exec";
@@ -24,6 +26,8 @@ export interface ScenarioContext {
   boot: (options: BootOptions) => Promise<AppInstance>;
   bareRemote: (name?: string) => Promise<string>;
   cloudWorker: (options?: { builtConfig?: string }) => Promise<CloudWorker>;
+  // skips the scenario when no headless browser can launch; closed at teardown like an instance.
+  browser: (label: string) => Promise<ScenarioBrowser>;
 }
 
 export interface Scenario {
@@ -39,6 +43,7 @@ export interface CreateScenarioContextArgs {
   scratchDir: string;
   log: (message: string) => void;
   instances: TrackedProcess[];
+  headlessProbe: HeadlessProbe;
 }
 
 export const createScenarioContext = (args: CreateScenarioContextArgs): ScenarioContext => ({
@@ -81,6 +86,12 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       launchArgs.extraEnv = options.extraEnv;
     }
     return await launchApp(launchArgs);
+  },
+  async browser(label) {
+    await args.headlessProbe(args.log);
+    const browser = createScenarioBrowser(label);
+    args.instances.push({ name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
+    return browser;
   },
   async cloudWorker(options) {
     const launch: LaunchCloudWorkerArgs = {

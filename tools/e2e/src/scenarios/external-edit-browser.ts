@@ -1,15 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
-import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
+import { EDITOR } from "../harness/selectors";
 
-const agentBrowser = agentBrowserSession("external-edit");
 const PROMPT = "rewrite the note";
 const BASE_NOTE = "# Agent note\n\nthe line that was already here\n";
 const TURN_DEADLINE_MS = 30_000;
-const EDITOR = '[data-slate-editor="true"]';
 
 export const externalEditBrowser: Scenario = {
   description:
@@ -25,93 +23,69 @@ export const externalEditBrowser: Scenario = {
     const { thread } = await app.api.threads.create({ title: PROMPT });
     // the scripted driver writes exactly here.
     const notePath = `Agent/${thread.id}.md`;
+    const noteFile = path.join(app.vaultDir, notePath);
     await app.api.vault.write({ content: BASE_NOTE, ifAbsent: true, path: notePath });
 
-    try {
-      await probeHeadlessOrSkip(agentBrowser, ctx.log);
+    const agentBrowser = await ctx.browser("external-edit");
+    const readBuffer = async (): Promise<string> => await agentBrowser(["get", "text", EDITOR]);
+    const readDisk = async (): Promise<string> => await readFile(noteFile, "utf-8");
 
-      ctx.log(`opening ${app.baseUrl}/`);
-      // deep link rather than listing order: the seeded Welcome note outranks "first doc".
-      await agentBrowser(
-        ["open", await app.browserUrl(`/?note=${encodeURIComponent(notePath)}`)],
-        60_000,
-      );
-      await agentBrowser(["wait", EDITOR], 90_000);
-      const opened = await agentBrowser(["get", "text", EDITOR]);
-      expect(
-        opened.includes("the line that was already here"),
-        `the browser did not open ${notePath} — got: ${opened}`,
-      );
+    ctx.log(`opening ${app.baseUrl}/`);
+    // deep link rather than listing order: the seeded Welcome note outranks "first doc".
+    await agentBrowser.openWorkspace(app, { path: `/?note=${encodeURIComponent(notePath)}` });
+    const opened = await readBuffer();
+    expect(
+      opened.includes("the line that was already here"),
+      `the browser did not open ${notePath} — got: ${opened}`,
+    );
 
-      ctx.log("clean buffer: the agent rewrites the note, the editor adopts");
-      await app.api.threads.send({ text: PROMPT, threadId: thread.id });
+    ctx.log("clean buffer: the agent rewrites the note, the editor adopts");
+    await app.api.threads.send({ text: PROMPT, threadId: thread.id });
 
-      const adoptDeadline = Date.now() + TURN_DEADLINE_MS;
-      for (;;) {
-        const buffer = await agentBrowser(["get", "text", EDITOR]);
-        if (buffer.includes(PROMPT)) {
-          expect(
-            !buffer.includes("the line that was already here"),
-            `the buffer kept the replaced base:\n${buffer}`,
-          );
-          break;
-        }
-        expect(Date.now() < adoptDeadline, `the buffer never adopted the write — got: ${buffer}`);
-        await delay(250);
-      }
-      const rewritten = await readFile(path.join(app.vaultDir, notePath), "utf-8");
-      expect(rewritten.includes(PROMPT), `the agent's write never reached disk:\n${rewritten}`);
+    const adopted = await pollUntil(readBuffer, (buffer) => buffer.includes(PROMPT), {
+      deadlineMs: TURN_DEADLINE_MS,
+      describe: (buffer) => `the buffer never adopted the write — got: ${buffer}`,
+    });
+    expect(
+      !adopted.includes("the line that was already here"),
+      `the buffer kept the replaced base:\n${adopted}`,
+    );
+    const rewritten = await readDisk();
+    expect(rewritten.includes(PROMPT), `the agent's write never reached disk:\n${rewritten}`);
 
-      ctx.log("dirty buffer: a mid-keystroke external write merges on the save");
-      await agentBrowser(["click", EDITOR]);
-      await agentBrowser(["press", "End"]);
-      await agentBrowser(["type", EDITOR, " user-typed-tail"]);
-      // inside the autosave debounce: append a line the buffer does not hold.
-      const external = `${rewritten}\nexternal-appended-line\n`;
-      await writeFile(path.join(app.vaultDir, notePath), external, "utf-8");
+    ctx.log("dirty buffer: a mid-keystroke external write merges on the save");
+    await agentBrowser(["click", EDITOR]);
+    await agentBrowser(["press", "End"]);
+    await agentBrowser(["type", EDITOR, " user-typed-tail"]);
+    // inside the autosave debounce: append a line the buffer does not hold.
+    const external = `${rewritten}\nexternal-appended-line\n`;
+    await writeFile(noteFile, external, "utf-8");
 
-      const mergeDeadline = Date.now() + TURN_DEADLINE_MS;
-      for (;;) {
-        const onDisk = await readFile(path.join(app.vaultDir, notePath), "utf-8");
-        if (onDisk.includes("user-typed-tail") && onDisk.includes("external-appended-line")) {
-          break;
-        }
-        expect(Date.now() < mergeDeadline, `disk never held both sides of the merge:\n${onDisk}`);
-        await delay(250);
-      }
+    await pollUntil(
+      readDisk,
+      (onDisk) => onDisk.includes("user-typed-tail") && onDisk.includes("external-appended-line"),
+      {
+        deadlineMs: TURN_DEADLINE_MS,
+        describe: (onDisk) => `disk never held both sides of the merge:\n${onDisk}`,
+      },
+    );
 
-      ctx.log("the buffer adopts the merge, so the next save keeps the external line");
-      const adoptMergeDeadline = Date.now() + TURN_DEADLINE_MS;
-      for (;;) {
-        const buffer = await agentBrowser(["get", "text", EDITOR]);
-        if (buffer.includes("external-appended-line")) {
-          break;
-        }
-        expect(
-          Date.now() < adoptMergeDeadline,
-          `the buffer never adopted the merged bytes — got: ${buffer}`,
-        );
-        await delay(250);
-      }
-      await agentBrowser(["click", EDITOR]);
-      await agentBrowser(["press", "End"]);
-      await agentBrowser(["type", EDITOR, " second-typed-tail"]);
+    ctx.log("the buffer adopts the merge, so the next save keeps the external line");
+    await pollUntil(readBuffer, (buffer) => buffer.includes("external-appended-line"), {
+      deadlineMs: TURN_DEADLINE_MS,
+      describe: (buffer) => `the buffer never adopted the merged bytes — got: ${buffer}`,
+    });
+    await agentBrowser(["click", EDITOR]);
+    await agentBrowser(["press", "End"]);
+    await agentBrowser(["type", EDITOR, " second-typed-tail"]);
 
-      const secondSaveDeadline = Date.now() + TURN_DEADLINE_MS;
-      for (;;) {
-        const onDisk = await readFile(path.join(app.vaultDir, notePath), "utf-8");
-        if (onDisk.includes("second-typed-tail")) {
-          expect(
-            onDisk.includes("external-appended-line"),
-            `the save after the merge erased the external line:\n${onDisk}`,
-          );
-          break;
-        }
-        expect(Date.now() < secondSaveDeadline, `the second save never reached disk:\n${onDisk}`);
-        await delay(250);
-      }
-    } finally {
-      await closeQuietly(agentBrowser);
-    }
+    const secondSave = await pollUntil(readDisk, (onDisk) => onDisk.includes("second-typed-tail"), {
+      deadlineMs: TURN_DEADLINE_MS,
+      describe: (onDisk) => `the second save never reached disk:\n${onDisk}`,
+    });
+    expect(
+      secondSave.includes("external-appended-line"),
+      `the save after the merge erased the external line:\n${secondSave}`,
+    );
   },
 };

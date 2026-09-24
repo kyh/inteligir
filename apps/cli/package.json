@@ -34,6 +34,7 @@
   "exports": {
     "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
     "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
+    "./server/cloud/sync-cadence": "./src/server/cloud/sync-cadence.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
     "./server/dev-instance": "./src/server/dev-instance.ts",

@@ -1,16 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { ORPCError, safe } from "@orpc/client";
+import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const FIXTURE_CONTENT = "# Seeded fixture\n";
 const FIRST_CONTENT = "# Hello\n\nWritten by the e2e harness.\n";
 const SECOND_CONTENT = "# Hello again\n\nOverwritten by the e2e harness.\n";
-
-const refusalClass = (cause: unknown): string =>
-  cause instanceof ORPCError ? String(cause.code) : String(cause);
 
 export const vaultCrud: Scenario = {
   description: "write/read/rename/delete via the typed client + on-disk assertions",
@@ -61,16 +58,20 @@ export const vaultCrud: Scenario = {
       "old stem recorded in frontmatter aliases",
     );
     const [readOldError] = await safe(api.vault.read({ path: "notes/hello.md" }));
-    const readOldRefusal = refusalClass(readOldError);
-    expect(readOldRefusal === "NOT_FOUND", `old path read refused with ${readOldRefusal}`);
+    expect(
+      isDefinedError(readOldError) && readOldError.code === "NOT_FOUND",
+      `old path read refused with ${String(readOldError)}`,
+    );
 
     ctx.log("rename onto an existing file is refused, and refuses on disk too");
     const preCollide = await readFile(path.join(vaultDir, "notes", "renamed.md"), "utf-8");
     const [collideError] = await safe(
       api.vault.rename({ from: "notes/renamed.md", to: "fixture.md" }),
     );
-    const collideRefusal = refusalClass(collideError);
-    expect(collideRefusal === "CONFLICT", `colliding rename refused with ${collideRefusal}`);
+    expect(
+      isDefinedError(collideError) && collideError.code === "CONFLICT",
+      `colliding rename refused with ${String(collideError)}`,
+    );
     expectEq(
       await readFile(path.join(vaultDir, "notes", "renamed.md"), "utf-8"),
       preCollide,
@@ -86,23 +87,25 @@ export const vaultCrud: Scenario = {
     await api.vault.remove({ path: "notes/renamed.md" });
     expect(!existsSync(path.join(vaultDir, "notes", "renamed.md")), "deleted on disk");
     const [readGoneError] = await safe(api.vault.read({ path: "notes/renamed.md" }));
-    const readGoneRefusal = refusalClass(readGoneError);
-    expect(readGoneRefusal === "NOT_FOUND", `deleted path read refused with ${readGoneRefusal}`);
+    expect(
+      isDefinedError(readGoneError) && readGoneError.code === "NOT_FOUND",
+      `deleted path read refused with ${String(readGoneError)}`,
+    );
 
     ctx.log("path refusals, and the disk stays untouched");
     const gitHeadBefore = await readFile(path.join(vaultDir, ".git", "HEAD"), "utf-8");
-    // the path grammar rides the input schema, so the validator refuses (BAD_REQUEST), never a
-    // handler.
+    // the path grammar rides the input schema, so the validator refuses (BAD_REQUEST, which no
+    // contract row declares), never a handler.
     for (const escaping of ["../escape.md", ".git/hooks/pwn.md"]) {
       const [readError] = await safe(api.vault.read({ path: escaping }));
       expect(
-        refusalClass(readError) === "BAD_REQUEST",
-        `reading ${escaping} refused with ${refusalClass(readError)}`,
+        readError instanceof ORPCError && readError.code === "BAD_REQUEST",
+        `reading ${escaping} refused with ${String(readError)}`,
       );
       const [writeError] = await safe(api.vault.write({ content: "x", path: escaping }));
       expect(
-        refusalClass(writeError) === "BAD_REQUEST",
-        `writing ${escaping} refused with ${refusalClass(writeError)}`,
+        writeError instanceof ORPCError && writeError.code === "BAD_REQUEST",
+        `writing ${escaping} refused with ${String(writeError)}`,
       );
     }
     expect(!existsSync(path.join(vaultDir, "..", "escape.md")), "no file escaped the vault root");

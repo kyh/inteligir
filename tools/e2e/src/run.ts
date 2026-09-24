@@ -2,6 +2,8 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { createHeadlessProbe } from "./harness/agent-browser";
+import type { HeadlessProbe } from "./harness/agent-browser";
 import { describeExecError, exec, hermeticProcessEnv } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
@@ -21,6 +23,7 @@ import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
+import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { treeOpsBrowser } from "./scenarios/tree-ops-browser";
 import { vaultCrud } from "./scenarios/vault-crud";
@@ -32,6 +35,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
   vaultSync,
   hostedVaultSync,
+  threadSyncHosted,
   builtWorkerBoot,
   builtCliBoot,
   threadsScripted,
@@ -149,6 +153,7 @@ const runScenario = async (
   options: CliOptions,
   repoRoot: string,
   scratchRoot: string,
+  headlessProbe: HeadlessProbe,
 ): Promise<{ outcome: ScenarioOutcome; teardownClean: boolean }> => {
   const startedAt = Date.now();
   const scratchDir = path.join(scratchRoot, scenario.name);
@@ -158,6 +163,7 @@ const runScenario = async (
     console.log(`${timestamp()} [${scenario.name}] ${message}`);
   };
   const context = createScenarioContext({
+    headlessProbe,
     instances,
     log,
     repoRoot,
@@ -259,11 +265,18 @@ const main = async (): Promise<number> => {
   const scratchRoot = await mkdtemp(path.join(tmpdir(), "inteligir-e2e-"));
   console.log(`e2e: ${selected.length} scenario(s), scratch=${scratchRoot}`);
 
+  const headlessProbe = createHeadlessProbe();
   const outcomes = new Map<string, ScenarioOutcome>();
   let everyTeardownClean = true;
   for (const scenario of selected) {
     console.log(`\n${timestamp()} ── ${scenario.name}: ${scenario.description}`);
-    const { outcome, teardownClean } = await runScenario(scenario, options, repoRoot, scratchRoot);
+    const { outcome, teardownClean } = await runScenario(
+      scenario,
+      options,
+      repoRoot,
+      scratchRoot,
+      headlessProbe,
+    );
     everyTeardownClean &&= teardownClean;
     outcomes.set(scenario.name, outcome);
     if (outcome.kind === "pass") {

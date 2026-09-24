@@ -1,20 +1,16 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
-import {
-  DEVICE_CREDENTIAL_PREFIX,
-  deviceLoginResponseSchema,
-} from "@repo/api/cloud/device/device-schema";
+import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
 import {
   readDeviceCredential,
   writeDeviceCredential,
 } from "inteligir/server/cloud/credential-store";
-import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { E2E_INVITE_CODE } from "../harness/cloud-worker";
+import { loginDevice, OWNER, revokeDevice, signUp } from "../harness/cloud-account";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { InstanceApi } from "../harness/instance";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
 const FROM_A = "# Shared\n\nWritten on A, pushed through the hosted remote.\n";
@@ -31,66 +27,19 @@ const cloudEnv = (origin: string) => ({
   INTELIGIR_SYNC_INTERVAL_MS: "0",
 });
 
-const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
-
-// the account every device signs in as; the password is what login needs
-const OWNER = { email: "e2e-owner@inteligir.local", password: "e2e-password-1234" };
-
-const signUp = async (origin: string): Promise<{ bearer: string; userId: string }> => {
-  const response = await fetch(`${origin}/v1/auth/sign-up`, {
-    body: JSON.stringify({ name: "E2E Owner", ...OWNER, inviteCode: E2E_INVITE_CODE }),
-    headers: { "content-type": "application/json", origin },
-    method: "POST",
-  });
-  expect(response.ok, `sign-up answered ${response.status}`);
-  const bearer = response.headers.get("set-auth-token");
-  expect(bearer !== null, "sign-up returned a session bearer");
-
-  const session = await fetch(`${origin}/api/auth/get-session`, {
-    headers: { authorization: `Bearer ${bearer}`, origin },
-  });
-  const parsed = sessionUserSchema.safeParse(await session.json());
-  expect(parsed.success, "get-session names the signed-up user");
-  return { bearer, userId: parsed.data.user.id };
-};
-
-const loginDevice = async (
-  origin: string,
-  deviceName: string,
-): Promise<{ deviceId: string; credential: string }> => {
-  const response = await fetch(`${origin}/v1/device/login`, {
-    body: JSON.stringify({ ...OWNER, deviceName }),
-    headers: { "content-type": "application/json", origin },
-    method: "POST",
-  });
-  expect(response.ok, `login answered ${response.status}`);
-  return deviceLoginResponseSchema.parse(await response.json());
-};
-
-const revokeDevice = async (origin: string, bearer: string, deviceId: string): Promise<void> => {
-  const response = await fetch(`${origin}/v1/device/revoke`, {
-    body: JSON.stringify({ deviceId }),
-    headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json", origin },
-    method: "POST",
-  });
-  expect(response.ok, `revoke answered ${response.status}`);
-};
-
 // the account identity lands asynchronously after the login, and the cross-account fence fails closed
 // until it does.
 const untilIdentityKnown = async (api: InstanceApi, label: string): Promise<void> => {
-  const deadline = Date.now() + IDENTITY_DEADLINE_MS;
-  for (;;) {
-    const status = await api.cloud.status();
-    if (status.state === "signed-in" && status.accountEmail !== null) {
-      return;
-    }
-    expect(
-      Date.now() < deadline,
-      `${label}: account identity did not land within ${IDENTITY_DEADLINE_MS}ms (state: ${status.state})`,
-    );
-    await delay(POLL_INTERVAL_MS);
-  }
+  await pollUntil(
+    async () => await api.cloud.status(),
+    (status) => status.state === "signed-in" && status.accountEmail !== null,
+    {
+      deadlineMs: IDENTITY_DEADLINE_MS,
+      describe: (status) =>
+        `${label}: account identity did not land within ${IDENTITY_DEADLINE_MS}ms (state: ${status.state})`,
+      intervalMs: POLL_INTERVAL_MS,
+    },
+  );
 };
 
 // syncNow is single-flight: a call landing during a background pass joins it and reports the state
@@ -106,22 +55,22 @@ const syncUntil = async (
     "dirty",
     ...(wanted === "unauthorized" ? ["clean"] : []),
   ]);
-  const deadline = Date.now() + SYNC_DEADLINE_MS;
-  for (;;) {
-    const status = await api.vault.syncNow();
-    if (status.state === wanted) {
-      return;
-    }
-    expect(
-      transitional.has(status.state),
-      `${label}: expected "${wanted}", got "${status.state}" (lastError: ${status.lastError ?? "none"})`,
-    );
-    expect(
-      Date.now() < deadline,
-      `${label}: still "${status.state}" after ${SYNC_DEADLINE_MS}ms waiting for "${wanted}"`,
-    );
-    await delay(POLL_INTERVAL_MS);
-  }
+  await pollUntil(
+    async () => await api.vault.syncNow(),
+    (status) => {
+      expect(
+        status.state === wanted || transitional.has(status.state),
+        `${label}: expected "${wanted}", got "${status.state}" (lastError: ${status.lastError ?? "none"})`,
+      );
+      return status.state === wanted;
+    },
+    {
+      deadlineMs: SYNC_DEADLINE_MS,
+      describe: (status) =>
+        `${label}: still "${status.state}" after ${SYNC_DEADLINE_MS}ms waiting for "${wanted}"`,
+      intervalMs: POLL_INTERVAL_MS,
+    },
+  );
 };
 
 // compares the live credential read back from the data dir and the contract's prefix constant: a

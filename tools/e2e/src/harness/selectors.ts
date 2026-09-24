@@ -1,0 +1,6 @@
+// the workspace landmarks more than one scenario waits on or drives.
+export const SIDEBAR = '[data-slot="sidebar-wrapper"]';
+export const EDITOR = '[data-slate-editor="true"]';
+export const COMPOSER = 'textarea[aria-label="Ask the agent"]';
+// prefix-matched: the placeholder ends in an ellipsis that is awkward to quote through a shell.
+export const PALETTE_INPUT = 'input[placeholder^="Search notes"]';

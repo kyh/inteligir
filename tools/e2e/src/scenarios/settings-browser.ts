@@ -1,16 +1,11 @@
-import { setTimeout as delay } from "node:timers/promises";
+import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
-import {
-  agentBrowserSession,
-  closeQuietly,
-  parseEval,
-  probeHeadlessOrSkip,
-} from "../harness/agent-browser";
+import { parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
-const agentBrowser = agentBrowserSession("settings");
 // nothing listens on port 1, so every cloud request is refused at once; the credential file alone
 // puts Sign out on screen.
 const DEAD_CLOUD_URL = "http://127.0.0.1:1";
@@ -41,7 +36,7 @@ export const settingsBrowser: Scenario = {
       name: "solo",
       seedData: (dataDir) => {
         writeDeviceCredential(dataDir, {
-          credential: `igd_${"0".repeat(64)}`,
+          credential: `${DEVICE_CREDENTIAL_PREFIX}${"0".repeat(64)}`,
           deviceId: "dev_settings_e2e",
         });
       },
@@ -52,56 +47,52 @@ export const settingsBrowser: Scenario = {
       transport: { kind: "http", url: CONNECTOR_URL },
     });
 
-    try {
-      await probeHeadlessOrSkip(agentBrowser, ctx.log);
+    const agentBrowser = await ctx.browser("settings");
 
-      ctx.log(`opening ${app.baseUrl}/settings`);
-      await agentBrowser(["open", await app.browserUrl("/settings")], 60_000);
-      await agentBrowser(["wait", NAME_INPUT], 90_000);
+    ctx.log(`opening ${app.baseUrl}/settings`);
+    await agentBrowser(["open", await app.browserUrl("/settings")], 60_000);
+    await agentBrowser(["wait", NAME_INPUT], 90_000);
 
-      ctx.log("waiting for the signed-in status to reach the page");
-      const statusDeadline = Date.now() + STATUS_DEADLINE_MS;
-      for (;;) {
-        const body = await agentBrowser(["get", "text", "body"]);
-        if (body.includes("Sign out")) {
-          break;
-        }
-        expect(Date.now() < statusDeadline, `the Devices section never showed Sign out:\n${body}`);
-        await delay(500);
-      }
+    ctx.log("waiting for the signed-in status to reach the page");
+    await pollUntil(
+      async () => await agentBrowser(["get", "text", "body"]),
+      (body) => body.includes("Sign out"),
+      {
+        deadlineMs: STATUS_DEADLINE_MS,
+        describe: (body) => `the Devices section never showed Sign out:\n${body}`,
+        intervalMs: 500,
+      },
+    );
 
-      ctx.log("Sign out awaits a confirm: the dialog opens on this route");
-      // by role, since the unauthorized state's prose carries the words too; retried, because a
-      // click that lands before React attaches the handler is lost on a slow runner.
-      let opened = false;
-      for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
-        await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
-        opened = await agentBrowser(["wait", ALERT_DIALOG], 10_000).then(
-          () => true,
-          () => false,
-        );
-      }
-      expect(opened, "the Sign out confirm dialog never opened");
-      const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
-      expect(
-        dialog.includes("Stop syncing this device?"),
-        `the confirm dialog did not carry the Sign out prompt:\n${dialog}`,
+    ctx.log("Sign out awaits a confirm: the dialog opens on this route");
+    // by role, since the unauthorized state's prose carries the words too; retried, because a
+    // click that lands before React attaches the handler is lost on a slow runner.
+    let opened = false;
+    for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
+      await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
+      opened = await agentBrowser(["wait", ALERT_DIALOG], 10_000).then(
+        () => true,
+        () => false,
       );
-      await agentBrowser(["press", "Escape"]);
-
-      ctx.log("a refused add toasts on this route");
-      await agentBrowser(["fill", NAME_INPUT, CONNECTOR_NAME]);
-      await agentBrowser(["fill", URL_INPUT, CONNECTOR_URL]);
-      const clicked = parseEval(await agentBrowser(["eval", CLICK_ADD]), z.string());
-      expect(clicked === "clicked", `the Add button was ${clicked}`);
-      await agentBrowser(["wait", TOAST], 30_000);
-      const toastText = await agentBrowser(["get", "text", TOAST]);
-      expect(
-        toastText.includes("already exists"),
-        `the toast did not carry the refusal:\n${toastText}`,
-      );
-    } finally {
-      await closeQuietly(agentBrowser);
     }
+    expect(opened, "the Sign out confirm dialog never opened");
+    const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
+    expect(
+      dialog.includes("Stop syncing this device?"),
+      `the confirm dialog did not carry the Sign out prompt:\n${dialog}`,
+    );
+    await agentBrowser(["press", "Escape"]);
+
+    ctx.log("a refused add toasts on this route");
+    await agentBrowser(["fill", NAME_INPUT, CONNECTOR_NAME]);
+    await agentBrowser(["fill", URL_INPUT, CONNECTOR_URL]);
+    const clicked = parseEval(await agentBrowser(["eval", CLICK_ADD]), z.string());
+    expect(clicked === "clicked", `the Add button was ${clicked}`);
+    await agentBrowser(["wait", TOAST], 30_000);
+    const toastText = await agentBrowser(["get", "text", TOAST]);
+    expect(
+      toastText.includes("already exists"),
+      `the toast did not carry the refusal:\n${toastText}`,
+    );
   },
 };

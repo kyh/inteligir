@@ -1,7 +1,7 @@
 import { createCoalescingTimer } from "../coalescing-timer";
 
 // the socket makes sync immediate; this makes it correct when the socket is down.
-const POLL_INTERVAL_MS = 60_000;
+export const POLL_INTERVAL_MS = 60_000;
 
 // scheduled from inside the append's transaction, which is safe because a
 // setTimeout callback cannot run until better-sqlite3's synchronous transaction returns.

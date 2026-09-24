@@ -1,16 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
-import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
+import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
-const agentBrowser = agentBrowserSession("note-create");
 const NOTE_NAME = "Session note";
 const NOTE_PATH = `${NOTE_NAME}.md`;
 const CREATE_DEADLINE_MS = 30_000;
-const SIDEBAR = '[data-slot="sidebar-wrapper"]';
-const EDITOR = '[data-slate-editor="true"]';
 const NAME_INPUT = '[role="tree"] input[aria-label="Name"]';
 
 export const noteCreateBrowser: Scenario = {
@@ -18,33 +14,23 @@ export const noteCreateBrowser: Scenario = {
   name: "note-create-browser",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
-    try {
-      await probeHeadlessOrSkip(agentBrowser, ctx.log);
+    const agentBrowser = await ctx.browser("note-create");
 
-      ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", await app.browserUrl("/")], 60_000);
-      await agentBrowser(["wait", SIDEBAR], 90_000);
-      await agentBrowser(["wait", EDITOR], 90_000);
+    ctx.log(`opening ${app.baseUrl}/`);
+    await agentBrowser.openWorkspace(app);
 
-      ctx.log("New note from the sidebar, named inline");
-      await agentBrowser(["find", "role", "button", "click", "--name", "New note", "--exact"]);
-      await agentBrowser(["wait", NAME_INPUT], 30_000);
-      await agentBrowser(["fill", NAME_INPUT, NOTE_NAME]);
-      await agentBrowser(["press", "Enter"]);
+    ctx.log("New note from the sidebar, named inline");
+    await agentBrowser(["find", "role", "button", "click", "--name", "New note", "--exact"]);
+    await agentBrowser(["wait", NAME_INPUT], 30_000);
+    await agentBrowser(["fill", NAME_INPUT, NOTE_NAME]);
+    await agentBrowser(["press", "Enter"]);
 
-      ctx.log(`waiting for ${NOTE_PATH} to land on disk`);
-      const deadline = Date.now() + CREATE_DEADLINE_MS;
-      for (;;) {
-        const bytes = await readFile(path.join(app.vaultDir, NOTE_PATH), "utf-8").catch(() => null);
-        if (bytes !== null) {
-          expect(bytes === "", `a new note is created empty, but ${NOTE_PATH} holds:\n${bytes}`);
-          break;
-        }
-        expect(Date.now() < deadline, `${NOTE_PATH} never reached disk`);
-        await delay(250);
-      }
-    } finally {
-      await closeQuietly(agentBrowser);
-    }
+    ctx.log(`waiting for ${NOTE_PATH} to land on disk`);
+    const bytes = await pollUntil(
+      async () => await readFile(path.join(app.vaultDir, NOTE_PATH), "utf-8").catch(() => null),
+      (read) => read !== null,
+      { deadlineMs: CREATE_DEADLINE_MS, describe: () => `${NOTE_PATH} never reached disk` },
+    );
+    expect(bytes === "", `a new note is created empty, but ${NOTE_PATH} holds:\n${bytes}`);
   },
 };

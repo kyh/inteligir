@@ -1,15 +1,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { isDefinedError, safe } from "@orpc/client";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
+import { untilThreadIdle } from "../harness/threads";
 
 const BASE = "# Plans\n\nfirst draft\n";
 const EDITED = "# Plans\n\nsecond draft\n";
 const INTRUDER = "# Plans\n\nsomeone else's save\n";
-const TURN_DEADLINE_MS = 30_000;
 
 export const actionScripted: Scenario = {
   description: "an action attaches to its note; a scripted turn writes the vault; CAS + rename",
@@ -35,16 +34,7 @@ export const actionScripted: Scenario = {
       threadId: thread.id,
     });
     expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
-    const deadline = Date.now() + TURN_DEADLINE_MS;
-    for (;;) {
-      const { thread: current } = await api.threads.get({ threadId: thread.id });
-      if (current.status === "idle") {
-        break;
-      }
-      expect(current.status !== "error", "the turn settled in error");
-      expect(Date.now() < deadline, `turn still "${current.status}" after ${TURN_DEADLINE_MS}ms`);
-      await delay(250);
-    }
+    await untilThreadIdle(api, thread.id);
     const agentNote = await readFile(path.join(vaultDir, "Agent", `${thread.id}.md`), "utf-8");
     expect(agentNote.length > 0, "the scripted turn's note is on disk");
 

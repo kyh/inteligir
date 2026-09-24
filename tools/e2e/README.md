@@ -59,6 +59,18 @@ scratch dir and tears everything down afterwards:
 - `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
+- `browser(label)` — an agent-browser session registered for teardown like an
+  instance, so a failed or abandoned scenario still closes it. It is callable
+  with any agent-browser command, and `openWorkspace(app, { path?, launchArgs? })`
+  signs it in through a fresh handoff and returns once the rail and the editor
+  mounted. It skips the scenario when no headless browser can launch (see CI).
+
+Beside the context, `src/harness/` carries what the scenarios would otherwise
+each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
+and fails with what the last read held; `untilThreadIdle` (`threads.ts`);
+`modChord` for the platform's modifier key (`agent-browser.ts`); the workspace
+selectors (`selectors.ts`); and the account's sign-up and device routes against
+a dev Worker (`cloud-account.ts`).
 
 ## The scenarios
 
@@ -73,6 +85,9 @@ what each one is FOR.
 |                           | propagation, then a typed conflict + git-verified repo integrity          |
 | hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
 |                           | convergence through the derived remote, boot clone, revoke → unauthorized |
+| thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
+|                           | socket opens, and B holds A's timeline before its poll timer could run,   |
+|                           | so the Durable Object's ping is what delivered it                         |
 | built-worker-boot         | the vite-built bundle — what `wrangler deploy` ships — boots under        |
 |                           | wrangler dev and answers; built through turbo on every run, so it is the  |
 |                           | current source, and the one place a module-scope crash of the emitted     |
@@ -152,9 +167,11 @@ mode, state under the scenario's scratch dir; secrets ride `--var`, so no
 browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
-Every browser scenario probes the environment with `about:blank` first — only
-a failure THERE (the browser cannot launch at all) reports SKIP, with the exact
-launcher error; opening the app and everything after is a real assertion.
+The first browser a run asks for probes the environment with `about:blank`, once
+per run and in a session of its own, so every scenario's session still launches
+with its own flags. Only a failure THERE (the browser cannot launch at all)
+reports SKIP, for that scenario and every browser scenario after it, with the
+exact launcher error; opening the app and everything after is a real assertion.
 A SKIP still exits 0, which is right on a machine with no browser and wrong on
 one that just installed it: there a failed install passes as every browser
 scenario skipped behind a green step. So a run that installed the browser
