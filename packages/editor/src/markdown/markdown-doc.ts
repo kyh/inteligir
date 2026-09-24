@@ -4,7 +4,7 @@
 // parse errors into degraded models.
 
 import { ElementApi, createSlateEditor } from "platejs";
-import type { Descendant, SlateEditor, Value } from "platejs";
+import type { SlateEditor, Value } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
@@ -105,11 +105,6 @@ const keepsText = (source: string, saved: string): boolean => {
   return lineEndOffsets(sourceLines).every((end) => savedEnds.has(end));
 };
 
-// an mdast root's children are flow nodes, so a root holding a bare text node is the converter's
-// failure, and the editor has nowhere to put it
-const isValue = (nodes: Descendant[]): nodes is Value =>
-  nodes.every((node) => ElementApi.isElement(node));
-
 type Converted =
   | { ok: true; value: Value; editor: SlateEditor }
   | { ok: false; reason: GateReason };
@@ -120,7 +115,9 @@ const convert = (md: string): Converted => {
   if (!converted.ok) {
     return converted;
   }
-  if (!isValue(converted.nodes)) {
+  // mdast root children are flow content, so every rule yields a block; a text at the root would be
+  // a rule bug that Slate's normalizer drops, so the note opens raw rather than losing it
+  if (!ElementApi.isElementList(converted.nodes)) {
     return { ok: false, reason: { kind: "pipeline-error" } };
   }
   return { editor, ok: true, value: converted.nodes };

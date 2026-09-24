@@ -102,9 +102,10 @@ src/
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte. Only a real parse failure (a mismatched tag, an
   unbalanced brace), or one of the editor's own limits — nesting deeper than
-  the conversion holds, a round trip that never settles, or one that would
-  lose a letter or join two lines (a serializer bug) — opens Raw, byte-exact,
-  and the gate's reason says which (`GateReason` in `markdown/markdown-doc.ts`).
+  the conversion holds, a conversion that leaves text outside any block, a
+  round trip that never settles, or one that would lose a letter or join two
+  lines (a rule or serializer bug) — opens Raw, byte-exact, and the gate's
+  reason says which (`GateReason` in `markdown/markdown-doc.ts`).
 - **View state keys by note path.** The workspace holds ONE open-note store
   (an instance, `note/open-note-context.tsx`), and every module holding view
   state — heading folds included — keys by the note's own path: a module

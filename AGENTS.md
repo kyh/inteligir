@@ -129,8 +129,10 @@ rather than moving the app somewhere the docs don't name.
 ## Rules that matter
 
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
-- **No `any`, no non-null `!`, no `as` casts** (lint-enforced). Kebab-case
-  filenames. Make illegal states unrepresentable.
+- **No `any`, no non-null `!`, no type assertions** (lint-enforced, with no
+  escape comment; `as const` and `satisfies` are fine): parse at the boundary
+  or narrow with a type guard. Kebab-case filenames. Make illegal states
+  unrepresentable.
 - **`@repo/notes` is pure and platform-neutral** — no node/react/ui imports
   (lint-enforced); callers inject platform capabilities (the SQL driver, the
   clock).
