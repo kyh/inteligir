@@ -130,7 +130,7 @@ const isAuthRefusal = (cause: unknown): boolean => {
   );
 };
 
-export type NetworkFailure = "offline" | "unauthorized" | "rejected";
+export type NetworkFailure = "offline" | "unauthorized" | "rejected" | "too-large";
 
 // curl's own failures, and an ssh or local transport that never reached a git on the far end.
 const TRANSPORT_FAILURE =
@@ -140,18 +140,26 @@ const TRANSPORT_FAILURE =
 // answering; only a 408 or a 429 is worth waiting out.
 const HTTP_REFUSAL = /returned error: (?!408|429)4\d\d/u;
 
+// the hosted vault's push cap, or a proxy's body limit in front of a remote of the user's own.
+// git drops the body of a failed request, so the status is all a client learns.
+const BODY_TOO_LARGE = /returned error: 413/u;
+
 // the client's refusal, not the remote's: another device pushed after this pass fetched.
 const LOST_PUSH_RACE = /\[rejected\][^\n]*\((?:fetch first|non-fast-forward)\)/u;
 
 // offline heals on its own, unauthorized waits on a sign-in, and rejected is a remote that
-// answered and refused (a hook, a protected branch), which no retry changes. a lost race is no
-// failure of the remote at all: the next pass rebases onto the tip that won.
+// answered and refused (a hook, a protected branch), which no retry changes; too-large is a
+// refusal of the history itself, which no retry changes until that history does. a lost race is
+// no failure of the remote at all: the next pass rebases onto the tip that won.
 export const classifyNetworkFailure = (cause: unknown): NetworkFailure | "lost-race" => {
   if (isAuthRefusal(cause)) {
     return "unauthorized";
   }
   if (!(cause instanceof GitError) || cause.signal !== null) {
     return "offline";
+  }
+  if (BODY_TOO_LARGE.test(cause.stderr)) {
+    return "too-large";
   }
   if (TRANSPORT_FAILURE.test(cause.stderr) && !HTTP_REFUSAL.test(cause.stderr)) {
     return "offline";

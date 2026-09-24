@@ -210,6 +210,44 @@ export const pushVaultFiles = async (
   return { commit: commit.oid, response };
 };
 
+const OVERSIZED_CHUNK_BYTES = 1024 * 1024;
+
+// what a stock git client streams for a vault over the push cap: a command, then `packBytes` of
+// pack with no declared length. zeros past the header, since the cap has to refuse before a parse
+export const pushOversizedPack = async (
+  credential: string,
+  packBytes: number,
+): Promise<Response> => {
+  const header = new Uint8Array(12);
+  header.set(encoder.encode("PACK"));
+  new DataView(header.buffer).setUint32(4, 2);
+  new DataView(header.buffer).setUint32(8, 1);
+  const command = pktLine(`${ZERO_OID} ${"1".repeat(40)} refs/heads/main\0report-status`);
+  let sent = header.length;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent >= packBytes) {
+        controller.close();
+        return;
+      }
+      const chunk = new Uint8Array(Math.min(OVERSIZED_CHUNK_BYTES, packBytes - sent));
+      sent += chunk.length;
+      controller.enqueue(chunk);
+    },
+    start(controller) {
+      controller.enqueue(concat([command, encoder.encode("0000"), header]));
+    },
+  });
+  return await SELF.fetch(`${REMOTE}/git-receive-pack`, {
+    body,
+    headers: {
+      ...deviceHeaders(credential),
+      "content-type": "application/x-git-receive-pack-request",
+    },
+    method: "POST",
+  });
+};
+
 // a v0 full clone over side-band-64k: the one fetch durable-git keeps a pack cache for
 export const cloneVault = async (credential: string, head: string): Promise<Response> =>
   await SELF.fetch(`${REMOTE}/git-upload-pack`, {

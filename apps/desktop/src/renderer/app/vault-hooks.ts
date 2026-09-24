@@ -79,6 +79,11 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     case "rejected": {
       return "The remote refused the push";
     }
+    case "too-large": {
+      return status.remoteSource === "account"
+        ? "Too large for the hosted vault"
+        : "Too large for the remote";
+    }
     case "account-mismatch": {
       return "This vault belongs to a different account";
     }
@@ -120,6 +125,7 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
     }
     case "unauthorized":
     case "rejected":
+    case "too-large":
     case "account-mismatch":
     case "detached":
     case "conflict":
@@ -152,6 +158,7 @@ export const syncBlockedReason = (status: VaultStatusResponse): string | null =>
     case "offline":
     case "unauthorized":
     case "rejected":
+    case "too-large":
     case "detached":
     case "conflict":
     case "broken": {
@@ -212,6 +219,12 @@ const syncNowNotice = (status: VaultStatusResponse): SyncNowNotice | null => {
           status.lastError === null
             ? "The git remote refused the push."
             : `The git remote refused the push: ${status.lastError}`,
+        tone: "error",
+      };
+    }
+    case "too-large": {
+      return {
+        message: status.lastError ?? "The git remote refused the push as too large.",
         tone: "error",
       };
     }

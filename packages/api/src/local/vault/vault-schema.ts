@@ -334,6 +334,16 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncStatusFields,
     })
     .strict(),
+  // the remote answered that the push is larger than it takes (a 413): the hosted vault's cap, or
+  // a proxy in front of the user's own remote. not `rejected`: what is refused is the history, so
+  // the engine stops resending it until the history or the remote moves.
+  z
+    .object({
+      state: z.literal("too-large"),
+      ...remoteFields,
+      ...syncStatusFields,
+    })
+    .strict(),
   // the signed-in account is not the one this vault last synced with; no pass runs, since a push
   // would upload these notes into an account that never held them.
   z
