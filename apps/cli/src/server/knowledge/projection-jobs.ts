@@ -2,7 +2,7 @@
 // this to its port, and a suite can run it inline.
 
 import { projectDoc } from "@repo/notes/knowledge/projection";
-import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
+import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { computeTagRenameEdits } from "@repo/notes/knowledge/rename-tags";
 import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
 import { messageOf } from "../error-message";
@@ -28,7 +28,7 @@ const runJob = (job: ProjectionJob): ProjectionResult => {
       return { docs: job.docs.map(projectOne), kind: "projected" };
     }
     case "rename-edits": {
-      const edits = computeRenameEdits(job.docs, job.allFiles, job.aliasEntries, job.from, job.to);
+      const edits = computeMoveEdits(job.docs, job.allFiles, job.aliasEntries, job.moves);
       return { edits, kind: "edits" };
     }
     case "tag-rename-edits": {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildResolver } from "../knowledge/link-resolve";
+import { buildResolver, wikiNameKeys } from "../knowledge/link-resolve";
 import { basenamePath, extnamePath, normalizePath } from "../knowledge/vault-path";
 
 /* oxlint-disable no-bitwise -- mulberry32 is 32-bit integer math; the shifts and
@@ -176,6 +176,42 @@ describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
       expect(resolver.resolveWiki(target), `target: ${JSON.stringify(target)}`).toBe(
         oracleResolveWiki(paths, target),
       );
+    }
+  });
+});
+
+// a rename proves a short name unambiguous by reading the paths filed under its key, which holds
+// only while a bare name reaches exactly those
+describe("link-resolve — a bare name answers to exactly the paths filed under its key", () => {
+  it("over synthetic paths and every edge shape of a name", () => {
+    const rand = mulberry32(0xba_5e);
+    const paths = [
+      ...buildSyntheticVault(rand, 300),
+      "note",
+      "Note.MD",
+      "z/sub/note.md.md",
+      "y/sub/note.png",
+      "dotted.name.md",
+    ];
+    const names = [
+      ...paths.slice(0, 100).flatMap((path) => wikiNameKeys(path)),
+      "note",
+      "note.md",
+      "NOTE.MD",
+      "note.md.md",
+      "note.png",
+      "dotted.name",
+      "missing",
+    ].map((name) => caseMangle(rand, name));
+
+    for (const name of names) {
+      for (const path of paths) {
+        const filed = wikiNameKeys(path).some((key) => key.toLowerCase() === name.toLowerCase());
+        expect(
+          buildResolver([path]).resolveWiki(name),
+          `name ${JSON.stringify(name)}, path ${JSON.stringify(path)}`,
+        ).toBe(filed ? path : null);
+      }
     }
   });
 });
