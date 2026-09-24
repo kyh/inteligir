@@ -8,7 +8,8 @@ import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
 import { writeServerFile } from "../server-file";
 import { assertNoLiveServer, claimDataDir } from "../serve";
-import { acquireServeLock, processAlive, serveLockPath } from "../serve-lock";
+import { acquireServeLock, serveLockPath } from "../serve-lock";
+import { processAlive } from "../server-probe";
 import type { ShutdownStep } from "../shutdown";
 
 const closeWedged = async (server: Server): Promise<void> => {

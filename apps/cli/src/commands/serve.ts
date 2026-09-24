@@ -2,6 +2,7 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { readCliVersion } from "../paths";
+import { systemOpenExternalUrl } from "../server/browser-opener";
 import { parsePortValue } from "../server/config";
 import type { ServeOverrides } from "../server/serve";
 import { out, writeOut } from "../output";
@@ -72,7 +73,6 @@ export const serveCommand = () =>
         return;
       }
       // not fatal: a machine with no browser must not take the server down, and the URL is already printed.
-      const { systemOpenExternalUrl } = await import("../server/browser-opener");
       await systemOpenExternalUrl(uiUrl);
     },
   });

@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { ORPCError } from "@orpc/client";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import {
@@ -16,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route as rootRoute } from "../../routes/__root";
 import { client } from "../api";
-import { observeRpcStatus } from "../signed-out-state";
+import { observeGateRefusal } from "../signed-out-state";
 import { InertSocket } from "./inert-socket";
 import { rendererSources } from "./renderer-sources";
 
@@ -111,16 +112,31 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  observeRpcStatus(200);
+  observeGateRefusal(false);
+  // sonner replays every undismissed toast to the next Toaster that mounts, so one test's would paint in the next.
+  toast.dismiss();
 });
 
-// what the server's http gate answers a page whose credential it no longer accepts, and an ordinary answer.
-const serverAnswering = (status: 200 | 401) =>
-  vi.fn(async () =>
-    status === 401
-      ? new Response("This request carried no valid inteligir device token", { status })
-      : Response.json({ json: {}, meta: [] }, { status }),
-  );
+// what the server's http gate answers a page whose credential it no longer accepts, a procedure's
+// own UNAUTHORIZED (a mistyped cloud password), and an ordinary answer. thunks, since a body reads once.
+const ANSWERS = {
+  "gate-refused": () =>
+    new Response("This request carried no valid inteligir device token", {
+      headers: { "WWW-Authenticate": 'Bearer realm="inteligir"' },
+      status: 401,
+    }),
+  ok: () => Response.json({ json: {}, meta: [] }, { status: 200 }),
+  "procedure-refused": () =>
+    Response.json(
+      {
+        json: new ORPCError("UNAUTHORIZED", { message: "Wrong email or password." }).toJSON(),
+        meta: [],
+      },
+      { status: 401 },
+    ),
+} satisfies Record<string, () => Response>;
+
+const serverAnswering = (answer: keyof typeof ANSWERS) => vi.fn(async () => ANSWERS[answer]());
 
 // sonner paints a published toast on a later task, so an absent one is only absent after a wait.
 const TOAST_PAINT_MS = 100;
@@ -165,7 +181,7 @@ describe("the window-level hosts", () => {
   });
 
   it("show one signed-out notice in place of a toast per refused call, until the server answers", async () => {
-    vi.stubGlobal("fetch", serverAnswering(401));
+    vi.stubGlobal("fetch", serverAnswering("gate-refused"));
     // the client logs every refused call in dev
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     mountAtSettings();
@@ -181,13 +197,25 @@ describe("the window-level hosts", () => {
     await delay(TOAST_PAINT_MS);
     expect(screen.queryByText(CALL_REFUSED)).toBeNull();
 
-    vi.stubGlobal("fetch", serverAnswering(200));
+    vi.stubGlobal("fetch", serverAnswering("ok"));
     fireEvent.click(call);
     await waitFor(() => {
       expect(screen.queryByRole("alertdialog")).toBeNull();
     });
     fireEvent.click(screen.getByText("Refuse"));
     expect(await screen.findByText(REFUSAL)).toBeDefined();
+    expect(logged).toHaveBeenCalled();
+  });
+
+  it("leave the notice down and the toast host mounted when a procedure refuses 401", async () => {
+    vi.stubGlobal("fetch", serverAnswering("procedure-refused"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    mountAtSettings();
+    fireEvent.click(await screen.findByText("Call"));
+
+    expect(await screen.findByText(CALL_REFUSED)).toBeDefined();
+    expect(settledCalls).toBe(1);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(logged).toHaveBeenCalled();
   });
 

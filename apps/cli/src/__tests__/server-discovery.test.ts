@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DATA_DIR_ENV_VAR, DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
@@ -18,6 +19,9 @@ const writeServerRow = (dataDir: string, row: Partial<ServerFile>): void => {
 };
 
 const CHECKOUT = "/repo";
+
+// spawnSync reaps the child before it returns, so nothing answers to this pid.
+const exitedPid = (): number => spawnSync(process.execPath, ["-e", ""]).pid;
 
 const captureExit = (work: () => void): CliExitError => {
   try {
@@ -78,7 +82,7 @@ describe("resolveServer", () => {
     const homeDir = scratch();
     const dataDir = path.join(homeDir, "data");
     writeServerRow(dataDir, {
-      pid: 42,
+      pid: process.pid,
       port: 24_911,
       token: "abc",
       vaultDir: path.join(homeDir, "vault"),
@@ -119,7 +123,7 @@ describe("resolveServer", () => {
     const homeDir = scratch();
     const dataDir = path.join(homeDir, "data");
     writeServerRow(dataDir, {
-      pid: 42,
+      pid: process.pid,
       port: 24_911,
       token: "abc",
       vaultDir: path.join(homeDir, "vault"),
@@ -136,13 +140,33 @@ describe("resolveServer", () => {
     expect(failure.message).toContain("update the app");
   });
 
+  it("reads a row whose pid is gone as a crash's leftover, not as another release", () => {
+    const homeDir = scratch();
+    const dataDir = path.join(homeDir, "data");
+    writeServerRow(dataDir, {
+      pid: exitedPid(),
+      port: 24_911,
+      token: "abc",
+      vaultDir: path.join(homeDir, "vault"),
+      version: "0.6.1",
+    });
+    const failure = captureExit(() => {
+      resolveIn(homeDir, dataDir);
+    });
+    expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
+    expect(failure.code).toBe("SERVER_UNREACHABLE");
+    expect(failure.message).toContain("left by a crash");
+    expect(failure.message).toContain("inteligir serve");
+    expect(failure.message).not.toContain("npm i -g");
+  });
+
   // an older server's row parses without the field: reading it as "no server" would send the
   // user to start one while one is running.
   it("refuses a server that publishes no version as older than this CLI, not as no server", () => {
     const homeDir = scratch();
     const dataDir = path.join(homeDir, "data");
     writeServerRow(dataDir, {
-      pid: 42,
+      pid: process.pid,
       port: 24_911,
       token: "abc",
       vaultDir: path.join(homeDir, "vault"),

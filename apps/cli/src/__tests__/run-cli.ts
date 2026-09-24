@@ -39,7 +39,7 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
   const deps: CliDeps = {
     env: { ...args.env },
     homeDir: args.homeDir,
-    openExternalUrl: args.openExternalUrl,
+    openExternalUrl: args.openExternalUrl ?? (async () => false),
     resolveServer: () => {
       if (baseUrl === null) {
         throw new CliExitError("No inteligir server is running (fixture)", {

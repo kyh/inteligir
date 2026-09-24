@@ -3,10 +3,20 @@
 // a busy server, and the shell would spawn a child over it that the child's own guard refuses.
 
 import { z } from "zod";
+import { errnoCode } from "./errno";
 import { createLocalClient } from "./local-client";
-import { processAlive } from "./serve-lock";
 import { loopbackOrigin, readServerFile } from "./server-file";
 import type { ServerFile } from "./server-file";
+
+// EPERM is a live process this user may not signal; ESRCH is gone.
+export const processAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return errnoCode(error) === "EPERM";
+  }
+};
 
 // its own deadline, not the client's: the catch must tell "refused" from "never answered".
 const SILENT_AFTER_MS = 1500;
@@ -35,17 +45,12 @@ const askStatusOverRpc: AskServerStatus = async (row) => {
     timeoutMs: SILENT_AFTER_MS * 4,
     token: row.token,
   });
-  const deadline = new AbortController();
-  const timer = setTimeout(() => {
-    deadline.abort();
-  }, SILENT_AFTER_MS);
+  const deadline = AbortSignal.timeout(SILENT_AFTER_MS);
   try {
-    const body: unknown = await client.system.status(undefined, { signal: deadline.signal });
+    const body: unknown = await client.system.status(undefined, { signal: deadline });
     return { body, kind: "answered" };
   } catch {
-    return deadline.signal.aborted ? { kind: "silent" } : { kind: "refused" };
-  } finally {
-    clearTimeout(timer);
+    return deadline.aborted ? { kind: "silent" } : { kind: "refused" };
   }
 };
 

@@ -257,6 +257,8 @@ describe("the device token", () => {
     const response = await bareRequest(STATUS_RPC_PATH, rpcPost({}));
     expect(response.status).toBe(401);
     expect(await response.text()).toContain("device token");
+    // the renderer tells the gate's 401 from a procedure's UNAUTHORIZED by this challenge alone.
+    expect(response.headers.get("www-authenticate")).toBe('Bearer realm="inteligir"');
   });
 
   it("refuses a WRONG token, and accepts each carrier's own secret", async () => {

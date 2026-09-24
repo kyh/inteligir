@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { physicalVaultDir } from "inteligir/server/config";
 import { readServerFile } from "inteligir/server/server-file";
+import { processAlive } from "inteligir/server/server-probe";
 import { parseEval } from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
@@ -30,15 +31,6 @@ const pathActionSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(false), reason: z.string() }),
 ]);
 const vaultsStateSchema = z.looseObject({ current: z.looseObject({ path: z.string() }) });
-
-const processAlive = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 // a bridge call awaited in the page; the answer crosses back as a JSON string
 const askBridge = async <T>(

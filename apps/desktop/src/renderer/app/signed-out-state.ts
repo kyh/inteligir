@@ -5,17 +5,14 @@
 
 import { useSyncExternalStore } from "react";
 
-const UNAUTHORIZED = 401;
-
 let signedOut = false;
 const listeners = new Set<() => void>();
 
-export const observeRpcStatus = (status: number): void => {
-  const next = status === UNAUTHORIZED;
-  if (next === signedOut) {
+export const observeGateRefusal = (refused: boolean): void => {
+  if (refused === signedOut) {
     return;
   }
-  signedOut = next;
+  signedOut = refused;
   for (const listener of listeners) {
     listener();
   }

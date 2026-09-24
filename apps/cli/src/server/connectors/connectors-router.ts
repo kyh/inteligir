@@ -1,7 +1,6 @@
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { ORPCError } from "@orpc/server";
 import { base } from "../orpc";
-import { loopbackRequestOrigin } from "../loopback-origin";
 import { ConnectorConflictError } from "./connectors-service";
 
 type ConnectorConflictKind = ConnectorConflictError["kind"];
@@ -27,12 +26,6 @@ const refusing = async <T>(
   }
 };
 
-// the port comes from the request's own host header, never the configured one.
-const oauthCallbackUrlFor = (host: string | undefined): string | null => {
-  const origin = loopbackRequestOrigin(host);
-  return origin === null ? null : `${origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
-};
-
 const list = base.connectors.list.handler(({ context }) => ({
   servers: context.connectors.list(),
 }));
@@ -55,13 +48,13 @@ const toggle = base.connectors.toggle.handler(
 );
 
 const oauthBegin = base.connectors.oauthBegin.handler(async ({ context, input, errors }) => {
-  const callbackUrl = oauthCallbackUrlFor(context.requestHost);
-  if (callbackUrl === null) {
+  if (context.requestOrigin === null) {
     throw errors.BAD_REQUEST({
       message:
         "Authorization must be started from this app's own address (127.0.0.1 or localhost).",
     });
   }
+  const callbackUrl = `${context.requestOrigin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
   return await refusing("not-found", async () => {
     const begun = await context.connectorsOauth.begin(input.name, callbackUrl);
     if (!begun.ok) {

@@ -20,7 +20,8 @@ import type { AppConfig } from "../config";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
-import { authorizationHeader, LOOPBACK_HOST, loopbackOrigin } from "../server-file";
+import { LOOPBACK_HOST } from "../loopback-origin";
+import { authorizationHeader, loopbackOrigin } from "../server-file";
 import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import type { CreateTurnDriver } from "../threads/turn-driver";
@@ -163,8 +164,8 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     context: {
       ...runtime.context,
       agentThreadId: null,
-      // no request reached this client, so the procedure that needs a callback host refuses.
-      requestHost: undefined,
+      // no request reached this client, so the procedure that needs a callback origin refuses.
+      requestOrigin: null,
     },
   });
   const bareRequest = async (input: string, init?: RequestInit): Promise<Response> => {

@@ -327,6 +327,30 @@ describe("installShutdownSignals", () => {
     expect(fake.exits).toEqual([0]);
   });
 
+  it("reads a second SIGHUP as the terminal's echo, not impatience, and still flushes the vault", async () => {
+    const log: string[] = [];
+    const impatient: NodeJS.Signals[] = [];
+    const fake = fakeTarget();
+    const shutdown = createGracefulShutdown({ ...quiet, steps: [recordingStep("vault", log)] });
+    installShutdownSignals({
+      onImpatient: (signal) => {
+        impatient.push(signal);
+      },
+      onUncleanExit: () => {},
+      shutdown,
+      target: fake.target,
+    });
+
+    fake.raise("SIGHUP");
+    fake.raise("SIGHUP");
+    await shutdown.run();
+    await Promise.resolve();
+
+    expect(impatient).toEqual([]);
+    expect(log).toEqual(["vault"]);
+    expect(fake.exits).toEqual([0]);
+  });
+
   it("treats a second signal as impatience, not a second teardown", async () => {
     const log: string[] = [];
     const impatient: NodeJS.Signals[] = [];

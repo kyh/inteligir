@@ -5,6 +5,7 @@
 import { DATA_DIR_ENV_VAR, resolveAppConfig } from "./server/config";
 import type { ResolveAppConfigArgs } from "./server/config";
 import { loopbackOrigin, readServerFile } from "./server/server-file";
+import { processAlive } from "./server/server-probe";
 import { CliExitError, START_SERVER_HINT } from "./cli-error";
 
 export interface ResolvedServer {
@@ -59,6 +60,15 @@ export const resolveServer = (args: ResolveServerArgs): ResolvedServer => {
     throw new CliExitError(
       `No inteligir server is running for ${dataDir} (no readable server.json there).` +
         ` ${START_SERVER_HINT}, or name another instance with ${DATA_DIR_ENV_VAR}.`,
+      { code: "SERVER_UNREACHABLE" },
+    );
+  }
+  // ahead of the version: a crash leaves its row behind, and one naming another release would send
+  // the user to install a CLI for a server that is not there.
+  if (!processAlive(server.pid)) {
+    throw new CliExitError(
+      `server.json in ${dataDir} names pid ${String(server.pid)}, which is not running (left by a crash).` +
+        ` ${START_SERVER_HINT}.`,
       { code: "SERVER_UNREACHABLE" },
     );
   }

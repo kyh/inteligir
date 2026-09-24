@@ -6,6 +6,7 @@ import { FIXTURE_REVISION_SHA } from "./fixture-server";
 export const testProgram = (): CommandDef => {
   const deps: CliDeps = {
     env: {},
+    openExternalUrl: async () => false,
     resolveServer: () => ({
       baseUrl: "http://127.0.0.1:0",
       dataDir: "/fixture/data",

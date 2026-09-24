@@ -1,6 +1,7 @@
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
+import { systemOpenExternalUrl } from "./server/browser-opener";
 import type { OpenExternalUrl } from "./server/browser-opener";
 import { DATA_DIR_ENV_VAR, PROD_DATA_DIR_NAME, runtimeModeOf } from "./server/config";
 import { resolveCheckoutRoot } from "./server/dev-instance";
@@ -18,7 +19,7 @@ export interface CliDeps {
   // config.json never reaches the developer's own
   homeDir?: string | undefined;
   // a test hands in its own so running a leaf never opens a browser on the developer's screen
-  openExternalUrl?: OpenExternalUrl | undefined;
+  openExternalUrl: OpenExternalUrl;
   resolveServer: () => ResolvedServer;
 }
 
@@ -26,6 +27,7 @@ export const createCliDeps = (env: NodeJS.ProcessEnv = process.env): CliDeps => 
   let cached: ResolvedServer | null = null;
   return {
     env,
+    openExternalUrl: systemOpenExternalUrl,
     resolveServer() {
       cached ??= resolveServer({
         checkoutPath: resolveCheckoutRoot(),
@@ -51,7 +53,7 @@ export const contextThreadId = (env: NodeJS.ProcessEnv): string | undefined => {
 
 // from an agent's shell every call names its thread, so a vault write it makes joins that turn's
 // commit like one the agent's own tools made.
-export const apiFor = (deps: CliDeps): Api => {
+export const apiFor = (deps: Pick<CliDeps, "env" | "resolveServer">): Api => {
   const server = deps.resolveServer();
   const client: LocalClientArgs = {
     origin: server.baseUrl,
