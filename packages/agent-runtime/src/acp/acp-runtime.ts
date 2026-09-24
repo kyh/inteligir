@@ -34,6 +34,7 @@ import type {
 import type { ProviderEvent } from "../vocabulary/provider-event.js";
 import { AcpTurnMapper } from "./acp-event-mapping.js";
 import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping.js";
+import { traceFrames } from "./frame-trace.js";
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { requireHarness } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
@@ -88,6 +89,8 @@ export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
     env: Record<string, string>,
     cwd: string,
   ) => AcpSpawnedAdapter;
+  // every frame traded with an adapter, as `traceFrames` redacts it; absent, nothing is tapped.
+  debugLog?: ((line: string) => void) | undefined;
 }
 
 interface AdapterExit {
@@ -252,11 +255,14 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   };
 
   const connectClient = (
+    threadId: string,
     session: () => AcpSession | undefined,
     stdin: WritableStream<Uint8Array>,
     stdout: ReadableStream<Uint8Array>,
-  ): ClientConnection =>
-    client({ name: "inteligir" })
+  ): ClientConnection => {
+    const stream = ndJsonStream(stdin, stdout);
+    const { debugLog } = options;
+    return client({ name: "inteligir" })
       .onRequest(
         "session/request_permission",
         async ({ params }) => await requestPermission(session(), params),
@@ -264,7 +270,14 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       .onNotification("session/update", ({ params }) => {
         sessionUpdate(session(), params);
       })
-      .connect(ndJsonStream(stdin, stdout));
+      .connect(
+        debugLog === undefined
+          ? stream
+          : traceFrames(stream, (line) => {
+              debugLog(`thread ${threadId} ${line}`);
+            }),
+      );
+  };
 
   // the runtime is ending this child itself, so it stops answering to the host at once.
   const detach = (adapter: AcpAdapter): void => {
@@ -356,7 +369,12 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         // a destroyed stdout is the child's exit path, which the close below reports.
       }
     })();
-    const connection = connectClient(() => sessionOf(threadId, child), stdinWeb, identity.readable);
+    const connection = connectClient(
+      threadId,
+      () => sessionOf(threadId, child),
+      stdinWeb,
+      identity.readable,
+    );
     const stderrTail: string[] = [];
     child.stderr?.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString("utf-8").split("\n")) {

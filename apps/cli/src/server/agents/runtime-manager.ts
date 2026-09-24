@@ -30,6 +30,7 @@ import type { ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
 import { setMostRecent } from "../evict-oldest";
 import { TurnDriverUnavailableError } from "../threads/turn-driver";
@@ -103,6 +104,8 @@ export interface AcpRuntimeManagerDeps {
   // how long a cancelled turn has to end itself before its session is closed.
   stopGraceMs?: number;
   onDebug?: (message: string) => void;
+  // INTELIGIR_DEBUG's acp trace, beside onDebug's always-on log.
+  debugLog?: DebugLog | undefined;
 }
 
 export interface AcpRuntimeManager {
@@ -187,6 +190,7 @@ class AcpTurnDriver implements TurnDriver {
     }
     const createRuntime = this.deps.createRuntime ?? createAcpAgentRuntime;
     const runtimeOptions: AcpAgentRuntimeOptions = {
+      debugLog: this.deps.debugLog,
       onEvent: (event) => {
         this.onRuntimeEvent(event);
       },

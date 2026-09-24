@@ -3,6 +3,7 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import { createVaultIgnore, isGitignorePath } from "@repo/notes/knowledge/vault-ignore";
 import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
+import type { DebugLog } from "../debug-log";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import { ensureVaultRepo } from "./git-bootstrap";
 import type { EnsureVaultRepoArgs } from "./git-bootstrap";
@@ -39,6 +40,8 @@ export interface VaultRuntimeArgs {
   watcherBackend?: ParcelWatcherBackend;
   spawnWatcherChannel?: () => ChildChannel;
   stallRead?: ReadStall;
+  // the watcher's trace: its verdict per event, then what this runtime strips, holds or delivers.
+  debugLog?: DebugLog | undefined;
 }
 
 export interface VaultRuntime {
@@ -127,6 +130,11 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
         return;
       }
       heldDuringSync = null;
+      args.debugLog?.(
+        held === "unknown"
+          ? "the vault sync ended: releasing a change that names no paths"
+          : `the vault sync ended: releasing ${[...held].join(", ")}`,
+      );
       if (held === "unknown") {
         args.notifier.notifyVault(["files-changed"]);
         noteFilesChanged({ kind: "unknown" });
@@ -173,7 +181,13 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
         );
       }),
     );
-    return paths.filter((_notePath, index) => echoes[index] !== true);
+    return paths.filter((notePath, index) => {
+      const echo = echoes[index] === true;
+      if (echo) {
+        args.debugLog?.(`${notePath}: dropped, the echo of this server's own write`);
+      }
+      return !echo;
+    });
   };
 
   // once per folder: every client re-walks the vault on each files-changed.
@@ -211,9 +225,11 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       return;
     }
     if (gitIsSyncing()) {
+      args.debugLog?.(`held until the vault sync ends: ${external.join(", ")}`);
       holdDuringSync({ kind: "paths", paths: external });
       return;
     }
+    args.debugLog?.(`delivered: ${external.join(", ")}`);
     args.notifier.notifyVault(["files-changed"], external);
     noteFilesChanged({ kind: "paths", paths: external });
     git.scheduleCommit(external);
@@ -222,6 +238,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   let watcher: VaultWatcher | null = null;
   if (args.watch ?? true) {
     const watcherArgs: VaultWatcherArgs = {
+      debugLog: args.debugLog,
       ignores: (relPath) => ignore.settled().ignoresChangedPath(relPath),
       onChanged: (paths) => {
         void deliverWatched(paths);

@@ -8,6 +8,8 @@ import { z } from "zod";
 import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
 import { agentModeSchema, agentModeValues } from "@repo/api/local/system/system-schema";
 import type { AgentMode } from "@repo/api/local/system/system-schema";
+import { DEBUG_NAMESPACES, parseDebugNamespaces } from "./debug-log";
+import type { DebugNamespace } from "./debug-log";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
 import { errnoCode } from "./errno";
 import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
@@ -200,6 +202,11 @@ const ENV_VARS = {
     name: DATA_DIR_ENV_VAR,
     parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
   }),
+  debug: defineEnvVar({
+    description: `Comma-separated diagnostics written to stderr (${DEBUG_NAMESPACES.join(", ")}): the decisions each makes, by path and id, never note content or a credential. Unset means none.`,
+    name: "INTELIGIR_DEBUG",
+    parse: ({ name, value }) => parseDebugNamespaces(name, value),
+  }),
   modelDir: defineEnvVar({
     description:
       "Absolute (or ~-relative) directory the downloaded local models live in; unset means ~/.inteligir/models. Shared across checkouts on purpose — a model is a cache of the NETWORK, immutable and named by its id, so duplicating it per dev instance costs a re-download and buys nothing.",
@@ -365,6 +372,7 @@ export interface AppConfig {
   agent: AgentMode;
   agentModels: HarnessModels;
   cloudUrl: string;
+  debug: ReadonlySet<DebugNamespace>;
 }
 
 export interface ResolveAppConfigArgs {
@@ -497,11 +505,13 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModels = resolveAgentModels(args, homeDir, managed);
   const cloudUrl = resolveCloudUrl(args, homeDir, managed);
+  const debug = readEnvVar(ENV_VARS.debug, args.env, homeDir) ?? new Set();
 
   const config: AppConfig = {
     agent,
     agentModels,
     cloudUrl,
+    debug,
     dataDir,
     dataDirSource: envDataDir === undefined ? "default" : "env",
     databasePath: path.join(dataDir, SQLITE_DATABASE_FILE_NAME),

@@ -36,6 +36,7 @@ import { contentHashBytesHex } from "@repo/api/local/vault/vault-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { createCoalescingTimer } from "../coalescing-timer";
 import { mapWithConcurrency } from "../concurrency";
+import type { DebugLog } from "../debug-log";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-changes";
@@ -92,6 +93,7 @@ export interface KnowledgeRuntimeArgs {
   projector: Projector;
   // a suite shortens it rather than stalling a read for seconds
   readDeadlineMs?: number;
+  debugLog?: DebugLog | undefined;
 }
 
 export interface KnowledgeRuntime {
@@ -381,11 +383,13 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       case "bytes": {
         // decode only what moved; the common answer is unchanged.
         if (hashes.get(path) === read.hash || unprojectable.get(path) === read.hash) {
+          args.debugLog?.(`${path}: unchanged, skipped`);
           if (stats !== undefined) {
             stats.unchanged += 1;
           }
           break;
         }
+        args.debugLog?.(`${path}: changed, indexing`);
         updates.push({ content: utf8.decode(read.bytes), hash: read.hash, path });
         if (stats !== undefined) {
           stats.projected += 1;
@@ -393,14 +397,17 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         break;
       }
       case "other": {
+        args.debugLog?.(`${path}: not a searchable doc, indexed as an other`);
         indexOther(path);
         break;
       }
       case "missing": {
+        args.debugLog?.(`${path}: gone, removed`);
         removeIndexed(path);
         break;
       }
       case "unreadable": {
+        args.debugLog?.(`${path}: unreadable, keeping its last entry (${read.reason})`);
         unreadable.add(path);
         if (!wasUnreadable) {
           console.warn(`[knowledge] cannot read ${path}, keeping its last entry: ${read.reason}`);
@@ -441,6 +448,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
           continue;
         }
         if (read === null) {
+          args.debugLog?.(`${path}: no answer by the read deadline, deferred`);
           deferred += 1;
           continue;
         }
@@ -474,6 +482,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     let indexed: string[] | undefined;
     store.transaction(() => {
       for (const path of gone) {
+        args.debugLog?.(`${path}: gone, removed with anything under it`);
         unreadable.delete(path);
         docReads.forget(path);
         // an indexed file has no indexed children, so only a folder pays for the prefix scan.
@@ -534,6 +543,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         continue;
       }
       if (kind === "dir") {
+        args.debugLog?.(`${path}: a folder, indexing every file under it`);
         assertLive();
         for (const file of await args.vault.listFilesUnder(path)) {
           files.add(file);

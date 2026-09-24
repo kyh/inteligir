@@ -21,6 +21,7 @@ import {
   VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
 } from "@repo/api/local/vault/vault-schema";
+import { DEBUG_TRACES } from "../debug-log";
 import {
   DEFAULT_WAIT_POLL_INTERVAL_MS,
   DEFAULT_WAIT_TIMEOUT_SECONDS,
@@ -319,6 +320,22 @@ it would throw away.
 - \`inteligir status\` — server version, data dir, agent runtime state, and
   the current thread context.
 - \`inteligir guide\` — print this manual.
+
+## Diagnostics
+
+When an edit on disk never shows up, or a synced thread or an agent turn goes
+quiet, start the server with \`INTELIGIR_DEBUG\` naming what to trace,
+comma-separated (\`INTELIGIR_DEBUG=watcher,knowledge inteligir serve\`). Each
+decision is written to the server's stderr as a \`[debug:<name>]\` line:
+
+${Object.entries(DEBUG_TRACES)
+  .map(([name, traced]) => `- \`${name}\` — ${traced}.`)
+  .join("\n")}
+
+A line names paths and ids, never a note's content or a credential, so it can
+be pasted into a report. A name not listed here is refused at boot. The
+desktop app started from a terminal with the variable set passes it to its
+server and prints the lines in that terminal.
 
 ## Exit codes and failure output
 

@@ -24,6 +24,7 @@ import {
   unappliedCaptureIds,
   writeSyncCursor,
 } from "@repo/db/sync-outbox";
+import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "../threads/thread-event-mismatch-error";
 import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
@@ -57,6 +58,8 @@ export interface SyncPassDeps {
   build: string;
   vault: CaptureVault;
   debug: (message: string) => void;
+  /** INTELIGIR_DEBUG's sync trace: where each step of a pass stopped, and each pulled page. */
+  debugLog?: DebugLog | undefined;
   /** late-bound: the thread service is built after the runtime. */
   sink: () => SyncedEventSink | null;
   /** checked after every await, before any write. */
@@ -175,6 +178,7 @@ const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<S
         }
       },
       client: context.client,
+      debugLog: deps.debugLog,
       fenced: () => deps.fenced(context),
       onSkipped: (message) => {
         deps.debug(message);
@@ -253,6 +257,12 @@ const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<
   return captures.length < CLAIM_DEFAULT_LIMIT ? "caught-up" : "more";
 };
 
+const PASS_STEPS = [
+  ["push", drain],
+  ["pull", pullAndApply],
+  ["captures", applyCaptures],
+] as const;
+
 // a failed step does not stop the ones after it: an unreachable push says nothing about the pull.
 // only a pass whose every step reached the cloud and left nothing behind is stamped synced — a
 // quiet account included, since "checked" is the claim, or it would read as stale forever.
@@ -261,8 +271,9 @@ export const runSyncPass = async (
   context: PassContext,
 ): Promise<SyncOutcome> => {
   const outcomes: SyncOutcome[] = [];
-  for (const step of [drain, pullAndApply, applyCaptures]) {
+  for (const [name, step] of PASS_STEPS) {
     const outcome = await step(deps, context);
+    deps.debugLog?.(`session ${context.sessionId} ${name}: ${outcome}`);
     if (outcome === "fenced") {
       return outcome;
     }

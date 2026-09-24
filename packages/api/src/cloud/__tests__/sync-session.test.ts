@@ -279,6 +279,51 @@ describe("pullPages", () => {
     expect(await pass).toBe("fenced");
     expect(applied).toEqual([]);
   });
+
+  it("traces each page and a fence refusal by counts and ids, never by a row's event", async () => {
+    const lines: string[] = [];
+    const debugLog = (line: string): void => {
+      lines.push(line);
+    };
+    const session = createSyncSession<{ deviceId: string }>({
+      debugLog,
+      makeClient: () => fakeClient(async () => await unreachable()),
+    });
+    session.open({ deviceId: "dev_1" });
+    const live = session.current();
+    if (live.kind !== "live") {
+      throw new Error("expected live");
+    }
+    const spoken: SyncEventRow = {
+      ...row(2, "dev_other"),
+      event: {
+        scope: { kind: "thread" },
+        text: "the secret the user typed",
+        threadId: "thr_1",
+        type: "client/turn/requested",
+      },
+    };
+    const pages = [ok({ events: [row(1, "dev_1"), spoken], hasMore: true, lastSeq: 2 })];
+
+    const outcome = await pullPages({
+      applyPlan: () => {
+        session.open({ deviceId: "dev_2" });
+      },
+      client: { pull: async () => pages.shift() ?? (await unreachable()) },
+      debugLog,
+      fenced: () => session.fenced(live.id),
+      ownDeviceIds: new Set(["dev_1"]),
+      readCursor: () => 0,
+      recordFailure: session.recordFailure,
+    });
+
+    expect(outcome).toBe("fenced");
+    expect(lines).toEqual([
+      "pulled 2 row(s) after 0: 1 to apply across 1 thread(s), 1 skipped as this device's own or unreadable, more behind",
+      `session ${live.id} fenced out: the session is now live ${live.id + 1}`,
+    ]);
+    expect(lines.join("\n")).not.toContain("secret");
+  });
 });
 
 describe("createSingleFlight", () => {

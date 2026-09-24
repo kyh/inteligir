@@ -89,6 +89,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     dataDir,
     dataDirSource: "env",
     databasePath: path.join(dataDir, "inteligir.db"),
+    debug: new Set(),
     mode: "dev",
     // not ~/.inteligir/models: `remove` is under test and would delete a developer's downloaded model.
     modelDir: path.join(instanceDir, "models"),
