@@ -5,16 +5,9 @@ import type { client } from "../api";
 import { sendToThread } from "./send-to-thread";
 import type { ComposerSendOutcome } from "./send-to-thread";
 
-const actionTitle = (prompt: string): string => {
-  const firstLine = prompt.split("\n", 1)[0]?.trim() ?? "";
-  const title = firstLine === "" ? "Action" : firstLine;
-  return title.length > 60 ? `${title.slice(0, 59)}…` : title;
-};
-
 export interface CreateActionArgs {
   prompt: string;
-  // ride the send as a leading context line; the agent reads the files itself.
-  contextPaths?: string[];
+  contextPaths: readonly string[];
   docPath: string | null;
   viewContext: ViewContext | null;
   // a thread a refused first send already created; minting another on retry leaves an empty action behind.
@@ -26,8 +19,9 @@ export interface CreateActionResult {
   send: ComposerSendOutcome;
 }
 
+// untitled on purpose: the server names a thread from its first message, whoever sent it.
 const createActionThread = async (api: typeof client, args: CreateActionArgs): Promise<string> => {
-  const createBody: CreateThreadRequest = { title: actionTitle(args.prompt) };
+  const createBody: CreateThreadRequest = {};
   if (args.docPath !== null) {
     createBody.originDocPath = args.docPath;
   }
@@ -40,14 +34,10 @@ export const createAction = async (
   args: CreateActionArgs,
 ): Promise<CreateActionResult> => {
   const threadId = args.threadId ?? (await createActionThread(api, args));
-  const contextPaths = args.contextPaths ?? [];
-  const text =
-    contextPaths.length === 0
-      ? args.prompt
-      : `Context notes: ${contextPaths.join(", ")}\n\n${args.prompt}`;
   const sendArgs: Parameters<typeof sendToThread>[1] = {
     activeTurnId: null,
-    text,
+    contextPaths: args.contextPaths,
+    text: args.prompt,
     threadId,
   };
   if (args.viewContext !== null) {

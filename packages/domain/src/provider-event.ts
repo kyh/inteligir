@@ -181,12 +181,15 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     type: z.literal("provider/error"),
     willRetry: z.boolean().optional(),
   }),
+  // contextPaths and viewContext are local additions to bb's shape, beside `text` rather than
+  // folded into it, so `text` stays exactly what the user typed; no migration, since events.data
+  // is free-form json re-parsed through this schema.
   z.object({
+    // the notes the user attached by @-mention, held to the vault path grammar at the wire.
+    contextPaths: z.array(z.string().min(1)).optional(),
     text: z.string(),
     threadId: z.string(),
     type: z.literal("client/turn/requested"),
-    // a local addition to bb's shape, beside `text` rather than folded into it; no migration,
-    // since events.data is free-form json re-parsed through this schema.
     viewContext: viewContextSchema.optional(),
   }),
 ]);

@@ -12,6 +12,7 @@
     "./thread-status": "./src/thread-status.ts",
     "./thread-lifecycle": "./src/thread-lifecycle.ts",
     "./thread-event-scope": "./src/thread-event-scope.ts",
+    "./thread-title": "./src/thread-title.ts",
     "./provider-event": "./src/provider-event.ts",
     "./view-context": "./src/view-context.ts"
   },

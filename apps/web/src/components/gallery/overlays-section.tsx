@@ -25,13 +25,15 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogPopup,
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
+import { InputMessage } from "@repo/ui/components/input-message";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { FileTextIcon, SettingsIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Demo, GallerySection } from "./gallery-chrome";
 
@@ -45,6 +47,9 @@ const confirmedNote = (confirmed: boolean | null): string | undefined => {
 export const OverlaysSection = () => {
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
+  const [popupText, setPopupText] = useState("");
+  const regionRef = useRef<HTMLDivElement | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
@@ -97,6 +102,43 @@ export const OverlaysSection = () => {
               </Button>
             </div>
           </DialogContent>
+        </Dialog>
+      </Demo>
+
+      <Demo
+        name="DialogPopup"
+        purpose="A non-modal dialog that brings its own surface and floats inside the region it serves, as the composer floats over the note."
+      >
+        <div
+          ref={regionRef}
+          className="relative flex h-44 w-full items-start rounded-lg border border-line p-3"
+        >
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setPopupOpen(true);
+            }}
+          >
+            Ask the agent
+          </Button>
+        </div>
+        <Dialog open={popupOpen} onOpenChange={setPopupOpen} modal={false}>
+          <DialogPopup
+            container={regionRef}
+            aria-label="Ask the agent"
+            className="absolute inset-x-3 bottom-3"
+          >
+            <InputMessage
+              value={popupText}
+              onValueChange={setPopupText}
+              placeholder="Ask the agent… Escape or a click outside leaves"
+              sendLabel="Send"
+              onSend={() => {
+                setPopupText("");
+                setPopupOpen(false);
+              }}
+            />
+          </DialogPopup>
         </Dialog>
       </Demo>
 

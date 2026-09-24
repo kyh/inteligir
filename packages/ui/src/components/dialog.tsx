@@ -128,6 +128,54 @@ const DialogContent = ({
 };
 DialogContent.displayName = "DialogContent";
 
+interface DialogPopupProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
+  // the element the popup mounts in, so a dialog serving one region floats inside it
+  container?: DialogPrimitive.Portal.Props["container"];
+  initialFocus?: DialogPrimitive.Popup.Props["initialFocus"];
+  finalFocus?: DialogPrimitive.Popup.Props["finalFocus"];
+}
+
+// The popup alone, for a dialog whose content is its own surface and whose consumer places it:
+// no card, no backdrop, no close button. Pair it with a non-modal `Dialog`, which leaves the page
+// around it live.
+const DialogPopup = ({
+  className,
+  children,
+  container,
+  initialFocus,
+  finalFocus,
+  style,
+  ref,
+  ...props
+}: DialogPopupProps & RefAttributes<HTMLDivElement>) => (
+  <DialogPrimitive.Portal container={container}>
+    <DialogPrimitive.Popup
+      ref={ref}
+      initialFocus={initialFocus}
+      finalFocus={finalFocus}
+      render={(popupProps, state) => {
+        const exiting = state.transitionStatus === "ending";
+        const { style: baseStyle, ...rest } = motionProps(popupProps);
+        return (
+          <motion.div
+            {...rest}
+            {...props}
+            data-slot="dialog-popup"
+            className={cn("z-50 focus:outline-none", className)}
+            style={motionStyle(baseStyle, style)}
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: exiting ? 0 : 1, scale: exiting ? 0.97 : 1 }}
+            transition={exiting ? spring.slow.exit : spring.slow}
+          >
+            {children}
+          </motion.div>
+        );
+      }}
+    />
+  </DialogPrimitive.Portal>
+);
+DialogPopup.displayName = "DialogPopup";
+
 const DialogHeader = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
   <div className={cn("mb-4 flex flex-col gap-1.5", className)} {...props} />
 );
@@ -159,4 +207,4 @@ const DialogDescription = ({
 );
 DialogDescription.displayName = "DialogDescription";
 
-export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription };
+export { Dialog, DialogContent, DialogPopup, DialogHeader, DialogTitle, DialogDescription };

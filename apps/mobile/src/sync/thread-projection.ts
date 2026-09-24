@@ -4,6 +4,7 @@
 import type { StoredThread } from "./sync-store";
 import { settledReasoningText } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
+import { deriveThreadTitle } from "@repo/domain/thread-title";
 
 export type ThreadDisplayItem =
   | { kind: "user"; id: string; text: string }
@@ -19,11 +20,11 @@ export interface ThreadProjection {
   preview: string;
 }
 
-const TITLE_MAX = 60;
+const LINE_MAX = 60;
 
 const firstLine = (text: string): string => {
   const line = text.split("\n", 1)[0] ?? "";
-  return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1)}…` : line;
+  return line.length > LINE_MAX ? `${line.slice(0, LINE_MAX - 1)}…` : line;
 };
 
 const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): string | null => {
@@ -115,6 +116,7 @@ export const projectThread = (thread: StoredThread): ThreadProjection => {
     items,
     preview: lastText === undefined ? "" : firstLine(lastText.text),
     threadId: thread.threadId,
-    title: firstUser === undefined ? "Untitled thread" : firstLine(firstUser.text),
+    title:
+      (firstUser === undefined ? null : deriveThreadTitle(firstUser.text)) ?? "Untitled thread",
   };
 };

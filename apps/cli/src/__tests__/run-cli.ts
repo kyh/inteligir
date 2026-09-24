@@ -25,6 +25,8 @@ export interface RunArgs {
   openExternalUrl?: OpenExternalUrl;
   // "terminal" is an interactive stdin that carries nothing.
   stdin?: Uint8Array | "terminal";
+  // a booted server's own bearer, for a run against the real composition rather than the fixture.
+  token?: string;
 }
 
 const fakeStdin = (stdin: Uint8Array | "terminal"): Readable =>
@@ -47,7 +49,7 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
       return {
         baseUrl,
         dataDir: "/fixture/data",
-        token: FIXTURE_SERVER_TOKEN,
+        token: args.token ?? FIXTURE_SERVER_TOKEN,
         vaultDir: "/fixture/vault",
       };
     },

@@ -1,18 +1,10 @@
 import { useCommentSurface } from "@repo/editor/comments/comment-store";
-import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { RouterProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { bootThreadHarness } from "inteligir/server/testing";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ThreadHarness } from "inteligir/server/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { routeTree } from "../../routeTree.gen";
-import { routeRendererFetch } from "../actions/__tests__/booted-fetch";
 import { readPanelOpen } from "../prefs";
-import { InertSocket } from "./inert-socket";
-
-const chord = (key: string): KeyboardEventInit =>
-  platformShortcutModifier() === "meta" ? { key, metaKey: true } : { ctrlKey: true, key };
+import { bootWorkspace as bootWindow, chord } from "./boot-workspace";
 
 const sidebarState = (side: "left" | "right"): string | null =>
   document.querySelector<HTMLElement>(`[data-slot="sidebar"][data-side="${side}"]`)?.dataset
@@ -22,18 +14,8 @@ const selectedTab = (): string | null =>
   screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")
     ?.textContent ?? null;
 
-// the socket is inert, so whatever the server should already hold is seeded before the mount
 const bootWorkspace = async (seed?: (harness: ThreadHarness) => Promise<void>): Promise<void> => {
-  const harness = await bootThreadHarness({ mode: "manual" });
-  vi.stubGlobal("WebSocket", InertSocket);
-  routeRendererFetch(harness);
-  await seed?.(harness);
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: ["/"] }),
-    routeTree,
-  });
-  render(<RouterProvider router={router} />);
-  await screen.findByRole("tablist", { name: "Panel tabs" });
+  await bootWindow(seed === undefined ? {} : { seed });
   expect(sidebarState("right")).toBe("collapsed");
 };
 

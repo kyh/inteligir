@@ -16,6 +16,7 @@ export const THREAD_CHANGE_KINDS = [
   "queue-changed",
   "interactions-changed",
   "origin-changed",
+  "title-changed",
 ] as const;
 export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];
 

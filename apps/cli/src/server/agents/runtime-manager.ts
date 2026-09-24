@@ -310,7 +310,7 @@ class AcpTurnDriver implements TurnDriver {
       : await this.openThreadSession(runtime, args);
     this.assertDispatching(args);
     await runtime.runTurn({
-      input: turnPromptInput(args.text, args.viewContext, instructions),
+      input: turnPromptInput(args, instructions),
       threadId: args.threadId,
     });
   }

@@ -114,8 +114,22 @@ const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewCont
   return { ...value, resource: resource.data };
 });
 
+const MAX_CONTEXT_PATHS = 16;
+
+// absent, never empty, when nothing is attached: one spelling of "none".
+const contextPathsSchema = z
+  .array(vaultPathSchema)
+  .min(1)
+  .max(MAX_CONTEXT_PATHS)
+  .refine((paths) => new Set(paths).size === paths.length, {
+    message: "contextPaths names a note twice",
+  });
+
 export const sendMessageRequestSchema = z
   .object({
+    // the notes the user attached; the server names them to the agent in a block of their own,
+    // so `text` stays exactly what was typed.
+    contextPaths: contextPathsSchema.optional(),
     // the turn the client believes is running; when it no longer names the open turn the send
     // answers 409 rather than starting one.
     expectedTurnId: z.string().min(1).optional(),

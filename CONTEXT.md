@@ -93,7 +93,10 @@ has to reconcile it when the user navigates away. A **thread origin**
 (`threads.originDocPath`) is the DURABLE binding an action makes: the note it
 was composed over, surviving renames, and the thing the panel's note-first
 ordering resolves. A message can carry a view context into a thread with no
-origin — a composer send with the note chip detached has none.
+origin — a composer send with the note chip detached has none. Neither is a
+**context path**: a note the user @-mentioned, which rides the message beside
+its text (`contextPaths` on `client/turn/requested`) and, being part of what
+was asked rather than a statement about the screen, survives the queue.
 
 **lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
 thread's metadata row (`@repo/api/cloud/sync/sync-schema`). It is what makes
