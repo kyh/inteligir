@@ -9,7 +9,7 @@ import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
+import { inlineTagSpans } from "@repo/notes/knowledge/tag-grammar";
 
 afterEach(cleanup);
 const showTag = vi.fn<(tag: string) => void>();

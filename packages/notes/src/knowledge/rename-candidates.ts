@@ -1,4 +1,4 @@
-import type { LinkKind } from "./link-extract";
+import type { LinkKind } from "./link-kinds";
 import type { WikiTarget } from "./link-graph-index";
 import { buildResolver } from "./link-resolve";
 import { normalizePath } from "./vault-path";

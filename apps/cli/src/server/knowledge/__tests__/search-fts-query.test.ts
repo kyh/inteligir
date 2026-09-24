@@ -98,8 +98,9 @@ describe("FTS5 over the shared query policy", () => {
   it("keeps a tag a CONJUNCTION over the relaxed text", () => {
     const store = storeWith(VAULT);
     const sources = {
-      notesWithTag: (tag: string) => (tag === "work" ? ["burnout.md"] : []),
+      notesInTag: (tag: string) => (tag === "work" ? ["burnout.md"] : []),
       search: (query: string, limit: number) => store.search(query, limit),
+      titleOf: () => null,
     };
     expect(
       searchVaultNotes(sources, {

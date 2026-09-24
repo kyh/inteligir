@@ -113,6 +113,21 @@ describe("the knowledge runtime", () => {
     expect(await knowledge.backlinks("beta.md")).toEqual([]);
   });
 
+  it("filters search by a tag's family, as the rail lists it, titled from the index", async () => {
+    const { service, knowledge } = boot(makeDirs());
+    await service.write("top.md", "# Top Level\n\nWombat #area here.\n");
+    await service.write("deep.md", "# Deep Dive\n\nWombat #area/deep here.\n");
+    await service.write("elsewhere.md", "# Elsewhere\n\nWombat #areas here.\n");
+
+    const tagged = await knowledge.search({ limit: 10, query: "", tag: "area" });
+    expect(tagged.map((hit) => [hit.path, hit.title])).toEqual([
+      ["deep.md", "Deep Dive"],
+      ["top.md", "Top Level"],
+    ]);
+    const ranked = await knowledge.search({ limit: 10, query: "wombat", tag: "area" });
+    expect(ranked.map((hit) => hit.path).toSorted()).toEqual(["deep.md", "top.md"]);
+  });
+
   it("re-indexes a directory rename from its announced paths, reading each doc once", async () => {
     const reads: string[] = [];
     const { service, knowledge } = boot(makeDirs(), recordingReads(reads));

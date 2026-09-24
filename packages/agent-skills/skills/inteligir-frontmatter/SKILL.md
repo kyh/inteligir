@@ -27,14 +27,14 @@ status: active
 Fields that help someone find, group, or filter the note later — and that give
 an agent structured context before it reads the body.
 
-| Field         | For                                                                        |
-| ------------- | -------------------------------------------------------------------------- |
-| `id`          | The note's stable identity. App-assigned.                                  |
-| `description` | One line of what the note is                                               |
-| `tags`        | Grouping and search                                                        |
-| `status`      | A light state — `draft`, `active`, `done`, whatever the vault already uses |
-| `type`        | The kind of note — `spec`, `research`, `meeting`                           |
-| `aliases`     | Other titles wiki links may resolve through                                |
+| Field         | For                                                                          |
+| ------------- | ---------------------------------------------------------------------------- |
+| `id`          | The note's stable identity. App-assigned.                                    |
+| `description` | One line of what the note is                                                 |
+| `tags`        | Grouping and search. Each a tag name: a letter first, no spaces; `a/b` nests |
+| `status`      | A light state — `draft`, `active`, `done`, whatever the vault already uses   |
+| `type`        | The kind of note — `spec`, `research`, `meeting`                             |
+| `aliases`     | Other titles wiki links may resolve through                                  |
 
 None of these are fixed enums. Reuse the values the vault already uses instead
 of inventing a parallel vocabulary; a `status: in-progress` next to twenty

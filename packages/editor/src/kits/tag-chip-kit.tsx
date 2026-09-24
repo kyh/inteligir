@@ -5,7 +5,7 @@
 import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";
 
-import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
+import { inlineTagSpans } from "@repo/notes/knowledge/tag-grammar";
 
 import { TagChipLeaf } from "@repo/editor/nodes/tag-chip-node";
 

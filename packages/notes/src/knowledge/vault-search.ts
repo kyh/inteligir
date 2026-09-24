@@ -6,7 +6,10 @@ import type { SearchResult } from "./knowledge-index";
 
 export interface VaultSearchSources {
   search: (query: string, limit: number) => SearchResult[];
-  notesWithTag: (tag: string) => readonly string[];
+  // the tag's family, as the rail lists it and a rename moves it: `area` holds `area/deep`
+  notesInTag: (tag: string) => readonly string[];
+  // the indexed title, so a tag-only row reads as a ranked hit on the same note would
+  titleOf: (path: string) => string | null;
 }
 
 export interface VaultSearchParams {
@@ -21,13 +24,6 @@ export interface VaultSearchParams {
 const TAG_WINDOW_FACTOR = 10;
 const TAG_WINDOW_MAX = 500;
 
-const taggedRow = (path: string): SearchResult => ({
-  path,
-  score: 0,
-  snippet: "",
-  title: docStem(path),
-});
-
 // empty on both counts returns nothing: a search for nothing is not a search for everything.
 export const searchVaultNotes = (
   sources: VaultSearchSources,
@@ -39,10 +35,18 @@ export const searchVaultNotes = (
     return query === "" ? [] : sources.search(query, params.limit);
   }
 
-  const tagged = sources.notesWithTag(tag);
+  const tagged = sources.notesInTag(tag);
   // sorted here, not trusted from the source: an unranked listing cut to `limit` must be stable.
   if (query === "") {
-    return tagged.toSorted().slice(0, params.limit).map(taggedRow);
+    return tagged
+      .toSorted()
+      .slice(0, params.limit)
+      .map((path) => ({
+        path,
+        score: 0,
+        snippet: "",
+        title: sources.titleOf(path) ?? docStem(path),
+      }));
   }
 
   const inTag = new Set(tagged);
@@ -69,7 +73,8 @@ export const parseSearchQuery = (raw: string): ParsedSearchQuery => {
       continue;
     }
     if (tag === "") {
-      tag = term.slice(4);
+      // `tag:#work` is how a tag reads in prose
+      tag = term.slice(4).replace(/^#/u, "");
     }
   }
   return { query: text.join(" "), tag };

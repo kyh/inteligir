@@ -48,6 +48,23 @@ describe("scanDoc — inline tag extraction", () => {
   it("keeps unicode letter tags", () => {
     expect(tagsOf("café notes #café and #日本語\n")).toEqual(["café", "日本語"]);
   });
+
+  it("reads a callout's body as the markdown the editor renders", () => {
+    const src = [
+      "Before #outer.",
+      "",
+      "```inteligir-callout",
+      "note",
+      "Inside #inner and `#code`, [a #label](x.md).",
+      "```",
+      "",
+      "```js",
+      "#not-a-callout",
+      "```",
+      "",
+    ].join("\n");
+    expect(tagsOf(src)).toEqual(["outer", "inner"]);
+  });
 });
 
 describe("scanDoc — frontmatter tags", () => {
@@ -61,8 +78,15 @@ describe("scanDoc — frontmatter tags", () => {
     expect(tagsOf(src)).toEqual(["alpha", "beta"]);
   });
 
-  it("ignores a non-array `tags` frontmatter value", () => {
-    expect(tagsOf("---\ntags: single\n---\n\nBody #inline\n")).toEqual(["inline"]);
+  it("reads a lone string as one tag, as aliases do", () => {
+    expect(tagsOf("---\ntags: single\n---\n\nBody #inline\n")).toEqual(["single", "inline"]);
+    expect(tagsOf("---\ntags: '#hashed'\n---\n")).toEqual(["hashed"]);
+  });
+
+  it("indexes only what an inline `#` could spell", () => {
+    expect(tagsOf("---\ntags: [2026, reading list, ok]\n---\n")).toEqual(["ok"]);
+    expect(tagsOf('---\ntags: ["2026", ok]\n---\n')).toEqual(["ok"]);
+    expect(tagsOf("---\ntags: 2026\n---\n")).toEqual([]);
   });
 });
 

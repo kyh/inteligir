@@ -925,12 +925,21 @@ to the END of its group.
   decision: the rail's views are Recent, Files and Deleted.
   `knowledge.renameTag` moves a tag and everything nested under it, matched
   case-insensitively because the index is: inline spans are the scan's own,
-  verified against the raw bytes and withheld inside verbatim ranges
-  (`documentTagSpans`), frontmatter `tags` re-serialize through the properties
-  panel's CST edit, and every write is `writeIfUnchanged` from a snapshot, so
+  a callout's body included, verified against the raw bytes and withheld
+  inside verbatim ranges (`documentTagSpans`); a frontmatter `tags` entry is
+  spliced over its own yaml scalar in the style it was written in
+  (`frontmatterTags`, `yamlScalarText` in `@repo/notes/markdown/frontmatter`),
+  because re-serializing the block restyles a flow list and rewrites every
+  line of a CRLF one; and every write is `writeIfUnchanged` from a snapshot, so
   a note that changed mid-rename is reported `changed`, never overwritten. The
-  one name grammar is `isTagName` in `@repo/notes/knowledge/link-extract`,
-  shared by the chip, the scan and the contract.
+  one name grammar is `isTagName` in `@repo/notes/knowledge/tag-grammar`, a
+  module with no imports so the contract that validates against it loads no
+  markdown parser (the dep-dag suite walks the contract's notes imports for
+  one). The chip, the scan, the contract and the properties panel share it:
+  the scan indexes a frontmatter entry, a list's or a lone string, only when
+  an inline `#` could spell it (`tags: [2026, reading list, ok]` is `ok`), and
+  the panel refuses a `tags` entry outside it rather than write one the index
+  would drop.
   `@repo/notes/knowledge/rename-tags.ts`,
   `apps/cli/src/server/knowledge/rename-tag.ts`,
   `apps/desktop/src/renderer/app/sidebar/tag-scope.tsx`, and `inteligir tag
@@ -1003,7 +1012,8 @@ rename`.
   route ranks and stops at its ceiling, so a tag on more notes than that showed
   a hundred with no sign of a cut. The family is one predicate,
   `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`), which the rename's
-  candidate list runs too. The rail re-reads one growing page rather than
+  candidate list and search's `tag:` filter run too, so `tag:area` finds an
+  `#area/deep` note (and `tag:#area` reads as `tag:area`). The rail re-reads one growing page rather than
   stitching pages, because the list it draws is sorted by recency after the
   fact, and says `listed of total` while cut.
   `apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`.

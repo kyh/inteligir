@@ -3,7 +3,7 @@
 // does not. a failure here is a compile error under `tsc`, not a failed run.
 
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
-import type { LinkKind } from "@repo/notes/knowledge/link-extract";
+import type { LinkKind } from "@repo/notes/knowledge/link-kinds";
 import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";

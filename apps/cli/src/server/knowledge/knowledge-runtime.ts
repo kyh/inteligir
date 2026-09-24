@@ -662,8 +662,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       return await readThroughIndex("search", () =>
         searchVaultNotes(
           {
-            notesWithTag: (tag) => graph.notesWithTag(tag),
+            notesInTag: (tag) => notesInTagFamily(graph, tag),
             search: (query, limit) => store.search(query, limit),
+            titleOf: (path) => graph.titleOf(path),
           },
           { limit: params.limit, query: params.query, tag: params.tag },
         ),

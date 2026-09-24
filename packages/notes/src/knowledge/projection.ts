@@ -5,7 +5,7 @@ import { splitLines } from "./source-lines";
 import type { ExtractedTask } from "./task-ordinal";
 
 // bump whenever projectDoc's output shape or semantics change; a mismatch wipes and rebuilds, so there is no migration path
-export const PROJECTION_VERSION = 11;
+export const PROJECTION_VERSION = 12;
 
 const SNIPPET_MAX = 200;
 

@@ -23,6 +23,9 @@ src/
     link-extract.ts, link-resolve.ts, rename-links.ts  # scan → resolution
                        # (the `[[Title|uuid]]` id tier, then five path/alias
                        # tiers, aliases last) → byte-surgical rename
+    tag-grammar.ts, link-kinds.ts  # the tag name and the link kinds, with no
+                       # imports: the contract validates against both and must
+                       # not load the markdown parser to do it
     knowledge-store.ts, sql-knowledge-store.ts  # persistence port (types
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +

@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { LINK_KINDS } from "./link-extract";
+import { LINK_KINDS } from "./link-kinds";
 import type { StoredLink, DocProjection } from "./projection";
 
 const fail: (what: string) => never = (what) => {

@@ -1,18 +1,27 @@
 // The scan grammar (../markdown/scan-parse) is plain markdown and the editor's
-// is not, so a `targetSpan` is emitted only where the raw bytes re-derive the
-// parsed target and lie outside ../markdown/verbatim-spans; a link failing
-// either is indexed but never rewritten.
+// is not, so a `targetSpan` or a tag's span is emitted only where the raw bytes
+// re-derive what was parsed and lie outside ../markdown/verbatim-spans; a link or
+// a tag failing either is indexed but never rewritten.
 
 import type { Nodes } from "mdast";
 
 import { parseCalloutPayload } from "../markdown/callout-payload";
 import { isCalloutLang } from "../markdown/fence-langs";
-import { noteIdOfProperties, parseProperties, PINNED_KEY } from "../markdown/frontmatter";
-import type { ParsedProperties } from "../markdown/frontmatter";
+import {
+  noteIdOfProperties,
+  parseProperties,
+  PINNED_KEY,
+  TAGS_KEY,
+  yamlStringEntries,
+} from "../markdown/frontmatter";
+import type { ParsedProperties, YamlStringEntry } from "../markdown/frontmatter";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
 import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
 import type { VerbatimSpan } from "../markdown/verbatim-spans";
+import type { LinkKind } from "./link-kinds";
+import { inlineTagSpans, isTagName } from "./tag-grammar";
+import type { InlineTagSpan } from "./tag-grammar";
 import { tasksInTree } from "./task-ordinal";
 import type { ExtractedTask } from "./task-ordinal";
 
@@ -20,9 +29,6 @@ export interface Span {
   start: number;
   end: number;
 }
-
-export const LINK_KINDS = ["wiki", "md", "image"] as const;
-export type LinkKind = (typeof LINK_KINDS)[number];
 
 export interface ExtractedLink {
   kind: LinkKind;
@@ -47,10 +53,18 @@ export interface DocScan {
   noteId: string | null;
 }
 
-export interface InlineTagSpan {
-  start: number;
-  end: number;
+// an inline tag, and its span when a rename may splice it
+interface ExtractedTag {
   tag: string;
+  span?: Span;
+}
+
+// what a body holds; a callout's body is scanned as one and folded into the body around it
+interface BodyScan {
+  title: string | null;
+  headings: string[];
+  links: ExtractedLink[];
+  tags: ExtractedTag[];
 }
 
 interface NodePosition {
@@ -62,40 +76,14 @@ interface NodePosition {
 interface ScanContext {
   source: string;
   verbatim: readonly VerbatimSpan[];
-  scan: DocScan;
+  scan: BodyScan;
 }
-
-// the name is letter-first (so `#123` and hex colors miss); one source string, so the inline
-// grammar and the name a rename accepts cannot drift.
-const TAG_NAME_SOURCE = String.raw`\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*`;
-// `#` must not follow a word char, `#` or `/` (so `C#`, `##h` and url fragments miss).
-// stateful `g` flag: use matchAll.
-const INLINE_TAG_RE = new RegExp(String.raw`(?<![\p{L}\p{N}_/#])#(${TAG_NAME_SOURCE})`, "gu");
-const TAG_NAME_RE = new RegExp(`^(?:${TAG_NAME_SOURCE})$`, "u");
 
 // anything with a scheme (`https:`, `mailto:`, `C:\…` alike) or protocol-relative `//` is external
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
 
-export const isTagName = (value: string): boolean => TAG_NAME_RE.test(value);
-
-// shared with the editor's tag chip decoration; the token grammar must not drift between them
-export const inlineTagSpans = (text: string): InlineTagSpan[] => {
-  const spans: InlineTagSpan[] = [];
-  for (const match of text.matchAll(INLINE_TAG_RE)) {
-    const start = match.index;
-    const [, raw] = match;
-    if (start === undefined || raw === undefined) {
-      continue;
-    }
-    // a trailing dash reads as punctuation (`#bar-` → `bar`)
-    const tag = raw.replace(/-+$/u, "");
-    if (tag === "") {
-      continue;
-    }
-    spans.push({ end: start + 1 + tag.length, start, tag });
-  }
-  return spans;
-};
+// a label is text inside one of these, and `[label #not-a-tag](url)` holds no tag
+const LINK_LIKE = new Set<Nodes["type"]>(["image", "imageReference", "link", "linkReference"]);
 
 const position = (node: Nodes): NodePosition | null => {
   const start = node.position?.start;
@@ -106,11 +94,16 @@ const position = (node: Nodes): NodePosition | null => {
   return { line: start.line, span: { end: end.offset, start: start.offset } };
 };
 
-const walk = (node: Nodes, visitor: (node: Nodes) => void): void => {
-  visitor(node);
+const walk = (
+  node: Nodes,
+  visitor: (node: Nodes, inLink: boolean) => void,
+  inLink = false,
+): void => {
+  visitor(node, inLink);
   if ("children" in node) {
+    const childrenInLink = inLink || LINK_LIKE.has(node.type);
     for (const child of node.children) {
-      walk(child, visitor);
+      walk(child, visitor, childrenInLink);
     }
   }
 };
@@ -363,27 +356,30 @@ const mdToLink = (
   return link;
 };
 
-const parseFrontmatter = (tree: Nodes): ParsedProperties | null => {
+const frontmatterText = (tree: Nodes): string | null => {
   if (!("children" in tree)) {
     return null;
   }
   const yaml = tree.children.find((child) => child.type === "yaml");
-  if (!yaml || yaml.type !== "yaml") {
-    return null;
-  }
-  return parseProperties(yaml.value);
+  return yaml?.type === "yaml" ? yaml.value : null;
 };
 
-const frontmatterTags = (parsed: ParsedProperties | null): string[] => {
-  if (parsed === null || parsed.kind !== "valid") {
-    return [];
-  }
-  const prop = parsed.properties.find((p) => p.key === "tags" && p.type === "tags");
-  if (!prop || prop.type !== "tags") {
-    return [];
-  }
-  return prop.value.map((tag) => tag.replace(/^#/u, "").trim()).filter((tag) => tag !== "");
-};
+interface FrontmatterTag {
+  tag: string;
+  // written `#tag`, which a rename keeps
+  hashed: boolean;
+  entry: YamlStringEntry;
+}
+
+// The index reads these and a rename splices them, so the two cannot disagree. A list or one bare
+// string, as Obsidian accepts; a value outside the tag grammar (`reading list`, a quoted `2026`)
+// is no tag, since no inline `#` could address it.
+export const frontmatterTags = (yaml: string): FrontmatterTag[] =>
+  yamlStringEntries(yaml, TAGS_KEY).flatMap((entry) => {
+    const hashed = entry.value.startsWith("#");
+    const tag = (hashed ? entry.value.slice(1) : entry.value).trim();
+    return isTagName(tag) ? [{ entry, hashed, tag }] : [];
+  });
 
 // obsidian interop: a single-string scalar and the legacy `alias:` key are accepted too
 const frontmatterAliases = (parsed: ParsedProperties | null): string[] => {
@@ -436,82 +432,26 @@ const frontmatterPinned = (parsed: ParsedProperties | null): boolean => {
   return prop !== undefined && prop.type === "checkbox" && prop.value;
 };
 
-// link/image subtrees are suppressed so a `[label #not-a-tag](url)` label is not a tag
-const collectInlineTags = (node: Nodes, out: string[], suppressed: boolean): void => {
-  if (node.type === "text") {
-    if (suppressed) {
-      return;
+// a span is kept where the raw bytes spell the tag (a text node's value can differ from its
+// source through an escape) outside the verbatim ranges, on the link policy's terms
+const collectTextTags = (node: Extract<Nodes, { type: "text" }>, ctx: ScanContext): void => {
+  const offset = node.position?.start.offset;
+  for (const { end, start, tag } of inlineTagSpans(node.value)) {
+    const extracted: ExtractedTag = { tag };
+    if (offset !== undefined) {
+      const span: Span = { end: offset + end, start: offset + start };
+      if (
+        ctx.source.slice(span.start, span.end) === `#${tag}` &&
+        !insideVerbatim(ctx.verbatim, span.start, span.end)
+      ) {
+        extracted.span = span;
+      }
     }
-    for (const { tag } of inlineTagSpans(node.value)) {
-      out.push(tag);
-    }
-    return;
-  }
-  const nextSuppressed =
-    suppressed ||
-    node.type === "link" ||
-    node.type === "linkReference" ||
-    node.type === "image" ||
-    node.type === "imageReference";
-  if ("children" in node) {
-    for (const child of node.children) {
-      collectInlineTags(child, out, nextSuppressed);
-    }
+    ctx.scan.tags.push(extracted);
   }
 };
 
-const extractTags = (tree: Nodes, frontmatter: ParsedProperties | null): string[] => {
-  const tags = [...frontmatterTags(frontmatter)];
-  collectInlineTags(tree, tags, false);
-  return tags;
-};
-
-// the spans a rename may splice: the index's own walk, each span verified against the raw
-// bytes (a text node's value can differ from its source through an escape) and held outside
-// the verbatim ranges, on the link policy's terms.
-export const documentTagSpans = (source: string): InlineTagSpan[] => {
-  const tree = parseScan(source);
-  const verbatim = verbatimSpans(source);
-  const spans: InlineTagSpan[] = [];
-  const visit = (node: Nodes, suppressed: boolean): void => {
-    if (node.type === "text") {
-      if (suppressed) {
-        return;
-      }
-      const pos = position(node);
-      if (pos === null) {
-        return;
-      }
-      for (const span of inlineTagSpans(node.value)) {
-        const start = pos.span.start + span.start;
-        const end = pos.span.start + span.end;
-        if (source.slice(start, end) !== `#${span.tag}`) {
-          continue;
-        }
-        if (insideVerbatim(verbatim, start, end)) {
-          continue;
-        }
-        spans.push({ end, start, tag: span.tag });
-      }
-      return;
-    }
-    const nextSuppressed =
-      suppressed ||
-      node.type === "link" ||
-      node.type === "linkReference" ||
-      node.type === "image" ||
-      node.type === "imageReference";
-    if ("children" in node) {
-      for (const child of node.children) {
-        visit(child, nextSuppressed);
-      }
-    }
-  };
-  visit(tree, false);
-  return spans;
-};
-
-const collectHeading = (node: Extract<Nodes, { type: "heading" }>, scan: DocScan): void => {
+const collectHeading = (node: Extract<Nodes, { type: "heading" }>, scan: BodyScan): void => {
   const text = textOf(node);
   scan.headings.push(text);
   if (node.depth === 1 && scan.title === null && text !== "") {
@@ -576,8 +516,8 @@ const collectDefinition = (
   }
 };
 
-// A callout body is markdown the editor renders, so its links are indexed with
-// spans shifted into the outer source. Only a column-0 fence qualifies: an
+// A callout body is markdown the editor renders, so its links and tags are indexed
+// with spans shifted into the outer source. Only a column-0 fence qualifies: an
 // indented fence prefixes every body line, so a flat offset shift names wrong bytes.
 const calloutBodySlice = (
   source: string,
@@ -613,42 +553,37 @@ const calloutBodySlice = (
   return { body, bodyStart };
 };
 
-const pushShiftedLinks = (
-  links: readonly ExtractedLink[],
-  bodyStart: number,
-  ctx: ScanContext,
-): void => {
+// a callout's links and tags, moved to where its body sits in the outer source
+const pushShifted = (body: BodyScan, bodyStart: number, ctx: ScanContext): void => {
   const lineShift = ctx.source.slice(0, bodyStart).split("\n").length - 1;
-  for (const link of links) {
+  const shift = (span: Span): Span => ({
+    end: span.end + bodyStart,
+    start: span.start + bodyStart,
+  });
+  for (const link of body.links) {
     const shifted: ExtractedLink = { ...link, line: link.line + lineShift };
     if (link.targetSpan !== undefined) {
-      shifted.targetSpan = {
-        end: link.targetSpan.end + bodyStart,
-        start: link.targetSpan.start + bodyStart,
-      };
+      shifted.targetSpan = shift(link.targetSpan);
     }
     ctx.scan.links.push(shifted);
   }
+  for (const { span, tag } of body.tags) {
+    ctx.scan.tags.push(span === undefined ? { tag } : { span: shift(span), tag });
+  }
 };
 
-export const scanDoc = (source: string): DocScan => {
-  const tree = parseScan(source);
-  const frontmatter = parseFrontmatter(tree);
-  const verbatim = verbatimSpans(source);
-  const scan: DocScan = {
-    aliases: frontmatterAliases(frontmatter),
-    headings: [],
-    links: [],
-    noteId: noteIdOfProperties(frontmatter),
-    pinned: frontmatterPinned(frontmatter),
-    tags: extractTags(tree, frontmatter),
-    tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),
-    title: null,
-  };
-  const ctx: ScanContext = { scan, source, verbatim };
+const scanBody = (source: string, tree: Nodes): BodyScan => {
+  const scan: BodyScan = { headings: [], links: [], tags: [], title: null };
+  const ctx: ScanContext = { scan, source, verbatim: verbatimSpans(source) };
   // oxlint-disable-next-line complexity -- the count is the node-type enumeration switch-exhaustiveness-check requires, not branching: every arm delegates
-  walk(tree, (node) => {
+  walk(tree, (node, inLink) => {
     switch (node.type) {
+      case "text": {
+        if (!inLink) {
+          collectTextTags(node, ctx);
+        }
+        break;
+      }
       case "heading": {
         collectHeading(node, scan);
         break;
@@ -673,7 +608,7 @@ export const scanDoc = (source: string): DocScan => {
       case "code": {
         const slice = isCalloutLang(node.lang) ? calloutBodySlice(source, node) : null;
         if (slice) {
-          pushShiftedLinks(scanDoc(slice.body).links, slice.bodyStart, ctx);
+          pushShifted(scanBody(slice.body, parseScan(slice.body)), slice.bodyStart, ctx);
         }
         break;
       }
@@ -708,7 +643,6 @@ export const scanDoc = (source: string): DocScan => {
       case "table":
       case "tableCell":
       case "tableRow":
-      case "text":
       case "thematicBreak":
       case "yaml": {
         break;
@@ -718,3 +652,29 @@ export const scanDoc = (source: string): DocScan => {
   });
   return scan;
 };
+
+export const scanDoc = (source: string): DocScan => {
+  const tree = parseScan(source);
+  const yaml = frontmatterText(tree);
+  const frontmatter = yaml === null ? null : parseProperties(yaml);
+  const body = scanBody(source, tree);
+  return {
+    aliases: frontmatterAliases(frontmatter),
+    headings: body.headings,
+    links: body.links,
+    noteId: noteIdOfProperties(frontmatter),
+    pinned: frontmatterPinned(frontmatter),
+    tags: [
+      ...(yaml === null ? [] : frontmatterTags(yaml).map(({ tag }) => tag)),
+      ...body.tags.map(({ tag }) => tag),
+    ],
+    tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),
+    title: body.title,
+  };
+};
+
+// the spans a rename may splice: the index's own walk, callout bodies included
+export const documentTagSpans = (source: string): InlineTagSpan[] =>
+  scanBody(source, parseScan(source)).tags.flatMap(({ span, tag }) =>
+    span === undefined ? [] : [{ end: span.end, start: span.start, tag }],
+  );

@@ -4,7 +4,7 @@
 // new `note.md` can re-point another doc's dangling `[[note]]`.
 
 import { isDocPath } from "./doc-file";
-import type { LinkKind } from "./link-extract";
+import type { LinkKind } from "./link-kinds";
 import { buildResolver } from "./link-resolve";
 import type { TargetResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
