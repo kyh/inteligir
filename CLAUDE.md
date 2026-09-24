@@ -885,10 +885,17 @@ rename`.
   Lifecycle CAS predicates include the turn identity so a late completion for
   turn A cannot settle turn B (`apps/cli/src/server/threads/service.ts`).
 
-- **Agent commits stage the turn's own write set**, from the fileChange events,
-  under a counted commit hold that defers the vault debounce and blocks a sync.
+- **Agent commits stage the turn's own write set**, from the fileChange events
+  and from the vault writes the agent makes through `inteligir` itself, under a
+  counted commit hold that defers the vault debounce and blocks a sync.
   Committing the whole dirty tree attributes a concurrent turn's writes to
-  whoever settles first (`apps/cli/src/server/agents/agent-commits.ts`).
+  whoever settles first (`apps/cli/src/server/agents/agent-commits.ts`). Under
+  `INTELIGIR_THREAD_ID` the CLI names its thread on every call
+  (`apps/cli/src/server/agent-thread-header.ts`), and the write, asset, rename
+  and tag-rename handlers hand what they wrote to that thread's running turn
+  (`attributeWrites` in `apps/cli/src/server/orpc.ts`); the header is
+  attribution, not authority, and a thread with no turn running records
+  nothing.
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (what it
   retired is the register on #645; do not bring any of it back). An action is an
@@ -946,11 +953,19 @@ rename`.
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
   `<dataDir>/agent-prefs.json`, edited from Settings › Agents and `inteligir
 agents default`; unset falls back
-  to claude when it is on PATH. Not config.json, which is read once at boot and
+  to the first harness on PATH in `HARNESS_IDS` order (claude, then codex).
+  Not config.json, which is read once at boot and
   never written by the app. A thread keeps the harness it started on
   (`threads.providerId`); the choice reaches the next one. The store is
   `apps/cli/src/server/agents/agent-prefs-store.ts`; the one fallback rule is
-  `defaultHarnessId` in `agent-driver.ts`.
+  `defaultHarnessId` in `agent-driver.ts`. PATH is read per request, never
+  once at boot: a CLI installed after launch serves the next send and turns
+  `system.status`'s agent to `acp`, and with none there a send is refused
+  synchronously as `PROVIDER_UNAVAILABLE`. What the CLI and Settings call a
+  harness's readiness is one verdict, `harnessReadiness` in
+  `@repo/api/local/agents/agents-schema`. A model is per harness
+  (`INTELIGIR_CLAUDE_MODEL`, `INTELIGIR_CODEX_MODEL`, or config.json's
+  `agentModels`), because a model id is vendor-specific.
 
 - **CONNECTORS ARE AN APP-OWNED REGISTRY, injected per-session over ACP**
   (reversing the codex-owned registry, whose premise died with the ACP runtime).
@@ -1031,6 +1046,18 @@ agents default`; unset falls back
   it was and keeps it out of that one session. A callback for a row removed
   mid-flow answers the page, never a 500.
   `apps/cli/src/server/connectors/oauth-flow.ts`.
+
+- **A LOADED SESSION IS HANDED ONLY THE INSTRUCTIONS IT DOES NOT HOLD.** ACP's
+  `session/new` carries no instructions field, so they ride a turn's prompt,
+  and a `session/load` replays that prompt in the agent's own history.
+  `resumeThread` says whether the load happened (`loaded`); a fresh session
+  gets the instructions, and a loaded one gets them again only when their hash
+  differs from the last set its thread was handed (a folder connected, an
+  `AGENTS.md` edited). The hashes are in memory, recorded once the prompt is on
+  the wire and dropped when the host abandons the session, so a restart or a
+  failed dispatch re-sends once rather than trusting a history that may lack
+  them. Claude's `_meta.systemPrompt` is not used: it is one harness's channel.
+  `apps/cli/src/server/agents/runtime-manager.ts`.
 
 ### Dictation
 

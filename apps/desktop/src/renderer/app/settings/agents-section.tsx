@@ -1,53 +1,51 @@
-import type { HarnessProbe } from "@repo/api/local/agents/agents-schema";
+import { harnessReadiness } from "@repo/api/local/agents/agents-schema";
+import type { HarnessProbe, HarnessReadiness } from "@repo/api/local/agents/agents-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
 import { ChoiceRow, failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
-const credentialSentence = (probe: HarnessProbe): string => {
-  switch (probe.credentials) {
-    case "present": {
+const READINESS_LABELS = {
+  "needs-sign-in": "needs sign-in",
+  "not-installed": "not installed",
+  ready: "ready",
+  unknown: "sign-in unknown",
+} satisfies Record<HarnessReadiness, string>;
+
+const readinessSentence = (probe: HarnessProbe, readiness: HarnessReadiness): string => {
+  switch (readiness) {
+    case "not-installed": {
+      return `The ${probe.displayName} CLI was not found on PATH — install it, then sign in with: ${probe.loginCommand}`;
+    }
+    case "ready": {
       return "Signed in.";
+    }
+    case "needs-sign-in": {
+      return `Not signed in — run: ${probe.loginCommand}`;
     }
     case "unknown": {
       return "Sign-in state unknown on this platform.";
-    }
-    case "absent": {
-      return probe.cliPath === null
-        ? "Not signed in."
-        : `Not signed in — run: ${probe.loginCommand}`;
     }
     // no default
   }
 };
 
-const readinessLabel = (probe: HarnessProbe, ready: boolean): string => {
-  if (probe.cliPath === null) {
-    return "not installed";
-  }
-  return ready ? "ready" : "needs sign-in";
-};
-
 const HarnessRow = ({ probe }: { probe: HarnessProbe }) => {
-  const ready = probe.cliPath !== null && probe.credentials === "present";
+  const readiness = harnessReadiness(probe);
   return (
     <div className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0">
         <p className="text-subtitle font-medium">{probe.displayName}</p>
-        <p className="text-body text-muted-foreground">
-          {probe.cliPath === null
-            ? `The ${probe.displayName} CLI was not found on PATH — install it, then sign in with: ${probe.loginCommand}`
-            : credentialSentence(probe)}
-        </p>
+        <p className="text-body text-muted-foreground">{readinessSentence(probe, readiness)}</p>
       </div>
       <span
         className={
-          ready
+          readiness === "ready"
             ? "shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-body text-emerald-600"
             : "shrink-0 rounded-full bg-muted px-2 py-0.5 text-body text-muted-foreground"
         }
       >
-        {readinessLabel(probe, ready)}
+        {READINESS_LABELS[readiness]}
       </span>
     </div>
   );

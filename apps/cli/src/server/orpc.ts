@@ -6,6 +6,7 @@ import { localContract } from "@repo/api/local";
 import type { AgentStatus, DataDirScope } from "@repo/api/local/system/system-schema";
 import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
+import type { RecordAgentWrites } from "./agents/agent-driver";
 import type { AgentsService } from "./agents/agents-service";
 import type { BrowserSession } from "./browser-session";
 import type { CommentsService } from "./comments/comments-service";
@@ -29,10 +30,13 @@ interface SystemFacts {
   vaultDir: string;
   schemaVersion: number;
   startedAt: number;
-  agent: AgentStatus;
+  // read per request: a vendor CLI installed or removed after boot is the next answer.
+  agent: () => AgentStatus;
 }
 
 export interface AppContext {
+  // per request: the thread whose agent shell sent it (`agent-thread-header.ts`), else null.
+  agentThreadId: string | null;
   agents: AgentsService;
   browserSession: BrowserSession;
   cloud: CloudRuntime;
@@ -43,9 +47,10 @@ export interface AppContext {
   knowledge: KnowledgeRuntime;
   // injected so a suite can watch an authorization begin without opening a window.
   openExternalUrl: OpenExternalUrl;
-  // the one per-request value: a callback url must name the port the caller
-  // reached, since listen may have probed past the configured one.
+  // per request: a callback url must name the port the caller reached, since
+  // listen may have probed past the configured one.
   requestHost: string | undefined;
+  recordAgentWrites: RecordAgentWrites;
   renameNote: RenameNote;
   renameTag: RenameTag;
   system: SystemFacts;
@@ -55,9 +60,16 @@ export interface AppContext {
   voice: VoiceService;
 }
 
-export type AppServices = Omit<AppContext, "requestHost">;
+export type AppServices = Omit<AppContext, "agentThreadId" | "requestHost">;
 
 export const base = implement(localContract).$context<AppContext>();
+
+// a write an agent's shell asked for joins that turn's commit; anyone else's is the auto-commit's.
+export const attributeWrites = (context: AppContext, paths: readonly string[]): void => {
+  if (context.agentThreadId !== null) {
+    context.recordAgentWrites(context.agentThreadId, paths);
+  }
+};
 
 // an unnamed refusal is rethrown as it came — a 500, rather than a class the contract row does not declare.
 export const refusals =

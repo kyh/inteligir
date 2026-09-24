@@ -1,5 +1,5 @@
 import type { AgentsStatusResponse } from "@repo/api/local/agents/agents-schema";
-import { isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import { harnessIdSchema } from "@repo/agent-runtime/acp/harness-registry";
 
 import { defaultHarnessId } from "./agent-driver";
 import type { AgentPrefsStore } from "./agent-prefs-store";
@@ -31,10 +31,11 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
   });
   return {
     async setDefault(id) {
-      if (!isHarnessId(id)) {
+      const parsed = harnessIdSchema.safeParse(id);
+      if (!parsed.success) {
         throw new UnknownHarnessError(`no harness is called "${id}"`);
       }
-      args.store.write({ ...args.store.read(), defaultHarness: id });
+      args.store.write({ ...args.store.read(), defaultHarness: parsed.data });
       return await status();
     },
     status,

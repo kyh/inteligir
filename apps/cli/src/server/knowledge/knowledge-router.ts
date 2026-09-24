@@ -10,7 +10,7 @@ import {
   KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import type { KnowledgeRenameTagResponse } from "@repo/api/local/knowledge/knowledge-schema";
-import { base } from "../orpc";
+import { attributeWrites, base } from "../orpc";
 
 export type RenameTag = (from: string, to: string) => Promise<KnowledgeRenameTagResponse>;
 
@@ -81,9 +81,11 @@ const tags = base.knowledge.tags.handler(async ({ context }) => {
   return { tags: found.slice(0, KNOWLEDGE_TAGS_MAX), total: found.length };
 });
 
-const renameTag = base.knowledge.renameTag.handler(
-  async ({ context, input }) => await context.renameTag(input.from, input.to),
-);
+const renameTag = base.knowledge.renameTag.handler(async ({ context, input }) => {
+  const renamed = await context.renameTag(input.from, input.to);
+  attributeWrites(context, renamed.rewritten);
+  return renamed;
+});
 
 export const knowledgeRouter = {
   backlinks,

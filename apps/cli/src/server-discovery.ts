@@ -2,12 +2,10 @@
 // checkout's server and write into its vault. no "point the CLI at a URL" hatch for the same reason: the token
 // would still come from a data dir, and the two halves could disagree.
 
-import { resolveAppConfig } from "./server/config";
+import { DATA_DIR_ENV_VAR, resolveAppConfig } from "./server/config";
 import type { ResolveAppConfigArgs } from "./server/config";
 import { loopbackOrigin, readServerFile } from "./server/server-file";
 import { CliExitError, START_SERVER_HINT } from "./cli-error";
-
-export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
 
 export interface ResolvedServer {
   baseUrl: string;

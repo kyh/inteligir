@@ -3,13 +3,18 @@
 // defers auto-commit and blocks sync, so a provider that hangs rather than exiting is bounded by
 // the watchdog rather than trusted.
 
+import { createHash } from "node:crypto";
 import { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import type {
   AcpAgentRuntimeOptions,
   AcpMcpServerConfig,
 } from "@repo/agent-runtime/acp/acp-runtime";
 import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessDefinition, HarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import type {
+  HarnessDefinition,
+  HarnessId,
+  HarnessModels,
+} from "@repo/agent-runtime/acp/harness-registry";
 import { describeProviderError } from "@repo/agent-runtime/acp/provider-error";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
@@ -26,6 +31,8 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { messageOf } from "../error-message";
+import { evictOldest } from "../evict-oldest";
+import { TurnDriverUnavailableError } from "../threads/turn-driver";
 import type {
   CreateTurnDriver,
   ProviderEventSink,
@@ -44,6 +51,9 @@ import { createInteractionWaiters } from "./interaction-waiters";
 import type { InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
 
+const instructionsHash = (instructions: string): string =>
+  createHash("sha256").update(instructions).digest("hex");
+
 type FileChangeProviderItem = Extract<
   Extract<ProviderEvent, { type: "item/started" }>["item"],
   { type: "fileChange" }
@@ -60,18 +70,24 @@ const DEFAULT_TURN_IDLE_TIMEOUT_MS = 10 * 60_000;
 // re-arming a timeout per frame buys nothing over a bounded-lag check.
 const WATCHDOG_SWEEP_INTERVAL_MS = 1000;
 
+// an evicted thread re-sends its instructions once, which costs a prompt block and nothing else.
+const RESIDENT_INSTRUCTION_HASHES = 512;
+
 export interface AcpRuntimeManagerDeps {
   db: DbConnection;
   notifier: DbNotifier;
   vaultDir: string;
   git: GitEngine;
-  model: string | null;
+  models: HarnessModels;
   // a getter read at every session open, never a value: connected folders are settings-mutable,
   // and a value read once would tell every later session the set the first one saw.
   sessionFacts: () => AgentSessionFacts;
   hostEnv: NodeJS.ProcessEnv;
   // a getter: the stored default can change between two thread starts
   defaultProviderId: () => HarnessId;
+  // read per send: non-null refuses the turn with it before anything is spawned. absent, every
+  // send is attempted.
+  unavailableReason?: () => string | null;
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   createRuntime?: typeof createAcpAgentRuntime;
@@ -84,6 +100,8 @@ export interface AcpRuntimeManagerDeps {
 
 export interface AcpRuntimeManager {
   createTurnDriver: CreateTurnDriver;
+  // a write the agent made through the server lands in its turn's commit like one its tools reported.
+  recordAgentWrites: (threadId: string, paths: readonly string[]) => void;
   dispose: () => Promise<void>;
 }
 
@@ -108,6 +126,9 @@ class AcpTurnDriver implements TurnDriver {
     this.sink.ingestProviderEvents(threadId, batch);
   });
   private readonly turnsByThreadId = new Map<string, ActiveTurn>();
+  // what each thread's provider session was last handed, so a session/load that carries it in its
+  // own history is not handed it again; in memory, so a restart re-sends once.
+  private readonly instructionHashes = new Map<string, string>();
   private readonly waiters: InteractionWaiters;
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
@@ -164,9 +185,7 @@ class AcpTurnDriver implements TurnDriver {
     runtimeOptions.shellEnv = () => ({
       ...toShellEnv(this.deps.sessionFacts(), this.deps.hostEnv),
     });
-    if (this.deps.model !== null) {
-      runtimeOptions.model = this.deps.model;
-    }
+    runtimeOptions.models = this.deps.models;
     runtimeOptions.mcpServers = this.deps.mcpServers;
     if (this.deps.spawnAdapter !== undefined) {
       runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
@@ -200,6 +219,10 @@ class AcpTurnDriver implements TurnDriver {
   startTurn(args: TurnDriverStartArgs): void {
     if (this.disposed) {
       throw new Error("The agent runtime manager is disposed");
+    }
+    const unavailable = this.deps.unavailableReason?.() ?? null;
+    if (unavailable !== null) {
+      throw new TurnDriverUnavailableError(unavailable);
     }
     if (this.turnsByThreadId.has(args.threadId)) {
       throw new Error(`Thread ${args.threadId} already has a running turn`);
@@ -248,8 +271,10 @@ class AcpTurnDriver implements TurnDriver {
     }
   }
 
-  // a provider the host gave up on must not carry the settled turn into the next one.
+  // a provider the host gave up on must not carry the settled turn into the next one, nor be
+  // trusted to have kept the instructions it was handed.
   private abandonProviderSession(threadId: string): void {
+    this.instructionHashes.delete(threadId);
     const { runtime } = this;
     if (runtime === null) {
       return;
@@ -304,7 +329,7 @@ class AcpTurnDriver implements TurnDriver {
     await this.turnsByThreadId.get(args.threadId)?.writes.ready;
     this.assertDispatching(args);
     const runtime = this.ensureRuntime();
-    // acp's session/new carries no instructions field, so the first turn's prompt is the only channel.
+    // acp's session/new carries no instructions field, so a turn's prompt is the only channel.
     const instructions = runtime.hasThread(args.threadId)
       ? undefined
       : await this.openThreadSession(runtime, args);
@@ -313,6 +338,26 @@ class AcpTurnDriver implements TurnDriver {
       input: turnPromptInput(args.text, args.viewContext, instructions),
       threadId: args.threadId,
     });
+    // recorded once the prompt is on the wire: a dispatch that failed first handed the session nothing.
+    if (instructions !== undefined) {
+      this.instructionHashes.delete(args.threadId);
+      this.instructionHashes.set(args.threadId, instructionsHash(instructions));
+      evictOldest(this.instructionHashes, RESIDENT_INSTRUCTION_HASHES);
+    }
+  }
+
+  // a fresh session is handed the instructions; a loaded one already holds the last set in its
+  // history, so it is handed them again only when they changed (a connected folder, AGENTS.md).
+  private instructionsFor(threadId: string, loaded: boolean): string | undefined {
+    const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
+    if (
+      loaded &&
+      instructions !== undefined &&
+      this.instructionHashes.get(threadId) === instructionsHash(instructions)
+    ) {
+      return undefined;
+    }
+    return instructions;
   }
 
   private async openThreadSession(
@@ -320,7 +365,6 @@ class AcpTurnDriver implements TurnDriver {
     args: TurnDriverStartArgs,
   ): Promise<string | undefined> {
     const { threadId } = args;
-    const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
     const providerId = this.providerIdOf(row);
@@ -336,7 +380,7 @@ class AcpTurnDriver implements TurnDriver {
           providerThreadId: resumed.providerThreadId,
           threadId,
         });
-        return instructions;
+        return this.instructionsFor(threadId, resumed.loaded);
       } catch (error) {
         // the provider's rollout can be gone (a cleaned ~/.codex, another machine); a fresh
         // session keeps the thread usable.
@@ -352,7 +396,7 @@ class AcpTurnDriver implements TurnDriver {
       providerThreadId: started.providerThreadId,
       threadId,
     });
-    return instructions;
+    return this.instructionsFor(threadId, false);
   }
 
   private providerIdOf(row: ThreadRow | null): string {
@@ -366,6 +410,10 @@ class AcpTurnDriver implements TurnDriver {
 
   onInteractionResolved(interaction: PendingInteraction): void {
     this.waiters.resolve(interaction);
+  }
+
+  recordAgentWrites(threadId: string, paths: readonly string[]): void {
+    this.turnsByThreadId.get(threadId)?.writes.recordPaths(paths);
   }
 
   private onRuntimeEvent(event: ProviderEvent): void {
@@ -542,6 +590,9 @@ export const createAcpRuntimeManager = (deps: AcpRuntimeManagerDeps): AcpRuntime
     },
     async dispose() {
       await driver?.dispose();
+    },
+    recordAgentWrites(threadId, paths) {
+      driver?.recordAgentWrites(threadId, paths);
     },
   };
 };

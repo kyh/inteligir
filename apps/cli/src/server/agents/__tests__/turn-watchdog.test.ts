@@ -52,7 +52,7 @@ const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>):
   },
   hasThread: () => true,
   reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
-  resumeThread: async () => await Promise.resolve({ providerThreadId: "pt_1" }),
+  resumeThread: async () => await Promise.resolve({ loaded: true, providerThreadId: "pt_1" }),
   runTurn: async () => {
     await Promise.resolve();
   },
@@ -91,7 +91,7 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     git: fakeGitEngine(),
     hostEnv: {},
     mcpServers: () => [],
-    model: null,
+    models: { claude: null, codex: null },
     notifier: noopNotifier,
     reapIntervalMs: null,
     sessionFacts: () => fakeSessionFacts(),

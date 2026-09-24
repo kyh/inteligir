@@ -36,7 +36,7 @@ import { AcpTurnMapper } from "./acp-event-mapping.js";
 import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping.js";
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { requireHarness } from "./harness-registry.js";
-import type { HarnessDefinition } from "./harness-registry.js";
+import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
 import { describeProviderError } from "./provider-error.js";
 
 const SESSION_SHUTDOWN_GRACE_MS = 1000;
@@ -64,7 +64,7 @@ export type AcpMcpServerConfig =
   | { name: string; kind: "http"; url: string; headers?: Record<string, string> };
 
 export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
-  model?: string;
+  models?: HarnessModels;
   // a getter, so a registry edit reaches the next session; async so an OAuth row can refresh its
   // token.
   mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
@@ -182,8 +182,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       env,
       buildThreadShellEnvironment({ baseShellEnv: options.shellEnv?.(), threadId }),
     );
-    if (options.model !== undefined) {
-      harness.applyModel(options.model, env);
+    const model = options.models?.[harness.id] ?? null;
+    if (model !== null) {
+      harness.applyModel(model, env);
     }
     if (options.spawnAdapter !== undefined) {
       return options.spawnAdapter(harness, env);
@@ -399,12 +400,12 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     });
   };
 
-  const newSession = async (adapter: AcpAdapter): Promise<string> => {
+  const newSession = async (adapter: AcpAdapter): Promise<ResumeThreadResult> => {
     const response = await adapter.connection.agent.request("session/new", {
       cwd: options.workspacePath,
       mcpServers: await sessionMcpServers(),
     });
-    return response.sessionId;
+    return { loaded: false, providerThreadId: response.sessionId };
   };
 
   // a refused session/new or session/load registers nothing and takes its child with it, so the
@@ -412,22 +413,30 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   const startSession = async (
     threadId: string,
     providerId: string,
-    open: (adapter: AcpAdapter, capabilities: AgentCapabilities | undefined) => Promise<string>,
-  ): Promise<string> => {
+    open: (
+      adapter: AcpAdapter,
+      capabilities: AgentCapabilities | undefined,
+    ) => Promise<ResumeThreadResult>,
+  ): Promise<ResumeThreadResult> => {
     const adapter = await openAdapter(threadId, providerId);
     try {
       const initialized = await adapter.connection.agent.request("initialize", {
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
         protocolVersion: PROTOCOL_VERSION,
       });
-      const providerThreadId = await open(adapter, initialized.agentCapabilities);
+      const opened = await open(adapter, initialized.agentCapabilities);
       if (adapter.closing) {
         throw new Error(
           `The ${adapter.harness.displayName} adapter was closed before its session opened`,
         );
       }
-      sessions.set(threadId, { adapter, idleSinceMs: Date.now(), providerThreadId, turn: null });
-      return providerThreadId;
+      sessions.set(threadId, {
+        adapter,
+        idleSinceMs: Date.now(),
+        providerThreadId: opened.providerThreadId,
+        turn: null,
+      });
+      return opened;
     } catch (error) {
       await destroyAdapter(adapter);
       throw error;
@@ -494,31 +503,25 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
 
     async resumeThread(args: ResumeThreadArgs): Promise<ResumeThreadResult> {
       const { providerThreadId } = args;
-      return {
-        providerThreadId: await startSession(
-          args.threadId,
-          args.providerId,
-          async (adapter, capabilities) => {
-            if (providerThreadId === undefined || capabilities?.loadSession !== true) {
-              return await newSession(adapter);
-            }
-            try {
-              await adapter.connection.agent.request("session/load", {
-                cwd: options.workspacePath,
-                mcpServers: await sessionMcpServers(),
-                sessionId: providerThreadId,
-              });
-              return providerThreadId;
-            } catch (error) {
-              options.onStderr?.(
-                `session/load failed for thread "${args.threadId}" (${describeProviderError(error, adapter.harness)}); starting fresh`,
-                args.threadId,
-              );
-              return await newSession(adapter);
-            }
-          },
-        ),
-      };
+      return await startSession(args.threadId, args.providerId, async (adapter, capabilities) => {
+        if (providerThreadId === undefined || capabilities?.loadSession !== true) {
+          return await newSession(adapter);
+        }
+        try {
+          await adapter.connection.agent.request("session/load", {
+            cwd: options.workspacePath,
+            mcpServers: await sessionMcpServers(),
+            sessionId: providerThreadId,
+          });
+          return { loaded: true, providerThreadId };
+        } catch (error) {
+          options.onStderr?.(
+            `session/load failed for thread "${args.threadId}" (${describeProviderError(error, adapter.harness)}); starting fresh`,
+            args.threadId,
+          );
+          return await newSession(adapter);
+        }
+      });
     },
 
     async runTurn(args: RunTurnArgs): Promise<void> {
@@ -548,9 +551,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     },
 
     async startThread(args: StartThreadArgs): Promise<StartThreadResult> {
-      return {
-        providerThreadId: await startSession(args.threadId, args.providerId, newSession),
-      };
+      const { providerThreadId } = await startSession(args.threadId, args.providerId, newSession);
+      return { providerThreadId };
     },
   };
 

@@ -1,12 +1,12 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
+import { DATA_DIR_ENV_VAR, DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
 import { resolveDevInstanceId } from "../server/dev-instance";
 import { SERVER_FILE_NAME } from "../server/server-file";
 import type { ServerFile } from "../server/server-file";
 import { describe, expect, it } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
-import { DATA_DIR_ENV_VAR, resolveDataDir, resolveServer } from "../server-discovery";
+import { resolveDataDir, resolveServer } from "../server-discovery";
 import { makeTempDir } from "../server/__tests__/temp-dir";
 
 const scratch = (): string => makeTempDir("inteligir-cli-discovery-");

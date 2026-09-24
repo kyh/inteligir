@@ -18,6 +18,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
+import { AGENT_THREAD_HEADER, agentThreadIdOf } from "./agent-thread-header";
 import { isSameOriginBrowserRequest } from "./browser-request";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
@@ -154,7 +155,11 @@ export const createApp = (args: CreateAppArgs) => {
   app.use(`${RPC_PREFIX}/*`, requireServerToken);
   app.all(`${RPC_PREFIX}/*`, async (c) => {
     const { response } = await rpc.handle(c.req.raw, {
-      context: { ...args.context, requestHost: c.req.header("host") },
+      context: {
+        ...args.context,
+        agentThreadId: agentThreadIdOf(c.req.header(AGENT_THREAD_HEADER)),
+        requestHost: c.req.header("host"),
+      },
       prefix: RPC_PREFIX,
     });
     return response ?? c.text("Not found", 404);

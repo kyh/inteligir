@@ -251,6 +251,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     folders,
     knowledge,
     openExternalUrl: ports.openExternalUrl ?? systemOpenExternalUrl,
+    recordAgentWrites: agentDriver.recordAgentWrites,
     renameNote: async (from: string, to: string) =>
       await renameNoteWithLinkRewrite({
         from,

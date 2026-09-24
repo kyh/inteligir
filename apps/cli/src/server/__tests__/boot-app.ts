@@ -15,6 +15,7 @@ import type { OpenExternalUrl } from "../browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
+import type { RecordAgentWrites } from "../agents/agent-driver";
 import type { AppConfig } from "../config";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
@@ -50,6 +51,9 @@ export interface BootTestAppOptions {
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
+    recordAgentWrites?: RecordAgentWrites;
+    // absent, `agent` answers every request.
+    status?: () => AgentStatus;
   };
 }
 
@@ -79,7 +83,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   const agent = options.agent ?? { detail: null, mode: "off", runtime: "off" };
   const config: AppConfig = {
     agent: agent.mode,
-    agentModel: null,
+    agentModels: { claude: null, codex: null },
     cloudUrl: "https://cloud.test",
     dataDir,
     dataDirSource: "env",
@@ -130,7 +134,12 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
           (async () => {
             await Promise.resolve();
           }),
-        status: agent,
+        recordAgentWrites:
+          made?.recordAgentWrites ??
+          (() => {
+            /* empty */
+          }),
+        status: made?.status ?? (() => agent),
       };
     },
     ports,
@@ -153,6 +162,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   const client = createRouterClient(localRouter, {
     context: {
       ...runtime.context,
+      agentThreadId: null,
       // no request reached this client, so the procedure that needs a callback host refuses.
       requestHost: undefined,
     },

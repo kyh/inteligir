@@ -7,6 +7,7 @@ import { listStoredThreadEvents } from "@repo/db/events";
 import type { StoredThreadEvent } from "@repo/db/events";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { buildThreadTimeline } from "@repo/api/local/build-thread-timeline";
+import { evictOldest } from "../evict-oldest";
 
 const RESIDENT_THREADS = 8;
 // the one just served, plus the bases a client a frame or two behind asks for.
@@ -20,17 +21,6 @@ interface ThreadLog {
   // keyed by the projection's own maxSequence.
   projections: Map<number, ThreadTimeline>;
 }
-
-// Map iterates in insertion order and every read re-inserts, so this is an LRU.
-const evict = (map: Map<unknown, unknown>, limit: number): void => {
-  while (map.size > limit) {
-    const oldest = map.keys().next();
-    if (oldest.done === true) {
-      return;
-    }
-    map.delete(oldest.value);
-  }
-};
 
 const projection = (
   log: ThreadLog,
@@ -46,7 +36,7 @@ const projection = (
   }
   const built = buildThreadTimeline(events);
   log.projections.set(maxSequence, built);
-  evict(log.projections, RESIDENT_PROJECTIONS);
+  evictOldest(log.projections, RESIDENT_PROJECTIONS);
   return built;
 };
 
@@ -86,7 +76,7 @@ export class ThreadTimelineProjector {
       const log: ThreadLog = { events: [], projections: new Map(), readThrough: 0 };
       this.readInto(threadId, log);
       this.logs.set(threadId, log);
-      evict(this.logs, RESIDENT_THREADS);
+      evictOldest(this.logs, RESIDENT_THREADS);
       return log;
     }
     this.logs.delete(threadId);
