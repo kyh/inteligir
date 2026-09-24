@@ -3,7 +3,7 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventItemRef, threadEventSchema } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
-import { and, eq, gt, inArray, max, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, max, sql } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createEventId } from "./ids";
 import { events } from "./schema";
@@ -102,7 +102,7 @@ const appendInTransaction = (
     nextSequenceByThreadId.set(threadId, (row?.maxSequence ?? 0) + 1);
   }
 
-  // membership only goes false→true inside this immediate transaction (nothing deletes an
+  // membership only goes false→true inside this immediate transaction (nothing in it deletes an
   // event), so one select per turn answers for every later event in it.
   const startedTurns = new Set<string>();
   // one prepared insert for the batch; building it per row is the cost that scales with a burst.
@@ -296,6 +296,30 @@ export const listThreadMetaEvents = (
       const event = readStoredEvent(row.data);
       return event?.type === "thread/meta" ? [event] : [];
     });
+
+type TurnCompletedEvent = Extract<ThreadEvent, { type: "turn/completed" }>;
+
+// how a turn's own rows say it ended, the latest statement when there are several.
+export const storedTurnCompletion = (
+  db: DbConnection | DbTransaction,
+  args: { threadId: string; turnId: string },
+): TurnCompletedEvent | null => {
+  const row = db
+    .select({ data: events.data })
+    .from(events)
+    .where(
+      and(
+        eq(events.threadId, args.threadId),
+        eq(events.turnId, args.turnId),
+        eq(events.type, "turn/completed"),
+      ),
+    )
+    .orderBy(desc(events.sequence))
+    .limit(1)
+    .get();
+  const event = row === undefined ? null : readStoredEvent(row.data);
+  return event?.type === "turn/completed" ? event : null;
+};
 
 export const threadHasEvents = (db: DbConnection | DbTransaction, threadId: string): boolean =>
   db.select({ id: events.id }).from(events).where(eq(events.threadId, threadId)).limit(1).get() !==

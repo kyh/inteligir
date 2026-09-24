@@ -1478,7 +1478,15 @@ action stop`) applies `stop.requested`, so the thread reads `stopping` and a
   A row this install wrote carries no origin, so that index cannot catch its own
   rows coming back: the planner skips every device id the install has signed in
   as (`sync_own_devices`, recorded at boot and at sign-in, kept by a sign-out),
-  not only the current one, because each sign-in mints a new id.
+  not only the current one, because each sign-in mints a new id. An install
+  that signed in again before that table existed holds rows under an id it
+  never recorded, pulled back beside their null-origin originals: boot removes
+  those copies once (`@repo/db/own-synced-copies`, marked done in `meta`),
+  knowing the earlier id by a turn it pushed that this install ran, and
+  records the id, or the next replay would land them again. It does not
+  re-fold the lifecycle from the rows, because a stop settled here and a start
+  that never made a turn move it without writing one; a thread a copy's
+  `turn/started` left running takes the end its own rows state.
   Lifecycle projects over what landed, never what arrived.
   `apps/cli/src/server/cloud/sync-pass.ts`.
 
