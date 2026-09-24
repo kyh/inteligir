@@ -3,6 +3,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
+import { getLinkAttributes } from "@platejs/link";
 import { ElementApi, KEYS, TextApi, createSlateEditor } from "platejs";
 import type { TElement, TText, Value } from "platejs";
 import { PlateStatic, SlateElement } from "platejs/static";
@@ -14,6 +15,7 @@ import { getEditorHostIo, vaultChangeTouches } from "@repo/editor/host-io";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
+import { isHttpUrl } from "@repo/editor/lib/wire";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_ALERT } from "@repo/editor/style-hooks";
@@ -48,7 +50,16 @@ const LinkStatic = (props: SlateElementProps) => {
     <SlateElement
       {...props}
       as="a"
-      attributes={{ ...props.attributes, href: url, rel: "noreferrer", target: "_blank" }}
+      attributes={{
+        ...props.attributes,
+        ...getLinkAttributes(props.editor, {
+          children: props.element.children,
+          type: props.element.type,
+          url,
+        }),
+        rel: "noreferrer",
+        target: "_blank",
+      }}
     >
       {props.children}
     </SlateElement>
@@ -109,7 +120,7 @@ const MediaStatic = (props: SlateElementProps) => {
   const url = stringProp(props.element, "url") ?? "";
   return (
     <SlateElement {...props} className="my-1">
-      <a href={url} target="_blank" rel="noreferrer">
+      <a href={isHttpUrl(url) ? url : undefined} target="_blank" rel="noreferrer">
         {url}
       </a>
       {props.children}

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { unwrapLink } from "@platejs/link";
+import { getLinkAttributes, unwrapLink } from "@platejs/link";
 import { ArrowRightIcon, ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
 import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
@@ -9,6 +9,7 @@ import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
+import { isHttpUrl, openExternalUrl } from "@repo/editor/lib/wire";
 import { stringProp } from "@repo/editor/node-props";
 
 const PopoverButton = ({
@@ -42,7 +43,7 @@ export const LinkElement = (props: PlateElementProps) => {
 
   const url = stringProp(element, "url") ?? "";
   // a vault url opens in the app, and one the listing does not hold offers no Open: the
-  // browser has no route to a vault path
+  // browser has no route to a vault path. only an http(s) url is handed to the browser.
   const linked = useVaultLinkTarget(url);
   const vaultPath = linked?.path ?? null;
   const { openFile } = useVaultActions();
@@ -80,7 +81,7 @@ export const LinkElement = (props: PlateElementProps) => {
       className="cursor-pointer"
       attributes={{
         ...props.attributes,
-        href: url,
+        ...getLinkAttributes(editor, { children: element.children, type: element.type, url }),
         onClick: (event: React.MouseEvent) => {
           event.preventDefault();
           if (!readOnly) {
@@ -136,11 +137,11 @@ export const LinkElement = (props: PlateElementProps) => {
               >
                 {url}
               </span>
-              {linked === null && (
+              {isHttpUrl(url) && (
                 <PopoverButton
                   title="Open link"
                   onClick={() => {
-                    window.open(url, "_blank");
+                    openExternalUrl(url);
                   }}
                 >
                   <ExternalLinkIcon />

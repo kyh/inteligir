@@ -14,9 +14,8 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { useVaultLinkTarget } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
+import { isHttpUrl } from "@repo/editor/lib/wire";
 import { stringProp } from "@repo/editor/node-props";
-
-const EXTERNAL_RE = /^https?:\/\//iu;
 
 type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
@@ -118,7 +117,7 @@ const ImageBody = ({
 export const ImageElement = (props: PlateElementProps) => {
   const selected = useSelected();
   const url = stringProp(props.element, "url") ?? "";
-  const external = EXTERNAL_RE.test(url);
+  const external = isHttpUrl(url);
   const linked = useVaultLinkTarget(url);
   // a miss falls back to the url as a root path: a just-pasted asset is on disk before the
   // listing that would resolve it

@@ -46,6 +46,14 @@ describe("an image's src, read and resolved as the knowledge index does", () => 
     });
   });
 
+  it("draws an http(s) src as written and asks the host for nothing", async () => {
+    const url = "HTTPS://example.com/shot.png";
+    const fetched = mountImage("b/c/doc.md", url);
+    const image = await screen.findByRole("img");
+    expect(image.getAttribute("src")).toBe(url);
+    expect(fetched).toEqual([]);
+  });
+
   it("asks the host for nothing when no vault path answers the url", async () => {
     const fetched = mountImage("b/c/doc.md", "mailto:a@b.c");
     expect(await screen.findByText("Missing image: mailto:a@b.c")).toBeTruthy();
