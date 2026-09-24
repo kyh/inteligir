@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import type { ThreadHarness } from "inteligir/server/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readPanelOpen } from "../prefs";
+import { PREFS, readPref } from "../prefs";
 import { bootWorkspace as bootWindow, chord, sidebarState } from "./boot-workspace";
 
 const selectedTab = (): string | null =>
@@ -52,7 +52,7 @@ describe("an entry that shows something in the closed panel", () => {
     });
     expect(selectedTab()).toBe("Actions");
     expect(screen.getByRole("button", { name: "Back to actions" })).toBeDefined();
-    expect(readPanelOpen()).toBe(true);
+    expect(readPref(PREFS.panelOpen)).toBe(true);
   });
 
   it("opens it on the thread a palette pick names, and a switch drops the half-typed reply", async () => {
@@ -91,7 +91,7 @@ describe("an entry that shows something in the closed panel", () => {
     });
     expect(sidebarState("left")).toBe("expanded");
     expect(selectedTab()).toBe("Comments");
-    expect(readPanelOpen()).toBe(true);
+    expect(readPref(PREFS.panelOpen)).toBe(true);
   });
 });
 

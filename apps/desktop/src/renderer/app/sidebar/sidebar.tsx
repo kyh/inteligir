@@ -55,8 +55,8 @@ import {
   useDesktopVaults,
   useVaultSwitch,
 } from "../desktop-vaults";
-import { RAIL_VIEWS, readTreeSort, writeTreeSort } from "../prefs";
-import type { RailView, TreeSort } from "../prefs";
+import { PREFS, RAIL_VIEWS, usePref } from "../prefs";
+import type { RailView } from "../prefs";
 import { SignInForm } from "../sign-in-form";
 import { hasInsetTitleBar } from "../title-bar";
 import {
@@ -381,7 +381,7 @@ export const SidebarRailContent = ({
 }: SidebarRailContentProps) => {
   const treeQuery = useVaultTree();
   const pinnedPaths = usePinnedPaths();
-  const [treeSort, setTreeSort] = useState<TreeSort>(readTreeSort);
+  const [treeSort, changeSort] = usePref(PREFS.treeSort);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [insetTitleBar] = useState(hasInsetTitleBar);
   const handleSetPinned = ops.setPinned;
@@ -396,10 +396,6 @@ export const SidebarRailContent = ({
   const startCreate = (): void => {
     onViewChange("files");
     tree.startCreateInSelection("file");
-  };
-  const changeSort = (next: TreeSort): void => {
-    writeTreeSort(next);
-    setTreeSort(next);
   };
 
   const list = (): React.ReactNode => {

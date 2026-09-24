@@ -7,10 +7,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { useState } from "react";
 
 import { client, orpc } from "../api";
-import { readRelatedOpen, writeRelatedOpen } from "../prefs";
+import { PREFS, usePref } from "../prefs";
 import { FoldSection } from "../fold-section";
 import { linkMentionInNote, linkMentionMessage } from "./link-mention";
 
@@ -150,7 +149,7 @@ export const RelatedInline = ({
   docPath: string;
   onOpenDoc: (path: string) => void;
 }) => {
-  const [open, setOpen] = useState(readRelatedOpen);
+  const [open, setOpen] = usePref(PREFS.relatedOpen);
   const queryClient = useQueryClient();
   const { backlinksQuery, relatedQuery, unlinkedQuery } = useRelatedRows(docPath, open);
 
@@ -218,10 +217,7 @@ export const RelatedInline = ({
         ? { summary: linkedMentionsSummary(backlinks.length, backlinkTotal) }
         : {})}
       open={open}
-      onOpenChange={(next) => {
-        writeRelatedOpen(next);
-        setOpen(next);
-      }}
+      onOpenChange={setOpen}
     >
       <RelatedRows
         rows={rows}

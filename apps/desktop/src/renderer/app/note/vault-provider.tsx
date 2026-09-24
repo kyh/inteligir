@@ -25,7 +25,7 @@ import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
 import { client } from "../api";
-import { readLastOpenNote, writeLastOpenNote } from "../prefs";
+import { forgetPref, PREFS, readPref, writePref } from "../prefs";
 import { useWorkspace } from "../workspace-context";
 import { createGuardedVaultIo } from "./guarded-vault-io";
 import { createNoteFormulas } from "./note-formulas";
@@ -135,7 +135,7 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
         path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
       // Welcome.md ahead of listing order, which lands on "Getting Started" first.
       const target =
-        [bootPath, readLastOpenNote(), "Welcome.md"].find(known) ??
+        [bootPath, readPref(PREFS.lastOpenNote), "Welcome.md"].find(known) ??
         flat.find((entry) => entry.kind === "doc")?.path ??
         null;
       let openNote: WorkspaceBoot["openNote"] = null;
@@ -172,7 +172,11 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     },
     publishOpenPath: (path, change) => {
       store.publishOpenPath(path, change);
-      writeLastOpenNote(path);
+      if (path === null) {
+        forgetPref(PREFS.lastOpenNote);
+      } else {
+        writePref(PREFS.lastOpenNote, path);
+      }
       mirrorOpenPath(path);
     },
     rename: async (from, to) => await renameVaultEntry(client, from, to),

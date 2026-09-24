@@ -5,7 +5,6 @@ import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kind
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { COMMENTS_STORE_DIR } from "@repo/notes/comments/sidecar-schema";
 import { ThemeProvider } from "@repo/ui/lib/theme";
-import type { Theme } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
@@ -16,7 +15,7 @@ import { AppearanceProvider } from "./appearance";
 import { orpc } from "./api";
 import { socketOrigin } from "./socket-origin";
 import { browserInvalidationSocket, InvalidationClient } from "./invalidation-client";
-import { readTheme, writeTheme } from "./prefs";
+import { PREFS, usePref } from "./prefs";
 
 type VaultChangeListener = (event: VaultChangedEvent) => void;
 
@@ -347,11 +346,7 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
     };
   }, [runtime]);
 
-  const [theme, setTheme] = useState<Theme>(readTheme);
-  const chooseTheme = (next: Theme): void => {
-    writeTheme(next);
-    setTheme(next);
-  };
+  const [theme, chooseTheme] = usePref(PREFS.theme);
 
   return (
     <ThemeProvider theme={theme} setTheme={chooseTheme}>

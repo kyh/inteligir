@@ -5,11 +5,11 @@
 import type { DesktopSpellcheckBridge } from "../../types";
 import type { SpellcheckChoice, SpellcheckState } from "../../spellcheck-state";
 import { createBridgeStore } from "./bridge-store";
-import { readSpellcheck, writeSpellcheck } from "./prefs";
+import { PREFS, readPref, writePref } from "./prefs";
 
 // launch: the stored choice, else what the session already holds
 const applyStored = async (spellcheck: DesktopSpellcheckBridge): Promise<SpellcheckState> => {
-  const stored = readSpellcheck();
+  const stored = readPref(PREFS.spellcheck);
   return stored === null ? await spellcheck.getState() : await spellcheck.apply(stored);
 };
 
@@ -47,6 +47,6 @@ export const applyStoredSpellcheck = async (): Promise<void> => {
 
 // the pref is written first, so a session that refuses still remembers what was asked
 export const chooseSpellcheck = async (choice: SpellcheckChoice): Promise<void> => {
-  writeSpellcheck(choice);
+  writePref(PREFS.spellcheck, choice);
   await store.run(async (spellcheck) => await spellcheck.apply(choice));
 };

@@ -1,33 +1,86 @@
+// What this window remembers across a reload: one row per stored key, whose schema decodes the
+// stored string and encodes the value back, so a key's reader and its writer cannot disagree on
+// its bytes. Bytes a row cannot decode read as its fallback, like a key never written.
+
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar-core";
 import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
+import { useCallback, useState } from "react";
+import { z } from "zod";
 import { spellcheckChoiceSchema } from "../../spellcheck-state";
-import type { SpellcheckChoice } from "../../spellcheck-state";
 import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
-import type { Appearance } from "./appearance-options";
 
-const KEYS = {
-  appearance: "inteligir.appearance",
-  lastOpenNote: "inteligir.last-open-note",
-  panelOpen: "inteligir.panel-open",
-  panelWidth: "inteligir.panel-width",
-  railView: "inteligir.rail-view",
-  relatedOpen: "inteligir.related-open",
-  sidebarWidth: "inteligir.sidebar-width",
-  spellcheck: "inteligir.spellcheck",
-  theme: "inteligir.theme",
-  treeSort: "inteligir.tree-sort",
+export interface PagePref<Value, Fallback> {
+  readonly key: string;
+  readonly schema: z.ZodType<Value, string>;
+  readonly fallback: Fallback;
+}
+
+const pref = <Value>(
+  key: string,
+  schema: z.ZodType<Value, string>,
+  fallback: NoInfer<Value>,
+): PagePref<Value, Value> => ({ fallback, key, schema });
+
+const unsetPref = <Value>(
+  key: string,
+  schema: z.ZodType<Value, string>,
+): PagePref<Value, null> => ({
+  fallback: null,
+  key,
+  schema,
+});
+
+const json = <Value>(schema: z.ZodType<Value>) =>
+  z.codec(z.string(), z.unknown().pipe(schema), {
+    decode: (raw, payload) => {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        return parsed;
+      } catch {
+        payload.issues.push({ code: "custom", input: raw, message: "not JSON" });
+        return z.NEVER;
+      }
+    },
+    encode: (value) => JSON.stringify(value),
+  });
+
+const flag = z.stringbool({ case: "sensitive", falsy: ["false"], truthy: ["true"] });
+
+// Clamped with the rail's own bounds, or a stored width the rail cannot produce comes back on reload.
+const railWidth = z.codec(
+  z.string(),
+  z
+    .number()
+    .overwrite((px) => Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px)))),
+  { decode: Number, encode: String },
+);
+
+const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === raw);
+
+// in the order the rail's view menu lists them
+export const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
+export type RailView = (typeof RAIL_VIEWS)[number];
+
+const TREE_SORTS = ["name", "modified"] as const;
+export type TreeSort = (typeof TREE_SORTS)[number];
+
+export const PREFS = {
+  appearance: pref("inteligir.appearance", json(appearanceSchema), APPEARANCE_DEFAULTS),
+  lastOpenNote: unsetPref("inteligir.last-open-note", z.string()),
+  // closed until asked for: a comment focus or the top bar's Comments opens it
+  panelOpen: pref("inteligir.panel-open", flag, false),
+  // the right panel is the same primitive as the rail, dragged by the same handle
+  panelWidth: pref("inteligir.panel-width", railWidth, 320),
+  railView: pref("inteligir.rail-view", z.enum(RAIL_VIEWS), "files"),
+  relatedOpen: pref("inteligir.related-open", flag, true),
+  sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
+  spellcheck: unsetPref("inteligir.spellcheck", json(spellcheckChoiceSchema)),
+  theme: pref("inteligir.theme", themeName, "system"),
+  treeSort: pref("inteligir.tree-sort", z.enum(TREE_SORTS), "name"),
 };
 
-const read = (key: string): string | null => {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-};
-
-const write = (key: string, value: string | null): void => {
+const store = (key: string, value: string | null): void => {
   try {
     if (value === null) {
       window.localStorage.removeItem(key);
@@ -39,110 +92,38 @@ const write = (key: string, value: string | null): void => {
   }
 };
 
-const SIDEBAR_WIDTH_DEFAULT = 260;
-const PANEL_WIDTH_DEFAULT = 320;
-
-// Clamped with the rail's own bounds, or a stored width the rail cannot
-// produce comes back on reload.
-const readWidth = (key: string, fallback: number): number => {
-  const raw = read(key);
-  const parsed = raw === null ? Number.NaN : Number(raw);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(parsed)));
-};
-
-export const readSidebarWidth = (): number => readWidth(KEYS.sidebarWidth, SIDEBAR_WIDTH_DEFAULT);
-
-export const writeSidebarWidth = (px: number): void => {
-  write(KEYS.sidebarWidth, String(Math.round(px)));
-};
-
-// the right panel is the same primitive as the rail, dragged by the same handle
-export const readPanelWidth = (): number => readWidth(KEYS.panelWidth, PANEL_WIDTH_DEFAULT);
-
-export const writePanelWidth = (px: number): void => {
-  write(KEYS.panelWidth, String(Math.round(px)));
-};
-
-export const readLastOpenNote = (): string | null => read(KEYS.lastOpenNote);
-
-export const writeLastOpenNote = (path: string | null): void => {
-  write(KEYS.lastOpenNote, path);
-};
-
-// closed until asked for: a comment focus or the top bar's Comments opens it
-export const readPanelOpen = (): boolean => read(KEYS.panelOpen) === "true";
-
-export const writePanelOpen = (open: boolean): void => {
-  write(KEYS.panelOpen, open ? "true" : "false");
-};
-
-export const readRelatedOpen = (): boolean => read(KEYS.relatedOpen) !== "false";
-
-export const writeRelatedOpen = (open: boolean): void => {
-  write(KEYS.relatedOpen, open ? "true" : "false");
-};
-
-// in the order the rail's view menu lists them
-export const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
-export type RailView = (typeof RAIL_VIEWS)[number];
-
-// which of the rail's views is showing
-export const readRailView = (): RailView => {
-  const raw = read(KEYS.railView);
-  return RAIL_VIEWS.find((view) => view === raw) ?? "files";
-};
-
-export const writeRailView = (view: RailView): void => {
-  write(KEYS.railView, view);
-};
-
-export type TreeSort = "name" | "modified";
-
-export const readTreeSort = (): TreeSort =>
-  read(KEYS.treeSort) === "modified" ? "modified" : "name";
-
-export const writeTreeSort = (sort: TreeSort): void => {
-  write(KEYS.treeSort, sort);
-};
-
-export const readTheme = (): Theme => parseTheme(read(KEYS.theme)) ?? "system";
-
-export const writeTheme = (theme: Theme): void => {
-  write(KEYS.theme, theme);
-};
-
-// null: never chosen, so the session keeps whatever it has
-export const readSpellcheck = (): SpellcheckChoice | null => {
-  const raw = read(KEYS.spellcheck);
-  if (raw === null) {
-    return null;
-  }
+export const readPref = <Value, Fallback>(row: PagePref<Value, Fallback>): Value | Fallback => {
+  let raw: string | null;
   try {
-    return spellcheckChoiceSchema.parse(JSON.parse(raw));
+    raw = window.localStorage.getItem(row.key);
   } catch {
-    return null;
+    return row.fallback;
   }
-};
-
-export const writeSpellcheck = (choice: SpellcheckChoice): void => {
-  write(KEYS.spellcheck, JSON.stringify(choice));
-};
-
-export const readAppearance = (): Appearance => {
-  const raw = read(KEYS.appearance);
   if (raw === null) {
-    return APPEARANCE_DEFAULTS;
+    return row.fallback;
   }
-  try {
-    return appearanceSchema.parse(JSON.parse(raw));
-  } catch {
-    return APPEARANCE_DEFAULTS;
-  }
+  const decoded = row.schema.safeParse(raw);
+  return decoded.success ? decoded.data : row.fallback;
 };
 
-export const writeAppearance = (appearance: Appearance): void => {
-  write(KEYS.appearance, JSON.stringify(appearance));
+export const writePref = <Value>(row: PagePref<Value, unknown>, value: Value): void => {
+  store(row.key, row.schema.encode(value));
+};
+
+export const forgetPref = (row: PagePref<unknown, unknown>): void => {
+  store(row.key, null);
+};
+
+export const usePref = <Value>(
+  row: PagePref<Value, Value>,
+): readonly [Value, (next: Value) => void] => {
+  const [value, setValue] = useState(() => readPref(row));
+  const choose = useCallback(
+    (next: Value): void => {
+      writePref(row, next);
+      setValue(next);
+    },
+    [row],
+  );
+  return [value, choose];
 };

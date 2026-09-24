@@ -1487,6 +1487,22 @@ to the END of its group.
   `apps/desktop/src/renderer/app/__tests__/workspace-runtime-mount.test.tsx`
   and `apps/desktop/src/renderer/app/__tests__/workspace-routing.booted.test.tsx`.
 
+- **A PAGE PREFERENCE IS A ROW, AND SO IS AN APPEARANCE DIAL.** What the window
+  remembers across a reload is one `PREFS` row (key, a zod schema that decodes
+  the stored string and encodes the value back, fallback), read and written
+  only through `readPref` / `writePref` / `usePref`, so a key's reader and its
+  writer cannot disagree on its bytes, and bytes a row cannot decode read as
+  its fallback (`apps/desktop/src/renderer/app/prefs.ts`). An appearance dial
+  is one `dial()` row naming its `--editor-*` token, applied in one loop
+  (`apps/desktop/src/renderer/app/appearance-options.ts`). One table shared
+  with the data dir was rejected: no preference is read by both programs — the
+  server never reads the page's storage, and a data-dir preference reaches the
+  page through its `@repo/api/local` contract, already the one declaration both
+  compile against — and a data-dir file's shape must stay readable, so it is
+  not derived from a contract that may break freely. Labels and layout stay
+  out of the rows, because Settings is laid out by hand. A keyed storage read
+  outside the table fails `tools/repo-guards/src/page-prefs.test.ts`.
+
 ### Repo guards, vendoring and tooling
 
 - **No coverage tooling, on purpose.** Targeted structural invariants instead:

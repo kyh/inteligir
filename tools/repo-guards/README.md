@@ -116,10 +116,14 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | the React Compiler hoists its closures to module scope and reports no     |
 |                                | diagnostic. The scanner is self-tested against braces in strings,         |
 |                                | comments and template holes.                                              |
-| `appearance-tokens.test.ts`    | The `--editor-*` funnel: `appearance.tsx` writes only tokens something    |
-|                                | reads, every read resolves to a `globals.css` declaration, every          |
-|                                | declaration is read, `--editor-width` carries no fallback, and every      |
-|                                | fallback spells the stylesheet default exactly.                           |
+| `appearance-tokens.test.ts`    | The `--editor-*` funnel: the `dial()` rows in `appearance-options.ts`     |
+|                                | write only tokens something reads, every read resolves to a `globals.css` |
+|                                | declaration, every declaration is read, `--editor-width` carries no       |
+|                                | fallback, and every fallback spells the stylesheet default exactly.       |
+| `page-prefs.test.ts`           | Storage is read and written by key only in the desktop's `PREFS` table    |
+|                                | (`apps/desktop/src/renderer/app/prefs.ts`), and no other file spells one  |
+|                                | of its keys, which are read off the table's own rows; a store that is not |
+|                                | the shell's is an `ELSEWHERE` row with its reason.                        |
 | `workspace-coverage.test.ts`   | The walk's globs come from `pnpm-workspace.yaml` and their count matches  |
 |                                | the raw text; every `package.json` on disk is reached by one; every       |
 |                                | discovered workspace still has its manifest.                              |
@@ -184,7 +188,7 @@ subpath after the name is not resolved) or a path anchored on a workspace group
   because it is the pin.
 - **A self-check per sweep.** Each guard asserts it found the thing it is held
   against (`ci.yml`, the `inteligir` workspace, `apps/cli/scripts/smoke.mjs`, a
-  `setToken` call), so an empty population fails as "the sweep is broken, not
+  `dial()` row), so an empty population fails as "the sweep is broken, not
   the tree" rather than passing over nothing.
 - **Shipped and test are split.** `workspaceFiles` classes `__tests__/`,
   `test-support/` and `*.test.*` as test; an edge only a test crosses is not a
