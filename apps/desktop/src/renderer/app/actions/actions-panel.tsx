@@ -19,15 +19,16 @@ import {
   ArrowLeftIcon,
   PinIcon,
   PinOffIcon,
+  SquareIcon,
   Trash2Icon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { orpc } from "../api";
+import { orpc, refusalMessage, safe } from "../api";
 import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
-import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
+import { THREAD_ACTIVITY_LABELS, threadActivity, threadStopControl } from "../thread-activity";
 import type { ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
@@ -271,6 +272,18 @@ const ActionDetail = ({
     })();
   };
 
+  const stopControl = thread === null ? "none" : threadStopControl(thread);
+
+  const stop = (): void => {
+    void (async () => {
+      const [error] = await safe(api.threads.interrupt({ threadId }));
+      if (error !== null) {
+        toast.error(refusalMessage(error, "Could not stop the action."));
+      }
+      invalidate();
+    })();
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5 text-subtitle">
@@ -289,6 +302,17 @@ const ActionDetail = ({
             {thread.originDocPath}
           </button>
         ) : null}
+        {stopControl === "none" ? null : (
+          <Button
+            size="icon-compact"
+            variant="ghost"
+            aria-label={stopControl === "requested" ? "Stopping action" : "Stop action"}
+            disabled={stopControl === "requested"}
+            onClick={stop}
+          >
+            <SquareIcon />
+          </Button>
+        )}
         <Button size="icon-compact" variant="ghost" aria-label="Archive action" onClick={archive}>
           <ArchiveIcon />
         </Button>

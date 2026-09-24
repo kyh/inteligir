@@ -1032,6 +1032,26 @@ agents default`; unset falls back
   mid-flow answers the page, never a 500.
   `apps/cli/src/server/connectors/oauth-flow.ts`.
 
+- **A STOP IS A CANCEL WITH A CLOSE BEHIND IT, AND THE TURN STILL ENDS THROUGH
+  ITS OWN PROMPT** (owner decision: an agent writing the vault the wrong way
+  needs a brake; deleting the unreachable `stopping` state was the rejected
+  alternative). `threads.interrupt` (the action's Stop button, `inteligir
+action stop`) applies `stop.requested`, so the thread reads `stopping` and a
+  send queues, then asks the driver: a turn at a provider gets ACP's
+  `session/cancel` (`AgentRuntime.cancelTurn`), which the agent answers by
+  ending the prompt `cancelled`, the mapper's interrupted `turn/completed`
+  settling the thread like any turn; one that has not answered within
+  `stopGraceMs` has its session closed and is settled interrupted by the host,
+  as the watchdog settles a silent one. A turn whose dispatch never reached a
+  provider is withdrawn and its half-open session closed, and the service
+  settles the stop itself (`stop.settled`), since nothing will report it. A
+  queued message starts after a stop as after any settle. Archiving a running
+  thread stops it, after the archive, so the drain cannot start a turn on it.
+  A turn another device runs is refused (`CONFLICT`): only its own process can
+  reach its provider. `interruptTurn` in
+  `apps/cli/src/server/agents/runtime-manager.ts` and `interrupt` in
+  `apps/cli/src/server/threads/service.ts`.
+
 ### Dictation
 
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by

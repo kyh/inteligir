@@ -12,7 +12,7 @@ import {
   renderWithQueries,
   stubKnowledgeFetch,
 } from "../palette/__tests__/palette-harness";
-import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
+import { THREAD_ACTIVITY_LABELS, threadActivity, threadStopControl } from "../thread-activity";
 
 afterEach(cleanup);
 
@@ -40,6 +40,26 @@ describe("threadActivity", () => {
 
   it("archived beats the lifecycle", () => {
     expect(threadActivity(thread({ archivedAt: 1, status: "active" }))).toBe("archived");
+  });
+});
+
+describe("threadStopControl", () => {
+  it("offers a stop while a turn runs, holds it once requested, and offers none when settled", () => {
+    const controls = threadStatusValues.map((status) => [
+      status,
+      threadStopControl(thread({ status })),
+    ]);
+    expect(Object.fromEntries(controls)).toEqual({
+      active: "stop",
+      error: "none",
+      idle: "none",
+      starting: "stop",
+      stopping: "requested",
+    });
+  });
+
+  it("still offers a stop on an archived thread whose turn runs", () => {
+    expect(threadStopControl(thread({ archivedAt: 1, status: "active" }))).toBe("stop");
   });
 });
 
