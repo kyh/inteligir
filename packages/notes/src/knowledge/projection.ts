@@ -2,7 +2,6 @@ import type { ExtractedLink } from "./link-extract";
 import { scanDoc } from "./link-extract";
 import { docStem } from "./doc-file";
 import { splitLines } from "./source-lines";
-import type { ExtractedTask } from "./task-ordinal";
 
 // bump whenever projectDoc's output shape or semantics change; a mismatch wipes and rebuilds, so there is no migration path
 export const PROJECTION_VERSION = 12;
@@ -21,8 +20,6 @@ export interface DocProjection {
   links: StoredLink[];
   tags: string[];
   aliases: string[];
-  /** read by no query yet; the scan counts them regardless, so persisting costs one json field */
-  tasks: ExtractedTask[];
   pinned: boolean;
   noteId: string | null;
 }
@@ -41,7 +38,6 @@ export const projectDoc = (path: string, content: string): DocProjection => {
     noteId: scan.noteId,
     pinned: scan.pinned,
     tags: scan.tags,
-    tasks: scan.tasks,
     title: scan.title ?? docStem(path),
   };
 };

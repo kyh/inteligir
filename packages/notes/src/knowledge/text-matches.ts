@@ -56,11 +56,27 @@ const ELLIPSIS = "…";
 
 const escapeRegExp = (needle: string): string => needle.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
+const wholeWord = (pattern: string): string =>
+  `(?<![\\p{L}\\p{N}_])(?:${pattern})(?![\\p{L}\\p{N}_])`;
+
 // the `i` flag under `u` folds case the unicode way, so offsets stay those of the original text
 const matcher = (needle: string, options: TextMatchOptions): RegExp => {
   const literal = escapeRegExp(needle);
-  const source = options.wholeWord ? `(?<![\\p{L}\\p{N}_])${literal}(?![\\p{L}\\p{N}_])` : literal;
-  return new RegExp(source, options.caseSensitive ? "gu" : "giu");
+  return new RegExp(
+    options.wholeWord ? wholeWord(literal) : literal,
+    options.caseSensitive ? "gu" : "giu",
+  );
+};
+
+// several needles as one whole-word, any-case pattern, longest first: an alternation takes the
+// first alternative that matches, so where two overlap (`Plan` inside `Plan B`) the longer takes
+// the site and the shorter is not counted again inside it. null for no needle
+export const anyWholeWordMatcher = (needles: readonly string[]): RegExp | null => {
+  const alternatives = needles
+    .filter((needle) => needle !== "")
+    .toSorted((a, b) => b.length - a.length)
+    .map(escapeRegExp);
+  return alternatives.length === 0 ? null : new RegExp(wholeWord(alternatives.join("|")), "giu");
 };
 
 const hitsIn = (pattern: RegExp, text: string): TextOffset[] => {
@@ -78,16 +94,9 @@ export const findTextOffsets = (
   options: TextMatchOptions,
 ): TextOffset[] => (needle === "" ? [] : hitsIn(matcher(needle, options), text));
 
-export const findTextMatches = (
-  text: string,
-  needle: string,
-  options: TextMatchOptions,
-): TextMatch[] => {
-  if (needle === "") {
-    return [];
-  }
-  const pattern = matcher(needle, options);
-  const parts = splitLinesKeepingTerminators(text);
+// `parts` is splitLinesKeepingTerminators' cut, so a caller that already split the text once
+// does not split it again
+export const findLineMatches = (parts: readonly string[], pattern: RegExp): TextMatch[] => {
   const found: TextMatch[] = [];
   for (let index = 0; index < parts.length; index += 2) {
     for (const hit of hitsIn(pattern, parts[index] ?? "")) {
@@ -96,6 +105,15 @@ export const findTextMatches = (
   }
   return found;
 };
+
+export const findTextMatches = (
+  text: string,
+  needle: string,
+  options: TextMatchOptions,
+): TextMatch[] =>
+  needle === ""
+    ? []
+    : findLineMatches(splitLinesKeepingTerminators(text), matcher(needle, options));
 
 // a function replacement: a `$1` typed into the replace box is text, not a group reference
 export const replaceTextMatches = (
@@ -138,10 +156,13 @@ export const excerptAround = (
   };
 };
 
-// a store may narrow the docs it hands over by an ascii substring, case-insensitively;
-// outside ascii the case fold differs by engine, so every doc is scanned
-export const bodyPrefilter = (needle: string): string | null =>
-  /^[\u0020-\u007E]+$/u.test(needle) ? needle : null;
+const PRINTABLE_ASCII = /^[\u0020-\u007E]+$/u;
+
+// a store may narrow the docs it hands over to those holding one of these ascii substrings,
+// case-insensitively; outside ascii the case fold differs by engine, so one such needle means
+// every doc is scanned (null)
+export const bodyPrefilters = (needles: readonly string[]): string[] | null =>
+  needles.every((needle) => PRINTABLE_ASCII.test(needle)) ? [...needles] : null;
 
 const byPath = (a: DocText, b: DocText): number => {
   if (a.path < b.path) {

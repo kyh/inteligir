@@ -1,4 +1,4 @@
-import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
+import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/search-query";
 import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import {

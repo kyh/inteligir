@@ -163,7 +163,7 @@ packages/
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
                  the literal text scan behind matches and unlinked mentions,
-                 the resolver's problems report, tags and tag families, tasks,
+                 the resolver's problems report, tags and tag families,
                  the rename and tag-rename byte-surgery) over ONE markdown scan
                  (scan-parse + wiki-links), frontmatter (the pin and id line
                  cuts included), `templates/` (the three placeholders and the
@@ -897,18 +897,25 @@ to the END of its group.
   renderer for either shape.
 
 - **The knowledge scan disables `codeIndented` and `htmlFlow`**
-  (`@repo/notes/markdown/scan-parse`). A checkbox is addressed by position among
-  a doc's task items, so the scan's count must agree with the editor's, whose
-  plugin list disables both too; pinned by
-  `packages/notes/src/__tests__/task-ordinal.test.ts`.
+  (`@repo/notes/markdown/scan-parse`) because the editor's plugin list disables
+  both: the index must read as prose what the editor draws as prose, and
+  indented code would hide a 4-space line's links and tags while flow html
+  would let one `<div>x</div>` swallow every line under it. Pinned against the
+  editor's own parse by "the scan reads as prose what the editor draws as
+  prose" in `packages/notes/src/__tests__/link-extract.test.ts`. The scan
+  projects no task list: nothing read one.
 
 - **THE SCAN'S GRAMMAR IS NOT THE EDITOR'S, and `verbatim-spans` is the one
   bridge.** The scan is total so a malformed tag cannot cost a note its index
   row; the editor's MDX tokenizer throws. A `targetSpan` is a licence to rewrite
   bytes, so the scan runs the editor's plugin list as a bare parse
   (`@repo/notes/markdown/verbatim-spans`) and withholds the span inside those
-  ranges. Unifying the grammars is rejected: one malformed tag would stop a note
-  indexing. A doc the editor refuses yields no ranges, correctly: it opens raw.
+  ranges. Only a rename's scan asks for spans (`documentLinkSpans`,
+  `documentTagSpans` in `@repo/notes/knowledge/link-extract`): the index path
+  (`scanDoc`) emits none and never pays for that second parse, which it would
+  otherwise run on every save of every doc. Unifying the grammars is rejected:
+  one malformed tag would stop a note indexing. A doc the editor refuses yields
+  no ranges, correctly: it opens raw.
 
 - **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW, AND A TAG RENAME IS THE
   LINK RENAME'S SURGERY.** There is no tag browser in the app: `knowledge.tags`
@@ -950,8 +957,9 @@ rename`.
   a hit sits, so `knowledge.matches` (the palette's "Search across the vault…"
   page, `inteligir matches`) scans doc
   bodies with ONE matcher, `@repo/notes/knowledge/text-matches`, that the
-  listing and the rewrite both run; the store only pre-narrows by an ascii
-  substring (`docTexts`), because LIKE folds ascii case alone. A replace across
+  listing and the rewrite both run; the store only pre-narrows to the docs
+  holding one of a list of ascii substrings (`docTexts`), because LIKE folds
+  ascii case alone, and reads every doc when any needle is not ascii. A replace across
   notes is a per-file write with the hash of the bytes it read, and a mismatch
   is REPORTED by name, never diff3-merged: the user named exact bytes
   (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing
@@ -974,7 +982,9 @@ rename`.
 - **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
   bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
   runs the literal scan's matcher over the target's names as whole words, any
-  case, one row per note on its first mention, excluding the note itself and
+  case, as one longest-first alternation, so where two names overlap (`Plan`
+  inside `Plan B`) the longer takes the site and it counts once; one row per
+  note on its first mention, excluding the note itself and
   every note that already links here; a hit inside code, math, a link, a url,
   frontmatter, an html tag or a comment marker is withheld by the scan's own
   regexes as well as the editor's verbatim ranges, because those ranges come

@@ -1,7 +1,9 @@
 // The scan grammar (../markdown/scan-parse) is plain markdown and the editor's
 // is not, so a `targetSpan` or a tag's span is emitted only where the raw bytes
 // re-derive what was parsed and lie outside ../markdown/verbatim-spans; a link or
-// a tag failing either is indexed but never rewritten.
+// a tag failing either is indexed but never rewritten. Only a rename asks for
+// spans: those ranges are a second parse under the editor's grammar, and the
+// index, which projects every doc on every save, never reads them.
 
 import type { Nodes } from "mdast";
 
@@ -22,8 +24,6 @@ import type { VerbatimSpan } from "../markdown/verbatim-spans";
 import type { LinkKind } from "./link-kinds";
 import { inlineTagSpans, isTagName } from "./tag-grammar";
 import type { InlineTagSpan } from "./tag-grammar";
-import { tasksInTree } from "./task-ordinal";
-import type { ExtractedTask } from "./task-ordinal";
 
 export interface Span {
   start: number;
@@ -39,7 +39,11 @@ export interface ExtractedLink {
   alias?: string;
   /** 1-based */
   line: number;
-  targetSpan?: Span;
+}
+
+// a link whose target bytes a rename may splice
+export interface RewritableLink extends ExtractedLink {
+  targetSpan: Span;
 }
 
 export interface DocScan {
@@ -48,12 +52,12 @@ export interface DocScan {
   links: ExtractedLink[];
   tags: string[];
   aliases: string[];
-  tasks: ExtractedTask[];
   pinned: boolean;
   noteId: string | null;
 }
 
-// an inline tag, and its span when a rename may splice it
+type ScannedLink = ExtractedLink & { targetSpan?: Span };
+
 interface ExtractedTag {
   tag: string;
   span?: Span;
@@ -63,7 +67,7 @@ interface ExtractedTag {
 interface BodyScan {
   title: string | null;
   headings: string[];
-  links: ExtractedLink[];
+  links: ScannedLink[];
   tags: ExtractedTag[];
 }
 
@@ -72,12 +76,16 @@ interface NodePosition {
   line: number;
 }
 
-// the source, the ranges a span may not land in, and the scan every collector appends to
+// the source, the ranges a span may not land in, and the scan every collector appends to.
+// `verbatim` is null on the index path, which emits no span at all
 interface ScanContext {
   source: string;
-  verbatim: readonly VerbatimSpan[];
+  verbatim: readonly VerbatimSpan[] | null;
   scan: BodyScan;
 }
+
+const spannable = (ctx: ScanContext, span: Span): boolean =>
+  ctx.verbatim !== null && !insideVerbatim(ctx.verbatim, span.start, span.end);
 
 // anything with a scheme (`https:`, `mailto:`, `C:\…` alike) or protocol-relative `//` is external
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
@@ -271,12 +279,11 @@ const splitRawFragment = (source: string, dest: Span): Span => {
 };
 
 const wikiToLink = (
-  source: string,
+  ctx: ScanContext,
   embed: boolean,
   body: string,
   pos: NodePosition | null,
-  verbatim: readonly VerbatimSpan[],
-): ExtractedLink | null => {
+): ScannedLink | null => {
   if (!pos) {
     return null;
   }
@@ -293,9 +300,9 @@ const wikiToLink = (
   // the span may hold `\#` escapes the target does not: a rename writes its target back through
   // serializeWikiBody, which escapes what the parse would otherwise split
   const verified =
-    source.slice(pos.span.start, pos.span.end) === `${embed ? "!" : ""}[[${body}]]` &&
-    !insideVerbatim(verbatim, targetSpan.start, targetSpan.end);
-  const link: ExtractedLink = {
+    spannable(ctx, targetSpan) &&
+    ctx.source.slice(pos.span.start, pos.span.end) === `${embed ? "!" : ""}[[${body}]]`;
+  const link: ScannedLink = {
     embed,
     kind: "wiki",
     line: pos.line,
@@ -315,30 +322,30 @@ const wikiToLink = (
 
 // assets extract too (`![](img.png)` must survive a rename); note-only queries filter on the resolved target
 const mdToLink = (
-  source: string,
+  ctx: ScanContext,
   kind: "md" | "image",
   url: string,
   label: string,
   pos: NodePosition,
-  dest: Span | null,
-  verbatim: readonly VerbatimSpan[],
-): ExtractedLink | null => {
+  locate: () => Span | null,
+): ScannedLink | null => {
   const parsed = parseMdUrl(url);
   if (parsed === null) {
     return null;
   }
   const { anchor, target, written } = parsed;
   let targetSpan: Span | undefined;
+  const dest = ctx.verbatim === null ? null : locate();
   if (dest) {
-    const pathSpan = splitRawFragment(source, dest);
+    const pathSpan = splitRawFragment(ctx.source, dest);
     if (
-      decodeMdEscapes(source.slice(pathSpan.start, pathSpan.end)) === written &&
-      !insideVerbatim(verbatim, pathSpan.start, pathSpan.end)
+      spannable(ctx, pathSpan) &&
+      decodeMdEscapes(ctx.source.slice(pathSpan.start, pathSpan.end)) === written
     ) {
       targetSpan = pathSpan;
     }
   }
-  const link: ExtractedLink = {
+  const link: ScannedLink = {
     embed: kind === "image",
     kind,
     line: pos.line,
@@ -416,14 +423,6 @@ const frontmatterAliases = (parsed: ParsedProperties | null): string[] => {
   return out;
 };
 
-const frontmatterTasksDisabled = (parsed: ParsedProperties | null): boolean => {
-  if (parsed === null || parsed.kind !== "valid") {
-    return false;
-  }
-  const prop = parsed.properties.find((p) => p.key === "tasks");
-  return prop !== undefined && prop.type === "checkbox" && !prop.value;
-};
-
 const frontmatterPinned = (parsed: ParsedProperties | null): boolean => {
   if (parsed === null || parsed.kind !== "valid") {
     return false;
@@ -440,10 +439,7 @@ const collectTextTags = (node: Extract<Nodes, { type: "text" }>, ctx: ScanContex
     const extracted: ExtractedTag = { tag };
     if (offset !== undefined) {
       const span: Span = { end: offset + end, start: offset + start };
-      if (
-        ctx.source.slice(span.start, span.end) === `#${tag}` &&
-        !insideVerbatim(ctx.verbatim, span.start, span.end)
-      ) {
+      if (spannable(ctx, span) && ctx.source.slice(span.start, span.end) === `#${tag}`) {
         extracted.span = span;
       }
     }
@@ -463,13 +459,7 @@ const collectWikiLink = (
   node: Extract<Nodes, { type: "wikiLink" | "wikiEmbed" }>,
   ctx: ScanContext,
 ): void => {
-  const link = wikiToLink(
-    ctx.source,
-    node.type === "wikiEmbed",
-    node.body,
-    position(node),
-    ctx.verbatim,
-  );
+  const link = wikiToLink(ctx, node.type === "wikiEmbed", node.body, position(node));
   if (link) {
     ctx.scan.links.push(link);
   }
@@ -482,8 +472,9 @@ const collectMdLink = (node: Extract<Nodes, { type: "link" }>, ctx: ScanContext)
   }
   const last = node.children.at(-1);
   const lastEnd = last ? position(last)?.span.end : pos.span.start + 1;
-  const dest = lastEnd === undefined ? null : locateDestination(ctx.source, lastEnd, pos.span.end);
-  const link = mdToLink(ctx.source, "md", node.url, textOf(node), pos, dest, ctx.verbatim);
+  const link = mdToLink(ctx, "md", node.url, textOf(node), pos, () =>
+    lastEnd === undefined ? null : locateDestination(ctx.source, lastEnd, pos.span.end),
+  );
   if (link) {
     ctx.scan.links.push(link);
   }
@@ -494,8 +485,9 @@ const collectImage = (node: Extract<Nodes, { type: "image" }>, ctx: ScanContext)
   if (!pos) {
     return;
   }
-  const dest = locateImageDestination(ctx.source, pos.span);
-  const link = mdToLink(ctx.source, "image", node.url, node.alt ?? "", pos, dest, ctx.verbatim);
+  const link = mdToLink(ctx, "image", node.url, node.alt ?? "", pos, () =>
+    locateImageDestination(ctx.source, pos.span),
+  );
   if (link) {
     ctx.scan.links.push(link);
   }
@@ -509,8 +501,9 @@ const collectDefinition = (
   if (!pos) {
     return;
   }
-  const dest = locateDefinitionDestination(ctx.source, pos.span);
-  const link = mdToLink(ctx.source, "md", node.url, node.label ?? "", pos, dest, ctx.verbatim);
+  const link = mdToLink(ctx, "md", node.url, node.label ?? "", pos, () =>
+    locateDefinitionDestination(ctx.source, pos.span),
+  );
   if (link) {
     ctx.scan.links.push(link);
   }
@@ -561,7 +554,7 @@ const pushShifted = (body: BodyScan, bodyStart: number, ctx: ScanContext): void 
     start: span.start + bodyStart,
   });
   for (const link of body.links) {
-    const shifted: ExtractedLink = { ...link, line: link.line + lineShift };
+    const shifted: ScannedLink = { ...link, line: link.line + lineShift };
     if (link.targetSpan !== undefined) {
       shifted.targetSpan = shift(link.targetSpan);
     }
@@ -572,9 +565,16 @@ const pushShifted = (body: BodyScan, bodyStart: number, ctx: ScanContext): void 
   }
 };
 
-const scanBody = (source: string, tree: Nodes): BodyScan => {
+// `index` reads what a doc holds; `rewrite` also verifies the spans a rename may splice
+type ScanMode = "index" | "rewrite";
+
+const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
   const scan: BodyScan = { headings: [], links: [], tags: [], title: null };
-  const ctx: ScanContext = { scan, source, verbatim: verbatimSpans(source) };
+  const ctx: ScanContext = {
+    scan,
+    source,
+    verbatim: mode === "rewrite" ? verbatimSpans(source) : null,
+  };
   // oxlint-disable-next-line complexity -- the count is the node-type enumeration switch-exhaustiveness-check requires, not branching: every arm delegates
   walk(tree, (node, inLink) => {
     switch (node.type) {
@@ -608,7 +608,7 @@ const scanBody = (source: string, tree: Nodes): BodyScan => {
       case "code": {
         const slice = isCalloutLang(node.lang) ? calloutBodySlice(source, node) : null;
         if (slice) {
-          pushShifted(scanBody(slice.body, parseScan(slice.body)), slice.bodyStart, ctx);
+          pushShifted(scanBody(slice.body, parseScan(slice.body), mode), slice.bodyStart, ctx);
         }
         break;
       }
@@ -657,7 +657,7 @@ export const scanDoc = (source: string): DocScan => {
   const tree = parseScan(source);
   const yaml = frontmatterText(tree);
   const frontmatter = yaml === null ? null : parseProperties(yaml);
-  const body = scanBody(source, tree);
+  const body = scanBody(source, tree, "index");
   return {
     aliases: frontmatterAliases(frontmatter),
     headings: body.headings,
@@ -668,13 +668,18 @@ export const scanDoc = (source: string): DocScan => {
       ...(yaml === null ? [] : frontmatterTags(yaml).map(({ tag }) => tag)),
       ...body.tags.map(({ tag }) => tag),
     ],
-    tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),
     title: body.title,
   };
 };
 
-// the spans a rename may splice: the index's own walk, callout bodies included
+// the links a rename may splice: the index's own walk, callout bodies included
+export const documentLinkSpans = (source: string): RewritableLink[] =>
+  scanBody(source, parseScan(source), "rewrite").links.flatMap((link) =>
+    link.targetSpan === undefined ? [] : [{ ...link, targetSpan: link.targetSpan }],
+  );
+
+// the inline tags a rename may splice, on the same terms
 export const documentTagSpans = (source: string): InlineTagSpan[] =>
-  scanBody(source, parseScan(source)).tags.flatMap(({ span, tag }) =>
+  scanBody(source, parseScan(source), "rewrite").tags.flatMap(({ span, tag }) =>
     span === undefined ? [] : [{ end: span.end, start: span.start, tag }],
   );

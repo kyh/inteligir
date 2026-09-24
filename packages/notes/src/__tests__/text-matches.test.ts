@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  bodyPrefilter,
+  bodyPrefilters,
   collectVaultMatches,
   excerptAround,
   findTextMatches,
@@ -90,10 +90,10 @@ describe("the excerpt around a match", () => {
 });
 
 describe("the prefilter a store may apply", () => {
-  it("is the needle for printable ascii and nothing otherwise", () => {
-    expect(bodyPrefilter("deploy now")).toBe("deploy now");
-    expect(bodyPrefilter("acción")).toBeNull();
-    expect(bodyPrefilter("a\tb")).toBeNull();
+  it("is the needles while every one is printable ascii, and nothing otherwise", () => {
+    expect(bodyPrefilters(["deploy now", "Plan B"])).toEqual(["deploy now", "Plan B"]);
+    expect(bodyPrefilters(["deploy", "acción"])).toBeNull();
+    expect(bodyPrefilters(["a\tb"])).toBeNull();
   });
 });
 

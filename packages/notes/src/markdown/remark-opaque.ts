@@ -38,9 +38,10 @@ declare module "mdast" {
   }
 }
 
-// `date` is the only inline element but is admitted in flow too: a paragraph holding only a
-// date chip serializes to `<date value="…" />` alone on its line, which micromark re-reads as flow.
-const COMPONENT_FLOW_TAGS = new Set([
+// the jsx elements the editor models; any other tag is carried verbatim. `date` is the only inline
+// element but is admitted in flow too: a paragraph holding only a date chip serializes to
+// `<date value="…" />` alone on its line, which micromark re-reads as flow.
+export const MODELED_JSX_FLOW_TAGS: ReadonlySet<string> = new Set([
   "callout",
   "toggle",
   "column_group",
@@ -81,7 +82,7 @@ const isComponent = (node: MdxJsxFlowElement | MdxJsxTextElement): boolean => {
   if (tag === null) {
     return false;
   }
-  const tags = node.type === "mdxJsxFlowElement" ? COMPONENT_FLOW_TAGS : COMPONENT_TEXT_TAGS;
+  const tags = node.type === "mdxJsxFlowElement" ? MODELED_JSX_FLOW_TAGS : COMPONENT_TEXT_TAGS;
   if (!tags.has(tag)) {
     return false;
   }

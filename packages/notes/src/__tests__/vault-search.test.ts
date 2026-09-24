@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SearchResult } from "../knowledge/knowledge-index";
+import type { SearchResult } from "../knowledge/search-query";
 import { parseSearchQuery, searchVaultNotes } from "../knowledge/vault-search";
 
 const hit = (path: string, score: number): SearchResult => ({

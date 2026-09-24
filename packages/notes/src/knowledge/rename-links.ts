@@ -9,7 +9,7 @@
 import { parseWikiBodyRange, serializeWikiBody } from "../markdown/remark-wiki-link";
 import { wikiLinkName, wikiLinkPath } from "./doc-file";
 import type { ExtractedLink, Span } from "./link-extract";
-import { scanDoc } from "./link-extract";
+import { documentLinkSpans } from "./link-extract";
 import { buildResolver, wikiNameKeys } from "./link-resolve";
 import type { TargetResolver } from "./link-resolve";
 import { basenamePath, dirnamePath, extnamePath, normalizePath, relativePath } from "./vault-path";
@@ -235,10 +235,7 @@ export const computeMoveEdits = ({
     };
     const replacements: { span: Span; text: string }[] = [];
 
-    for (const link of scanDoc(content).links) {
-      if (!link.targetSpan) {
-        continue;
-      }
+    for (const link of documentLinkSpans(content)) {
       const raw = content.slice(link.targetSpan.start, link.targetSpan.end);
       const text = relinkText(link, raw, doc, ctx);
       if (text !== null && text !== raw) {

@@ -20,7 +20,6 @@ const storedLinkRow = z.object({
   line: z.number(),
   snippet: z.string(),
   target: z.string(),
-  targetSpan: z.object({ end: z.number(), start: z.number() }).nullish(),
 });
 
 const storedProjectionRow = z.object({
@@ -31,7 +30,6 @@ const storedProjectionRow = z.object({
   // not optional: a PROJECTION_VERSION mismatch wipes and rebuilds, so no stored row can lack a current field
   pinned: z.boolean(),
   tags: z.array(z.string()),
-  tasks: z.array(z.object({ checked: z.boolean(), line: z.number(), text: z.string() })),
   title: z.string(),
 });
 
@@ -50,9 +48,6 @@ const toStoredLink = (row: z.infer<typeof storedLinkRow>): StoredLink => {
   if (row.alias !== null && row.alias !== undefined) {
     link.alias = row.alias;
   }
-  if (row.targetSpan !== null && row.targetSpan !== undefined) {
-    link.targetSpan = { end: row.targetSpan.end, start: row.targetSpan.start };
-  }
   return link;
 };
 
@@ -65,7 +60,6 @@ export const docProjectionSchema = storedProjectionRow.transform((row): DocProje
   noteId: row.noteId,
   pinned: row.pinned,
   tags: row.tags,
-  tasks: row.tasks,
   title: row.title,
 }));
 

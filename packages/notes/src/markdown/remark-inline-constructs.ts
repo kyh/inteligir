@@ -2,11 +2,12 @@
 // breaks or interacts with delimiter runs, so splitting finished text leaves is equivalent and
 // cannot disturb how micromark reads everything else. must run before remark-opaque.
 
-import type { Node, Parent, Parents, PhrasingContent, Root, Text } from "mdast";
+import type { Node, Parent, Parents, PhrasingContent, Text } from "mdast";
 import type { Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
 import { COMMENT_ID_PATTERN } from "../comments/sidecar-schema";
+import { isMdastRoot } from "./mdast-nodes";
 
 export interface FormulaPill extends Node {
   type: "formulaPill";
@@ -58,8 +59,6 @@ export const parseFormulaRaw = (raw: string): Pick<FormulaPill, "source" | "disp
     source: raw.slice(0, first),
   };
 };
-
-const isRoot = (node: Node): node is Root => node.type === "root";
 
 interface Splice {
   index: number;
@@ -158,7 +157,7 @@ export const remarkInlineConstructs: Plugin = function remarkInlineConstructs(
   const data = this.data();
   (data.toMarkdownExtensions ??= []).push(inlineConstructsToMarkdown);
   return (tree) => {
-    if (isRoot(tree)) {
+    if (isMdastRoot(tree)) {
       walk(tree);
     }
   };

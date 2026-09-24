@@ -30,8 +30,8 @@ name may not hold `[` or `]`, which would end a link to it.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor
 (`\r\n`, `\r`, `\n`). That rule is stated once, in `@repo/notes`'
-`knowledge/source-lines`, and read once, by `splitLines` — the task scan reads
-a checkbox's text under it and the projection cuts link snippets under it. A
+`knowledge/source-lines`, and read once, by `splitLines` — the projection cuts
+link snippets under it. A
 second reading of "what a line is" anywhere else is a file-corruption bug
 waiting to happen; `text/line-diff`'s `splitLinesLf` is the one deliberate
 exception, LF-only because diff3 joins its segments back into the file's own
@@ -41,8 +41,8 @@ every line changed. Writes go through the vault's whole-file CAS, never through
 a re-joined split.
 
 **projection** — what ONE parse of a doc yields: title, headings, links, tags,
-aliases, tasks (`@repo/notes/knowledge/projection`, `projectDoc`). An index
-stores projections, not documents.
+aliases, the pin and the note's `id` (`@repo/notes/knowledge/projection`,
+`projectDoc`). An index stores projections, not documents.
 
 ## The agent
 

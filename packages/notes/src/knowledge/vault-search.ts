@@ -2,7 +2,7 @@
 // compose text + tag here.
 
 import { docStem } from "./doc-file";
-import type { SearchResult } from "./knowledge-index";
+import type { SearchResult } from "./search-query";
 
 export interface VaultSearchSources {
   search: (query: string, limit: number) => SearchResult[];

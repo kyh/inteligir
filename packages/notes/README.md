@@ -1,7 +1,7 @@
 # @repo/notes
 
 The pure, platform-neutral domain core: the knowledge engine
-(links/tags/search/tasks) over one markdown scan.
+(links/tags/search) over one markdown scan.
 
 ## Why it exists
 
@@ -30,8 +30,6 @@ src/
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
                        # in-memory tiered lexical index (behavior pin)
-    task-ordinal.ts    # what an ordinal names: the ONE count of a doc's
-                       # checkboxes, and its index in that count
     source-lines.ts    # what a LINE is — content excludes its terminator,
                        # whichever flavor — stated once, for every reader
     vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
@@ -49,8 +47,8 @@ src/
                        # test, posix path helpers
   markdown/            # the one scan, and what reads a doc's header
     scan-parse.ts      # the grammar every knowledge scan reads; TOTAL, and
-                       # disabling codeIndented/htmlFlow is what keeps its task
-                       # count equal to the set the editor draws
+                       # disabling codeIndented/htmlFlow is what keeps it
+                       # reading as prose what the editor draws as prose
     verbatim-spans.ts  # the ranges the EDITOR holds verbatim (opaque nodes,
                        # math) — what keeps rename byte-surgery out of them —
                        # and the literal ranges (code, math, frontmatter, jsx
@@ -119,7 +117,7 @@ src/
 `pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
 knowledge engine: resolver tiers (including an oracle equivalence for the
 basename buckets), rename byte surgery, the search policy against both
-engines, task ordinals against the editor's parse, and the diff3 merge. The
+engines, the scan's prose against the editor's parse, and the diff3 merge. The
 suites run under a 512MB heap ceiling (`vitest.config.ts`), so an allocation
 that grows with a note's size, like a diff trace that copies the whole
 frontier every round, fails here rather than passing on a default heap.

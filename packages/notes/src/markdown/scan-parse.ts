@@ -1,8 +1,8 @@
 // total: it never throws, so a malformed tag cannot cost a note its place in the index; that is
 // why this is not the editor's plugin list, whose mdx tokenizer throws. `codeIndented` and
-// `htmlFlow` are disabled to match the editor: a checkbox is addressed by its position, so this
-// count must agree with the set the editor draws (indented code would hide a 4-space `- [ ]`;
-// flow html would let one `<div>x</div>` swallow every task line under it).
+// `htmlFlow` are disabled because the editor disables both: the index must read as prose what
+// the editor draws as prose (indented code would hide a 4-space line's links and tags; flow html
+// would let one `<div>x</div>` swallow every line under it).
 
 import type { Root } from "mdast";
 import type { Plugin, Processor } from "unified";

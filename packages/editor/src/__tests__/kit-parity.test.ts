@@ -8,6 +8,7 @@ import { MarkdownPlugin, serializeMd } from "@platejs/markdown";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import { MODELED_JSX_FLOW_TAGS } from "@repo/notes/markdown/remark-opaque";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
@@ -15,14 +16,7 @@ const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.m
 
 // dropping any of these from a kit is silent corruption, the opaque pair most of all.
 const VOCABULARY_PLUGIN_KEYS = [
-  "callout",
-  "toggle",
-  "column_group",
-  "column",
-  "video",
-  "media_embed",
-  "file",
-  "date",
+  ...MODELED_JSX_FLOW_TAGS,
   "equation",
   "inline_equation",
   "frontmatter",
