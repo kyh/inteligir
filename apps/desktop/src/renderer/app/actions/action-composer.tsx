@@ -1,17 +1,16 @@
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
+import { MAX_CONTEXT_PATHS } from "@repo/api/local/threads/threads-schema";
 import { getLiveEditor } from "@repo/editor/live-editor";
-import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogPopup } from "@repo/ui/components/dialog";
 import { InputMessage } from "@repo/ui/components/input-message";
-import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { toast } from "@repo/ui/components/sonner";
-import { FileTextIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import type { RefObject } from "react";
 
-import { client, failed } from "../api";
+import { failed } from "../api";
 import { ensureOpenNoteId } from "../note/open-note-id";
 import type { ViewContextSource } from "../thread-activity";
 import { spliceIntoComposer } from "../voice/dictation";
@@ -26,6 +25,7 @@ import {
   mentionOptionId,
 } from "./mention-combobox";
 import type { MentionSpan } from "./mention-combobox";
+import { NoteBadge } from "./note-badge";
 
 interface PendingAction {
   threadId: string;
@@ -92,8 +92,10 @@ export const ActionComposer = ({
   if (attachedPath !== null) {
     chipPaths.add(attachedPath);
   }
+  // the wire's own cap: past it the list stays shut rather than offer a note the send would refuse
+  const mentionsFull = mentions.length >= MAX_CONTEXT_PATHS;
   const mentionOptions =
-    mention === null
+    mention === null || mentionsFull
       ? []
       : filterMentionTargets(wikiTargets.data?.targets ?? [], mention.query, chipPaths);
   const listShown = mentionOptions.length > 0;
@@ -171,7 +173,7 @@ export const ActionComposer = ({
           ensureOpenNoteId(attachedPath);
         }
         const viewContext = attachedPath === null ? null : await readViewContext();
-        const created = await createAction(client, {
+        const created = await createAction({
           contextPaths: mentions,
           docPath: attachedPath,
           prompt: trimmed,
@@ -228,15 +230,10 @@ export const ActionComposer = ({
               docPath !== null || mentions.length > 0 ? (
                 <>
                   {docPath === null ? null : (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "gap-1 bg-surface-raised",
-                        !attached && "text-muted-foreground line-through",
-                      )}
+                    <NoteBadge
+                      path={docPath}
+                      className={attached ? undefined : "text-muted-foreground line-through"}
                     >
-                      <FileTextIcon className="size-3" />
-                      {docPath}
                       {attached ? (
                         <Button
                           variant="ghost"
@@ -260,12 +257,10 @@ export const ActionComposer = ({
                           attach
                         </button>
                       )}
-                    </Badge>
+                    </NoteBadge>
                   )}
                   {mentions.map((path) => (
-                    <Badge key={path} variant="outline" className="gap-1 bg-surface-raised">
-                      <FileTextIcon className="size-3" />
-                      {path}
+                    <NoteBadge key={path} path={path}>
                       <Button
                         variant="ghost"
                         size="icon-compact"
@@ -277,8 +272,13 @@ export const ActionComposer = ({
                       >
                         <XIcon className="size-3" />
                       </Button>
-                    </Badge>
+                    </NoteBadge>
                   ))}
+                  {mentionsFull ? (
+                    <span className="self-center text-caption text-muted-foreground">
+                      At most {MAX_CONTEXT_PATHS} notes can be attached
+                    </span>
+                  ) : null}
                 </>
               ) : null
             }
@@ -322,7 +322,7 @@ export const ActionComposer = ({
                 if (isImeComposing(event)) {
                   return;
                 }
-                if (mention !== null && mentionOptions.length > 0) {
+                if (listShown) {
                   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();
                     const step = event.key === "ArrowDown" ? 1 : -1;
@@ -343,12 +343,7 @@ export const ActionComposer = ({
                     event.preventDefault();
                     event.stopPropagation();
                     setMention(null);
-                    return;
                   }
-                }
-                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                  event.preventDefault();
-                  submit();
                 }
               },
               onSelect: (event) => {

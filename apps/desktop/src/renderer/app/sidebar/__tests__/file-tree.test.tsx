@@ -36,17 +36,19 @@ const dragTo = (from: HTMLElement, to: HTMLElement): void => {
   fireEvent.drop(to, dataTransfer());
 };
 
+type RailTreeOverrides = Partial<React.ComponentProps<typeof RailTree>>;
+
 interface RenderedTree {
   ops: TreeOps;
   onOpenFile: ReturnType<typeof vi.fn>;
+  // the same tree drawn again over other props, as the rail's next render would
+  rerender: (overrides: RailTreeOverrides) => void;
 }
 
-const renderTree = (
-  overrides: Partial<React.ComponentProps<typeof RailTree>> = {},
-): RenderedTree => {
+const renderTree = (overrides: RailTreeOverrides = {}): RenderedTree => {
   const ops = makeOps();
   const onOpenFile = vi.fn<FileTreeProps["onOpenFile"]>();
-  render(
+  const tree = (props: RailTreeOverrides) => (
     <RailTree
       entries={ENTRIES}
       loadState="loaded"
@@ -59,14 +61,27 @@ const renderTree = (
       sort="name"
       onSortChange={() => {}}
       vaultRoot={null}
-      {...overrides}
-    />,
+      {...props}
+    />
   );
-  return { onOpenFile, ops };
+  const rendered = render(tree(overrides));
+  return {
+    onOpenFile,
+    ops,
+    rerender: (next) => {
+      rendered.rerender(tree({ ...overrides, ...next }));
+    },
+  };
 };
 
-const createDir = (): string | null =>
-  document.querySelector<HTMLElement>("[data-create-dir]")?.dataset.createDir ?? null;
+// the rail's New note, named and committed: the path the create asked for
+const createFromRail = (ops: TreeOps): string | undefined => {
+  fireEvent.click(screen.getByText("Rail new note"));
+  const input = screen.getByLabelText("Name");
+  fireEvent.change(input, { target: { value: "Fresh" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  return vi.mocked(ops.createNote).mock.lastCall?.[0];
+};
 
 const row = (path: string): HTMLElement => {
   const element = document.querySelector(`[data-path="${path}"]`);
@@ -117,10 +132,20 @@ describe("rendering", () => {
 
 describe("a reveal from the breadcrumb", () => {
   it("opens the way to a folder, opens the folder and focuses its row", () => {
-    renderTree({ reveal: { nonce: 1, path: "notes/daily" } });
+    const { ops } = renderTree({ reveal: { nonce: 1, path: "notes/daily" } });
     expect(screen.getByText("2026-08-16.md")).toBeDefined();
     expect(document.activeElement).toBe(row("notes/daily"));
-    expect(createDir()).toBe("notes/daily");
+    expect(createFromRail(ops)).toBe("notes/daily/Fresh.md");
+  });
+
+  it("is consumed, so a rail mounted again re-applies neither the focus nor the selection", () => {
+    const { ops } = renderTree({ reveal: { nonce: 1, path: "notes/daily" } });
+    expect(document.activeElement).toBe(row("notes/daily"));
+    fireEvent.click(screen.getByText("Rail toggle"));
+    fireEvent.click(screen.getByText("Rail toggle"));
+    expect(document.activeElement).toBe(document.body);
+    expect(screen.queryByText("daily")).toBeNull();
+    expect(createFromRail(ops)).toBe("Fresh.md");
   });
 
   it("is focused once, so a tree mounted again for a create keeps the input's focus", () => {
@@ -308,6 +333,16 @@ describe("inline create", () => {
     expect(screen.getByText("ideas.md")).toBeDefined();
   });
 
+  it("a create in a folder folded away by Collapse all opens the way to it", () => {
+    renderTree();
+    fireEvent.click(row("notes"));
+    fireEvent.click(row("notes/daily"));
+    fireEvent.click(screen.getByText("Collapse all"));
+    expect(screen.queryByText("daily")).toBeNull();
+    fireEvent.click(screen.getByText("Rail new note"));
+    expect(screen.getByLabelText("Name")).toBeDefined();
+  });
+
   it("a folder create passes the name through untouched", async () => {
     const { ops } = renderTree();
     fireEvent.contextMenu(screen.getByRole("tree"));
@@ -350,14 +385,40 @@ describe("the context menu", () => {
 
 describe("where a create from outside the tree lands", () => {
   it("is the selected folder, or the selected file's, else the root", () => {
-    renderTree();
-    expect(createDir()).toBe("");
+    const { ops } = renderTree();
+    expect(createFromRail(ops)).toBe("Fresh.md");
     fireEvent.click(row("notes"));
-    expect(createDir()).toBe("notes");
+    expect(createFromRail(ops)).toBe("notes/Fresh.md");
     fireEvent.click(row("notes/ideas.md"));
-    expect(createDir()).toBe("notes");
+    expect(createFromRail(ops)).toBe("notes/Fresh.md");
     fireEvent.click(row("Welcome.md"));
-    expect(createDir()).toBe("");
+    expect(createFromRail(ops)).toBe("Fresh.md");
+  });
+
+  it("follows a rename to its new path across a listing that only restamps times", () => {
+    const { ops, rerender } = renderTree();
+    fireEvent.click(row("notes"));
+    const daily = row("notes/daily");
+    daily.focus();
+    fireEvent.keyDown(daily, { key: "F2" });
+    const input = screen.getByLabelText("Name");
+    fireEvent.change(input, { target: { value: "journal" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(ops.renameEntry).toHaveBeenCalledWith("notes/daily", "notes/journal");
+
+    rerender({
+      entries: ENTRIES.map((entry) =>
+        entry.kind === "file" ? { ...entry, modifiedMs: 1000 } : entry,
+      ),
+    });
+    rerender({
+      entries: ENTRIES.map((entry) => ({
+        ...entry,
+        path: entry.path.replace(/^notes\/daily/u, "notes/journal"),
+      })),
+    });
+
+    expect(createFromRail(ops)).toBe("notes/journal/Fresh.md");
   });
 });
 

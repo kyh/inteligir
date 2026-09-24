@@ -23,6 +23,9 @@ interface TreeFollows {
   entries: readonly VaultEntry[];
   openPath: string | null;
   reveal: TreeReveal | null;
+  // the owner clears its reveal once the tree has focused it, or a rail mounted again (a toggle,
+  // zen, a peek) would replay it and take the focus back into the tree
+  onRevealConsumed: () => void;
 }
 
 export interface TreeState {
@@ -32,8 +35,12 @@ export interface TreeState {
   setActivePath: React.Dispatch<React.SetStateAction<string | null>>;
   collapseAll: () => void;
   editing: TreeEditing | null;
-  // "" is the vault root; a folder opens in the same update, so the input is in the first paint
+  // "" is the vault root; the folder and every one above it open in the same update, so the input
+  // is in the first paint
   startCreate: (kind: VaultEntry["kind"], parentDir: string) => void;
+  // where a create from outside the tree lands, as an IDE's would: in the selected folder, or the
+  // selected file's, else at the vault root
+  startCreateInSelection: (kind: VaultEntry["kind"]) => void;
   startRename: (path: string) => void;
   stopEditing: () => void;
   // a reveal applied to the fold whose row the tree has not focused yet: the tree focuses it once
@@ -52,18 +59,25 @@ export const withAncestorsExpanded = (current: ReadonlySet<string>, path: string
   return next;
 };
 
-export const useTreeState = ({ entries, openPath, reveal }: TreeFollows): TreeState => {
+export const useTreeState = ({
+  entries,
+  openPath,
+  reveal,
+  onRevealConsumed,
+}: TreeFollows): TreeState => {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [activePath, setActivePath] = useState<string | null>(null);
   const [editing, setEditing] = useState<TreeEditing | null>(null);
   const [revealToFocus, setRevealToFocus] = useState<string | null>(null);
 
-  // Keyed on entries alone: reconciling on every activePath change would clear an optimistic
+  // Keyed on the listing's paths alone: a listing that only restamps a note's modifiedMs is the
+  // same tree, and reconciling on it, or on every activePath change, would clear an optimistic
   // rename-follow before the refetched listing confirms it. An updater, so a reveal applied in the
   // same render keeps the selection it sets.
-  const [reconciledEntries, setReconciledEntries] = useState(entries);
-  if (reconciledEntries !== entries) {
-    setReconciledEntries(entries);
+  const pathKey = entries.map((entry) => entry.path).join("\0");
+  const [reconciledKey, setReconciledKey] = useState(pathKey);
+  if (reconciledKey !== pathKey) {
+    setReconciledKey(pathKey);
     setActivePath((current) =>
       current !== null && !entries.some((entry) => entry.path === current) ? null : current,
     );
@@ -94,6 +108,13 @@ export const useTreeState = ({ entries, openPath, reveal }: TreeFollows): TreeSt
     }
   }
 
+  const startCreate: TreeState["startCreate"] = (kind, parentDir) => {
+    if (parentDir !== "") {
+      setExpanded((current) => withAncestorsExpanded(current, parentDir).add(parentDir));
+    }
+    setEditing({ kind, mode: "create", parentDir });
+  };
+
   return {
     activePath,
     collapseAll: () => {
@@ -103,15 +124,19 @@ export const useTreeState = ({ entries, openPath, reveal }: TreeFollows): TreeSt
     expanded,
     revealFocused: () => {
       setRevealToFocus(null);
+      onRevealConsumed();
     },
     revealToFocus,
     setActivePath,
     setExpanded,
-    startCreate: (kind, parentDir) => {
-      if (parentDir !== "") {
-        setExpanded((current) => new Set(current).add(parentDir));
+    startCreate,
+    startCreateInSelection: (kind) => {
+      if (activePath === null) {
+        startCreate(kind, "");
+        return;
       }
-      setEditing({ kind, mode: "create", parentDir });
+      const isDir = entries.some((entry) => entry.kind === "dir" && entry.path === activePath);
+      startCreate(kind, isDir ? activePath : dirnamePath(activePath));
     },
     startRename: (path) => {
       setEditing({ mode: "rename", path });
@@ -120,17 +145,4 @@ export const useTreeState = ({ entries, openPath, reveal }: TreeFollows): TreeSt
       setEditing(null);
     },
   };
-};
-
-// where a create from outside the tree lands: the selected folder, or the selected file's, else
-// the listing's root; `isDir` answers for the active path, since the listing knows its kind
-export const createDirFor = (
-  rootDir: string,
-  activePath: string | null,
-  isDir: (path: string) => boolean,
-): string => {
-  if (activePath === null) {
-    return rootDir;
-  }
-  return isDir(activePath) ? activePath : dirnamePath(activePath);
 };

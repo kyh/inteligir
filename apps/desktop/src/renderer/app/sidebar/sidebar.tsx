@@ -74,7 +74,7 @@ import { FileTree } from "./file-tree";
 import type { TreeLoadState, TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
 import { TaggedNotes } from "./tagged-notes";
-import { createDirFor, useTreeState } from "./tree-state";
+import { useTreeState } from "./tree-state";
 import type { TreeReveal } from "./tree-state";
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
@@ -352,8 +352,10 @@ export interface SidebarRailContentProps {
   onViewChange: (view: RailView) => void;
   selectedTag: string | null;
   onSelectTag: (tag: string | null) => void;
-  // the breadcrumb's ask, applied to the tree's state: open the way to this entry and select it
+  // the breadcrumb's ask, applied to the tree's state: open the way to this entry and select it;
+  // the tree says once it has focused the row, so the owner can clear it
   reveal: TreeReveal | null;
+  onRevealConsumed: () => void;
   // the header's Search opens the one palette; the chord is spelled by the workspace's table
   onOpenSearch: () => void;
   searchShortcut: string | null;
@@ -371,6 +373,7 @@ export const SidebarRailContent = ({
   selectedTag,
   onSelectTag,
   reveal,
+  onRevealConsumed,
   onOpenSearch,
   searchShortcut,
   onSyncNow,
@@ -387,18 +390,12 @@ export const SidebarRailContent = ({
   const listed = useMemo(() => visibleEntries(entries), [entries]);
   // the breadcrumb's reveal and the open note land on the fold state the rail owns, during the
   // rail's own render; the tree focuses the revealed row its next render draws
-  const tree = useTreeState({ entries: listed, openPath, reveal });
+  const tree = useTreeState({ entries: listed, onRevealConsumed, openPath, reveal });
 
-  // The group's create is a note; a folder is the tree's right-click. It lands where an IDE's
-  // would: in the tree's selected folder, else at the vault root.
+  // The group's create is a note; a folder is the tree's right-click.
   const startCreate = (): void => {
     onViewChange("files");
-    tree.startCreate(
-      "file",
-      createDirFor("", tree.activePath, (path) =>
-        entries.some((entry) => entry.kind === "dir" && entry.path === path),
-      ),
-    );
+    tree.startCreateInSelection("file");
   };
   const changeSort = (next: TreeSort): void => {
     writeTreeSort(next);

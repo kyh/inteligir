@@ -6,11 +6,7 @@ import type { ThreadHarness } from "inteligir/server/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readPanelOpen } from "../prefs";
-import { bootWorkspace as bootWindow, chord } from "./boot-workspace";
-
-const sidebarState = (side: "left" | "right"): string | null =>
-  document.querySelector<HTMLElement>(`[data-slot="sidebar"][data-side="${side}"]`)?.dataset
-    .state ?? null;
+import { bootWorkspace as bootWindow, chord, sidebarState } from "./boot-workspace";
 
 const selectedTab = (): string | null =>
   screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")

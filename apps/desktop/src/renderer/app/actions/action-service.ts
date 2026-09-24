@@ -1,7 +1,7 @@
 import type { ViewContext } from "@repo/domain/view-context";
 import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
 
-import type { client } from "../api";
+import { client } from "../api";
 import { sendToThread } from "./send-to-thread";
 import type { ComposerSendOutcome } from "./send-to-thread";
 
@@ -20,20 +20,17 @@ export interface CreateActionResult {
 }
 
 // untitled on purpose: the server names a thread from its first message, whoever sent it.
-const createActionThread = async (api: typeof client, args: CreateActionArgs): Promise<string> => {
+const createActionThread = async (args: CreateActionArgs): Promise<string> => {
   const createBody: CreateThreadRequest = {};
   if (args.docPath !== null) {
     createBody.originDocPath = args.docPath;
   }
-  const { thread } = await api.threads.create(createBody);
+  const { thread } = await client.threads.create(createBody);
   return thread.id;
 };
 
-export const createAction = async (
-  api: typeof client,
-  args: CreateActionArgs,
-): Promise<CreateActionResult> => {
-  const threadId = args.threadId ?? (await createActionThread(api, args));
+export const createAction = async (args: CreateActionArgs): Promise<CreateActionResult> => {
+  const threadId = args.threadId ?? (await createActionThread(args));
   const sendArgs: Parameters<typeof sendToThread>[1] = {
     activeTurnId: null,
     contextPaths: args.contextPaths,
@@ -43,6 +40,6 @@ export const createAction = async (
   if (args.viewContext !== null) {
     sendArgs.viewContext = args.viewContext;
   }
-  const send = await sendToThread(api, sendArgs);
+  const send = await sendToThread(client, sendArgs);
   return { send, threadId };
 };

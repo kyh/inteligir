@@ -21,6 +21,7 @@ import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import type { TreeSort } from "../prefs";
+import { RailReadFailed } from "./rail-read-failed";
 import { absoluteEntryPath, planMove } from "./tree-ops";
 import type { TreeEditing, TreeState } from "./tree-state";
 
@@ -212,23 +213,12 @@ const InlineNameInput = ({
 
 const EmptyRows = ({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: () => void }) => {
   if (loadState === "loading") {
-    return <p className="px-1 py-2 text-body text-muted-foreground">Loading…</p>;
+    return <p className="px-2 py-2 text-body text-muted-foreground">Loading…</p>;
   }
   if (loadState === "loaded") {
-    return <p className="px-1 py-2 text-body text-muted-foreground">The vault is empty.</p>;
+    return <p className="px-2 py-2 text-body text-muted-foreground">The vault is empty.</p>;
   }
-  return (
-    <div className="px-1 py-2 text-body">
-      <p className="text-destructive">The vault could not be read.</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-1 rounded px-1 py-0.5 text-muted-foreground underline underline-offset-2 hover:text-foreground"
-      >
-        Try again
-      </button>
-    </div>
-  );
+  return <RailReadFailed sentence="The vault could not be read." onRetry={onRetry} />;
 };
 
 // a right-click on a row, or on the listing's empty area (the root's own verbs)

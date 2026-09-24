@@ -10,7 +10,13 @@ import {
   useMemo,
   useRef,
 } from "react";
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, RefAttributes } from "react";
+import type {
+  ButtonHTMLAttributes,
+  HTMLAttributes,
+  ReactNode,
+  RefAttributes,
+  RefObject,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { HTMLMotionProps } from "framer-motion";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
@@ -46,7 +52,7 @@ interface SidebarContextValue {
   toggleSidebar: () => void;
   width: string;
   setWidth: (width: string) => void;
-  commitWidth: (px: number) => void;
+  onWidthCommitted?: ((px: number) => void) | undefined;
   widthMobile: string;
   mobileBreakpoint: number;
   side: SidebarSide;
@@ -86,6 +92,12 @@ const useIsMobile = (breakpoint: number): boolean => {
   return isMobile === true;
 };
 
+// what an owner may ask of its sidebar: the toggle a click on the rail runs, which opens the
+// sheet below the mobile breakpoint, where nothing else reaches it
+export interface SidebarActions {
+  toggle: () => void;
+}
+
 interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   defaultOpen?: boolean;
   open?: boolean;
@@ -95,6 +107,7 @@ interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   shortcut?: string | null;
   // once per resize, when the drag ends or collapses the sidebar, never per frame
   onWidthCommitted?: (px: number) => void;
+  actionsRef?: RefObject<SidebarActions | null>;
   mobileBreakpoint?: number;
   peek?: "hover" | "click" | "none";
   width?: string;
@@ -107,6 +120,7 @@ const SidebarProvider = ({
   onOpenChange,
   shortcut = null,
   onWidthCommitted,
+  actionsRef,
   mobileBreakpoint = 768,
   peek = "none",
   width: widthProp = SIDEBAR_WIDTH,
@@ -131,12 +145,6 @@ const SidebarProvider = ({
     setWidth(widthProp);
   }
   const [isResizing, setIsResizing] = useState(false);
-  const commitWidth = useCallback(
-    (px: number) => {
-      onWidthCommitted?.(px);
-    },
-    [onWidthCommitted],
-  );
 
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = openProp ?? internalOpen;
@@ -161,6 +169,12 @@ const SidebarProvider = ({
     }
   }, [isMobile, setOpen]);
 
+  useEffect(() => {
+    if (actionsRef !== undefined) {
+      actionsRef.current = { toggle: toggleSidebar };
+    }
+  }, [actionsRef, toggleSidebar]);
+
   const [isPeeking, setIsPeeking] = useState(false);
   if (isPeeking && (open || peek === "none")) {
     setIsPeeking(false);
@@ -168,11 +182,11 @@ const SidebarProvider = ({
 
   const value = useMemo<SidebarContextValue>(
     () => ({
-      commitWidth,
       isMobile,
       isPeeking,
       isResizing,
       mobileBreakpoint,
+      onWidthCommitted,
       open,
       openMobile,
       peek,
@@ -196,7 +210,7 @@ const SidebarProvider = ({
       isMobile,
       toggleSidebar,
       width,
-      commitWidth,
+      onWidthCommitted,
       widthMobile,
       mobileBreakpoint,
       side,
@@ -256,7 +270,7 @@ const SidebarRail = ({
   ref,
   ...props
 }: SidebarRailProps & RefAttributes<HTMLButtonElement>) => {
-  const { toggleSidebar, setOpen, setWidth, commitWidth, side, setIsResizing, shortcut } =
+  const { toggleSidebar, setOpen, setWidth, onWidthCommitted, side, setIsResizing, shortcut } =
     useSidebar();
   const railRef = useRef<HTMLButtonElement | null>(null);
   const dragRef = useRef<{
@@ -304,7 +318,7 @@ const SidebarRail = ({
       setDragging(false);
       setIsResizing(false);
       setWidth(`${SIDEBAR_MIN_WIDTH}px`);
-      commitWidth(SIDEBAR_MIN_WIDTH);
+      onWidthCommitted?.(SIDEBAR_MIN_WIDTH);
       setOpen(false);
       return;
     }
@@ -313,20 +327,28 @@ const SidebarRail = ({
     setWidth(`${next}px`);
   };
 
-  const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+  // A cancelled drag, or one whose capture the browser took back, still lands the width it
+  // reached; only a press let go where it began is a click.
+  const endDrag = (toggleOnClick: boolean): void => {
     const drag = dragRef.current;
     dragRef.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
     setDragging(false);
     setIsResizing(false);
-    if (!drag) {
-      return;
-    }
-    if (drag.moved) {
-      commitWidth(drag.width);
-    } else {
+    if (drag?.moved === true) {
+      onWidthCommitted?.(drag.width);
+    } else if (toggleOnClick && drag !== null) {
       toggleSidebar();
     }
+  };
+
+  // ended before the release, which may report the lost capture before it returns
+  const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    endDrag(true);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const onDragInterrupted = (): void => {
+    endDrag(false);
   };
 
   const semibold = { fontVariationSettings: fontWeights.semibold };
@@ -360,6 +382,8 @@ const SidebarRail = ({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onDragInterrupted}
+        onLostPointerCapture={onDragInterrupted}
         className={cn(
           "absolute inset-y-0 z-20 w-2 cursor-col-resize outline-none",
           // positioned from context, not group-data selectors, so a className offset can win the merge
