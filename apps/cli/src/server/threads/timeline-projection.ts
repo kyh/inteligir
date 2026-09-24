@@ -9,7 +9,7 @@ import { listStoredThreadEvents } from "@repo/db/events";
 import type { StoredThreadEvent } from "@repo/db/events";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { buildThreadTimeline } from "@repo/api/local/build-thread-timeline";
-import { evictOldest } from "../evict-oldest";
+import { setMostRecent } from "../evict-oldest";
 
 const RESIDENT_THREADS = 8;
 // the one just served, plus the bases a client a frame or two behind asks for.
@@ -31,14 +31,11 @@ const projection = (
 ): ThreadTimeline => {
   const held = log.projections.get(maxSequence);
   if (held !== undefined) {
-    // re-insert so the LRU counts this read.
-    log.projections.delete(maxSequence);
-    log.projections.set(maxSequence, held);
+    setMostRecent(log.projections, maxSequence, held, RESIDENT_PROJECTIONS);
     return held;
   }
   const built = buildThreadTimeline(events);
-  log.projections.set(maxSequence, built);
-  evictOldest(log.projections, RESIDENT_PROJECTIONS);
+  setMostRecent(log.projections, maxSequence, built, RESIDENT_PROJECTIONS);
   return built;
 };
 
@@ -77,12 +74,10 @@ export class ThreadTimelineProjector {
     if (existing === undefined) {
       const log: ThreadLog = { events: [], projections: new Map(), readThrough: 0 };
       this.readInto(threadId, log);
-      this.logs.set(threadId, log);
-      evictOldest(this.logs, RESIDENT_THREADS);
+      setMostRecent(this.logs, threadId, log, RESIDENT_THREADS);
       return log;
     }
-    this.logs.delete(threadId);
-    this.logs.set(threadId, existing);
+    setMostRecent(this.logs, threadId, existing, RESIDENT_THREADS);
     this.readInto(threadId, existing);
     return existing;
   }

@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
-import type { DbConnection, DbTransaction } from "./connection";
+import type { DbConnection, DbExecutor } from "./connection";
 import { meta } from "./schema";
 
-export const getMetaValue = (db: DbConnection | DbTransaction, key: string): string | undefined => {
+export const getMetaValue = (db: DbExecutor, key: string): string | undefined => {
   const row = db.select().from(meta).where(eq(meta.key, key)).get();
   return row?.value;
 };

@@ -10,10 +10,10 @@ import type { ProviderEvent } from "./vocabulary/provider-event.js";
 
 export type AgentRuntimeShellEnvironment = Record<string, string>;
 
-export type PromptInput =
-  | { type: "text"; text: string }
-  | { type: "image"; url: string }
-  | { type: "localImage"; path: string };
+export interface PromptInput {
+  type: "text";
+  text: string;
+}
 
 export interface AgentRuntimeOptions {
   workspacePath: string;

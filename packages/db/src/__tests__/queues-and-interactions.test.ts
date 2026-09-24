@@ -24,8 +24,13 @@ import { createThread } from "../threads";
 import { openTempDb } from "./open-temp-db";
 
 // each in the transaction the server composes it in.
-const enqueue = (db: DbConnection, input: CreateQueuedThreadMessageInput): QueuedThreadMessageRow =>
-  writeTransaction(db, (tx) => createQueuedThreadMessageInTransaction(tx, input));
+const enqueue = (
+  db: DbConnection,
+  input: Omit<CreateQueuedThreadMessageInput, "contextPaths">,
+): QueuedThreadMessageRow =>
+  writeTransaction(db, (tx) =>
+    createQueuedThreadMessageInTransaction(tx, { ...input, contextPaths: null }),
+  );
 
 const claimNext = (db: DbConnection, threadId: string): ClaimedQueuedThreadMessageRow | null =>
   writeTransaction(db, (tx) => claimNextQueuedThreadMessageInTransaction(tx, threadId));

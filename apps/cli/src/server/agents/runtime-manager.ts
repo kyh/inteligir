@@ -31,7 +31,7 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { messageOf } from "../error-message";
-import { evictOldest } from "../evict-oldest";
+import { setMostRecent } from "../evict-oldest";
 import { TurnDriverUnavailableError } from "../threads/turn-driver";
 import type {
   CreateTurnDriver,
@@ -354,9 +354,12 @@ class AcpTurnDriver implements TurnDriver {
     });
     // recorded once the prompt is on the wire: a dispatch that failed first handed the session nothing.
     if (instructions !== undefined) {
-      this.instructionHashes.delete(args.threadId);
-      this.instructionHashes.set(args.threadId, instructionsHash(instructions));
-      evictOldest(this.instructionHashes, RESIDENT_INSTRUCTION_HASHES);
+      setMostRecent(
+        this.instructionHashes,
+        args.threadId,
+        instructionsHash(instructions),
+        RESIDENT_INSTRUCTION_HASHES,
+      );
     }
   }
 

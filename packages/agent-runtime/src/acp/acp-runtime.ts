@@ -3,6 +3,7 @@
 // message waits in the host's queue.
 
 import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { Readable, Writable } from "node:stream";
 import { finished } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
@@ -130,31 +131,8 @@ const mintTurnId = (): string => {
   return `acpturn_${String(Date.now())}_${String(turnCounter)}`;
 };
 
-const promptBlocks = (input: PromptInput[]): ContentBlock[] => {
-  const blocks: ContentBlock[] = [];
-  for (const part of input) {
-    switch (part.type) {
-      case "text": {
-        blocks.push({ text: part.text, type: "text" });
-        break;
-      }
-      case "image": {
-        blocks.push({ name: part.url, type: "resource_link", uri: part.url });
-        break;
-      }
-      case "localImage": {
-        blocks.push({
-          name: part.path,
-          type: "resource_link",
-          uri: `file://${part.path}`,
-        });
-        break;
-      }
-      // no default
-    }
-  }
-  return blocks;
-};
+const promptBlocks = (input: PromptInput[]): ContentBlock[] =>
+  input.map(({ text }) => ({ text, type: "text" }));
 
 const adapterExitError = (
   harness: HarnessDefinition,
@@ -178,16 +156,7 @@ const CANCELLED_PERMISSION: RequestPermissionResponse = { outcome: { outcome: "c
 
 const whenAborted = async (signal: AbortSignal): Promise<null> => {
   if (!signal.aborted) {
-    // oxlint-disable-next-line promise/avoid-new -- adapts the signal's one-shot "abort" event
-    await new Promise<void>((resolve) => {
-      signal.addEventListener(
-        "abort",
-        () => {
-          resolve();
-        },
-        { once: true },
-      );
-    });
+    await once(signal, "abort");
   }
   return null;
 };

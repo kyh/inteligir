@@ -2,7 +2,7 @@
 // visible without flooding. the keys are bounded too, least recently seen first out: a class that
 // comes back after eviction logs in full once more.
 
-import { evictOldest } from "../evict-oldest";
+import { setMostRecent } from "../evict-oldest";
 
 const REPORT_EVERY = 100;
 const MAX_KEYS = 512;
@@ -25,9 +25,7 @@ export const createBoundedAgentLog =
   (message) => {
     const key = boundedLogKey(message);
     const count = (countsByKey.get(key) ?? 0) + 1;
-    countsByKey.delete(key);
-    countsByKey.set(key, count);
-    evictOldest(countsByKey, MAX_KEYS);
+    setMostRecent(countsByKey, key, count, MAX_KEYS);
     if (count === 1) {
       write(`agent: ${message}`);
       return;

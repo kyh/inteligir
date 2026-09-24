@@ -3,8 +3,8 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventItemRef, threadEventSchema } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
-import { and, desc, eq, gt, inArray, max, sql } from "drizzle-orm";
-import type { DbConnection, DbTransaction } from "./connection";
+import { and, desc, eq, gt, inArray, isNull, max, sql } from "drizzle-orm";
+import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createEventId } from "./ids";
 import { events } from "./schema";
 
@@ -281,15 +281,21 @@ export const listStoredThreadEvents = (
 
 type ThreadMetaEvent = Extract<ThreadEvent, { type: "thread/meta" }>;
 
-// the facts a thread's log has stated about it, oldest first.
-export const listThreadMetaEvents = (
-  db: DbConnection | DbTransaction,
-  threadId: string,
-): ThreadMetaEvent[] =>
+// the facts a thread's log has stated about it, oldest first. a thread/meta row is thread-scoped
+// and names no item, so spelling out the null turn and item seeks the (thread, turn, type, item)
+// index, where (thread, type) alone walks the whole thread inside every turn start's write lock.
+export const listThreadMetaEvents = (db: DbExecutor, threadId: string): ThreadMetaEvent[] =>
   db
     .select({ data: events.data })
     .from(events)
-    .where(and(eq(events.threadId, threadId), eq(events.type, "thread/meta")))
+    .where(
+      and(
+        eq(events.threadId, threadId),
+        isNull(events.turnId),
+        eq(events.type, "thread/meta"),
+        isNull(events.itemId),
+      ),
+    )
     .orderBy(events.sequence)
     .all()
     .flatMap((row) => {
@@ -301,7 +307,7 @@ type TurnCompletedEvent = Extract<ThreadEvent, { type: "turn/completed" }>;
 
 // how a turn's own rows say it ended, the latest statement when there are several.
 export const storedTurnCompletion = (
-  db: DbConnection | DbTransaction,
+  db: DbExecutor,
   args: { threadId: string; turnId: string },
 ): TurnCompletedEvent | null => {
   const row = db
@@ -321,14 +327,14 @@ export const storedTurnCompletion = (
   return event?.type === "turn/completed" ? event : null;
 };
 
-export const threadHasEvents = (db: DbConnection | DbTransaction, threadId: string): boolean =>
+export const threadHasEvents = (db: DbExecutor, threadId: string): boolean =>
   db.select({ id: events.id }).from(events).where(eq(events.threadId, threadId)).limit(1).get() !==
   undefined;
 
 // crash recovery asks this before failing a turn: a turn another device started is running
 // elsewhere, and failing it here would sync a fabricated failure back to it.
 export const turnStartOriginDeviceId = (
-  db: DbConnection | DbTransaction,
+  db: DbExecutor,
   args: { threadId: string; turnId: string },
 ): string | null => {
   const row = db

@@ -16,8 +16,8 @@ export interface OwnSyncedCopiesRemoval {
   threadIds: readonly string[];
 }
 
-// an id this install signed in as before sync_own_devices recorded them: it pushed a turn this
-// install ran, and a turn id is minted by the one install that runs the turn.
+// a device id this install signed in under but never recorded: it pushed a turn this install ran,
+// and a turn id is minted by the one install that runs the turn.
 const earlierOwnDeviceIds = (tx: DbTransaction): string[] =>
   tx
     .selectDistinct({ deviceId: events.originDeviceId })
@@ -35,10 +35,10 @@ const earlierOwnDeviceIds = (tx: DbTransaction): string[] =>
     .all()
     .flatMap((row) => (row.deviceId === null ? [] : [row.deviceId]));
 
-// before the planner skipped every id an install had held, signing in again pulled back what the
-// install had pushed under its earlier id, beside the null-origin rows it wrote them as. once per
-// database: the planner has not let a copy land since. the earlier ids are recorded too, or the
-// next replay of the log would land the removed rows again.
+// a database can hold copies of rows it pushed under an earlier device id, beside the null-origin
+// rows it wrote them as. this removes them once per database, since the planner skips every
+// recorded id; the earlier ids are recorded too, or a replay of the log would land the removed
+// rows again.
 export const removeOwnSyncedCopiesInTransaction = (tx: DbTransaction): OwnSyncedCopiesRemoval => {
   if (getMetaValue(tx, REMOVAL_META_KEY) !== undefined) {
     return { removed: 0, threadIds: [] };

@@ -32,7 +32,8 @@ export const threads = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
     // the origin note's frontmatter `id`, which a move anywhere (Finder, a pull, an agent's `mv`)
     // keeps; origin_doc_path stays the path at compose time and answers for a note with none. no
-    // index: nothing selects by it, each row is resolved through the knowledge index on read.
+    // index: the listing filters by it (and by origin_doc_path) inside the (updated_at, id)
+    // partial-index scan, which a vault's thread count keeps cheap.
     originNoteId: text("origin_note_id"),
   },
   (table) => [
