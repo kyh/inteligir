@@ -4,10 +4,11 @@ import {
   CommandItem,
   CommandShortcut,
 } from "@repo/ui/components/command";
+import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
-import { spellHotkey } from "@repo/editor/hotkey-spelling";
-import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
 import { matchesQuery, PalettePage } from "./palette-page";
@@ -15,8 +16,21 @@ import { matchesQuery, PalettePage } from "./palette-page";
 interface ShortcutRow {
   id: string;
   label: string;
+  // the chord as one line, which the filter matches; the caps are what the row draws
   chord: string;
+  caps: readonly string[];
 }
+
+const shortcutRow = (
+  row: { action: string; label: string },
+  hotkey: string,
+  modifier: ShortcutModifier,
+): ShortcutRow => ({
+  caps: hotkeyCaps(hotkey, modifier),
+  chord: spellHotkey(hotkey, modifier),
+  id: row.action,
+  label: row.label,
+});
 
 // derived from the tables the listeners read, never a list of its own
 const shortcutGroups = (
@@ -24,19 +38,13 @@ const shortcutGroups = (
 ): readonly { heading: string; rows: ShortcutRow[] }[] => [
   {
     heading: "Everywhere",
-    rows: GLOBAL_SHORTCUTS.map((row) => ({
-      chord: spellHotkey(globalShortcutHotkey(row), modifier),
-      id: row.action,
-      label: row.label,
-    })),
+    rows: GLOBAL_SHORTCUTS.map((row) => shortcutRow(row, globalShortcutHotkey(row), modifier)),
   },
   {
     heading: "In the note",
-    rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS].map((row) => ({
-      chord: spellHotkey(row.hotkey, modifier),
-      id: row.action,
-      label: row.label,
-    })),
+    rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS, ...COMMENT_SHORTCUTS].map(
+      (row) => shortcutRow(row, row.hotkey, modifier),
+    ),
   },
 ];
 
@@ -63,7 +71,7 @@ export const ShortcutsPage = ({ query, modifier, onPick }: ShortcutsPageProps) =
           {group.rows.map((row) => (
             <CommandItem key={row.id} action={row.label} onSelect={onPick}>
               {row.label}
-              <CommandShortcut keys={row.chord} />
+              <CommandShortcut caps={row.caps} />
             </CommandItem>
           ))}
         </CommandGroup>

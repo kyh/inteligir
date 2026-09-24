@@ -32,7 +32,6 @@
     "./formulas/formula-recompute": "./src/formulas/formula-recompute.ts",
     "./heading-collapse": "./src/heading-collapse.tsx",
     "./host": "./src/host.ts",
-    "./hotkey-spelling": "./src/hotkey-spelling.ts",
     "./host-io": "./src/host-io.ts",
     "./inline-combobox": "./src/inline-combobox.tsx",
     "./insert-markdown": "./src/insert-markdown.ts",

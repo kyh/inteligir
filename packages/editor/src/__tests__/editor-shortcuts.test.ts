@@ -12,6 +12,7 @@ import {
   handleEditorShortcut,
 } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut, ShortcutKeyEvent } from "@repo/editor/editor-shortcuts";
+import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { registerLiveEditor } from "@repo/editor/live-editor";
@@ -152,6 +153,7 @@ describe("the shortcut tables", () => {
     const tables: readonly (readonly EditorShortcut<string>[])[] = [
       EDITOR_SHORTCUTS,
       FIND_BAR_SHORTCUTS,
+      COMMENT_SHORTCUTS,
     ];
     for (const rows of tables) {
       for (const row of rows) {

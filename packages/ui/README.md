@@ -37,6 +37,8 @@ components.json  shadcn config: base-rhea, zinc, the @fluid registry
 - `popover` keeps `anchor` passthrough.
 - `command` keeps `initialFocus` and never filters (each palette page filters
   its own rows); title and description stay inside `DialogContent`.
+- `SidebarProvider` listens for no key: the app's own shortcut table owns the
+  toggle, and the provider only shows the `shortcut` it is handed.
 - `sonner` uses `@repo/ui/lib/theme`, not `next-themes`.
 - `globals.css` keeps `@source "../**/*.{ts,tsx}"` so Tailwind sees this
   package through workspace imports.

@@ -14,8 +14,8 @@ import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { isTemplatePath } from "@repo/notes/templates/placeholders";
-import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
-import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { HeadingItem } from "@repo/editor/toc";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -39,7 +39,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { bindingFor } from "../global-shortcuts";
+import { bindingCapsFor } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";
 import { planMove } from "../sidebar/tree-ops";
 import { orpc } from "../api";
@@ -480,7 +480,7 @@ export const CommandPalette = ({
                     {command.icon}
                     {command.label}
                     {command.binding === undefined ? null : (
-                      <CommandShortcut keys={bindingFor(command.binding, modifier) ?? ""} />
+                      <CommandShortcut caps={bindingCapsFor(command.binding, modifier)} />
                     )}
                   </CommandItem>
                 ))}

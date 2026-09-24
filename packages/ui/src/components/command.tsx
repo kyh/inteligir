@@ -53,30 +53,6 @@ const radius = radiusMap.rounded;
 const NO_ROW: HTMLElement | null = null;
 
 // ---------------------------------------------------------------------------
-// Caps — a chord as one box per key. The chord arrives already spelled for the
-// keyboard in use (`@repo/editor/hotkey-spelling`), so this only cuts it up:
-// "Ctrl+Shift+P" on its joiner, "⌘⇧P" on its symbols.
-// ---------------------------------------------------------------------------
-
-const MODIFIER_GLYPHS = "⌘⌃⌥⇧";
-
-export const shortcutCaps = (chord: string): string[] => {
-  if (chord.includes("+")) {
-    return chord.split("+").filter((part) => part !== "");
-  }
-  const caps: string[] = [];
-  let rest = chord;
-  while (rest !== "" && MODIFIER_GLYPHS.includes(rest.charAt(0))) {
-    caps.push(rest.charAt(0));
-    rest = rest.slice(1);
-  }
-  if (rest !== "") {
-    caps.push(rest);
-  }
-  return caps;
-};
-
-// ---------------------------------------------------------------------------
 // The registry
 // ---------------------------------------------------------------------------
 
@@ -673,11 +649,11 @@ const Caps = ({ caps }: { caps: readonly string[] }) => (
 );
 
 interface CommandShortcutProps extends Omit<ComponentProps<"kbd">, "children"> {
-  // the chord as it is spelled for this keyboard, e.g. "⌘⇧P" or "Ctrl+Shift+P"
-  keys: string;
+  // one entry per key, as `hotkeyCaps` (`@repo/ui/lib/hotkey-spelling`) draws it for this keyboard
+  caps: readonly string[];
 }
 
-const CommandShortcut = ({ className, keys, ...props }: CommandShortcutProps) => (
+const CommandShortcut = ({ className, caps, ...props }: CommandShortcutProps) => (
   <kbd
     data-slot="command-shortcut"
     className={cn(
@@ -686,7 +662,7 @@ const CommandShortcut = ({ className, keys, ...props }: CommandShortcutProps) =>
     )}
     {...props}
   >
-    <Caps caps={shortcutCaps(keys)} />
+    <Caps caps={caps} />
   </kbd>
 );
 

@@ -396,19 +396,26 @@ to the END of its group.
   `packages/editor/src/insert-template.ts`.
 
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
-  literal.** Four tables own every chord: `GLOBAL_SHORTCUTS`
+  literal.** Five tables own every chord: `GLOBAL_SHORTCUTS`
   (`apps/desktop/src/renderer/app/global-shortcuts.ts`, the window listener),
   `MARK_SHORTCUTS` (`packages/editor/src/mark-shortcuts.ts`, which the marks
   kit BUILDS Plate's `shortcuts` config from, so Plate's own defaults never
-  run), `EDITOR_SHORTCUTS` (`packages/editor/src/editor-shortcuts.ts`) and
-  `FIND_BAR_SHORTCUTS` (`packages/editor/src/find-bar.tsx`), and each handler
-  matches by walking its table. The palette's "Keyboard shortcuts" page, every
-  `CommandShortcut` and the selection toolbar's tooltips are derived from those
-  rows through `spellHotkey` (`@repo/editor/hotkey-spelling`: ⌃⌥⇧⌘ on a mac
-  keyboard, `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale
-  label behind. `shortcut-tables.test.ts` refuses a chord two tables share,
-  because a key both claim runs both. ⌘P is the one search surface and ⌘, is
-  Settings; a browser tab may keep either for itself, the shell delivers both.
+  run), `EDITOR_SHORTCUTS` (`packages/editor/src/editor-shortcuts.ts`),
+  `FIND_BAR_SHORTCUTS` (`packages/editor/src/find-bar.tsx`) and
+  `COMMENT_SHORTCUTS` (`packages/editor/src/comments/comment-kit.tsx`), and
+  each handler matches by walking its table. The palette's "Keyboard
+  shortcuts" page, every `CommandShortcut`, the selection toolbar's tooltips,
+  the rail's hints and the panel's empty states are derived from those rows
+  through `@repo/ui/lib/hotkey-spelling` (⌃⌥⇧⌘ on a mac keyboard,
+  `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale label behind.
+  `shortcut-tables.test.ts` refuses a chord two tables share, because a key
+  both claim runs both. No listener lives outside the tables: the sidebar
+  provider listens for no key and only shows the chord it is handed, and the
+  rail's `[` and the panel's `]` are BARE rows in `GLOBAL_SHORTCUTS`, which
+  answer only when no modifier is held and focus is not in a field, since a
+  bare key is a character wherever text is typed. ⌘P is the one search
+  surface and ⌘, is Settings; a browser tab may keep either for itself, the
+  shell delivers both.
 
 - **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
   Pinning travels with the file, so the recents agree on every device and with
@@ -1614,7 +1621,9 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   nothing in a closed panel. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
   the flat underline row; the pill switch went with its last consumer. Its width persists through the same Fluid resize handle the
   rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
-  second resize mechanism would be a second answer to one drag.
+  second resize mechanism would be a second answer to one drag; the provider
+  reports a width once, when a drag lets go or collapses the side
+  (`onWidthCommitted`), never per frame.
 
 - **AMBIENT STATE LIVES IN THE RAIL'S FOOTER; THE NOTE KEEPS ITS COUNT.** A
   strip across the whole window was a second bar under a rail that already
@@ -1647,9 +1656,10 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   filter down. The footer names Enter after the highlighted row, read off that
   row's own `data-command-action`, so nothing keeps a second copy of a label
   the page already drew; a row without one leaves Enter unnamed rather than
-  guessing. A chord draws one box per key, cut from the string
-  `spellHotkey` already spelled (`shortcutCaps`), because @repo/ui cannot
-  reach `@repo/editor` and a second spelling of ⌘ would be a second spelling.
+  guessing. A chord draws one box per key: `CommandShortcut` takes the caps
+  `hotkeyCaps` draws from the one modifier table `spellHotkey` joins
+  (`@repo/ui/lib/hotkey-spelling`), so ⌘ is spelled once and nothing cuts a
+  spelled string back into keys.
   What went with cmdk is `input-group.tsx`: the palette's framed field was its
   last consumer, and Fluid's field is frameless over a divider. ONE DIALOG FOR
   EVERY PAGE: the dialog, the field and the footer are drawn once, their words
@@ -1697,9 +1707,10 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   the pathless `_workspace` layout, drawn in a full-window layer over the
   workspace rather than as a sibling route, which unmounted the note, its undo
   history, the composer and zen, and re-walked the vault on the way back.
-  `search: true` carries `?note=` both ways. Covered, the workspace is `inert`,
-  its `GLOBAL_SHORTCUTS` listener is detached and an inert sidebar answers no
-  `[`/`]`, because inert stops focus and pointer but not a window listener; the
+  `search: true` carries `?note=` both ways. Covered, the workspace is `inert`
+  and its `GLOBAL_SHORTCUTS` listener, the rail's `[` and the panel's `]`
+  among its rows, is detached, because inert stops focus and pointer but not a
+  window listener; the
   way in blurs the focused element and flushes the open note, since no unmount
   settles a title mid-rename or an edit inside the debounce any more. The layer
   is the layout's, not the page's, so a child's crash boundary lands inside it
