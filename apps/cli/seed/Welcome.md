@@ -8,4 +8,4 @@ This folder is your vault: plain markdown files that belong to you, versioned wi
 
 Start with [[Getting Started]] for the full tour of what notes can hold, skim [[Use Cases]] for real workflows, or open [[Kitchen Sink]] to see every block in one place.
 
-Press ⌘K to ask the agent anything about the note you are reading.
+Press ⌘K (Ctrl+K on Windows and Linux) to ask the agent anything about the note you are reading.

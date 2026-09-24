@@ -69,6 +69,8 @@ export interface FixtureState {
   dataDir: string;
   failWith: { code: "BAD_REQUEST" | "INTERNAL_SERVER_ERROR"; message: string } | null;
   refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
+  // false: the server of an unbuilt checkout, which mints no browser handoff.
+  servesUi: boolean;
   vault: Map<string, string>;
   // every commitNow and landed write, in order, so a composition's ordering is assertable.
   vaultLog: string[];
@@ -152,6 +154,7 @@ export const makeFixtureState = (): FixtureState => ({
   related: [],
   revisions: new Map(),
   searchResults: [],
+  servesUi: true,
   tags: [],
   threads: [],
   vault: new Map(),
@@ -431,7 +434,12 @@ const knowledgeRouter = {
 };
 
 const systemRouter = {
-  browserHandoff: base.system.browserHandoff.handler(() => ({ nonce: FIXTURE_HANDOFF_NONCE })),
+  browserHandoff: base.system.browserHandoff.handler(({ context, errors }) => {
+    if (!context.servesUi) {
+      throw errors.NOT_FOUND({ message: "This server serves no UI (an unbuilt checkout)." });
+    }
+    return { nonce: FIXTURE_HANDOFF_NONCE };
+  }),
   guide: base.system.guide.handler(({ context }) => ({ markdown: context.guideMarkdown })),
   status: base.system.status.handler(({ context }) => {
     const status: SystemStatusResponse = {

@@ -5,6 +5,7 @@
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { KnowledgeStoreError } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
 import { z } from "zod";
 import { messageOf } from "../error-message";
@@ -33,6 +34,15 @@ const openAt = (target: string): Database.Database => {
       // already unusable.
     }
     throw error;
+  }
+};
+
+// the driver's contract: every database failure leaves as the store's own error.
+const guarded = <T>(what: string, work: () => T): T => {
+  try {
+    return work();
+  } catch (error) {
+    throw new KnowledgeStoreError(`knowledge-db ${what}: ${messageOf(error)}`, { cause: error });
   }
 };
 
@@ -100,7 +110,7 @@ export const createSqliteDriver = (dbPath: string): SqlDriver => {
 
   return {
     all(sql, params) {
-      const rows: unknown[] = prepared(sql).all(...params);
+      const rows: unknown[] = guarded("read", () => prepared(sql).all(...params));
       return rows.flatMap((row) => {
         const parsed = sqlRowSchema.safeParse(row);
         return parsed.success ? [parsed.data] : [];
@@ -109,11 +119,15 @@ export const createSqliteDriver = (dbPath: string): SqlDriver => {
 
     close() {
       statements = new Map();
-      db.close();
+      guarded("close", () => {
+        db.close();
+      });
     },
 
     exec(sql) {
-      db.exec(sql);
+      guarded("exec", () => {
+        db.exec(sql);
+      });
     },
 
     reset() {
@@ -124,7 +138,7 @@ export const createSqliteDriver = (dbPath: string): SqlDriver => {
         // already unusable.
       }
       if (backing === "memory") {
-        db = openAt(":memory:");
+        db = guarded("reset", () => openAt(":memory:"));
         return;
       }
       try {
@@ -133,11 +147,13 @@ export const createSqliteDriver = (dbPath: string): SqlDriver => {
         console.warn("[knowledge-db] reset delete failed — renaming aside:", messageOf(error));
         renameDbFilesAside();
       }
-      ({ db, backing } = openBestEffort());
+      ({ db, backing } = guarded("reset", openBestEffort));
     },
 
     run(sql, params) {
-      prepared(sql).run(...params);
+      guarded("write", () => {
+        prepared(sql).run(...params);
+      });
     },
   };
 };

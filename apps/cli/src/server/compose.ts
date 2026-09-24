@@ -78,6 +78,8 @@ export interface ComposePorts {
 export interface ComposeRuntimeArgs {
   config: AppConfig;
   version: string;
+  // whether the app will answer a browser with the workspace; the caller resolved its UI dir.
+  servesUi: boolean;
   // required, not defaulted: a silent default is an agent that is off.
   driver: (deps: ComposeDriverDeps) => ResolvedAgentDriver;
   cloudTransport?: CloudTransport;
@@ -267,6 +269,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       dataDir: config.dataDir,
       dataDirScope: config.dataDir === config.rootDataDir ? "root" : "vault",
       schemaVersion,
+      servesUi: args.servesUi,
       startedAt: Date.now(),
       vaultDir: config.vaultDir,
       version: args.version,

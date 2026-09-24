@@ -104,7 +104,7 @@ describe("comments service", () => {
 
     await comments.add({ id: "c1", path: "plan.md", text: "Should this ship?" });
     await comments.reply({ id: "c1-r1", parentId: "c1", path: "plan.md", text: "Yes." });
-    const listed = await comments.list("plan.md");
+    const { answer: listed } = await comments.list("plan.md");
 
     expect(listed.total).toBe(1);
     const [thread] = listed.threads;
@@ -112,7 +112,11 @@ describe("comments service", () => {
     expect(thread?.replies.map((reply) => reply.id)).toEqual(["c1-r1"]);
     expect(thread?.root.source).toBe("user");
 
-    const resolved = await comments.resolve({ id: "c1", path: "plan.md", resolved: true });
+    const { answer: resolved } = await comments.resolve({
+      id: "c1",
+      path: "plan.md",
+      resolved: true,
+    });
     expect(resolved.threads[0]?.resolved).toBe(true);
     expect(resolved.threads[0]?.replies[0]?.entry.resolvedBy).toBe("user");
   });
@@ -144,7 +148,7 @@ describe("comments service", () => {
   it("a read mints nothing: a note without an id lists empty and stays as written", async () => {
     const { root, comments } = boot();
     writeFileSync(nodePath.join(root, "plan.md"), "plain\n");
-    const listed = await comments.list("plan.md");
+    const { answer: listed } = await comments.list("plan.md");
     expect(listed.total).toBe(0);
     expect(readFileSync(nodePath.join(root, "plan.md"), "utf-8")).toBe("plain\n");
     expect(existsSync(nodePath.join(root, ".inteligir"))).toBe(false);
@@ -174,7 +178,7 @@ describe("comments service", () => {
     writeFileSync(nodePath.join(root, "plan.md"), "%%i:c1:start%%x%%i:c1:end%%\n");
     await comments.add({ id: "c1", path: "plan.md", text: "root" });
     await vault.rename("plan.md", "renamed.md");
-    const listed = await comments.list("renamed.md");
+    const { answer: listed } = await comments.list("renamed.md");
     expect(listed.total).toBe(1);
     expect(listed.threads[0]?.anchored).toBe(true);
   });
@@ -186,7 +190,7 @@ describe("comments service", () => {
       "A %%i:ghost:start%%range%%i:ghost:end%% here.\n",
     );
     await comments.add({ id: "unanchored", path: "plan.md", text: "floating" });
-    const listed = await comments.list("plan.md");
+    const { answer: listed } = await comments.list("plan.md");
     expect(listed.threads[0]?.anchored).toBe(false);
     expect(listed.orphanMarkers).toEqual(["ghost"]);
   });
@@ -196,7 +200,7 @@ describe("comments service", () => {
     writeFileSync(nodePath.join(root, "plan.md"), "%%i:c1:start%%x%%i:c1:end%%\n");
     await comments.add({ id: "c1", path: "plan.md", text: "root" });
     await comments.reply({ id: "r1", parentId: "c1", path: "plan.md", text: "reply" });
-    const removed = await comments.remove({ id: "c1", path: "plan.md" });
+    const { answer: removed } = await comments.remove({ id: "c1", path: "plan.md" });
     expect(removed.removedIds.toSorted()).toEqual(["c1", "r1"]);
     expect(removed.total).toBe(0);
     expect(storeRaw(root, "plan.md")).toBe("{}\n");
@@ -205,7 +209,7 @@ describe("comments service", () => {
   it("add against a missing note refuses; list still answers", async () => {
     const { comments } = boot();
     await expect(comments.add({ id: "c1", path: "absent.md", text: "x" })).rejects.toThrow();
-    const listed = await comments.list("absent.md");
+    const { answer: listed } = await comments.list("absent.md");
     expect(listed.total).toBe(0);
   });
 
@@ -221,7 +225,7 @@ describe("comments service", () => {
       source: "external",
       text: "scripted",
     });
-    const resolved = await comments.resolve({
+    const { answer: resolved } = await comments.resolve({
       id: "a1",
       path: "plan.md",
       resolved: true,
@@ -231,6 +235,22 @@ describe("comments service", () => {
     expect(thread?.root.source).toBe("agent");
     expect(thread?.replies.map((reply) => reply.entry.source)).toEqual(["user", "external"]);
     expect(thread?.root.resolvedBy).toBe("agent");
+  });
+});
+
+describe("what a call wrote", () => {
+  it("names the note it minted an id into and the store, and only what it wrote", async () => {
+    const { root, comments } = boot();
+    writeFileSync(nodePath.join(root, "plan.md"), "The %%i:c1:start%%plan%%i:c1:end%%.\n");
+
+    const added = await comments.add({ id: "c1", path: "plan.md", text: "why?" });
+    const storePath = storePathOf(root, "plan.md");
+    expect(added.wrote).toEqual(["plan.md", storePath]);
+
+    const replied = await comments.reply({ id: "r1", parentId: "c1", path: "plan.md", text: "so" });
+    expect(replied.wrote).toEqual([storePath]);
+    const listed = await comments.list("plan.md");
+    expect(listed.wrote).toEqual([]);
   });
 });
 
@@ -251,7 +271,7 @@ describe("the legacy sidecar beside the note", () => {
       )}\n`,
     );
 
-    const listed = await comments.list("plan.md");
+    const { answer: listed } = await comments.list("plan.md");
 
     expect(listed.threads.map((thread) => thread.rootId)).toEqual(["m1"]);
     expect(storeRaw(root, "plan.md")).toContain('"inteligirOnly": true');
@@ -266,10 +286,13 @@ describe("the legacy sidecar beside the note", () => {
       serializeSidecar(LEGACY),
     );
 
-    await comments.list("plan.md");
+    const { wrote } = await comments.list("plan.md");
 
     expect(frontmatterId(readFileSync(nodePath.join(root, "plan.md"), "utf-8"))).not.toBeNull();
     expect(Object.keys(storeOnDisk(root, "plan.md"))).toEqual(["m1"]);
+    expect(wrote.toSorted()).toEqual(
+      [storePathOf(root, "plan.md"), "plan.md", legacyCommentsSidecarPath("plan.md")].toSorted(),
+    );
   });
 
   it("merges under the store's own entries when both hold an id", async () => {
@@ -334,7 +357,7 @@ describe("the store write is a compare-and-swap", () => {
   it("keeps an entry that landed between the read and the write, by re-folding over it", async () => {
     const { root, comments } = bootWithStore([OTHER], true);
 
-    const answer = await comments.add({ id: "ours", path: "plan.md", text: "ours" });
+    const { answer } = await comments.add({ id: "ours", path: "plan.md", text: "ours" });
 
     expect(answer.threads.map((thread) => thread.rootId).toSorted()).toEqual(["ours", "theirs"]);
     expect(Object.keys(storeOnDisk(root, "plan.md")).toSorted()).toEqual(["ours", "theirs"]);

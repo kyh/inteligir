@@ -18,7 +18,8 @@ export interface StoredDocRow {
 export interface KnowledgeStore {
   upsertDoc: (row: StoredDocRow, search: DocSearchColumns) => void;
 
-  upsertOther: (path: string) => void;
+  /** `unprojectableHash`: the bytes of a doc whose projection threw, which stays an other */
+  upsertOther: (path: string, unprojectableHash?: string) => void;
 
   remove: (path: string) => void;
 

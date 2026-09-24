@@ -102,6 +102,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     vaultSyncIntervalMs: null,
     // never `auto`: the real runtime dlopens a native binding, making every route test a claim about this platform.
     voice: options.voice ?? "scripted",
+    warnings: [],
   };
 
   const ports: ComposePorts = {
@@ -144,6 +145,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
       };
     },
     ports,
+    servesUi: options.clientDir !== undefined,
     teardown,
     version: "0.1.0-test",
   };

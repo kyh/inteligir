@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import nodePath from "node:path";
+import { isDefinedError, safe } from "@orpc/client";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
@@ -191,6 +192,13 @@ describe("the workspace UI this server ships", () => {
     });
     expect(miss.status).toBe(404);
     expect(await miss.text()).not.toContain("<title>inteligir</title>");
+  });
+
+  it("mints no handoff on a server with no UI, whose link would land on a 404", async () => {
+    const { client } = await bootTestApp();
+    const [refused] = await safe(client.system.browserHandoff());
+    expect(isDefinedError(refused) && refused.code).toBe("NOT_FOUND");
+    expect(refused?.message).toContain("serves no UI");
   });
 
   it("serves non-asset files no-store and answers every other path with the shell", async () => {

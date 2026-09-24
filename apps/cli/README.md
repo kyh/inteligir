@@ -50,10 +50,11 @@ A browser cannot send that header, and it never sees the bearer. The link
 `serve` prints (and opens, under `--open`) carries a single-use handoff that the
 server trades once for a session cookie of the browser's own, answering with the
 same URL minus the handoff; `inteligir open` and the desktop's Open in Browser
-mint a fresh one over `system.browserHandoff`. A plain GET sets no cookie and
-gets a signed-out page naming those ways in, never the workspace, and a request
-naming any host but `127.0.0.1` or `localhost` is refused before it reaches a
-route.
+mint a fresh one over `system.browserHandoff`, which a server with no UI (an
+unbuilt checkout) refuses as `NOT_FOUND`, since its link would land on a 404. A
+plain GET sets no cookie and gets a signed-out page naming those ways in, never
+the workspace, and a request naming any host but `127.0.0.1` or `localhost` is
+refused before it reaches a route.
 
 There is no probing. A derived dev port may have been probed upward at bind, so
 a client that dialled the derived value could reach a NEIGHBOURING checkout's

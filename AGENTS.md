@@ -47,7 +47,8 @@ thread's own `providerId`, never this variable.
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send an
 action message, watch the turn stream, find the note in the vault with an
 agent-attributed commit. `INTELIGIR_CLAUDE_MODEL` and `INTELIGIR_CODEX_MODEL`
-each pass a model to their own harness.
+each pass a model to their own harness; the one-model `INTELIGIR_AGENT_MODEL` is
+ignored with a boot warning.
 
 **The `inteligir` CLI drives a running instance from the shell** — often
 faster than the browser for vault/search/action checks:

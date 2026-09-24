@@ -10,6 +10,8 @@ import { parseApprovalResolution } from "@repo/domain/pending-interactions";
 import type { PendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { listStoredThreadEvents } from "@repo/db/events";
 import { getThread } from "@repo/db/threads";
+import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 import { apiFor } from "../../../context";
@@ -374,6 +376,50 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
       return commit;
     }, PROVIDER_WAIT);
     expect(head.files).toEqual(["cli-note.md"]);
+  });
+
+  it("stages a delete and a comment the agent made through the CLI in its turn's commit", async () => {
+    const harness = await bootWithManager("approval");
+    const { port } = await listenTestApp(harness);
+    for (const note of ["gone.md", "plan.md"]) {
+      await harness.client.vault.write({
+        content: `# ${note}\n`,
+        guard: { kind: "overwrite" },
+        path: note,
+      });
+    }
+    await harness.vault.git.commitNow();
+    const threadId = await createThread(harness.client);
+    await sendMessage(harness.client, threadId, "tidy up through the cli");
+    const interaction = await awaitPendingInteraction(harness.client, threadId);
+
+    const agentApi = apiFor({
+      env: { [THREAD_ID_ENV_VAR]: threadId },
+      resolveServer: () => ({
+        baseUrl: loopbackOrigin(port),
+        dataDir: harness.dataDir,
+        token: TEST_SERVER_TOKEN,
+        vaultDir: harness.vaultDir,
+      }),
+    });
+    await agentApi.vault.remove({ path: "gone.md" });
+    await agentApi.comments.add({ id: "c1", path: "plan.md", text: "from the agent" });
+
+    await harness.client.threads.answerInteraction({
+      interactionId: interaction.id,
+      resolution: "allow_once",
+      threadId,
+    });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    const head = await vi.waitFor(() => {
+      const commit = headCommit(harness.vaultDir);
+      expect(commit.author).toBe("inteligir-agent");
+      return commit;
+    }, PROVIDER_WAIT);
+    const { content } = await harness.client.vault.read({ path: "plan.md" });
+    const noteId = frontmatterId(content);
+    expect(noteId).not.toBeNull();
+    expect(head.files).toEqual([commentsStorePath(noteId ?? ""), "gone.md", "plan.md"]);
   });
 
   it("round-trips an approval through pending_interactions and the answer route", async () => {

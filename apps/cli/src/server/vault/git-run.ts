@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -67,17 +67,32 @@ const unattendedGitEnv = (env: NodeJS.ProcessEnv) => {
 // execFile's rejection carries the child's stderr and its terminating signal as untyped properties.
 const execFileFailure = z.object({ signal: z.string().nullish(), stderr: z.string() });
 
-// --literal-pathspecs on every invocation: a pathspec is a glob, so a commit scoped to
-// `[a].md` would also stage `a.md`, and a log for it would report `a.md`'s history.
+// ahead of every subcommand. --literal-pathspecs: a pathspec is a glob, so a commit scoped to
+// `[a].md` would also stage `a.md`, and a log for it would report `a.md`'s history. the vault's
+// own hooks never run: one can refuse, stall or rewrite an engine commit, rebase or push, and
+// --no-verify reaches only pre-commit and commit-msg.
+const engineArgv = (gitArgs: readonly string[]): string[] => [
+  "-c",
+  "core.hooksPath=/dev/null",
+  "--literal-pathspecs",
+  ...gitArgs,
+];
+
+const engineEnv = (options: RunGitOptions): NodeJS.ProcessEnv => ({
+  ...process.env,
+  ...unattendedGitEnv(process.env),
+  ...options.env,
+});
+
 export const runGit = async (
   cwd: string,
   gitArgs: readonly string[],
   options: RunGitOptions = {},
 ): Promise<{ stdout: string }> => {
-  const pending = execFileAsync("git", ["--literal-pathspecs", ...gitArgs], {
+  const pending = execFileAsync("git", engineArgv(gitArgs), {
     cwd,
     encoding: "utf-8",
-    env: { ...process.env, ...unattendedGitEnv(process.env), ...options.env },
+    env: engineEnv(options),
     maxBuffer: GIT_MAX_BUFFER_BYTES,
     timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
   });
@@ -95,6 +110,58 @@ export const runGit = async (
       failure.success ? (failure.data.signal ?? null) : null,
     );
   }
+};
+
+// whether the thin pack a push of `revisions` would send runs past `capBytes`. spawned rather than
+// run through runGit, which buffers stdout: the pack is counted as it streams and git is killed
+// once the count passes the cap, so no more than the cap is ever read.
+export const packExceeds = async (
+  cwd: string,
+  revisions: readonly string[],
+  capBytes: number,
+  options: RunGitOptions = {},
+): Promise<boolean> => {
+  const child = spawn("git", engineArgv(["pack-objects", "--stdout", "--revs", "--thin", "-q"]), {
+    cwd,
+    env: engineEnv(options),
+    timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
+  });
+  const exited = Promise.withResolvers<{ code: number | null; signal: NodeJS.Signals | null }>();
+  child.once("error", exited.reject);
+  child.once("close", (code, signal) => {
+    exited.resolve({ code, signal });
+  });
+  let counted = 0;
+  let over = false;
+  let stderr = "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    counted += chunk.length;
+    if (!over && counted > capBytes) {
+      over = true;
+      child.kill();
+    }
+  });
+  child.stderr.setEncoding("utf-8");
+  child.stderr.on("data", (chunk: string) => {
+    stderr += chunk;
+  });
+  // a git that exits before reading its revisions says so through its exit, not a broken pipe.
+  child.stdin.on("error", () => {
+    /* empty */
+  });
+  child.stdin.end(`${revisions.join("\n")}\n`);
+  const { code, signal } = await exited.promise;
+  if (over) {
+    return true;
+  }
+  if (code !== 0) {
+    throw new GitError(
+      `git pack-objects failed with ${signal ?? `code ${String(code)}`}`,
+      stderr,
+      signal,
+    );
+  }
+  return false;
 };
 
 // never `<root>/.git/…`: in a linked worktree or a submodule `.git` is a file naming the real

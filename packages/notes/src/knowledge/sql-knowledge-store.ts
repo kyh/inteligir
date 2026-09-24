@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
+import type { DocProjection } from "./projection";
 import { parseStoredProjection } from "./projection-row";
 import { searchExcerpt } from "./search-excerpt";
 import type { SearchHit } from "./search-index";
@@ -21,6 +22,17 @@ type SqlValue = null | number | string;
 
 export type SqlRow = Record<string, SqlValue>;
 
+// the store's own database failed, or holds a row the store cannot read back. a driver throws it
+// for every failure of the database, and the host rebuilds on it and nothing else: any other
+// failure (a listing, the scan) would meet a rebuild the same way.
+export class KnowledgeStoreError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "KnowledgeStoreError";
+  }
+}
+
+/** every method throws `KnowledgeStoreError`, and only it, when the database fails */
 export interface SqlDriver {
   exec: (sql: string) => void;
   run: (sql: string, params: readonly SqlValue[]) => void;
@@ -32,8 +44,15 @@ export interface SqlDriver {
 
 type HydrationPage =
   | { kind: "docs"; docs: StoredDocRow[] }
-  | { kind: "others"; others: { path: string }[] }
+  | { kind: "others"; others: StoredOtherRow[] }
   | { kind: "done" };
+
+// `unprojectableHash` names the bytes of a doc whose projection threw, so a restart does not
+// project them again; a build whose projection could now take them bumps PROJECTION_VERSION.
+export interface StoredOtherRow {
+  path: string;
+  unprojectableHash: string | null;
+}
 
 // reads through the live db: abandon the cursor after a write, `nuke()` or `dispose()`
 interface HydrationCursor {
@@ -106,7 +125,7 @@ SELECT path, content_hash, projection
 FROM files WHERE kind = 'doc' AND path > ? ORDER BY path LIMIT ?
 `;
 const OTHER_PAGE_SQL = `
-SELECT path FROM files WHERE kind = 'other' AND path > ? ORDER BY path LIMIT ?
+SELECT path, content_hash FROM files WHERE kind = 'other' AND path > ? ORDER BY path LIMIT ?
 `;
 
 const PATH_START = "";
@@ -132,7 +151,7 @@ const columnNumber = (row: SqlRow, key: string): number => {
   if (value.success) {
     return value.data;
   }
-  throw new Error(`knowledge-store: column ${key} is not a number`);
+  throw new KnowledgeStoreError(`knowledge-store: column ${key} is not a number`);
 };
 
 const columnString = (row: SqlRow, key: string): string => {
@@ -140,8 +159,11 @@ const columnString = (row: SqlRow, key: string): string => {
   if (value.success) {
     return value.data;
   }
-  throw new Error(`knowledge-store: column ${key} is not text`);
+  throw new KnowledgeStoreError(`knowledge-store: column ${key} is not text`);
 };
+
+const columnNullableString = (row: SqlRow, key: string): string | null =>
+  row[key] === null ? null : columnString(row, key);
 
 // bm25 is lower-is-better; flip to match the pure index's direction
 const rankScore = (row: SqlRow): number => -columnNumber(row, "rank");
@@ -159,6 +181,14 @@ const likePattern = (prefilter: string): string => `%${prefilter.replaceAll(/[\\
 
 const messageOf = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
+
+const storedProjection = (json: string): DocProjection => {
+  try {
+    return parseStoredProjection(json);
+  } catch (error) {
+    throw new KnowledgeStoreError(messageOf(error), { cause: error });
+  }
+};
 
 export const createSqlKnowledgeStore = (
   driver: SqlDriver,
@@ -260,11 +290,14 @@ export const createSqlKnowledgeStore = (
     driver.all(DOC_PAGE_SQL, [after, limit]).map((row) => ({
       contentHash: columnString(row, "content_hash"),
       path: columnString(row, "path"),
-      projection: parseStoredProjection(columnString(row, "projection")),
+      projection: storedProjection(columnString(row, "projection")),
     }));
 
-  const readOtherPage = (after: string, limit: number): { path: string }[] =>
-    driver.all(OTHER_PAGE_SQL, [after, limit]).map((row) => ({ path: columnString(row, "path") }));
+  const readOtherPage = (after: string, limit: number): StoredOtherRow[] =>
+    driver.all(OTHER_PAGE_SQL, [after, limit]).map((row) => ({
+      path: columnString(row, "path"),
+      unprojectableHash: columnNullableString(row, "content_hash"),
+    }));
 
   // a short page ends its phase immediately, so the corpus is never re-queried just to learn it ran out
   type HydrationState =
@@ -403,7 +436,7 @@ export const createSqlKnowledgeStore = (
         );
         const rowid = rowidOf(row.path);
         if (rowid === null) {
-          throw new Error("knowledge-store: upserted file row vanished");
+          throw new KnowledgeStoreError("knowledge-store: upserted file row vanished");
         }
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
         driver.run(
@@ -424,17 +457,17 @@ export const createSqlKnowledgeStore = (
       });
     },
 
-    upsertOther(path) {
+    upsertOther(path, unprojectableHash) {
       transaction(() => {
         const priorRowid = rowidOf(path);
         if (priorRowid !== null) {
           driver.run("DELETE FROM search_fts WHERE rowid = ?", [priorRowid]);
         }
         driver.run(
-          `INSERT INTO files (path, kind) VALUES (?, 'other')
+          `INSERT INTO files (path, kind, content_hash) VALUES (?, 'other', ?)
            ON CONFLICT(path) DO UPDATE SET
-             kind = 'other', content_hash = NULL, projection = NULL`,
-          [path],
+             kind = 'other', content_hash = excluded.content_hash, projection = NULL`,
+          [path, unprojectableHash ?? null],
         );
       });
     },

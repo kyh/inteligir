@@ -5,7 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createVaultService } from "../../vault/vault-service";
 import type { VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
@@ -260,7 +260,33 @@ describe("the knowledge runtime", () => {
     expect(await knowledge.search({ limit: 10, query: "ocelot" })).toEqual([]);
   });
 
-  it("rebuilds before answering the query whose pass failed", async () => {
+  it("rebuilds before answering the query whose pass the store failed", async () => {
+    const dirs = makeDirs();
+    writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
+    const { service, knowledge } = bootIndexedVault(dirs);
+    await knowledge.settle();
+
+    // a second connection pulls the table out from under the runtime's own.
+    const saboteur = createSqliteDriver(nodePath.join(dirs.dataDir, "knowledge.db"));
+    saboteur.exec("DROP TABLE files");
+    saboteur.close();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {
+      /* empty */
+    });
+    onTestFinished(() => {
+      warn.mockRestore();
+    });
+
+    await service.write("b.md", "# B\n\nHeron notes.\n");
+    expect(await searchPaths(knowledge, "heron")).toEqual(["b.md"]);
+    expect(await searchPaths(knowledge, "ibis")).toEqual(["a.md"]);
+    expect(warn).toHaveBeenCalledWith(
+      "[knowledge] the index store failed — rebuilding it:",
+      expect.stringContaining("no such table: files"),
+    );
+  });
+
+  it("leaves the index standing when a pass fails for any other reason", async () => {
     const dirs = makeDirs();
     writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
     let failNextListing = false;
@@ -277,11 +303,19 @@ describe("the knowledge runtime", () => {
       }),
     });
     await knowledge.settle();
+    const indexFile = nodePath.join(dirs.dataDir, "knowledge.db");
+    const indexInode = statSync(indexFile).ino;
 
     writeFileSync(nodePath.join(dirs.root, "b.md"), "# B\n\nHeron notes.\n");
     failNextListing = true;
     knowledge.noteVaultChange({ kind: "unknown" });
+    await expect(knowledge.search({ limit: 10, query: "heron" })).rejects.toThrow(
+      "transient io failure",
+    );
+    expect(statSync(indexFile).ino).toBe(indexInode);
+
     expect(await searchPaths(knowledge, "heron")).toEqual(["b.md"]);
+    expect(knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 1 });
   });
 
   it("keeps an unreadable doc's last entry without a rebuild, and indexes it once readable", async () => {
@@ -327,6 +361,35 @@ describe("the knowledge runtime", () => {
     knowledge.noteVaultChange({ kind: "unknown" });
     await knowledge.settle();
     expect(knowledge.lastReconcile).toEqual({ projected: 0, removed: 0, unchanged: 3 });
+  });
+
+  it("does not project a doc whose projection threw again after a restart", async () => {
+    const dirs = makeDirs();
+    writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nKestrel notes.\n");
+    writeFileSync(nodePath.join(dirs.root, "deep.md"), `${">".repeat(10_000)} kestrel\n`);
+    const first = bootIndexedVault(dirs);
+    await first.knowledge.settle();
+    expect(first.knowledge.lastReconcile).toEqual({ projected: 2, removed: 0, unchanged: 0 });
+    await first.knowledge.dispose();
+
+    const inline = createInlineProjector();
+    const projected: string[] = [];
+    const second = bootIndexedVault(dirs, {
+      projector: {
+        ...inline,
+        project: async (docs) => {
+          projected.push(...docs.map((doc) => doc.path));
+          return await inline.project(docs);
+        },
+      },
+    });
+    expect(await searchPaths(second.knowledge, "kestrel")).toEqual(["a.md"]);
+    expect(second.knowledge.lastReconcile).toEqual({ projected: 0, removed: 0, unchanged: 2 });
+    expect(projected).toEqual([]);
+
+    writeFileSync(nodePath.join(dirs.root, "deep.md"), "# Deep\n\nNow shallow kestrel.\n");
+    second.knowledge.noteVaultChange({ kind: "paths", paths: ["deep.md"] });
+    expect(await searchPaths(second.knowledge, "shallow")).toEqual(["deep.md"]);
   });
 
   it("stops a reconcile within a step of dispose, and never reopens the index after", async () => {

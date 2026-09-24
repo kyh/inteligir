@@ -42,12 +42,12 @@ const readForId = async (service: VaultService, doc: string): Promise<string | n
 // The entry goes first: a store left behind is a leak, a store gone before its note is a loss.
 // A byte copy carries the `id:` line along, so a store whose id another note still carries
 // stays. An index that has not seen that note yet names no other owner, so the guard never
-// removes more than an unguarded delete would.
+// removes more than an unguarded delete would. Answers every path it removed, the entry first.
 export const removeEntryWithComments = async (
   service: VaultService,
   path: string,
   knowledge: Pick<KnowledgeRuntime, "noteIdOwners">,
-): Promise<void> => {
+): Promise<string[]> => {
   const docs = await docsUnder(service, path);
   const found = await mapWithConcurrency(docs, ID_READ_CONCURRENCY, async (doc) => {
     const content = await readForId(service, doc);
@@ -56,18 +56,22 @@ export const removeEntryWithComments = async (
   });
   const ids = new Set(found.filter((id) => id !== null));
   await service.remove(path);
+  const removedPaths = [path];
   const removed = new Set(docs);
   for (const id of ids) {
     const owners = await knowledge.noteIdOwners(id);
     if (owners.some((owner) => !removed.has(owner))) {
       continue;
     }
+    const storePath = commentsStorePath(id);
     try {
-      await service.remove(commentsStorePath(id));
+      await service.remove(storePath);
+      removedPaths.push(storePath);
     } catch (error) {
       if (!(error instanceof VaultServiceError && error.code === "not_found")) {
         throw error;
       }
     }
   }
+  return removedPaths;
 };

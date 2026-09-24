@@ -30,6 +30,8 @@ interface SystemFacts {
   vaultDir: string;
   schemaVersion: number;
   startedAt: number;
+  // false in a checkout whose UI was never built: no page answers a browser.
+  servesUi: boolean;
   // read per request: a vendor CLI installed or removed after boot is the next answer.
   agent: () => AgentStatus;
 }

@@ -87,6 +87,7 @@ const rename = base.vault.rename.handler(
     }),
 );
 
+// nothing to attribute: git tracks no empty folder, and a file written into it is its own write.
 const mkdir = base.vault.mkdir.handler(
   async ({ context, input }) =>
     await refusing(async () => await context.vault.service.createDir(input.path)),
@@ -99,7 +100,11 @@ const deleted = base.vault.deleted.handler(async ({ context }) => ({
 const remove = base.vault.remove.handler(
   async ({ context, input }) =>
     await refusing(async () => {
-      await removeEntryWithComments(context.vault.service, input.path, context.knowledge);
+      // `add -A` stages a deletion under a pathspec, a folder's included.
+      attributeWrites(
+        context,
+        await removeEntryWithComments(context.vault.service, input.path, context.knowledge),
+      );
       return { ok: true } as const;
     }),
 );

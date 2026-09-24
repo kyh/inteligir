@@ -497,9 +497,12 @@ to the END of its group.
   `path-containment.ts`). The vault dir and the data dir must be disjoint,
   refused at boot: a data dir inside the vault gets committed and pushed.
 
-- **`runGit` PREPENDS `--literal-pathspecs` TO EVERY INVOCATION.** A pathspec is
-  a glob, so `[a].md` names `a.md` too and a commit scoped to one note would
-  stage its neighbour. The one argv builder is
+- **`runGit` PREPENDS `--literal-pathspecs` AND `core.hooksPath=/dev/null` TO
+  EVERY INVOCATION.** A pathspec is a glob, so `[a].md` names `a.md` too and a
+  commit scoped to one note would stage its neighbour. A user's hook can
+  refuse, stall or rewrite an engine commit, rebase or push, and `--no-verify`
+  reaches only pre-commit and commit-msg. Residual: a git-lfs vault's upload
+  is a pre-push hook too, so it does not run. The one argv builder is
   `apps/cli/src/server/vault/git-run.ts`.
 
 - **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
@@ -564,10 +567,10 @@ to the END of its group.
   `apps/cli/src/server/vault/git-engine.ts`.
 
 - **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS, AND A PASS REPORTS ONE
-  OUTCOME.** Every engine commit passes `--no-verify` and every status read
-  `--untracked-files=normal`, because a user's commit-msg hook or
-  `status.showUntrackedFiles=no` would refuse or hide each auto-commit and hold
-  every sync behind it. The bootstrap makes only the empty initial commit
+  OUTCOME.** No engine git runs the vault's hooks (the `runGit` bullet) and
+  every status read passes `--untracked-files=normal`, because a user's
+  commit-msg hook or `status.showUntrackedFiles=no` would refuse or hide each
+  auto-commit and hold every sync behind it. The bootstrap makes only the empty initial commit
   before the listen (`apps/cli/src/server/vault/git-bootstrap.ts`), since
   staging a large folder there outran the shell's readiness wait. A pass
   concludes one `SyncOutcome`: a detached HEAD says `detached`, never `clean`;
@@ -727,10 +730,15 @@ to the END of its group.
 - **A DOC THE INDEX CANNOT READ OR PROJECT COSTS THAT DOC, NEVER THE INDEX.**
   A refused read (EACCES, EIO) keeps the doc's last row and is retried every
   pass, since a permission fix announces nothing. A doc whose projection
-  throws is indexed as an other, its hash kept so it is not re-projected every
-  reconcile, and projection runs one doc at a time outside the store
-  transaction. Rebuilding on either is rejected: the rebuild re-reads the same
-  vault and fails the same way, so it loops.
+  throws is indexed as an other, its hash kept on that row so it is not
+  re-projected every reconcile nor after a restart (a build that could now
+  project it bumps `PROJECTION_VERSION`), and projection runs one doc at a time
+  outside the store transaction. Rebuilding on either is rejected: the rebuild
+  re-reads the same vault and fails the same way, so it loops. For the same
+  reason only the store's own failure rebuilds: the driver throws
+  `KnowledgeStoreError` (`@repo/notes/knowledge/sql-knowledge-store`) for every
+  database failure, and any other throw fails that pass, leaves the index
+  standing and reconciles on the next.
   `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
 
 - **THE SCAN RUNS ON A WORKER; THE SERVER'S LOOP READS BYTES AND WRITES ROWS.**
@@ -789,7 +797,9 @@ to the END of its group.
   `INTELIGIR_THREAD_ID` the CLI names its thread on every call
   (`apps/cli/src/server/agent-thread-header.ts`) and the write handlers hand
   what they wrote to its running turn (`attributeWrites` in
-  `apps/cli/src/server/orpc.ts`); the header is attribution, not authority.
+  `apps/cli/src/server/orpc.ts`), a delete's comment stores and a comment's
+  minted note id included, since whatever is not handed over lands unattributed
+  in the next auto-commit; the header is attribution, not authority.
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (what it
   retired is the register on #645; do not bring any of it back). An action is an
@@ -849,7 +859,10 @@ to the END of its group.
   never written by the app; unset, the first harness on PATH. A thread keeps
   the harness it started on. PATH is read per request, so a CLI installed after
   launch serves the next send. A model is per harness, because a model id is
-  vendor-specific. `apps/cli/src/server/agents/agent-prefs-store.ts`,
+  vendor-specific; a one-model spelling (`INTELIGIR_AGENT_MODEL`, config.json's
+  `agentModel`) is named in a boot warning, never refused, since config a build
+  does not act on must not brick it (`legacyModelWarnings` in
+  `apps/cli/src/server/config.ts`). `apps/cli/src/server/agents/agent-prefs-store.ts`,
   `defaultHarnessId` in `agent-driver.ts`, `harnessReadiness` in
   `@repo/api/local/agents/agents-schema`.
 
@@ -1217,7 +1230,13 @@ to the END of its group.
   commit-sized steps was rejected: a vault's first commit is the whole tree.
   The engine skips a push while the tips a 413 refused still stand, since each
   retry would upload the cap's worth again
-  (`apps/cli/src/server/vault/git-engine.ts`).
+  (`apps/cli/src/server/vault/git-engine.ts`). The first refusal costs no
+  upload either: the Worker can answer only once the body has arrived, so a
+  push to the account remote is measured first (`measuredOverCap`), by an
+  on-disk estimate and, at half the cap or more, by packing what the push would
+  send, counted and killed at the cap (`packExceeds` in
+  `apps/cli/src/server/vault/git-run.ts`). A measurement that fails pushes,
+  with the 413 behind it.
 
 ### Server process and the desktop shell
 
@@ -1610,6 +1629,14 @@ to the END of its group.
   library's wide type is narrowed by its own guard (`ElementApi.isElementList`
   in `packages/editor/src/markdown/markdown-doc.ts`) or parsed by the schema
   that names it. `oxlint.config.ts`.
+
+- **A CLIENT VERB LOADS THE CLIENT, AND THE BUILD REFUSES A STATIC IMPORT
+  PAST IT.** The CLI bundle splits on dynamic imports, so what every verb
+  parses before it reads argv is the entry's static closure; the server and
+  the frontmatter parser (yaml, 72 modules) sit behind `await import()` in the
+  verbs that need them. A static import that reaches yaml passes every test and
+  every review, so `apps/cli/scripts/build.mjs` walks the metafile's static
+  closure and fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`).
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
