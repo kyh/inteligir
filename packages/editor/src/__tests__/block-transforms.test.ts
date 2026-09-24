@@ -4,6 +4,7 @@ import { serializeMd } from "@platejs/markdown";
 
 import {
   TURN_INTO,
+  effectiveBlockEntry,
   moveBlocks,
   turnIntoAt,
   turnIntoBlocks,
@@ -164,6 +165,39 @@ describe("multi-block turn into", () => {
       focus: { offset: 1, path: [1, 0] },
     });
     expect(out(editor)).toBe("## summary\n\n## child\n\n## p\n");
+  });
+});
+
+describe("turn into over a code block", () => {
+  const CODE_THEN_P = "```\nl1\nl2\n```\n\np\n";
+  const acrossLinesAndP = {
+    anchor: { offset: 0, path: [0, 0, 0] },
+    focus: { offset: 1, path: [1, 0] },
+  };
+
+  it("the block menu converts the whole block", () => {
+    const editor = makeEditor(CODE_THEN_P);
+    turnIntoBlocks(editor, [[0], [1]], opt("quote"));
+    expect(out(editor)).toBe("> l1\n\n> l2\n\n> p\n");
+  });
+
+  it("a selection over its lines converts it as the block menu does, for every target", () => {
+    for (const target of TURN_INTO) {
+      const viaMenu = makeEditor(CODE_THEN_P);
+      turnIntoBlocks(viaMenu, [[0], [1]], target);
+      const viaSelection = makeEditor(CODE_THEN_P);
+      turnIntoSelection(viaSelection, target, acrossLinesAndP);
+      expect(out(viaSelection), target.label).toBe(out(viaMenu));
+    }
+  });
+
+  it("a caret on one line reads as the code block and converts all of it", () => {
+    const editor = makeEditor(CODE_THEN_P);
+    editor.tf.select({ offset: 1, path: [0, 1, 0] });
+    const entry = effectiveBlockEntry(editor);
+    expect(entry && turnIntoOptionFor(entry[0]).id).toBe("code-block");
+    turnIntoSelection(editor, opt("heading-2"));
+    expect(out(editor)).toBe("## l1\n\n## l2\n\np\n");
   });
 });
 
