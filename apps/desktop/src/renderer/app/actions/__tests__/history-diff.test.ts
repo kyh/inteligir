@@ -61,8 +61,18 @@ describe("row identity", () => {
 });
 
 describe("bounds", () => {
+  it("lines up one edit in a long note rather than showing the note whole", () => {
+    const lines = Array.from({ length: 5000 }, (_, index) => `line ${String(index)}`);
+    const edited = lines.map((line, index) => (index === 2500 ? "LINE 2500" : line));
+    const rows = diffRows(lines.join("\n"), edited.join("\n"));
+    expect(texts(rows, "removed")).toEqual(["line 2500"]);
+    expect(texts(rows, "added")).toEqual(["LINE 2500"]);
+    expect(rows.some((row) => row.kind === "unaligned")).toBe(false);
+  });
+
   it("reports a wholesale replacement instead of walking two long unrelated notes", () => {
     const rows = diffRows("a\n".repeat(3000), "b\n".repeat(3000));
+    expect(rows[0]).toEqual({ id: "unaligned", kind: "unaligned" });
     const last = rows.at(-1);
     expect(last?.kind).toBe("truncated");
     expect(last?.id).toBe("truncated");

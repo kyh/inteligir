@@ -37,6 +37,7 @@ const harness = (options: HarnessOptions = {}) => {
   }
   const log: string[] = [];
   const notices: string[] = [];
+  const conflicts: string[] = [];
   const asked: string[] = [];
   const listings: VaultEntry[][] = [];
   const opened: [string | null, OpenPathChange][] = [];
@@ -93,6 +94,9 @@ const harness = (options: HarnessOptions = {}) => {
     notify: (message) => {
       notices.push(message);
     },
+    notifyMergeConflict: (path) => {
+      conflicts.push(path);
+    },
     publishEditor: (state) => {
       editor = state;
     },
@@ -109,6 +113,7 @@ const harness = (options: HarnessOptions = {}) => {
   broadcast = session.handleVaultChanged;
   return {
     asked,
+    conflicts,
     editor: () => editor,
     listings,
     lists: () => lists,
@@ -248,6 +253,25 @@ describe("a failed save", () => {
     await expect(session.actions.flush()).resolves.toBe(false);
     expect(notices).toEqual(["a.md was deleted elsewhere, and its edits are not saved."]);
     expect(editor()).toMatchObject({ saveError: { kind: "vanished" } });
+  });
+});
+
+describe("a save that merged a concurrent change", () => {
+  it("tells the host which note kept its own lines over that change", async () => {
+    const { session, vault, conflicts, notices } = await started(TWO_NOTES);
+    vault.landsConflicted = true;
+    session.actions.editNote("a.md", "A typed");
+    await expect(session.actions.flush()).resolves.toBe(true);
+    expect(conflicts).toEqual(["a.md"]);
+    expect(notices).toEqual([]);
+  });
+
+  it("tells the host nothing when the merge kept both sides", async () => {
+    const { session, vault, conflicts } = await started(TWO_NOTES);
+    vault.landAs = (sent) => `${sent}\nexternal`;
+    session.actions.editNote("a.md", "A typed");
+    await expect(session.actions.flush()).resolves.toBe(true);
+    expect(conflicts).toEqual([]);
   });
 });
 

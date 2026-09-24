@@ -3,11 +3,13 @@
 
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import { diff3 } from "@repo/notes/text/diff3";
+import type { Diff3Result } from "@repo/notes/text/diff3";
 
 // `landed` carries the bytes that landed: a host that merges in a concurrent change lands more than
-// it was sent. `vanished` is a file deleted since its bytes were read, which no retry can land.
+// it was sent, and `conflicted` says that merge kept the sent lines where both changed the same
+// ones. `vanished` is a file deleted since its bytes were read, which no retry can land.
 export type WriteOutcome =
-  | { readonly kind: "landed"; readonly content: string }
+  | { readonly kind: "landed"; readonly content: string; readonly conflicted: boolean }
   | { readonly kind: "vanished" };
 
 export interface VaultIO {
@@ -47,16 +49,20 @@ const drainNothing = (): void => {
   /* no surface holds edits back */
 };
 
+const tellNobody = (): void => {
+  /* no host is told about a merge conflict */
+};
+
 // `landed` replaced `from` as the bytes the IO writes against, so the buffer's edits since `from`
 // move onto it: kept over `from`, the next save would erase whatever else `landed` carries.
-const rebase = (from: string, buffer: string, landed: string): string => {
+const rebase = (from: string, buffer: string, landed: string): Diff3Result => {
   if (buffer === from) {
-    return landed;
+    return { conflicted: false, merged: landed };
   }
   if (landed === from) {
-    return buffer;
+    return { conflicted: false, merged: buffer };
   }
-  return diff3(from, buffer, landed).merged;
+  return diff3(from, buffer, landed);
 };
 
 export class VaultEditorController {
@@ -69,10 +75,18 @@ export class VaultEditorController {
   // hands over edits a surface still holds back (the rich editor's serialize debounce) before
   // bytes from disk replace the buffer, so they are rebased rather than replayed over those bytes.
   private readonly drain: () => void;
+  // told when a write's merge or a rebase kept the buffer's lines over a concurrent change to the
+  // same ones: that change's lines there are gone from the file, or will be at the next save.
+  private readonly onMergeConflict: () => void;
 
-  constructor(io: VaultIO, drain: () => void = drainNothing) {
+  constructor(
+    io: VaultIO,
+    drain: () => void = drainNothing,
+    onMergeConflict: () => void = tellNobody,
+  ) {
     this.io = io;
     this.drain = drain;
+    this.onMergeConflict = onMergeConflict;
   }
 
   // bound so they can be passed straight to useSyncExternalStore.
@@ -156,8 +170,11 @@ export class VaultEditorController {
       this.drain();
     }
     // a newer edit made mid-write stays dirty, on top of what landed
-    const content = rebase(snapshot, this.st.content, landed);
-    this.emit({ content, dirty: content !== landed, saveError: null });
+    const rebased = rebase(snapshot, this.st.content, landed);
+    this.emit({ content: rebased.merged, dirty: rebased.merged !== landed, saveError: null });
+    if (outcome.conflicted || rebased.conflicted) {
+      this.onMergeConflict();
+    }
   }
 
   async flush(): Promise<void> {
@@ -240,8 +257,11 @@ export class VaultEditorController {
       // the read moved the IO's base to `text`: an edit made while it was in flight is rebased,
       // because left alone the next save would pass the CAS and erase the external bytes.
       this.drain();
-      const content = rebase(before, this.st.content, text);
-      this.emit({ content, dirty: content !== text });
+      const rebased = rebase(before, this.st.content, text);
+      this.emit({ content: rebased.merged, dirty: rebased.merged !== text });
+      if (rebased.conflicted) {
+        this.onMergeConflict();
+      }
     } catch {
       if (this.readSeq !== seq) {
         return;

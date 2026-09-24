@@ -80,7 +80,8 @@ src/
                        # evaluation, the resolve graph and the walk that loads
                        # it across notes, and result formatting
   text/                # ONE Myers line diff under diff3 — the merge a 409'd
-                       # write retries through
+                       # write retries through; bounded by an edit budget,
+                       # past which the changed span is one hunk
 ```
 
 ## Invariants
@@ -112,4 +113,7 @@ src/
 `pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
 knowledge engine: resolver tiers (including an oracle equivalence for the
 basename buckets), rename byte surgery, the search policy against both
-engines, task ordinals against the editor's parse, and the diff3 merge.
+engines, task ordinals against the editor's parse, and the diff3 merge. The
+suites run under a 512MB heap ceiling (`vitest.config.ts`), so an allocation
+that grows with a note's size, like a diff trace that copies the whole
+frontier every round, fails here rather than passing on a default heap.

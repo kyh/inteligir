@@ -1,4 +1,6 @@
 import { useCommentSurface } from "@repo/editor/comments/comment-store";
+import { getEditorHostIo } from "@repo/editor/host-io";
+import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ThreadHarness } from "inteligir/server/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,9 +16,12 @@ const selectedTab = (): string | null =>
   screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")
     ?.textContent ?? null;
 
-const bootWorkspace = async (seed?: (harness: ThreadHarness) => Promise<void>): Promise<void> => {
-  await bootWindow(seed === undefined ? {} : { seed });
+const bootWorkspace = async (
+  seed?: (harness: ThreadHarness) => Promise<void>,
+): Promise<ThreadHarness> => {
+  const harness = await bootWindow(seed === undefined ? {} : { seed });
   expect(sidebarState("right")).toBe("collapsed");
+  return harness;
 };
 
 const paletteRows = () => within(screen.getByRole("listbox"));
@@ -91,5 +96,27 @@ describe("an entry that shows something in the closed panel", () => {
     expect(sidebarState("left")).toBe("expanded");
     expect(selectedTab()).toBe("Comments");
     expect(readPanelOpen()).toBe(true);
+  });
+});
+
+describe("a save that kept this device's lines over a change made elsewhere", () => {
+  it("says so, and its action opens the panel on History", async () => {
+    const note = "Welcome.md";
+    const harness = await bootWorkspace(async ({ client }) => {
+      await client.vault.write({ content: "# Welcome\n\nintro\n", path: note });
+    });
+    await screen.findByText("intro");
+
+    await harness.client.vault.write({ content: "# Welcome\n\nintro by the agent\n", path: note });
+    getEditorHostIo().actions.editNote(note, "# Welcome\n\nintro rewritten\n");
+    await act(async () => {
+      await flushOpenNote();
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open History" }));
+    await waitFor(() => {
+      expect(sidebarState("right")).toBe("expanded");
+    });
+    expect(selectedTab()).toBe("History");
   });
 });

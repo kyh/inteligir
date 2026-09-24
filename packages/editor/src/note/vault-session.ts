@@ -30,6 +30,9 @@ export interface VaultSessionPorts {
   publishOpenPath: (path: string | null, change: OpenPathChange) => void;
   publishEditor: (state: VaultEditorState) => void;
   notify: (message: string) => void;
+  // a save or a reload merged a change made elsewhere and kept this note's lines where both
+  // changed the same ones.
+  notifyMergeConflict: (path: string) => void;
   // asked when the user leaves a note whose file was deleted under unsaved edits.
   askVanished: (path: string) => Promise<VanishedChoice>;
 }
@@ -114,7 +117,12 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     if (runtime?.path === path) {
       return runtime;
     }
-    const created = createNoteRuntime(path, ports.note, { onVanished: dropNote }, initial);
+    const created = createNoteRuntime(
+      path,
+      ports.note,
+      { onMergeConflict: ports.notifyMergeConflict, onVanished: dropNote },
+      initial,
+    );
     runtime = created;
     // said once per failure, not per retry: the error stands until a write lands.
     let failing: SaveError["kind"] | null = null;

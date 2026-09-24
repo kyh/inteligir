@@ -89,7 +89,8 @@ const EMPTY_THREADS: readonly Thread[] = [];
 // what the panel is asked to show; a comments reveal with no focus keeps the last one
 type PanelReveal =
   | { tab: "actions"; threadId: string }
-  | { tab: "comments"; focus?: readonly string[] };
+  | { tab: "comments"; focus?: readonly string[] }
+  | { tab: "history" };
 
 // a note that never mounts (a refused open) must not leave a jump waiting forever
 const LIVE_EDITOR_WAIT_MS = 5000;
@@ -184,7 +185,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       setPanelTab(target.tab);
       if (target.tab === "actions") {
         setPanelThreadId(target.threadId);
-      } else if (target.focus !== undefined) {
+      } else if (target.tab === "comments" && target.focus !== undefined) {
         const ids = target.focus;
         setCommentFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
       }
@@ -254,6 +255,14 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     }
     actionsRef.current?.openFile(target);
   }, []);
+
+  const showHistory = useCallback(
+    (path: string): void => {
+      goTo(path);
+      revealPanel({ tab: "history" });
+    },
+    [goTo, revealPanel],
+  );
 
   const [railOpen, setRailOpen] = useState(true);
   // a provider's own toggle and the table's key both land here: showing either side leaves zen
@@ -600,6 +609,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     <VaultProvider
       initialPath={bootNote}
       onOpenPath={onOpenNote}
+      onShowHistory={showHistory}
       actionsRef={actionsRef}
       store={noteStore}
     >

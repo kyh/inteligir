@@ -36,6 +36,10 @@ const noOpenPathMirror = (): void => {
   /* empty */
 };
 
+const noHistory = (): void => {
+  /* empty */
+};
+
 const NO_RESOLVER: LinkResolver = {
   resolveMdTarget: () => null,
   resolveWikiTarget: () => null,
@@ -81,6 +85,7 @@ export interface VaultProviderProps {
   children: ReactNode;
   initialPath: string | null;
   onOpenPath: (path: string | null) => void;
+  onShowHistory: (path: string) => void;
   actionsRef: RefObject<VaultActions | null>;
   store: OpenNoteStore;
 }
@@ -93,6 +98,7 @@ interface VaultPort {
   readonly formulas: NoteFormulas;
   setWikiTargets: (next: readonly WikiTarget[]) => void;
   setOnOpenPath: (next: (path: string | null) => void) => void;
+  setOnShowHistory: (next: (path: string) => void) => void;
 }
 
 interface VaultPortInputs {
@@ -106,6 +112,7 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
   let entries: readonly VaultEntry[] = [];
   let wikiTargets: readonly WikiTarget[] = [];
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
+  let showHistory: (path: string) => void = noHistory;
   const linkResolver = createStore<LinkResolver>()(() => NO_RESOLVER);
   // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
   const rebuildResolver = (): void => {
@@ -179,6 +186,19 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
     notify: (message) => {
       toast.error(message);
     },
+    notifyMergeConflict: (path) => {
+      toast.warning(
+        `${path} also changed elsewhere. Where both changed the same lines, yours were kept.`,
+        {
+          action: {
+            label: "Open History",
+            onClick: () => {
+              showHistory(path);
+            },
+          },
+        },
+      );
+    },
     publishEditor: store.publishEditor,
     publishListing: (next) => {
       entries = next;
@@ -199,6 +219,9 @@ const createVaultPort = ({ api, bootPath, queryClient, store }: VaultPortInputs)
     setOnOpenPath: (next) => {
       mirrorOpenPath = next;
     },
+    setOnShowHistory: (next) => {
+      showHistory = next;
+    },
     setWikiTargets: (next) => {
       wikiTargets = next;
       rebuildResolver();
@@ -210,6 +233,7 @@ export const VaultProvider = ({
   children,
   initialPath,
   onOpenPath,
+  onShowHistory,
   actionsRef,
   store,
 }: VaultProviderProps) => {
@@ -238,6 +262,10 @@ export const VaultProvider = ({
   useEffect(() => {
     port.setOnOpenPath(onOpenPath);
   }, [port, onOpenPath]);
+
+  useEffect(() => {
+    port.setOnShowHistory(onShowHistory);
+  }, [port, onShowHistory]);
 
   useEffect(() => {
     port.setWikiTargets(wikiTargets);

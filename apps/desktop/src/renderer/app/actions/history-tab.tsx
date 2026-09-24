@@ -83,6 +83,13 @@ const DiffRowView = ({ row }: { row: DiffRow }) => {
       </div>
     );
   }
+  if (row.kind === "unaligned") {
+    return (
+      <div className="py-1 text-center text-muted-foreground">
+        Too many changes to pair line by line: the note&apos;s lines, then the revision&apos;s
+      </div>
+    );
+  }
   const line = DIFF_LINE[row.kind];
   return (
     <div className={cn("px-1 whitespace-pre-wrap", line.className)}>

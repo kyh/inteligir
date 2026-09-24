@@ -308,3 +308,56 @@ describe("VaultEditorController", () => {
     expect(c.getState().path).toBe(null);
   });
 });
+
+const countingConflicts = (io: FakeVault) => {
+  const conflicts = { count: 0 };
+  const c = new VaultEditorController(io, undefined, () => {
+    conflicts.count += 1;
+  });
+  return { c, conflicts };
+};
+
+describe("a merge that kept the buffer's lines over a concurrent change", () => {
+  it("is told when the host's merge overlapped", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\n");
+    io.landAs = (sent) => `${sent}external\n`;
+    io.landsConflicted = true;
+    const { c, conflicts } = countingConflicts(io);
+    await c.open("a.md");
+    c.edit("one typed\n");
+    await c.flush();
+    expect(conflicts.count).toBe(1);
+  });
+
+  it("is told when an edit typed during a reload's read overlaps the bytes read", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\n");
+    const { c, conflicts } = countingConflicts(io);
+    await c.open("a.md");
+    io.manualRead = true;
+    c.externalChange();
+    c.edit("one mine\ntwo\n");
+    io.pendingReads[0]?.resolve("one theirs\ntwo\n");
+    await tick();
+    expect(c.getState()).toMatchObject({ content: "one mine\ntwo\n", dirty: true });
+    expect(conflicts.count).toBe(1);
+  });
+
+  it("is not told when the merge kept both sides", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "one\ntwo\nthree\n");
+    io.manualWrite = true;
+    io.landAs = (sent) => `${sent}external\n`;
+    const { c, conflicts } = countingConflicts(io);
+    await c.open("a.md");
+    c.edit("one typed\ntwo\nthree\n");
+    const flushed = c.flush();
+    await tick();
+    c.edit("one typed more\ntwo\nthree\n");
+    io.pendingWrites[0]?.resolve();
+    await flushed;
+    expect(c.getState().content).toBe("one typed more\ntwo\nthree\nexternal\n");
+    expect(conflicts.count).toBe(0);
+  });
+});
