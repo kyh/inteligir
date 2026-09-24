@@ -126,8 +126,8 @@ const appendInTransaction = (
   const now = Date.now();
   const sequences: number[] = [];
   for (const input of eventInputs) {
-    // the static type admits any (event, scope) pairing; this parse enforces the scope policy
-    // and the sql CHECK is only a backstop.
+    // the static type pairs each event with its scope but admits an empty turn id; this parse
+    // refuses one, and the sql CHECK is only a backstop.
     const event = threadEventSchema.parse(input.event);
     const turnId = getThreadEventScopeTurnId(event.scope) ?? null;
     if (turnId !== null) {

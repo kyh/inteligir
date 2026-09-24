@@ -3,11 +3,7 @@
 // bb already names.
 
 import { z } from "zod";
-import {
-  getThreadEventScopeTurnId,
-  threadEventScopeSchema,
-  validateThreadEventScope,
-} from "./thread-event-scope";
+import { threadEventScopeSchema, threadScopeSchema, turnScopeSchema } from "./thread-event-scope";
 import { viewContextSchema } from "./view-context";
 
 export const threadEventItemStatusSchema = z.enum([
@@ -43,7 +39,6 @@ export const threadEventTokenUsageBreakdownSchema = z.object({
   reasoningOutputTokens: z.number(),
   totalTokens: z.number(),
 });
-export type ThreadEventTokenUsageBreakdown = z.infer<typeof threadEventTokenUsageBreakdownSchema>;
 
 export const threadEventTokenUsageSchema = z.object({
   last: threadEventTokenUsageBreakdownSchema,
@@ -114,30 +109,36 @@ export const settledReasoningText = (
   item: Extract<ThreadEventItem, { type: "reasoning" }>,
 ): string => (item.summary.length > 0 ? item.summary : item.content).join("\n\n");
 
-const unscopedThreadEventSchema = z.discriminatedUnion("type", [
+// anything looser than turn scope says why beside it.
+export const threadEventSchema = z.discriminatedUnion("type", [
   z.object({
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("turn/started"),
   }),
   z.object({
     error: z.object({ message: z.string() }).optional(),
+    scope: turnScopeSchema,
     status: threadEventTurnStatusSchema,
     threadId: z.string(),
     type: z.literal("turn/completed"),
   }),
   z.object({
     item: threadEventItemSchema,
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/started"),
   }),
   z.object({
     item: threadEventItemSchema,
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/completed"),
   }),
   z.object({
     delta: z.string(),
     itemId: z.string(),
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/agentMessage/delta"),
   }),
@@ -146,6 +147,7 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     itemId: z.string(),
     // true replaces the accumulated output instead of appending.
     reset: z.boolean().optional(),
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/commandExecution/outputDelta"),
   }),
@@ -154,22 +156,26 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
   z.object({
     delta: z.string(),
     itemId: z.string(),
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/reasoning/summaryTextDelta"),
   }),
   z.object({
     delta: z.string(),
     itemId: z.string(),
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/reasoning/textDelta"),
   }),
   z.object({
     delta: z.string(),
     itemId: z.string(),
+    scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/plan/delta"),
   }),
   z.object({
+    scope: turnScopeSchema,
     threadId: z.string(),
     tokenUsage: threadEventTokenUsageSchema,
     type: z.literal("thread/tokenUsage/updated"),
@@ -177,6 +183,8 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
   z.object({
     detail: z.string().optional(),
     message: z.string(),
+    // thread scope for a provider setup or session failure, turn scope for one inside a turn.
+    scope: threadEventScopeSchema,
     threadId: z.string(),
     type: z.literal("provider/error"),
     willRetry: z.boolean().optional(),
@@ -187,29 +195,14 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
   z.object({
     // the notes the user attached by @-mention, held to the vault path grammar at the wire.
     contextPaths: z.array(z.string().min(1)).optional(),
+    // recorded before the provider accepts a turn, so no turn id exists yet.
+    scope: threadScopeSchema,
     text: z.string(),
     threadId: z.string(),
     type: z.literal("client/turn/requested"),
     viewContext: viewContextSchema.optional(),
   }),
 ]);
-
-const scopedEventDataSchema = z.object({
-  scope: threadEventScopeSchema,
-});
-
-export const threadEventSchema = unscopedThreadEventSchema
-  .and(scopedEventDataSchema)
-  .superRefine((event, ctx) => {
-    const result = validateThreadEventScope({ scope: event.scope, type: event.type });
-    if (!result.valid) {
-      ctx.addIssue({
-        code: "custom",
-        message: result.message ?? "Invalid thread event scope",
-        path: ["scope"],
-      });
-    }
-  });
 export type ThreadEvent = z.infer<typeof threadEventSchema>;
 export type ThreadEventType = ThreadEvent["type"];
 
@@ -273,7 +266,7 @@ const joinsRun = (run: ThreadEventDelta, next: ThreadEventDelta): boolean =>
   next.type === run.type &&
   next.itemId === run.itemId &&
   next.threadId === run.threadId &&
-  getThreadEventScopeTurnId(next.scope) === getThreadEventScopeTurnId(run.scope) &&
+  next.scope.turnId === run.scope.turnId &&
   !(next.type === "item/commandExecution/outputDelta" && next.reset === true);
 
 export interface DeltaRunLimit {

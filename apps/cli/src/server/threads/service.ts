@@ -49,7 +49,7 @@ import {
 } from "@repo/db/threads";
 import type { CreateThreadInput, ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { getThreadEventScopeTurnId, threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { deriveThreadTitle } from "@repo/domain/thread-title";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
@@ -192,13 +192,12 @@ const invalidResolutionMessage = (payloadJson: string, resolution: string): stri
 };
 
 const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
-  const turnId = getThreadEventScopeTurnId(event.scope) ?? null;
   switch (event.type) {
     case "turn/started": {
-      // the scope policy makes a turn-less turn/started unparseable; the null branch guards a policy change.
-      return turnId === null ? null : { turnId, type: "run.started" };
+      return { turnId: event.scope.turnId, type: "run.started" };
     }
     case "turn/completed": {
+      const { turnId } = event.scope;
       // an interrupted turn still settled: only a failed one reads as an error.
       return event.status === "failed"
         ? { turnId, type: "run.failed" }

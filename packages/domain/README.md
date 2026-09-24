@@ -38,8 +38,8 @@ src/
                          # status, not a side field, and `stopping` has no
                          # run.started cell: a queued turn cannot reactivate it
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # seven item kinds, twelve event types, scope refined
-                         # at parse. `client/turn/requested` carries the
+                         # seven item kinds, twelve event types, each with its
+                         # own scope. `client/turn/requested` carries the
                          # optional viewContext and contextPaths beside bb's
                          # `text`, which stays exactly what the user typed.
                          # `mergeAdjacentDeltas` stores one item's adjacent
@@ -47,10 +47,9 @@ src/
                          # caller's cap bounding each. `settledReasoningText`
                          # is the one reading of a settled thought both the
                          # desktop's fold and the phone's run
-  thread-event-scope.ts  # thread | turn scope, and the per-type policy table
-                         # (`satisfies` keeps it total: a new type without a
-                         # row stops compiling; anything looser than turn
-                         # scope states its rationale in the row)
+  thread-event-scope.ts  # thread | turn scope, each its own schema so an
+                         # event type names the one it takes (anything looser
+                         # than turn scope states why beside its member)
   view-context.ts        # the screen a message left from: `doc` + path +
                          # sha-256 revision. a single-member discriminatedUnion
                          # so a second surface breaks every consumer at compile
