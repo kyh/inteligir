@@ -1,14 +1,15 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { motion } from "framer-motion";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
+import { PopupExit } from "@repo/ui/lib/popup-exit";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { cn } from "@repo/ui/lib/cn";
-import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
+import { spring } from "@repo/ui/lib/springs";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
@@ -37,58 +38,33 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
   const substrate = useSurface();
   const level = Math.min(substrate + 2, 8);
 
-  // the primitive tears its portal down the moment it closes, so the dialog is held open through
-  // the exit and the real close propagates when the spring lands
-  const [closing, setClosing] = useState(false);
-  const visible = open && !closing;
-
-  const finishClose = useCallback(() => {
-    setClosing(false);
-    onClose();
-  }, [onClose]);
-
-  const wasOpen = useRef(open);
-  useEffect(() => {
-    if (wasOpen.current && !open) {
-      setClosing(true);
-    }
-    wasOpen.current = open;
-  }, [open]);
-
-  // fallback: rAF-driven animation callbacks stall in throttled tabs
-  useEffect(() => {
-    if (!closing) {
-      return;
-    }
-    const id = setTimeout(finishClose, exitFallbackMs(spring.moderate));
-    return () => {
-      clearTimeout(id);
-    };
-  }, [closing, finishClose]);
-
   const offscreen = side === "left" ? "-100%" : "100%";
 
-  // `dark:` only matches the explicit .dark class, so the base tint carries system-dark users
+  // `dark:` only matches the explicit .dark class, so the base tint carries system-dark users.
+  // Base UI keeps the closing sheet mounted while the Popup's own animations run, and framer drives
+  // `x` on the main thread, where Base UI cannot see it; the near-1 opacity is a compositor
+  // animation of the same length that it can
   return (
     <DialogPrimitive.Root
-      open={open || closing}
+      open={open}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
-          setClosing(true);
+          onClose();
         }
       }}
     >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
-          render={(backdropProps) => {
+          render={(backdropProps, state) => {
+            const exiting = state.transitionStatus === "ending";
             const { style: _style, ...rest } = motionProps(backdropProps);
             return (
               <motion.div
                 {...rest}
                 className="fixed inset-0 bg-black/40 dark:bg-black/80 z-40"
                 initial={{ opacity: 0 }}
-                animate={{ opacity: visible ? 1 : 0 }}
-                transition={visible ? { duration: 0.16 } : spring.moderate.exit}
+                animate={{ opacity: exiting ? 0 : 1 }}
+                transition={exiting ? spring.moderate.exit : { duration: 0.16 }}
               />
             );
           }}
@@ -97,35 +73,33 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
         <DialogPrimitive.Popup
           aria-label="Sidebar"
           initialFocus={panelRef}
-          render={(popupProps) => {
+          render={(popupProps, state) => {
+            const exiting = state.transitionStatus === "ending";
             const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
             return (
-              <motion.div
-                {...rest}
-                // merge, don't replace: the primitive needs its own handle on the panel
-                ref={composeRefs(panelRef, baseRef)}
-                tabIndex={-1}
-                data-sidebar="sidebar"
-                data-mobile="true"
-                data-side={side}
-                className={cn(
-                  "fixed inset-y-0 z-50 flex flex-col overflow-hidden outline-none",
-                  !visible && "pointer-events-none",
-                  side === "left" ? "left-0" : "right-0",
-                  surfaceClasses(level, 3),
-                )}
-                style={motionStyle(baseStyle, { width: widthMobile })}
-                initial={{ x: offscreen }}
-                animate={{ x: visible ? 0 : offscreen }}
-                transition={visible ? spring.moderate : spring.moderate.exit}
-                onAnimationComplete={() => {
-                  if (closing) {
-                    finishClose();
-                  }
-                }}
-              >
-                <SurfaceProvider value={level}>{children}</SurfaceProvider>
-              </motion.div>
+              <PopupExit exiting={exiting}>
+                <motion.div
+                  {...rest}
+                  // merge, don't replace: the primitive needs its own handle on the panel
+                  ref={composeRefs(panelRef, baseRef)}
+                  tabIndex={-1}
+                  data-sidebar="sidebar"
+                  data-mobile="true"
+                  data-side={side}
+                  className={cn(
+                    "fixed inset-y-0 z-50 flex flex-col overflow-hidden outline-none",
+                    exiting && "pointer-events-none",
+                    side === "left" ? "left-0" : "right-0",
+                    surfaceClasses(level, 3),
+                  )}
+                  style={motionStyle(baseStyle, { width: widthMobile })}
+                  initial={{ x: offscreen }}
+                  animate={{ opacity: exiting ? 0.9999 : 1, x: exiting ? offscreen : 0 }}
+                  transition={exiting ? spring.moderate.exit : spring.moderate}
+                >
+                  <SurfaceProvider value={level}>{children}</SurfaceProvider>
+                </motion.div>
+              </PopupExit>
             );
           }}
         />
@@ -222,25 +196,3 @@ const Sidebar = ({
 Sidebar.displayName = "Sidebar";
 
 export { Sidebar };
-
-export {
-  SidebarProvider,
-  useSidebar,
-  SidebarInset,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupActions,
-  SidebarGroupAction,
-  SIDEBAR_MIN_WIDTH,
-  SIDEBAR_MAX_WIDTH,
-} from "@repo/ui/components/sidebar-core";
-
-export {
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarMenuAction,
-} from "@repo/ui/components/sidebar-menu";

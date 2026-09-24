@@ -7,6 +7,7 @@
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
+import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 
 import { SignedOutNotice } from "../app/signed-out-notice";
@@ -18,11 +19,13 @@ const RootLayout = () => {
   const signedOut = useSignedOut();
   return (
     <WorkspaceProvider>
-      <TooltipProvider>
-        <Outlet />
-        <ConfirmDialogHost />
-        {signedOut ? <SignedOutNotice /> : <Toaster position="bottom-right" />}
-      </TooltipProvider>
+      <MotionPolicy>
+        <TooltipProvider>
+          <Outlet />
+          <ConfirmDialogHost />
+          {signedOut ? <SignedOutNotice /> : <Toaster position="bottom-right" />}
+        </TooltipProvider>
+      </MotionPolicy>
     </WorkspaceProvider>
   );
 };

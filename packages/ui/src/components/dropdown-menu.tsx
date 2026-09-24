@@ -10,13 +10,14 @@ import {
   createContext,
   useContext,
 } from "react";
-import type { ComponentProps, ReactNode, RefAttributes, RefObject } from "react";
-import { motion } from "framer-motion";
+import type { ComponentProps, ReactNode, RefAttributes } from "react";
 import { Menu } from "@base-ui/react/menu";
 
 import { cn } from "@repo/ui/lib/cn";
-import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
+import { spring } from "@repo/ui/lib/springs";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
+import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
+import { PopupExit } from "@repo/ui/lib/popup-exit";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
@@ -31,17 +32,7 @@ import { Elevated } from "@repo/ui/lib/elevated";
 // scale and makes the corner shadow asymmetric.
 const radius = radiusMap.rounded;
 
-interface DropdownMenuActions {
-  unmount: () => void;
-  close: () => void;
-}
-
-interface DropdownMenuContextValue {
-  open: boolean;
-  actionsRef: RefObject<DropdownMenuActions | null>;
-}
-
-const DropdownMenuContext = createContext<DropdownMenuContextValue | null>(null);
+const DropdownMenuContext = createContext<{ open: boolean } | null>(null);
 
 const useDropdownMenuContext = () => {
   const ctx = useContext(DropdownMenuContext);
@@ -91,7 +82,6 @@ const DropdownMenu = ({
 }: DropdownMenuProps) => {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = openProp ?? internalOpen;
-  const actionsRef = useRef<DropdownMenuActions | null>(null);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -103,17 +93,11 @@ const DropdownMenu = ({
     [openProp, onOpenChange],
   );
 
-  const ctx = useMemo(() => ({ actionsRef, open }), [open]);
+  const ctx = useMemo(() => ({ open }), [open]);
 
   const root = (
     <DropdownMenuContext.Provider value={ctx}>
-      <Menu.Root
-        open={open}
-        onOpenChange={handleOpenChange}
-        actionsRef={actionsRef}
-        disabled={disabled}
-        modal={modal}
-      >
+      <Menu.Root open={open} onOpenChange={handleOpenChange} disabled={disabled} modal={modal}>
         {children}
       </Menu.Root>
     </DropdownMenuContext.Provider>
@@ -148,7 +132,7 @@ const DropdownMenuContent = ({
   anchor,
   ref,
 }: DropdownMenuContentProps & RefAttributes<HTMLDivElement>) => {
-  const { open, actionsRef } = useDropdownMenuContext();
+  const { open } = useDropdownMenuContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const { activeIndex, setActiveIndex, itemRects, session, handlers, setItems, measureItems } =
@@ -167,38 +151,6 @@ const DropdownMenuContent = ({
   } = handlers;
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-
-  // Base UI defers unmount while actionsRef is set; the exit spring's onAnimationComplete releases
-  // it, and this timer is the fallback for throttled/background tabs where that callback stalls.
-  // Only a real open→close has anything to release, and whichever path runs first disarms the
-  // other: a timer still armed once the popup is gone outlives the tree it would call into.
-  const fallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wasOpenRef = useRef(false);
-
-  const disarmFallback = useCallback(() => {
-    if (fallbackRef.current !== null) {
-      clearTimeout(fallbackRef.current);
-      fallbackRef.current = null;
-    }
-  }, []);
-
-  const releaseUnmount = useCallback(() => {
-    disarmFallback();
-    actionsRef.current?.unmount();
-  }, [disarmFallback, actionsRef]);
-
-  useEffect(() => {
-    if (open) {
-      wasOpenRef.current = true;
-      return;
-    }
-    if (!wasOpenRef.current) {
-      return;
-    }
-    wasOpenRef.current = false;
-    fallbackRef.current = setTimeout(releaseUnmount, exitFallbackMs(spring.fast));
-    return disarmFallback;
-  }, [open, releaseUnmount, disarmFallback]);
 
   useEffect(() => {
     if (!open) {
@@ -221,6 +173,10 @@ const DropdownMenuContent = ({
   const highlight = useHighlightStore(activeRowEl);
   const itemsCtx = useMemo(() => ({ highlight, registerRow }), [registerRow, highlight]);
 
+  // the Popup itself is the animated surface, never a wrapper: Base UI keeps a closing menu
+  // mounted only while the Popup element's own animations run
+  const hidden = { opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 };
+
   return (
     <Menu.Portal>
       <Menu.Positioner
@@ -231,68 +187,63 @@ const DropdownMenuContent = ({
         anchor={anchor}
         className="z-50 outline-none"
       >
-        <motion.div
-          initial={{ opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 }}
-          animate={
-            open
-              ? { opacity: 1, scaleY: 1, y: 0 }
-              : { opacity: 0, scaleY: 0.96, y: side === "top" ? 4 : -4 }
-          }
-          transition={open ? spring.fast : spring.fast.exit}
-          style={{
-            transformOrigin: side === "top" ? "bottom center" : "top center",
-          }}
-          onAnimationComplete={() => {
-            if (!open) {
-              releaseUnmount();
-            }
-          }}
-        >
-          <DropdownItemsContext.Provider value={itemsCtx}>
-            <Menu.Popup
-              render={
-                <Elevated
-                  offset={2}
-                  shadowLevel={3}
-                  ref={composeRefs<HTMLDivElement>(containerRef, ref)}
-                />
+        <DropdownItemsContext.Provider value={itemsCtx}>
+          <Menu.Popup
+            ref={composeRefs<HTMLDivElement>(containerRef, ref)}
+            render={(popupProps, state) => {
+              const exiting = state.transitionStatus === "ending";
+              const { style: baseStyle, ...rest } = motionProps(popupProps);
+              return (
+                <PopupExit exiting={exiting}>
+                  <Elevated
+                    {...rest}
+                    offset={2}
+                    shadowLevel={3}
+                    style={motionStyle(baseStyle, {
+                      transformOrigin: side === "top" ? "bottom center" : "top center",
+                    })}
+                    initial={hidden}
+                    animate={exiting ? hidden : { opacity: 1, scaleY: 1, y: 0 }}
+                    transition={exiting ? spring.fast.exit : spring.fast}
+                  />
+                </PopupExit>
+              );
+            }}
+            onMouseEnter={() => {
+              handleMouseEnter();
+              setFocusedIndex(null);
+            }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            onFocus={(e) => {
+              const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
+              const idx = row === null ? -1 : orderedRows.indexOf(row);
+              if (idx !== -1) {
+                setActiveIndex(idx);
+                setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
               }
-              onMouseEnter={() => {
-                handleMouseEnter();
-                setFocusedIndex(null);
-              }}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              onFocus={(e) => {
-                const row = e.target.closest<HTMLElement>("[data-dropdown-menu-item]");
-                const idx = row === null ? -1 : orderedRows.indexOf(row);
-                if (idx !== -1) {
-                  setActiveIndex(idx);
-                  setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
-                }
-              }}
-              onBlur={(e) => {
-                if (containerRef.current?.contains(e.relatedTarget) === true) {
-                  return;
-                }
-                setFocusedIndex(null);
-                setActiveIndex(null);
-              }}
-              className={cn(
-                `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
-                className,
-              )}
-            >
-              <ProximityOverlays
-                hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
-                focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
-                session={session}
-                radius={radius}
-              />
-              {children}
-            </Menu.Popup>
-          </DropdownItemsContext.Provider>
-        </motion.div>
+            }}
+            onBlur={(e) => {
+              if (containerRef.current?.contains(e.relatedTarget) === true) {
+                return;
+              }
+              setFocusedIndex(null);
+              setActiveIndex(null);
+            }}
+            className={cn(
+              `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
+              className,
+            )}
+          >
+            <ProximityOverlays
+              hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
+              focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
+              session={session}
+              radius={radius}
+            />
+            {children}
+          </Menu.Popup>
+        </DropdownItemsContext.Provider>
       </Menu.Positioner>
     </Menu.Portal>
   );

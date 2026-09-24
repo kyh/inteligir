@@ -21,8 +21,3 @@ export const spring = {
     type: "spring" as const,
   },
 } as const;
-
-// derived here so the deferred-unmount fallback timers (a throttled tab stalls onAnimationComplete)
-// stay in step with the tokens
-export const exitFallbackMs = (tier: { exit: { duration: number } }) =>
-  Math.round(tier.exit.duration * 1000) + 100;

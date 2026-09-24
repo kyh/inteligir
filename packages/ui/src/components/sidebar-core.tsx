@@ -790,7 +790,7 @@ const SidebarGroupLabel = ({
         className={cn(
           "flex h-8 w-full shrink-0 cursor-pointer items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none select-none",
           "transition-colors duration-80 hover:text-muted-foreground focus-visible:text-muted-foreground",
-          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+          "focus-visible:ring-1 focus-visible:ring-focus-ring",
           radius.item,
           textClass,
           className,
@@ -850,7 +850,7 @@ const SidebarGroupAction = ({
       className={cn(
         "flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none",
         "transition-colors duration-80 hover:bg-muted/60 hover:text-foreground focus-visible:text-foreground",
-        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        "focus-visible:ring-1 focus-visible:ring-focus-ring",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         radius.item,
         className,

@@ -63,7 +63,7 @@ const Checkbox = ({ className, size, ...props }: CheckboxProps) => {
         "hover:border-neutral-400 dark:hover:border-neutral-500",
         // Invisible ::after padding widens the small square's hit target.
         "after:absolute after:-inset-x-3 after:-inset-y-2",
-        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "focus-visible:ring-1 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "data-disabled:pointer-events-none data-disabled:opacity-50",
         compact ? "h-[14px] w-[14px] rounded-[4px]" : "h-[16px] w-[16px] rounded-[5px]",
         className,

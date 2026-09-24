@@ -110,7 +110,7 @@ const ScrubField = ({
       className={cn(
         "flex h-6.5 min-w-0 items-center gap-1 rounded-full py-1 pr-1 pl-0.5",
         "bg-surface-inset transition-[background-color,box-shadow] duration-200",
-        active && "ring-1 ring-[color:var(--focus-ring)]",
+        active && "ring-1 ring-focus-ring",
         className,
       )}
     >
@@ -234,7 +234,7 @@ const FineTuneMenuItem = ({
     data-slot="fine-tune-menu-item"
     className={cn(
       "relative z-10 flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] text-ink",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       className,
     )}
     {...props}

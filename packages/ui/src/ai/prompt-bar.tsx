@@ -253,7 +253,7 @@ const PromptBarMenu = ({
     data-slot="prompt-bar-menu"
     className={cn(
       "w-64 overflow-hidden rounded-xl bg-surface-raised p-1 shadow-surface-3",
-      "animate-in fade-in slide-in-from-bottom-1 duration-150 motion-reduce:animate-none",
+      "animate-in fade-in slide-in-from-bottom-1 duration-150",
       className,
     )}
     {...props}
@@ -290,7 +290,7 @@ const PromptBarMenuItem = ({
     data-slot="prompt-bar-menu-item"
     className={cn(
       "relative z-10 flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] text-ink",
-      "outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring)]",
+      "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       "[&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-ink-3",
       className,
     )}

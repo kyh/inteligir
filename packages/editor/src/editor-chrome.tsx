@@ -9,6 +9,7 @@ import type { HTMLAttributes } from "react";
 import { PlateContainer, PlateContent } from "platejs/react";
 import type { PlateContentProps } from "platejs/react";
 
+import { TYPESET, TYPESET_DOCS } from "@repo/editor/style-hooks";
 import { cn } from "@repo/ui/lib/cn";
 
 // select-text opts out of the shell's global user-select: none; ignore-click-outside/toolbar keeps editor clicks from closing the floating toolbar
@@ -21,7 +22,8 @@ export const EDITOR_COLUMN_PX = "px-12 sm:px-[max(48px,var(--editor-column-inset
 
 // typeset's :where() rules style the tags; element renderers carry only functional classes
 const EDITOR_CLASS = cn(
-  "typeset typeset-docs",
+  TYPESET,
+  TYPESET_DOCS,
   "group/editor relative w-full overflow-x-hidden break-words whitespace-pre-wrap",
   EDITOR_COLUMN_PX,
   "min-h-full pt-4 focus-visible:outline-none",

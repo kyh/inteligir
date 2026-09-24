@@ -17,7 +17,7 @@ const buttonStructure = cva(
     "group relative isolate inline-flex shrink-0 cursor-pointer items-center justify-center outline-none select-none whitespace-nowrap",
     "transition-colors duration-80",
     "disabled:pointer-events-none disabled:opacity-50",
-    "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+    "focus-visible:ring-1 focus-visible:ring-focus-ring",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   ],
   {

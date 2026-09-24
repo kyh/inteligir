@@ -11,7 +11,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route as rootRoute } from "../../routes/__root";
@@ -21,6 +21,7 @@ import { InertSocket } from "./inert-socket";
 import { rendererSources } from "./renderer-sources";
 
 const CONFIRM_TITLE = "Stop syncing this device?";
+const DESTRUCTIVE_TITLE = "Delete this note?";
 const REFUSAL = "Could not sign this device out.";
 const CALL_REFUSED = "Could not reach the server.";
 
@@ -48,6 +49,20 @@ const SettingsStandIn = () => (
       }}
     >
       Sign out
+    </button>
+    <button
+      type="button"
+      onClick={() => {
+        void (async () => {
+          answered = await confirm({
+            confirmLabel: "Delete",
+            destructive: true,
+            title: DESTRUCTIVE_TITLE,
+          });
+        })();
+      }}
+    >
+      Delete note
     </button>
     <button
       type="button"
@@ -116,10 +131,30 @@ describe("the window-level hosts", () => {
     fireEvent.click(await screen.findByText("Sign out"));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(CONFIRM_TITLE);
+    const signOut = within(dialog).getByRole("button", { name: "Sign out" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(signOut);
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(signOut);
     await waitFor(() => {
       expect(answered).toBe(true);
+    });
+  });
+
+  it("focus Cancel, not the action, when the confirm is destructive", async () => {
+    mountAtSettings();
+    fireEvent.click(await screen.findByText("Delete note"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(DESTRUCTIVE_TITLE);
+    const cancel = within(dialog).getByRole("button", { name: "Cancel" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(cancel);
+    });
+
+    fireEvent.keyDown(cancel, { key: "Escape" });
+    await waitFor(() => {
+      expect(answered).toBe(false);
     });
   });
 

@@ -12,6 +12,8 @@
     "./lib/*": "./src/lib/*.ts",
     "./lib/collapse": "./src/lib/collapse.tsx",
     "./lib/elevated": "./src/lib/elevated.tsx",
+    "./lib/motion-policy": "./src/lib/motion-policy.tsx",
+    "./lib/popup-exit": "./src/lib/popup-exit.tsx",
     "./lib/radius-context": "./src/lib/radius-context.tsx",
     "./lib/size-context": "./src/lib/size-context.tsx",
     "./lib/surface-context": "./src/lib/surface-context.tsx",

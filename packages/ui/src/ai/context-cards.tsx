@@ -98,7 +98,7 @@ const ContextCard = ({
     data-slot="context-card"
     className={cn(
       "overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
-      "animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none",
+      "animate-in fade-in slide-in-from-bottom-1 duration-300",
       className,
     )}
     {...props}

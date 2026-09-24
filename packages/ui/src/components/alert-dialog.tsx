@@ -4,46 +4,42 @@
 import * as React from "react";
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 
+import { DialogCard, renderDialogBackdrop } from "@repo/ui/components/dialog";
 import { cn } from "@repo/ui/lib/cn";
 
 const AlertDialog = ({ ...props }: AlertDialogPrimitive.Root.Props) => (
   <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
 );
 
-const AlertDialogPortal = ({ ...props }: AlertDialogPrimitive.Portal.Props) => (
-  <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
-);
-
-const AlertDialogOverlay = ({ className, ...props }: AlertDialogPrimitive.Backdrop.Props) => (
-  <AlertDialogPrimitive.Backdrop
-    data-slot="alert-dialog-overlay"
-    className={cn(
-      "fixed inset-0 isolate z-50 bg-black/30 duration-100 supports-backdrop-filter:backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-      className,
-    )}
-    {...props}
-  />
-);
-
-const AlertDialogContent = ({
-  className,
-  size = "default",
-  ...props
-}: AlertDialogPrimitive.Popup.Props & {
+interface AlertDialogContentProps extends Omit<
+  AlertDialogPrimitive.Popup.Props,
+  "className" | "render" | "style"
+> {
+  className?: string;
   size?: "default" | "sm";
-}) => (
-  <AlertDialogPortal>
-    <AlertDialogOverlay />
+}
+
+// Dialog's backdrop and card over the alert primitive's own parts, which keep the alertdialog role
+// and refuse an outside-press dismissal
+const AlertDialogContent = ({ className, size = "default", ...props }: AlertDialogContentProps) => (
+  <AlertDialogPrimitive.Portal>
+    <AlertDialogPrimitive.Backdrop render={renderDialogBackdrop} />
     <AlertDialogPrimitive.Popup
-      data-slot="alert-dialog-content"
-      data-size={size}
-      className={cn(
-        "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[min(var(--radius-4xl),24px)] bg-popover p-6 text-popover-foreground shadow-xl ring-1 ring-foreground/5 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-md dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-        className,
-      )}
       {...props}
+      render={(popupProps, state) => (
+        <DialogCard
+          popupProps={popupProps}
+          exiting={state.transitionStatus === "ending"}
+          data-slot="alert-dialog-content"
+          data-size={size}
+          className={cn(
+            "group/alert-dialog-content grid w-full gap-6 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-md",
+            className,
+          )}
+        />
+      )}
     />
-  </AlertDialogPortal>
+  </AlertDialogPrimitive.Portal>
 );
 
 const AlertDialogHeader = ({ className, ...props }: React.ComponentProps<"div">) => (
