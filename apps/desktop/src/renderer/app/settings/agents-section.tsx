@@ -1,8 +1,8 @@
 import type { HarnessProbe } from "@repo/api/local/agents/agents-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { orpc } from "../api";
+import { failed, orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
-import { ChoiceRow, failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
+import { ChoiceRow, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 const credentialSentence = (probe: HarnessProbe): string => {
   switch (probe.credentials) {

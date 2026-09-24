@@ -3,7 +3,8 @@ import { cn } from "@repo/ui/lib/cn";
 import { useState } from "react";
 import type { SpellcheckState } from "../../../spellcheck-state";
 import { chooseSpellcheck, useDesktopSpellcheck } from "../desktop-spellcheck";
-import { failed, Row } from "./settings-chrome";
+import { failed } from "../api";
+import { Row } from "./settings-chrome";
 
 // the checked list, or the one the session would fall back to; a toggle must not leave it empty
 const nextLanguages = (state: SpellcheckState, code: string, on: boolean): string[] | null => {

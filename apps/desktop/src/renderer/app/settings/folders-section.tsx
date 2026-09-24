@@ -6,8 +6,8 @@ import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { isDefinedError, orpc } from "../api";
-import { failed, SectionHeading } from "./settings-chrome";
+import { failed, isDefinedError, orpc } from "../api";
+import { SectionHeading } from "./settings-chrome";
 
 const useConnectedFolders = () => useQuery({ ...orpc.folders.list.queryOptions(), staleTime: 0 });
 

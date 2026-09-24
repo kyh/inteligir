@@ -1,11 +1,5 @@
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
-import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
-import { refusalMessage } from "../api";
-
-export const failed = (cause: unknown, fallback: string): void => {
-  toast.error(refusalMessage(cause, fallback));
-};
 
 // The credential, the connectors and the agent default live in the data dir, and a second
 // vault has one of its own: one sentence, wherever a surface would otherwise look reset.

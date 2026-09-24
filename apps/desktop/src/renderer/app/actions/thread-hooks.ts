@@ -33,15 +33,24 @@ const MOVES_THE_TIMELINE = {
   "thread-created": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 
-export const useThreadTimeline = (threadId: string | null): ThreadTimeline | null => {
+// refused only while no rows are held: a failed delta keeps the rows on screen, and the next
+// matching frame, the reconnect sweep or reopening the action retries either way.
+type ThreadTimelineRead =
+  | { state: "reading" }
+  | { state: "read"; timeline: ThreadTimeline }
+  | { state: "refused"; error: unknown };
+
+const READING: ThreadTimelineRead = { state: "reading" };
+
+export const useThreadTimeline = (threadId: string | null): ThreadTimelineRead => {
   const { api, threadEvents } = useWorkspace();
-  const [timeline, setTimeline] = useState<ThreadTimeline | null>(null);
+  const [read, setRead] = useState<ThreadTimelineRead>(READING);
 
   // drop the previous thread's rows as the id arrives, not one commit later.
   const [shownFor, setShownFor] = useState(threadId);
   if (shownFor !== threadId) {
     setShownFor(threadId);
-    setTimeline(null);
+    setRead(READING);
   }
 
   useEffect(() => {
@@ -85,11 +94,13 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimeline | nul
           }
           if (next !== null) {
             held = next;
-            setTimeline(next);
+            setRead({ state: "read", timeline: next });
           }
         } while (rerun);
-      } catch {
-        // the next frame retries
+      } catch (error) {
+        if (!disposed && held === null) {
+          setRead({ error, state: "refused" });
+        }
       }
       inFlight = false;
     };
@@ -109,5 +120,5 @@ export const useThreadTimeline = (threadId: string | null): ThreadTimeline | nul
     };
   }, [api, threadEvents, threadId]);
 
-  return timeline;
+  return read;
 };

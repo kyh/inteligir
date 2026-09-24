@@ -17,7 +17,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { isDefinedError, orpc, refusalMessage, safe } from "../api";
-import { relativeTimeLabel } from "../relative-time";
+import { relativeTimeLabel, useNow } from "../relative-time";
 import { useWorkspace } from "../workspace-context";
 import { diffRows } from "./history-diff";
 import type { DiffRow } from "./history-diff";
@@ -105,9 +105,11 @@ const RevisionDetail = ({
 }) => {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
-  const revisionQuery = useQuery(
-    orpc.vault.revision.queryOptions({ input: { path: revision.path, sha: revision.sha } }),
-  );
+  // no retries: a revision git cannot show is as missing on the third ask as on the first.
+  const revisionQuery = useQuery({
+    ...orpc.vault.revision.queryOptions({ input: { path: revision.path, sha: revision.sha } }),
+    retry: false,
+  });
   const content = revisionQuery.data?.content ?? null;
   const rows = useMemo(
     () => (content === null ? null : diffRows(current, content)),
@@ -219,13 +221,17 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
     state.editor.path === docPath ? state.editor.content : null,
   );
   // `staleTime` is Infinity app-wide and a commit announces nothing, so this query re-asks per open.
-  // no retries: an off-lock `git log` refusal is deterministic.
+  // no retries: an off-lock `git log` refusal is deterministic. A larger page keeps the rows it
+  // grows from on screen, so Show older neither blanks the list nor loses the scroll.
   const historyQuery = useQuery({
     ...orpc.vault.history.queryOptions({ input: { limit, path: docPath ?? "" } }),
     enabled: docPath !== null,
+    placeholderData: (previous) => previous,
     retry: false,
     staleTime: 0,
   });
+  // not the query's `dataUpdatedAt`, which is 0 while the larger page is still a placeholder
+  const asOfMs = useNow();
 
   if (docPath === null) {
     return (
@@ -250,7 +256,6 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
   }
 
   const revisions = historyQuery.data?.revisions ?? [];
-  const asOfMs = historyQuery.dataUpdatedAt;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
       {revisions.map((revision) => (

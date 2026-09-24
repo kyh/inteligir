@@ -3,15 +3,10 @@
 
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { orpc, refusalMessage } from "./api";
+import { failed, orpc, refusalMessage } from "./api";
 import { useVaultStatus } from "./vault-hooks";
-
-const failed = (cause: Error, fallback: string): void => {
-  toast.error(refusalMessage(cause, fallback));
-};
 
 export interface CloudSession {
   status: CloudStatusResponse | undefined;

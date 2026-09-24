@@ -30,8 +30,11 @@ const isDecision = (value: string): value is PendingInteractionApprovalDecision 
 
 export interface ApprovalCardProps {
   interaction: PendingInteraction;
-  onAnswer: (interactionId: string, resolution: PendingInteractionApprovalDecision) => void;
-  disabled?: boolean;
+  // a rejection hands the card back its options, so a refused answer can be sent again
+  onAnswer: (
+    interactionId: string,
+    resolution: PendingInteractionApprovalDecision,
+  ) => Promise<void>;
 }
 
 interface ApprovalView {
@@ -83,17 +86,14 @@ export const decisionFromAnswers = (
   return picked !== undefined && isDecision(picked) ? picked : null;
 };
 
-export const ApprovalCard = ({ interaction, onAnswer, disabled = false }: ApprovalCardProps) => {
+export const ApprovalCard = ({ interaction, onAnswer }: ApprovalCardProps) => {
   const offer = approvalOffer(interaction);
   return (
     <ApprovalCardView
-      onSubmit={(answers) => {
-        if (disabled) {
-          return;
-        }
+      onSubmit={async (answers) => {
         const decision = decisionFromAnswers(answers);
         if (decision !== null) {
-          onAnswer(interaction.id, decision);
+          await onAnswer(interaction.id, decision);
         }
       }}
       sentLabel="Answer sent"

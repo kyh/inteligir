@@ -214,3 +214,13 @@ const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
 
 // memoized on `row`: `applyTimelineDelta` preserves untouched rows' identity, and a patched turn its untouched children's.
 export const TimelineRowView = memo(TimelineRowContent);
+
+// the user bubble's shape, unfilled: the reply waits in the thread's queue, not yet in its events.
+export const QueuedReplyView = ({ text }: { text: string }) => (
+  <div className="flex flex-col items-end gap-0.5">
+    <div className="max-w-[85%] rounded-2xl border border-dashed border-line px-3 py-1.5 text-subtitle whitespace-pre-wrap text-muted-foreground">
+      {text}
+    </div>
+    <div className="px-3 text-caption text-muted-foreground">Queued</div>
+  </div>
+);

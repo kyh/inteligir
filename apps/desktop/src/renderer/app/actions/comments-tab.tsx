@@ -3,6 +3,7 @@ import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import type { CommentEntryWire, CommentThreadWire } from "@repo/api/local/comments/comments-schema";
+import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
@@ -11,7 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { orpc } from "../api";
+import { failed, orpc } from "../api";
 import { relativeTimeLabel } from "../relative-time";
 import { useNoteComments } from "./comment-hooks";
 import { ReadRefusal } from "./read-refusal";
@@ -80,8 +81,8 @@ const ThreadCard = ({
 
   // re-read after every verb, refusal included: a failed resolve otherwise shows a state the file never took.
   const settle = {
-    onError: (): void => {
-      toast.error("The comment change was refused.");
+    onError: (cause: unknown): void => {
+      failed(cause, "The comment change was refused.");
     },
     onSettled: onDone,
   };
@@ -109,7 +110,7 @@ const ThreadCard = ({
     }
     reply.mutate(
       {
-        id: `${thread.rootId}-r${String(Date.now() % 100_000)}`,
+        id: mintCommentId(),
         parentId: thread.rootId,
         path: docPath,
         text,

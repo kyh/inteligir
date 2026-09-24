@@ -9,6 +9,7 @@ import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
+import { toast } from "@repo/ui/components/sonner";
 import { observeRpcStatus } from "./signed-out-state";
 
 export { isDefinedError, safe } from "@orpc/client";
@@ -42,3 +43,7 @@ export const orpc = createTanstackQueryUtils(client);
 
 export const refusalMessage = (cause: unknown, fallback: string): string =>
   cause instanceof Error && cause.message.length > 0 ? cause.message : fallback;
+
+export const failed = (cause: unknown, fallback: string): void => {
+  toast.error(refusalMessage(cause, fallback));
+};

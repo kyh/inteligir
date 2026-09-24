@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -62,13 +62,26 @@ describe("ApprovalCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("pint_1", "deny");
   });
 
-  it("disables the buttons while an answer is in flight", () => {
-    const onAnswer = vi.fn<ApprovalCardProps["onAnswer"]>();
-    render(
-      <ApprovalCard interaction={interactionWith(commandPayload)} onAnswer={onAnswer} disabled />,
-    );
-    fireEvent.click(screen.getByText("Deny"));
-    expect(onAnswer).not.toHaveBeenCalled();
+  it("keeps the options clickable after a rejected answer, and the retry sends", async () => {
+    const onAnswer = vi
+      .fn<ApprovalCardProps["onAnswer"]>()
+      .mockRejectedValueOnce(new Error("the answer route refused"))
+      .mockResolvedValueOnce();
+    render(<ApprovalCard interaction={interactionWith(commandPayload)} onAnswer={onAnswer} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(screen.getByRole("button", { name: "Allow once" })).toHaveProperty("disabled", true);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Allow once" })).toHaveProperty("disabled", false);
+    });
+    expect(screen.queryByText("Answer sent")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(await screen.findByText("Answer sent")).toBeTruthy();
+    expect(onAnswer.mock.calls).toEqual([
+      ["pint_1", "allow_once"],
+      ["pint_1", "allow_once"],
+    ]);
   });
 
   it("maps the payload onto the card's one radio question", () => {
