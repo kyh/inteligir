@@ -1300,9 +1300,25 @@ agents default`; unset falls back
   SPENT ONCE** (owner decision). The authorize URL and both token requests
   carry RFC 8707's `resource`, the row's MCP url in its canonical form
   (lowercase scheme and host, no fragment, no trailing slash), so a provider
-  that binds audiences mints a token for that server alone; discovery and
-  dynamic client registration are not built, so a row names its endpoints and
-  client id. A rotating provider honours a refresh token once, so the refresh
+  that binds audiences mints a token for that server alone. A row needs only
+  its URL: the first authorize takes the server's 401 challenge, reads its
+  protected resource metadata (RFC 9728: the challenge's `resource_metadata`,
+  else the path's well-known, else the root's), whose `resource` must be the
+  URL or a same-origin parent of it, then its first authorization server's
+  metadata (RFC 8414, then OpenID discovery, in the MCP spec's order), whose
+  `issuer` must echo the one named and which must advertise S256, and with no
+  client id on the row registers a public client for the redirect uri
+  (RFC 7591). Every url discovery reads or hands on is https or loopback. What
+  it finds is the row's `discovered`, kept at once while no grant rests on an
+  earlier one, so a Connect retried after a closed tab registers nothing new,
+  and otherwise with the grant it authorized, so a refresh always spends a
+  token with the client that got it. A registration is reused only for its own
+  redirect uri, and a disconnect forgets it: the way out when a provider has
+  forgotten the client. Endpoints named by hand come as a pair and with a
+  client id, since discovery is what finds a registration endpoint. A failed
+  discovery answers `PROVIDER_UNAVAILABLE` naming the step. Client ID Metadata
+  Documents, which the spec now prefers to registration, are not built
+  (`apps/cli/src/server/connectors/oauth-discovery.ts`). A rotating provider honours a refresh token once, so the refresh
   is single-flight per connector: two sessions starting together share one
   spend, and every write it makes holds only while the row still carries the
   token it spent, so a disconnect or a re-authorize that lands meanwhile wins.

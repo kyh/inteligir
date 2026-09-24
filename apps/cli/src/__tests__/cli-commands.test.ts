@@ -582,6 +582,45 @@ describe("connectors", () => {
     expect(state.connectors.servers.map((row) => row.name)).toEqual(["exa"]);
   });
 
+  it("adds an OAuth server by its URL alone, and refuses --oauth anywhere else", async () => {
+    const state = seededState();
+    const server = await boot(state);
+
+    const added = await runCliForTest({
+      argv: ["connectors", "add", "linear", "--url", "https://mcp.linear.app/mcp", "--oauth"],
+      baseUrl: server.baseUrl,
+    });
+    expect(added.code).toBe(0);
+    expect(added.stdout).toContain("connect it in Settings → Connectors");
+    expect(state.connectors.servers.at(-1)).toMatchObject({
+      name: "linear",
+      transport: {
+        kind: "oauth",
+        scopes: [],
+        status: "needs-auth",
+        url: "https://mcp.linear.app/mcp",
+      },
+    });
+
+    for (const argv of [
+      [
+        "connectors",
+        "add",
+        "x",
+        "--url",
+        "https://mcp.linear.app/mcp",
+        "--oauth",
+        "--header",
+        "k=v",
+      ],
+      ["connectors", "add", "x", "--oauth", "--", "npx", "srv"],
+    ]) {
+      const refused = await runCliForTest({ argv, baseUrl: server.baseUrl });
+      expect(refused.code, argv.join(" ")).toBe(1);
+      expect(refused.stderr).toContain("--oauth is for a --url server");
+    }
+  });
+
   it("adds and removes through the registry routes", async () => {
     const server = await boot(seededState());
 
