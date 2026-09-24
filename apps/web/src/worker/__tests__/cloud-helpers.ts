@@ -28,6 +28,18 @@ export const signUpUser = async (email: string): Promise<{ bearer: string; passw
   return { bearer: bearer ?? "", password: PASSWORD };
 };
 
+// clients strip a field they do not declare, so a plain parse here would pass a column the
+// worker leaks: what the worker emits is held to exactly the declared shape
+export const emitted = <TSchema extends z.ZodType>(
+  schema: TSchema,
+  json: string,
+): z.infer<TSchema> => {
+  const body: unknown = JSON.parse(json);
+  const parsed = schema.parse(body);
+  expect(parsed).toStrictEqual(body);
+  return parsed;
+};
+
 export const sessionHeaders = (bearer: string) => ({
   authorization: `Bearer ${bearer}`,
   origin: ORIGIN,
@@ -72,7 +84,7 @@ export const loginDevice = async (
   const { email } = await sessionUser(bearer);
   const response = await postLogin({ deviceName, email, password: PASSWORD });
   expect(response.status).toBe(200);
-  return deviceLoginResponseSchema.parse(await response.json());
+  return emitted(deviceLoginResponseSchema, await response.text());
 };
 
 export const deviceHeaders = (credential: string) => ({ authorization: `Bearer ${credential}` });
@@ -103,7 +115,7 @@ export const openSocket = async (
     if (!text.success) {
       return;
     }
-    frames.push(syncPingSchema.parse(JSON.parse(text.data)));
+    frames.push(emitted(syncPingSchema, text.data));
   });
   return { frames, socket };
 };

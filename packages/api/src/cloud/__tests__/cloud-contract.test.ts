@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import { accountResponseSchema } from "../account/account-schema";
 import {
   ackCapturesRequestSchema,
   ackCapturesResponseSchema,
   captureRequestSchema,
+  captureResponseSchema,
+  claimCapturesResponseSchema,
 } from "../captures/captures-schema";
 import { CLOUD_ERROR_CODES, cloudError, cloudErrorSchema } from "../cloud-errors";
 import {
@@ -13,12 +17,20 @@ import {
   deviceLoginRequestSchema,
   deviceLoginResponseSchema,
   isDeviceLoginRefusal,
+  listDevicesResponseSchema,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  revokeDeviceResponseSchema,
 } from "../device/device-schema";
 import { createCloudClient } from "../cloud-client";
 import type { CloudFailure } from "../cloud-client";
-import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
+import {
+  EVENT_MAX_BYTES,
+  pullQuerySchema,
+  pullResponseSchema,
+  pushRequestSchema,
+  pushResponseSchema,
+} from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
 import {
   assetMediaType,
@@ -38,10 +50,10 @@ describe("error envelope", () => {
     expect(cloudErrorSchema.parse(envelope)).toEqual(envelope);
   });
 
-  it("refuses an unknown code", () => {
-    expect(cloudErrorSchema.safeParse({ error: { code: "teapot", message: "" } }).success).toBe(
-      false,
-    );
+  it("reads a code it does not know as internal, keeping the worker's message", () => {
+    expect(
+      cloudErrorSchema.parse({ error: { code: "teapot", message: "Short and stout." } }),
+    ).toEqual({ error: { code: "internal", message: "Short and stout." } });
   });
 
   it("names the outbox position on a sync refusal", () => {
@@ -100,6 +112,134 @@ describe("a failure the cloud did not word", () => {
 
   it("calls any other unreadable answer malformed", async () => {
     expect(await failureKind(edgePage(403))).toBe("malformed");
+  });
+});
+
+type Json = z.infer<ReturnType<typeof z.json>>;
+
+const jsonArraySchema = z.array(z.json());
+const jsonObjectSchema = z.record(z.string(), z.json());
+
+// a newer worker's answer: every object on the wire gains a field this build never declared,
+// except an event body, which the wire carries opaque
+const grown = (value: Json): Json => {
+  const array = jsonArraySchema.safeParse(value);
+  if (array.success) {
+    return array.data.map(grown);
+  }
+  const object = jsonObjectSchema.safeParse(value);
+  if (!object.success) {
+    return value;
+  }
+  return {
+    ...Object.fromEntries(
+      Object.entries(object.data).map(([key, inner]) => [
+        key,
+        key === "event" ? inner : grown(inner),
+      ]),
+    ),
+    addedByANewerWorker: { nested: [1] },
+  };
+};
+
+const COMMIT = "a".repeat(40);
+
+const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
+  ["the account", accountResponseSchema, { email: "owner@example.test", id: "user_1" }],
+  ["a capture", captureResponseSchema, { createdAt: 1, duplicate: false, id: "cap_1" }],
+  [
+    "a claim",
+    claimCapturesResponseSchema,
+    {
+      captures: [{ createdAt: 1, id: "cap_1", text: "buy oat milk" }],
+      claimToken: "tok",
+      expiresAt: 2,
+    },
+  ],
+  ["an ack", ackCapturesResponseSchema, { results: [{ id: "cap_1", outcome: "deleted" }] }],
+  [
+    "a login",
+    deviceLoginResponseSchema,
+    { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" },
+  ],
+  [
+    "the device list",
+    listDevicesResponseSchema,
+    {
+      devices: [{ createdAt: 1, id: "dev_1", lastSeenAt: null, name: "Laptop", revokedAt: null }],
+    },
+  ],
+  ["a sign-out", revokeDeviceResponseSchema, { revoked: true }],
+  ["a push", pushResponseSchema, { accepted: 1, duplicates: 0, lastSeq: 1 }],
+  [
+    "a pull",
+    pullResponseSchema,
+    {
+      events: [
+        {
+          createdAt: 1,
+          deviceId: "dev_2",
+          deviceSeq: 1,
+          event: { payload: { kept: true }, type: "turn/started" },
+          seq: 1,
+          threadId: "th_1",
+        },
+      ],
+      hasMore: false,
+      lastSeq: 1,
+    },
+  ],
+  [
+    "a tree page",
+    vaultTreeResponseSchema,
+    { commit: COMMIT, entries: [{ path: "notes/a.md", size: 12 }], next: null },
+  ],
+  [
+    "a file",
+    vaultFileResponseSchema,
+    { commit: COMMIT, content: "# a\n", oid: "b".repeat(40), path: "notes/a.md" },
+  ],
+  ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
+  ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
+  ["a refusal", cloudErrorSchema, { error: { code: "sync-conflict", deviceSeq: 7, message: "" } }],
+];
+
+describe("a worker newer than this build", () => {
+  it.each(ANSWERS)(
+    "reads %s it grew, and keeps only what this build declares",
+    (_name, schema, answer) => {
+      expect(schema.parse(grown(answer))).toStrictEqual(answer);
+    },
+  );
+
+  it("reads a refusal code it does not know as internal: a fault to retry, in the worker's words", async () => {
+    const paused = { error: { code: "account-paused", message: "This account is paused." } };
+    expect(await failureFor(Response.json(paused, { status: 403 }))).toStrictEqual({
+      code: "internal",
+      deviceSeq: null,
+      kind: "refused",
+      message: "This account is paused.",
+    });
+  });
+
+  it("still hears a revocation whose envelope grew a field, so the session ends", async () => {
+    const envelope = grown({ error: { code: "unauthorized", message: "Signed out." } });
+    expect(await failureFor(Response.json(envelope, { status: 401 }))).toMatchObject({
+      code: "unauthorized",
+      kind: "refused",
+    });
+  });
+
+  it("hands the caller a grown answer stripped to the declared shape", async () => {
+    const result = await createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: `igd_${"a".repeat(64)}`,
+      fetch: async () => Response.json({ email: "owner@example.test", id: "user_1", plan: "pro" }),
+    }).account();
+    expect(result).toStrictEqual({
+      ok: true,
+      value: { email: "owner@example.test", id: "user_1" },
+    });
   });
 });
 
@@ -164,7 +304,7 @@ describe("device login", () => {
     expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
     const answer = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
     expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
-    expect(deviceLoginResponseSchema.safeParse({ ...answer, token: "x" }).success).toBe(false);
+    expect(deviceLoginResponseSchema.parse({ ...answer, token: "x" })).toStrictEqual(answer);
   });
 
   it("signs a device out with its own credential, and nothing else", async () => {
@@ -292,8 +432,12 @@ describe("ws ping frames", () => {
     expect(syncPingSchema.parse({ type: "vault" }).type).toBe("vault");
   });
 
-  it("refuses a frame with extra fields — the server owns this boundary", () => {
-    expect(syncPingSchema.safeParse({ extra: true, seq: 1, type: "sync" }).success).toBe(false);
+  it("reads a frame a newer worker grew, and a frame type it does not know is no frame", () => {
+    expect(syncPingSchema.parse({ extra: true, seq: 1, type: "sync" })).toStrictEqual({
+      seq: 1,
+      type: "sync",
+    });
+    expect(syncPingSchema.safeParse({ type: "presence" }).success).toBe(false);
   });
 });
 
@@ -306,8 +450,6 @@ const paramsOf = (uri: string | undefined): Record<string, string> => {
 };
 
 describe("vault read rows", () => {
-  const COMMIT = "a".repeat(40);
-
   it("parses the tree page and the file", () => {
     const tree = vaultTreeResponseSchema.parse({
       commit: COMMIT,
@@ -322,13 +464,6 @@ describe("vault read rows", () => {
       path: "notes/a.md",
     });
     expect(file.content).toBe("# a\n");
-  });
-
-  it("refuses an added field — the never-break rule made these final", () => {
-    expect(
-      vaultTreeResponseSchema.safeParse({ commit: COMMIT, entries: [], extra: 1, next: null })
-        .success,
-    ).toBe(false);
   });
 
   it("refuses paths that are not vault-relative", () => {

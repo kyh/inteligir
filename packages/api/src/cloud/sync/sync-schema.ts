@@ -54,13 +54,11 @@ export const pushRequestSchema = z
   .strict();
 export type PushRequest = z.infer<typeof pushRequestSchema>;
 
-export const pushResponseSchema = z
-  .object({
-    accepted: z.number().int().nonnegative(),
-    duplicates: z.number().int().nonnegative(),
-    lastSeq: z.number().int().nonnegative(),
-  })
-  .strict();
+export const pushResponseSchema = z.object({
+  accepted: z.number().int().nonnegative(),
+  duplicates: z.number().int().nonnegative(),
+  lastSeq: z.number().int().nonnegative(),
+});
 export type PushResponse = z.infer<typeof pushResponseSchema>;
 
 export const PULL_DEFAULT_LIMIT = 200;
@@ -73,23 +71,19 @@ export const pullQuerySchema = z.object({
 export type PullQuery = z.infer<typeof pullQuerySchema>;
 
 // deviceId is server-stamped from the pushing credential, so no device can impersonate another
-export const syncEventRowSchema = z
-  .object({
-    createdAt: z.number().int().nonnegative(),
-    deviceId: z.string().min(1),
-    deviceSeq: z.number().int().nonnegative(),
-    event: z.json(),
-    seq: z.number().int().positive(),
-    threadId: z.string().min(1),
-  })
-  .strict();
+export const syncEventRowSchema = z.object({
+  createdAt: z.number().int().nonnegative(),
+  deviceId: z.string().min(1),
+  deviceSeq: z.number().int().nonnegative(),
+  event: z.json(),
+  seq: z.number().int().positive(),
+  threadId: z.string().min(1),
+});
 export type SyncEventRow = z.infer<typeof syncEventRowSchema>;
 
-export const pullResponseSchema = z
-  .object({
-    events: z.array(syncEventRowSchema),
-    hasMore: z.boolean(),
-    lastSeq: z.number().int().nonnegative(),
-  })
-  .strict();
+export const pullResponseSchema = z.object({
+  events: z.array(syncEventRowSchema),
+  hasMore: z.boolean(),
+  lastSeq: z.number().int().nonnegative(),
+});
 export type PullResponse = z.infer<typeof pullResponseSchema>;

@@ -21,27 +21,19 @@ export const SYNC_WS_REVOKED_CLOSE_CODE = 1008;
 // sync and vault are not sent to the pushing device's own sockets; dispatch goes only to
 // desktop-platform sockets. every frame is bare: the pull carries the state.
 export const syncPingSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      seq: z.number().int().nonnegative(),
-      type: z.literal("sync"),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("capture"),
-    })
-    .strict(),
-  z
-    .object({
-      threadId: z.string().min(1),
-      type: z.literal("dispatch"),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("vault"),
-    })
-    .strict(),
+  z.object({
+    seq: z.number().int().nonnegative(),
+    type: z.literal("sync"),
+  }),
+  z.object({
+    type: z.literal("capture"),
+  }),
+  z.object({
+    threadId: z.string().min(1),
+    type: z.literal("dispatch"),
+  }),
+  z.object({
+    type: z.literal("vault"),
+  }),
 ]);
 export type SyncPing = z.infer<typeof syncPingSchema>;

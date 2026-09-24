@@ -58,25 +58,21 @@ const deviceCredentialFields = {
 export const deviceCredentialSchema = z.object(deviceCredentialFields).strict();
 export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
 
-export const deviceLoginResponseSchema = z.object(deviceCredentialFields).strict();
+export const deviceLoginResponseSchema = z.object(deviceCredentialFields);
 export type DeviceLoginResponse = z.infer<typeof deviceLoginResponseSchema>;
 
-export const deviceSchema = z
-  .object({
-    createdAt: z.number().int(),
-    id: z.string().min(1),
-    lastSeenAt: z.number().int().nullable(),
-    name: z.string(),
-    revokedAt: z.number().int().nullable(),
-  })
-  .strict();
+export const deviceSchema = z.object({
+  createdAt: z.number().int(),
+  id: z.string().min(1),
+  lastSeenAt: z.number().int().nullable(),
+  name: z.string(),
+  revokedAt: z.number().int().nullable(),
+});
 export type Device = z.infer<typeof deviceSchema>;
 
-export const listDevicesResponseSchema = z
-  .object({
-    devices: z.array(deviceSchema),
-  })
-  .strict();
+export const listDevicesResponseSchema = z.object({
+  devices: z.array(deviceSchema),
+});
 export type ListDevicesResponse = z.infer<typeof listDevicesResponseSchema>;
 
 export const revokeDeviceRequestSchema = z
@@ -87,9 +83,7 @@ export const revokeDeviceRequestSchema = z
 export type RevokeDeviceRequest = z.infer<typeof revokeDeviceRequestSchema>;
 
 // also the sign-out's answer: that route is this revoke with the credential naming the device
-export const revokeDeviceResponseSchema = z
-  .object({
-    revoked: z.literal(true),
-  })
-  .strict();
+export const revokeDeviceResponseSchema = z.object({
+  revoked: z.literal(true),
+});
 export type RevokeDeviceResponse = z.infer<typeof revokeDeviceResponseSchema>;

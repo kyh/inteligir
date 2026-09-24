@@ -3,6 +3,7 @@ import type { CloudFetch } from "@repo/api/cloud/client";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
+import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { createMemorySyncStore } from "../../sync/memory-sync-store";
 import { createSyncRuntime } from "../../sync/sync-runtime";
@@ -269,6 +270,106 @@ describe("the notes store under the sync session", () => {
     expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(store.assetSource("media/a.png")).toBeNull();
     expect(cloud.requests).toHaveLength(before);
+  });
+});
+
+// every object carries a field this build never declared
+const grownWorker: CloudFetch = async (input) => {
+  const url = new URL(input);
+  if (url.pathname === VAULT_API_PATHS.tree) {
+    return Response.json({
+      commit: COMMIT,
+      entries: [{ mode: "100644", path: "a.md", size: 4 }],
+      next: null,
+      walkedAt: 1,
+    });
+  }
+  if (url.pathname === VAULT_API_PATHS.file) {
+    return Response.json({
+      commit: COMMIT,
+      content: "# a\n",
+      encoding: "utf-8",
+      oid: "d".repeat(40),
+      path: "a.md",
+    });
+  }
+  if (url.pathname === SYNC_API_PATHS.pull) {
+    return Response.json({
+      events: [
+        {
+          createdAt: 0,
+          deviceId: "dev_desktop",
+          deviceSeq: 0,
+          event: {
+            scope: threadScope(),
+            text: "from the desktop",
+            threadId: "thr_x",
+            type: "client/turn/requested",
+          },
+          lane: "any",
+          seq: 1,
+          threadId: "thr_x",
+        },
+      ],
+      hasMore: false,
+      lastSeq: 1,
+      retryAfterMs: 0,
+    });
+  }
+  return refusedAs("not-found", "No such route.");
+};
+
+describe("a worker newer than this build", () => {
+  it("reads a tree page, a note and a pull that grew a field, keeping what it declares", async () => {
+    const { signIn, store, sync } = notesOver(grownWorker);
+    signIn(CREDENTIAL, "restored");
+
+    await store.refresh();
+    await sync.syncNow();
+
+    expect(store.tree.get()).toEqual({
+      commit: COMMIT,
+      entries: [{ path: "a.md", size: 4 }],
+      state: "ready",
+    });
+    expect(await store.readNote("a.md")).toEqual({
+      commit: COMMIT,
+      content: "# a\n",
+      ok: true,
+      path: "a.md",
+    });
+    expect(sync.get()).toMatchObject({ cursor: 1, lastError: null, state: "signed-in" });
+  });
+
+  it("reads a refusal code it does not know as a fault to retry, in the worker's words", async () => {
+    const { signIn, sync } = notesOver(async () =>
+      Response.json(
+        { error: { code: "account-paused", message: "This account is paused." } },
+        { status: 403 },
+      ),
+    );
+    signIn(CREDENTIAL, "restored");
+
+    await sync.syncNow();
+
+    expect(sync.get()).toMatchObject({
+      lastError: "This account is paused.",
+      state: "signed-in",
+    });
+  });
+
+  it("still ends the sign-in on an unauthorized refusal that grew a field", async () => {
+    const { signIn, store, sync } = notesOver(async () =>
+      Response.json(
+        { error: { code: "unauthorized", hint: "sign in again", message: "Signed out." } },
+        { status: 401 },
+      ),
+    );
+    signIn(CREDENTIAL, "restored");
+
+    await store.refresh();
+
+    expect(sync.get()).toMatchObject({ deviceId: CREDENTIAL.deviceId, state: "unauthorized" });
   });
 });
 

@@ -11,6 +11,7 @@ import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
 import {
   deviceHeaders,
+  emitted,
   ORIGIN,
   loginDevice,
   postSignOut,
@@ -49,7 +50,7 @@ describe("the hosted vault's per-device budgets", () => {
 
     const refused = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
     expect(refused.status).toBe(429);
-    expect(cloudErrorSchema.parse(await refused.json()).error.code).toBe("rate-limited");
+    expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
 
     const allowed = await SELF.fetch(TREE, { headers: deviceHeaders(laptop.credential) });
     expect(allowed.status).not.toBe(429);
