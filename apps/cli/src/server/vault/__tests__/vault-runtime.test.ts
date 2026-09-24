@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { VaultFilesChange } from "../vault-changes";
@@ -32,6 +32,7 @@ const bootRuntime = async () => {
   });
 
   const writeExternally = async (relPath: string, content: string): Promise<void> => {
+    await mkdir(path.dirname(path.join(vaultDir, relPath)), { recursive: true });
     await writeFile(path.join(vaultDir, relPath), content, "utf-8");
   };
   // resolves on the next delivery. an external edit reported in the same batch as an echo
@@ -47,7 +48,14 @@ const bootRuntime = async () => {
     );
     return changes.at(-1);
   };
-  return { report, runtime, writeExternally };
+  const listedFiles = async (): Promise<string[]> => {
+    const { entries } = await runtime.service.listTree();
+    return entries
+      .filter((entry) => entry.kind === "file")
+      .map((entry) => entry.path)
+      .toSorted();
+  };
+  return { changes, listedFiles, report, runtime, writeExternally };
 };
 
 describe("the runtime's self-write echo filter", { timeout: 20_000 }, () => {
@@ -87,5 +95,33 @@ describe("the runtime's self-write echo filter", { timeout: 20_000 }, () => {
 
     await writeExternally("after.md", "an agent's edit\n");
     expect(await report("after.md")).toEqual({ kind: "paths", paths: ["after.md"] });
+  });
+});
+
+describe("what the vault's .gitignore files hide", { timeout: 20_000 }, () => {
+  it("wakes nothing for a write inside a folder they name", async () => {
+    const { changes, listedFiles, report, runtime, writeExternally } = await bootRuntime();
+    await runtime.service.write(".gitignore", "node_modules/\n");
+    expect(changes.at(-1)).toEqual({ kind: "unknown" });
+    await writeExternally("node_modules/pkg/index.js", "built\n");
+    expect(await listedFiles()).toEqual([".gitignore"]);
+
+    await writeExternally("note.md", "an external edit\n");
+    expect(await report("node_modules/pkg/index.js", "note.md")).toEqual({
+      kind: "paths",
+      paths: ["note.md"],
+    });
+  });
+
+  it("reloads the rules when a .gitignore changes, and hands the index a re-diff", async () => {
+    const { listedFiles, report, writeExternally } = await bootRuntime();
+    await writeExternally("dist/out.md", "built\n");
+    await writeExternally(".gitignore", "dist/\n");
+    expect(await report(".gitignore")).toEqual({ kind: "unknown" });
+    expect(await listedFiles()).toEqual([".gitignore"]);
+
+    await writeExternally(".gitignore", "");
+    expect(await report(".gitignore")).toEqual({ kind: "unknown" });
+    expect(await listedFiles()).toEqual([".gitignore", "dist/out.md"]);
   });
 });

@@ -1,4 +1,4 @@
-import { chmodSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
@@ -14,6 +14,7 @@ import type { ProjectionResult } from "../projection-protocol";
 import { createProjectionWorker, createProjector } from "../projector";
 import { createSqliteDriver } from "../sqlite-driver";
 import { identityLock } from "../../__tests__/identity-lock";
+import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { bootIndexedVault, makeVaultDirs } from "./indexed-vault";
 import { createInlineProjector } from "./inline-projector";
 
@@ -129,6 +130,7 @@ describe("the knowledge runtime", () => {
   it("indexes an announced batch by STATTING it, never by listing the vault", async () => {
     const dirs = makeDirs();
     const service = createVaultService({
+      ignore: ignoreFromDisk(dirs.root),
       lock: identityLock,
       notifier: noopNotifier,
       root: dirs.root,
@@ -200,6 +202,30 @@ describe("the knowledge runtime", () => {
 
     const hits = await knowledge.search({ limit: 10, query: "narwhal" });
     expect(hits.map((h) => h.path)).toEqual(["pulled.md"]);
+  });
+
+  it("never reads or indexes a doc the vault's .gitignore names, until the rule goes", async () => {
+    const dirs = makeDirs();
+    mkdirSync(nodePath.join(dirs.root, "node_modules", "pkg"), { recursive: true });
+    writeFileSync(nodePath.join(dirs.root, ".gitignore"), "node_modules/\n");
+    writeFileSync(nodePath.join(dirs.root, "node_modules", "pkg", "README.md"), "Wombat docs.\n");
+    writeFileSync(nodePath.join(dirs.root, "note.md"), "# Note\n\nWombat sighting.\n");
+    const reads: string[] = [];
+    const { knowledge, service } = bootIndexedVault(dirs, { reader: recordingReads(reads) });
+
+    expect(await searchPaths(knowledge, "wombat")).toEqual(["note.md"]);
+    await service.write("node_modules/pkg/CHANGELOG.md", "Wombat release.\n");
+    expect(await searchPaths(knowledge, "wombat")).toEqual(["note.md"]);
+    expect(reads.filter((path) => path.startsWith("node_modules/"))).toEqual([]);
+
+    writeFileSync(nodePath.join(dirs.root, ".gitignore"), "");
+    knowledge.noteVaultChange({ kind: "unknown" });
+    const revealed = await searchPaths(knowledge, "wombat");
+    expect(revealed.toSorted()).toEqual([
+      "node_modules/pkg/CHANGELOG.md",
+      "node_modules/pkg/README.md",
+      "note.md",
+    ]);
   });
 
   it("rebuilds from the vault when the index file was corrupted between runs", async () => {

@@ -18,6 +18,7 @@ import { SidecarConflictError } from "../sidecar-conflict-error";
 import { SidecarInvalidError } from "../sidecar-invalid-error";
 import { createCommentsService } from "../comments-service";
 import { identityLock } from "../../__tests__/identity-lock";
+import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 
 const AT = 1_707_900_000;
 const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
@@ -26,7 +27,12 @@ const WITH_ID = `---\nid: ${NOTE_ID}\n---\nnote\n`;
 const boot = () => {
   const root = nodePath.join(makeTempDir("inteligir-comments-"), "vault");
   mkdirSync(root, { recursive: true });
-  const vault = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
+  const vault = createVaultService({
+    ignore: ignoreFromDisk(root),
+    lock: identityLock,
+    notifier: noopNotifier,
+    root,
+  });
   let tick = 0;
   const comments = createCommentsService(vault, () => {
     const at = AT + tick;

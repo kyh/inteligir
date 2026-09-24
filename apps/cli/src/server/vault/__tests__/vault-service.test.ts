@@ -17,6 +17,7 @@ import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-pa
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { identityLock } from "../../__tests__/identity-lock";
+import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 // vitest types its asymmetric matchers `any`; naming one keeps the assertion typed.
@@ -27,6 +28,7 @@ const bootService = () => {
   const notifier = createNotifierRecorder();
   let mutations = 0;
   const service = createVaultService({
+    ignore: ignoreFromDisk(root),
     lock: identityLock,
     notifier,
     onMutated: () => {
@@ -139,7 +141,12 @@ describe("vault CRUD", () => {
       chain = next.catch(() => {});
       return await next;
     };
-    const service = createVaultService({ lock, notifier: createNotifierRecorder(), root });
+    const service = createVaultService({
+      ignore: ignoreFromDisk(root),
+      lock,
+      notifier: createNotifierRecorder(),
+      root,
+    });
 
     const holder: PromiseWithResolvers<void> = Promise.withResolvers();
     void lock(async () => {
@@ -364,6 +371,7 @@ describe("what the filesystem throws at the vault", () => {
       const root = makeTempDir("inteligir-vault-test-");
       const reported: string[] = [];
       const service = createVaultService({
+        ignore: ignoreFromDisk(root),
         lock: identityLock,
         notifier: createNotifierRecorder(),
         onUnreadableFolder: (relPath, code) => {

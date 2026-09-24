@@ -620,6 +620,21 @@ to the END of its group.
   read failing for any reason but absence is a fault, never "the file is
   gone". `apps/cli/src/server/vault/vault-service.ts`.
 
+- **THE VAULT LISTS WHAT GIT WOULD KEEP.** The listing, the stat and the
+  watcher all honour every `.gitignore` in the vault, so a docs repo's
+  `node_modules/` and build output take no tree row, no index row and no
+  wake. One matcher per file, scoped to its own folder and asked deepest-first
+  (`@repo/notes/knowledge/vault-ignore`), because one rooted at the vault
+  re-scopes a nested `*` to `**/*` and hides the whole tree; `.git` and the
+  staging prefix stay the unconditional floor. Only `.gitignore` files, which
+  travel with the vault: `info/exclude` and a global excludes file are one
+  machine's. A change naming a `.gitignore`, or naming nothing, reloads the
+  rules and has the index re-diff (`apps/cli/src/server/vault/vault-runtime.ts`
+  over `vault-ignore-files.ts`). Rejected: a hardcoded skip list, which misses
+  the next tool's folder and contradicts what the user already wrote down.
+  Residual: a folder moved in whole with its own `.gitignore` is read at the
+  next reload, and the hosted vault's listing honours only the floor.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile

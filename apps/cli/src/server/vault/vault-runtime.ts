@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
+import { createVaultIgnore, isGitignorePath } from "@repo/notes/knowledge/vault-ignore";
 import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
@@ -7,9 +8,11 @@ import { ensureVaultRepo } from "./git-bootstrap";
 import type { EnsureVaultRepoArgs } from "./git-bootstrap";
 import { createGitEngine } from "./git-engine";
 import type { GitEngine, GitEngineArgs } from "./git-engine";
+import { runGit } from "./git-run";
 import { seedVault } from "./seed-vault";
 import { entryFingerprintAt, sameEntryFingerprint } from "./vault-changes";
 import type { EntryFingerprint, VaultFilesChange, VaultMutation } from "./vault-changes";
+import { createVaultIgnoreHolder, loadVaultIgnore, readIgnoreCase } from "./vault-ignore-files";
 import { createVaultService, sweepStaleTmpFiles } from "./vault-service";
 import type { VaultService } from "./vault-service";
 import { createVaultWatcher } from "./watcher";
@@ -71,6 +74,26 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   await ensureVaultRepo(ensureArgs);
   void sweepStaleTmpFilesInBackground(root);
 
+  const ignoreCase = await readIgnoreCase(
+    async (gitArgs) => await runGit(root, gitArgs, args.gitEnv ? { env: args.gitEnv } : {}),
+  );
+  // loaded off the listen's path: a listing awaits the load, so the first one waits, not the boot.
+  const ignore = createVaultIgnoreHolder(
+    async () => await loadVaultIgnore(root, { ignoreCase }),
+    createVaultIgnore([], { ignoreCase }),
+  );
+  // a change naming a .gitignore, or naming nothing, may move what the vault ignores. the rules
+  // reload at once, so every listing from here waits on them, and the index is told to re-diff:
+  // what they hid or revealed is exactly what no path in the change names.
+  const noteFilesChanged = (change: VaultFilesChange): void => {
+    if (change.kind === "paths" && !change.paths.some((changed) => isGitignorePath(changed))) {
+      args.onFilesChanged?.(change);
+      return;
+    }
+    ignore.reload();
+    args.onFilesChanged?.({ kind: "unknown" });
+  };
+
   // what a pass moved and the watcher batches held back while it ran, drained as one
   // notification when it ends; "unknown" once any of them could not name its paths.
   let heldDuringSync: Set<string> | "unknown" | null = null;
@@ -104,11 +127,11 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       heldDuringSync = null;
       if (held === "unknown") {
         args.notifier.notifyVault(["files-changed"]);
-        args.onFilesChanged?.({ kind: "unknown" });
+        noteFilesChanged({ kind: "unknown" });
       } else {
         const paths = [...held].toSorted();
         args.notifier.notifyVault(["files-changed"], paths);
-        args.onFilesChanged?.({ kind: "paths", paths });
+        noteFilesChanged({ kind: "paths", paths });
       }
       engine.scheduleCommit();
     },
@@ -154,12 +177,13 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   // once per folder: every client re-walks the vault on each files-changed.
   const reportedUnreadable = new Set<string>();
   const service = createVaultService({
+    ignore: ignore.current,
     lock: async (work) => await git.runExclusive(work),
     notifier: args.notifier,
     onMutated: (mutations) => {
       noteSelfWrites(mutations);
       const paths = mutations.map((mutation) => mutation.path);
-      args.onFilesChanged?.({ kind: "paths", paths });
+      noteFilesChanged({ kind: "paths", paths });
       git.scheduleCommit(paths);
     },
     onUnreadableFolder: (relPath, code) => {
@@ -185,13 +209,14 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       return;
     }
     args.notifier.notifyVault(["files-changed"], external);
-    args.onFilesChanged?.({ kind: "paths", paths: external });
+    noteFilesChanged({ kind: "paths", paths: external });
     git.scheduleCommit(external);
   };
 
   let watcher: VaultWatcher | null = null;
   if (args.watch ?? true) {
     const watcherArgs: VaultWatcherArgs = {
+      ignores: (relPath) => ignore.settled().ignoresChangedPath(relPath),
       onChanged: (paths) => {
         void deliverWatched(paths);
       },

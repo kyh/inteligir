@@ -6,6 +6,7 @@ import nodePath from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
 import { onTestFinished } from "vitest";
 import { identityLock } from "../../__tests__/identity-lock";
+import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import type { VaultService } from "../../vault/vault-service";
@@ -49,6 +50,7 @@ export const bootIndexedVault = (
   // the service announces to a runtime built after it, over that same service
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
+    ignore: ignoreFromDisk(dirs.root),
     lock: identityLock,
     notifier: noopNotifier,
     onMutated: (mutations) =>

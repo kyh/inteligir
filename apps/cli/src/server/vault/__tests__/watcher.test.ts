@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import parcelWatcher from "@parcel/watcher";
+import { createVaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createVaultWatcher } from "../watcher";
 import type { VaultWatcher } from "../watcher";
@@ -14,6 +15,8 @@ import { makeTempDir } from "../../__tests__/temp-dir";
 const PROBE_TIMEOUT_MS = 5000;
 // coarser than the watcher's debounce so a probe lands as one batch.
 const PROBE_INTERVAL_MS = 300;
+
+const NO_RULES = createVaultIgnore([], { ignoreCase: false });
 
 describe("the vault watcher over the real backend", () => {
   it(
@@ -32,6 +35,7 @@ describe("the vault watcher over the real backend", () => {
       const errors: string[] = [];
       const watcher: VaultWatcher = createVaultWatcher({
         backend: parcelWatcher,
+        ignores: NO_RULES.ignoresChangedPath,
         onChanged: (paths) => {
           batches.push([...paths]);
         },
@@ -105,6 +109,7 @@ describe("the vault watcher's resubscribe backoff", () => {
     const batches: string[][] = [];
     const watcher = createVaultWatcher({
       backend,
+      ignores: NO_RULES.ignoresChangedPath,
       onChanged: (paths) => {
         batches.push([...paths]);
       },

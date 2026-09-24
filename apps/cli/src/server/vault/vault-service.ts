@@ -18,6 +18,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
+import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import {
   isIgnoredEntryName,
   VaultPathError,
@@ -100,38 +101,43 @@ const readSubfolder = async (
   }
 };
 
+interface WalkArgs {
+  entries: VaultEntry[];
+  ignore: VaultIgnore;
+  onUnreadable: UnreadableFolderSink;
+}
+
 // the caller reads the root's dirents itself, so a root that cannot be read still throws.
 const walk = async (
   absDir: string,
   relDir: string,
   dirents: readonly Dirent[],
-  entries: VaultEntry[],
-  onUnreadable: UnreadableFolderSink,
+  walkArgs: WalkArgs,
 ): Promise<void> => {
+  const pathOf = (name: string): string => (relDir === "" ? name : `${relDir}/${name}`);
   const dirs: string[] = [];
   const files: string[] = [];
   for (const dirent of dirents) {
-    if (isIgnoredEntryName(dirent.name)) {
-      continue;
-    }
     // withFileTypes has lstat semantics: a symlink is neither isDirectory nor isFile, so links
     // fall through and the listing never follows one out of the vault.
     if (dirent.isDirectory()) {
-      dirs.push(dirent.name);
+      if (!walkArgs.ignore.ignores(pathOf(dirent.name), "dir")) {
+        dirs.push(dirent.name);
+      }
       continue;
     }
-    if (dirent.isFile()) {
+    if (dirent.isFile() && !walkArgs.ignore.ignores(pathOf(dirent.name), "file")) {
       files.push(dirent.name);
     }
   }
   dirs.sort();
   files.sort();
   for (const dir of dirs) {
-    const relPath = relDir === "" ? dir : `${relDir}/${dir}`;
+    const relPath = pathOf(dir);
     const absPath = path.join(absDir, dir);
-    entries.push({ kind: "dir", path: relPath });
-    const children = await readSubfolder(absPath, relPath, onUnreadable);
-    await walk(absPath, relPath, children, entries, onUnreadable);
+    walkArgs.entries.push({ kind: "dir", path: relPath });
+    const children = await readSubfolder(absPath, relPath, walkArgs.onUnreadable);
+    await walk(absPath, relPath, children, walkArgs);
   }
   const statted = await Promise.all(
     files.map(async (name) => {
@@ -140,11 +146,11 @@ const walk = async (
     }),
   );
   for (const { name, modifiedMs } of statted) {
-    const relPath = relDir === "" ? name : `${relDir}/${name}`;
+    const relPath = pathOf(name);
     if (modifiedMs === null) {
-      entries.push({ kind: "file", path: relPath });
+      walkArgs.entries.push({ kind: "file", path: relPath });
     } else {
-      entries.push({ kind: "file", modifiedMs, path: relPath });
+      walkArgs.entries.push({ kind: "file", modifiedMs, path: relPath });
     }
   }
 };
@@ -196,6 +202,9 @@ export interface VaultServiceArgs {
   notifier: DbNotifier;
   // required, not defaulted: a forgotten arg silently dropped the serialization the cas guard needs.
   lock: <T>(work: () => Promise<T>) => Promise<T>;
+  // required for the same reason: a composition that forgot it would list every build output
+  // the vault's .gitignore names.
+  ignore: () => Promise<VaultIgnore>;
   onMutated?: (mutations: readonly VaultMutation[]) => void;
   // told on every walk that meets the folder; deduplicating is the sink's call.
   onUnreadableFolder?: UnreadableFolderSink;
@@ -410,10 +419,18 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       } catch {
         return [];
       }
+      const ignore = await args.ignore();
+      if (ignore.ignores(relPath, "dir")) {
+        return [];
+      }
       const entries: VaultEntry[] = [];
       try {
         const dirents = await readdir(absPath, { withFileTypes: true });
-        await walk(absPath, relPath, dirents, entries, onUnreadableFolder);
+        await walk(absPath, relPath, dirents, {
+          entries,
+          ignore,
+          onUnreadable: onUnreadableFolder,
+        });
       } catch {
         // Gone or not a directory: nothing under it to index.
       }
@@ -422,8 +439,9 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async listTree() {
       const entries: VaultEntry[] = [];
+      const ignore = await args.ignore();
       const dirents = await readdir(rootReal, { withFileTypes: true });
-      await walk(rootReal, "", dirents, entries, onUnreadableFolder);
+      await walk(rootReal, "", dirents, { entries, ignore, onUnreadable: onUnreadableFolder });
       // basename here, not a split in the browser: this side knows the machine's separator.
       return { entries, name: path.basename(rootReal) || rootReal, root: rootReal };
     },
@@ -552,14 +570,12 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       if (stats === null || stats.isSymbolicLink()) {
         return null;
       }
-      // the listing hides ignored names; a stat must agree.
-      if (relPath.split("/").some((segment) => isIgnoredEntryName(segment))) {
-        return null;
-      }
+      // the listing leaves out what the vault ignores; a stat must agree.
+      const ignore = await args.ignore();
       if (stats.isDirectory()) {
-        return "dir";
+        return ignore.ignores(relPath, "dir") ? null : "dir";
       }
-      return stats.isFile() ? "file" : null;
+      return stats.isFile() && !ignore.ignores(relPath, "file") ? "file" : null;
     },
 
     async write(requestedPath, content) {

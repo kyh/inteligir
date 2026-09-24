@@ -7,6 +7,7 @@ import { createVaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
 import { createProjectionWorker } from "../projector";
 import { identityLock } from "../../__tests__/identity-lock";
+import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 
 const FILE_COUNT = 300;
 
@@ -27,7 +28,12 @@ describe("a 300-file vault", () => {
       );
     }
 
-    const service = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
+    const service = createVaultService({
+      ignore: ignoreFromDisk(root),
+      lock: identityLock,
+      notifier: noopNotifier,
+      root,
+    });
     // the real worker: the one suite that runs a whole reconcile across batches through it
     const knowledge = createKnowledgeRuntime({
       dataDir,

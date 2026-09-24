@@ -37,6 +37,7 @@
     "./knowledge/tag-notes": "./src/knowledge/tag-notes.ts",
     "./knowledge/text-matches": "./src/knowledge/text-matches.ts",
     "./knowledge/unlinked-mentions": "./src/knowledge/unlinked-mentions.ts",
+    "./knowledge/vault-ignore": "./src/knowledge/vault-ignore.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
     "./knowledge/vault-search": "./src/knowledge/vault-search.ts",
     "./markdown/callout-payload": "./src/markdown/callout-payload.ts",
@@ -58,6 +59,7 @@
   },
   "dependencies": {
     "estree-util-is-identifier-name": "^3.0.0",
+    "ignore": "^7.0.10",
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-gfm-task-list-item": "^2.0.0",
     "mdast-util-mdx": "^3.0.0",

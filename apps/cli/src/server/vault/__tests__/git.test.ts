@@ -21,6 +21,7 @@ import type { VaultFilesChange } from "../vault-changes";
 import { createVaultRuntime } from "../vault-runtime";
 import { createVaultService } from "../vault-service";
 import { boundAddressSchema } from "../../__tests__/bound-address";
+import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { hermeticGitEnv } from "./git-test-env";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { scriptedWatcher } from "./scripted-watcher";
@@ -811,6 +812,7 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     const remote = await makeSilentRemote();
     const { engine, root } = await makeEngine({ remoteUrl: remote.url });
     const service = createVaultService({
+      ignore: ignoreFromDisk(root),
       lock: engine.runExclusive,
       notifier: createNotifierRecorder(),
       root,

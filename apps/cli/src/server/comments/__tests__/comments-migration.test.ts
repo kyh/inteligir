@@ -11,6 +11,7 @@ import {
 } from "@repo/notes/comments/sidecar-schema";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { identityLock } from "../../__tests__/identity-lock";
+import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { migrateLegacyCommentSidecars } from "../comments-migration";
 import { createCommentsService } from "../comments-service";
 
@@ -21,7 +22,12 @@ describe("the boot sweep over legacy sidecars", () => {
   it("folds every one with a note beside it, and names the ones it leaves", async () => {
     const root = path.join(makeTempDir("inteligir-comments-migration-"), "vault");
     mkdirSync(path.join(root, "deep"), { recursive: true });
-    const vault = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
+    const vault = createVaultService({
+      ignore: ignoreFromDisk(root),
+      lock: identityLock,
+      notifier: noopNotifier,
+      root,
+    });
     const comments = createCommentsService(vault, () => AT);
 
     writeFileSync(path.join(root, "a.md"), "note a\n");

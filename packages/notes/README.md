@@ -43,6 +43,8 @@ src/
     tag-index.ts, related-notes.ts, note-name.ts, doc-file.ts,
     vault-path.ts      # tags, related-notes scorer, name validation, doc
                        # test, posix path helpers
+    vault-ignore.ts    # the vault's .gitignore rules, one matcher per file
+                       # scoped to its folder; the host reads the files
   markdown/            # the one scan, and what reads a doc's header
     scan-parse.ts      # the grammar every knowledge scan reads; TOTAL, and
                        # disabling codeIndented/htmlFlow is what keeps it
@@ -103,9 +105,10 @@ src/
   Where the two disagree — the byte ranges the editor carries verbatim —
   `verbatim-spans.ts` asks the editor's grammar rather than guessing, and a
   link inside one is indexed with no rewritable span.
-- **There is no crawl to exclude anything from.** This package sees a document
-  and its content, never a directory. Per-vault hiding is a VIEW filter a
-  consumer applies over the listing.
+- **There is no crawl to exclude anything from.** This package never reads a
+  directory: the vault's `.gitignore` rules reach it as text the host read
+  (`vault-ignore.ts`), and any other hiding is a VIEW filter a consumer
+  applies over the listing.
 
 ## Seams
 

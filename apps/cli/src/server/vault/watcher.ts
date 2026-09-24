@@ -1,6 +1,5 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
 import { relativeUnder } from "../path-containment";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 import { createForkChannel } from "./watcher/fork-channel";
@@ -16,6 +15,8 @@ const RESUBSCRIBE_MAX_DELAY_MS = 30_000;
 
 export interface VaultWatcherArgs {
   root: string;
+  // asked per event, so a reload of the rules reaches the next batch
+  ignores: (relPath: string) => boolean;
   onChanged: (paths: readonly string[]) => void;
   onError?: (message: string) => void;
   backend?: ParcelWatcherBackend;
@@ -67,7 +68,7 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
     if (rel === null) {
       return null;
     }
-    return rel.split("/").some((segment) => isIgnoredEntryName(segment)) ? null : rel;
+    return args.ignores(rel) ? null : rel;
   };
 
   const scheduleResubscribe = (retry: () => void): void => {
