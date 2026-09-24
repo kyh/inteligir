@@ -2,6 +2,7 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
+import { ArrowUpRightIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -17,22 +18,6 @@ const LINES_ICON = (
     strokeLinecap="round"
   >
     <path d="M4 6h16M4 12h16M4 18h10" />
-  </svg>
-);
-
-const OPEN_ICON = (
-  <svg
-    aria-hidden
-    width="9"
-    height="9"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M7 17L17 7M7 7h10v10" />
   </svg>
 );
 
@@ -160,7 +145,7 @@ const ContextCardSource = ({
         </span>
       )}
       {children}
-      {OPEN_ICON}
+      <ArrowUpRightIcon size={9} strokeWidth={2.5} />
     </button>
   </div>
 );

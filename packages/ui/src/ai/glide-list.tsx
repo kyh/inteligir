@@ -7,7 +7,11 @@ import type { CSSProperties, FocusEvent, HTMLAttributes, PointerEvent } from "re
 
 import { cn } from "@repo/ui/lib/cn";
 
-interface GlideListProps extends HTMLAttributes<HTMLDivElement> {
+// the pointer and focus handlers move the highlight, so a forwarded one would replace them
+interface GlideListProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  "onPointerMove" | "onPointerLeave" | "onFocus" | "onBlur"
+> {
   highlightClassName?: string;
 }
 
@@ -52,6 +56,13 @@ const GlideList = ({ className, children, highlightClassName, ...props }: GlideL
   const clear = useCallback(() => {
     setBox(HIDDEN);
   }, []);
+  // focus moving between rows blurs the list too, and would drop the pill the next focus re-draws
+  const onBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return;
+    }
+    setBox(HIDDEN);
+  }, []);
 
   const style: CSSProperties = {
     height: box.height,
@@ -67,14 +78,14 @@ const GlideList = ({ className, children, highlightClassName, ...props }: GlideL
       onPointerMove={onPointerMove}
       onPointerLeave={clear}
       onFocus={onFocus}
-      onBlur={clear}
+      onBlur={onBlur}
       {...props}
     >
       <span
         aria-hidden
         data-slot="glide-list-highlight"
         className={cn(
-          "pointer-events-none absolute top-0 left-0 z-0 w-full rounded-md bg-hover",
+          "pointer-events-none absolute inset-x-0 top-0 z-0 rounded-md bg-hover",
           "transition-[transform,height,opacity] duration-200 ease-out motion-reduce:transition-none",
           highlightClassName,
         )}

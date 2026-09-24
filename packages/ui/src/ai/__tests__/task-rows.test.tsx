@@ -27,4 +27,15 @@ describe("TaskItemRow", () => {
     expect(row.hasAttribute("aria-expanded")).toBe(false);
     expect(row.hasAttribute("disabled")).toBe(true);
   });
+
+  it("draws a bare ring for a row with no ordinal, never a number it was not given", () => {
+    render(
+      <TaskItem>
+        <TaskItemRow status="running">
+          <TaskItemLabel>Working</TaskItemLabel>
+        </TaskItemRow>
+      </TaskItem>,
+    );
+    expect(screen.getByRole("button", { name: "Working" }).textContent).toBe("Working");
+  });
 });

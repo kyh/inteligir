@@ -10,6 +10,26 @@ export const UI_PACKAGE = "@repo/ui";
 // count it as a consumer.
 export const GALLERY_DIR = "apps/web/src/components/gallery";
 
+// held whole by owner decision, listed per file so an unlisted unwired component still fails; a
+// held file is not a consumer, and it keeps its own type sizes until a surface draws it.
+export const AWAITING_CONSUMER: ReadonlySet<string> = new Set([
+  "packages/ui/src/ai/chat.tsx",
+  "packages/ui/src/ai/code-block.tsx",
+  "packages/ui/src/ai/context-cards.tsx",
+  "packages/ui/src/ai/diff-table.tsx",
+  "packages/ui/src/ai/filter-table.tsx",
+  "packages/ui/src/ai/fine-tune-card.tsx",
+  "packages/ui/src/ai/flowchart.tsx",
+  "packages/ui/src/ai/glide-list.tsx",
+  "packages/ui/src/ai/insight-cards.tsx",
+  "packages/ui/src/ai/prompt-bar.tsx",
+  "packages/ui/src/ai/recommendation-card.tsx",
+  "packages/ui/src/ai/records-table.tsx",
+  "packages/ui/src/ai/search.tsx",
+  "packages/ui/src/ai/selection-actions.tsx",
+  "packages/ui/src/ai/sidebar-nav.tsx",
+]);
+
 export interface UiRoot {
   dir: string;
   subpath: string;
@@ -37,3 +57,13 @@ export const sweptRoots = (): UiRoot[] => {
   }
   return roots;
 };
+
+// roots that draw nothing on their own: the gallery demos none of them, and the type-role guard
+// leaves them be, since lib declares the scale the roles come from
+export const NON_COMPONENT_ROOTS: ReadonlyMap<string, string> = new Map([
+  ["hooks", "Behaviour hooks and their providers — nothing to draw on its own."],
+  ["lib", "Context providers and helpers the components read — nothing to draw on its own."],
+]);
+
+export const componentRoots = (): UiRoot[] =>
+  sweptRoots().filter((root) => !NON_COMPONENT_ROOTS.has(root.dir));

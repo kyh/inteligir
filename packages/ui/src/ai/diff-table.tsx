@@ -11,6 +11,7 @@ import type {
 } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
+import { CheckIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -133,7 +134,11 @@ const DiffTableBody = ({
 );
 DiffTableBody.displayName = "DiffTableBody";
 
-export interface DiffRowProps extends HTMLAttributes<HTMLTableRowElement> {
+// the row's own click and keys are the toggle, so a forwarded pair would replace onToggle
+export interface DiffRowProps extends Omit<
+  HTMLAttributes<HTMLTableRowElement>,
+  "onClick" | "onKeyDown"
+> {
   change?: DiffChange;
   included?: boolean;
   onToggle?: () => void;
@@ -158,7 +163,6 @@ const DiffRow = ({
         data-slot="diff-row"
         data-change={change}
         tabIndex={interactive ? 0 : undefined}
-        aria-selected={change === "unchanged" ? undefined : included}
         onClick={interactive ? onToggle : undefined}
         onKeyDown={
           interactive
@@ -176,7 +180,7 @@ const DiffRow = ({
           "focus-visible:ring-1 focus-visible:ring-focus-ring focus-visible:ring-inset focus-visible:outline-none",
           interactive && "cursor-pointer",
           marked && change === "removed" && "bg-destructive/8",
-          marked && change === "added" && "bg-emerald-500/8",
+          marked && change === "added" && "bg-success/8",
           className,
         )}
         {...props}
@@ -217,7 +221,7 @@ const DiffCell = ({
       className={cn(
         diffCellVariants({ tone }),
         marked && change === "removed" && "text-destructive line-through decoration-destructive/50",
-        marked && change === "added" && "text-emerald-600 dark:text-emerald-400",
+        marked && change === "added" && "text-success",
         className,
       )}
       {...props}
@@ -226,22 +230,7 @@ const DiffCell = ({
 };
 DiffCell.displayName = "DiffCell";
 
-const CHECK = (
-  <svg
-    aria-hidden
-    width="11"
-    height="11"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
-);
-
+// the state is words, not only a fill: outside a grid a row's aria-selected is not read
 const DiffIncludedMark = ({
   className,
   ref,
@@ -250,12 +239,11 @@ const DiffIncludedMark = ({
   const { change, included } = useContext(DiffRowContext);
   const markedClass =
     change === "added"
-      ? "scale-100 bg-emerald-500 text-white"
+      ? "scale-100 bg-success text-success-foreground"
       : "scale-100 bg-destructive text-destructive-foreground";
   return (
     <span
       ref={ref}
-      aria-hidden
       data-slot="diff-included-mark"
       className={cn(
         "flex size-4.5 shrink-0 items-center justify-center rounded-[5px]",
@@ -265,7 +253,8 @@ const DiffIncludedMark = ({
       )}
       {...props}
     >
-      {included ? CHECK : null}
+      {included ? <CheckIcon size={11} strokeWidth={3} /> : null}
+      <span className="sr-only">{included ? "Included" : "Excluded"}</span>
     </span>
   );
 };

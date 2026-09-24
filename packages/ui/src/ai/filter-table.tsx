@@ -213,7 +213,7 @@ const statusPillVariants = cva(
     variants: {
       tone: {
         active: "bg-line text-ink",
-        done: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+        done: "bg-success/15 text-success",
         failed: "bg-destructive/15 text-destructive",
         neutral: "bg-surface-inset text-ink-2",
       },

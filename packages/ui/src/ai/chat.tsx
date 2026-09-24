@@ -8,6 +8,7 @@ import type {
   ReactNode,
   RefAttributes,
 } from "react";
+import { ArrowUpIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
@@ -137,27 +138,12 @@ const ChatMessage = ({
 );
 ChatMessage.displayName = "ChatMessage";
 
-const SEND_ICON = (
-  <svg
-    aria-hidden
-    width="13"
-    height="13"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.4"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 19V5M5 12l7-7 7 7" />
-  </svg>
-);
-
+// controlled: the send button and Enter both read what the field holds
 export interface ChatComposerProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
   "onSubmit" | "value"
 > {
-  value?: string;
+  value: string;
   onSend?: () => void;
   sendLabel?: string;
 }
@@ -171,7 +157,7 @@ const ChatComposer = ({
   ref,
   ...props
 }: ChatComposerProps & RefAttributes<HTMLInputElement>) => {
-  const canSend = (value ?? "").trim().length > 0;
+  const canSend = value.trim().length > 0;
   const submit = () => {
     if (canSend) {
       onSend?.();
@@ -210,7 +196,7 @@ const ChatComposer = ({
           canSend ? "bg-primary text-primary-foreground" : "bg-surface-inset text-ink-3 opacity-60",
         )}
       >
-        {SEND_ICON}
+        <ArrowUpIcon size={13} strokeWidth={2.4} />
       </button>
     </div>
   );

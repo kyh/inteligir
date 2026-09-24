@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import type { HTMLAttributes, PointerEvent, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
+import { PlusIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
 
@@ -57,7 +58,14 @@ const RecordsTable = ({
         )}
         {...props}
       >
-        <div className="min-w-max">{children}</div>
+        <div
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <table> would drop the layout and the typed refs
+          role="table"
+          aria-label={label}
+          className="min-w-max"
+        >
+          {children}
+        </div>
       </div>
     </RecordsTableContext.Provider>
   );
@@ -69,14 +77,17 @@ const RecordsTableHeader = ({
   ref,
   ...props
 }: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
-    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <tr> would drop the layout and the typed ref
-    role="row"
-    data-slot="records-table-header"
-    className={cn("flex items-stretch border-b border-line", className)}
-    {...props}
-  />
+  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <thead> would drop the layout
+  <div role="rowgroup">
+    <div
+      ref={ref}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <tr> would drop the layout and the typed ref
+      role="row"
+      data-slot="records-table-header"
+      className={cn("flex items-stretch border-b border-line", className)}
+      {...props}
+    />
+  </div>
 );
 RecordsTableHeader.displayName = "RecordsTableHeader";
 
@@ -107,7 +118,9 @@ const RecordsColumnHeader = ({
     if (event.target instanceof HTMLElement) {
       event.target.setPointerCapture(event.pointerId);
     }
-    drag.current = { width: width ?? MIN_COLUMN_WIDTH, x: event.clientX };
+    // an unsized column starts from what it draws, or the first move would snap it to the minimum
+    const drawn = event.currentTarget.parentElement?.getBoundingClientRect().width;
+    drag.current = { width: width ?? drawn ?? MIN_COLUMN_WIDTH, x: event.clientX };
     setResizing(true);
   };
   const onPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
@@ -168,7 +181,14 @@ const RecordsTableBody = ({
   ref,
   ...props
 }: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
-  <div ref={ref} data-slot="records-table-body" className={className} {...props} />
+  <div
+    ref={ref}
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <tbody> would drop the layout and the typed ref
+    role="rowgroup"
+    data-slot="records-table-body"
+    className={className}
+    {...props}
+  />
 );
 RecordsTableBody.displayName = "RecordsTableBody";
 
@@ -220,10 +240,9 @@ const RecordsCell = ({
       {...props}
     >
       {pending ? (
-        <span
-          aria-label="Filling"
-          className="h-3 w-16 animate-pulse rounded-full bg-line motion-reduce:animate-none"
-        />
+        <span className="h-3 w-16 animate-pulse rounded-full bg-line motion-reduce:animate-none">
+          <span className="sr-only">Filling</span>
+        </span>
       ) : (
         children
       )}
@@ -280,20 +299,7 @@ const RecordsAddColumn = ({
     )}
     {...props}
   >
-    {children ?? (
-      <svg
-        aria-hidden
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      >
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    )}
+    {children ?? <PlusIcon size={14} strokeWidth={2} />}
   </button>
 );
 RecordsAddColumn.displayName = "RecordsAddColumn";

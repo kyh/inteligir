@@ -7,29 +7,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
-import { GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
+import { AWAITING_CONSUMER, GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
 
 const NON_CONSUMER_DIRS = [GALLERY_DIR];
-
-// held whole by owner decision, listed per file so an unlisted unwired component still fails; a
-// held file is not a consumer.
-const AWAITING_CONSUMER = new Set([
-  "packages/ui/src/ai/chat.tsx",
-  "packages/ui/src/ai/code-block.tsx",
-  "packages/ui/src/ai/context-cards.tsx",
-  "packages/ui/src/ai/diff-table.tsx",
-  "packages/ui/src/ai/filter-table.tsx",
-  "packages/ui/src/ai/fine-tune-card.tsx",
-  "packages/ui/src/ai/flowchart.tsx",
-  "packages/ui/src/ai/glide-list.tsx",
-  "packages/ui/src/ai/insight-cards.tsx",
-  "packages/ui/src/ai/prompt-bar.tsx",
-  "packages/ui/src/ai/recommendation-card.tsx",
-  "packages/ui/src/ai/records-table.tsx",
-  "packages/ui/src/ai/search.tsx",
-  "packages/ui/src/ai/selection-actions.tsx",
-  "packages/ui/src/ai/sidebar-nav.tsx",
-]);
 
 // keyed `<repo-relative file>#<export name>`; a row is a decision, not a backlog.
 const ALLOWED_EXPORTS = new Map<string, string>([
@@ -53,6 +33,14 @@ const ALLOWED_EXPORTS = new Map<string, string>([
   [
     "packages/ui/src/ai/streaming-text.tsx#StreamingAction",
     "The consumed StreamingText's inline action chip — held with the Beautiful UI set for answer-with-actions turns.",
+  ],
+  [
+    "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioGroup",
+    "The menu vocabulary's one-choice half, so a picker is a Base UI radio group and not a hand-built listbox; its one caller is the held PromptBarMenu.",
+  ],
+  [
+    "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioItem",
+    "A row inside DropdownMenuRadioGroup — held with it.",
   ],
 ]);
 

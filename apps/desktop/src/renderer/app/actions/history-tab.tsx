@@ -59,7 +59,7 @@ const RevisionRow = ({
 );
 
 const DIFF_LINE = {
-  added: { className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", mark: "+" },
+  added: { className: "bg-success/10 text-success", mark: "+" },
   context: { className: "text-muted-foreground", mark: " " },
   removed: { className: "bg-red-500/10 text-red-700 dark:text-red-300", mark: "-" },
 } satisfies Record<"context" | "removed" | "added", { mark: string; className: string }>;
