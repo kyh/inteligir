@@ -126,16 +126,9 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
   // a referenced variable in another note may have changed.
   useEffect(() => {
     scheduleFormulaRecompute(editor);
-    let unsubscribe = (): void => {
-      /* empty */
-    };
-    try {
-      unsubscribe = getEditorHostIo().onVaultChanged(() => {
-        scheduleFormulaRecompute(editor);
-      });
-    } catch {
-      // no host installed (unit tests)
-    }
+    const unsubscribe = getEditorHostIo().onVaultChanged(() => {
+      scheduleFormulaRecompute(editor);
+    });
     return () => {
       unsubscribe();
       cancelFormulaRecompute(editor);

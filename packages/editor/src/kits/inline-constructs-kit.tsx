@@ -7,18 +7,19 @@ import type { PlateElementProps } from "platejs/react";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { cn } from "@repo/ui/lib/cn";
 
+import { COMMENT_MARKER_KEY, FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
 import { formulaNodeFromTyped } from "@repo/editor/formulas/formula-entry";
 
 const formulaPillBasePlugin = createSlatePlugin({
-  key: "formulaPill",
+  key: FORMULA_PILL_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
 const commentMarkerBasePlugin = createSlatePlugin({
-  key: "commentMarker",
+  key: COMMENT_MARKER_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
@@ -122,7 +123,7 @@ const selectedFormula = (editor: SlateEditor) => {
   }
   const entry = editor.api.above<TElement>({
     at: editor.selection,
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
+    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === FORMULA_PILL_KEY,
   });
   return entry ?? null;
 };
@@ -135,7 +136,7 @@ export const InlineConstructsKit = [
         deleteBackward(unit) {
           const entry = selectedFormula(editor);
           const node = entry?.[0];
-          if (node !== undefined && "type" in node && node.type === "formulaPill") {
+          if (node !== undefined && "type" in node && node.type === FORMULA_PILL_KEY) {
             convertFormulaToText(editor, node);
             return;
           }

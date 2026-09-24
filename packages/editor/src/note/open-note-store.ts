@@ -47,6 +47,23 @@ const INITIAL_STATE: OpenNoteState = {
 
 const HISTORY_DEPTH = 50;
 
+// bounded, so a renderer that never idles still settles the verdict
+const IDLE_ANALYSIS_TIMEOUT_MS = 2000;
+
+// node has no idle queue, so a macrotask stands in there.
+const whenIdle = (run: () => void): (() => void) => {
+  if ("requestIdleCallback" in globalThis) {
+    const handle = requestIdleCallback(run, { timeout: IDLE_ANALYSIS_TIMEOUT_MS });
+    return () => {
+      cancelIdleCallback(handle);
+    };
+  }
+  const timer = setTimeout(run, 0);
+  return () => {
+    clearTimeout(timer);
+  };
+};
+
 const capped = (stack: readonly string[]): string[] =>
   stack.length > HISTORY_DEPTH ? stack.slice(stack.length - HISTORY_DEPTH) : [...stack];
 
@@ -109,19 +126,25 @@ export const createOpenNoteStore = (): OpenNoteStore => {
     });
   };
 
-  let pendingAnalysis: { path: string | null; content: string } | null = null;
+  let pendingAnalysis: { path: string | null; content: string; cancel: () => void } | null = null;
+
+  const dropPendingAnalysis = (): void => {
+    pendingAnalysis?.cancel();
+    pendingAnalysis = null;
+  };
 
   // a path change is analyzed synchronously with the editor update so the gate
-  // and the content never disagree; a same-path save is analyzed in a microtask
-  // because analyzeMarkdown is a full Slate construct + parse + serialize (up to
-  // 3 passes) and would block every autosave commit. a dirty buffer keeps the last verdict.
+  // and the content never disagree; a same-path save is analyzed once the renderer
+  // is idle, because analyzeMarkdown is a full Slate construct + parse + serialize
+  // (up to 3 passes) and a microtask would still run it before the settle's frame
+  // paints. a dirty buffer keeps the last verdict.
   const publishEditor = (editor: VaultEditorState): void => {
     const s = store.getState();
     const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
     const pathChanged = s.analyzed.path !== editor.path;
     if ((pathChanged || s.analyzed.content !== editor.content) && !editor.dirty) {
       if (pathChanged) {
-        pendingAnalysis = null;
+        dropPendingAnalysis();
         const rawReason =
           isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
         apply({
@@ -132,12 +155,9 @@ export const createOpenNoteStore = (): OpenNoteStore => {
       }
       const pending = pendingAnalysis;
       if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
+        dropPendingAnalysis();
         const target = { content: editor.content, path: editor.path };
-        pendingAnalysis = target;
-        queueMicrotask(() => {
-          if (pendingAnalysis !== target) {
-            return;
-          }
+        const cancel = whenIdle(() => {
           pendingAnalysis = null;
           // live state, not the snapshot captured at schedule time.
           const live = store.getState();
@@ -162,6 +182,7 @@ export const createOpenNoteStore = (): OpenNoteStore => {
           }
           apply({ analyzed: { content: target.content, path: target.path, rawReason } });
         });
+        pendingAnalysis = { ...target, cancel };
       }
     }
     apply({ editor });

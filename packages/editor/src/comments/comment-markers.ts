@@ -3,13 +3,14 @@
 import { RangeApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 
+import { COMMENT_MARKER_KEY } from "@repo/editor/dialect-node-keys";
 import { commentMarkerIds, isCommentMarker } from "./comment-ranges";
 
 const marker = (id: string, edge: "start" | "end"): TElement => ({
   children: [{ text: "" }],
   edge,
   ids: id,
-  type: "commentMarker",
+  type: COMMENT_MARKER_KEY,
 });
 
 // End first: inserting at the end leaves the start point untouched.

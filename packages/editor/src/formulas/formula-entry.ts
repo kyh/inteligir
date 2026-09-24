@@ -8,6 +8,7 @@ import { formatResult } from "@repo/notes/formulas/format-result";
 import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import type { FormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
+import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 
 const NAME_RE = /^(?<name>[A-Za-z][A-Za-z0-9_-]*)=(?<rest>.+)$/u;
@@ -97,7 +98,7 @@ export const formulaNodeFrom = (props: FormulaNodeProps): TElement => ({
   meta: props.meta,
   raw: props.raw,
   source: props.source,
-  type: "formulaPill",
+  type: FORMULA_PILL_KEY,
 });
 
 // A body with pipes is the persisted grammar and completes verbatim; a pipeless body runs the entry grammar.

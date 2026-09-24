@@ -84,7 +84,9 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     getBacklinks: async () => await Promise.resolve([]),
     htmlFrameUrl: FAKE_HTML_FRAME_URL,
     linkResolver,
-    onVaultChanged: () => () => {},
+    onVaultChanged: () => () => {
+      // the fake vault announces no change, so there is no subscription to end
+    },
     readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>
       await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),

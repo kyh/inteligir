@@ -3,64 +3,79 @@
 // Plate's deserializeMd is banned: its htmlToJsx pre-pass corrupts code fences and it swallows
 // parse errors into degraded models.
 
-import { createSlateEditor } from "platejs";
-import type { Descendant, Value } from "platejs";
-import { getMergedOptionsDeserialize, mdastToSlate, serializeMd } from "@platejs/markdown";
+import { ElementApi, createSlateEditor } from "platejs";
+import type { Descendant, SlateEditor, Value } from "platejs";
+import { serializeMd } from "@platejs/markdown";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-import { parseMdast } from "@repo/notes/markdown/parse";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
+import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
+import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
 
 export { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 
-export interface RawReason {
-  kind: "parse-error";
-  message: string;
-  line: number | null;
-}
+// Why a file opens Raw. Only a parse error is the file's; the rest are the editor's limits or its
+// bugs, and the file keeps its bytes either way.
+export type GateReason =
+  | ConvertFailure
+  // re-serializing never settles on one set of bytes
+  | { kind: "unstable" }
+  // the file parses, but re-serializing drops content or joins its lines
+  | { kind: "roundtrip-loss" }
+  // the pipeline threw, or answered a document the editor cannot hold
+  | { kind: "pipeline-error" };
 
-export interface DocAnalysis {
-  richSafe: boolean;
-  canonical: boolean;
-  rawReason: RawReason | null;
-}
-
-export const describeRawReason = (reason: RawReason): string =>
-  reason.line === null
-    ? `Parse error: ${reason.message}`
-    : `Parse error at line ${reason.line}: ${reason.message}`;
-
-export class ParseFailedError extends Error {
-  readonly reason: RawReason;
-
-  constructor(reason: RawReason) {
-    super(describeRawReason(reason));
-    this.name = "ParseFailedError";
-    this.reason = reason;
-  }
-}
-
-// roundtrip-loss: the file parses but re-serializing drops content or joins its lines (a serializer
-// bug, never user error).
-export type GateReason = RawReason | { kind: "roundtrip-loss" };
+// `normalizes`: rich-safe, but the first save restyles markup, so it is one Format from canonical.
+export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | GateReason;
 
 export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
-  if (analysis.rawReason !== null) {
-    return analysis.rawReason;
+  switch (analysis.kind) {
+    case "canonical":
+    case "normalizes": {
+      return null;
+    }
+    default: {
+      return analysis;
+    }
   }
-  if (analysis.richSafe) {
-    return null;
-  }
-  return { kind: "roundtrip-loss" };
 };
 
 export const describeGateReason = (reason: GateReason): string => {
-  if (reason.kind === "roundtrip-loss") {
-    return "Rich editing would change this file's content — opened in Raw to protect it";
+  switch (reason.kind) {
+    case "parse-error": {
+      return reason.line === null
+        ? `Parse error: ${reason.message}`
+        : `Parse error at line ${reason.line}: ${reason.message}`;
+    }
+    case "too-deep": {
+      return "This note nests deeper than the rich editor can hold — opened in Raw";
+    }
+    case "unstable": {
+      return "Rich editing cannot settle this file's formatting — opened in Raw to protect it";
+    }
+    case "roundtrip-loss": {
+      return "Rich editing would change this file's content — opened in Raw to protect it";
+    }
+    case "pipeline-error": {
+      return "The rich editor failed on this file — opened in Raw to protect it";
+    }
+    default: {
+      const exhaustive: never = reason;
+      return exhaustive;
+    }
   }
-  return describeRawReason(reason);
 };
+
+export class RoundTripError extends Error {
+  readonly reason: GateReason;
+
+  constructor(reason: GateReason) {
+    super(describeGateReason(reason));
+    this.name = "RoundTripError";
+    this.reason = reason;
+  }
+}
 
 // fresh per call: Slate editors carry mutable state.
 const makeEditor = () => createSlateEditor({ plugins: BASE_KIT });
@@ -90,46 +105,36 @@ const keepsText = (source: string, saved: string): boolean => {
   return lineEndOffsets(sourceLines).every((end) => savedEnds.has(end));
 };
 
-type Converted =
-  | { ok: true; value: Descendant[]; editor: ReturnType<typeof makeEditor> }
-  | { ok: false; reason: RawReason };
+// an mdast root's children are flow nodes, so a root holding a bare text node is the converter's
+// failure, and the editor has nowhere to put it
+const isValue = (nodes: Descendant[]): nodes is Value =>
+  nodes.every((node) => ElementApi.isElement(node));
 
-// mdast→Slate→stringify overflows the stack around nesting depth ~1250 (micromark survives to
-// ~6-8k); a RangeError is a depth failure, anything else is a real bug and rethrows.
-const DEPTH_REASON: RawReason = {
-  kind: "parse-error",
-  line: null,
-  message: "Document nests too deeply to convert",
-};
+type Converted =
+  | { ok: true; value: Value; editor: SlateEditor }
+  | { ok: false; reason: GateReason };
 
 const convert = (md: string): Converted => {
-  const parsed = parseMdast(md);
-  if (!parsed.ok) {
-    return {
-      ok: false,
-      reason: { kind: "parse-error", line: parsed.failure.line, message: parsed.failure.message },
-    };
-  }
   const editor = makeEditor();
-  try {
-    const value = mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
-    return { editor, ok: true, value };
-  } catch (error) {
-    if (error instanceof RangeError) {
-      return { ok: false, reason: DEPTH_REASON };
-    }
-    throw error;
+  const converted = mdToSlate(editor, md);
+  if (!converted.ok) {
+    return converted;
   }
+  if (!isValue(converted.nodes)) {
+    return { ok: false, reason: { kind: "pipeline-error" } };
+  }
+  return { editor, ok: true, value: converted.nodes };
 };
 
-type Serialized = { ok: true; out: string } | { ok: false; reason: RawReason };
+type Serialized = { ok: true; out: string } | { ok: false; reason: GateReason };
 
-const serialize = (editor: ReturnType<typeof makeEditor>, value: Descendant[]): Serialized => {
+// stringify overflows the stack at the same depth the conversion does
+const serialize = (editor: SlateEditor, value: Value): Serialized => {
   try {
     return { ok: true, out: serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value }) };
   } catch (error) {
     if (error instanceof RangeError) {
-      return { ok: false, reason: DEPTH_REASON };
+      return { ok: false, reason: { kind: "too-deep" } };
     }
     throw error;
   }
@@ -145,13 +150,7 @@ const roundTripResult = (md: string): Serialized => {
 
 // `out` is trusted only if re-serializing reproduces it byte-exactly; a third probe
 // distinguishes "stabilizes at pass 2" from "never settles".
-const UNSTABLE_REASON: RawReason = {
-  kind: "parse-error",
-  line: null,
-  message: "Round-trip does not stabilize",
-};
-
-type Fixpoint = { stable: true; at: string } | { stable: false; reason: RawReason };
+type Fixpoint = { stable: true; at: string } | { stable: false; reason: GateReason };
 
 const findFixpoint = (out: string): Fixpoint => {
   let current = out;
@@ -165,55 +164,56 @@ const findFixpoint = (out: string): Fixpoint => {
     }
     current = next.out;
   }
-  return { reason: UNSTABLE_REASON, stable: false };
+  return { reason: { kind: "unstable" }, stable: false };
 };
 
 export const analyzeMarkdown = (md: string): DocAnalysis => {
   if (md.trim() === "") {
-    return { canonical: true, rawReason: null, richSafe: true };
+    return { kind: "canonical" };
   }
   const converted = convert(md);
   if (!converted.ok) {
-    return { canonical: false, rawReason: converted.reason, richSafe: false };
+    return converted.reason;
   }
   const serialized = serialize(converted.editor, converted.value);
   if (!serialized.ok) {
-    return { canonical: false, rawReason: serialized.reason, richSafe: false };
+    return serialized.reason;
   }
   const { out } = serialized;
-  if (out !== md) {
-    const fixpoint = findFixpoint(out);
-    if (!fixpoint.stable) {
-      return { canonical: false, rawReason: fixpoint.reason, richSafe: false };
-    }
-    // rich saves pass-1 bytes and each later save advances the chain, so the whole chain must keep the text.
-    const canonical = out.trimEnd() === md.trimEnd() && fixpoint.at === out;
-    const richSafe = canonical || (keepsText(md, out) && keepsText(md, fixpoint.at));
-    return { canonical, rawReason: null, richSafe };
+  if (out === md) {
+    return { kind: "canonical" };
   }
-  return { canonical: true, rawReason: null, richSafe: true };
+  const fixpoint = findFixpoint(out);
+  if (!fixpoint.stable) {
+    return fixpoint.reason;
+  }
+  if (out.trimEnd() === md.trimEnd() && fixpoint.at === out) {
+    return { kind: "canonical" };
+  }
+  // rich saves pass-1 bytes and each later save advances the chain, so the whole chain must keep the text.
+  return keepsText(md, out) && keepsText(md, fixpoint.at)
+    ? { kind: "normalizes" }
+    : { kind: "roundtrip-loss" };
 };
 
 export const parseMarkdown = (
   md: string,
-): { ok: true; value: Value } | { ok: false; reason: RawReason } => {
+): { ok: true; value: Value } | { ok: false; reason: GateReason } => {
   const converted = convert(md);
   if (!converted.ok) {
-    return { ok: false, reason: converted.reason };
+    return converted;
   }
-  // SAFETY: mdast root children are flow nodes, so every converted descendant
-  // is an element; Plate's own deserializeMd performs this exact widening.
-  return { ok: true, value: converted.value as Value };
+  return { ok: true, value: converted.value };
 };
 
 export const roundTrip = (md: string): string => {
   const serialized = roundTripResult(md);
   if (!serialized.ok) {
-    throw new ParseFailedError(serialized.reason);
+    throw new RoundTripError(serialized.reason);
   }
   const fixpoint = findFixpoint(serialized.out);
   if (!fixpoint.stable) {
-    throw new ParseFailedError(fixpoint.reason);
+    throw new RoundTripError(fixpoint.reason);
   }
   return fixpoint.at;
 };

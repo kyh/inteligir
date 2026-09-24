@@ -16,6 +16,6 @@ export const safeGateReason = (md: string): GateReason | null => {
     return gateReasonFor(analyzeMarkdown(md));
   } catch (error) {
     console.error("Markdown gate analysis failed", error);
-    return { kind: "parse-error", line: null, message: "Editor pipeline error" };
+    return { kind: "pipeline-error" };
   }
 };

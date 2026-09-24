@@ -5,15 +5,16 @@ import { createSlatePlugin } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
+import { OPAQUE_BLOCK_KEY, OPAQUE_INLINE_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 
 const opaqueBlockBasePlugin = createSlatePlugin({
-  key: "opaqueBlock",
+  key: OPAQUE_BLOCK_KEY,
   node: { isElement: true, isVoid: true },
 });
 
 const opaqueInlineBasePlugin = createSlatePlugin({
-  key: "opaqueInline",
+  key: OPAQUE_INLINE_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 

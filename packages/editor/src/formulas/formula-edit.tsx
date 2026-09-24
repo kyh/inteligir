@@ -6,6 +6,7 @@ import { useEditorRef } from "platejs/react";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { entryTextOf, formulaPropsFromEntry } from "@repo/editor/formulas/formula-entry";
 import type { FormulaNodeProps } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
@@ -14,7 +15,7 @@ const formulaEntriesById = (editor: SlateEditor, id: string): NodeEntry<TElement
   const out: NodeEntry<TElement>[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
+    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === FORMULA_PILL_KEY,
   })) {
     const meta = parseFormulaMeta(stringProp(entry[0], "meta"));
     if (meta.id === id) {

@@ -4,7 +4,7 @@
 // edits in the built app.
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
@@ -12,9 +12,13 @@ import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { InlineProperties } from "../actions-panel";
 
+beforeEach(() => {
+  installFakeEditorHost();
+});
 afterEach(cleanup);
 
 const PATH = "note.md";

@@ -19,6 +19,7 @@ import {
   InlineComboboxItem,
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
+import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
 import { stringProp } from "@repo/editor/node-props";
 import { completeFormulaFromPicker, insertFormulaFromPicker } from "@repo/editor/formula-insert";
@@ -40,7 +41,7 @@ const collectNamedVariables = (editorChildren: readonly TElement[]): NamedVariab
       if (!ElementApi.isElement(node)) {
         continue;
       }
-      if (node.type === "formulaPill") {
+      if (node.type === FORMULA_PILL_KEY) {
         const meta = stringProp(node, "meta") ?? "";
         const parsed = parseFormulaMeta(meta);
         const source = stringProp(node, "source") ?? "";

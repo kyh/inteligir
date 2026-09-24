@@ -9,7 +9,11 @@ import { createSlateEditor } from "platejs";
 import { describe, expect, it } from "vitest";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import {
+  MD_STRINGIFY,
+  describeGateReason,
+  parseMarkdown,
+} from "@repo/editor/markdown/markdown-doc";
 import { safeGateReason } from "@repo/editor/note/markdown-gate";
 
 const SKILLS_DIR = fileURLToPath(new URL("../../../agent-skills/skills", import.meta.url));
@@ -61,7 +65,7 @@ const EXAMPLES = readdirSync(SKILLS_DIR, { withFileTypes: true })
 const saveOnce = (md: string): string => {
   const parsed = parseMarkdown(md);
   if (!parsed.ok) {
-    throw new Error(parsed.reason.message);
+    throw new Error(describeGateReason(parsed.reason));
   }
   return serializeMd(createSlateEditor({ plugins: BASE_KIT }), {
     remarkStringifyOptions: MD_STRINGIFY,

@@ -6,7 +6,7 @@ import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 
 import { EditorHarness } from "./editor-harness";
-import { installFakeEditorHost } from "./fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 const TARGET_PATH = "notes/deep/target.md";
 

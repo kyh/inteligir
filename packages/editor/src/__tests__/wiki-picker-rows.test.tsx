@@ -8,7 +8,7 @@ import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 import { EditorHarness } from "./editor-harness";
-import { installFakeEditorHost } from "./fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 const VAULT_NOTES = 5000;
 

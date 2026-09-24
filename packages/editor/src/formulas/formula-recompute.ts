@@ -17,6 +17,7 @@ import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import { loadFormulaGraph, resolveExpression } from "@repo/notes/formulas/resolve-graph";
 import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { noteIdOfProperties, parseProperties } from "@repo/notes/markdown/frontmatter";
+import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { rebuildRaw } from "@repo/editor/formulas/formula-entry";
@@ -34,7 +35,7 @@ const formulaEntries = (editor: SlateEditor): FormulaEntryInDoc[] => {
   const out: FormulaEntryInDoc[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
+    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === FORMULA_PILL_KEY,
   })) {
     const [node] = entry;
     const source = stringProp(node, "source") ?? "";

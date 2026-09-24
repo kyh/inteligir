@@ -18,6 +18,13 @@ describe("inserting markdown at the selection", () => {
     expect(editor.children[0]?.type).toBe(editor.getType(KEYS.h2));
     expect(editor.api.string([])).toContain("one");
   });
+
+  it("refuses markdown nested past what the conversion can hold, rather than throwing", () => {
+    const editor = createPlateEditor({ plugins: EDITOR_KIT, value: EMPTY });
+    editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 0, path: [0, 0] } });
+    expect(insertMarkdownAtSelection(editor, `${"> ".repeat(3000)}x\n`)).toBe(false);
+    expect(editor.children).toEqual(EMPTY);
+  });
 });
 
 describe("a template through the editor", () => {

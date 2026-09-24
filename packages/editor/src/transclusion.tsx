@@ -11,6 +11,18 @@ import type { SlateElementProps } from "platejs/static";
 
 import { cn } from "@repo/ui/lib/cn";
 
+import {
+  CANVAS_BLOCK_KEY,
+  CHART_BLOCK_KEY,
+  COMMENT_MARKER_KEY,
+  FORMULA_PILL_KEY,
+  FRONTMATTER_KEY,
+  HTML_BLOCK_KEY,
+  OPAQUE_BLOCK_KEY,
+  OPAQUE_INLINE_KEY,
+  WIKI_EMBED_KEY,
+  WIKI_LINK_KEY,
+} from "@repo/editor/dialect-node-keys";
 import { getEditorHostIo, vaultChangeTouches } from "@repo/editor/host-io";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
@@ -275,20 +287,20 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     ["file", MediaStatic],
     ["img", ImageStatic],
     ["hr", HrStatic],
-    ["formulaPill", FormulaPillStatic],
-    ["commentMarker", CommentMarkerStatic],
-    ["chart_block", richBlockStatic("chart")],
-    ["canvas_block", richBlockStatic("canvas")],
-    ["html_block", richBlockStatic("html")],
-    ["opaqueBlock", OpaqueBlockStatic],
-    ["opaqueInline", OpaqueInlineStatic],
-    ["frontmatter", FrontmatterStatic],
+    [FORMULA_PILL_KEY, FormulaPillStatic],
+    [COMMENT_MARKER_KEY, CommentMarkerStatic],
+    [CHART_BLOCK_KEY, richBlockStatic("chart")],
+    [CANVAS_BLOCK_KEY, richBlockStatic("canvas")],
+    [HTML_BLOCK_KEY, richBlockStatic("html")],
+    [OPAQUE_BLOCK_KEY, OpaqueBlockStatic],
+    [OPAQUE_INLINE_KEY, OpaqueInlineStatic],
+    [FRONTMATTER_KEY, FrontmatterStatic],
     ["table", TableStatic],
     ["tr", TableRowStatic],
     ["td", classNameSlateElement("td", TABLE_CELL_CLASS)],
     ["th", classNameSlateElement("th", TABLE_HEADER_CELL_CLASS)],
-    ["wikiLink", WikiLinkStatic],
-    ["wikiEmbed", WikiEmbedStatic],
+    [WIKI_LINK_KEY, WikiLinkStatic],
+    [WIKI_EMBED_KEY, WikiEmbedStatic],
     ["blockquote", BlockquoteStatic],
   ]);
 

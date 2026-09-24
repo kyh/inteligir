@@ -15,6 +15,7 @@ import { checkNoteName } from "@repo/notes/knowledge/note-name";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
+import { COMMENT_MARKER_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { isFrontmatterElement } from "@repo/editor/kits/frontmatter-kit";
 import { getLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
@@ -63,10 +64,10 @@ export const extractBlocksMarkdown = (editor: SlateEditor, paths: readonly Path[
 // a marker's thread lives in the comment store keyed by this note's id, so the marker would
 // leave for a note whose store never heard of it
 const carriesCommentMarker = (block: TElement): boolean =>
-  [...NodeApi.elements(block)].some(([element]) => element.type === "commentMarker");
+  [...NodeApi.elements(block)].some(([element]) => element.type === COMMENT_MARKER_KEY);
 
 const linkParagraph = (editor: SlateEditor, body: string): TElement => ({
-  children: [{ text: "" }, { body, children: [{ text: "" }], type: "wikiLink" }, { text: "" }],
+  children: [{ text: "" }, { body, children: [{ text: "" }], type: WIKI_LINK_KEY }, { text: "" }],
   type: editor.getType(KEYS.p),
 });
 

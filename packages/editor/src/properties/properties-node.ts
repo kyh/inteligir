@@ -4,11 +4,12 @@
 import { ElementApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 
+import { FRONTMATTER_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 
 export const readFrontmatterRaw = (editor: SlateEditor): string | null => {
   const [first] = editor.children;
-  if (ElementApi.isElement(first) && first.type === "frontmatter") {
+  if (ElementApi.isElement(first) && first.type === FRONTMATTER_KEY) {
     return stringProp(first, "value") ?? "";
   }
   return null;
@@ -26,6 +27,6 @@ export const writeFrontmatterRaw = (editor: SlateEditor, raw: string): void => {
     editor.tf.setNodes({ value: raw }, { at: [0] });
     return;
   }
-  const node: TElement = { children: [{ text: "" }], type: "frontmatter", value: raw };
+  const node: TElement = { children: [{ text: "" }], type: FRONTMATTER_KEY, value: raw };
   editor.tf.insertNodes(node, { at: [0], select: false });
 };

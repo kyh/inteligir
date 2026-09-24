@@ -104,7 +104,7 @@ const recordStates = () => {
   return { seen, stop };
 };
 
-// one macrotask hop, so every queued microtask drains without counting promise ticks
+// one macrotask hop; under node the idle pass is a macrotask queued first, so it has run
 const drain = async (): Promise<void> => {
   // oxlint-disable-next-line promise/avoid-new -- setTimeout has no promise-native form here
   await new Promise<void>((resolve) => {
@@ -210,21 +210,32 @@ describe("open-note-store publishEditor", () => {
   });
 
   describe("deferred same-path analysis", () => {
-    it("defers to a microtask rather than blocking the settle", async () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
+    it("lands the settle first and analyzes once idle, not in a microtask", async () => {
+      vi.useFakeTimers();
+      try {
+        const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: true });
-      controller.emit({ dirty: false });
+        controller.emit({ content: GATED_MD, dirty: true });
+        controller.emit({ dirty: false });
+        // a microtask would have run the analysis by now, inside the settle's frame
+        await Promise.resolve();
 
-      expect(useOpenNote.getState().analyzed.content).toBe(RICH_MD);
-      expect(useOpenNote.getState().analyzed.rawReason).toBeNull();
+        expect(useOpenNote.getState().editor).toMatchObject({ content: GATED_MD, dirty: false });
+        expect(useOpenNote.getState().analyzed).toEqual({
+          content: RICH_MD,
+          path: RICH_PATH,
+          rawReason: null,
+        });
 
-      await drain();
-      expect(useOpenNote.getState().analyzed).toEqual({
-        content: GATED_MD,
-        path: RICH_PATH,
-        rawReason: GATED_REASON,
-      });
+        vi.runAllTimers();
+        expect(useOpenNote.getState().analyzed).toEqual({
+          content: GATED_MD,
+          path: RICH_PATH,
+          rawReason: GATED_REASON,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("drops a pass superseded by newer content on the same path", async () => {

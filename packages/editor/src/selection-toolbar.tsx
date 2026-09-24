@@ -53,12 +53,18 @@ import {
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
 import { extractBlocksToNote, selectedTopLevelPaths } from "@repo/editor/extract-note";
-import { BarButton } from "@repo/editor/toolbar-button";
 
 const BAR_CLASS =
   "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
 
 const Sep = () => <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
+
+// a press that moved focus would collapse the editor selection the button acts on
+const keepSelection = (event: ReactMouseEvent<HTMLElement>): void => {
+  event.preventDefault();
+};
+
+const PRIMARY_TEXT_BUTTON = "rounded-md text-primary hover:text-primary";
 
 const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
   const actions = useAgentRequestActions((state) => state.actions);
@@ -67,11 +73,11 @@ const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
   }
   return (
     <>
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
-        }}
+      <Button
+        variant="ghost"
+        size="compact"
+        leadingIcon={SparklesIcon}
+        onMouseDown={keepSelection}
         onClick={() => {
           const { selection } = editor;
           const text = selection ? editor.api.string(selection) : "";
@@ -79,18 +85,16 @@ const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
             actions.askAboutSelection(text);
           }
         }}
-        className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary transition-colors hover:bg-accent [&_svg]:size-3.5"
+        className={PRIMARY_TEXT_BUTTON}
       >
-        <SparklesIcon />
         Ask agent
-      </button>
+      </Button>
       <Sep />
     </>
   );
 };
 
-// mousedown preventDefault keeps the editor selection alive through the click. Button styles
-// aria-expanded but not aria-pressed, so the pressed classes ride className.
+// Button styles aria-expanded but not aria-pressed, so the pressed classes ride className.
 const IconButton = ({
   pressed,
   onClick,
@@ -121,9 +125,7 @@ const IconButton = ({
 // with reason `trigger-hover` as the pointer moves into the popup, so mouse clicks on items die.
 const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
   <DropdownMenuTrigger
-    onMouseDown={(e) => {
-      e.preventDefault();
-    }}
+    onMouseDown={keepSelection}
     className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
   >
     {children}
@@ -189,14 +191,17 @@ const LinkInput = ({
         placeholder="Paste or type a link…"
         className="h-7 w-56 bg-transparent px-1 text-xs outline-none placeholder:text-muted-foreground"
       />
-      <BarButton
-        variant="primary"
+      <Button
+        variant="ghost"
+        size="compact"
+        onMouseDown={keepSelection}
         onClick={() => {
           onSubmit(url.trim());
         }}
+        className={PRIMARY_TEXT_BUTTON}
       >
         Apply
-      </BarButton>
+      </Button>
     </form>
   );
 };
@@ -267,9 +272,7 @@ export const SelectionToolbar = () => {
         tabIndex={-1}
         {...rootProps}
         className={cn(BAR_CLASS, "absolute whitespace-nowrap print:hidden")}
-        onMouseDown={(e) => {
-          e.preventDefault();
-        }}
+        onMouseDown={keepSelection}
       >
         {linkMode ? (
           <LinkInput
@@ -342,9 +345,7 @@ export const SelectionToolbar = () => {
                 remember();
                 setLinkMode(true);
               }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-              }}
+              onMouseDown={keepSelection}
               title="Link"
             >
               <Link2Icon />
@@ -356,9 +357,7 @@ export const SelectionToolbar = () => {
               onClick={() => {
                 void extractBlocksToNote(editor, selectedTopLevelPaths(editor));
               }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-              }}
+              onMouseDown={keepSelection}
               title="Extract to new note"
             >
               <FileOutputIcon />

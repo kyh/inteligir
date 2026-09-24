@@ -5,6 +5,7 @@
 import { ElementApi, NodeApi, PathApi, PointApi } from "platejs";
 import type { Path, SlateEditor, TElement, TNode, TRange, Value } from "platejs";
 
+import { COMMENT_MARKER_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
 
@@ -27,7 +28,7 @@ interface MarkerEdge {
 }
 
 export const isCommentMarker = (node: TNode): node is TElement =>
-  ElementApi.isElement(node) && node.type === "commentMarker";
+  ElementApi.isElement(node) && node.type === COMMENT_MARKER_KEY;
 
 export const commentMarkerIds = (marker: TElement): string[] =>
   splitMarkerIds(stringProp(marker, "ids") ?? "");

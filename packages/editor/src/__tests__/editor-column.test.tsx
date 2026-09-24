@@ -5,7 +5,7 @@ import { EditorColumn } from "@repo/editor/editor-column";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
-import { installFakeEditorHost } from "./fake-editor-host";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 // a .txt note draws the plain textarea, so the case needs no Plate tree to find the body.
 const showNote = (store: OpenNoteStore, path: string): void => {

@@ -32,8 +32,13 @@ src/
     md-rules.ts        # the Slate↔mdast rules — one per node type
     alert-marker.ts    # the `> [!NOTE]` alert grammar, spelled once: the
                        # renderer, the serializer and turn-into read it alike
+    md-to-slate.ts     # the ONE markdown→Slate conversion, so the gate, a paste
+                       # and a template refuse the same inputs for the same reasons
     markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
-                       # a BOUNDED FIXPOINT so a second save is a no-op
+                       # a BOUNDED FIXPOINT so a second save is a no-op, and the
+                       # gate's verdict as one union (`DocAnalysis`)
+  dialect-node-keys.ts # every dialect node's Slate type, spelled once; a leaf, so
+                       # the kits, the rules and the walks import it without a cycle
   kits/
     editor-kit.ts      # the React composition Plate actually runs
     base-kit.ts        # the headless mirror, for the serializer
@@ -72,6 +77,8 @@ src/
   style-hooks.ts, styles.css
                        # the behaviour rules the host @imports, and the one
                        # spelling of every selector hook they read
+  test-support/        # the fake EditorHostIo, for any suite that mounts the
+                       # editor (the desktop's included)
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
 ```
 
@@ -94,8 +101,10 @@ src/
   JSX, `{…}` expressions, raw HTML — are opaque nodes
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte. Only a real parse failure (a mismatched tag, an
-  unbalanced brace), or a round trip that would lose a letter or join two
-  lines (a serializer bug), opens Raw, byte-exact.
+  unbalanced brace), or one of the editor's own limits — nesting deeper than
+  the conversion holds, a round trip that never settles, or one that would
+  lose a letter or join two lines (a serializer bug) — opens Raw, byte-exact,
+  and the gate's reason says which (`GateReason` in `markdown/markdown-doc.ts`).
 - **View state keys by note path.** The workspace holds ONE open-note store
   (an instance, `note/open-note-context.tsx`), and every module holding view
   state — heading folds included — keys by the note's own path: a module
