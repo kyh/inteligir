@@ -99,14 +99,27 @@ const DiffTableGrid = ({
 );
 DiffTableGrid.displayName = "DiffTableGrid";
 
+export interface DiffTableHeadProps extends HTMLAttributes<HTMLTableSectionElement> {
+  // the rows lead with a DiffIncludedMark, so the head names that column first
+  marks?: boolean;
+}
+
 const DiffTableHead = ({
   className,
   children,
+  marks = false,
   ref,
   ...props
-}: HTMLAttributes<HTMLTableSectionElement> & RefAttributes<HTMLTableSectionElement>) => (
+}: DiffTableHeadProps & RefAttributes<HTMLTableSectionElement>) => (
   <thead ref={ref} data-slot="diff-table-head" className={className} {...props}>
-    <tr className="border-b border-line">{children}</tr>
+    <tr className="border-b border-line">
+      {marks ? (
+        <th data-slot="diff-table-head-cell">
+          <span className="sr-only">Included</span>
+        </th>
+      ) : null}
+      {children}
+    </tr>
   </thead>
 );
 DiffTableHead.displayName = "DiffTableHead";
@@ -242,20 +255,22 @@ const DiffIncludedMark = ({
       ? "scale-100 bg-success text-success-foreground"
       : "scale-100 bg-destructive text-destructive-foreground";
   return (
-    <span
-      ref={ref}
-      data-slot="diff-included-mark"
-      className={cn(
-        "flex size-4.5 shrink-0 items-center justify-center rounded-[5px]",
-        "transition-[background-color,color,transform] duration-150",
-        included ? markedClass : "scale-[0.92] bg-surface-inset text-ink-3 shadow-surface-1",
-        className,
-      )}
-      {...props}
-    >
-      {included ? <CheckIcon size={11} strokeWidth={3} /> : null}
-      <span className="sr-only">{included ? "Included" : "Excluded"}</span>
-    </span>
+    <td data-slot="diff-included-cell" className="py-2 pl-3">
+      <span
+        ref={ref}
+        data-slot="diff-included-mark"
+        className={cn(
+          "flex size-4.5 shrink-0 items-center justify-center rounded-[5px]",
+          "transition-[background-color,color,transform] duration-150",
+          included ? markedClass : "scale-[0.92] bg-surface-inset text-ink-3 shadow-surface-1",
+          className,
+        )}
+        {...props}
+      >
+        {included ? <CheckIcon size={11} strokeWidth={3} /> : null}
+        <span className="sr-only">{included ? "Included" : "Excluded"}</span>
+      </span>
+    </td>
   );
 };
 DiffIncludedMark.displayName = "DiffIncludedMark";

@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import type { HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode, RefAttributes } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
 const FineTuneCard = ({
@@ -168,7 +169,7 @@ const ScrubField = ({
         }}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === "Enter") {
+          if (event.key === "Enter" && !isImeComposing(event)) {
             event.preventDefault();
             commit();
           }

@@ -288,19 +288,23 @@ const RecordsAddColumn = ({
   ref,
   ...props
 }: HTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>) => (
-  <button
-    ref={ref}
-    type="button"
-    data-slot="records-add-column"
-    className={cn(
-      "flex w-11 shrink-0 items-center justify-center text-ink-3",
-      "transition-colors duration-100 hover:bg-hover hover:text-ink",
-      className,
-    )}
-    {...props}
-  >
-    {children ?? <PlusIcon size={14} strokeWidth={2} />}
-  </button>
+  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <th> would drop the layout
+  <div role="columnheader" className="flex w-11 shrink-0">
+    <button
+      ref={ref}
+      type="button"
+      aria-label="Add column"
+      data-slot="records-add-column"
+      className={cn(
+        "flex flex-1 items-center justify-center text-ink-3",
+        "transition-colors duration-100 hover:bg-hover hover:text-ink",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? <PlusIcon size={14} strokeWidth={2} />}
+    </button>
+  </div>
 );
 RecordsAddColumn.displayName = "RecordsAddColumn";
 

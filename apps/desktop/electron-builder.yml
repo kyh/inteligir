@@ -41,6 +41,11 @@ electronFuses:
   enableNodeOptionsEnvironmentVariable: false
   enableNodeCliInspectArguments: false
   grantFileProtocolExtraPrivileges: false
+  # a tampered app.asar does not load. the hash covers app.asar alone: the server and every
+  # node_modules file run from app.asar.unpacked, outside it, and are the signature's to guard
+  enableEmbeddedAsarIntegrityValidation: true
+  # an app/ folder planted beside app.asar is never searched, so validated code is the only code
+  onlyLoadAppFromAsar: true
 mac:
   target:
     - target: dmg

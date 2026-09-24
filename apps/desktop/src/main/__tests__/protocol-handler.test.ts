@@ -110,6 +110,20 @@ describe("the proxied API", () => {
     expect(calls).toEqual([]);
   });
 
+  it("answers a 502 when the server drops the request as it goes away", async () => {
+    const handler = createAppRequestHandler({
+      documentHeaders: DOCUMENT_HEADERS,
+      fetch: () => Promise.reject(new Error("net::ERR_EMPTY_RESPONSE")),
+      renderer: FILES_RENDERER,
+      serverOrigin: SERVER,
+      token: TOKEN,
+    });
+    const response = await handler(
+      appRequest("/rpc/vault/read", { init: { body: "{}", method: "POST" } }),
+    );
+    expect(response.status).toBe(502);
+  });
+
   it("gates the proxy in dev too, where the page carries no CSP", async () => {
     const { calls, handler } = mount({ kind: "dev", origin: "http://localhost:31000" });
     const refused = await handler(

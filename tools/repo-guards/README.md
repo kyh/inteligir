@@ -154,12 +154,19 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `apps/desktop`'s version — a release's notes are its top section. The     |
 |                                | release-notes script, run over staged trees and the real one, prints that |
 |                                | section only when it is titled for the package's version.                 |
+| `ime-enter.test.ts`            | A source under `packages/ui/src`, `packages/editor/src` or the desktop    |
+|                                | renderer that tests a key against Enter imports `isImeComposing`, or is   |
+|                                | a `NOT_A_TEXT_FIELD` row — the Enter that commits an IME candidate is not |
+|                                | the user's, and no unit suite types through a composition.                |
+| `e2e-scenario-table.test.ts`   | `tools/e2e/README.md`'s scenario table names every scenario `SCENARIOS`   |
+|                                | registers in `tools/e2e/src/run.ts`, in its order, each read from its own |
+|                                | exported `name`.                                                          |
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
 `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,
 `elsewhere`, `ELSEWHERE`, `RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`,
 `DECLARED_WITHOUT_PRODUCER`, `DECLARED_ARTIFACT_EDGES`, `DECLARED_SPLITS`,
-`DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES` —
+`DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`, `NOT_A_TEXT_FIELD` —
 has a companion assertion that no row is STALE: a row whose subject is gone, or
 whose gap has closed, fails too. An allowance that outlives what it excused only
 ever loosens.

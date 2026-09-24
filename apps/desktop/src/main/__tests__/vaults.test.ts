@@ -10,12 +10,13 @@ import {
   readRecentVaults,
   RECENT_VAULTS_LIMIT,
   rememberVault,
+  runVaultSwitch,
   switchBlockedBy,
   switchRefusalMessage,
   vaultRef,
   writeRecentVaults,
 } from "../vaults";
-import type { VaultSwitchRefusal } from "../vaults";
+import type { VaultSwitchPort, VaultSwitchRefusal } from "../vaults";
 
 const target = (overrides: Partial<ServerTarget> = {}): ServerTarget => ({
   dataDir: "/home/me/.inteligir",
@@ -97,6 +98,107 @@ describe("what may be switched", () => {
     for (const reason of reasons) {
       expect(switchRefusalMessage(reason).length).toBeGreaterThan(10);
     }
+  });
+});
+
+describe("a planned switch", () => {
+  const PREVIOUS = target();
+  const NEXT = "/home/me/Work";
+
+  interface Faults {
+    bootNext?: Error;
+    bootPrevious?: Error;
+    restoreSelector?: Error;
+  }
+
+  // every move lands in one ordered log, so a test reads the sequence the shell went through
+  const fakePort = (faults: Faults = {}) => {
+    const moves: string[] = [];
+    let selector = PREVIOUS.vaultDir;
+    const port: VaultSwitchPort = {
+      abandon: (reason) => {
+        moves.push(`abandon: ${reason}`);
+      },
+      boot: async (booted) => {
+        moves.push(`boot ${booted.vaultDir}`);
+        const fault = booted.vaultDir === NEXT ? faults.bootNext : faults.bootPrevious;
+        if (fault !== undefined) {
+          throw fault;
+        }
+      },
+      closeRequestingWindow: () => {
+        moves.push("close window");
+      },
+      log: () => {},
+      reportFailure: (reason) => {
+        moves.push(`report: ${reason}`);
+      },
+      resolveTarget: () => target({ vaultDir: selector }),
+      stopServer: async () => {
+        moves.push("stop");
+      },
+      writeSelector: (vaultDir) => {
+        if (vaultDir === PREVIOUS.vaultDir && faults.restoreSelector !== undefined) {
+          throw faults.restoreSelector;
+        }
+        selector = vaultDir;
+        moves.push(`select ${vaultDir}`);
+      },
+    };
+    return { moves, port, selector: () => selector };
+  };
+
+  it("stops the old child, points the selector, boots the new vault, then closes the window", async () => {
+    const { moves, port } = fakePort();
+    expect(await runVaultSwitch(port, PREVIOUS, NEXT)).toEqual({ ok: true });
+    expect(moves).toEqual(["stop", `select ${NEXT}`, `boot ${NEXT}`, "close window"]);
+  });
+
+  it("puts the previous vault back when the new one does not boot, and says so once", async () => {
+    const { moves, port, selector } = fakePort({ bootNext: new Error("port taken") });
+    const outcome = await runVaultSwitch(port, PREVIOUS, NEXT);
+    expect(outcome).toEqual({
+      ok: false,
+      reason: `Could not open ${NEXT}: port taken`,
+      reported: true,
+    });
+    expect(selector()).toBe(PREVIOUS.vaultDir);
+    expect(moves).toEqual([
+      "stop",
+      `select ${NEXT}`,
+      `boot ${NEXT}`,
+      `select ${PREVIOUS.vaultDir}`,
+      "stop",
+      `boot ${PREVIOUS.vaultDir}`,
+      "close window",
+      `report: Could not open ${NEXT}: port taken`,
+    ]);
+  });
+
+  it("quits naming the selector file when it cannot be written back, and boots nothing", async () => {
+    const { moves, port } = fakePort({
+      bootNext: new Error("port taken"),
+      restoreSelector: new Error("ENOSPC: no space left on device"),
+    });
+    const outcome = await runVaultSwitch(port, PREVIOUS, NEXT);
+    const selectorPath = path.join(PREVIOUS.rootDataDir, "config.json");
+    expect(outcome).toMatchObject({ ok: false, reported: true });
+    expect(moves.slice(0, 3)).toEqual(["stop", `select ${NEXT}`, `boot ${NEXT}`]);
+    expect(moves.slice(3)).toHaveLength(1);
+    expect(moves[3]).toMatch(/^abandon: /u);
+    expect(moves[3]).toContain(selectorPath);
+    expect(moves[3]).toContain("ENOSPC");
+  });
+
+  it("quits when the previous vault does not come back either", async () => {
+    const { moves, port } = fakePort({
+      bootNext: new Error("port taken"),
+      bootPrevious: new Error("disk gone"),
+    });
+    const outcome = await runVaultSwitch(port, PREVIOUS, NEXT);
+    expect(outcome).toMatchObject({ ok: false, reported: true });
+    expect(moves.at(-1)).toBe("abandon: disk gone Reopen Inteligir to continue.");
+    expect(moves).not.toContain("close window");
   });
 });
 

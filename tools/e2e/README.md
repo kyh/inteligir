@@ -155,6 +155,8 @@ what each one is FOR.
    this environment/branch does not have yet.
 2. Register it in `SCENARIOS` in `src/run.ts` (a static import — knip reads
    reachability from there).
+3. Give it a row in the table above, at its place in `SCENARIOS`;
+   `tools/repo-guards/src/e2e-scenario-table.test.ts` fails until it has one.
 
 Each feature issue lands with its scenario here.
 
