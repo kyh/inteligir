@@ -38,6 +38,13 @@ vi.mock("@platejs/markdown", async (importOriginal) => {
     if (text.includes("drift lost")) {
       return "drift lost\n";
     }
+    // keeps every letter while joining two lines, or splitting one
+    if (text.includes("joined")) {
+      return "joinedlines\n";
+    }
+    if (text.includes("splitme")) {
+      return "splitme\n\nlines\n";
+    }
     return original.serializeMd(editor, options);
   };
   return { ...original, serializeMd };
@@ -82,6 +89,19 @@ describe("bounded fixpoint check (≤3 passes)", () => {
     expect(gateReason && describeGateReason(gateReason)).toBe(
       "Rich editing would change this file's content — opened in Raw to protect it",
     );
+  });
+
+  it("refuses rich mode when a save joins two lines without losing a letter", () => {
+    const analysis = analyzeMarkdown("joined\nlines\n");
+    expect(analysis.rawReason).toBeNull();
+    expect(analysis.richSafe).toBe(false);
+    expect(gateReasonFor(analysis)).toEqual({ kind: "roundtrip-loss" });
+  });
+
+  it("keeps rich mode when a save splits a line", () => {
+    const analysis = analyzeMarkdown("splitme lines\n");
+    expect(analysis.canonical).toBe(false);
+    expect(analysis.richSafe).toBe(true);
   });
 
   it("keeps byte-identical output on the single-pass fast path", () => {

@@ -41,7 +41,8 @@ export class ParseFailedError extends Error {
   }
 }
 
-// roundtrip-loss: the file parses but re-serializing drops content (a serializer bug, never user error).
+// roundtrip-loss: the file parses but re-serializing drops content or joins its lines (a serializer
+// bug, never user error).
 export type GateReason = RawReason | { kind: "roundtrip-loss" };
 
 export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
@@ -65,6 +66,29 @@ export const describeGateReason = (reason: GateReason): string => {
 const makeEditor = () => createSlateEditor({ plugins: BASE_KIT });
 
 const letters = (s: string): string => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
+
+const lineEndOffsets = (lines: readonly string[]): number[] => {
+  const ends: number[] = [];
+  let at = 0;
+  for (const line of lines) {
+    at += line.length;
+    ends.push(at);
+  }
+  return ends;
+};
+
+// A save may restyle markup or split a line (two date chips become two paragraphs), but joining
+// two lines changes what the note says without losing a letter: `[[A]]\n[[B]]` as `[[A]][[B]]`.
+// So every offset where a source line's letters end must still end a saved line.
+const keepsText = (source: string, saved: string): boolean => {
+  const sourceLines = source.split("\n").map(letters);
+  const savedLines = saved.split("\n").map(letters);
+  if (sourceLines.join("") !== savedLines.join("")) {
+    return false;
+  }
+  const savedEnds = new Set([0, ...lineEndOffsets(savedLines)]);
+  return lineEndOffsets(sourceLines).every((end) => savedEnds.has(end));
+};
 
 type Converted =
   | { ok: true; value: Descendant[]; editor: ReturnType<typeof makeEditor> }
@@ -162,10 +186,9 @@ export const analyzeMarkdown = (md: string): DocAnalysis => {
     if (!fixpoint.stable) {
       return { canonical: false, rawReason: fixpoint.reason, richSafe: false };
     }
-    // rich saves pass-1 bytes and each later save advances the chain, so the whole chain must keep the letters.
+    // rich saves pass-1 bytes and each later save advances the chain, so the whole chain must keep the text.
     const canonical = out.trimEnd() === md.trimEnd() && fixpoint.at === out;
-    const source = letters(md);
-    const richSafe = canonical || (source === letters(out) && source === letters(fixpoint.at));
+    const richSafe = canonical || (keepsText(md, out) && keepsText(md, fixpoint.at));
     return { canonical, rawReason: null, richSafe };
   }
   return { canonical: true, rawReason: null, richSafe: true };
