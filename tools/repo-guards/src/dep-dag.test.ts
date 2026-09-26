@@ -47,8 +47,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
-    // against a real Worker, since no Expo boots headless.
-    "@repo/e2e": ["@repo/api", "@repo/mobile", "inteligir"],
+    // against a real Worker, since no Expo boots headless; the @repo/mobile-editor edge is the
+    // bridge's protocol, so the scripted phone speaks the frames the page parses.
+    "@repo/e2e": ["@repo/api", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
     // a partial cloud client: reads the thread log and produces captures, never pushes or claims,
@@ -56,6 +57,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // dialect's own parse, link resolver and the one conflict verdict its write queue settles
     // with; it reaches no server, vault engine or agent.
     "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/notes"],
+    // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
+    // its own bridge, so no contract and no cloud wire.
+    "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/ui"],
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],
@@ -120,6 +124,10 @@ const PURITY_RULES = new Map<string, PurityRule>(
     "@repo/editor": {
       forbidden: ["node", "electron"],
       why: "browser-only: Plate/Slate in the page, never in the Node process",
+    },
+    "@repo/mobile-editor": {
+      forbidden: ["node", "electron"],
+      why: "a page in the phone's WebView, loaded from file://: nothing but the browser is there",
     },
     "@repo/notes": {
       forbidden: ["node", "react", "electron"],

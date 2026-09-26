@@ -5,8 +5,8 @@
 // with one undo. An op it refuses never applies, so history never records it either.
 
 import { ElementApi, KEYS, NodeApi, PathApi, createSlatePlugin } from "platejs";
-import type { Operation, Path, SlateEditor } from "platejs";
-import { useEditorRef } from "platejs/react";
+import type { Operation, Path, SlateEditor, TRange } from "platejs";
+import { createPlatePlugin, useEditorRef } from "platejs/react";
 
 import {
   CANVAS_BLOCK_KEY,
@@ -17,6 +17,8 @@ import {
 } from "@repo/editor/dialect-node-keys";
 
 const RICH_BLOCK_LOCK_KEY = "richBlockLock";
+
+const RICH_BLOCK_INPUT_KEY = "richBlockInputLock";
 
 const lockedTypes = (editor: SlateEditor): ReadonlySet<string> =>
   new Set([
@@ -87,6 +89,28 @@ const refuses = (editor: SlateEditor, locked: ReadonlySet<string>, op: Operation
   }
 };
 
+// Where a keystroke would land. slate-react takes the DOM caret as the selection only once the
+// keystroke arrives, so the editor's own selection can still name where the caret was before a tap.
+const aimedRange = (editor: SlateEditor): TRange | null => {
+  const caret = window.getSelection();
+  const mapped =
+    caret === null || caret.rangeCount === 0
+      ? null
+      : editor.api.toSlateRange(caret, { exactMatch: false, suppressThrow: true });
+  return mapped ?? editor.selection;
+};
+
+const aimsInsideLocked = (editor: SlateEditor): boolean => {
+  const range = aimedRange(editor);
+  if (range === null) {
+    return false;
+  }
+  const locked = lockedTypes(editor);
+  return (
+    heldAbove(editor, locked, range.anchor.path) || heldAbove(editor, locked, range.focus.path)
+  );
+};
+
 export const RichBlockLockKit = [
   createSlatePlugin({ key: RICH_BLOCK_LOCK_KEY }).overrideEditor(({ editor, tf: { apply } }) => {
     const locked = lockedTypes(editor);
@@ -100,6 +124,22 @@ export const RichBlockLockKit = [
         },
       },
     };
+  }),
+  // A tap lands the DOM caret in a locked block's text, which is outside the editable, and
+  // slate-react defers a plain character's insert to an input event the browser never fires
+  // there; the deferred insert then lands wherever anyone types next. So a keystroke aimed inside
+  // a locked block is refused before slate-react takes it.
+  createPlatePlugin({
+    handlers: {
+      onDOMBeforeInput: ({ editor, event }) => {
+        if (!aimsInsideLocked(editor)) {
+          return false;
+        }
+        event.preventDefault();
+        return true;
+      },
+    },
+    key: RICH_BLOCK_INPUT_KEY,
   }),
 ];
 

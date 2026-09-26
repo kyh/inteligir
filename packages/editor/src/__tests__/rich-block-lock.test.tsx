@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
 import type { Operation, Path, Value } from "platejs";
-import { createPlateEditor } from "platejs/react";
+import { createPlateEditor, pipeHandler } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
@@ -276,5 +276,44 @@ describe("a locked block's controls", () => {
     for (const name of ["Source", "Preview", "Run", "One", "Two"]) {
       expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
     }
+  });
+
+  // A tap lands the caret in a locked block's text, and slate-react defers a plain character's
+  // insert to an input event that never comes there, so the character would land wherever the
+  // user types next. jsdom fires no beforeinput slate-react listens for, so the handler Plate hands
+  // the Editable runs here as slate-react runs it, with the caret where a tap left it.
+  it("refuses a keystroke aimed inside a locked block, and passes one aimed at the prose", () => {
+    const ref = createRef<PlateEditor>();
+    render(
+      <EditorHarness
+        ref={ref}
+        profile="touch"
+        store={createOpenNoteStore()}
+        value={valueOf(NOTE)}
+      />,
+    );
+    const editor = ref.current;
+    if (editor === null) {
+      throw new Error("the harness did not hand over its editor");
+    }
+    const beforeInput = pipeHandler(editor, { handlerKey: "onDOMBeforeInput" });
+    const refusedAt = (text: string): boolean => {
+      const caret = screen.getByText(text).firstChild;
+      if (caret === null) {
+        throw new Error(`"${text}" drew no text node`);
+      }
+      document.getSelection()?.setBaseAndExtent(caret, text.length, caret, text.length);
+      const event = new InputEvent("beforeinput", {
+        cancelable: true,
+        data: "x",
+        inputType: "insertText",
+      });
+      beforeInput?.(event);
+      return event.defaultPrevented;
+    };
+
+    expect(refusedAt("inside the first tab")).toBe(true);
+    expect(refusedAt("left column")).toBe(true);
+    expect(refusedAt("before")).toBe(false);
   });
 });

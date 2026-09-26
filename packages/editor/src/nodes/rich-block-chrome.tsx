@@ -32,8 +32,9 @@ export const RichBlockCard = ({
   </div>
 );
 
-// Outside the editable a tap places no caret, so a locked container's blocks take no typing; the
-// lock's model guard refuses whatever edit arrives some other way.
+// Outside the editable, so the browser types nothing into a locked container's blocks; a caret a
+// tap leaves there has its keystrokes refused by the lock, and its model guard refuses whatever
+// edit arrives some other way.
 export const LockedContent = ({ children, locked }: { children: ReactNode; locked: boolean }) =>
   locked ? <div contentEditable={false}>{children}</div> : children;
 

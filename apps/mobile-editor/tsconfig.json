@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // ES2024, @repo/editor's own lib: the editor is most of what this page bundles.
+    "lib": ["ES2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": ["src", "vite", "vite.config.ts", "vitest.config.ts"]
+}

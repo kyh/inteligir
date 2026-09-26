@@ -119,6 +119,12 @@ what each one is FOR.
 |                           | to, deletes one with a comment and adds a photo; after A syncs, A holds   |
 |                           | the rewritten link, the old name as the note's alias, no comment store    |
 |                           | and the photo's bytes                                                     |
+| phone-editor-page         | the phone's editor page, built through turbo, loads from `file://` at     |
+|                           | 390×844 with a scripted phone on its bridge: a typed paragraph writes     |
+|                           | exactly the note's new bytes under its read base, typing in a tab panel   |
+|                           | or on a chart writes nothing, a nonce-less frame is ignored, an announced |
+|                           | change reloads the buffer, a write the phone finds changed lands merged   |
+|                           | and shows, and Ask agent and a wiki link tap reach the native end         |
 | thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
 |                           | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                           | so the Durable Object's ping is what delivered it                         |

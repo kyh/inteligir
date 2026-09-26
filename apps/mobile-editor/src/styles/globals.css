@@ -1,0 +1,22 @@
+@import "@repo/ui/globals.css";
+@import "@repo/editor/styles.css";
+/* The editor package is outside this app's scan root, so an editor-only
+   utility silently never generates unless its sources are named here. */
+@source "../../../../packages/editor/src/**/*.{ts,tsx}";
+
+:root {
+  /* The phone's own dials, one value each: the page offers no appearance
+     settings. --editor-size stays at 16px or above, because iOS zooms into
+     any field whose text is smaller. */
+  --editor-font: var(--font-body);
+  --editor-mono: var(--font-code);
+  --editor-size: 17px;
+  --editor-line-height: 1.6;
+}
+
+html,
+body {
+  /* the WebView is the note, so a drag past its edge must not reveal the
+     native view behind it */
+  overscroll-behavior: none;
+}

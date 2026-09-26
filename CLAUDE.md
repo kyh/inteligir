@@ -149,6 +149,16 @@ apps/
                  (create, rename, delete, photos) planned in
                  src/notes/file-ops.ts; reaches @repo/api/cloud,
                  @repo/domain and @repo/notes only.
+  mobile-editor/ @repo/mobile-editor — the phone's editor: @repo/editor
+                 under the touch profile, built by Vite as ONE classic
+                 script (vite/classic-page.ts refuses anything else, since
+                 WKWebView loads no module script from file://) that the
+                 phone opens in a WebView. Every read, write and navigation
+                 is a frame to the native screen over a typed, nonce-stamped
+                 bridge (src/bridge/protocol.ts, exported as
+                 ./bridge-protocol, the one thing the phone imports);
+                 src/host/page-host.ts is the editor's host over it. Reaches
+                 @repo/editor, @repo/notes and @repo/ui only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
                  provider events, the thread-title rule), vendored-from-bb
@@ -322,12 +332,18 @@ to the END of its group.
 - **THE EDITOR SHIPS ITS BEHAVIOUR CSS, AND THE APPEARANCE DIALS ARE ONE
   DECLARATION.** `packages/editor/src/styles.css` carries the toggle collapse,
   the callout marker swap, the code theme and the prose scope (`.typeset-docs`),
-  and reaches the app through the desktop `globals.css` import. Every hook is
-  spelled once in `packages/editor/src/style-hooks.ts` and pinned both ways by
-  `packages/editor/src/__tests__/style-hooks.test.ts`, because a missing sheet
-  fails no other test. The appearance tokens are declared once in
+  and reaches each host through its `globals.css` import: the desktop's and the
+  phone editor page's (`apps/mobile-editor/src/styles/globals.css`). Every hook
+  is spelled once in `packages/editor/src/style-hooks.ts` and pinned both ways
+  by `packages/editor/src/__tests__/style-hooks.test.ts`, which also holds each
+  host to the import, because a missing sheet fails no other test. The
+  appearance tokens are declared once in
   `apps/desktop/src/renderer/styles/globals.css` and read, with no fallback, by
-  `.typeset-docs`. No accent axis: nothing in Plate consumes a hue.
+  `.typeset-docs`. The phone page imports the sheet and not those defaults, so
+  it writes its own value for every token the sheet reads, one each and no
+  dials, `--editor-size` at 16px or more because iOS zooms into smaller text;
+  `tools/repo-guards/src/appearance-tokens.test.ts` counts those writes. No
+  accent axis: nothing in Plate consumes a hue.
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
@@ -575,9 +591,34 @@ to the END of its group.
   (`packages/editor/src/kits/rich-block-lock-kit.ts`). Hiding the edit buttons
   alone was rejected: a paste, a key or a transform from elsewhere would still
   reach the block, so the renderers hide them (`useRichBlocksLocked`) and the
-  model refuses what arrives anyway. An html block's Run needs the host's
-  frame, and a host with none (`htmlFrameUrl: null`) draws no Run.
+  model refuses what arrives anyway. A keystroke aimed inside a locked block is
+  refused at `beforeinput` too, before slate-react takes it: a tap leaves the
+  caret in the block's text, outside the editable, and slate-react defers a
+  plain character's insert to an input event the browser never fires there, so
+  the model guard alone let that character land wherever the user typed next.
+  An html block's Run needs the host's frame, and a host with none
+  (`htmlFrameUrl: null`) draws no Run.
   `packages/editor/src/__tests__/rich-block-lock.test.tsx`.
+
+- **THE PHONE'S EDITOR IS A VITE PAGE IN A WEBVIEW: ONE CLASSIC SCRIPT BEHIND A
+  TYPED, NONCE-STAMPED BRIDGE** (0.6 direction: the phone is a full editor).
+  `@repo/mobile` is React Native under Metro and TypeScript 6; the editor is
+  DOM React under Vite, the React Compiler and TypeScript 7. Expo DOM
+  components were rejected: they compile the editor a second way and typecheck
+  it under the phone's TypeScript. WKWebView loads no module script, and no
+  `crossorigin` tag, from `file://` (vitejs/vite#14483), so the build is one
+  IIFE with every dynamic import inlined and fails on anything else
+  (`apps/mobile-editor/vite/classic-page.ts`). The page shows one note for its
+  life; opening another writes it and asks the native stack, which keeps the
+  back gesture. Native reaches the page only by injecting a call to a door
+  installed non-writable on `window`, never a message event a child frame's
+  `parent.postMessage` could forge, and every frame after `init` carries its
+  nonce (`apps/mobile-editor/src/bridge/page-bridge.ts`). The wire breaks
+  freely, since both ends ship in one binary
+  (`apps/mobile-editor/src/bridge/protocol.ts`), and the page's host is the
+  editor's own write policy over it (`apps/mobile-editor/src/host/page-host.ts`).
+  `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
+  `file://` against a scripted phone.
 
 ### Vault: writes, git and containment
 
@@ -2343,13 +2384,16 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `react/rule-suppression` refuses a new `exhaustive-deps` or `rules-of-hooks`
   suppression, the ones the compiler bails on.
 
-- **THE REACT COMPILER IS ON FOR ALL THREE APPS**: `compiler: true` on
-  `@vitejs/plugin-react` in both vite configs and `reactCompiler: true` in
+- **THE REACT COMPILER IS ON FOR EVERY BUNDLE**: `compiler: true` on
+  `@vitejs/plugin-react` in the desktop's, the web's and the phone editor
+  page's vite configs, and `reactCompiler: true` in
   `apps/mobile/app.config.js`. The suites run what ships: the desktop's,
-  `@repo/editor`'s and `@repo/ui`'s DOM tests compile their sources the same
-  way (`vitest.config.ts` in each; test files excluded, because a fixture hook
-  minted in a factory is hoisted with no diagnostic), and a
-  `compiled-under-test` suite in each fails when the plugin goes. A node
+  `@repo/editor`'s, `@repo/ui`'s and the phone page's DOM tests compile their
+  sources the same way (`vitest.config.ts` in each; test files excluded,
+  because a fixture hook minted in a factory is hoisted with no diagnostic),
+  and a `compiled-under-test` suite in each fails when the plugin goes (the
+  phone page's is the last case of
+  `apps/mobile-editor/src/__tests__/editor-page.test.tsx`). A node
   suite, and the desktop's booted ones, cannot run compiled: the plugin skips
   the ssr transform. The manual-memo sweep is #820.
 
