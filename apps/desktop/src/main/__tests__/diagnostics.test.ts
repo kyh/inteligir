@@ -35,10 +35,16 @@ const diagnosticsOver = (filePath: string, overrides: Partial<DiagnosticsArgs> =
 
 describe("the debug choice reaches the child it forks", () => {
   it("traces every namespace the server knows when on, and names none when off", () => {
-    const on: Readonly<Record<string, string>> = serverProcessEnv(TARGET, true, true);
+    const on: Readonly<Record<string, string>> = serverProcessEnv(TARGET, {
+      debug: true,
+      git: null,
+      isPackaged: true,
+    });
     const traced = parseDebugNamespaces("INTELIGIR_DEBUG", on.INTELIGIR_DEBUG ?? "");
     expect([...traced].toSorted()).toEqual(DEBUG_NAMESPACES.toSorted());
-    expect(serverProcessEnv(TARGET, true, false)).not.toHaveProperty("INTELIGIR_DEBUG");
+    expect(
+      serverProcessEnv(TARGET, { debug: false, git: null, isPackaged: true }),
+    ).not.toHaveProperty("INTELIGIR_DEBUG");
   });
 
   it("reads the stored choice as the one the next fork runs with", () => {

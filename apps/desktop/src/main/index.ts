@@ -19,6 +19,8 @@ import {
 } from "electron";
 import type { ForkOptions, MenuItemConstructorOptions, UtilityProcess } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
+import { bundledGitEnv, isExecutableFile, printDeveloperDir, resolveGit } from "./bundled-git";
+import type { BundledGitEnv } from "./bundled-git";
 import { socketCredentialFilter } from "./credential-scope";
 import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
 import type { ShellPathResolution } from "./login-shell-path";
@@ -98,6 +100,8 @@ let spellcheck: Spellcheck | null = null;
 let recentVaultsPath: string | null = null;
 // the shell's too, and read before the first fork, which is the only thing it changes
 let diagnostics: Diagnostics | null = null;
+// decided before the first fork, so every child a vault switch starts runs the same git
+let gitEnv: BundledGitEnv | null = null;
 let recentVaults: string[] = [];
 // a quit mid-boot stops the child the boot is waiting on, so the boot's failure is the quit's
 let quitRequested = false;
@@ -193,7 +197,7 @@ const startServer = async (target: ServerTarget): Promise<void> => {
   serverLog.append(`[desktop] starting the server, debug logging ${debug ? "on" : "off"}`);
   const child = createServerProcess({
     entryPath,
-    env: serverProcessEnv(target, app.isPackaged, debug),
+    env: serverProcessEnv(target, { debug, git: gitEnv, isPackaged: app.isPackaged }),
     fork: forkServer,
     // a child that lost the port race must not be reported up about a stranger.
     isReady: async () => {
@@ -1016,8 +1020,19 @@ const startApp = async (target: ServerTarget): Promise<void> => {
       platform: process.platform,
       run: runShell,
     });
+    const git = resolveGit({
+      isExecutableFile,
+      isPackaged: app.isPackaged,
+      printDeveloperDir,
+      resourcesPath: process.resourcesPath,
+    });
     await app.whenReady();
     applyShellPath(await shellPath);
+    const resolvedGit = await git;
+    if (resolvedGit.source === "bundled") {
+      console.log(`[desktop] no developer tools on this Mac; the server runs ${resolvedGit.root}`);
+    }
+    gitEnv = bundledGitEnv(resolvedGit, process.env.PATH);
     await onAppReady(target);
   } catch (error) {
     // the teardown in flight quits once the child is down; a modal here would hold main open

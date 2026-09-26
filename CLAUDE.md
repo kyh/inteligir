@@ -82,6 +82,8 @@ apps/
                  child that server needs; a server already listening is
                  ADOPTED once it answers this instance's token at the bundled
                  version, and only a child the shell started is killed on quit.
+                 A Mac without the developer tools runs the git the .app
+                 ships (src/main/bundled-git.ts).
   cli/           inteligir — THE PUBLISHED BINARY, and THE SERVER (issues #553,
                  #611). `serve` is the whole local process — src/server/ owns
                  the vault, the knowledge index (its scan on a worker thread),
@@ -1968,6 +1970,34 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `apps/desktop/src/main/server-log.ts`, end to end in
   `tools/e2e/src/scenarios/desktop-diagnostics.ts`.
 
+- **THE .APP SHIPS ITS OWN GIT, AND RUNS IT WHERE THE MAC HAS NONE.** Every
+  vault write, sync and history read is git, and so is an agent's own
+  `git status`, but a Mac without Xcode or its command-line tools, which is
+  most people's, has only `/usr/bin/git`'s stub: it fails and offers the
+  install, so the vault could not even initialize. The pack carries
+  dugite-native's macOS arm64 build, which `apps/desktop/scripts/fetch-git.mjs`
+  fetches at package time against a pinned sha-256 and `extraResources` ships
+  beside the asar, its Mach-Os signed and notarized with the rest of the
+  bundle. Main asks `xcode-select -p` once before the first fork: a developer
+  dir holding `usr/bin/git` keeps the Mac's own git (owner decision: a user
+  with the tools and an https remote of their own keeps the Keychain helper,
+  which dugite-native does not build); any other Mac gets the bundled one, as
+  its `bin/` ahead of the login shell's PATH plus `GIT_EXEC_PATH`,
+  `GIT_TEMPLATE_DIR` and `GIT_CONFIG_SYSTEM` on the server child's env, which
+  the engine, the ACP adapters and every agent shell inherit; built for prefix
+  `/` without `RUNTIME_PREFIX`, it finds none of those on its own. Never
+  `GIT_CONFIG_COUNT`: the hosted remote's bearer rides those rows per
+  invocation. A dev or e2e launch keeps the host's git. The fetch drops what
+  dugite-native adds beside git, Git Credential Manager (a .NET runtime) and
+  Git LFS: no config names either, and they were five-sixths of the payload
+  and two-thirds of its Mach-Os to sign. Git's GPLv2 `COPYING` and a `SOURCE`
+  note naming both source tags ship beside it. Rejected: the dugite npm package, a
+  JS API nothing calls and a postinstall download on every install.
+  `apps/desktop/src/main/bundled-git.ts`; the smoke's first launch plays such
+  a Mac (its own login shell puts a failing `git` first on PATH,
+  `DEVELOPER_DIR` names no tools), commits an API write and proves the host's
+  git never ran.
+
 ### Desktop workspace surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
@@ -2127,8 +2157,10 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   reason. Every vendored file keeps its `// Vendored from X, MIT.` header and the
   licence texts live under `tools/licenses`, staged into the artifact as
   `dist/licenses`, with `pnpm smoke:cli` deriving the expected set from the
-  directory. `packages/ui/components.json` declares `rsc: true` and it is
-  inert: every consumer is a plain Vite build.
+  directory. The one licence shipped elsewhere is the bundled git's, beside
+  it in the .app, since only the .app carries it (above).
+  `packages/ui/components.json` declares `rsc: true` and it is inert: every
+  consumer is a plain Vite build.
 
 - **THE ORPHAN GUARD OVER `@repo/ui` IS PER EXPORT**: every named export under
   the wildcard-exported directories needs a consumer outside the gallery or a

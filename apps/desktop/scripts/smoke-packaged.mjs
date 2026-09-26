@@ -6,7 +6,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { accessSync, constants, existsSync, readdirSync, readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -23,6 +23,8 @@ const appBinary = path.join(appDir, "Contents", "MacOS", "Inteligir");
 const unpacked = path.join(appDir, "Contents", "Resources", "app.asar.unpacked");
 const runtimeRoot = path.join(unpacked, "node_modules", CLI_BIN_NAME);
 const serverEntry = path.join(runtimeRoot, "dist", "index.js");
+// electron-builder.yml's extraResources, which src/main/bundled-git.ts resolves
+const bundledGitRoot = path.join(appDir, "Contents", "Resources", "git");
 const BOOT_TIMEOUT_MS = 90_000;
 const EXIT_TIMEOUT_MS = 40_000;
 const AGENT_TIMEOUT_MS = 60_000;
@@ -145,6 +147,13 @@ if (testDirs.length > 0) {
 }
 log(`packaged CLI -> ${readdirSync(runtimeRoot).join(", ")}`);
 
+// git's licence obliges the pack to carry its text and say where the source is
+for (const name of ["COPYING", "SOURCE"]) {
+  if (!existsSync(path.join(bundledGitRoot, name))) {
+    fail(`the packaged app's git carries no ${name} at ${bundledGitRoot}`);
+  }
+}
+
 const scratch = await mkdtemp(path.join(tmpdir(), "inteligir-desktop-smoke-"));
 const port = 4900 + Math.floor(Math.random() * 90);
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -158,6 +167,29 @@ const codexHome = path.join(scratch, "codex-home");
 
 await mkdir(claudeConfigDir, { recursive: true });
 await mkdir(codexHome, { recursive: true });
+
+// the first launch plays a Mac without the developer tools: xcode-select names a dir holding no git,
+// and the git first on the login shell's PATH fails, as the stub does, noting each call. the login
+// shell is the smoke's own so that PATH is exactly this one, whatever the host's rc files add
+const hostBinDir = path.join(scratch, "host-bin");
+const hostGitCalls = path.join(scratch, "host-git-calls.log");
+const loginShell = path.join(scratch, "login-shell");
+const POISONED_HOST_ENV = {
+  DEVELOPER_DIR: path.join(scratch, "no-developer-tools"),
+  PATH: `${hostBinDir}:${process.env.PATH ?? ""}`,
+  SHELL: loginShell,
+};
+await mkdir(hostBinDir, { recursive: true });
+await writeFile(
+  path.join(hostBinDir, "git"),
+  `#!/bin/sh\necho "$*" >> '${hostGitCalls}'\nexit 1\n`,
+);
+await writeFile(
+  loginShell,
+  `#!/bin/sh\nPATH='${hostBinDir}:/usr/bin:/bin:/usr/sbin:/sbin' exec /bin/sh -c "$2"\n`,
+);
+await chmod(path.join(hostBinDir, "git"), 0o755);
+await chmod(loginShell, 0o755);
 
 // an undefined value unsets the variable
 const appEnv = (env) =>
@@ -311,11 +343,37 @@ const proveAgentTurn = async (rpc) => {
   }
 };
 
+// the boot's init and first commit ran before the server listened, so a healthy server already
+// proves those; an API write committing proves the engine's later runs.
+const proveBundledGitCommits = async (rpc) => {
+  const note = "Smoke Bundled Git.md";
+  await rpc("vault/write", {
+    content: "# Smoke Bundled Git\n",
+    guard: { kind: "absent" },
+    path: note,
+  });
+  await rpc("vault/commitNow", { paths: [note] });
+  const { revisions } = await rpc("vault/history", { path: note });
+  if (revisions.length === 0) {
+    fail(`a write to ${note} was never committed`);
+  }
+  log(`bundled git -> ${note} committed as ${revisions[0].sha.slice(0, 7)}`);
+};
+
+// read once the app has quit, so the engine's shutdown flush and the agent's turn are counted too
+const proveHostGitUntouched = () => {
+  if (existsSync(hostGitCalls)) {
+    fail(`the host's git ran instead of the bundled one:\n${readFileSync(hostGitCalls, "utf-8")}`);
+  }
+  log("the host's git never ran");
+};
+
 let launched = null;
 
 try {
-  log(`launching the packaged app on ${baseUrl}`);
+  log(`launching the packaged app on ${baseUrl}, as a Mac without the developer tools`);
   launched = launchApp({
+    ...POISONED_HOST_ENV,
     INTELIGIR_DATA_DIR: dataDir,
     INTELIGIR_PORT: String(port),
     INTELIGIR_VAULT_DIR: vaultDir,
@@ -342,6 +400,7 @@ try {
 
   await proveVendorsBundled(rpc);
   await proveAgentTurn(rpc);
+  await proveBundledGitCommits(rpc);
 
   const status = await run(cliBin, ["status", "--json"], {
     env: { ...process.env, INTELIGIR_DATA_DIR: dataDir },
@@ -353,11 +412,13 @@ try {
 
   await stopApp(launched);
   launched = null;
+  proveHostGitUntouched();
 
   // the shell's vault switch is a rewrite of the root config.json's vaultDir and a restart of
   // its child; the switch itself is a click in the window, so this proves what the app boots
   // under a scratch home: the default vault keeps the root data dir, the selector boots the
-  // server on a data dir of that vault's own, and each quit stops it cleanly.
+  // server on a data dir of that vault's own, and each quit stops it cleanly. these two launches
+  // run on the host as it is: its own login shell, and its own git where it has the tools.
   const home = path.join(scratch, "home");
   const rootDataDir = path.join(home, PROD_DATA_DIR_NAME);
   const secondVault = path.join(scratch, "second-vault");

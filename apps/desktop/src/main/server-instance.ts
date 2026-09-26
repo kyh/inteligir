@@ -9,6 +9,7 @@ import { DEBUG_NAMESPACES } from "inteligir/server/debug-log";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { resolveVaultCandidate } from "inteligir/server/vault-switch";
 import { toErrorMessage } from "../types";
+import type { BundledGitEnv } from "./bundled-git";
 import { createLocalClient } from "inteligir/server/local-client";
 import { probeServerFile, silentOwnerSentence } from "inteligir/server/server-probe";
 import type { AskServerStatus, ServerFileProbe } from "inteligir/server/server-probe";
@@ -181,17 +182,25 @@ export const planServerStart = (verdict: ServerVerdict, dataDir: string): Server
   }
 };
 
+export interface ServerProcessEnvArgs {
+  isPackaged: boolean;
+  debug: boolean;
+  // on the child's own env, so the engine, the ACP adapters and every agent shell resolve one git
+  git: BundledGitEnv | null;
+}
+
 // no port: pinning one sets the child's `portSource` to `env`, which turns off its upward probe.
 // NODE_ENV is stated because a Finder-launched app inherits none. debug logging traces every
 // namespace, since a report cannot know in advance which decision went wrong; off leaves main's
 // own env alone, so a developer's narrower INTELIGIR_DEBUG still reaches the child.
-export const serverProcessEnv = (target: ServerTarget, isPackaged: boolean, debug: boolean) => {
+export const serverProcessEnv = (target: ServerTarget, args: ServerProcessEnvArgs) => {
   const env = {
+    ...args.git,
     INTELIGIR_DATA_DIR: target.dataDir,
     INTELIGIR_VAULT_DIR: target.vaultDir,
-    NODE_ENV: isPackaged ? "production" : "development",
+    NODE_ENV: args.isPackaged ? "production" : "development",
   };
-  return debug ? { ...env, INTELIGIR_DEBUG: DEBUG_NAMESPACES.join(",") } : env;
+  return args.debug ? { ...env, INTELIGIR_DEBUG: DEBUG_NAMESPACES.join(",") } : env;
 };
 
 // a process cannot be forked from inside an asar, so the path is rewritten to the `asarUnpack` twin.
