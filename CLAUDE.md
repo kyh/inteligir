@@ -88,8 +88,9 @@ apps/
                  child that server needs; a server already listening is
                  ADOPTED once it answers this instance's token at the bundled
                  version, and only a child the shell started is killed on quit.
-                 A Mac without the developer tools runs the git the .app
-                 ships (src/main/bundled-git.ts).
+                 A Mac without the developer tools, or whose git is older
+                 than 2.45, runs the git the .app ships
+                 (src/main/bundled-git.ts).
   cli/           inteligir — THE PUBLISHED BINARY, and THE SERVER (issues #553,
                  #611). `serve` is the whole local process — src/server/ owns
                  the vault, the knowledge index (its scan on a worker thread),
@@ -2423,7 +2424,11 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   bundle. Main asks `xcode-select -p` once before the first fork: a developer
   dir holding `usr/bin/git` keeps the Mac's own git (owner decision: a user
   with the tools and an https remote of their own keeps the Keychain helper,
-  which dugite-native does not build); any other Mac gets the bundled one, as
+  which dugite-native does not build), unless the git a PATH lookup finds once
+  PATH is the login shell's is older than 2.45 or will not say its version:
+  an older git sets its own `Transfer-Encoding` header, which libcurl 8.7.0
+  and 8.7.1 mishandle, so a push past 1 MiB goes out as its first 4 bytes
+  (Homebrew's 2.39.0 does). Any other Mac gets the bundled one, as
   its `bin/` ahead of the login shell's PATH plus `GIT_EXEC_PATH`,
   `GIT_TEMPLATE_DIR` and `GIT_CONFIG_SYSTEM` on the server child's env, which
   the engine, the ACP adapters and every agent shell inherit, and on main's one

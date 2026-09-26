@@ -19,7 +19,14 @@ import {
 } from "electron";
 import type { ForkOptions, MenuItemConstructorOptions, UtilityProcess } from "electron";
 import { rendererDir, appPreloadScript, firstRunPreloadScript } from "./bundle-paths";
-import { bundledGitEnv, isExecutableFile, printDeveloperDir, resolveGit } from "./bundled-git";
+import {
+  bundledGitEnv,
+  bundledGitReasonText,
+  isExecutableFile,
+  printDeveloperDir,
+  printHostGitVersion,
+  resolveGit,
+} from "./bundled-git";
 import type { BundledGitEnv } from "./bundled-git";
 import { socketCredentialFilter } from "./credential-scope";
 import {
@@ -1275,17 +1282,20 @@ const startApp = async (plan: LaunchPlan): Promise<void> => {
       platform: process.platform,
       run: runShell,
     });
-    const git = resolveGit({
+    await app.whenReady();
+    applyShellPath(await shellPath);
+    // after the PATH is the login shell's, so the host git asked is the one the server would run
+    const resolvedGit = await resolveGit({
       isExecutableFile,
       isPackaged: app.isPackaged,
       printDeveloperDir,
+      printHostGitVersion,
       resourcesPath: process.resourcesPath,
     });
-    await app.whenReady();
-    applyShellPath(await shellPath);
-    const resolvedGit = await git;
     if (resolvedGit.source === "bundled") {
-      console.log(`[desktop] no developer tools on this Mac; the server runs ${resolvedGit.root}`);
+      console.log(
+        `[desktop] ${bundledGitReasonText(resolvedGit.why)}; the server runs ${resolvedGit.root}`,
+      );
     }
     gitEnv = bundledGitEnv(resolvedGit, process.env.PATH);
     await onAppReady(plan);

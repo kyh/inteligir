@@ -241,7 +241,11 @@ therefore carries a git of its own under `Contents/Resources/git`, and before
 the first fork main asks `xcode-select -p` which developer dir is selected
 (`src/main/bundled-git.ts`). One holding `usr/bin/git` keeps the Mac's own git,
 and with it the Keychain helper an https remote of the user's own signs in
-through, which the shipped git lacks. Any other Mac gets the shipped one: its
+through, which the shipped git lacks, unless the `git` its login-shell PATH
+finds is older than 2.45 (or will not say its version): an older git sets its
+own `Transfer-Encoding` header, which libcurl 8.7.0 and 8.7.1 mishandle, and a
+push past 1 MiB goes out as its first 4 bytes. Any other Mac gets the shipped
+one: its
 `bin/` goes ahead of the login shell's PATH on the server child's environment,
 beside `GIT_EXEC_PATH`, `GIT_TEMPLATE_DIR` and `GIT_CONFIG_SYSTEM`, because it
 was built for prefix `/` and finds its helpers, templates and system config
