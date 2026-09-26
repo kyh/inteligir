@@ -2,8 +2,7 @@ import { planPage } from "@repo/api/cloud/sync/plan-page";
 import type { PlannedLogRow } from "@repo/api/cloud/sync/plan-page";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { describe, expect, it } from "vitest";
-import { createMemorySyncStore } from "../memory-sync-store";
-import { applyPlan } from "../thread-log";
+import { openSyncStore } from "../../notes/__tests__/phone-storage";
 import { agentDelta, agentMessage, logRow, userRequest } from "./fakes";
 
 const SELF = "dev_self";
@@ -11,8 +10,8 @@ const OTHER = "dev_other";
 const OWN = new Set([SELF]);
 
 describe("pull-apply by global seq", () => {
-  it("applies another device's rows, moves the cursor, and merges a thread's run", () => {
-    const store = createMemorySyncStore();
+  it("applies another device's rows, moves the cursor, and merges a thread's run", async () => {
+    const store = openSyncStore();
     const rows = [
       logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "hi"), seq: 1 }),
       logRow({
@@ -24,15 +23,15 @@ describe("pull-apply by global seq", () => {
     ];
     const plan = planPage(rows, OWN);
     expect(plan.steps).toHaveLength(1);
-    applyPlan(store, plan.steps);
+    await store.applyPlan(plan.steps);
 
     const thread = store.snapshotThread("thr_1");
     expect(thread?.events).toHaveLength(2);
     expect(store.readCursor()).toBe(2);
   });
 
-  it("applies idempotently — the same page twice lands each row once", () => {
-    const store = createMemorySyncStore();
+  it("applies idempotently — the same page twice lands each row once", async () => {
+    const store = openSyncStore();
     const rows = [
       logRow({ deviceId: SELF, deviceSeq: 0, event: userRequest("thr_1", "mine"), seq: 4 }),
       logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "one"), seq: 5 }),
@@ -43,15 +42,15 @@ describe("pull-apply by global seq", () => {
         seq: 6,
       }),
     ];
-    applyPlan(store, planPage(rows, OWN).steps);
-    applyPlan(store, planPage(rows, OWN).steps);
+    await store.applyPlan(planPage(rows, OWN).steps);
+    await store.applyPlan(planPage(rows, OWN).steps);
 
     expect(store.snapshotThread("thr_1")?.events).toHaveLength(2);
     expect(store.readCursor()).toBe(6);
   });
 
-  it("skips this device's own rows but still advances the cursor past them", () => {
-    const store = createMemorySyncStore();
+  it("skips this device's own rows but still advances the cursor past them", async () => {
+    const store = openSyncStore();
     const rows = [
       logRow({ deviceId: SELF, deviceSeq: 0, event: userRequest("thr_1", "mine"), seq: 10 }),
       logRow({
@@ -61,28 +60,28 @@ describe("pull-apply by global seq", () => {
         seq: 11,
       }),
     ];
-    applyPlan(store, planPage(rows, OWN).steps);
+    await store.applyPlan(planPage(rows, OWN).steps);
 
     expect(store.snapshotThread("thr_1")?.events).toHaveLength(1);
     expect(store.readCursor()).toBe(11);
   });
 
-  it("skips rows under every id the client has signed in as, not only the current one", () => {
-    const store = createMemorySyncStore();
+  it("skips rows under every id the client has signed in as, not only the current one", async () => {
+    const store = openSyncStore();
     const EARLIER = "dev_self_earlier";
     const rows = [
       logRow({ deviceId: EARLIER, deviceSeq: 0, event: userRequest("thr_1", "old me"), seq: 30 }),
       logRow({ deviceId: SELF, deviceSeq: 0, event: userRequest("thr_1", "me"), seq: 31 }),
       logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "them"), seq: 32 }),
     ];
-    applyPlan(store, planPage(rows, new Set([EARLIER, SELF])).steps);
+    await store.applyPlan(planPage(rows, new Set([EARLIER, SELF])).steps);
 
     expect(store.snapshotThread("thr_1")?.events).toHaveLength(1);
     expect(store.readCursor()).toBe(32);
   });
 
-  it("reports and skips a row in a grammar this build does not understand", () => {
-    const store = createMemorySyncStore();
+  it("reports and skips a row in a grammar this build does not understand", async () => {
+    const store = openSyncStore();
     const bad = {
       createdAt: 0,
       deviceId: OTHER,
@@ -93,15 +92,15 @@ describe("pull-apply by global seq", () => {
     };
     const plan = planPage([bad], OWN);
     expect(plan.skipped).toHaveLength(1);
-    applyPlan(store, plan.steps);
+    await store.applyPlan(plan.steps);
     expect(store.snapshotThread("thr_1")).toBeNull();
     expect(store.readCursor()).toBe(20);
   });
 });
 
 describe("the held log", () => {
-  it("holds no streaming delta, yet moves the cursor and the thread's recency past it", () => {
-    const store = createMemorySyncStore();
+  it("holds no streaming delta, yet moves the cursor and the thread's recency past it", async () => {
+    const store = openSyncStore();
     const rows = [
       logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "hi"), seq: 1 }),
       logRow({
@@ -130,7 +129,7 @@ describe("the held log", () => {
         seq: 6,
       }),
     ];
-    applyPlan(store, planPage(rows, OWN).steps);
+    await store.applyPlan(planPage(rows, OWN).steps);
 
     const thread = store.snapshotThread("thr_1");
     expect(thread?.events.map((event) => event.type)).toStrictEqual([
@@ -142,18 +141,16 @@ describe("the held log", () => {
     expect(store.readCursor()).toBe(6);
   });
 
-  it("publishes a page of deltas as a new snapshot over the same held events", () => {
-    const store = createMemorySyncStore();
-    applyPlan(
-      store,
+  it("publishes a page of deltas as a new snapshot over the same held events", async () => {
+    const store = openSyncStore();
+    await store.applyPlan(
       planPage(
         [logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "hi"), seq: 1 })],
         OWN,
       ).steps,
     );
     const before = store.snapshotThread("thr_1");
-    applyPlan(
-      store,
+    await store.applyPlan(
       planPage(
         [
           logRow({
@@ -173,8 +170,8 @@ describe("the held log", () => {
     expect(after?.lastSeq).toBe(2);
   });
 
-  it("keeps a 100k-row streamed backlog to its completed items", () => {
-    const store = createMemorySyncStore();
+  it("keeps a 100k-row streamed backlog to its completed items", async () => {
+    const store = openSyncStore();
     const total = 100_000;
     const turnRows = 1000;
     const pageRows = 500;
@@ -194,7 +191,7 @@ describe("the held log", () => {
         origin: { deviceId: OTHER, deviceSeq: first + index },
         seq: first + index,
       }));
-      applyPlan(store, [{ kind: "apply", rows, threadId: "thr_1" }]);
+      await store.applyPlan([{ kind: "apply", rows, threadId: "thr_1" }]);
     }
 
     expect(store.readCursor()).toBe(total);

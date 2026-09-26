@@ -3,7 +3,7 @@ import type { DeviceCredential, RevokeDeviceResponse } from "@repo/api/cloud/dev
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createMemorySyncStore } from "../memory-sync-store";
+import { openSyncStore } from "../../notes/__tests__/phone-storage";
 import { createSyncRuntime } from "../sync-runtime";
 import type { SyncRuntime, SyncStatus } from "../sync-runtime";
 import { agentMessage, createFakeCloud, logRow, ok, userRequest } from "./fakes";
@@ -53,7 +53,7 @@ const published = async (
 
 describe("the sync runtime", () => {
   it("is restoring until a credential is handed over, and makes no request meanwhile", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     const runtime = createSyncRuntime({
       cloudUrl: "https://cloud.test",
@@ -70,7 +70,7 @@ describe("the sync runtime", () => {
   });
 
   it("pulls the log, and neither pushes nor claims — both halves are the desktop's", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(
       ok({
@@ -104,7 +104,7 @@ describe("the sync runtime", () => {
   });
 
   it("goes unauthorized on a terminal refusal and stops", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(UNAUTHORIZED);
     const runtime = createSyncRuntime({
@@ -120,39 +120,8 @@ describe("the sync runtime", () => {
     expect(runtime.get().state).toBe("unauthorized");
   });
 
-  it("resets the store when signing in again — the old account's rows do not carry over", async () => {
-    const store = createMemorySyncStore();
-    const cloud = createFakeCloud();
-    cloud.pullResults.push(
-      ok({
-        events: [
-          logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_old", "old"), seq: 4 }),
-        ],
-        hasMore: false,
-        lastSeq: 4,
-      }),
-    );
-    const runtime = createSyncRuntime({
-      cloudUrl: "https://cloud.test",
-      createClient: () => cloud.client,
-      pollIntervalMs: null,
-      store,
-    });
-    runtime.setCredential(CRED);
-    await runtime.syncNow();
-    expect(store.snapshotThreads()).toHaveLength(1);
-
-    runtime.setCredential({ credential: `igd_${"b".repeat(64)}`, deviceId: "dev_new" });
-    expect(store.snapshotThreads()).toHaveLength(0);
-    expect(store.readCursor()).toBe(0);
-    expect(runtime.get()).toMatchObject({ cursor: 0, deviceId: "dev_new", state: "signed-in" });
-
-    runtime.setCredential(null);
-    expect(runtime.get()).toStrictEqual({ state: "signed-out" });
-  });
-
   it("publishes a poll pass — the snapshot moves with no caller on this side", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(
       EMPTY_PAGE,
@@ -197,7 +166,7 @@ describe("the sync runtime", () => {
   });
 
   it("drains a backlog past one pass's cap in one sync, and says synced only at its end", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     const pages = MAX_PULL_PAGES_PER_PASS + 5;
     for (let seq = 1; seq <= pages; seq += 1) {
@@ -240,7 +209,7 @@ describe("the sync runtime", () => {
   it("does not call an unreachable pull synced", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(1_000_000);
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(EMPTY_PAGE, UNREACHABLE);
     const runtime = createSyncRuntime({
@@ -264,7 +233,7 @@ describe("the sync runtime", () => {
   });
 
   it("lands a revocation on the next poll pass — unauthorized, with no pull-to-refresh", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(EMPTY_PAGE, UNAUTHORIZED);
     const runtime = createSyncRuntime({
@@ -281,7 +250,7 @@ describe("the sync runtime", () => {
   });
 
   it("ends the sign-in when a capture is refused as unauthorized", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.captureResults.push({
       failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
@@ -302,7 +271,7 @@ describe("the sync runtime", () => {
   });
 
   it("hands its diagnostics to the injected sink — a row this build cannot read is named", async () => {
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(
       ok({
@@ -353,7 +322,7 @@ const recordingSignOuts = () => {
     cloudUrl: "https://cloud.test",
     createClient,
     pollIntervalMs: null,
-    store: createMemorySyncStore(),
+    store: openSyncStore(),
   });
   return { cloud, runtime, signedOut };
 };
@@ -385,7 +354,7 @@ describe("dropping a credential", () => {
       cloudUrl: "https://cloud.test",
       createClient: () => ({ ...cloud.client, signOut: async () => await UNREACHABLE_SIGN_OUT }),
       pollIntervalMs: null,
-      store: createMemorySyncStore(),
+      store: openSyncStore(),
     });
     runtime.setCredential(CRED);
     runtime.setCredential(null);

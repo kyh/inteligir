@@ -4,9 +4,8 @@ import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { threadListEntries, WORKING_CAPTION } from "../../dispatch/dispatch-projection";
 import type { DispatchState } from "../../dispatch/dispatch-runtime";
-import { createMemorySyncStore } from "../memory-sync-store";
+import { openSyncStore } from "../../notes/__tests__/phone-storage";
 import type { StoredThread, SyncStore } from "../sync-store";
-import { applyPlan } from "../thread-log";
 import { liveThreadsFirst, projectThread } from "../thread-projection";
 import { agentDelta, agentMessage, logRow, userRequest } from "./fakes";
 
@@ -22,10 +21,9 @@ const held = (store: SyncStore, threadId: string): StoredThread => {
 };
 
 describe("the thread projection", () => {
-  it("folds a snapshot once, and a change to one thread re-folds that thread alone", () => {
-    const store = createMemorySyncStore();
-    applyPlan(
-      store,
+  it("folds a snapshot once, and a change to one thread re-folds that thread alone", async () => {
+    const store = openSyncStore();
+    await store.applyPlan(
       planPage(
         [
           logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_a", "first"), seq: 1 }),
@@ -38,8 +36,7 @@ describe("the thread projection", () => {
     const foldedB = projectThread(held(store, "thr_b"));
     expect(projectThread(held(store, "thr_a"))).toBe(foldedA);
 
-    applyPlan(
-      store,
+    await store.applyPlan(
       planPage(
         [
           logRow({
@@ -59,10 +56,9 @@ describe("the thread projection", () => {
     expect(refolded.preview).toBe("answer");
   });
 
-  it("keeps a thread's fold across a page of deltas, which moves only its recency", () => {
-    const store = createMemorySyncStore();
-    applyPlan(
-      store,
+  it("keeps a thread's fold across a page of deltas, which moves only its recency", async () => {
+    const store = openSyncStore();
+    await store.applyPlan(
       planPage(
         [logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_a", "hi"), seq: 1 })],
         OWN,
@@ -70,8 +66,7 @@ describe("the thread projection", () => {
     );
     const before = projectThread(held(store, "thr_a"));
 
-    applyPlan(
-      store,
+    await store.applyPlan(
       planPage(
         [
           logRow({
@@ -89,10 +84,9 @@ describe("the thread projection", () => {
     expect(projectThread(held(store, "thr_a"))).toBe(before);
   });
 
-  it("previews the last message's first visible line, cut by code point", () => {
-    const store = createMemorySyncStore();
-    applyPlan(
-      store,
+  it("previews the last message's first visible line, cut by code point", async () => {
+    const store = openSyncStore();
+    await store.applyPlan(
       planPage(
         [
           logRow({
@@ -116,8 +110,8 @@ describe("the thread projection", () => {
     expect(projectThread(held(store, "thr_b")).preview).toBe(`${"😀".repeat(59)}…`);
   });
 
-  it("names a thread by the title its log states, over its first line, and reads its archive", () => {
-    const store = createMemorySyncStore();
+  it("names a thread by the title its log states, over its first line, and reads its archive", async () => {
+    const store = openSyncStore();
     const stated: ThreadEvent = {
       scope: threadScope(),
       threadId: "thr_a",
@@ -129,8 +123,7 @@ describe("the thread projection", () => {
       threadId: "thr_a",
       type: "thread/archived",
     };
-    applyPlan(
-      store,
+    await store.applyPlan(
       planPage(
         [
           logRow({
@@ -163,8 +156,8 @@ describe("the thread projection", () => {
     ).toEqual(["thr_b", "thr_a"]);
   });
 
-  it("is running from a turn's start until that turn completes, and says so in the list", () => {
-    const store = createMemorySyncStore();
+  it("is running from a turn's start until that turn completes, and says so in the list", async () => {
+    const store = openSyncStore();
     const started: ThreadEvent = {
       scope: turnScope("t1"),
       threadId: "thr_a",
@@ -177,8 +170,7 @@ describe("the thread projection", () => {
       type: "turn/completed",
     };
     const idle: DispatchState = { approvals: [], desktopsOnline: null, dispatches: [] };
-    applyPlan(
-      store,
+    await store.applyPlan(
       planPage(
         [
           logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_a", "go"), seq: 1 }),
@@ -193,8 +185,7 @@ describe("the thread projection", () => {
       { caption: WORKING_CAPTION, threadId: "thr_a", title: "go" },
     ]);
 
-    applyPlan(
-      store,
+    await store.applyPlan(
       planPage(
         [
           logRow({
@@ -215,10 +206,9 @@ describe("the thread projection", () => {
     ]);
   });
 
-  it("lists a thread only this phone holds so far, first and named by its first message", () => {
-    const store = createMemorySyncStore();
-    applyPlan(
-      store,
+  it("lists a thread only this phone holds so far, first and named by its first message", async () => {
+    const store = openSyncStore();
+    await store.applyPlan(
       planPage(
         [logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_a", "old"), seq: 1 })],
         OWN,

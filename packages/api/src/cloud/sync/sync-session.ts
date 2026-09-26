@@ -119,11 +119,13 @@ export interface PullPagesArgs {
   // captured at the top of the pass, never re-read.
   client: Pick<CloudClient, "pull">;
   ownDeviceIds: ReadonlySet<string>;
-  // re-checked before the request and before the apply: a page that arrived under an ended
-  // session may belong to another account.
+  // re-checked before the request, before the apply and after it: a page that arrived under an
+  // ended session may belong to another account.
   fenced: () => boolean;
   readCursor: () => number;
-  applyPlan: (steps: readonly LogPlanStep[]) => void;
+  // a store that writes asynchronously answers a promise, which the pass waits out before it reads
+  // the cursor again
+  applyPlan: (steps: readonly LogPlanStep[]) => Promise<void> | void;
   recordFailure: (failure: CloudFailure) => "continue" | "ended";
   onPage?: () => void;
   onSkipped?: (message: string) => void;
@@ -156,7 +158,10 @@ export const pullPages = async (args: PullPagesArgs): Promise<SyncOutcome> => {
     for (const message of plan.skipped) {
       args.onSkipped?.(message);
     }
-    args.applyPlan(plan.steps);
+    await args.applyPlan(plan.steps);
+    if (!args.fenced()) {
+      return "fenced";
+    }
     args.onPage?.();
     // an empty page moves no cursor, so asking again asks the same question: "more" must mean
     // progress, or a pass that follows itself at once would never stop.

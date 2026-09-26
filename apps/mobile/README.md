@@ -23,8 +23,10 @@ src/
                 it (pure, unit-tested)
   sync/         the RN sync client (pure, unit-tested)
     sync-store.ts          the storage PORT (pull cursor + applied thread log)
-    memory-sync-store.ts   the in-memory implementation (v1 runtime + the test fake)
-    thread-log.ts          execute a planned page (@repo/api/cloud/sync/plan-page plans it)
+    sqlite-sync-store.ts   its one implementation, in the phone's database: a
+                           planned page (@repo/api/cloud/sync/plan-page plans
+                           it) lands as one transaction, and a restore reads
+                           the threads back (unit-tested against node:sqlite)
     sync-runtime.ts        the pull loop over the contract's own session machine
                            (@repo/api/cloud/sync/sync-session); publishes the
                            status store the screens subscribe to (`restoring`
@@ -107,14 +109,32 @@ src/
 ## The storage choice
 
 The two sync stores — the pull cursor and the applied thread log — **must
-agree**, so they live in one `SyncStore`, and v1's concrete implementation keeps
-both **in memory**. This is correct, not degraded: a cold launch re-pulls the
-account log from cursor 0 and re-applies it idempotently (own rows skipped by
-device id, a row at or below the cursor passed over, since the two move in one
-call), rebuilding the readable state. Persisting the cursor beside an in-memory
-log would claim rows the log never saw. It is also why the phone keeps no
-skipped-row marker: an app update is a relaunch, which re-reads every row the
-old build skipped. There is no thread outbox and no capture ledger: the phone
+agree**, so they live in one `SyncStore`, durable in `inteligir.db`
+(`sync/sqlite-sync-store.ts`): `thread_sync` holds the cursor, `thread_events`
+each held event by its log seq, and `synced_threads` each thread's last seq. A
+pulled page is ONE transaction — its events, the threads it moves and the
+cursor past it land together or not at all — and reaches memory only once it
+commits; own rows are skipped by device id and a row at or below the cursor is
+passed over, so a page applied twice lands once. The screens read the memory
+synchronously (`useSyncExternalStore`), and the boot restore reads the tables
+back BEFORE the sign-in is published: a cold launch lists every thread offline,
+and its first pull asks after the saved cursor, never 0. The write is async in
+the shared contract (`pullPages` awaits `applyPlan`) rather than a synchronous
+write-through over expo-sqlite's sync API: every module's writes share one
+queue on the file, and a synchronous write on the JS thread while another
+module's transaction holds it would fail as locked rather than wait.
+
+**The grammar the held events were parsed with** is stored beside the cursor,
+as the SHA-1 of the event schema's JSON Schema, and a build whose grammar
+differs drops the tables and pulls the log from 0. It has to: the rows the old
+build skipped as unreadable are behind the cursor, and every held event lost the
+fields the old grammar did not name, because its objects strip unknown keys. So
+the phone keeps no skipped-row marker, unlike the desktop's rewind: a grammar
+change re-reads everything. A held row this build cannot read starts the store
+over the same way. A sign-in, a sign-out and a revocation wipe the three
+tables, and the boot restore keeps them; a page that started before a wipe
+never lands (a reset generation, re-checked inside the transaction). There is
+no thread outbox and no capture ledger: the phone
 appends nothing to the log and claims nothing from the inbox, so neither has
 anything to hold. Its own NOTE edits are another matter, below, and so are its
 requests to a Mac: the `dispatch_outbox` table is durable, and it is not a log
@@ -167,10 +187,6 @@ and a wipe bumps a generation every write re-checks inside its transaction,
 so a batch that started before the wipe never lands. The database has ONE
 `user_version` (`lib/phone-db.ts`): a table another module adds is a step
 appended there.
-
-The durable follow-up is a `SyncStore` in the same database that persists both
-sync stores together; the port exists precisely so that swap touches nothing
-else.
 
 ## Unsent edits
 
@@ -296,8 +312,8 @@ never hears leaves the row active for the Devices page to revoke.
 The notes store holds no client of its own: it reads under the sync runtime's
 session, so one fence covers every request a sign-in makes, and an
 `unauthorized` from a vault read, a capture or a pull ends the sign-in for all
-of them. The composition root then idles the tree and wipes the mirror,
-and keeps the credential, so the sign-in screen can say this device was
+of them. The composition root then idles the tree and wipes the mirror and
+the threads, and keeps the credential, so the sign-in screen can say this device was
 signed out. Which screens exist is the ROUTE GUARD's answer
 (`Stack.Protected` in `app/_layout.tsx`), never a per-screen branch: the
 signed-in screens and `app/sign-in.tsx` each sit behind one guard, and a
@@ -311,6 +327,9 @@ that is signed in.
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the sync client (pull applies by global seq
   idempotently, and a pass neither pushes a thread event nor claims a capture),
+  the thread store over `node:sqlite` (a relaunch listing its threads and
+  pulling on from its cursor, a page whose transaction fails, a grammar change,
+  an unreadable row, a page racing a sign-out),
   the credential codec, the sign-in store, the notes store, the vault mirror
   (its SQL run for real, over `node:sqlite` on a temp file: the oid delta, a
   relaunch that cannot reach the cloud, a batch cut short, a batch that
@@ -342,7 +361,8 @@ that is signed in.
   (both native: a dev client built before them must be rebuilt), the
   attachment and staged files, the AppState resume and expo-network's
   reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, the offline
-  check (sync once, airplane mode, cold launch, the list and any note open),
+  check (sync once, airplane mode, cold launch, the notes list, any note and
+  every thread open),
   photos: from the camera and the library each lands as `assets/<name>.jpg`,
   about 1 MB or less, with no location in its EXIF, and draws in its note on
   the Mac, and asking a Mac: Ask agent from a note shows Waiting for your Mac,

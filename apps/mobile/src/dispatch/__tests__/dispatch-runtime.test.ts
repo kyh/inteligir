@@ -6,12 +6,10 @@ import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { openTempDb, tempDbPath } from "../../notes/__tests__/phone-storage";
+import { openSyncStore, openTempDb, tempDbPath } from "../../notes/__tests__/phone-storage";
 import { createFakeCloud, logRow } from "../../sync/__tests__/fakes";
-import { createMemorySyncStore } from "../../sync/memory-sync-store";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import type { SyncStore } from "../../sync/sync-store";
-import { applyPlan } from "../../sync/thread-log";
 import { projectThread } from "../../sync/thread-projection";
 import { dispatchCaption, threadDispatches, threadListEntries } from "../dispatch-projection";
 import { createDispatchRuntime, DISPATCH_STATUS_POLL_MS } from "../dispatch-runtime";
@@ -42,7 +40,7 @@ const phoneOver = (
   db: SqlDriver,
   options: { source?: "signed-in" | "restored"; firstId?: number } = {},
 ) => {
-  const store = createMemorySyncStore();
+  const store = openSyncStore(db);
   const cloud = createFakeCloud(inbox.client);
   const sync = createSyncRuntime({
     cloudUrl: "https://cloud.test",
@@ -86,10 +84,10 @@ const idOf = (outcome: { ok: true; id: string } | { ok: false; message: string }
 };
 
 // the Mac took the phone's request into the thread and started a turn on it, and the phone pulled
-const pullMacRequest = (
+const pullMacRequest = async (
   store: SyncStore,
   args: { threadId: string; text: string; dispatchId: string },
-): void => {
+): Promise<void> => {
   const request: ThreadEvent = {
     dispatchId: args.dispatchId,
     scope: threadScope(),
@@ -102,8 +100,7 @@ const pullMacRequest = (
     threadId: args.threadId,
     type: "turn/started",
   };
-  applyPlan(
-    store,
+  await store.applyPlan(
     planPage(
       [
         logRow({ deviceId: MAC, deviceSeq: 0, event: request, seq: 1 }),
@@ -183,7 +180,7 @@ describe("the phone's requests to a Mac", () => {
     expect(only(dispatch.get().dispatches).phase).toStrictEqual({ kind: "delivered" });
     expect(pulls.count).toBeGreaterThan(0);
 
-    pullMacRequest(store, { dispatchId: id, text: "what changed?", threadId: "thr_a" });
+    await pullMacRequest(store, { dispatchId: id, text: "what changed?", threadId: "thr_a" });
     // drawn in the same render the pull landed in, before the runtime's delete commits
     const held = store.snapshotThread("thr_a");
     const thread = held === null ? null : projectThread(held);
@@ -361,7 +358,7 @@ describe("the phone's requests to a Mac", () => {
   it("polls while a request waits and the app is in the foreground, and asks nothing otherwise", async () => {
     vi.useFakeTimers();
     const inbox = createFakeInbox();
-    const store = createMemorySyncStore();
+    const store = openSyncStore();
     const cloud = createFakeCloud(inbox.client);
     const sync = createSyncRuntime({
       cloudUrl: "https://cloud.test",

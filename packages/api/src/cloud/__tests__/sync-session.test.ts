@@ -230,6 +230,60 @@ describe("pullPages", () => {
     expect(ending.loop.applied).toEqual([]);
   });
 
+  it("waits out an apply that answers a promise before it reads the cursor again", async () => {
+    const applied = { cursor: 0 };
+    const asked: number[] = [];
+    const pages = [
+      ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 2 }),
+      ok({ events: [row(2, "dev_other")], hasMore: false, lastSeq: 2 }),
+    ];
+    const outcome = await pullPages({
+      applyPlan: async (steps) => {
+        await Promise.resolve();
+        for (const step of steps) {
+          if (step.kind === "skip") {
+            applied.cursor = step.cursor;
+          }
+        }
+      },
+      client: {
+        pull: async (query) => {
+          asked.push(query.afterSeq);
+          return pages.shift() ?? (await unreachable());
+        },
+      },
+      fenced: () => true,
+      ownDeviceIds: new Set(["dev_self"]),
+      readCursor: () => applied.cursor,
+      recordFailure: () => "continue",
+    });
+    expect(outcome).toBe("caught-up");
+    expect(asked).toEqual([0, 1]);
+  });
+
+  it("stops when its session ends while an apply is in flight, and reports no page", async () => {
+    let live = true;
+    const reported: number[] = [];
+    const outcome = await pullPages({
+      applyPlan: async () => {
+        await Promise.resolve();
+        live = false;
+      },
+      client: {
+        pull: async () => ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 2 }),
+      },
+      fenced: () => live,
+      onPage: () => {
+        reported.push(1);
+      },
+      ownDeviceIds: new Set(["dev_self"]),
+      readCursor: () => 0,
+      recordFailure: () => "continue",
+    });
+    expect(outcome).toBe("fenced");
+    expect(reported).toEqual([]);
+  });
+
   it("THE FENCE: a page that lands after its session ended applies nothing", async () => {
     const { session } = harness();
     session.open({ deviceId: "dev_1" });

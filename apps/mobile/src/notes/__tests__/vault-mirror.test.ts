@@ -4,13 +4,12 @@ import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { createMemorySyncStore } from "../../sync/memory-sync-store";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createNotesStore } from "../notes-store";
 import type { MirrorProgress } from "../vault-mirror";
 import { createVaultMirror } from "../vault-mirror";
 import { blobOid, clientOver, createFakeVault, requestsOf } from "./fake-vault";
-import { openTempDb, phonePorts, tempDbPath } from "./phone-storage";
+import { openSyncStore, openTempDb, phonePorts, tempDbPath } from "./phone-storage";
 
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
@@ -37,7 +36,7 @@ const launch = (fetch: CloudFetch, db: SqlDriver) => {
         fetch,
       }),
     pollIntervalMs: null,
-    store: createMemorySyncStore(),
+    store: openSyncStore(db),
   });
   const store = createNotesStore({ ...phonePorts(), db, session: sync.session });
   sync.setCredential(CREDENTIAL);

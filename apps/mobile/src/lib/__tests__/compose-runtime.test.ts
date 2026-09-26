@@ -100,6 +100,11 @@ const queuedRows = async (db: SqlDriver): Promise<number> => {
   return z.object({ queued: z.number() }).parse(row).queued;
 };
 
+const threadRows = async (db: SqlDriver): Promise<number> => {
+  const [row] = await db.all("SELECT count(*) AS held FROM thread_events");
+  return z.object({ held: z.number() }).parse(row).held;
+};
+
 const dispatchRows = async (db: SqlDriver): Promise<number> => {
   const [row] = await db.all("SELECT count(*) AS queued FROM dispatch_outbox");
   return z.object({ queued: z.number() }).parse(row).queued;
@@ -137,6 +142,33 @@ const mirrorOnce = async (rt: Runtime): Promise<void> => {
   await until(rt.notes.tree, (tree) => tree.state === "ready" && tree.progress === null);
   await rt.notes.refresh();
   expect(await rt.notes.attachmentFile("media/photo.png")).toMatchObject({ ok: true });
+};
+
+// a cloud whose log holds one answer from the Mac
+const threadCloud = (): FakeCloud => {
+  const cloud = createFakeCloud();
+  cloud.pullResults.push(
+    ok({
+      events: [
+        logRow({
+          deviceId: "dev_other",
+          deviceSeq: 0,
+          event: agentMessage("thr_x", "t1", "m1", "from the Mac"),
+          seq: 1,
+        }),
+      ],
+      hasMore: false,
+      lastSeq: 1,
+    }),
+  );
+  return cloud;
+};
+
+// signed in and pulled once, so a wipe has a thread to take
+const pulledOnce = async (rt: Runtime): Promise<void> => {
+  await rt.start();
+  await until(rt.sync, (status) => status.state === "signed-in" && status.cursor === 1);
+  expect(rt.store.snapshotThread("thr_x")?.events).toHaveLength(1);
 };
 
 describe("the composed runtime", () => {
@@ -319,6 +351,70 @@ describe("the phone's note mirror across sign-ins", () => {
     await vi.waitFor(async () => {
       expect(await heldRows(storage.db)).toBe(0);
       expect(storage.attachments.names()).toEqual([]);
+    });
+  });
+});
+
+describe("the phone's threads across sign-ins", () => {
+  it("keeps them across a relaunch, listed before any request lands", async () => {
+    const file = tempDbPath();
+    await pulledOnce(
+      runtimeOver(threadCloud(), keychain(CRED).store, phoneStorage(openTempDb(file))),
+    );
+
+    const offline = createFakeCloud({
+      pull: async () => ({ failure: { kind: "unreachable", message: "offline" }, ok: false }),
+    });
+    const relaunched = runtimeOver(offline, keychain(CRED).store, phoneStorage(openTempDb(file)));
+    await relaunched.start();
+
+    expect(relaunched.store.snapshotThread("thr_x")?.events).toHaveLength(1);
+    expect(relaunched.sync.get()).toMatchObject({ cursor: 1, state: "signed-in" });
+  });
+
+  it("wipes them on signing out", async () => {
+    const storage = phoneStorage();
+    const rt = runtimeOver(threadCloud(), keychain(CRED).store, storage);
+    await pulledOnce(rt);
+
+    await rt.logout();
+
+    expect(rt.store.snapshotThreads()).toStrictEqual([]);
+    expect(await threadRows(storage.db)).toBe(0);
+  });
+
+  it("wipes them on signing in, and the new sign-in starts at the log's first row", async () => {
+    const storage = phoneStorage();
+    const rt = runtimeOver(threadCloud(), keychain(CRED).store, storage);
+    await pulledOnce(rt);
+    vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
+    try {
+      await rt.login.login({
+        deviceName: "phone",
+        email: "me@example.test",
+        password: "a".repeat(12),
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(rt.sync.get()).toMatchObject({ cursor: 0, deviceId: OTHER_CRED.deviceId });
+    expect(rt.store.snapshotThreads()).toStrictEqual([]);
+    expect(await threadRows(storage.db)).toBe(0);
+  });
+
+  it("wipes them when a pull hears the device was signed out", async () => {
+    const storage = phoneStorage();
+    const cloud = threadCloud();
+    const rt = runtimeOver(cloud, keychain(CRED).store, storage);
+    await pulledOnce(rt);
+
+    cloud.pullResults.push(UNAUTHORIZED);
+    await rt.sync.syncNow();
+
+    expect(rt.store.snapshotThreads()).toStrictEqual([]);
+    await vi.waitFor(async () => {
+      expect(await threadRows(storage.db)).toBe(0);
     });
   });
 });

@@ -13,7 +13,6 @@ import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client"
 import type { CloudClient, CloudFailure, CloudResult } from "@repo/api/cloud/client";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
-import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
 
 // restoring: no credential has been handed over yet, because the boot read of the stored one is
@@ -33,7 +32,9 @@ export type SyncStatus =
 const POLL_INTERVAL_MS = 60_000;
 
 export interface SyncRuntimeArgs {
-  store: SyncStore;
+  // never reset here: whether a credential is a restore or a new sign-in is the composition root's
+  // to say, and only a restore keeps what the store holds
+  store: Pick<SyncStore, "applyPlan" | "readCursor">;
   cloudUrl: string;
   createClient?: (credential: DeviceCredential) => CloudClient;
   pollIntervalMs?: number | null;
@@ -164,8 +165,8 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
     }
     const sessionId = current.id;
     const outcome = await pullPages({
-      applyPlan: (steps) => {
-        applyPlan(args.store, steps);
+      applyPlan: async (steps) => {
+        await args.store.applyPlan(steps);
       },
       client: current.client,
       fenced: () => session.fenced(sessionId),
@@ -243,8 +244,6 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
         void signOutBestEffort(current.credential);
       }
       clearTimer();
-      // a different credential may be a different account; the cursor and log must not carry over.
-      args.store.reset();
       lastError = null;
       lastSyncedAt = null;
       if (next === null) {
