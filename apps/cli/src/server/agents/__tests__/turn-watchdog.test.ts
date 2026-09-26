@@ -26,6 +26,8 @@ afterEach(() => {
 });
 
 const fakeGitEngine = (): GitEngine => ({
+  checkpointUnclaimed: async () => await Promise.resolve(null),
+  claimedPaths: () => [],
   commitNow: async () => await Promise.resolve(null),
   commitPaths: async () => await Promise.resolve(null),
   deleted: async () => await Promise.resolve([]),
@@ -33,7 +35,7 @@ const fakeGitEngine = (): GitEngine => ({
     await Promise.resolve();
   },
   history: async () => await Promise.resolve([]),
-  holdCommits: () => () => {},
+  holdCommits: () => ({ claim: () => {}, release: () => {} }),
   isSyncing: () => false,
   revision: async () => await Promise.resolve(""),
   runExclusive: async (work) => await work(),
@@ -43,6 +45,7 @@ const fakeGitEngine = (): GitEngine => ({
     await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
   syncNow: async () =>
     await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+  turnCommits: async () => await Promise.resolve([]),
 });
 
 const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>): AgentRuntime => ({

@@ -1,20 +1,15 @@
 // a turn holds commits before its first write, so the debounce and the sync loop cannot sweep agent writes into
 // an engine-attributed commit mid-turn; callers await `ready` before letting the provider write, so nothing lands
-// inside a rebase's checkout window.
+// inside a rebase's checkout window. `ready` is also the turn's checkpoint: whatever the user had not yet
+// committed lands first, as the engine, so an undo that reverts to the turn commit's parent keeps it.
 
 import { realpathSync } from "node:fs";
 import nodePath from "node:path";
+import type { DbNotifier } from "@repo/domain/notifier";
+import { messageOf } from "../error-message";
 import { relativeUnder } from "../path-containment";
 import type { GitEngine } from "../vault/git-engine";
-import type { CommitAuthor } from "../vault/git-run";
-
-const AGENT_COMMIT_AUTHOR: CommitAuthor = {
-  email: "agent@inteligir.local",
-  name: "inteligir-agent",
-};
-
-const agentCommitSubject = (threadId: string): string =>
-  `agent: vault update\n\nThread: ${threadId}`;
+import { AGENT_COMMIT_AUTHOR, agentCommitMessage } from "../vault/turn-trailers";
 
 export type VaultPathResolver = (reported: string) => string | null;
 
@@ -52,20 +47,28 @@ export interface AgentTurnWrites {
 
 export interface AgentTurnWritesArgs {
   git: GitEngine;
+  notifier: DbNotifier;
   threadId: string;
   turnId: string;
+  onError?: (message: string) => void;
 }
 
 export const beginAgentTurnWrites = (args: AgentTurnWritesArgs): AgentTurnWrites => {
-  const release = args.git.holdCommits();
+  const hold = args.git.holdCommits();
   const writeSet = new Set<string>();
   let finished = false;
 
-  // a no-op behind the repo lock waits out a locked step of an in-flight pass, its rebase included; a pass still
-  // fetching meets the hold above before its rebase and ends there, and the hold stops the next one from starting.
-  const settled = args.git.runExclusive(async () => {
-    /* empty */
-  });
+  // behind the repo lock, so it also waits out a locked step of an in-flight pass, its rebase
+  // included; a pass still fetching meets the hold above before its rebase and ends there, and the
+  // hold stops the next one from starting. a failed checkpoint costs the turn's commit a parent
+  // holding the user's latest edits, never the turn itself.
+  const ready = (async () => {
+    try {
+      await args.git.checkpointUnclaimed();
+    } catch (error) {
+      args.onError?.(`the checkpoint before turn ${args.turnId} failed: ${messageOf(error)}`);
+    }
+  })();
 
   return {
     async finish() {
@@ -75,18 +78,24 @@ export const beginAgentTurnWrites = (args: AgentTurnWritesArgs): AgentTurnWrites
       finished = true;
       try {
         if (writeSet.size > 0) {
-          await args.git.commitPaths(
+          const committed = await args.git.commitPaths(
             [...writeSet],
             AGENT_COMMIT_AUTHOR,
-            agentCommitSubject(args.threadId),
+            agentCommitMessage(args.threadId, args.turnId),
           );
+          // the turn settles before its commit lands, so a window reading the turn's changes
+          // on its settle would read the log without them.
+          if (committed !== null) {
+            args.notifier.notifyThread(args.threadId, ["changes-committed"]);
+          }
         }
       } finally {
-        release();
+        hold.release();
       }
     },
-    ready: settled,
+    ready,
     recordPaths(paths) {
+      hold.claim(paths);
       for (const path of paths) {
         writeSet.add(path);
       }

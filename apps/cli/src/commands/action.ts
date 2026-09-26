@@ -8,6 +8,7 @@ import type {
   ListThreadsQuery,
   PendingInteraction,
   Thread,
+  TurnChanges,
 } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger, parsePositiveNumber } from "../args";
@@ -61,6 +62,11 @@ const describeStop = (body: InterruptThreadResponse): string => {
   }
 };
 
+const turnChangeLines = (turn: TurnChanges): string[] => [
+  `${turn.turnId}  ${turn.state}`,
+  ...turn.paths.map((changed) => `  ${changed}`),
+];
+
 const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
   interactions.filter((row) => row.status === "pending").map((row) => row.id);
 
@@ -100,6 +106,29 @@ export const actionCommand = (deps: CliDeps) =>
             return;
           }
           out.success(`Archived ${body.thread.id}`);
+        },
+      }),
+
+      changes: defineCommand({
+        args: {
+          id: { description: "The thread id", required: true, type: "positional" },
+          ...jsonArg,
+        },
+        meta: {
+          description: "The vault paths each turn changed, oldest first, and whether it was undone",
+          name: "changes",
+        },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const body = await api.threads.turnChanges({ threadId: args.id });
+          if (outputJson(args, body)) {
+            return;
+          }
+          if (body.turns.length === 0) {
+            out.info(`No turn of ${args.id} changed the vault.`);
+            return;
+          }
+          writeLines(body.turns.flatMap(turnChangeLines));
         },
       }),
 

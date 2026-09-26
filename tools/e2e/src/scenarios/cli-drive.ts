@@ -18,9 +18,12 @@ const SEARCH_DEADLINE_MS = 30_000;
 const searchOutputSchema = z.looseObject({ results: z.array(z.unknown()) });
 const searchHitSchema = z.looseObject({ path: z.string() });
 const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string() }) });
+const turnChangesOutputSchema = z.looseObject({
+  turns: z.array(z.looseObject({ paths: z.array(z.string()), state: z.string() })),
+});
 
 export const cliDrive: Scenario = {
-  description: "the CLI drives a real instance: vault write, search, action new+wait+show",
+  description: "the CLI drives a real instance: vault write, search, action new+wait+show+changes",
   name: "cli-drive",
   // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
   // the packed tarball pnpm smoke:cli's.
@@ -100,6 +103,15 @@ export const cliDrive: Scenario = {
     expect(
       shown.stdout.includes(`~ add Agent/${threadId}.md`),
       "the scripted driver's file change is rendered",
+    );
+
+    ctx.log("changes names what the turn committed");
+    const changes = await cli("action", "changes", threadId, "--json");
+    const changed = turnChangesOutputSchema.safeParse(JSON.parse(changes.stdout));
+    expectEq(
+      changed.data?.turns.map((turn) => `${turn.state} ${turn.paths.join(",")}`).join("\n"),
+      `applied Agent/${threadId}.md`,
+      "the one turn, applied, and the note it wrote",
     );
 
     ctx.log("status reports the scripted agent");

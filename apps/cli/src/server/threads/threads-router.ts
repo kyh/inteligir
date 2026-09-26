@@ -87,6 +87,14 @@ const timeline = base.threads.timeline.handler(({ context, input, errors }) => {
   return response;
 });
 
+const turnChanges = base.threads.turnChanges.handler(async ({ context, input, errors }) => {
+  const changes = await context.turnChanges(input.threadId);
+  if (changes === null) {
+    throw errors.NOT_FOUND({ message: THREAD_NOT_FOUND });
+  }
+  return changes;
+});
+
 const listInteractions = base.threads.listInteractions.handler(({ context, input }) => ({
   interactions: context.threads.listInteractions(input.threadId),
 }));
@@ -120,4 +128,5 @@ export const threadsRouter = {
   listInteractions,
   send,
   timeline,
+  turnChanges,
 };

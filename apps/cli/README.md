@@ -82,7 +82,7 @@ agent shells are given.
 list|read|history|revision|restore|write|rename|delete|deleted|mkdir|attachments|open|status|sync`
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
 `unlinked` · `problems` · `tags` · `tag notes|rename` · `action
-list|new|send|show|stop|wait|archive` · `comment list|add|reply|resolve|remove` ·
+list|new|send|show|stop|wait|archive|changes` · `comment list|add|reply|resolve|remove` ·
 `interactions list|answer` · `agents list|default` · `connectors
 list|add|remove` · `folders list|add|remove` · `cloud status|login|sync` ·
 `status` · `guide`.

@@ -252,7 +252,7 @@ describe("a thread change", () => {
     "title-changed",
   ];
   const MOVES_DETAIL_ALONE: readonly ThreadChangeKind[] = ["queue-changed", "interactions-changed"];
-  const MOVES_NEITHER: readonly ThreadChangeKind[] = ["events-appended"];
+  const MOVES_NEITHER: readonly ThreadChangeKind[] = ["events-appended", "changes-committed"];
 
   it("weighs every kind in the vocabulary here too", () => {
     expect([...MOVES_LIST_AND_DETAIL, ...MOVES_DETAIL_ALONE, ...MOVES_NEITHER].toSorted()).toEqual(

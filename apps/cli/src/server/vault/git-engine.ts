@@ -14,8 +14,9 @@ import {
   readDeletedNotes,
   readNoteHistory,
   readNoteRevision,
+  readTurnCommits,
 } from "./git-history";
-import type { NoteHistoryPage } from "./git-history";
+import type { NoteHistoryPage, TurnCommit } from "./git-history";
 import { entryPaths, isUnmerged, readPorcelain } from "./git-porcelain";
 import type { PorcelainEntry } from "./git-porcelain";
 import {
@@ -66,10 +67,16 @@ export interface GitEngineArgs {
   maxPushBytes?: number;
 }
 
+interface CommitHold {
+  // the paths the holding turn wrote, which a checkpoint leaves to the turn's own commit.
+  claim: (paths: readonly string[]) => void;
+  release: () => void;
+}
+
 export interface GitEngine {
   // the flush stages the window's union of paths; no paths means "whatever is dirty" and makes
   // the whole window's flush unscoped. a change nobody announced waits for a whole-tree caller
-  // (a sync pass, an unscoped commitNow, shutdown, the next boot).
+  // (a sync pass, an unscoped commitNow, a turn's checkpoint, shutdown, the next boot).
   scheduleCommit: (paths?: readonly string[]) => void;
   // with paths, only those, as the engine and allowed under a hold: a checkpoint of one note must
   // leave a running turn's writes to the turn's own commit. without, the whole dirty tree.
@@ -81,13 +88,18 @@ export interface GitEngine {
     author: CommitAuthor,
     subject: string,
   ) => Promise<{ files: number } | null>;
-  // counted: overlapping turns each take their own hold. returns the release.
-  holdCommits: () => () => void;
+  // counted: overlapping turns each take their own hold and claim their own writes.
+  holdCommits: () => CommitHold;
+  // the dirty tree less every live claim, as the engine and allowed under a hold: a turn starts
+  // here, so the parent of its commit holds whatever the user had not yet committed.
+  checkpointUnclaimed: () => Promise<{ files: number } | null>;
+  claimedPaths: () => string[];
   // off the repo lock: log and cat-file never touch the index. a read inside a rebase sees its
   // temporary head.
   history: (path: string, page: NoteHistoryPage) => Promise<VaultRevision[]>;
   revision: (path: string, sha: string) => Promise<string>;
   deleted: () => Promise<VaultDeletedEntry[]>;
+  turnCommits: (threadId: string, sinceMs: number) => Promise<TurnCommit[]>;
   syncNow: () => Promise<VaultStatusResponse>;
   status: () => Promise<VaultStatusResponse>;
   isSyncing: () => boolean;
@@ -240,9 +252,48 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return { files: dirty.length };
   };
 
-  // a held flush is re-armed on release; the release path's own commitPaths usually beats it.
-  let commitHoldCount = 0;
+  // each live hold's claims. a held flush is re-armed on release; the release path's own
+  // commitPaths usually beats it.
+  const liveHolds = new Set<Set<string>>();
   let flushDeferredWhileHeld = false;
+
+  const claimedPaths = (): string[] => [
+    ...new Set([...liveHolds].flatMap((claims) => [...claims])),
+  ];
+
+  const stagedPaths = async (paths: readonly string[] = []): Promise<string[]> => {
+    const { stdout } = await run([
+      "diff",
+      "--cached",
+      "--name-only",
+      "-z",
+      "--no-renames",
+      "--",
+      ...paths,
+    ]);
+    return stdout.split("\0").filter((staged) => staged.length > 0);
+  };
+
+  const commitUnclaimed = async (): Promise<{ files: number } | null> => {
+    const claimed = claimedPaths();
+    if (claimed.length === 0) {
+      return await commitIfDirty();
+    }
+    // an :(exclude) pathspec is magic, which --literal-pathspecs turns off, and naming every
+    // unclaimed path is the argv a large vault's first commit would overflow: the whole tree is
+    // staged and the claims taken back out.
+    await run(["add", "-A"]);
+    const claimedStaged = await stagedPaths(claimed);
+    if (claimedStaged.length > 0) {
+      await run(["reset", "-q", "--", ...claimedStaged]);
+    }
+    const staged = await stagedPaths();
+    if (staged.length === 0) {
+      return null;
+    }
+    await commit(autoCommitSubject(staged));
+    return { files: staged.length };
+  };
 
   // null means "whatever is dirty"; one unscoped call in the window decides the whole flush.
   let pendingCommitPaths: Set<string> | null = new Set();
@@ -285,7 +336,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       if (disposed) {
         return;
       }
-      if (commitHoldCount > 0) {
+      if (liveHolds.size > 0) {
         flushDeferredWhileHeld = true;
         return;
       }
@@ -295,19 +346,27 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     },
   });
 
-  const holdCommits = (): (() => void) => {
-    commitHoldCount += 1;
-    let released = false;
-    return () => {
-      if (released) {
-        return;
-      }
-      released = true;
-      commitHoldCount -= 1;
-      if (commitHoldCount === 0 && flushDeferredWhileHeld) {
-        flushDeferredWhileHeld = false;
-        commitScheduler.schedule();
-      }
+  const holdCommits = (): CommitHold => {
+    const claims = new Set<string>();
+    liveHolds.add(claims);
+    return {
+      claim(paths) {
+        if (!liveHolds.has(claims)) {
+          return;
+        }
+        for (const claimed of paths) {
+          claims.add(claimed);
+        }
+      },
+      release() {
+        if (!liveHolds.delete(claims)) {
+          return;
+        }
+        if (liveHolds.size === 0 && flushDeferredWhileHeld) {
+          flushDeferredWhileHeld = false;
+          commitScheduler.schedule();
+        }
+      },
     };
   };
 
@@ -537,7 +596,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const integrateFetched = async (branch: string, remoteHasBranch: boolean): Promise<boolean> => {
     // the lock was free across the fetch: a turn may have taken its hold and begun writing,
     // and a dispose may have run the final flush.
-    if (disposed || commitHoldCount > 0) {
+    if (disposed || liveHolds.size > 0) {
       return false;
     }
     // a save that landed during the fetch would refuse the rebase as unstaged changes.
@@ -687,7 +746,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (outcome.kind === "conflict") {
       return { ...fields, conflict: outcome.recorded.conflict, state: "conflict" };
     }
-    if (commitHoldCount > 0) {
+    if (liveHolds.size > 0) {
       return { ...fields, state: "held" };
     }
     switch (outcome.kind) {
@@ -727,7 +786,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     // says "held" rather than reporting clean as if a pass ran. the provider is read once so
     // the gate and the pass agree on the remote.
     const remote = args.remote();
-    if (remote === null || lastOutcome.kind === "broken" || commitHoldCount > 0) {
+    if (remote === null || lastOutcome.kind === "broken" || liveHolds.size > 0) {
       return await statusSnapshot();
     }
     syncing = true;
@@ -747,6 +806,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   };
 
   return {
+    async checkpointUnclaimed() {
+      return await withRepoLock(commitUnclaimed);
+    },
+    claimedPaths,
     async commitNow(paths?: readonly string[]) {
       return await withRepoLock(
         async () =>
@@ -801,5 +864,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     },
     status: statusSnapshot,
     syncNow,
+    async turnCommits(threadId, sinceMs) {
+      return await readTurnCommits(run, { since: sinceMs, threadId });
+    },
   };
 };

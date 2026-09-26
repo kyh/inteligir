@@ -55,6 +55,7 @@ const isCommentsStorePath = (path: string): boolean => path.startsWith(`${COMMEN
 // their only reader, and a refetch of every thread per frame is what these tables refuse.
 const MOVES_THE_LIST = {
   "archived-changed": true,
+  "changes-committed": false,
   "events-appended": false,
   "interactions-changed": false,
   "origin-changed": true,
@@ -66,6 +67,7 @@ const MOVES_THE_LIST = {
 
 const MOVES_THE_DETAIL = {
   "archived-changed": true,
+  "changes-committed": false,
   "events-appended": false,
   "interactions-changed": true,
   "origin-changed": true,

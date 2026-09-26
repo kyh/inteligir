@@ -212,6 +212,11 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   (\`CONFLICT\`).
 - \`inteligir action archive <id>\` — archive an action, stopping a turn it is
   running.
+- \`inteligir action changes <id>\` — the vault paths each of the action's
+  turns changed, oldest first, each turn \`applied\` or \`undone\`. A turn counts
+  the files it reported writing (its file changes and its own \`inteligir\`
+  writes), never an edit made beside it; a turn that changed nothing is not
+  listed.
 
 The spawn-and-wait loop an agent should use:
 

@@ -85,6 +85,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
   if (mode === "scripted") {
     const scripted: ScriptedDriverDeps = {
       git: args.vault.git,
+      notifier: args.notifier,
       onError: onDebug,
       vault: args.vault.service,
     };

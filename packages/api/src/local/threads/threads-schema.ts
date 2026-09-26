@@ -253,6 +253,25 @@ export const timelineResponseSchema = z.discriminatedUnion("kind", [
 ]);
 export type TimelineResponse = z.infer<typeof timelineResponseSchema>;
 
+// undone: a later commit reverted the turn's changes.
+export const turnChangeStateSchema = z.enum(["applied", "undone"]);
+export type TurnChangeState = z.infer<typeof turnChangeStateSchema>;
+
+export const turnChangesSchema = z
+  .object({
+    // every path the turn's commit added, edited or deleted; a move is the path it left and the
+    // path it made.
+    paths: z.array(z.string().min(1)),
+    state: turnChangeStateSchema,
+    turnId: z.string().min(1),
+  })
+  .strict();
+export type TurnChanges = z.infer<typeof turnChangesSchema>;
+
+// oldest first, only the turns that committed a change.
+export const turnChangesResponseSchema = z.object({ turns: z.array(turnChangesSchema) }).strict();
+export type TurnChangesResponse = z.infer<typeof turnChangesResponseSchema>;
+
 export const answerInteractionRequestSchema = z
   .object({
     interactionId: z.string().min(1),
