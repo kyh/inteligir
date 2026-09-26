@@ -47,7 +47,6 @@ const bootScripted = async (): Promise<BootedTestApp> =>
           vaultDir,
         },
         db,
-        mcpServers: () => [],
         notifier: bus,
         sessionFacts: () => fakeSessionFacts(),
         vault,

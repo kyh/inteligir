@@ -5,6 +5,7 @@ import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createAcpAgentRuntime } from "../acp-runtime";
 import type { AcpAgentRuntimeOptions } from "../acp-runtime";
+import { HARNESS_IDS } from "../harness-registry";
 import type { HarnessId, HarnessModels } from "../harness-registry";
 
 // each adapter is a child that exits before the handshake: the env it was handed is the whole
@@ -73,6 +74,42 @@ describe("an adapter's spawn env", () => {
     expect(path.basename(codexPath)).toMatch(/^codex(?:\.exe)?$/u);
     expect(existsSync(codexPath)).toBe(true);
     expect(envs.get("claude")?.CODEX_PATH).toBeUndefined();
+  });
+
+  // the vendor's own config under these dirs is the only MCP config a session loads, so an adapter
+  // pointed anywhere else would read servers the user never added.
+  it("hands every adapter the host's vendor config dirs unchanged", async () => {
+    const dirs = {
+      CLAUDE_CONFIG_DIR: "/Users/someone/.config/claude",
+      CODEX_HOME: "/Users/someone/.config/codex",
+      HOME: "/Users/someone",
+    };
+    for (const [name, value] of Object.entries(dirs)) {
+      vi.stubEnv(name, value);
+    }
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    const envs = await spawnedEnvs({ claude: "claude-model-x", codex: "codex-model-y" });
+    for (const id of HARNESS_IDS) {
+      expect(envs.get(id)).toMatchObject(dirs);
+    }
+  });
+
+  it("names no vendor config dir the host did not", async () => {
+    for (const name of ["CLAUDE_CONFIG_DIR", "CODEX_HOME"]) {
+      // oxlint-disable-next-line unicorn/no-useless-undefined -- stubEnv unsets a variable only when handed undefined
+      vi.stubEnv(name, undefined);
+    }
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    const envs = await spawnedEnvs({ claude: null, codex: null });
+    for (const id of HARNESS_IDS) {
+      expect(envs.get(id)).not.toHaveProperty("CLAUDE_CONFIG_DIR");
+      expect(envs.get(id)).not.toHaveProperty("CODEX_HOME");
+      expect(envs.get(id)?.HOME).toBe(process.env.HOME);
+    }
   });
 
   it("keeps a codex the host already named", async () => {

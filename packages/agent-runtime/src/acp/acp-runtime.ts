@@ -14,7 +14,6 @@ import type {
   AgentCapabilities,
   ClientConnection,
   ContentBlock,
-  McpServer,
   NewSessionRequest,
   RequestPermissionRequest,
   RequestPermissionResponse,
@@ -70,15 +69,8 @@ export interface AcpSpawnedAdapter {
   child: AdapterProcess;
 }
 
-export type AcpMcpServerConfig =
-  | { name: string; kind: "stdio"; command: string; args: string[] }
-  | { name: string; kind: "http"; url: string; headers?: Record<string, string> };
-
 export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   models?: HarnessModels;
-  // a getter, so a registry edit reaches the next session; async so an OAuth row can refresh its
-  // token.
-  mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   spawnAdapter?: (
     harness: HarnessDefinition,
     env: Record<string, string>,
@@ -507,23 +499,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     return session;
   };
 
-  const sessionMcpServers = async (): Promise<McpServer[]> => {
-    const rows = (await options.mcpServers?.()) ?? [];
-    return rows.map((row): McpServer => {
-      if (row.kind === "stdio") {
-        return { args: row.args, command: row.command, env: [], name: row.name };
-      }
-      return {
-        headers: Object.entries(row.headers ?? {}).map(([name, value]) => ({ name, value })),
-        name: row.name,
-        type: "http",
-        url: row.url,
-      };
-    });
-  };
-
   // one shape for session/new and session/load: a resumed session must not open with less.
-  const sessionOpen = async (harness: HarnessDefinition): Promise<NewSessionRequest> => {
+  const sessionOpen = (harness: HarnessDefinition): NewSessionRequest => {
     const refused = harness.refusedVaultEntries.find((entry) =>
       existsSync(path.join(options.workspacePath, entry)),
     );
@@ -532,7 +509,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
     const open: NewSessionRequest = {
       cwd: options.workspacePath,
-      mcpServers: await sessionMcpServers(),
+      // ACP requires the field, and it stays empty so each vendor loads the servers its own user
+      // config names: one store, the vendor's, rather than a second list beside it.
+      mcpServers: [],
     };
     if (harness.sessionMeta !== null) {
       // spread: ACP types `_meta` as an open record, which an interface does not satisfy.
@@ -544,7 +523,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   const newSession = async (adapter: AcpAdapter): Promise<ResumeThreadResult> => {
     const response = await adapter.connection.agent.request(
       "session/new",
-      await sessionOpen(adapter.harness),
+      sessionOpen(adapter.harness),
     );
     return { loaded: false, providerThreadId: response.sessionId };
   };
@@ -659,7 +638,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         }
         try {
           await adapter.connection.agent.request("session/load", {
-            ...(await sessionOpen(adapter.harness)),
+            ...sessionOpen(adapter.harness),
             sessionId: providerThreadId,
           });
           return { loaded: true, providerThreadId };

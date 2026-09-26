@@ -45,7 +45,6 @@ describe("ACP runtime shell env wiring", () => {
           defaultProviderId: () => "claude",
           git: vault.git,
           hostEnv: { PATH: "/usr/bin" },
-          mcpServers: () => [],
           models: { claude: null, codex: null },
           notifier: bus,
           reapIntervalMs: null,

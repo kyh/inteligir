@@ -22,10 +22,8 @@ import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
 import { createConnectorsService } from "./connectors/connectors-service";
-import type { ConnectorsService } from "./connectors/connectors-service";
 import { ConnectorsStore } from "./connectors/connectors-store";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
-import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
 import { debugLog } from "./debug-log";
 import { messageOf } from "./error-message";
 import { createFoldersService } from "./folders/folders-service";
@@ -63,8 +61,6 @@ interface ComposeDriverDeps {
   db: DbConnection;
   bus: WsBus;
   vault: VaultRuntime;
-  connectors: ConnectorsService;
-  connectorsOauth: ConnectorOauthFlow;
   folders: FoldersService;
   agentPrefs: AgentPrefsStore;
 }
@@ -176,6 +172,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const connectorsStore = new ConnectorsStore(config.dataDir);
   const connectors = createConnectorsService(connectorsStore);
   const connectorsOauth = createConnectorOauthFlow(connectorsStore);
+  register("connectors", () => {
+    connectorsOauth.dispose();
+  });
   const folders = createFoldersService({
     dataDir: config.dataDir,
     store: new FoldersStore(config.dataDir),
@@ -187,15 +186,11 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     agentPrefs,
     bus,
     config,
-    connectors,
-    connectorsOauth,
     db,
     folders,
     vault,
   });
   register("agent", async () => {
-    // the oauth flow serves agent sessions, so it stops with them.
-    connectorsOauth.dispose();
     await agentDriver.accounts.dispose();
     await agentDriver.dispose();
   });

@@ -108,7 +108,6 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     defaultProviderId: () => "claude",
     git: fakeGitEngine(),
     hostEnv: {},
-    mcpServers: () => [],
     models: { claude: null, codex: null },
     notifier: noopNotifier,
     reapIntervalMs: null,

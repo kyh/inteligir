@@ -7,10 +7,7 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
-import type {
-  AcpAgentRuntimeOptions,
-  AcpMcpServerConfig,
-} from "@repo/agent-runtime/acp/acp-runtime";
+import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
@@ -26,7 +23,6 @@ import type { AgentAccounts } from "./agent-sign-in";
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModels" | "vaultDir">;
-  mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
@@ -116,7 +112,6 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     defaultProviderId,
     git: args.vault.git,
     hostEnv: env,
-    mcpServers: args.mcpServers,
     models: args.config.agentModels,
     notifier: args.notifier,
     onDebug,

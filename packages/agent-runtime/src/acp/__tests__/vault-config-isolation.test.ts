@@ -83,11 +83,11 @@ const stubEnv = (vars: Record<string, string>): void => {
 
 const sessionOpenSchema = z.object({
   method: z.enum(["session/new", "session/load"]),
-  params: z.object({ _meta: z.unknown().optional() }),
+  params: z.object({ _meta: z.unknown().optional(), mcpServers: z.array(z.unknown()) }),
 });
 
 describe("a session open", () => {
-  it("carries the harness's session meta on session/new and session/load alike", async () => {
+  it("carries the harness's session meta and no MCP server on session/new and session/load alike", async () => {
     const dir = scratchDir();
     const recordOf = (id: string): string => path.join(dir, `${id}.ndjson`);
     const runtime = runtimeFor(dir, (harness, env) => ({
@@ -108,6 +108,7 @@ describe("a session open", () => {
       expect(opens.map((open) => open.method)).toEqual(["session/new", "session/load"]);
       for (const open of opens) {
         expect(open.params._meta).toEqual(HARNESSES[id].sessionMeta ?? undefined);
+        expect(open.params.mcpServers).toEqual([]);
       }
     }
   });
