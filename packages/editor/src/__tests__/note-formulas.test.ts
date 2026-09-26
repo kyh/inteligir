@@ -1,9 +1,8 @@
-import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
+import { createNoteFormulas } from "@repo/editor/note-formulas";
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { describe, expect, it } from "vitest";
 
-import { createNoteFormulas } from "../note-formulas";
-
-const LISTING: readonly WikiTargetWire[] = [
+const LISTING: readonly WikiTarget[] = [
   { id: "id-a", path: "a.md", title: "a", type: "doc" },
   { id: "id-b", path: "b.md", title: "b", type: "doc" },
   { id: "id-c", path: "c.md", title: "c", type: "doc" },
@@ -17,7 +16,7 @@ const DISK = new Map([
   ["Projects/Plan copy.md", "---\nid: id-plan\n---\n\n{{5|5|id=fp;name=plan}}\n"],
 ]);
 
-const overVault = (listing: readonly WikiTargetWire[] = LISTING) => {
+const overVault = (listing: readonly WikiTarget[] = LISTING) => {
   const reads: string[] = [];
   const formulas = createNoteFormulas({
     listTargets: async () => await Promise.resolve(listing),

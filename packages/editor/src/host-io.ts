@@ -49,8 +49,9 @@ export interface LinkResolver {
   targets: readonly WikiTarget[];
 }
 
-// The read half only: the app owns the writer. A store rather than a field because the resolver
-// is rebuilt on every vault refresh while the actions never change, so only its readers re-render.
+// The read half only: the host feeds the writer (`link-resolver-store.ts`). A store rather than a
+// field because the resolver is rebuilt on every vault refresh while the actions never change, so
+// only its readers re-render.
 export type LinkResolverStore = Pick<
   StoreApi<LinkResolver>,
   "getState" | "getInitialState" | "subscribe"

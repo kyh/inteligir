@@ -184,12 +184,15 @@ packages/
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note
                  runtime (vault-session/note-runtime/open-note-store) the app
-                 drives through two seams, `VaultSessionPorts`
-                 (note/vault-session.ts) and the `EditorHostIo` singleton
-                 (host-io.ts, opened to React by host.ts), plus the note-level
-                 verbs the shell reaches by path and the action registry a
-                 deep node asks the shell through (`agent-request`; the
-                 comment surface keeps its own, `CommentActions`).
+                 drives through three seams, `VaultSessionPorts`
+                 (note/vault-session.ts), the `GuardedVaultPort` its one write
+                 policy runs over (guarded-vault-io.ts) and the `EditorHostIo`
+                 singleton (host-io.ts, opened to React by host.ts; the link
+                 resolver store and note formulas it carries live here too, so
+                 no host writes its own), plus the note-level verbs the shell
+                 reaches by path and the action registry a deep node asks the
+                 shell through (`agent-request`; the comment surface keeps its
+                 own, `CommentActions`).
                  `node-props.ts` is the SLATE DECODE BOUNDARY: a node's dialect
                  fields ride `TElement`'s open index signature, so every read
                  arrives as `unknown` and this is the one place it becomes a
@@ -449,8 +452,8 @@ to the END of its group.
 
 - **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S NOTE IS FOUND BY
   ID.** `@(name#note-id#pill-id)` names its note by frontmatter `id`, which the
-  index's wiki-targets rows carry, so the desktop reads only that note
-  (`apps/desktop/src/renderer/app/note/note-formulas.ts`); reading every doc to
+  index's wiki-targets rows carry, so a host reads only that note
+  (`packages/editor/src/note-formulas.ts`); reading every doc to
   find one id is rejected, since a recompute runs after each typing pause. The
   walk follows refs up to 64 deep (`@repo/notes/formulas/resolve-graph`). The
   display a recompute rewrites lands outside the undo history: the user never
@@ -595,8 +598,12 @@ to the END of its group.
   onto them, because a buffer kept over a merged base passes the next CAS
   without the external edit. Every error a vault row declares has a producer
   (`apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`), since
-  a code no handler raises is a client branch that never runs.
-  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`,
+  a code no handler raises is a client branch that never runs. The diff3-on-409
+  policy is the editor's, run by every host over its own `GuardedVaultPort`,
+  because two write policies are two answers to what a stale save does; a
+  host's adapter only turns the base into its store's CAS token (the desktop's
+  hashes it, `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`).
+  `packages/editor/src/guarded-vault-io.ts`,
   `packages/editor/src/vault-editor.ts` and `@repo/notes/text/diff3`.
 
 - **A CREATE IS NOT A WRITE WITH AN EMPTY BASE.** Creation sends the `absent`
@@ -608,7 +615,7 @@ to the END of its group.
   answers the existing file's path, and an exclusive create (`createNewFileAt`)
   hands it back for the caller to step past
   (`packages/editor/src/note/vault-session.ts`). The policy is
-  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`.
+  `packages/editor/src/guarded-vault-io.ts`.
 
 - **Containment is PHYSICAL, not lexical.** The vault realpaths the deepest
   existing ancestor and refuses symlinked leaves; a lexical check passes a
@@ -712,11 +719,12 @@ to the END of its group.
 - **A SAVE THAT FAILS IS SAID ONCE AND RETRIED; ONE WHOSE FILE IS GONE IS ASKED
   ABOUT.** A refused write keeps the buffer dirty, said once per failure and
   retried on a backoff, since nothing else re-arms the autosave. A guarded
-  write that finds no file answers `vanished` and is never retried; refusing to
-  leave it would hold the user there for good, so leaving asks: discard, or
-  re-create the note from the buffer. `packages/editor/src/note/note-runtime.ts`,
+  write that finds no file, its merge's retry included, answers `vanished` and
+  is never retried; refusing to leave it would hold the user there for good, so
+  leaving asks: discard, or re-create the note from the buffer.
+  `packages/editor/src/note/note-runtime.ts`,
   `packages/editor/src/note/vault-session.ts` and
-  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`.
+  `packages/editor/src/guarded-vault-io.ts`.
 
 - **A WATCHER EVENT IS A MUTATION'S ECHO ONLY WHILE THE ENTRY IS THE ONE IT
   LEFT, AND A PULL NAMES ITS PATHS.** The runtime drops a watcher event only
@@ -933,11 +941,12 @@ to the END of its group.
   RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the
   scan reads an md url, and the editor reads a link's or an image's url
   through it and resolves it from the note it is written in with the index's
-  own `buildResolver` (`vault-provider.tsx`), so the image Problems calls
-  missing is the one drawn missing and a link's Open follows a vault url in the
-  app, an embedded note's links included; only an http(s) url reaches the
-  browser. An image the resolver misses falls back to a root path, because a
-  pasted asset is on disk before the listing that would resolve it.
+  own `buildResolver` (`packages/editor/src/link-resolver-store.ts`), so the
+  image Problems calls missing is the one drawn missing and a link's Open
+  follows a vault url in the app, an embedded note's links included; only an
+  http(s) url reaches the browser. An image the resolver misses falls back to
+  a root path, because a pasted asset is on disk before the listing that would
+  resolve it.
   `useVaultLinkTarget` in `packages/editor/src/host.ts`,
   `packages/editor/src/nodes/image-node.tsx`, `link-node.tsx` and
   `packages/editor/src/transclusion.tsx`.
