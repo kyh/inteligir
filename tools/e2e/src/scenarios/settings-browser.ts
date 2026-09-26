@@ -5,6 +5,7 @@ import { parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
+import { TOAST } from "../harness/selectors";
 
 // nothing listens on port 1, so every cloud request is refused at once; the credential file alone
 // puts Sign out on screen.
@@ -16,7 +17,6 @@ const STATUS_DEADLINE_MS = 30_000;
 // answers nothing.
 const ALERT_DIALOG = '[role="alertdialog"][data-open]';
 const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null ? "gone" : "present"`;
-const TOAST = "[data-sonner-toast]";
 // by placeholder: the ids are React-minted per mount.
 const NAME_INPUT = 'input[placeholder="context7"]';
 const URL_INPUT = `input[placeholder="${CONNECTOR_URL}"]`;

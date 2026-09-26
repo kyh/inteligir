@@ -66,6 +66,14 @@ describe("bytes already in storage", () => {
     ],
     ["inteligir.spellcheck", "{", PREFS.spellcheck, null],
     [
+      "inteligir.sync-conflict-seen-at",
+      "1790000000000",
+      PREFS.syncConflictSeenAt,
+      1_790_000_000_000,
+    ],
+    ["inteligir.sync-conflict-seen-at", "soon", PREFS.syncConflictSeenAt, null],
+    ["inteligir.sync-conflict-seen-at", "12.5", PREFS.syncConflictSeenAt, null],
+    [
       "inteligir.appearance",
       '{"font":"serif","leading":"relaxed","measure":"wide","size":"large"}',
       PREFS.appearance,
@@ -98,6 +106,7 @@ describe("a write", () => {
     writePref(PREFS.lastOpenNote, "Notes/a.md");
     writePref(PREFS.spellcheck, { enabled: true, languages: [] });
     writePref(PREFS.appearance, { ...APPEARANCE_DEFAULTS, size: "small" });
+    writePref(PREFS.syncConflictSeenAt, 1_790_000_000_000);
 
     expect(stored("inteligir.panel-open")).toBe("true");
     expect(stored("inteligir.related-open")).toBe("false");
@@ -106,6 +115,7 @@ describe("a write", () => {
     expect(stored("inteligir.tree-sort")).toBe("modified");
     expect(stored("inteligir.theme")).toBe("light");
     expect(stored("inteligir.last-open-note")).toBe("Notes/a.md");
+    expect(stored("inteligir.sync-conflict-seen-at")).toBe("1790000000000");
     expect(JSON.parse(stored("inteligir.spellcheck") ?? "null")).toEqual({
       enabled: true,
       languages: [],
