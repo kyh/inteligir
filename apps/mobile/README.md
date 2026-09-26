@@ -380,28 +380,15 @@ that is signed in.
 - **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
   `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
   offline, on Linux and macOS alike.
-- **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
-  actually booting, the held splash and the route guard's redirects, the
-  expo-secure-store Keychain round trip, expo-sqlite and the backup exclusion
-  (both native: a dev client built before them must be rebuilt), the
-  attachment and staged files, the AppState resume and expo-network's
-  reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, the offline
-  check (sync once, airplane mode, cold launch, the notes list, any note and
-  every thread open),
-  photos: from the camera and the library each lands as `assets/<name>.jpg`,
-  about 1 MB or less, with no location in its EXIF, and draws in its note on
-  the Mac, and asking a Mac: Ask agent from a note shows Waiting for your Mac,
-  the desktop runs it and the reply appears after a pull, the composer rides
-  above the keyboard, and quitting the desktop shows the open-inteligir line.
-  The editor: a release build opens a note from `file://` offline; a cold open
-  is editable within a second on 2,000 notes; typing, autocorrect and the
-  keyboard's dictation land once; the selection handles and the edit menu
-  work, with no floating toolbar; the toolbar rides the keyboard; a new note
-  opens with its title focused and the keyboard up; a wiki link pushes and
-  back returns; an external link opens Safari and the WebView never
-  navigates; a chart and tabs refuse edits; a photo inserts downscaled;
-  backgrounding and then killing the app keeps what was typed; a killed
-  content process reloads; dark mode follows the system.
+- **Needs the owner's device / simulator** (no headless Expo boot in CI): the
+  app actually booting, the held splash and the route guard's redirects, the
+  Keychain, expo-sqlite and the backup exclusion, the attachment and staged
+  files, the resume and the reconnect, a live sign-in, an EAS Update landing,
+  the offline check, photos, asking a Mac and the editor on a real WebKit.
+  Each is a check with how to run it and what passing looks like in
+  `docs/releasing.md` § 5, run on every release's internal build; a native
+  module a development build predates needs that build rebuilt
+  (`pnpm --filter @repo/mobile ios`).
 
 ## Dev
 
@@ -431,17 +418,19 @@ physical phone needs a URL it can reach.
 
 ## Shipping
 
-The phone ships through EAS Build to TestFlight, iPhone only. The credentials
-(the distribution certificate, the provisioning profile, the App Store Connect
-API key) live on EAS, never in this repo, and build numbers are EAS's
-(`appVersionSource: remote`, `autoIncrement`), so no commit bumps one. The
-marketing version is `package.json`'s, the product version the CLI and the
-desktop carry (`tools/repo-guards/src/release-versions.test.ts`). `eas.json`
-names the node and pnpm the repo is checked with, and no `.easignore`: EAS
-falls back to `.gitignore`, which keeps `.release/` and every `.env*` out of
-the upload. The editor page is gitignored build output, so EAS builds it in
-the `eas-build-post-install` hook, and `testflight` builds it first on this
-machine too, since the fingerprint below is taken on both.
+The phone ships through EAS Build to TestFlight, iPhone only, as one of the
+release's three artifacts: `docs/releasing.md` is the release's order, its
+gates and the owner's device checks, and this section is the phone's own half.
+The credentials (the distribution certificate, the provisioning profile, the
+App Store Connect API key) live on EAS, never in this repo, and build numbers
+are EAS's (`appVersionSource: remote`, `autoIncrement`), so no commit bumps
+one. The marketing version is `package.json`'s, the product version the CLI
+and the desktop carry (`tools/repo-guards/src/release-versions.test.ts`).
+`eas.json` names the node and pnpm the repo is checked with, and no
+`.easignore`: EAS falls back to `.gitignore`, which keeps `.release/` and
+every `.env*` out of the upload. The editor page is gitignored build output,
+so EAS builds it in the `eas-build-post-install` hook, and `testflight` builds
+it first on this machine too, since the fingerprint below is taken on both.
 
 ```bash
 pnpm testflight:mobile   # eas build --platform ios --profile production --auto-submit
@@ -464,11 +453,95 @@ pnpm hotfix:mobile       # eas update to the production channel: a JS-only fix
 4. Commit that record's id as `submit.production.ios.ascAppId` in `eas.json`,
    so later submits ask nothing.
 5. In App Store Connect › TestFlight, create the internal group `Owner` and add
-   yourself. Builds go to that group alone until 0.6.
+   yourself, and the external group `Cohort`. Every build reaches `Owner`
+   first, and `Cohort` only once it has passed there (Per release, below).
+6. Fill TestFlight's Test Information once: a beta description, a feedback
+   email you read, `https://inteligir.com/privacy` as the privacy policy, and
+   the Beta App Review sign-in below.
 
 If EAS's install fails under pnpm 12, the fallback is a custom build,
 `.eas/build/production.yml`, that installs with
 `pnpm install --frozen-lockfile --filter @repo/mobile...`.
+
+### Beta App Review account (one-time, owner)
+
+A build going to testers outside the team waits for Apple's Beta App Review,
+and the reviewer needs a sign-in that never expires into an account that
+already holds notes: the phone signs in, never signs up, and shows nothing
+without a vault.
+
+1. Mint a production invite with a fresh code, the recipe in
+   `apps/web/README.md` § Auth:
+   ```bash
+   pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --remote \
+     --command "INSERT INTO invite_code (code) VALUES ('<fresh code>')"
+   ```
+2. Sign up with it at `https://inteligir.com/app/sign-up`: an address you
+   read, and a long password.
+3. Seed the account's hosted vault once, from scratch dirs, so your own
+   instance never signs in to it. A new vault takes the starter notes, and
+   signing in sends them to the empty account:
+   ```bash
+   # in each of two terminals
+   export INTELIGIR_DATA_DIR=/tmp/review-seed/data INTELIGIR_VAULT_DIR=/tmp/review-seed/vault
+   pnpm cli serve                                  # the first terminal
+   pnpm cli cloud login --email <review address>   # the second: it asks for the password
+   pnpm cli vault sync
+   pnpm cli vault status                           # the account's vault, nothing left to send
+   ```
+   Then stop the server, revoke that seeding device at
+   `https://inteligir.com/app/devices` signed in as the review account, and
+   delete `/tmp/review-seed`. Passing: the internal build, signed in as the
+   review account, lists the starter notes.
+4. Keep the address and the password in `.release/` (gitignored), and enter
+   them as Test Information's Beta App Review sign-in, with these notes:
+   > Sign in with the account above; its notes are already there. Everything
+   > but Ask agent works on the phone alone, offline included. Ask agent sends
+   > the request to a Mac signed in to the same account, which runs the agent
+   > on its owner's own plan. No Mac is online during review, so a request
+   > shows "Waiting for your Mac — open inteligir on it to run this" and stays
+   > queued.
+5. Each review signs in as a new device, and an account holds 20: revoke the
+   old review devices at `https://inteligir.com/app/devices` before the next
+   submission.
+
+### Per release (owner)
+
+`docs/releasing.md` says when each step runs: steps 1 to 3 before anything is
+published, 4 to 6 once the Mac app and the CLI are out.
+
+1. **Pre-flight.** `docs/privacy.md` names every flow the phone makes (each
+   `/v1` route it calls is a row of its table, and Expo's update check is
+   named), and the release commit is green in CI.
+2. **Build.** `pnpm testflight:mobile` from the release commit. Passing:
+   App Store Connect's processing email carries no warning (a missing purpose
+   string, an undeclared required-reason API). A warning is a fix and a new
+   build, never a waiver.
+3. **Internal.** Install the build from the `Owner` group on your iPhone, from
+   TestFlight and never as a development build, and run `docs/releasing.md` §
+   5's iPhone checks on it.
+4. **Cohort.** Add the build to the `Cohort` group with its What to Test, in
+   the words a tester reads (never git, commit, remote, repo, terminal, CLI,
+   PATH or MCP):
+
+   > Sign in with your Inteligir account's email and password. Your notes
+   > arrive and open offline. Edit a note here and see it on your Mac, add a
+   > photo, and ask your Mac's agent from a note (Inteligir needs to be open on
+   > the Mac). Take a screenshot to send us feedback.
+
+   Each version's first build for the group goes through Beta App Review
+   before any tester sees it, usually within a day; later builds of that
+   version usually skip it.
+
+5. **Invite.** Per-tester email invites or one public link, the owner's call at
+   this step. Either way a tester needs an account first, which takes an
+   invite code (`apps/web/README.md` § Auth): the phone signs in, never signs
+   up.
+6. **Upkeep.** A build expires 90 days after upload, so a cohort still testing
+   then needs a new build of the same version (`pnpm testflight:mobile` from a
+   branch off the release tag, then step 3). Build numbers are EAS's:
+   `pnpm --filter @repo/mobile exec eas build:version:get --platform ios`
+   prints the latest, and no commit carries one.
 
 ### Hotfixes
 
@@ -484,4 +557,7 @@ native too: it ships in the binary, so `fingerprint.config.js` adds its build
 to the fingerprint and `hotfix` builds the page before taking it. An update
 bundled beside a changed page matches no installed build and reaches nobody;
 a page change needs `pnpm testflight:mobile`, since the bridge between the
-page and the JavaScript breaks freely between releases.
+page and the JavaScript breaks freely between releases. The fingerprint also
+covers the app config, `version` included, so an update bundled after a
+version bump reaches nobody either: a hotfix is published from a branch off
+the tag of the build testers hold (`docs/releasing.md` § Hotfixes).

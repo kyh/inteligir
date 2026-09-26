@@ -4,7 +4,8 @@ How to run, verify, and change inteligir — the ONE home for the commands, the
 ports, where state lives and the gate; `README.md`, `AGENTS.md` and
 `CLAUDE.md` link here rather than restating them. `CLAUDE.md` holds the
 architecture summary and the decisions, `apps/web/README.md` the Worker's own
-routes and deploy, `AGENTS.md` the runnable quickstart for coding agents.
+routes and deploy, `AGENTS.md` the runnable quickstart for coding agents, and
+`docs/releasing.md` the release: every step and check that is the owner's.
 
 ## Prerequisites
 
@@ -28,7 +29,7 @@ pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop    # The macOS arm64 dmg, signed + notarized when the keys are present
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
-pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; apps/mobile/README.md § Shipping)
+pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
 pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
 pnpm build              # Build all
 pnpm typecheck          # Type check all

@@ -1,6 +1,6 @@
 // A release's GitHub notes are CHANGELOG.md's top section, printed by the release step's script,
 // so the file's shape is the release's: sections newest first, and a version bump dates its
-// section here, in verify, rather than at `gh release create`.
+// section here, in verify, rather than when the release is published.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

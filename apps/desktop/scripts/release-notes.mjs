@@ -1,4 +1,4 @@
-// A release's notes are CHANGELOG.md's top section, printed for `gh release create --notes-file`,
+// A release's notes are CHANGELOG.md's top section, printed as the GitHub release's notes file,
 // so the GitHub release, the update it ships and the file say one thing. The top section must
 // already be titled for this package's version: publishing an Unreleased section, or the last
 // release's, would describe some other build.

@@ -4,7 +4,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ## Unreleased
 
-Everything since 0.4.0 (September 4, 2026).
+Everything since 0.4.0 (September 4, 2026), and the first Inteligir for iPhone.
 
 ### Before you update
 
@@ -28,6 +28,7 @@ Everything since 0.4.0 (September 4, 2026).
 
 ### New
 
+- **Inteligir for iPhone.** Your notes on your phone, offline, in the same editor as on your Mac, with your conversations with the agent and quick capture to your Inbox. It comes by TestFlight invite and needs an account: sign in with your account's email and password.
 - **Stop a running action.** A Stop button sits in the action's header while the agent works; `inteligir action stop` does the same, and archiving a running action stops it.
 - **Undo what the agent changed.** When an action finishes editing your notes, a message says how many it edited, with Undo, and each of the action's replies lists the notes it edited with Undo changes. Undo takes back only that reply's changes and keeps every edit made since, yours included; a note edited in the same place since is left as it is and named, with Open History.
 - **More than one vault.** Open another folder as a vault from File › Open Vault…, the vault's name at the top of the sidebar, or Settings › Vault; recent vaults are one click away. `inteligir vault open <folder>` picks the vault the server opens next time it starts.

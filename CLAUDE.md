@@ -2185,12 +2185,13 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
 - **UPDATES ARE electron-updater OVER THE GITHUB RELEASE, and nothing moves
   without a click** (reversing "no update feed"). The release carries the dmg,
   the zip Squirrel installs from, its blockmap and `latest-mac.yml`, uploaded
-  by `gh release create`, never by electron-builder. `autoDownload` and
-  `autoInstallOnAppQuit` are off: a check 15s after launch and every 4
-  minutes, the download and the restart each a click. Install stops the server
-  child first, so the vault's pending commit flushes before Squirrel swaps the
-  bundle. `apps/desktop/src/main/updates.ts` (the policy over an injectable
-  port) and `apps/desktop/src/update-state.ts` (a union by status).
+  by the owner's release step (`docs/releasing.md`), never by
+  electron-builder. `autoDownload` and `autoInstallOnAppQuit` are off: a check
+  15s after launch and every 4 minutes, the download and the restart each a
+  click. Install stops the server child first, so the vault's pending commit
+  flushes before Squirrel swaps the bundle. `apps/desktop/src/main/updates.ts`
+  (the policy over an injectable port) and `apps/desktop/src/update-state.ts`
+  (a union by status).
 
 - **SPELL CHECK IS THE SESSION'S SWITCH, AND THE PAGE KEEPS THE CHOICE.** Only
   main can flip Chromium's checker, so Settings asks through the bridge and
@@ -2246,10 +2247,11 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   release, the update it ships and the file say one thing. A list generated
   from commit subjects or issue titles was rejected: both are written for
   whoever builds the thing, and they describe an update as "something
-  changed". `apps/desktop/scripts/release-notes.mjs` prints the section for
-  `gh release create` and refuses one not titled for the package's version;
-  `tools/repo-guards/src/changelog.test.ts` holds the file's shape and makes a
-  version bump date its section. Settings › About links the file on main
+  changed". `apps/desktop/scripts/release-notes.mjs` prints the section as
+  the release's notes (`docs/releasing.md`) and refuses one not titled for the
+  package's version; `tools/repo-guards/src/changelog.test.ts` holds the
+  file's shape and makes a version bump date its section. Settings › About
+  links the file on main
   (`apps/desktop/src/renderer/app/settings/version-row.tsx`).
 
 - **THE PACKAGED APP'S DIAGNOSTICS ARE A SWITCH AND A FILE, BOTH MAIN'S.** A

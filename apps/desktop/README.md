@@ -378,29 +378,9 @@ build (no Developer ID, `CSC_IDENTITY_AUTO_DISCOVERY=false` or
 
 ### The release path
 
-1. Bump `apps/cli/package.json` and `apps/desktop/package.json` together — the
-   shell reports its own version and ships the CLI's tree — and retitle
-   `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`.
-2. `pnpm format:fix && pnpm verify && pnpm smoke:cli`.
-3. `pnpm smoke:desktop` — packages, notarizes with `.release/`, and boots it.
-4. Tag and publish — the site's Download button reads the latest release's
-   `.dmg` (`apps/web/src/lib/download-url.ts`, cached up to an hour), and every
-   installed app reads its `latest-mac.yml` and zip. The notes are the
-   changelog's top section, which `scripts/release-notes.mjs` prints only once
-   it is titled for this version, so a refusal stops the chain before the tag:
-   ```sh
-   node apps/desktop/scripts/release-notes.mjs > .release/notes.md &&
-     git tag v<version> && git push origin v<version> &&
-     gh release create v<version> --notes-file .release/notes.md \
-       apps/desktop/.output/bin/Inteligir-<version>-arm64.dmg \
-       apps/desktop/.output/bin/Inteligir-<version>-arm64.zip \
-       apps/desktop/.output/bin/Inteligir-<version>-arm64.zip.blockmap \
-       apps/desktop/.output/bin/latest-mac.yml
-   ```
-   A release missing the zip or the manifest is one no installed app can
-   update to.
-5. `pnpm --filter inteligir publish` — the `npx inteligir serve --open` path.
-   pnpm rewrites the manifest on the way out (`publishConfig.exports`).
+`docs/releasing.md`: the version the three artifacts share, the gates, the
+signed and notarized pack, the GitHub release with its four assets, the npm
+publish, and the owner's checks on the packaged app.
 
 ## Updates
 
