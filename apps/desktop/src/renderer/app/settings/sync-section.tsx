@@ -1,58 +1,13 @@
-// Not titled "Sync", and its button names threads: the Vault section already
-// has a "Sync now" that pushes files. No on/off toggle: the credential on disk
-// is the switch, and a second value could disagree with it.
+// Not titled "Sync": the Vault section already has a "Sync now". No on/off toggle: the credential
+// on disk is the switch, and a second value could disagree with it. The thread sync's own state
+// and its last error are Settings › Advanced's.
 
 import { cloudDevicesPageUrl } from "@repo/api/local/cloud/cloud-schema";
-import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
-import { plural } from "@repo/ui/lib/plural";
-import { relativeTimeLabel, useNow } from "../relative-time";
 import { AccountForm } from "../account-form";
 import { useCloudSession } from "../cloud-session";
 import { useDataDirScope } from "../vault-hooks";
 import { Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
-
-const lastSyncedLabel = (epochMs: number | null, nowMs: number): string =>
-  epochMs === null ? "never" : relativeTimeLabel(epochMs, nowMs, { seconds: true });
-
-// Must match the seconds tier above, or "40s ago" freezes until the minute tick.
-const LAST_SYNCED_TICK_MS = 1000;
-
-export interface SignedInDetailsProps {
-  status: Extract<CloudStatusResponse, { state: "signed-in" }>;
-  nowMs: number;
-}
-
-export const SignedInDetails = ({ status, nowMs }: SignedInDetailsProps) => (
-  <dl className="space-y-1.5">
-    <Row label="Account">
-      <span className="block truncate font-mono text-body">
-        {status.accountEmail ?? new URL(status.cloudUrl).host}
-      </span>
-    </Row>
-    <Row label="Device">
-      <span className="block truncate font-mono text-body">{status.deviceId}</span>
-    </Row>
-    <Row label="State">
-      <span className="text-body">
-        {status.connected ? "Following" : "Polling"} · {status.pending} queued · synced{" "}
-        {lastSyncedLabel(status.lastSyncedAt, nowMs)}
-      </span>
-    </Row>
-    {status.dropped === 0 ? null : (
-      <Row label="Dropped">
-        <span className="text-body text-muted-foreground">
-          {plural(status.dropped, "event")} never reached the cloud
-        </span>
-      </Row>
-    )}
-    {status.lastError === null ? null : (
-      <Row label="Last error">
-        <span className="text-body text-muted-foreground">{status.lastError}</span>
-      </Row>
-    )}
-  </dl>
-);
 
 export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
   const devicesUrl = cloudDevicesPageUrl(cloudUrl);
@@ -73,8 +28,7 @@ export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
 };
 
 export const SyncSection = () => {
-  const { status, pending, refusal, signIn, signOut, signUp, syncThreads } = useCloudSession();
-  const now = useNow(LAST_SYNCED_TICK_MS);
+  const { status, pending, refusal, signIn, signOut, signUp } = useCloudSession();
   const scope = useDataDirScope();
 
   const body = () => {
@@ -110,15 +64,16 @@ export const SyncSection = () => {
     }
     return (
       <div className="space-y-2">
-        <SignedInDetails status={status} nowMs={now} />
-        <div className="flex gap-2">
-          <Button size="compact" variant="tertiary" disabled={pending} onClick={syncThreads}>
-            Sync threads now
-          </Button>
-          <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
-            Sign out
-          </Button>
-        </div>
+        <dl className="space-y-1.5">
+          <Row label="Account">
+            <span className="block truncate font-mono text-body">
+              {status.accountEmail ?? new URL(status.cloudUrl).host}
+            </span>
+          </Row>
+        </dl>
+        <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
+          Sign out
+        </Button>
       </div>
     );
   };

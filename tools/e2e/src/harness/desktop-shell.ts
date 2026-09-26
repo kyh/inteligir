@@ -6,6 +6,8 @@ import { resolveAppConfig } from "inteligir/server/config";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { loopbackOrigin } from "inteligir/server/server-file";
 import { SHUTDOWN_TIMEOUT_MS } from "inteligir/server/shutdown";
+import { parseEval } from "./agent-browser";
+import type { AgentBrowser } from "./agent-browser";
 import { skip } from "./assert";
 import { appLaunchEnv, describeExecError, exec } from "./exec";
 import { createInstanceApi } from "./instance";
@@ -16,6 +18,14 @@ import type { TrackedProcess } from "./tracked-child";
 
 // the window's one origin (apps/desktop/src/main/protocol-handler.ts)
 export const SHELL_APP_URL = "inteligir://app/";
+
+// a bridge call awaited in the page; the answer crosses back as a JSON string
+export const askBridge = async <T>(
+  browser: AgentBrowser,
+  call: string,
+  schema: z.ZodType<T>,
+): Promise<T> =>
+  parseEval(await browser(["eval", `${call}.then((answer) => JSON.stringify(answer))`]), schema);
 
 // a cold boot forks the server, migrates, indexes and paints the window before the page target
 // answers; a cold install is a ~100MB download, so it has a budget of its own
@@ -44,6 +54,8 @@ export interface DesktopShell extends TrackedProcess {
   serverOrigin: string;
   // what the shell resolves now, derived as main derives it, so a vault switch moves it
   target: () => ShellTarget;
+  // the shell's own userData: its recent-vaults list, its diagnostics choice, its sessions
+  userDataDir: string;
   // the window's pages as DevTools lists them, the app's origin only
   appPages: () => Promise<ShellPage[]>;
   // SIGTERM to main alone, as the OS's quit sends: its own teardown must stop the server
@@ -206,6 +218,7 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
         },
         serverOrigin,
         target,
+        userDataDir,
       };
       args.register(shell);
       args.onLog(

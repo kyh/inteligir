@@ -8,7 +8,7 @@ a process that starts and stops the server with the app.
 ```
 src/main/       the Electron main process: the window, the protocol, the fork
 src/preload/    the ONE bridge into the app window (the loopback ws origin, the updater,
-                the spell checker, the vault switch, Reveal/Open)
+                the spell checker, the vault switch, Reveal/Open, the diagnostics)
 src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 ```
 
@@ -58,7 +58,7 @@ between this shell and a browser:
 - **`window.open` is denied unconditionally**, even same-origin.
 - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The one
   preload exposes the loopback origin, the updater, the spell checker, the
-  vault switch and Reveal/Open, nothing that holds a token.
+  vault switch, Reveal/Open and the diagnostics, nothing that holds a token.
 
 Origins are compared **field by field** — scheme, host, and port only where the
 scheme has one — never with `URL.origin`: Node's parser answers the opaque
@@ -139,6 +139,20 @@ The judgement is the CLI's own (`inteligir/server/server-probe`), the reading
 does not answer in time is **silent**, live to both: the shell says so in a
 dialog instead of spawning a child that server's lock would refuse. A server of
 another version is refused the same way, naming both versions and its origin.
+
+**What the child prints is kept.** Its piped stdio reaches main's console, which
+a Finder launch drops, so each line is also appended, stamped, to
+`<dataDir>/logs/server.log` (`src/main/server-log.ts`), rotated at 5 MiB into
+one `server.log.1`; a write that fails costs the log, never main. Debug logging
+is the shell's choice rather than the env's, since a Finder launch has none:
+`diagnostics.json` in userData (`src/main/diagnostics.ts`), read before each
+fork and handed to the child as `INTELIGIR_DEBUG` naming every namespace. The
+choice reaches the next child, so Settings › Advanced offers Restart, which
+relaunches the whole app through the ordinary quit (the child stops first and
+its commit flushes); there is still no in-place restart of the child. A
+development shell refuses it, since electron-vite owns that process. An adopted
+server is not this shell's child: neither the choice nor its output reaches
+the shell, and the page says so.
 
 ## One config resolution
 
@@ -331,8 +345,10 @@ policy is unit-tested against a fake updater (`src/main/__tests__/updates.test.t
 - **No IPC for anything the server can answer.** The bridge carries what the
   page cannot ask its server: the loopback origin, because a browser
   `WebSocket` cannot be proxied; the updater, the spell checker and the vault
-  switch, because each lives in main; and Reveal/Open of a vault entry,
-  because only main may hand the OS a path. Every other question the page
+  switch, because each lives in main; Reveal/Open of a vault entry, because
+  only main may hand the OS a path; and the diagnostics (Open data folder, the
+  debug-logging choice, Restart, Show log), because main forks the server with
+  that choice and keeps its log. Every other question the page
   has, it asks its own server over `/rpc`. Each channel is one row in
   `src/ipc-contract.ts`, its name beside its request and answer schemas, and a
   refusal crosses as a value rather than a throw, which Electron would reword.

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { browserHandoffUrl } from "@repo/api/local/routes";
 import { resolveAppConfig } from "inteligir/server/config";
 import type { ResolveAppConfigArgs, VaultDirSource } from "inteligir/server/config";
+import { DEBUG_NAMESPACES } from "inteligir/server/debug-log";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { resolveVaultCandidate } from "inteligir/server/vault-switch";
 import { toErrorMessage } from "../types";
@@ -181,12 +182,17 @@ export const planServerStart = (verdict: ServerVerdict, dataDir: string): Server
 };
 
 // no port: pinning one sets the child's `portSource` to `env`, which turns off its upward probe.
-// NODE_ENV is stated because a Finder-launched app inherits none.
-export const serverProcessEnv = (target: ServerTarget, isPackaged: boolean) => ({
-  INTELIGIR_DATA_DIR: target.dataDir,
-  INTELIGIR_VAULT_DIR: target.vaultDir,
-  NODE_ENV: isPackaged ? "production" : "development",
-});
+// NODE_ENV is stated because a Finder-launched app inherits none. debug logging traces every
+// namespace, since a report cannot know in advance which decision went wrong; off leaves main's
+// own env alone, so a developer's narrower INTELIGIR_DEBUG still reaches the child.
+export const serverProcessEnv = (target: ServerTarget, isPackaged: boolean, debug: boolean) => {
+  const env = {
+    INTELIGIR_DATA_DIR: target.dataDir,
+    INTELIGIR_VAULT_DIR: target.vaultDir,
+    NODE_ENV: isPackaged ? "production" : "development",
+  };
+  return debug ? { ...env, INTELIGIR_DEBUG: DEBUG_NAMESPACES.join(",") } : env;
+};
 
 // a process cannot be forked from inside an asar, so the path is rewritten to the `asarUnpack` twin.
 export const serverPackageDir = (appPath: string): string => {

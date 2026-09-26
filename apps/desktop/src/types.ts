@@ -2,9 +2,11 @@
 // (a browser WebSocket cannot set a header and dials a different origin than
 // the page, so main hands it over and attaches the bearer to the upgrade
 // itself), and what lives in main: the updater, the spell checker, the vault
-// switch and Reveal/Open. Everything else rides the protocol handler, so the
-// renderer never holds the token. Each channel is one row in ipc-contract.ts.
+// switch, Reveal/Open and the diagnostics. Everything else rides the protocol
+// handler, so the renderer never holds the token. Each channel is one row in
+// ipc-contract.ts.
 
+import type { DiagnosticsAnswer, DiagnosticsState } from "./diagnostics-state";
 import type { PathActionResult } from "./path-action";
 import type { SpellcheckChoice, SpellcheckState } from "./spellcheck-state";
 import type { UpdateState } from "./update-state";
@@ -40,8 +42,19 @@ export interface DesktopVaultsBridge {
   forget: (path: string) => Promise<VaultsState>;
 }
 
+// main forks the server, so only main can hand it the debug choice, restart it, or show the log
+// it writes and the data folder it lives in
+export interface DesktopDiagnosticsBridge {
+  getState: () => Promise<DiagnosticsState>;
+  setDebug: (debug: boolean) => Promise<DiagnosticsAnswer>;
+  restart: () => Promise<DiagnosticsAnswer>;
+  openDataFolder: () => Promise<PathActionResult>;
+  showLog: () => Promise<PathActionResult>;
+}
+
 export interface DesktopBridge {
   socketOrigin: string;
+  diagnostics: DesktopDiagnosticsBridge;
   updates: DesktopUpdatesBridge;
   spellcheck: DesktopSpellcheckBridge;
   paths: DesktopPathsBridge;

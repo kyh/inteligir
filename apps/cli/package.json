@@ -38,6 +38,7 @@
     "./server/cloud/sync-cadence": "./src/server/cloud/sync-cadence.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
+    "./server/debug-log": "./src/server/debug-log.ts",
     "./server/dev-instance": "./src/server/dev-instance.ts",
     "./server/html-block-frame": "./src/server/html-block-frame.ts",
     "./server/local-client": "./src/server/local-client.ts",

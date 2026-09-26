@@ -178,18 +178,16 @@ describe("what the rail and a toast say about sync", () => {
     }
   });
 
-  it.each(["app/vault-hooks.ts", "app/sidebar/sidebar.tsx"])(
-    "%s never reads the engine's last error",
-    (relative) => {
-      const source = readFileSync(
-        path.join(REPO_ROOT, "apps/desktop/src/renderer", relative),
-        "utf-8",
-      );
-      expect(source, "the engine's own error text is Settings › Advanced's to show").not.toMatch(
-        /\.lastError\b/u,
-      );
-    },
-  );
+  it("leaves the engine's last error to Settings › Advanced alone", () => {
+    const rendererDir = path.join(REPO_ROOT, "apps/desktop/src/renderer");
+    const readers = rendererSources(rendererDir)
+      .filter((file) => /\.lastError\b/u.test(readFileSync(file, "utf-8")))
+      .map((file) => path.relative(rendererDir, file));
+    expect(
+      readers,
+      "a sync's last error is the engine's own words, raw: only settings/advanced-section.tsx shows it",
+    ).toEqual(["app/settings/advanced-section.tsx"]);
+  });
 });
 
 describe("naming a new note", () => {

@@ -49,7 +49,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **What's new** in Settings › About opens this changelog.
 - **Create your account in the app.** Sign in… in the sidebar's sync menu and Settings › Devices now offer Create an account: your name, email, a password and your invite code, and this computer is signed in to the new account at once, with no second sign-in. Signing in has a Forgot password? link that opens the page which emails you a reset link.
 - **On the command line:** `inteligir open` opens another signed-in browser tab; `inteligir action list` pages with `--limit` and `--cursor`, filters with `--doc` and `--running`, and leaves archived actions out unless you pass `--archived`; `inteligir action wait` names an approval it is waiting on, and `--until-input` exits 4 when one arrives; `inteligir action changes` lists the notes each of an action's turns changed, and `inteligir action undo` takes one turn's changes back while keeping every edit made since, naming any note it had to leave as it is; `inteligir agents list` shows which agents are installed and signed in.
-- **Diagnostics for "it didn't update".** Start the server with `INTELIGIR_DEBUG=watcher,knowledge,sync,acp` (any of them) and it logs what it did with each file change, each file it indexed, each sync step and each message to an agent. Lines name files and ids, never what a note says, so they are safe to paste into a report.
+- **Diagnostics for "it didn't update".** Turn on Debug logging in Settings › Advanced and restart the app when it asks: it then logs what it did with each file change, each file it indexed, each sync step and each message to an agent. Lines name files and ids, never what a note says, so they are safe to paste into a report, and Show log finds the file. The app keeps what it logs, debug or not, in `logs/server.log` in its data folder, at most 5 MB plus one older file; it never leaves your Mac unless you send it. On the command line, start the server with `INTELIGIR_DEBUG=watcher,knowledge,sync,acp` (any of them) for the same lines.
 
 ### Changed
 
@@ -63,7 +63,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **One set of text sizes** across the app's menus, lists and panels. Popups now animate out as well as in, and the app follows your system's reduce-motion setting.
 - **Pushing more than 90 MB** to your account's hosted vault now says it is too large and stops retrying, without uploading it first, instead of failing with git's raw error every minute.
 - **An action another device is running** says so in its header instead of offering a Stop button that could not stop it.
-- **Sync reports what it could not send.** Settings › Devices and `inteligir cloud status` count action events this computer dropped without sending, and a sign-out that could not remove the device from your account says so and points to the Devices page.
+- **Sync reports what it could not send.** Settings › Advanced and `inteligir cloud status` count action events this computer dropped without sending, and a sign-out that could not remove the device from your account says so and points to the Devices page.
 - **The app is smaller.** It no longer carries the command line's source code and tests inside it.
 - **The agent talks about your notes in plain language.** It no longer brings up version control or the command line unless you ask, and it never asks you to run a command. Instructions you keep in your vault's `AGENTS.md` still have the last word.
 - **Sync and History speak plainly.** The sync row at the bottom of the sidebar says Synced, Not synced yet, Only on this Mac, Offline or Sync paused instead of a technical error message; when sync needs you, Sync details… opens the new Settings › Advanced, which keeps the full detail. Actions sync on their own, so the row no longer offers a separate sync for them. History lists each version by when and who made it (you, the agent, or another device or person), and restoring one says which version came back.
@@ -71,6 +71,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **The agent needs nothing else installed.** Claude and ChatGPT run from inside the app, so neither Claude Code nor Codex has to be on your Mac, and a Mac already signed in to either stays signed in. Settings › Agents and `inteligir agents list` show each one's sign-in as Claude or ChatGPT reports it, with the plan and account.
 - **One Date row in the `/` menu.** Day inserted the same date chip; `/day` now finds Date.
 - **Copy link copies a link for another note.** ⋯ › Copy link now copies the note's `[[Name]]`, the link the `[[` menu writes, instead of a web address that worked only while the app was open.
+- **Settings › Advanced keeps the technical detail in one place.** The data folder (with Open data folder), the database version and uptime moved there from About, and this device's id, queue and last error from Devices, beside your vault's sync detail; Sync threads now moved with them, since actions sync on their own. Devices keeps your account and Sign out.
 
 ### Fixed
 
