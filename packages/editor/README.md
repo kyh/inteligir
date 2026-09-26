@@ -58,7 +58,8 @@ src/
     rich-block-lock-kit.ts
                        # the model guard that makes a chart, a canvas, an html
                        # block, tabs and columns read-only: no op inside one
-                       # applies, a whole-block insert, remove or move does
+                       # applies, a whole-block insert, remove or move does;
+                       # a keystroke aimed inside one is refused at beforeinput
     base-kit.ts        # the headless mirror, for the serializer
     markdown-kit.ts    # the markdown plugin wiring
   nodes/               # every node type as a Base (headless) + React pair
@@ -160,10 +161,11 @@ src/
   native photo picker that writes what it picks (`pickImage`, null hides the
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
   as a paste does). The editor never reaches the
-  server for any of it; the app installs it once
-  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), building the
-  resolver store with `link-resolver-store.ts` and `readNoteFormulas` with
-  `note-formulas.ts` over its own reads, and `host.ts` is
+  server for any of it; each host installs it once
+  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`, and the phone's
+  over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
+  building the resolver store with `link-resolver-store.ts` and
+  `readNoteFormulas` with `note-formulas.ts` over its own reads, and `host.ts` is
   React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
   resolves it from the note it is written in — the open note, or the one an

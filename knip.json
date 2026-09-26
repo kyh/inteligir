@@ -38,6 +38,10 @@
       // leaves it off until the EAS project is committed
       "ignoreDependencies": ["expo-updates"]
     },
+    "apps/mobile-editor": {
+      "entry": ["src/**/__tests__/**/*.test.{ts,tsx}", "vite/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
+    },
     "apps/web": {
       // gallery-main is gallery.html's script, which knip's vite plugin reads only from index.html
       "entry": [

@@ -12,6 +12,15 @@ const DEFAULTS = "apps/desktop/src/renderer/styles/globals.css";
 
 const MEASURE = "--editor-width";
 
+// the phone's editor page is a second host: it imports the editor's sheet, never the desktop's
+// defaults, so it writes a value of its own for every token that sheet reads
+const PHONE_PAGE = "apps/mobile-editor/src/styles/globals.css";
+
+const EDITOR_SHEET = "packages/editor/src/styles.css";
+
+// iOS zooms into a field whose text is smaller, and the page pins the scale at 1
+const PHONE_MIN_SIZE_PX = 16;
+
 // this file names the tokens it polices, so the walk skips it.
 const SELF = path.relative(REPO_ROOT, import.meta.filename);
 
@@ -55,11 +64,16 @@ const written = new Set(
   ),
 );
 
-const declared = new Map(
-  [...sourceOf(DEFAULTS).matchAll(/(?<token>--editor-[a-z-]+)\s*:\s*(?<value>[^;]+);/gu)].map(
-    (match) => [match.groups?.token ?? "", (match.groups?.value ?? "").trim()],
-  ),
-);
+const declarationsIn = (file: string): Map<string, string> =>
+  new Map(
+    [...sourceOf(file).matchAll(/(?<token>--editor-[a-z-]+)\s*:\s*(?<value>[^;]+);/gu)].map(
+      (match) => [match.groups?.token ?? "", (match.groups?.value ?? "").trim()],
+    ),
+  );
+
+const declared = declarationsIn(DEFAULTS);
+
+const phoneWrites = declarationsIn(PHONE_PAGE);
 
 const reads = workspaces()
   .flatMap((workspace) => [...workspaceSourceFiles(workspace), ...styleFiles(workspace)])
@@ -119,5 +133,38 @@ describe("the appearance funnel's tokens", () => {
         .toSorted(),
       `a fallback is a second spelling of a default: match ${DEFAULTS} exactly, or carry no fallback`,
     ).toEqual([]);
+  });
+});
+
+describe("the phone page's own dials", () => {
+  const sheetReads = new Set(
+    readsIn(EDITOR_SHEET, sourceOf(EDITOR_SHEET)).map((entry) => entry.token),
+  );
+
+  it("finds the page's writes and the sheet's reads at all", () => {
+    expect(phoneWrites.size, `no --editor-* declaration in ${PHONE_PAGE}`).toBeGreaterThan(0);
+    expect(sheetReads.size, `no var(--editor-*) read in ${EDITOR_SHEET}`).toBeGreaterThan(0);
+  });
+
+  it("writes a value for every token the editor's sheet reads", () => {
+    expect(
+      [...sheetReads].filter((token) => !phoneWrites.has(token)).toSorted(),
+      `${PHONE_PAGE} imports ${EDITOR_SHEET} but not ${DEFAULTS}, so a token it does not write reads as nothing on the phone`,
+    ).toEqual([]);
+  });
+
+  it("writes only tokens the document reads", () => {
+    expect(
+      [...phoneWrites.keys()].filter((token) => !readTokens.has(token)).toSorted(),
+      `${PHONE_PAGE} writes a token nothing reads`,
+    ).toEqual([]);
+  });
+
+  it(`keeps the note's text at ${String(PHONE_MIN_SIZE_PX)}px or more`, () => {
+    const size = /^(?<px>\d+(?:\.\d+)?)px$/u.exec(phoneWrites.get("--editor-size") ?? "");
+    expect(
+      Number(size?.groups?.px ?? 0),
+      `${PHONE_PAGE} must set --editor-size in px, at ${String(PHONE_MIN_SIZE_PX)} or more: iOS zooms into a field whose text is smaller`,
+    ).toBeGreaterThanOrEqual(PHONE_MIN_SIZE_PX);
   });
 });
