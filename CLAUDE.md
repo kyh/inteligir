@@ -130,7 +130,9 @@ apps/
                  (src/worker/vault/commit-route.ts).
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
-  mobile/        @repo/mobile — the Expo RN client (#576): read-only threads,
+  mobile/        @repo/mobile — the Expo RN client (#576): synced threads it
+                 asks a Mac's agent in through the dispatch inbox, from a
+                 durable queue of its own (src/dispatch/dispatch-runtime.ts),
                  produced captures and (#618) a local SQLite mirror of every
                  note's text (src/notes/vault-mirror.ts), kept current from
                  the hosted vault's /cloud read rows by blob oid and read
@@ -156,10 +158,11 @@ packages/
                  cursor is a duplicated conversation — and, for the same
                  reason, the CLIENT RUNTIME CORE both consumers run. apps/web
                  SERVES every row; apps/mobile pulls threads, produces
-                 captures and commits vault change sets from a queue it
-                 settles itself, and never pushes a thread event, claims a
-                 capture or speaks git, because the desktop runs the turns
-                 and owns applying a capture to the vault. Two entries rather than one router because their
+                 captures and dispatches, and commits vault change sets from
+                 a queue it settles itself, and never pushes a thread event,
+                 claims a capture or a dispatch or speaks git, because the
+                 desktop runs the turns and owns applying a capture to the
+                 vault. Two entries rather than one router because their
                  compatibility obligations are OPPOSITE: /local's ends ship in
                  one bundle and may break freely (a CLI installed apart refuses
                  another release's server as `SERVER_VERSION_MISMATCH`),
@@ -1486,15 +1489,20 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `packages/api/src/cloud/cloud-errors.ts`.
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
-  `SyncRuntime` and the login flow publish stores the screens subscribe to, so
-  a poll pass, a revocation or a refused login is shown; a refused capture
-  keeps its text and its idempotency key. A sign-in is ONE session: the notes
-  store reads under `SyncRuntime`'s session, so a revocation any request hears
-  ends the sign-in for all of them (`apps/mobile/src/lib/compose-runtime.ts`).
-  Which screens exist is the route guard's answer (`Stack.Protected` in
+  `SyncRuntime`, the login flow and the dispatch runtime publish stores the
+  screens subscribe to, so a poll pass, a revocation, a refused login and where
+  a request to a Mac stands are shown; a refused capture keeps its text and its
+  idempotency key, and a refused request to a Mac keeps its words and the Mac's
+  reason until the user dismisses it. A sign-in is ONE session: the notes store
+  and the dispatch runtime read under `SyncRuntime`'s session, so a revocation
+  any request hears ends the sign-in for all of them, and each checks its fence
+  before recording a refusal, so one heard under an earlier sign-in never ends
+  the next (`apps/mobile/src/lib/compose-runtime.ts`). Which screens exist is
+  the route guard's answer (`Stack.Protected` in
   `apps/mobile/src/app/_layout.tsx`), never a per-screen branch.
   `apps/mobile/src/sync/sync-runtime.ts`,
-  `apps/mobile/src/login/login-store.ts`.
+  `apps/mobile/src/login/login-store.ts`,
+  `apps/mobile/src/dispatch/dispatch-runtime.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
   (`ThreadService.applySyncedEvents`): the thread row takes the log's id,

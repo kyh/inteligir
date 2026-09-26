@@ -2,13 +2,14 @@
 
 A notes-and-capture client. **The agent and the vault ENGINE stay on the
 desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
-FEEDS the CAPTURE inbox and holds a MIRROR of every note's text from the
-account's hosted vault, reaching `@repo/api/cloud` (the wire), `@repo/domain`
-(the `ThreadEvent` grammar) and `@repo/notes` (the dialect's parse, wiki
-resolution and the one conflict verdict, guard-pure). No agent, no vault
-checkout, no git client — notes arrive over the /v1/vault read rows into a
-local SQLite file and open offline, and the phone's own edits wait in a
-durable outbox beside them until the guarded commit route takes them.
+FEEDS the CAPTURE inbox, ASKS a Mac's agent through the DISPATCH inbox and
+holds a MIRROR of every note's text from the account's hosted vault, reaching
+`@repo/api/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar) and
+`@repo/notes` (the dialect's parse, wiki resolution and the one conflict
+verdict, guard-pure). No agent, no vault checkout, no git client — notes arrive
+over the /v1/vault read rows into a local SQLite file and open offline, and the
+phone's own edits wait in a durable outbox beside them until the guarded commit
+route takes them.
 
 Expo + expo-router; `src/sync` is the RN implementation of the `@repo/api/cloud`
 wire.
@@ -30,9 +31,23 @@ src/
                            until the boot read ends), and lends that session to
                            every other read under the sign-in
     thread-projection.ts   fold a thread's events into display rows, its
-                           stated title and its archive, once per snapshot;
-                           the list puts archived threads last, as the
-                           desktop does
+                           stated title, its archive, whether a turn is
+                           running and which of the phone's requests it holds,
+                           once per snapshot; the list puts archived threads
+                           last, as the desktop does
+  dispatch/     asking a Mac's agent from the phone (pure, unit-tested against
+                node:sqlite and a fake inbox)
+    dispatch-outbox.ts     the phone's requests, durable in SQLite from the tap
+                           that asks one: the body frozen as sent and the
+                           cloud's last answer
+    dispatch-runtime.ts    sends them under the sync runtime's session, polls
+                           their fate while one waits and the app is in the
+                           foreground, lists and answers a phone-started
+                           turn's approvals, and hands each request to the log
+                           once a pulled request carries its id
+    dispatch-projection.ts what the screens draw beside the log: the pending
+                           rows, a thread only this phone holds so far, the
+                           approval cards, and each state's words
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
@@ -67,16 +82,18 @@ src/
                 unit-tested: the restore, sign-out, revocation and resume)
                 and app-runtime.ts (its binding to the Keychain, the
                 database, the attachment and outbox files, expo-crypto's
-                SHA-1, AppState and expo-network's reconnect, plus the
-                hooks); the database: sql-driver.ts (the port),
+                random ids, SHA-1 and SHA-256, AppState and expo-network's
+                reconnect, plus the hooks); the database: sql-driver.ts (the port),
                 expo-sql-driver.ts (the app's), node-sql-driver.ts (the
                 tests'), phone-db.ts (every table's migrations) and
                 backup-exclusion.ts (over modules/backup-exclusion, the one
                 native module this app carries); the external store the
                 runtimes publish through, theme, cloud URL
   app/          expo-router screens: sign-in, thread list + quick-capture, a
-                thread view, the notes list + read-only note view;
-                _layout.tsx holds the splash and the route guard
+                thread view with its composer, pending requests and approval
+                cards, the notes list + read-only note view with Ask agent
+                in its header; _layout.tsx holds the splash and the route
+                guard
 ```
 
 ## The storage choice
@@ -91,7 +108,9 @@ log would claim rows the log never saw. It is also why the phone keeps no
 skipped-row marker: an app update is a relaunch, which re-reads every row the
 old build skipped. There is no thread outbox and no capture ledger: the phone
 appends nothing to the log and claims nothing from the inbox, so neither has
-anything to hold. Its own NOTE edits are another matter, below.
+anything to hold. Its own NOTE edits are another matter, below, and so are its
+requests to a Mac: the `dispatch_outbox` table is durable, and it is not a log
+outbox — nothing in it ever reaches the thread log (Asking a Mac, below).
 
 The log holds what the thread view draws from and no more: a streaming delta
 moves the cursor and the thread's recency and is dropped, because the thread
@@ -195,6 +214,43 @@ capture to the vault, so a phone claiming would take a capture the desktop then
 never sees — and the consumer half therefore does not exist on this device at
 all.
 
+## Asking a Mac
+
+The phone asks a Mac's agent the way it produces captures: it posts a
+`turn` row to the account's dispatch inbox (`POST /v1/sync/dispatch`) and never
+claims one, and a Mac runs the turn and writes it to the log. Ask agent on a
+note opens a new thread under an id the phone mints (`thr_` and 16 random
+bytes), and its first message names the note as the thread's origin and the
+sha-256 of the bytes the note screen showed as its view context's revision.
+
+- **A request is durable before it is sent.** Send writes the row to
+  `dispatch_outbox` with an id minted here, the body frozen as it will be
+  sent; a send the cloud never answered is resent under the same id on resume,
+  on reconnect and on the poll below, and the inbox answers a resend as the row
+  it already holds.
+- **Its fate is polled only while it moves.** While a request waits, a
+  question waits for an answer or a thread is running, and only while the app
+  is in the foreground, `dispatch-runtime.ts` asks every
+  `DISPATCH_STATUS_POLL_MS` (10s) for the rows' states and whether a Mac is
+  listening, lists the open approvals, and pulls the log when a Mac has taken
+  a request or a turn runs. The words: Not sent yet — retrying; Waiting for your
+  Mac…, or, with no Mac listening, Waiting for your Mac — open inteligir on it
+  to run this; Your Mac has it; and a running turn's Your Mac is working….
+- **The log replaces it, once.** A row leaves when a pulled
+  `client/turn/requested` carries its id, and the thread view filters the
+  pending rows by the same ids, so the message is never drawn twice between
+  the pull and the delete.
+- **Cancel takes back only what no Mac holds**; one a Mac claimed stays, as
+  Your Mac has it. A refused request keeps its words and the Mac's reason until
+  Dismiss, as a refused capture keeps its text.
+- **A phone-started turn's approvals are answered here** (owner decision): the
+  card shows what the agent asks to do and the answers it offers, and the
+  answer is an `answer` row only the Mac that asked may claim.
+- **Every request rides the sync runtime's session**, and checks its fence
+  before it records a refusal, so a refusal heard under an earlier sign-in
+  never ends the one that replaced it. A sign-in, a sign-out and a revocation
+  empty the table; the boot restore keeps it.
+
 ## The sign-in seam
 
 A phone joins an account the way the desktop does: the account's own email
@@ -238,8 +294,11 @@ that is signed in.
   relaunch that cannot reach the cloud, a batch cut short, a batch that
   outlives its sign-in), the outbox (offline edits across a relaunch, the
   coalesced write, a merge, a copy, a lost answer, a parked row, a refresh
-  racing a landing), the capture sender, and the composition's restore,
-  sign-out, revocation and resume — all against faked fetch. Unit tests, no
+  racing a landing), the capture sender, the dispatch runtime (a resend under
+  the same id across a relaunch, the log replacing a pending row once, every
+  state's words, cancel, a refusal kept, a stale sign-in's refusal, an approval
+  answered, the foreground poll), and the composition's restore, sign-out,
+  revocation and resume — all against faked fetch. Unit tests, no
   device. `tools/e2e/src/scenarios/phone-offline-edit.ts` runs the same
   composition under node against a real Worker and a desktop.
 - **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
@@ -257,8 +316,11 @@ that is signed in.
   expo-secure-store Keychain round trip, expo-sqlite and the backup exclusion
   (both native: a dev client built before them must be rebuilt), the
   attachment and staged files, the AppState resume and expo-network's
-  reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, and the offline
-  check: sync once, airplane mode, cold launch, the list and any note open.
+  reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, the offline
+  check: sync once, airplane mode, cold launch, the list and any note open, and
+  asking a Mac: Ask agent from a note shows Waiting for your Mac, the desktop
+  runs it and the reply appears after a pull, the composer rides above the
+  keyboard, and quitting the desktop shows the open-inteligir line.
 
 ## Dev
 

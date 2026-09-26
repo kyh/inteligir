@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { createCloudClient } from "@repo/api/cloud/client";
@@ -86,7 +86,7 @@ const phoneRuntime = async (
     credentials: heldCredential(credential),
     db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
     deviceName: PHONE_NAME,
-    mintCaptureKey: () => randomUUID(),
+    mintId: () => randomBytes(16).toString("hex"),
     outboxFiles: files,
     retryBaseMs: null,
     sha1: (bytes) => Promise.resolve(createHash("sha1").update(bytes).digest()),

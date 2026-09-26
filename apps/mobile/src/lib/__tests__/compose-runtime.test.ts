@@ -22,6 +22,9 @@ import type { SqlDriver } from "../sql-driver";
 const CRED = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_self" };
 const OTHER_CRED = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_other" };
 
+// the shape the dispatch contract holds an id to: 32 lowercase hex characters
+const mintedId = (n: number): string => n.toString(16).padStart(32, "0");
+
 const UNAUTHORIZED: CloudResult<PullResponse> = {
   failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
   ok: false,
@@ -97,6 +100,11 @@ const queuedRows = async (db: SqlDriver): Promise<number> => {
   return z.object({ queued: z.number() }).parse(row).queued;
 };
 
+const dispatchRows = async (db: SqlDriver): Promise<number> => {
+  const [row] = await db.all("SELECT count(*) AS queued FROM dispatch_outbox");
+  return z.object({ queued: z.number() }).parse(row).queued;
+};
+
 const runtimeOver = (
   cloud: FakeCloud,
   credentials: CredentialStore,
@@ -109,9 +117,10 @@ const runtimeOver = (
     credentials,
     db: storage.db,
     deviceName: "Test Phone",
-    mintCaptureKey: () => {
+    dispatchPollIntervalMs: null,
+    mintId: () => {
       minted += 1;
-      return `key-${minted}`;
+      return mintedId(minted);
     },
     outboxFiles: storage.outboxFiles,
     retryBaseMs: null,
@@ -243,7 +252,10 @@ describe("the composed runtime", () => {
     const retried = await rt.submitCapture("buy milk");
     expect([first.ok, retried.ok]).toEqual([false, true]);
 
-    expect(cloud.captures.map((request) => request.idempotencyKey)).toEqual(["key-1", "key-1"]);
+    expect(cloud.captures.map((request) => request.idempotencyKey)).toEqual([
+      mintedId(1),
+      mintedId(1),
+    ]);
   });
 });
 
@@ -331,6 +343,23 @@ describe("signing out with edits the vault has not taken", () => {
     await vi.waitFor(async () => {
       expect(await queuedRows(storage.db)).toBe(0);
       expect(storage.outboxFiles.names()).toEqual([]);
+    });
+  });
+
+  it("wipes the requests no Mac has had yet, which a sign-out does not wait for", async () => {
+    const storage = phoneStorage();
+    const rt = runtimeOver(createFakeCloud(), keychain(CRED).store, storage);
+    await rt.start();
+    expect(
+      await rt.dispatch.askAgent({ text: "asked offline", threadId: rt.dispatch.newThreadId() }),
+    ).toMatchObject({ ok: true });
+    expect(await dispatchRows(storage.db)).toBe(1);
+
+    expect(await rt.logout()).toStrictEqual({ kind: "signed-out" });
+
+    expect(rt.dispatch.get().dispatches).toStrictEqual([]);
+    await vi.waitFor(async () => {
+      expect(await dispatchRows(storage.db)).toBe(0);
     });
   });
 

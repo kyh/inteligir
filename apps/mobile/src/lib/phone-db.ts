@@ -40,6 +40,18 @@ const MIGRATIONS: readonly string[] = [
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
      path TEXT NOT NULL
    );`,
+  // dispatch_outbox: the phone's requests to a Mac, oldest first. `request` is the body sent, frozen
+  // when it is asked so every resend is the same row; `status` the cloud's last answer as JSON,
+  // null until the cloud has taken the row. `sent` is not a column of its own: it would be a
+  // second answer to the question `status` already answers.
+  `CREATE TABLE dispatch_outbox (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     id TEXT NOT NULL UNIQUE,
+     thread_id TEXT NOT NULL,
+     request TEXT NOT NULL,
+     status TEXT,
+     created_at INTEGER NOT NULL
+   );`,
 ];
 
 const userVersionSchema = z.object({ user_version: z.number().int().min(0) });

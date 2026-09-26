@@ -1,10 +1,12 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { CommentsRead } from "@/notes/notes-store";
 import {
   assetSource,
+  newThreadId,
+  noteRevision,
   readNote,
   readNoteComments,
   resolveWikiPath,
@@ -19,7 +21,9 @@ import type { VaultAssetSource } from "@repo/api/cloud/client";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 
 const styles = StyleSheet.create({
+  askAgent: { fontSize: 16, fontWeight: "600" },
   body: { paddingBottom: 48, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
+  pressed: { opacity: 0.7 },
   raw: { fontFamily: MONO_FONT, fontSize: 13, lineHeight: 19 },
   rawBody: { gap: SPACE.md },
   rawNote: { fontSize: 13 },
@@ -30,7 +34,7 @@ const styles = StyleSheet.create({
 type ScreenState =
   | { state: "loading" }
   | { state: "error"; message: string }
-  | { state: "ready"; projection: NoteProjection };
+  | { state: "ready"; content: string; projection: NoteProjection };
 
 const NoteBody = ({
   screen,
@@ -77,6 +81,20 @@ const Comments = ({ comments }: { comments: CommentsRead }) => {
   return <CommentsSection threads={comments.threads} />;
 };
 
+const AskAgentButton = ({ onPress }: { onPress: () => void }) => {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      hitSlop={SPACE.sm}
+      style={({ pressed }) => pressed && styles.pressed}
+      onPress={onPress}
+    >
+      <Text style={[styles.askAgent, { color: theme.foreground }]}>Ask agent</Text>
+    </Pressable>
+  );
+};
+
 const NoteScreen = () => {
   const theme = useTheme();
   const router = useRouter();
@@ -97,7 +115,11 @@ const NoteScreen = () => {
       }
       setScreen(
         read.ok
-          ? { projection: projectNote(read.path, read.content), state: "ready" }
+          ? {
+              content: read.content,
+              projection: projectNote(read.path, read.content),
+              state: "ready",
+            }
           : { message: read.message, state: "error" },
       );
       if (!read.ok) {
@@ -140,12 +162,36 @@ const NoteScreen = () => {
 
   const title = screen.state === "ready" ? screen.projection.title : "…";
 
+  // a new thread about this note: its first message names the note, and hashes the bytes shown here
+  const askAgent = async (content: string): Promise<void> => {
+    const revision = await noteRevision(content);
+    router.push({
+      params: { id: newThreadId(), note: path, revision },
+      pathname: "/thread/[id]",
+    });
+  };
+
+  const header =
+    screen.state === "ready"
+      ? {
+          // oxlint-disable-next-line react/no-unstable-nested-components -- the navigator calls headerRight as a render function, and the button it returns is a module-level component, so nothing remounts
+          headerRight: () => (
+            <AskAgentButton
+              onPress={() => {
+                void askAgent(screen.content);
+              }}
+            />
+          ),
+          title,
+        }
+      : { title };
+
   return (
     <SafeAreaView
       style={[styles.screen, { backgroundColor: theme.background }]}
       edges={["left", "right"]}
     >
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={header} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
         <NoteBody screen={screen} onWikiLink={onWikiLink} resolveAsset={resolveAsset} />
         {screen.state === "ready" && comments !== null ? <Comments comments={comments} /> : null}
