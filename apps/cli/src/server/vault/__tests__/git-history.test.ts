@@ -5,7 +5,7 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
-import { runGit } from "../git-run";
+import { ENGINE_IDENTITY, identityEnv, runGit } from "../git-run";
 import type { RunGitCommand } from "../git-run";
 import {
   cachedDeletionLog,
@@ -16,7 +16,7 @@ import {
   readNoteRevision,
   readTurnCommits,
 } from "../git-history";
-import { agentCommitMessage, undoCommitMessage } from "../turn-trailers";
+import { AGENT_COMMIT_AUTHOR, agentCommitMessage, undoCommitMessage } from "../turn-trailers";
 import { VaultServiceError } from "../vault-service";
 import { hermeticGitEnv } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -65,6 +65,7 @@ describe("parseFollowLog", () => {
     expect(parseFollowLog(stdout, "Note.md")).toEqual([
       {
         authorEmail: "a@b.c",
+        authorKind: "external",
         authorName: "A",
         authoredAt: "2026-01-01T00:00:00+00:00",
         path: "Note.md",
@@ -173,6 +174,28 @@ describe("readNoteHistory", () => {
         expect.any(String),
       );
     }
+  });
+
+  it("names who wrote each revision from its author: the app, an agent, or anyone else", async () => {
+    const { root, run, commit } = await makeVault();
+    const edit = async (line: string, author: Record<string, string>): Promise<void> => {
+      await writeFile(nodePath.join(root, "Note.md"), `${line}\n`, "utf-8");
+      await commit(`edit ${line}`, author);
+    };
+    await edit("engine", identityEnv());
+    await edit("agent", identityEnv(AGENT_COMMIT_AUTHOR));
+    // a phone's commit names its device
+    await edit("phone", {
+      GIT_AUTHOR_EMAIL: "dev_1@devices.test",
+      GIT_AUTHOR_NAME: "Kai's iPhone",
+    });
+
+    const revisions = await readNoteHistory(run, "Note.md", { limit: 50, skip: 0 });
+    expect(revisions.map(({ authorKind, authorName }) => [authorKind, authorName])).toEqual([
+      ["external", "Kai's iPhone"],
+      ["agent", AGENT_COMMIT_AUTHOR.name],
+      ["app", ENGINE_IDENTITY.name],
+    ]);
   });
 
   it("answers an empty page for a path git has never seen", async () => {

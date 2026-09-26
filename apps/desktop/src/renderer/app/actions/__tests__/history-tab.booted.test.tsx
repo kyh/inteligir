@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { bootTestApp } from "inteligir/server/testing";
+import type { VaultRevision } from "@repo/api/local/vault/vault-schema";
+import { AGENT_COMMIT_AUTHOR, bootTestApp } from "inteligir/server/testing";
 import type { BootedTestApp } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -40,7 +41,7 @@ describe("the history tab under a refused read", () => {
     await waitFor(() => {
       expect(screen.getByText("The history could not be read.")).toBeTruthy();
     });
-    expect(screen.queryByText(/No revisions yet/u)).toBeNull();
+    expect(screen.queryByText(/No versions yet/u)).toBeNull();
   });
 
   it("keeps the honest empty state for a note with no commits yet", async () => {
@@ -54,18 +55,65 @@ describe("the history tab under a refused read", () => {
 
     mountTab("fresh.md");
     await waitFor(() => {
-      expect(screen.getByText(/No revisions yet/u)).toBeTruthy();
+      expect(screen.getByText(/No versions yet/u)).toBeTruthy();
     });
     expect(screen.queryByText("The history could not be read.")).toBeNull();
   });
 });
 
 const PLAN = "plan.md";
+
+// the rows, newest first: a row names its version by when and who, so a test picks one by place
+const versionRows = async (count: number): Promise<HTMLElement[]> => {
+  await waitFor(() => {
+    expect(screen.getAllByRole("button")).toHaveLength(count);
+  });
+  return screen.getAllByRole("button");
+};
+
+const AGENT_SUBJECT = "agent: vault update";
+const PERSON = { email: "kai@example.com", name: "Kai Hsu" };
+const PERSON_SUBJECT = "Tidy the plan";
+
+describe("a version in the history tab", () => {
+  it("is named by who wrote it, never by the engine's subject or its sha", async () => {
+    const booted = await bootTestApp();
+    routeRendererFetch(booted);
+    const write = async (content: string): Promise<void> => {
+      await booted.client.vault.write({ content, guard: { kind: "overwrite" }, path: PLAN });
+    };
+    await write("# One\n");
+    await booted.client.vault.commitNow();
+    await write("# One\n# Two\n");
+    await booted.vault.git.commitPaths([PLAN], AGENT_COMMIT_AUTHOR, AGENT_SUBJECT);
+    await write("# One\n# Two\n# Three\n");
+    await booted.vault.git.commitPaths([PLAN], PERSON, PERSON_SUBJECT);
+    const { revisions } = await booted.client.vault.history({ path: PLAN });
+
+    mountTab(PLAN);
+    const rows = await versionRows(3);
+    const [person, agent, app] = rows.map((row) => row.textContent);
+    expect(person).toContain(PERSON.name);
+    expect(person).toContain(PERSON_SUBJECT);
+    expect(agent).toContain("Agent");
+    expect(app).toContain("You");
+
+    const shown = document.body.textContent ?? "";
+    expect(shown).not.toContain(AGENT_SUBJECT);
+    for (const revision of revisions) {
+      expect(shown).not.toContain(revision.sha.slice(0, 7));
+      if (revision.authorKind === "app") {
+        expect(shown).not.toContain(revision.subject);
+      }
+    }
+  });
+});
+
 // saved but in no revision yet, as bytes inside the auto-commit's quiet window are.
 const EDITED = "# One\n# Two\n# Three\n";
 
-// two committed revisions under uncommitted bytes; answers the oldest revision's sha.
-const seedHistory = async (booted: BootedTestApp): Promise<string> => {
+// two committed revisions under uncommitted bytes; answers the oldest.
+const seedHistory = async (booted: BootedTestApp): Promise<VaultRevision> => {
   await booted.client.vault.write({ content: "# One\n", guard: { kind: "overwrite" }, path: PLAN });
   await booted.client.vault.commitNow();
   await booted.client.vault.write({
@@ -77,11 +125,15 @@ const seedHistory = async (booted: BootedTestApp): Promise<string> => {
   await booted.client.vault.write({ content: EDITED, guard: { kind: "overwrite" }, path: PLAN });
   const { revisions } = await booted.client.vault.history({ path: PLAN });
   expect(revisions).toHaveLength(2);
-  return revisions.at(-1)?.sha ?? "";
+  const oldest = revisions.at(-1);
+  if (oldest === undefined) {
+    throw new Error("the seeded history has no revision");
+  }
+  return oldest;
 };
 
 // the open note's bytes are what the diff is drawn against, and the restore's CAS base.
-const openRevision = async (sha: string): Promise<void> => {
+const openOldestRevision = async (): Promise<void> => {
   const store = createOpenNoteStore();
   store.publishOpenPath(PLAN);
   store.publishEditor({
@@ -99,7 +151,12 @@ const openRevision = async (sha: string): Promise<void> => {
       </OpenNoteStoreProvider>
     </WorkspaceProvider>,
   );
-  fireEvent.click(await screen.findByText(sha.slice(0, 7)));
+  const rows = await versionRows(2);
+  const oldest = rows.at(-1);
+  if (oldest === undefined) {
+    throw new Error("the history tab drew no row");
+  }
+  fireEvent.click(oldest);
   expect(await screen.findByText("-# Three")).toBeDefined();
 };
 
@@ -120,11 +177,15 @@ describe("restoring a revision from the history tab", () => {
     });
     const restored = vi.spyOn(toast, "success");
 
-    await openRevision(oldest);
+    await openOldestRevision();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     await waitFor(() => {
-      expect(restored).toHaveBeenCalledWith(`Restored ${PLAN} to ${oldest.slice(0, 7)}.`);
+      expect(restored).toHaveBeenCalledTimes(1);
     });
+    const [said] = restored.mock.calls[0] ?? [];
+    expect(said).toMatch(/^Restored the version from .+\.$/u);
+    expect(said).toContain(String(new Date(oldest.authoredAt).getFullYear()));
+    expect(said).not.toContain(oldest.sha.slice(0, 7));
 
     expect(await onDisk(booted)).toBe("# One\n");
     const { revisions } = await booted.client.vault.history({ path: PLAN });
@@ -141,10 +202,10 @@ describe("restoring a revision from the history tab", () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
     routeRendererSocket(booted);
-    const oldest = await seedHistory(booted);
+    await seedHistory(booted);
     const refused = vi.spyOn(toast, "error");
 
-    await openRevision(oldest);
+    await openOldestRevision();
     await booted.client.vault.write({
       content: "# Concurrent\n",
       guard: { kind: "overwrite" },

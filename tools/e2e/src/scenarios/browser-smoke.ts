@@ -23,7 +23,7 @@ const SIGNED_OUT_NAMES = "inteligir open";
 const pageIsMounted = (bodyText: string): boolean =>
   // the welcome content only arrives through a vault.read round trip; the sync pill proves the
   // status query ran.
-  bodyText.includes("Welcome to inteligir") && bodyText.includes("Local only");
+  bodyText.includes("Welcome to inteligir") && bodyText.includes("Only on this Mac");
 
 // here, not a unit test: `pnpm verify` runs tests before the build, so a unit test over dist/ reads
 // the previous build.

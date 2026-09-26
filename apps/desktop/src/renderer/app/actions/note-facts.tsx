@@ -75,7 +75,7 @@ const createdLabel = (
   if (authoredAt === undefined) {
     return "…";
   }
-  return createdMs === null ? "Not committed yet" : relativeTimeLabel(createdMs, now);
+  return createdMs === null ? "Not saved to history yet" : relativeTimeLabel(createdMs, now);
 };
 
 const absoluteTime = (ms: number | null): string | undefined =>

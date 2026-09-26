@@ -770,6 +770,25 @@ to the END of its group.
   base for a path it never read and the move writes the old name into the note
   as an alias. `packages/editor/src/note/vault-session.ts`.
 
+- **GIT IS THE ENGINE, NEVER THE VOCABULARY, AND ITS RAW STATE IS SETTINGS ›
+  ADVANCED'S.** The rail, a sync toast, History and a note's facts say sync
+  and versions. A sync state's label and its one line (the rail's menu and a
+  manual sync's toast alike) are spelled in `syncStateLabel` and
+  `syncStateNote` (`apps/desktop/src/renderer/app/vault-hooks.ts`), and
+  neither they nor the rail read `lastError`: it is git's own stderr, so a
+  state only the engine can explain says "Sync paused" and the rail offers
+  Sync details…, which opens Settings at `#advanced`, the one section that
+  shows the remote, the raw state and the last error
+  (`apps/desktop/src/renderer/app/settings/settings-page.tsx`). History names
+  a version by when and who, never by its subject or sha: the server reads
+  `authorKind` off the author (the engine's identity is the user's own edits,
+  the agent's is the agent, anyone else, another device or a person's own git,
+  is `external` and keeps its name and subject), so no client matches an email
+  (`apps/cli/src/server/vault/git-history.ts`). Quoting the engine's error
+  inside a friendlier sentence is rejected: no sentence around git's stderr
+  makes it the user's. `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts`
+  holds the copy to that and guards both sources against reading `lastError`.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile
@@ -1682,7 +1701,9 @@ to the END of its group.
   chrome. Not tabs and not stacked sections: a stack made every list short,
   and a tab row was a third line of chrome. Every other verb is a right-click,
   as in an IDE. The footer's account row runs the one `useCloudSession`
-  (`app/cloud-session.ts`) Settings › Devices runs too. The view is the
+  (`app/cloud-session.ts`) Settings › Devices runs too; it offers Sync now and
+  no second sync for actions, which sync on their own, and its words are the
+  sync state's alone (GIT IS THE ENGINE, above). The view is the
   workspace's (`railView` in `app/prefs.ts`), because a `#tag` chip, a create
   and "Deleted notes…" each switch it. THERE IS NO FOLDER SCOPE: the top bar's
   breadcrumb REVEALS rather than narrows — a segment shows Files, opens the way

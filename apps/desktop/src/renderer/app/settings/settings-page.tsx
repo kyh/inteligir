@@ -12,7 +12,6 @@ import {
 } from "../appearance-options";
 import {
   canSyncNow,
-  syncBlockedReason,
   syncStateLabel,
   useSyncNow,
   useSystemStatus,
@@ -45,10 +44,52 @@ const NAV = [
   { id: "folders", label: "Connected folders" },
   { id: "devices", label: "Devices" },
   { id: "editor", label: "Editor" },
+  { id: "advanced", label: "Advanced" },
   { id: "about", label: "About" },
 ] as const;
 
+export type SettingsSection = (typeof NAV)[number]["id"];
+
 type SystemStatus = ReturnType<typeof useSystemStatus>["data"];
+type VaultStatus = ReturnType<typeof useVaultStatus>["data"];
+
+const gitRemote = (status: VaultStatus) => {
+  if (status === undefined) {
+    return "…";
+  }
+  if (status.state === "no-remote") {
+    return (
+      <span className="text-muted-foreground">
+        None — sign in under Devices to sync through your account, or set INTELIGIR_VAULT_REMOTE /
+        config.json for your own remote.
+      </span>
+    );
+  }
+  return (
+    <span className="block truncate font-mono text-body" title={status.remote}>
+      {status.remote}
+    </span>
+  );
+};
+
+// the engine's own words, raw, for whoever brings their own sync server; the rail and its toasts
+// speak only sync
+const AdvancedSection = ({ status }: { status: VaultStatus }) => (
+  <section id="advanced" className="scroll-mt-10 space-y-2">
+    <SectionHeading>Advanced</SectionHeading>
+    <dl className="space-y-1.5">
+      <Row label="Git remote">{gitRemote(status)}</Row>
+      <Row label="Sync state">
+        <span className="font-mono text-body">{status?.state ?? "…"}</span>
+      </Row>
+      <Row label="Last git error">
+        <span className="block text-body text-muted-foreground">
+          {status === undefined ? "…" : (status.lastError ?? "None")}
+        </span>
+      </Row>
+    </dl>
+  </section>
+);
 
 const AgentSummary = ({ system }: { system: SystemStatus }) => (
   <section id="agent" className="scroll-mt-10 space-y-2">
@@ -105,25 +146,6 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
   const status = statusQuery.data;
   const system = systemQuery.data;
 
-  const gitRemote = () => {
-    if (status === undefined) {
-      return "…";
-    }
-    if (status.state === "no-remote") {
-      return (
-        <span className="text-muted-foreground">
-          {syncBlockedReason(status)} — sign in below to sync through your account, or set
-          INTELIGIR_VAULT_REMOTE / config.json for your own remote.
-        </span>
-      );
-    }
-    return (
-      <span className="block truncate font-mono text-body" title={status.remote}>
-        {status.remote}
-      </span>
-    );
-  };
-
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-3xl gap-10 px-6 py-10">
@@ -168,7 +190,6 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
                   {treeQuery.data?.root ?? "…"}
                 </span>
               </Row>
-              <Row label="Git remote">{gitRemote()}</Row>
               <Row label="Sync">
                 <span className="flex items-center gap-2">
                   {status === undefined ? "…" : syncStateLabel(status)}
@@ -183,11 +204,6 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
                     </Button>
                   ) : null}
                 </span>
-                {status?.lastError !== null && status?.lastError !== undefined ? (
-                  <span className="mt-1 block text-body text-muted-foreground">
-                    Last error: {status.lastError}
-                  </span>
-                ) : null}
               </Row>
               <AttachmentsRow />
               <VaultsRow />
@@ -261,6 +277,8 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
               <SpellcheckRows />
             </dl>
           </section>
+          <Separator />
+          <AdvancedSection status={status} />
           <Separator />
           <AboutSection system={system} />
         </main>

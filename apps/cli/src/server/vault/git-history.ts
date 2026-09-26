@@ -4,8 +4,9 @@ import {
 } from "@repo/api/local/vault/vault-schema";
 import type { VaultDeletedEntry, VaultRevision } from "@repo/api/local/vault/vault-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import { ENGINE_IDENTITY } from "./git-run";
 import type { RunGitCommand } from "./git-run";
-import { parseAgentCommitTrailers, threadTrailer } from "./turn-trailers";
+import { AGENT_COMMIT_AUTHOR, parseAgentCommitTrailers, threadTrailer } from "./turn-trailers";
 import type { AgentCommitTrailers } from "./turn-trailers";
 import { VaultServiceError } from "./vault-service";
 
@@ -43,6 +44,13 @@ const readStatusTuple = (
     next: index + (isPair ? 3 : 2),
     tuple: isPair ? { letter, origin: first, path: second } : { letter, origin: null, path: first },
   };
+};
+
+const authorKindOf = (authorEmail: string): VaultRevision["authorKind"] => {
+  if (authorEmail === ENGINE_IDENTITY.email) {
+    return "app";
+  }
+  return authorEmail === AGENT_COMMIT_AUTHOR.email ? "agent" : "external";
 };
 
 // a commit's name-status block holds one or more tuples: a path that was a file, a directory,
@@ -92,7 +100,15 @@ export const parseFollowLog = (stdout: string, requestedPath: string): VaultRevi
     const path = content?.path ?? pathAtNewerRevision;
     pathAtNewerRevision = path;
 
-    const revision: VaultRevision = { authorEmail, authorName, authoredAt, path, sha, subject };
+    const revision: VaultRevision = {
+      authorEmail,
+      authorKind: authorKindOf(authorEmail),
+      authorName,
+      authoredAt,
+      path,
+      sha,
+      subject,
+    };
     // exactOptionalPropertyTypes: an absent rename must drop the member, not carry undefined.
     const origin = content?.origin ?? null;
     revisions.push(origin === null ? revision : { ...revision, renamedFrom: origin });
