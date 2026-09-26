@@ -144,13 +144,17 @@ apps/
                  produced captures and (#618) a local SQLite mirror of every
                  note's text (src/notes/vault-mirror.ts), kept current from
                  the hosted vault's /cloud read rows by blob oid and read
-                 offline, rendered through @repo/notes' own parse, with each
-                 note's comment store folded beside it (#683), and a durable
-                 outbox of the phone's own edits (src/notes/vault-outbox.ts)
-                 sent through the guarded commit route, its file verbs
-                 (create, rename, delete, photos) planned in
-                 src/notes/file-ops.ts; reaches @repo/api/cloud,
-                 @repo/domain and @repo/notes only.
+                 offline, each note opened in the desktop's editor: the
+                 @repo/mobile-editor page the app bundle carries, in a
+                 WebView whose bridge the phone answers over its store
+                 (src/editor/editor-host.ts, editor-ports.ts), each note's
+                 comment store read-only in a sheet beside it (#683), and a
+                 durable outbox of the phone's own edits
+                 (src/notes/vault-outbox.ts) sent through the guarded commit
+                 route, its file verbs (create, rename, delete, photos)
+                 planned in src/notes/file-ops.ts; reaches @repo/api/cloud,
+                 @repo/domain, @repo/notes and
+                 @repo/mobile-editor/bridge-protocol only.
   mobile-editor/ @repo/mobile-editor — the phone's editor: @repo/editor
                  under the touch profile, built by Vite as ONE classic
                  script (vite/classic-page.ts refuses anything else, since
@@ -621,6 +625,33 @@ to the END of its group.
   editor's own write policy over it (`apps/mobile-editor/src/host/page-host.ts`).
   `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
   `file://` against a scripted phone.
+
+- **THE PHONE CARRIES ITS EDITOR PAGE IN THE BINARY, AND ITS WEBVIEW LOADS
+  NOTHING BUT THE PAGE** (0.6 direction: the phone is a full editor,
+  reversing #542's read-only phone and the React Native renderer of the
+  dialect it drew with, a second renderer that could not edit and degraded
+  every construct it did not model). The note screen opens the built page
+  from the app bundle, so a note opens offline from `file://`: a config
+  plugin adds the build as a folder reference, and since Xcode copies a
+  folder under its name on disk, `ios/` links the bundle's name to it
+  (`apps/mobile/plugins/with-editor-page.js`). The page ships inside the
+  binary, so its build joins the native fingerprint
+  (`apps/mobile/fingerprint.config.js`): an EAS Update bundled beside another
+  page matches no install, since the bridge breaks freely between releases.
+  The native end is one policy (`apps/mobile/src/editor/editor-host.ts`): a
+  frame counts only from the page's own document and under the nonce its load
+  was given, so a child frame's message or an earlier load's is dropped; the
+  WebView loads the page and the child frames the page itself makes, hands a
+  followed web link to Safari and refuses everything else, and its origin list
+  admits every address, because the library hands whatever that list refuses
+  to the OS itself, before the policy runs. The page's store is the phone's
+  (`apps/mobile/src/editor/editor-ports.ts`): a write's base is compared with
+  the text the phone holds, so a change a sync landed since the page read
+  comes back for the page's own merge, and its file verbs are the list's.
+  Leaving the note, the back gesture and the app going inactive each flush the
+  page within a bound; a page two screens down is released after its flush
+  and loads again on return, and a content process iOS killed reloads.
+  `apps/mobile/src/editor/__tests__/`.
 
 ### Vault: writes, git and containment
 
@@ -1904,10 +1935,11 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   purgeable cache, kept out of the iCloud device backup (owner decision: it
   downloads again) by the local module `apps/mobile/modules/backup-exclusion`.
   A row per file the tree names: its oid, the commit its blob first appeared
-  at (an asset URL pinned there outlives every commit that leaves the blob
-  alone), and for a note or a comment store its text with the frontmatter id
-  and aliases read once as it lands, so the resolver's alias and uuid tiers
-  answer on the phone. A refresh applies the listing in one transaction by oid,
+  at (an attachment is fetched there, so a commit that leaves the blob alone
+  never fetches it again), and for a note or a comment store its text with the
+  frontmatter id and aliases read once as it lands, so the resolver's alias
+  and uuid tiers answer on the phone. A refresh applies the listing in one
+  transaction by oid,
   copies a blob it holds under another path rather than fetching it, and fills
   the empty rows in pinned batches, each its own transaction landing only on a
   row still naming the answer's oid; the commit advances when no wanted row is

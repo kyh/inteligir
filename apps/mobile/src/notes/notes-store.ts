@@ -9,7 +9,7 @@ import { extnamePath } from "@repo/notes/knowledge/vault-path";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { diff3 } from "@repo/notes/text/diff3";
 import { describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
+import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
 import { vaultCollisionKey } from "@repo/api/cloud/vault/vault-commit-schema";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
@@ -63,7 +63,10 @@ export interface NoteText {
   content: string;
 }
 
-export type NoteRead = ({ ok: true } & NoteText) | { ok: false; message: string };
+// `notFound` is the one refusal a writer may take as the note being gone
+export type NoteRead =
+  | ({ ok: true } & NoteText)
+  | { ok: false; notFound: boolean; message: string };
 
 // a note without an id, or with no store yet, has no comments; only an unreadable store is a failure
 export type CommentsRead =
@@ -154,9 +157,6 @@ export interface NotesStore {
   resolveWiki: (target: string, alias?: string) => string | null;
   // the bytes on this phone, downloaded on the first ask
   attachmentFile: (path: string) => Promise<AttachmentRead>;
-  // null until the mirror names the path: the route refuses an unpinned asset url. the bytes then
-  // sit in the platform image caches (NSURLCache, Fresco), which core RN Image cannot purge.
-  assetSource: (path: string) => VaultAssetSource | null;
 }
 
 type LiveSession = Extract<ReturnType<SessionPort["current"]>, { kind: "live" }>;
@@ -246,7 +246,6 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // keyed by session id, so a new sign-in's refresh never joins the previous sign-in's stalled one
   let refreshing: { sessionId: number; done: Promise<void> } | null = null;
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
-  const assetSources = new Map<string, { pinCommit: string; source: VaultAssetSource }>();
   const guards = new Map<string, Guard>();
   const watchers = new Map<string, { version: string; listeners: Set<() => void> }>();
   // one write at a time, so the row a write joins is the row it read
@@ -869,21 +868,6 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     });
 
   return {
-    assetSource(path) {
-      const current = session.current();
-      const row = vaultRowFor(path);
-      if (current.kind !== "live" || row === null) {
-        return null;
-      }
-      const cached = assetSources.get(path);
-      if (cached?.pinCommit === row.pinCommit) {
-        return cached.source;
-      }
-      const source = current.client.vaultAssetSource({ path: row.path, ref: row.pinCommit });
-      assetSources.set(path, { pinCommit: row.pinCommit, source });
-      return source;
-    },
-
     async attachmentFile(path) {
       const current = session.current();
       const entry = listing?.files.get(path);
@@ -1005,7 +989,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     async readNote(path) {
       const read = await readFile(path);
       if (!read.ok) {
-        return { message: read.message, ok: false };
+        return { message: read.message, notFound: read.notFound, ok: false };
       }
       await recordGuard(path, read);
       return { content: read.content, ok: true, path: read.path };
@@ -1040,7 +1024,6 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       listing = null;
       mirrorRows = null;
       guards.clear();
-      assetSources.clear();
       tree.set({ state: "idle" });
       if (next !== "restored") {
         resetWork = wipe();

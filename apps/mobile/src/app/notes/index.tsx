@@ -14,7 +14,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { createNote, deleteNote, refreshNotes, renameNote, useNotesTree } from "@/lib/app-runtime";
+import { confirmDeleteNote } from "@/notes/confirm-delete-note";
+import { linksKeptLine } from "@/notes/file-ops";
 import type { NotesTreeState } from "@/notes/notes-store";
+import { OutboxBanner } from "@/notes/outbox-banner";
 import type { MirrorProgress } from "@/notes/vault-mirror";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
@@ -79,11 +82,6 @@ const emptyLabel = (tree: NotesTreeState): string => {
   return "No notes yet. Tap New note to write one.";
 };
 
-const linksKeptLine = (unlinked: readonly string[]): string =>
-  unlinked.length === 1
-    ? "1 note changed first, so its link keeps the old name, which still opens this note."
-    : `${String(unlinked.length)} notes changed first, so their links keep the old name, which still opens this note.`;
-
 const rename = (path: string): void => {
   Alert.prompt(
     "Rename note",
@@ -110,16 +108,9 @@ const rename = (path: string): void => {
 };
 
 const confirmDelete = (path: string): void => {
-  Alert.alert(`Delete ${docStem(path)}?`, "You can restore it from Deleted on your Mac.", [
-    { style: "cancel", text: "Cancel" },
-    {
-      onPress: () => {
-        void deleteNote(path);
-      },
-      style: "destructive",
-      text: "Delete",
-    },
-  ]);
+  confirmDeleteNote(path, () => {
+    void deleteNote(path);
+  });
 };
 
 // the first row is the sheet's cancel
@@ -156,6 +147,13 @@ const NotesScreen = () => {
     await refreshNotes();
     setRefreshing(false);
   }, []);
+
+  const openNote = useCallback(
+    (path: string) => {
+      router.push({ params: { path: path.split("/") }, pathname: "/notes/[...path]" });
+    },
+    [router],
+  );
 
   const newNote = useCallback(async () => {
     const created = await createNote("");
@@ -206,7 +204,12 @@ const NotesScreen = () => {
         }
         data={docs}
         keyExtractor={(entry) => entry.path}
-        ListHeaderComponent={<Notices progress={progress} refreshError={refreshError} />}
+        ListHeaderComponent={
+          <>
+            <OutboxBanner onOpen={openNote} />
+            <Notices progress={progress} refreshError={refreshError} />
+          </>
+        }
         ListEmptyComponent={<Empty text={emptyText} />}
         renderItem={({ item: entry }) => {
           const dir = dirnamePath(entry.path);
@@ -218,10 +221,7 @@ const NotesScreen = () => {
                 pressed && styles.pressed,
               ]}
               onPress={() => {
-                router.push({
-                  params: { path: entry.path.split("/") },
-                  pathname: "/notes/[...path]",
-                });
+                openNote(entry.path);
               }}
               onLongPress={() => {
                 showNoteActions(entry.path);

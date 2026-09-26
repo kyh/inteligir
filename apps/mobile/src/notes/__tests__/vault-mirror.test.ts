@@ -244,19 +244,20 @@ describe("the vault mirror", () => {
     expect(store.resolveWiki("Old Title", NOTE_ID)).toBe("projects/plan.md");
   });
 
-  it("keeps an unchanged image's asset url across a commit, and moves a changed one's", async () => {
+  it("keeps an unchanged image's pin across a commit, and moves a changed one's", async () => {
     const vault = createFakeVault({ ...VAULT, "media/b.png": "other png" });
     const { store } = launch(vault.fetch, openTempDb());
     await store.refresh();
-    const kept = store.assetSource("media/a.png")?.uri;
-    const changed = store.assetSource("media/b.png")?.uri;
+    const first = vault.head();
 
     vault.change({ "media/b.png": "other png, redrawn", "notes/b.md": "# b, edited\n" });
     await store.refresh();
+    expect(await store.attachmentFile("media/a.png")).toMatchObject({ ok: true });
+    expect(await store.attachmentFile("media/b.png")).toMatchObject({ ok: true });
 
-    expect(store.assetSource("media/a.png")?.uri).toBe(kept);
-    expect(store.assetSource("media/b.png")?.uri).not.toBe(changed);
-    expect(store.assetSource("media/b.png")?.uri).toContain(`ref=${vault.head()}`);
+    const [kept, moved] = requestsOf(vault, "asset");
+    expect(kept).toContain(`ref=${first}`);
+    expect(moved).toContain(`ref=${vault.head()}`);
   });
 
   it("reads a note it has not filled at the commit that named it, and keeps the text", async () => {

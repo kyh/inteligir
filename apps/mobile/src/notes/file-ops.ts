@@ -59,6 +59,12 @@ export interface FileOps {
   writeAsset: (baseName: string, bytes: Uint8Array) => Promise<WrittenAsset>;
 }
 
+// what a rename says of the notes whose links still name the note as it was
+export const linksKeptLine = (unlinked: readonly string[]): string =>
+  unlinked.length === 1
+    ? "1 note changed first, so its link keeps the old name, which still opens this note."
+    : `${String(unlinked.length)} notes changed first, so their links keep the old name, which still opens this note.`;
+
 const UNTITLED = "Untitled";
 
 // another write can take the picked name between the pick and the queue; past this the name

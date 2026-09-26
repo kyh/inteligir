@@ -35,7 +35,10 @@ export const openTempDb = (file: string = tempDbPath()) => {
   return db;
 };
 
-export const createMemoryAttachments = (): AttachmentFiles & { names: () => string[] } => {
+export const createMemoryAttachments = (): AttachmentFiles & {
+  names: () => string[];
+  read: (name: string) => Uint8Array | null;
+} => {
   const files = new Map<string, Uint8Array>();
   return {
     clear: async () => {
@@ -43,6 +46,7 @@ export const createMemoryAttachments = (): AttachmentFiles & { names: () => stri
     },
     find: async (name) => (files.has(name) ? `memory://${name}` : null),
     names: () => [...files.keys()],
+    read: (name) => files.get(name) ?? null,
     save: async (name, bytes) => {
       files.set(name, bytes);
       return `memory://${name}`;
@@ -89,7 +93,11 @@ export const phonePorts = () => ({
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 
 // one launch of the phone over a database file, signed in as the boot restore does
-export const launchPhone = (fetch: CloudFetch, db: SqlDriver = openTempDb()): NotesStore => {
+export const launchPhone = (
+  fetch: CloudFetch,
+  db: SqlDriver = openTempDb(),
+  ports: ReturnType<typeof phonePorts> = phonePorts(),
+): NotesStore => {
   const sync = createSyncRuntime({
     cloudUrl: "https://cloud.test",
     createClient: (credential) =>
@@ -101,7 +109,7 @@ export const launchPhone = (fetch: CloudFetch, db: SqlDriver = openTempDb()): No
     pollIntervalMs: null,
     store: createMemorySyncStore(),
   });
-  const store = createNotesStore({ ...phonePorts(), db, session: sync.session });
+  const store = createNotesStore({ ...ports, db, session: sync.session });
   sync.setCredential(CREDENTIAL);
   store.reset("restored");
   return store;

@@ -153,20 +153,35 @@ const CaptureBox = () => {
   );
 };
 
-const unsentLine = (count: number): string =>
-  count === 1
-    ? "1 change on this phone has not reached your vault yet."
-    : `${String(count)} changes on this phone have not reached your vault yet.`;
+const unsentLines = (edits: number, requests: number): string[] => {
+  const lines: string[] = [];
+  if (edits > 0) {
+    lines.push(
+      edits === 1
+        ? "1 change on this phone has not reached your vault yet."
+        : `${String(edits)} changes on this phone have not reached your vault yet.`,
+    );
+  }
+  if (requests > 0) {
+    lines.push(
+      requests === 1
+        ? "1 request to your Mac has not reached it yet."
+        : `${String(requests)} requests to your Mac have not reached it yet.`,
+    );
+  }
+  return lines;
+};
 
-// a sign-out that would discard edits the vault has not taken asks first, naming how many
+// a sign-out that would discard edits the vault has not taken, or requests no Mac holds yet, asks
+// first, naming how many
 const signOut = async (): Promise<void> => {
   const outcome = await logout();
   if (outcome.kind === "signed-out") {
     return;
   }
   Alert.alert(
-    "Sign out and discard changes?",
-    `${unsentLine(outcome.count)} Signing out discards them.`,
+    "Sign out and discard them?",
+    [...unsentLines(outcome.edits, outcome.requests), "Signing out discards them."].join(" "),
     [
       { style: "cancel", text: "Cancel" },
       {

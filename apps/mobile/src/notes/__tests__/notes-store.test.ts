@@ -76,7 +76,11 @@ describe("the notes store", () => {
     const vault = fakeVault();
     const { store } = notesOver(vault.fetch);
     await store.refresh();
-    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
+    expect(await store.readNote("a.md")).toEqual({
+      message: "Not signed in.",
+      notFound: false,
+      ok: false,
+    });
     expect(vault.requests).toEqual([]);
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
@@ -151,7 +155,6 @@ describe("the notes store", () => {
       refreshError: "Could not reach the cloud: offline",
     });
     expect(store.resolveWiki("b")).toBe("notes/b.md");
-    expect(store.assetSource("media/a.png")).not.toBeNull();
 
     offline = false;
     await store.refresh();
@@ -282,25 +285,11 @@ describe("the notes store", () => {
     signOut();
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
-    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
-  });
-
-  it("composes an asset source pinned to the commit its blob arrived at, credential in a header", async () => {
-    const vault = fakeVault();
-    const { signIn, signOut, store } = notesOver(vault.fetch);
-    signIn(CREDENTIAL, "restored");
-    expect(store.assetSource("media/a.png")).toBeNull();
-    await store.refresh();
-    const source = store.assetSource("media/a.png");
-    const url = new URL(source?.uri ?? "");
-    expect(url.pathname).toBe("/v1/vault/asset");
-    expect(url.searchParams.get("path")).toBe("media/a.png");
-    expect(url.searchParams.get("ref")).toBe(vault.head());
-    expect(source?.headers).toEqual({ authorization: `Bearer ${CREDENTIAL.credential}` });
-    expect(store.assetSource("media/a.png")).toBe(source);
-    expect(store.assetSource("media/unknown.png")).toBeNull();
-    signOut();
-    expect(store.assetSource("media/a.png")).toBeNull();
+    expect(await store.readNote("a.md")).toEqual({
+      message: "Not signed in.",
+      notFound: false,
+      ok: false,
+    });
   });
 
   it("downloads an attachment once, named by its blob, and serves the file after", async () => {
@@ -320,6 +309,8 @@ describe("the notes store", () => {
     });
 
     expect(requestsOf(vault, "asset")).toHaveLength(1);
+    // pinned to the commit its blob arrived at, which a later commit leaving it alone keeps
+    expect(requestsOf(vault, "asset")[0]).toContain(`ref=${vault.head()}`);
     expect(attachments.names()).toEqual([name]);
   });
 });
@@ -337,7 +328,7 @@ describe("the notes store under the sync session", () => {
 
     const read = await store.readNote("not-yet-mirrored.md");
 
-    expect(read).toEqual({ message: "This device was signed out.", ok: false });
+    expect(read).toEqual({ message: "This device was signed out.", notFound: false, ok: false });
     expect(sync.get()).toMatchObject({ deviceId: CREDENTIAL.deviceId, state: "unauthorized" });
   });
 
@@ -355,8 +346,15 @@ describe("the notes store under the sync session", () => {
     await sync.syncNow();
 
     expect(sync.get().state).toBe("unauthorized");
-    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
-    expect(store.assetSource("media/a.png")).toBeNull();
+    expect(await store.readNote("a.md")).toEqual({
+      message: "Not signed in.",
+      notFound: false,
+      ok: false,
+    });
+    expect(await store.attachmentFile("media/a.png")).toStrictEqual({
+      message: "Not signed in.",
+      ok: false,
+    });
     expect(vault.requests).toHaveLength(before);
   });
 });

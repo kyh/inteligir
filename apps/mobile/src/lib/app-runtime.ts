@@ -1,6 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
+import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import {
   clearDeviceCredential,
@@ -15,6 +16,8 @@ import type {
   DispatchOutcome,
   DispatchState,
 } from "../dispatch/dispatch-runtime";
+import { createEditorPorts } from "../editor/editor-ports";
+import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
 import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
@@ -22,12 +25,12 @@ import { createExpoOutboxFiles } from "../notes/expo-outbox-files";
 import type { CreatedNote, RenamedNote } from "../notes/file-ops";
 import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
 import { ingestPhoto } from "../notes/photo-ingest";
-import { withPhotoEmbed } from "../notes/photo-plan";
+import type { OutboxStatus } from "../notes/vault-outbox";
 import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/api/cloud/bytes";
-import type { CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
+import type { CloudFailure } from "@repo/api/cloud/client";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
@@ -128,41 +131,59 @@ export const deleteNote = async (path: string): Promise<void> => {
   await getRuntime().fileOps.remove(path);
 };
 
-type AddedPhoto =
-  | { kind: "added"; content: string }
-  | { kind: "cancelled" }
-  | { kind: "refused"; message: string };
+// the view context's revision: the sha-256 of the note's bytes as the screen showed them
+const noteRevision = async (content: string): Promise<string> =>
+  hexFromBytes(
+    new Uint8Array(
+      await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new TextEncoder().encode(content)),
+    ),
+  );
 
-// the note is read again once the photo is kept, so the write is guarded by the text the phone
-// holds then; a note gone meanwhile leaves the photo in the vault and in no note
-export const addPhotoToNote = async (path: string): Promise<AddedPhoto> => {
+// the editor page's ports over the store and the file verbs, bound to their native halves: the
+// photo picker, a held file's bytes, the revision hash and a new thread's id
+export const createNoteEditorPorts = (
+  screen: Pick<EditorPortsArgs, "go" | "notify" | "opened" | "showComments">,
+): EditorPorts => {
   const rt = getRuntime();
-  const photo = await ingestPhoto(rt.fileOps);
-  if (photo.kind !== "picked") {
-    return photo;
-  }
-  const read = await rt.notes.readNote(path);
-  if (!read.ok) {
-    return { kind: "refused", message: read.message };
-  }
-  const written = await rt.notes.write(path, withPhotoEmbed(read.content, photo.path));
-  return written.kind === "landed"
-    ? { content: written.content, kind: "added" }
-    : {
-        kind: "refused",
-        message: "The photo was kept, but this note was deleted before it landed.",
-      };
+  return createEditorPorts({
+    ...screen,
+    fileOps: rt.fileOps,
+    newThreadId: () => rt.dispatch.newThreadId(),
+    pickImage: async () => await ingestPhoto(rt.fileOps),
+    readBase64: async (uri) => await new File(uri).base64(),
+    revisionOf: noteRevision,
+    store: rt.notes,
+  });
 };
 
-export const resolveWikiPath = (target: string, alias?: string): string | null =>
-  getRuntime().notes.resolveWiki(target, alias);
-
-export const assetSource = (path: string): VaultAssetSource | null =>
-  getRuntime().notes.assetSource(path);
+// one per load of the editor page
+export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
 
 export const useNotesTree = (): NotesTreeState => {
   const rt = getRuntime();
   return useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
+};
+
+// what has not reached the vault: the parked changes and the conflicts the queue settled
+export const useOutboxStatus = (): OutboxStatus => {
+  const { status } = getRuntime().notes.outbox;
+  return useSyncExternalStore(status.subscribe, status.get);
+};
+
+export const retryUnsent = async (seq: number): Promise<void> => {
+  await getRuntime().notes.outbox.retry(seq);
+};
+
+// the path the change was kept at, or null when it had nothing to keep
+export const saveUnsentAsNew = async (seq: number): Promise<string | null> =>
+  await getRuntime().notes.outbox.saveAsNew(seq);
+
+export const discardUnsent = async (seq: number): Promise<void> => {
+  await getRuntime().notes.outbox.discard(seq);
+};
+
+export const dismissSyncNotice = (id: number): void => {
+  getRuntime().notes.outbox.dismiss(id);
 };
 
 export const useSyncStatus = (): SyncStatus => {
@@ -212,8 +233,6 @@ export const useDispatches = (threadId: string): ThreadDispatches => {
   );
 };
 
-export const newThreadId = (): string => getRuntime().dispatch.newThreadId();
-
 export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
   await getRuntime().dispatch.askAgent(request);
 
@@ -228,11 +247,3 @@ export const cancelDispatch = async (id: string): Promise<CancelOutcome> =>
 export const dismissDispatch = async (id: string): Promise<void> => {
   await getRuntime().dispatch.dismiss(id);
 };
-
-// the view context's revision: the sha-256 of the note's bytes as the screen showed them
-export const noteRevision = async (content: string): Promise<string> =>
-  hexFromBytes(
-    new Uint8Array(
-      await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new TextEncoder().encode(content)),
-    ),
-  );

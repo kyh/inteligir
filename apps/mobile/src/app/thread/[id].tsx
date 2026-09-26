@@ -20,6 +20,7 @@ import {
   WORKING_CAPTION,
 } from "@/dispatch/dispatch-projection";
 import type { ApprovalView } from "@/dispatch/dispatch-projection";
+import { noMacHasIt } from "@/dispatch/dispatch-runtime";
 import type { AskAgentRequest, TurnDispatch } from "@/dispatch/dispatch-runtime";
 import {
   answerApproval,
@@ -183,7 +184,7 @@ const PendingRow = ({
   const theme = useTheme();
   const { phase } = dispatch;
   const refused = phase.kind === "refused";
-  const cancellable = phase.kind === "unsent" || phase.kind === "waiting";
+  const cancellable = noMacHasIt(phase);
   return (
     <View style={styles.pending}>
       <View style={styles.userRow}>
@@ -329,14 +330,16 @@ const ApprovalCard = ({
 
 const Composer = ({
   placeholder,
+  seed,
   onSend,
 }: {
   placeholder: string;
+  seed: string;
   // the reason it was not sent, or null once it is durable on this phone
   onSend: (text: string) => Promise<string | null>;
 }) => {
   const theme = useTheme();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(seed);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = text.trim() !== "" && !sending;
@@ -403,20 +406,32 @@ const Separator = () => <View style={styles.separator} />;
 const firstParam = (value: string | string[] | undefined): string | null =>
   (Array.isArray(value) ? value[0] : value) ?? null;
 
+// a selection the note's Ask agent was pressed over, quoted as the Mac's composer quotes one
+const quotedSeed = (selection: string | null): string =>
+  selection === null
+    ? ""
+    : `${selection
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n")}\n\n`.slice(0, DISPATCH_MAX_CHARS);
+
 // A synced thread — the Mac agent's work, mirrored — with what this phone has asked of it and not
 // yet seen in the log. A `note` param makes an empty thread one about that note: its first message
-// carries the note as the thread's origin, and the bytes the note screen showed as the revision.
+// carries the note as the thread's origin, and the bytes the note screen showed as the revision;
+// a `quote` is the selection it was asked over, which the composer starts with.
 const ThreadScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
   const params = useLocalSearchParams<{
     id: string | string[];
     note?: string | string[];
+    quote?: string | string[];
     revision?: string | string[];
   }>();
   const threadId = firstParam(params.id) ?? "";
   const notePath = firstParam(params.note);
   const revision = firstParam(params.revision);
+  const quote = firstParam(params.quote);
   const thread = useThread(threadId);
   const { approvals, desktopsOnline, pending } = useDispatches(threadId);
   const list = useRef<FlatList<ThreadRow>>(null);
@@ -499,7 +514,11 @@ const ThreadScreen = () => {
           </View>
         )}
         {canCompose ? (
-          <Composer placeholder={fresh ? "Ask the agent…" : "Reply…"} onSend={send} />
+          <Composer
+            placeholder={fresh ? "Ask the agent…" : "Reply…"}
+            seed={fresh ? quotedSeed(quote) : ""}
+            onSend={send}
+          />
         ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
