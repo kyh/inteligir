@@ -23,7 +23,7 @@ import {
   revokeDeviceResponseSchema,
 } from "../device/device-schema";
 import { createCloudClient, readCloudCall } from "../cloud-client";
-import type { CloudFailure } from "../cloud-client";
+import type { CloudFailure, CloudFetch } from "../cloud-client";
 import {
   EVENT_MAX_BYTES,
   pullQuerySchema,
@@ -36,13 +36,21 @@ import {
   assetMediaType,
   VAULT_API_PATHS,
   VAULT_ASSET_MEDIA_TYPES,
+  VAULT_FILES_MAX_PATHS,
   vaultAssetQuerySchema,
   vaultFileQuerySchema,
   vaultFileResponseSchema,
+  vaultFilesRequestSchema,
+  vaultFilesResponseSchema,
   vaultTreeQuerySchema,
   vaultTreeResponseSchema,
 } from "../vault/vault-schema";
-import type { VaultAssetQuery, VaultFileQuery, VaultTreeQuery } from "../vault/vault-schema";
+import type {
+  VaultAssetQuery,
+  VaultFileQuery,
+  VaultFilesRequest,
+  VaultTreeQuery,
+} from "../vault/vault-schema";
 
 describe("error envelope", () => {
   it("round-trips through its own schema", () => {
@@ -202,12 +210,27 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   [
     "a tree page",
     vaultTreeResponseSchema,
-    { commit: COMMIT, entries: [{ path: "notes/a.md", size: 12 }], next: null },
+    {
+      commit: COMMIT,
+      entries: [{ oid: "b".repeat(40), path: "notes/a.md", size: 12 }],
+      next: null,
+    },
   ],
   [
     "a file",
     vaultFileResponseSchema,
     { commit: COMMIT, content: "# a\n", oid: "b".repeat(40), path: "notes/a.md" },
+  ],
+  [
+    "a batch of files",
+    vaultFilesResponseSchema,
+    {
+      commit: COMMIT,
+      deferred: ["notes/d.md"],
+      files: [{ content: "# a\n", oid: "b".repeat(40), path: "notes/a.md" }],
+      missing: ["notes/b.md"],
+      refused: [{ code: "not-text", path: "notes/c.md" }],
+    },
   ],
   ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
   ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
@@ -503,10 +526,17 @@ describe("vault read rows", () => {
   it("parses the tree page and the file", () => {
     const tree = vaultTreeResponseSchema.parse({
       commit: COMMIT,
-      entries: [{ path: "notes/a.md", size: 12 }],
+      entries: [{ oid: "b".repeat(40), path: "notes/a.md", size: 12 }],
       next: null,
     });
     expect(tree.entries[0]?.path).toBe("notes/a.md");
+    expect(
+      vaultTreeResponseSchema.safeParse({
+        commit: COMMIT,
+        entries: [{ path: "notes/a.md", size: 12 }],
+        next: null,
+      }).success,
+    ).toBe(false);
     const file = vaultFileResponseSchema.parse({
       commit: COMMIT,
       content: "# a\n",
@@ -590,6 +620,52 @@ describe("vault read rows", () => {
     expect(source.headers).toEqual({ authorization: `Bearer igd_${"a".repeat(64)}` });
   });
 
+  it("the batch REQUIRES its ref and names one to forty unique vault paths", () => {
+    const paths = Array.from({ length: VAULT_FILES_MAX_PATHS }, (_, index) => `n${index}.md`);
+    expect(vaultFilesRequestSchema.safeParse({ paths, ref: COMMIT }).success).toBe(true);
+    for (const refused of [
+      { paths },
+      { paths: [...paths, "one-more.md"], ref: COMMIT },
+      { paths: [], ref: COMMIT },
+      { paths: ["a.md", "a.md"], ref: COMMIT },
+      { paths: ["../up.md"], ref: COMMIT },
+      { paths: ["a.md"], ref: "abc123" },
+      { extra: 1, paths: ["a.md"], ref: COMMIT },
+    ]) {
+      expect(vaultFilesRequestSchema.safeParse(refused).success, JSON.stringify(refused)).toBe(
+        false,
+      );
+    }
+  });
+
+  it("posts a batch the route decodes to exactly the request, the bearer in a header", async () => {
+    const credential = `igd_${"a".repeat(64)}`;
+    const request: VaultFilesRequest = { paths: ["notes/α β&c=d.md", "100%done.md"], ref: COMMIT };
+    const answer = { commit: COMMIT, deferred: [], files: [], missing: request.paths, refused: [] };
+    const seen: { authorization: string | null; body: unknown; method: string; url: URL }[] = [];
+    const result = await createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential,
+      fetch: async (input, init) => {
+        seen.push({
+          authorization: new Headers(init?.headers).get("authorization"),
+          body: JSON.parse(String(init?.body)),
+          method: init?.method ?? "GET",
+          url: new URL(input),
+        });
+        return Response.json(answer);
+      },
+    }).vaultFiles(request);
+    expect(result).toStrictEqual({ ok: true, value: answer });
+    expect(seen).toHaveLength(1);
+    const [sent] = seen;
+    expect(sent?.method).toBe("POST");
+    expect(sent?.url.pathname).toBe(VAULT_API_PATHS.files);
+    expect(sent?.url.search).toBe("");
+    expect(sent?.authorization).toBe(`Bearer ${credential}`);
+    expect(vaultFilesRequestSchema.parse(sent?.body)).toEqual(request);
+  });
+
   it("the asset allowlist answers a type or nothing — never a fallback", () => {
     expect(assetMediaType("media/diagram.png")).toBe("image/png");
     expect(assetMediaType("media/PHOTO.JPG")).toBe("image/jpeg");
@@ -611,6 +687,69 @@ describe("vault read rows", () => {
       ".png": "image/png",
       ".svg": "image/svg+xml",
       ".webp": "image/webp",
+    });
+  });
+});
+
+describe("an attachment's bytes", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const CREDENTIAL = `igd_${"a".repeat(64)}`;
+  const QUERY: VaultAssetQuery = { path: "media/α β.png", ref: COMMIT };
+
+  const assetOver = async (fetch: CloudFetch) =>
+    await createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: CREDENTIAL,
+      fetch,
+    }).vaultAsset(QUERY);
+
+  it("answers the bytes under the allowlist's type, from the source an <img> dials", async () => {
+    const seen: { authorization: string | null; uri: string }[] = [];
+    const result = await assetOver(async (input, init) => {
+      seen.push({ authorization: new Headers(init?.headers).get("authorization"), uri: input });
+      return new Response(PNG, { headers: { "content-type": "image/png" } });
+    });
+    expect(result).toStrictEqual({ ok: true, value: { bytes: PNG, mediaType: "image/png" } });
+    const source = createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: CREDENTIAL,
+    }).vaultAssetSource(QUERY);
+    expect(seen).toStrictEqual([
+      { authorization: source.headers["authorization"] ?? null, uri: source.uri },
+    ]);
+    expect(seen[0]?.uri).not.toContain("igd_");
+  });
+
+  it("reads a type the allowlist does not name for the path as malformed, never as bytes", async () => {
+    for (const contentType of ["text/html", "image/jpeg", "image/png; charset=utf-8"]) {
+      const result = await assetOver(
+        async () => new Response(PNG, { headers: { "content-type": contentType } }),
+      );
+      expect(result.ok ? null : result.failure.kind, contentType).toBe("malformed");
+    }
+  });
+
+  it("keeps a refusal the cloud worded, and reads a request that never left as unreachable", async () => {
+    const refused = await assetOver(async () =>
+      Response.json(cloudError("not-found", "That revision does not carry the path."), {
+        status: 404,
+      }),
+    );
+    expect(refused).toStrictEqual({
+      failure: {
+        code: "not-found",
+        deviceSeq: null,
+        kind: "refused",
+        message: "That revision does not carry the path.",
+      },
+      ok: false,
+    });
+    const offline = await assetOver(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    expect(offline).toStrictEqual({
+      failure: { kind: "unreachable", message: "Failed to fetch" },
+      ok: false,
     });
   });
 });

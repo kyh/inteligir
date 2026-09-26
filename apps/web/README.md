@@ -64,8 +64,9 @@ its own `tsconfig.json`.
 | `POST /v1/sync/captures/claim` | device  | Take the inbox for a five-minute window                    |
 | `POST /v1/sync/captures/ack`   | device  | Delete what that claim owns — per-id outcomes              |
 | `/v1/git/vault.git/*`          | device  | The hosted vault git remote — smart HTTP, 90 MiB push cap  |
-| `GET /v1/vault/tree`           | device  | Flat listing of the hosted vault at one commit             |
+| `GET /v1/vault/tree`           | device  | Flat listing — path, size, blob oid — at one commit        |
 | `GET /v1/vault/file`           | device  | One note's bytes at that commit — 2 MB ceiling             |
+| `POST /v1/vault/files`         | device  | Up to 40 notes at a pinned commit — 4 MiB, rest deferred   |
 | `GET /v1/vault/asset`          | device  | One embedded binary at that commit                         |
 | `GET /v1/account`              | device  | Whose account this device credential syncs as              |
 
@@ -149,10 +150,12 @@ answers git clients in plain text.
   vault's two read budgets (`/v1/git/*` 600/min, `/v1/vault/*` 3,000/min) spend
   the same table keyed on the DEVICE, never the address: a stolen credential
   moves between addresses, and the device row is what `/app/devices` revokes.
-  Two families so a drained read budget never takes sync down; revocation and
-  account deletion drop the rows. Better Auth prunes the shared table on its
-  own writes, every row past its 60s window with it, so every Worker window is
-  declared in `RATE_WINDOWS` and a guard holds each to 60s or less.
+  A batch of files spends one unit however many paths it names, so a phone's
+  first mirror of 50,000 notes costs about 1,350. Two families so a drained
+  read budget never takes sync down; revocation and account deletion drop the
+  rows. Better Auth prunes the shared table on its own writes, every row past
+  its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
+  and a guard holds each to 60s or less.
 - **No CORS**, deliberately: every browser client is served by this Worker from
   this origin, and a native client is not subject to CORS at all. If CORS is
   ever reintroduced, `access-control-allow-credentials` must stay absent — the

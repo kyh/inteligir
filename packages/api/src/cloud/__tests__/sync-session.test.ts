@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CloudClient, CloudFailure, CloudResult } from "../cloud-client";
+import type { CloudFailure, CloudResult } from "../cloud-client";
 import type { LogPlanStep } from "../sync/plan-page";
 import type { PullResponse, SyncEventRow } from "../sync/sync-schema";
 import {
@@ -9,6 +9,7 @@ import {
   pullPages,
 } from "../sync/sync-session";
 import type { PullPagesArgs, SyncOutcome } from "../sync/sync-session";
+import { fakeCloudClient, unreachable } from "./fake-cloud-client";
 
 const UNAUTHORIZED: CloudFailure = {
   code: "unauthorized",
@@ -28,24 +29,6 @@ const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
 
 const noop = (): void => {};
 
-const unreachable = async <T>(): Promise<CloudResult<T>> => ({
-  failure: { kind: "unreachable", message: "fake" },
-  ok: false,
-});
-
-const fakeClient = (pull: CloudClient["pull"]): CloudClient => ({
-  account: async () => await unreachable(),
-  ackCaptures: async () => await unreachable(),
-  claimCaptures: async () => await unreachable(),
-  createCapture: async () => await unreachable(),
-  pull,
-  push: async () => await unreachable(),
-  signOut: async () => await unreachable(),
-  vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
-  vaultFile: async () => await unreachable(),
-  vaultTree: async () => await unreachable(),
-});
-
 interface Harness {
   session: ReturnType<typeof createSyncSession<{ deviceId: string }>>;
   signals: AbortSignal[];
@@ -58,7 +41,7 @@ const harness = (): Harness => {
   const session = createSyncSession<{ deviceId: string }>({
     makeClient: (_credential, signal) => {
       signals.push(signal);
-      return fakeClient(async () => await unreachable());
+      return fakeCloudClient();
     },
     onEnded: (failure) => {
       ended.push(failure);
@@ -287,7 +270,7 @@ describe("pullPages", () => {
     };
     const session = createSyncSession<{ deviceId: string }>({
       debugLog,
-      makeClient: () => fakeClient(async () => await unreachable()),
+      makeClient: () => fakeCloudClient(),
     });
     session.open({ deviceId: "dev_1" });
     const live = session.current();

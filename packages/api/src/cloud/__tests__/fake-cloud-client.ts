@@ -1,0 +1,24 @@
+import type { CloudClient, CloudResult } from "../cloud-client";
+
+export const unreachable = async <T>(): Promise<CloudResult<T>> => ({
+  failure: { kind: "unreachable", message: "fake" },
+  ok: false,
+});
+
+// every method the test does not name answers unreachable, so a method the client grows is one
+// default line here rather than an edit to every fake
+export const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient => ({
+  account: unreachable,
+  ackCaptures: unreachable,
+  claimCaptures: unreachable,
+  createCapture: unreachable,
+  pull: unreachable,
+  push: unreachable,
+  signOut: unreachable,
+  vaultAsset: unreachable,
+  vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
+  vaultFile: unreachable,
+  vaultFiles: unreachable,
+  vaultTree: unreachable,
+  ...answers,
+});

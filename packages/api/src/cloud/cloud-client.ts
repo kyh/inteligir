@@ -34,14 +34,18 @@ import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/s
 import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
 import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
 import {
+  assetMediaType,
   VAULT_API_PATHS,
   vaultFileResponseSchema,
+  vaultFilesResponseSchema,
   vaultTreeResponseSchema,
 } from "./vault/vault-schema";
 import type {
   VaultAssetQuery,
   VaultFileQuery,
   VaultFileResponse,
+  VaultFilesRequest,
+  VaultFilesResponse,
   VaultTreeQuery,
   VaultTreeResponse,
 } from "./vault/vault-schema";
@@ -146,6 +150,37 @@ export const readCloudCall = async <TSchema extends z.ZodType>(
   return await readValue(response, schema);
 };
 
+// the asset route answers raw bytes with their type in a header. The type must be the one the
+// allowlist names for the path: a renderer handed these bytes trusts it, and an intercepting proxy
+// could otherwise relabel an image as a document.
+const readAssetCall = async (
+  send: () => Promise<Response>,
+  path: string,
+): Promise<CloudResult<VaultAsset>> => {
+  let response: Response;
+  let bytes: Uint8Array;
+  try {
+    response = await send();
+    if (!response.ok) {
+      return { failure: await readFailure(response), ok: false };
+    }
+    bytes = new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    return { failure: unreachable(error), ok: false };
+  }
+  const mediaType = assetMediaType(path);
+  if (mediaType === null || response.headers.get("content-type") !== mediaType) {
+    return {
+      failure: {
+        kind: "malformed",
+        message: "The cloud answered an attachment this build cannot read.",
+      },
+      ok: false,
+    };
+  }
+  return { ok: true, value: { bytes, mediaType } };
+};
+
 // every call runs inside the single-flight pass, so a black-holed request stalls the whole
 // loop and the teardown waiting on it; undici's own default is 300s of headers timeout.
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -217,8 +252,16 @@ export interface CloudClient {
   signOut: () => Promise<CloudResult<RevokeDeviceResponse>>;
   vaultTree: (query: VaultTreeQuery) => Promise<CloudResult<VaultTreeResponse>>;
   vaultFile: (query: VaultFileQuery) => Promise<CloudResult<VaultFileResponse>>;
+  vaultFiles: (request: VaultFilesRequest) => Promise<CloudResult<VaultFilesResponse>>;
   // synchronous: the answer is bytes an <img> fetches itself; here so the bearer has one spelling
   vaultAssetSource: (query: VaultAssetQuery) => VaultAssetSource;
+  // the bytes themselves, for a page that cannot put a header on an <img>
+  vaultAsset: (query: VaultAssetQuery) => Promise<CloudResult<VaultAsset>>;
+}
+
+export interface VaultAsset {
+  bytes: Uint8Array;
+  mediaType: string;
 }
 
 // the credential rides a header, never the URL, where image caches and logs would keep it
@@ -256,6 +299,11 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     );
   };
 
+  const assetSource = (query: VaultAssetQuery): VaultAssetSource => ({
+    headers: { authorization },
+    uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),
+  });
+
   return {
     account: async () => await send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
     ackCaptures: async (request) =>
@@ -273,16 +321,27 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     push: async (request) => await send(SYNC_API_PATHS.push, request, pushResponseSchema),
     // the credential names the device, so the body carries nothing
     signOut: async () => await send(DEVICE_API_PATHS.signOut, {}, revokeDeviceResponseSchema),
-    vaultAssetSource: (query) => ({
-      headers: { authorization },
-      uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),
-    }),
+    vaultAsset: async (query) => {
+      const source = assetSource(query);
+      return await readAssetCall(
+        async () =>
+          await call(source.uri, {
+            headers: source.headers,
+            method: "GET",
+            signal: callSignal(args.signal),
+          }),
+        query.path,
+      );
+    },
+    vaultAssetSource: assetSource,
     vaultFile: async (query) =>
       await send(
         `${VAULT_API_PATHS.file}${queryString(query)}`,
         undefined,
         vaultFileResponseSchema,
       ),
+    vaultFiles: async (request) =>
+      await send(VAULT_API_PATHS.files, request, vaultFilesResponseSchema),
     vaultTree: async (query) =>
       await send(
         `${VAULT_API_PATHS.tree}${queryString(query)}`,

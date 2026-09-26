@@ -105,9 +105,9 @@ account row itself goes:
    on purpose: while a device row lives its credential still works, so any
    later step could be undone by a request that arrives a moment after it.
 2. **Your hosted vault repo** — created once a signed-in device first pushes —
-   with the listing of its file names and sizes kept for your phone's reads. A
-   never-pushed account wipes empty tables, so the step is idempotent either
-   way.
+   with the listing of its file names, sizes and content ids kept for your
+   phone's reads. A never-pushed account wipes empty tables, so the step is
+   idempotent either way.
 3. **Your thread-sync Durable Object** is purged whole: every thread event,
    every capture, every open socket closed. It is then tombstoned, so a
    request that authenticated microseconds before step 1 cannot rebuild what

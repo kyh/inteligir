@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
 import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
 import {
   readDeviceCredential,
@@ -14,6 +15,7 @@ import type { InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
+const SHARED_PATH = "notes/shared.md";
 const FROM_A = "# Shared\n\nWritten on A, pushed through the hosted remote.\n";
 const FROM_B = "# Reply\n\nWritten on B, pulled back to A.\n";
 
@@ -116,9 +118,28 @@ export const hostedVaultSync: Scenario = {
     await a.api.vault.write({
       content: FROM_A,
       guard: { kind: "overwrite" },
-      path: "notes/shared.md",
+      path: SHARED_PATH,
     });
     await syncUntil(a.api, "A after write", "clean");
+
+    ctx.log("a phone lists A's note under git's own blob id, and reads it in one batch");
+    const phone = await loginDevice(worker.origin, "E2E Phone");
+    const phoneClient = createCloudClient({ baseUrl: worker.origin, credential: phone.credential });
+    const tree = await phoneClient.vaultTree({});
+    expect(tree.ok, `the phone's tree read: ${tree.ok ? "" : describeCloudFailure(tree.failure)}`);
+    const listed = tree.value.entries.find((entry) => entry.path === SHARED_PATH);
+    expect(listed !== undefined, "the phone's tree lists A's note");
+    const blob = await exec(
+      "git",
+      ["-C", a.vaultDir, "rev-parse", `${tree.value.commit}:${SHARED_PATH}`],
+      { env: hermeticProcessEnv() },
+    );
+    expectEq(listed.oid, blob.stdout.trim(), "the listed oid");
+    const batch = await phoneClient.vaultFiles({ paths: [SHARED_PATH], ref: tree.value.commit });
+    expect(batch.ok, `the phone's batch: ${batch.ok ? "" : describeCloudFailure(batch.failure)}`);
+    expectEq(batch.value.files.length, 1, "files in the phone's batch");
+    expectEq(batch.value.files[0]?.content, FROM_A, "the batch's content");
+    expectEq(batch.value.files[0]?.oid, listed.oid, "the batch's oid");
 
     ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
     const deviceB = await loginDevice(worker.origin, "E2E Device B");

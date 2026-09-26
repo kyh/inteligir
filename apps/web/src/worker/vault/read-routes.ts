@@ -3,12 +3,19 @@ import {
   VAULT_API_PATHS,
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
+  VAULT_FILES_MAX_PATHS,
+  VAULT_FILES_MAX_RESPONSE_BYTES,
   VAULT_TREE_MAX_ENTRIES,
   vaultAssetQuerySchema,
   vaultFileQuerySchema,
+  vaultFilesRequestSchema,
   vaultTreeQuerySchema,
 } from "@repo/api/cloud/vault/vault-schema";
-import type { VaultFileResponse } from "@repo/api/cloud/vault/vault-schema";
+import type {
+  VaultFileRefusal,
+  VaultFileResponse,
+  VaultFilesResponse,
+} from "@repo/api/cloud/vault/vault-schema";
 import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
@@ -90,6 +97,21 @@ const answerTree = async (
   return Response.json(pageTree(commit, walked.files, after, limit));
 };
 
+type BlobText = { ok: true; content: string } | { ok: false; refusal: VaultFileRefusal };
+
+// the one gate both file routes run: the wire carries UTF-8 text under the byte ceiling
+const blobText = (data: Uint8Array): BlobText => {
+  if (data.length > VAULT_FILE_MAX_BYTES) {
+    return { ok: false, refusal: "file-too-large" };
+  }
+  try {
+    const content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(data);
+    return { content, ok: true };
+  } catch {
+    return { ok: false, refusal: "not-text" };
+  }
+};
+
 const answerFile = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> => {
   const query = vaultFileQuerySchema.safeParse(Object.fromEntries(url.searchParams));
   if (!query.success) {
@@ -104,25 +126,80 @@ const answerFile = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<
   if (blob === null) {
     return refuse("not-found", "That revision does not carry the path.");
   }
-  if (blob.data.length > VAULT_FILE_MAX_BYTES) {
-    return refuse(
-      "file-too-large",
-      `Files over ${String(VAULT_FILE_MAX_BYTES)} bytes do not cross this wire.`,
-    );
-  }
-  let content: string;
-  try {
-    content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(blob.data);
-  } catch {
-    return refuse("bad-request", "That file is not UTF-8 text.");
+  const text = blobText(blob.data);
+  if (!text.ok) {
+    return text.refusal === "file-too-large"
+      ? refuse(
+          "file-too-large",
+          `Files over ${String(VAULT_FILE_MAX_BYTES)} bytes do not cross this wire.`,
+        )
+      : refuse("bad-request", "That file is not UTF-8 text.");
   }
   const response: VaultFileResponse = {
     commit,
-    content,
+    content: text.content,
     oid: blob.oid,
     path: query.data.path,
   };
   return Response.json(response);
+};
+
+// each read is a round trip into the cell, so a batch overlaps a few rather than walking its
+// paths one by one; only a few, because every blob in flight is held in memory at once
+const READS_IN_FLIGHT = 8;
+
+const answerFiles = async (
+  stub: DurableObjectStub<RepoCell>,
+  request: Request,
+): Promise<Response> => {
+  const body = vaultFilesRequestSchema.safeParse(await request.json().catch(() => null));
+  if (!body.success) {
+    return refuse(
+      "bad-request",
+      `Send {"ref": <sha>, "paths": [1..${String(VAULT_FILES_MAX_PATHS)} unique vault-relative paths]}.`,
+    );
+  }
+  const { paths, ref } = body.data;
+  // at a revision the repo does not hold every path would read as missing, which a mirror takes
+  // for a deletion
+  if ((await stub.readCommit(ref)) === null) {
+    return refuse("not-found", "This vault has no content at that revision.");
+  }
+
+  const files: VaultFilesResponse["files"] = [];
+  const missing: string[] = [];
+  const refused: VaultFilesResponse["refused"] = [];
+  const answer = (deferred: string[]): Response => {
+    const response: VaultFilesResponse = { commit: ref, deferred, files, missing, refused };
+    return Response.json(response);
+  };
+
+  let spent = 0;
+  for (let start = 0; start < paths.length; start += READS_IN_FLIGHT) {
+    const read = await Promise.all(
+      paths.slice(start, start + READS_IN_FLIGHT).map(async (path) => ({
+        blob: await stub.readBlob(ref, encodeGitPath(path)),
+        path,
+      })),
+    );
+    for (const [offset, { blob, path }] of read.entries()) {
+      if (blob === null) {
+        missing.push(path);
+        continue;
+      }
+      const text = blobText(blob.data);
+      if (!text.ok) {
+        refused.push({ code: text.refusal, path });
+        continue;
+      }
+      if (files.length > 0 && spent + blob.data.length > VAULT_FILES_MAX_RESPONSE_BYTES) {
+        return answer(paths.slice(start + offset));
+      }
+      spent += blob.data.length;
+      files.push({ content: text.content, oid: blob.oid, path });
+    }
+  }
+  return answer([]);
 };
 
 // the sandbox csp is what makes svg safe: <img> never runs its script, but a navigation to this url
@@ -185,7 +262,11 @@ export const handleVaultReadRoutes = async (
   env: Env,
   url: URL,
 ): Promise<Response> => {
-  if (request.method !== "GET") {
+  const batch = url.pathname === VAULT_API_PATHS.files;
+  if (batch && request.method !== "POST") {
+    return refuse("bad-request", "Send the batch as a POST with a JSON body.");
+  }
+  if (!batch && request.method !== "GET") {
     return refuse("not-found", "No such route.");
   }
 
@@ -202,8 +283,8 @@ export const handleVaultReadRoutes = async (
   const repo = vaultRepoName(verified.userId);
   // getByName on the repo namespace creates a cell, and a BYO-remote phone polls the unpinned tree
   // forever; the registry answers "no vault" without materializing one per poll. a pinned ref
-  // already passed this gate.
-  if (url.searchParams.get("ref") === null) {
+  // already passed this gate; a batch's rides a body not yet parsed, so every batch is gated.
+  if (batch || url.searchParams.get("ref") === null) {
     const info = await vaultRegistry(env).get(repo);
     if (info === null) {
       return refuse("not-found", "This account has no hosted vault yet.");
@@ -216,6 +297,9 @@ export const handleVaultReadRoutes = async (
   }
   if (url.pathname === VAULT_API_PATHS.file) {
     return await answerFile(stub, url);
+  }
+  if (batch) {
+    return await answerFiles(stub, request);
   }
   if (url.pathname === VAULT_API_PATHS.asset) {
     return await answerAsset(stub, url);

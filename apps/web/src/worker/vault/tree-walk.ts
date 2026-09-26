@@ -73,7 +73,7 @@ const readLevel = (listed: ListedDir[], after: string | undefined): TreeLevel | 
           dirs.push(path);
         }
       } else if (entry.type === "blob" && (after === undefined || path > after)) {
-        files.push({ path, size: entry.size ?? 0 });
+        files.push({ oid: entry.oid, path, size: entry.size ?? 0 });
       }
     }
   }
