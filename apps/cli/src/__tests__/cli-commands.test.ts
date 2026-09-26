@@ -529,148 +529,6 @@ describe("knowledge commands", () => {
   });
 });
 
-describe("connectors", () => {
-  it("names each server, what it runs, and its auth state", async () => {
-    const state = seededState();
-    state.connectors = {
-      servers: [
-        {
-          enabled: true,
-          name: "files",
-          transport: { args: ["-y", "server-files"], command: "npx", kind: "stdio" },
-        },
-        {
-          enabled: false,
-          name: "context7",
-          transport: { hasAuth: true, kind: "http", url: "https://mcp.context7.com/mcp" },
-        },
-        {
-          enabled: true,
-          name: "linear",
-          transport: {
-            authorizationEndpoint: "https://linear.app/oauth/authorize",
-            clientId: "inteligir",
-            kind: "oauth",
-            scopes: ["read"],
-            status: "needs-reauth",
-            tokenEndpoint: "https://api.linear.app/oauth/token",
-            url: "https://mcp.linear.app/mcp",
-          },
-        },
-      ],
-    };
-    const server = await boot(state);
-
-    const listed = await runCliForTest({ argv: ["connectors", "list"], baseUrl: server.baseUrl });
-
-    expect(listed.stdout).toBe(
-      "files  npx -y server-files  [enabled]\n" +
-        "context7  https://mcp.context7.com/mcp  [disabled authenticated]\n" +
-        "linear  https://mcp.linear.app/mcp  [enabled needs-reauth]\n",
-    );
-  });
-
-  it("reads a header's value from stdin under NAME=-, so the key never rides argv", async () => {
-    const state = seededState();
-    const server = await boot(state);
-    const added = await runCliForTest({
-      argv: [
-        "connectors",
-        "add",
-        "exa",
-        "--url",
-        "https://mcp.exa.ai/mcp",
-        "--header",
-        "x-api-key=-",
-      ],
-      baseUrl: server.baseUrl,
-      stdin: new TextEncoder().encode("sk-piped\n"),
-    });
-    expect(added.code).toBe(0);
-    expect(state.connectorHeaders.get("exa")).toEqual({ "x-api-key": "sk-piped" });
-
-    const empty = await runCliForTest({
-      argv: ["connectors", "add", "exa2", "--url", "https://mcp.exa.ai/mcp", "--header", "k=-"],
-      baseUrl: server.baseUrl,
-      stdin: new TextEncoder().encode("\n"),
-    });
-    expect(empty.code).toBe(1);
-    expect(empty.stderr).toContain("stdin carried no header value");
-    expect(state.connectors.servers.map((row) => row.name)).toEqual(["exa"]);
-  });
-
-  it("adds an OAuth server by its URL alone, and refuses --oauth anywhere else", async () => {
-    const state = seededState();
-    const server = await boot(state);
-
-    const added = await runCliForTest({
-      argv: ["connectors", "add", "linear", "--url", "https://mcp.linear.app/mcp", "--oauth"],
-      baseUrl: server.baseUrl,
-    });
-    expect(added.code).toBe(0);
-    expect(added.stdout).toContain("connect it in Settings → Connectors");
-    expect(state.connectors.servers.at(-1)).toMatchObject({
-      name: "linear",
-      transport: {
-        kind: "oauth",
-        scopes: [],
-        status: "needs-auth",
-        url: "https://mcp.linear.app/mcp",
-      },
-    });
-
-    for (const argv of [
-      [
-        "connectors",
-        "add",
-        "x",
-        "--url",
-        "https://mcp.linear.app/mcp",
-        "--oauth",
-        "--header",
-        "k=v",
-      ],
-      ["connectors", "add", "x", "--oauth", "--", "npx", "srv"],
-    ]) {
-      const refused = await runCliForTest({ argv, baseUrl: server.baseUrl });
-      expect(refused.code, argv.join(" ")).toBe(1);
-      expect(refused.stderr).toContain("--oauth is for a --url server");
-    }
-  });
-
-  it("adds and removes through the registry routes", async () => {
-    const server = await boot(seededState());
-
-    const added = await runCliForTest({
-      argv: [
-        "connectors",
-        "add",
-        "exa",
-        "--url",
-        "https://mcp.exa.ai/mcp",
-        "--header",
-        "x-api-key=sk-test",
-        "--json",
-      ],
-      baseUrl: server.baseUrl,
-    });
-    expect(added.code).toBe(0);
-    expect(added.stdout).not.toContain("sk-test");
-
-    const removed = await runCliForTest({
-      argv: ["connectors", "remove", "exa", "--json"],
-      baseUrl: server.baseUrl,
-    });
-    expect(removed.code).toBe(0);
-
-    const ghost = await runCliForTest({
-      argv: ["connectors", "remove", "exa", "--json"],
-      baseUrl: server.baseUrl,
-    });
-    expect(ghost.code).toBe(1);
-  });
-});
-
 describe("action commands", () => {
   it("lists threads and shows one with the compact timeline", async () => {
     const state = seededState();
@@ -1161,18 +1019,30 @@ describe("argv the CLI refuses", () => {
     });
   });
 
-  it("counts only the words before `--`, which a leaf reads as its own", async () => {
+  it("checks only the words before `--`, so a dash-led name after it is an operand", async () => {
     const state = seededState();
+    state.vault.set("-draft.md", "# Draft\n");
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["connectors", "add", "x", "--", "npx", "-y", "srv"],
+      argv: ["vault", "read", "--", "-draft.md"],
       baseUrl: server.baseUrl,
     });
+    expect(result.stderr).toBe("");
     expect(result.code).toBe(0);
-    expect(state.connectors.servers.at(-1)).toEqual({
-      enabled: true,
-      name: "x",
-      transport: { args: ["-y", "srv"], command: "npx", kind: "stdio" },
+    expect(result.stdout).toBe("# Draft\n");
+  });
+
+  it("refuses a connectors verb as an unknown command: Settings owns connectors", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["connectors", "list", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "Unknown command connectors",
     });
   });
 
@@ -1212,15 +1082,6 @@ describe("a leaf refuses bad usage before it resolves a server", () => {
       expect(result.code).toBe(1);
       expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
     }
-  });
-
-  it("connectors add checks a stdio server carries no --header first", async () => {
-    const result = await runCliForTest({
-      argv: ["connectors", "add", "x", "--header", "k=v", "--json", "--", "npx", "srv"],
-      baseUrl: null,
-    });
-    expect(result.code).toBe(1);
-    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
   });
 
   it("vault attachments checks its location first", async () => {

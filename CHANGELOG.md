@@ -22,6 +22,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **A second vault starts fresh.** Every vault besides the first keeps its own sign-in, connectors and default agent, so it starts signed out, with no connectors and no default agent chosen. Settings says so where it matters.
 - **Agents ignore agent settings kept inside your vault.** Your vault syncs from other devices and git remotes, so a vault can no longer configure the agent that works in it. Claude Code skips the vault's `.claude` folder, `.mcp.json`, `CLAUDE.md` and `CLAUDE.local.md`, and MCP servers added with `claude mcp add` from inside the vault folder; Codex won't open on a vault that holds a `.codex` folder until you remove it. Instructions for the agent belong in the vault's `AGENTS.md`, which both agents still get. Add MCP servers in Settings › Connectors, or at user level in Claude Code (`claude mcp add --scope user`) or Codex (`~/.codex/config.toml`).
 - **What your `.gitignore` files leave out, the app leaves out too.** A folder or file a `.gitignore` in the vault names (a docs repo's `node_modules/` or build output, say) no longer shows in Files, ⌘P, search or links, and changes inside it no longer wake the app. A note you want to see again needs taking out of `.gitignore`.
+- **`inteligir connectors` is gone.** Add and remove connectors in Settings › Connectors, or at user level in Claude Code (`claude mcp add --scope user`) or Codex (`~/.codex/config.toml`); a script that ran `inteligir connectors add` needs one of those instead.
 
 ### New
 

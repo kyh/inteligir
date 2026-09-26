@@ -45,15 +45,6 @@ const seedFixture = (state: FixtureState): void => {
   state.related = [
     { path: "notes/nearby.md", reasons: ["shares #project"], score: 3, title: "Nearby" },
   ];
-  state.connectors = {
-    servers: [
-      {
-        enabled: true,
-        name: "context7",
-        transport: { hasAuth: true, kind: "http", url: "https://mcp.context7.com/mcp" },
-      },
-    ],
-  };
   state.threads.length = 0;
   state.comments.set("notes/hello.md", [
     {
