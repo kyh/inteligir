@@ -71,6 +71,7 @@ Everything since 0.4.0 (September 4, 2026), and the first Inteligir for iPhone.
 - **The outline beside a note** appears once the note has three headings.
 - **One set of text sizes** across the app's menus, lists and panels. Popups now animate out as well as in, and the app follows your system's reduce-motion setting.
 - **Pushing more than 90 MB** to your account's hosted vault now says it is too large and stops retrying, without uploading it first, instead of failing with git's raw error every minute.
+- **Your account's cloud vault holds about 1 GB**, counting every earlier version of every note, so deleting notes frees no room. When it is full, the sidebar says Cloud vault full — notes stay on this Mac: your changes keep saving on this Mac but stop reaching your other devices, and your phone keeps its edits waiting.
 - **An action another device is running** says so in its header instead of offering a Stop button that could not stop it.
 - **Sync reports what it could not send.** Settings › Advanced and `inteligir cloud status` count action events this computer dropped without sending, and a sign-out that could not remove the device from your account says so and points to Settings › Account on another Mac, or the Devices page.
 - **The app is smaller.** It no longer carries the command line's source code and tests inside it.

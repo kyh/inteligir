@@ -76,7 +76,7 @@ its own `tsconfig.json`.
 | `POST /v1/sync/dispatch/approval`       | device            | A Mac opens an approval a phone-started turn waits on               |
 | `POST /v1/sync/dispatch/approval/close` | device            | That Mac closes it: answered there, or its turn ended               |
 | `GET /v1/sync/dispatch/approvals`       | device            | The approvals waiting for the phone's answer                        |
-| `/v1/git/vault.git/*`                   | device            | The hosted vault git remote — smart HTTP, 90 MiB push cap           |
+| `/v1/git/vault.git/*`                   | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
 | `GET /v1/vault/tree`                    | device            | Flat listing — path, size, blob oid — at one commit                 |
 | `GET /v1/vault/file`                    | device            | One note's bytes at that commit — 2 MB ceiling                      |
 | `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |

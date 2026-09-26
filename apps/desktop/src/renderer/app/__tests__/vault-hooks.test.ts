@@ -115,6 +115,8 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
   { state: "rejected", ...REMOTE },
   { state: "too-large", ...REMOTE },
   { state: "too-large", ...REMOTE, remoteSource: "account" },
+  { state: "full", ...REMOTE },
+  { state: "full", ...REMOTE, remoteSource: "account" },
   { state: "account-mismatch", ...REMOTE },
   { state: "detached", ...REMOTE },
   { state: "broken", ...REMOTE },

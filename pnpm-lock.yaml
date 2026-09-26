@@ -342,6 +342,7 @@ overrides:
 patchedDependencies:
   '@agentclientprotocol/codex-acp@1.13.0': 91b830ee46fb92c46ec44c2ec0a44d5df3b5b114c7d7f210ca7aa0c442c05df2
   '@platejs/core@53.3.14': 45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8
+  durable-git@0.0.8: 1a19277fa0f0b38c1758312b024c44e38de552e174ffd723dd9bf2375e20c3c5
   micromark@4.0.2: d6fb1b80f35c66a51f99e88f471d2b5903ea5a0a134bea83cd3c5cbca2f50ab8
 
 importers:
@@ -738,7 +739,7 @@ importers:
         version: 1.0.0-rc.4(@libsql/client@0.18.0)(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)(expo-sqlite@57.0.3(expo@57.0.24)(react-native@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.2.17)(react@19.2.8)(supports-color@10.2.2))(react@19.2.8))(zod@4.6.5)
       durable-git:
         specifier: 0.0.8
-        version: 0.0.8
+        version: 0.0.8(patch_hash=1a19277fa0f0b38c1758312b024c44e38de552e174ffd723dd9bf2375e20c3c5)
       lucide-react:
         specifier: 'catalog:'
         version: 1.47.0(react@19.2.8)
@@ -18701,7 +18702,7 @@ snapshots:
     dependencies:
       readable-stream: 2.3.8
 
-  durable-git@0.0.8:
+  durable-git@0.0.8(patch_hash=1a19277fa0f0b38c1758312b024c44e38de552e174ffd723dd9bf2375e20c3c5):
     dependencies:
       pako: 2.2.0
 

@@ -28,6 +28,8 @@ export default defineConfig({
           // every test shares one ip; vault-rate-limit.test.ts flips this per test.
           RATE_LIMIT_DISABLED: "true",
           TEST_SCHEMA,
+          // small enough that a test fills a vault with a few pushes
+          VAULT_STORAGE_CAP_BYTES: String(1024 * 1024),
         },
       },
       wrangler: { configPath: "./wrangler.jsonc" },

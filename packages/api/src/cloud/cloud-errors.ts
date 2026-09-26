@@ -17,6 +17,7 @@ export const CLOUD_ERROR_CODES = [
   "account-deleted",
   "file-too-large",
   "vault-conflict",
+  "vault-full",
   "internal",
 ] as const;
 export type CloudErrorCode = (typeof CLOUD_ERROR_CODES)[number];
@@ -37,6 +38,7 @@ export const CLOUD_ERROR_STATUS = {
   "sync-out-of-order": 409,
   unauthorized: 401,
   "vault-conflict": 409,
+  "vault-full": 507,
 } as const satisfies Record<CloudErrorCode, number>;
 
 export const SYNC_TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set([

@@ -5,7 +5,6 @@ import {
   commitObject,
   concatBytes,
   FILE_MODE,
-  packHeader,
   TREE_MODE,
   treeObject,
   writePack,
@@ -136,41 +135,29 @@ export const pushVaultFiles = async (
   return { commit: commit.oid, response };
 };
 
-const OVERSIZED_CHUNK_BYTES = 1024 * 1024;
+// getRandomValues fills at most this many bytes a call
+const RANDOM_CHUNK_BYTES = 65_536;
 
-// what a stock git client streams for a vault over the push cap: a command, then `packBytes` of
-// pack with no declared length. zeros past the header, since the cap has to refuse before a parse
-export const pushOversizedPack = async (
-  credential: string,
-  packBytes: number,
-): Promise<Response> => {
-  const header = packHeader(1);
-  let sent = header.length;
-  const body = new ReadableStream<Uint8Array>({
-    pull(controller) {
-      if (sent >= packBytes) {
-        controller.close();
-        return;
-      }
-      const chunk = new Uint8Array(Math.min(OVERSIZED_CHUNK_BYTES, packBytes - sent));
-      sent += chunk.length;
-      controller.enqueue(chunk);
-    },
-    start(controller) {
-      controller.enqueue(
-        receivePackBody({ next: "1".repeat(40), old: ZERO_OID, pack: header, ref: MAIN }),
-      );
-    },
-  });
-  return await SELF.fetch(`${REMOTE}/git-receive-pack`, {
-    body,
+// bytes no deflate shrinks, so a pack carrying them is as large as they are
+export const randomBytes = (length: number): Uint8Array => {
+  const bytes = new Uint8Array(length);
+  for (let at = 0; at < length; at += RANDOM_CHUNK_BYTES) {
+    crypto.getRandomValues(bytes.subarray(at, at + RANDOM_CHUNK_BYTES));
+  }
+  return bytes;
+};
+
+// a push that declares `length` bytes and never sends one: it answers only if the Worker refused
+// it before reading the body
+export const pushNothingDeclaring = async (credential: string, length: number): Promise<Response> =>
+  await SELF.fetch(`${REMOTE}/git-receive-pack`, {
+    body: new FixedLengthStream(length).readable,
     headers: {
       ...deviceHeaders(credential),
       "content-type": "application/x-git-receive-pack-request",
     },
     method: "POST",
   });
-};
 
 // a v0 full clone over side-band-64k: the one fetch durable-git keeps a pack cache for
 export const cloneVault = async (credential: string, head: string): Promise<Response> =>

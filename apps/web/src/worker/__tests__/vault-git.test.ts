@@ -4,6 +4,7 @@ import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import { packCachePrefixes, vaultRepoName } from "../vault/git-remote";
+import { vaultStorageCap } from "../vault/receive-pack";
 import { treeListingPrefix } from "../vault/tree-listing";
 import {
   deviceHeaders,
@@ -14,7 +15,13 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-import { cloneVault, pushOversizedPack, pushVaultFiles, ZERO_OID } from "./git-pack";
+import {
+  cloneVault,
+  pushNothingDeclaring,
+  pushVaultFiles,
+  randomBytes,
+  ZERO_OID,
+} from "./git-pack";
 
 const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
@@ -161,13 +168,12 @@ describe("vault git remote round-trip", () => {
   });
 });
 
-// streams the cap's worth of bytes through the repo cell, which outlasts the default timeout
-describe("the push cap", { timeout: 60_000 }, () => {
-  it("refuses a streamed push past the cap with a 413, moves no ref, and takes the next push", async () => {
+describe("the push cap", () => {
+  it("refuses a push declaring more than the cap with a 413 before reading it, and takes the next push", async () => {
     const { bearer } = await signUpUser("vault-git-cap@example.test");
     const { credential } = await loginDevice(bearer, "Laptop");
 
-    const refused = await pushOversizedPack(credential, VAULT_GIT_MAX_PUSH_BYTES + 1024 * 1024);
+    const refused = await pushNothingDeclaring(credential, VAULT_GIT_MAX_PUSH_BYTES + 1);
     expect(refused.status).toBe(413);
     expect(await refused.text()).toContain("MiB limit");
     const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
@@ -184,6 +190,151 @@ describe("the push cap", { timeout: 60_000 }, () => {
     );
     expect(next.response.status).toBe(200);
     expect(await next.response.text()).toContain("unpack ok");
+  });
+});
+
+// room for a push's command, pack header, tree, commit and trailer around its file's bytes
+const PUSH_OVERHEAD_BYTES = 1024;
+
+const MAX_FILL_ROUNDS = 8;
+
+const storedIn = async (repo: string): Promise<number> => {
+  const { storedBytes } = await env.REPO.getByName(repo).usage();
+  return storedBytes;
+};
+
+const roomIn = async (repo: string): Promise<number> =>
+  vaultStorageCap(env) - (await storedIn(repo));
+
+const headOf = async (repo: string): Promise<string | undefined> => {
+  const head = await env.REPO.getByName(repo).readCommit();
+  return head?.oid;
+};
+
+const openVault = async (
+  email: string,
+): Promise<{ credential: string; repo: string; head: string }> => {
+  const { bearer } = await signUpUser(email);
+  const { credential } = await loginDevice(bearer, "Laptop");
+  const pushed = await pushVaultFiles(
+    credential,
+    "vault: initialize",
+    [{ content: "# hello\n", path: "welcome.md" }],
+    ZERO_OID,
+  );
+  expect(pushed.response.status).toBe(200);
+  await pushed.response.arrayBuffer();
+  return { credential, head: pushed.commit, repo: vaultRepoName(await userIdOf(bearer)) };
+};
+
+// pushes that each fit the room left, until none is: how many that takes is the cell's to say,
+// since it keeps a pack in whole pages
+const fillVault = async (credential: string, repo: string, head: string): Promise<string> => {
+  let tip = head;
+  for (let round = 0; round < MAX_FILL_ROUNDS; round += 1) {
+    const room = await roomIn(repo);
+    if (room <= 0) {
+      return tip;
+    }
+    const pushed = await pushVaultFiles(
+      credential,
+      `vault: fill ${String(round)}`,
+      [{ content: randomBytes(Math.max(1, room - PUSH_OVERHEAD_BYTES)), path: "fill.bin" }],
+      tip,
+      { parent: tip },
+    );
+    expect(
+      pushed.response.status,
+      `fill round ${String(round)}, ${String(room)} bytes of room`,
+    ).toBe(200);
+    expect(await pushed.response.text()).toContain("ok refs/heads/main");
+    tip = pushed.commit;
+  }
+  throw new Error(`the vault still had room after ${String(MAX_FILL_ROUNDS)} fitting pushes`);
+};
+
+describe("the storage cap", () => {
+  it("counts what the cell keeps, a streamed pack's R2 bytes and a deleted file's history included", async () => {
+    const vault = await openVault("vault-cap-usage@example.test");
+    const fresh = await storedIn(vault.repo);
+
+    const declared = await pushVaultFiles(
+      vault.credential,
+      "vault: add scan.png",
+      [{ content: randomBytes(100_000), path: "scan.png" }],
+      vault.head,
+      { parent: vault.head },
+    );
+    expect(await declared.response.text()).toContain("ok refs/heads/main");
+    const afterDeclared = await storedIn(vault.repo);
+    expect(afterDeclared).toBeGreaterThan(fresh);
+
+    const streamed = await pushVaultFiles(
+      vault.credential,
+      "vault: add photo.png",
+      [{ content: randomBytes(100_000), path: "photo.png" }],
+      declared.commit,
+      { length: "undeclared", parent: declared.commit },
+    );
+    expect(await streamed.response.text()).toContain("ok refs/heads/main");
+    const afterStreamed = await storedIn(vault.repo);
+    expect(afterStreamed - afterDeclared).toBeGreaterThanOrEqual(100_000);
+
+    const deleted = await pushVaultFiles(
+      vault.credential,
+      "vault: delete both",
+      [{ content: "# hello\n", path: "welcome.md" }],
+      streamed.commit,
+      { parent: streamed.commit },
+    );
+    expect(await deleted.response.text()).toContain("ok refs/heads/main");
+    expect(await storedIn(vault.repo)).toBeGreaterThanOrEqual(afterStreamed);
+  });
+
+  it("refuses a push past the room left with a 507, declared or streamed, and moves no ref", async () => {
+    const vault = await openVault("vault-cap-crossing@example.test");
+    const room = await roomIn(vault.repo);
+    expect(room).toBeGreaterThan(0);
+
+    for (const length of ["declared", "undeclared"] as const) {
+      const crossing = await pushVaultFiles(
+        vault.credential,
+        "vault: add scan.png",
+        [{ content: randomBytes(room + PUSH_OVERHEAD_BYTES), path: "scan.png" }],
+        vault.head,
+        { length, parent: vault.head },
+      );
+      expect(crossing.response.status, length).toBe(507);
+      expect(await crossing.response.text(), length).toContain("full");
+      expect(await headOf(vault.repo), length).toBe(vault.head);
+    }
+
+    const fitting = await pushVaultFiles(
+      vault.credential,
+      "vault: add note.md",
+      [{ content: "# still room\n", path: "note.md" }],
+      vault.head,
+      { parent: vault.head },
+    );
+    expect(await fitting.response.text()).toContain("ok refs/heads/main");
+  });
+
+  it("once full, refuses a push with a 507 before reading it, and still serves every read", async () => {
+    const vault = await openVault("vault-cap-full@example.test");
+    const tip = await fillVault(vault.credential, vault.repo, vault.head);
+
+    const refused = await pushNothingDeclaring(vault.credential, 1024);
+    expect(refused.status).toBe(507);
+    expect(await headOf(vault.repo)).toBe(tip);
+
+    const advertised = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+      headers: deviceHeaders(vault.credential),
+    });
+    expect(advertised.status).toBe(200);
+    await advertised.arrayBuffer();
+    const cloned = await cloneVault(vault.credential, tip);
+    expect(cloned.status).toBe(200);
+    await cloned.arrayBuffer();
   });
 });
 
