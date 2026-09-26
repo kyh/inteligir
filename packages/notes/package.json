@@ -8,6 +8,7 @@
     "./comments/comment-threads": "./src/comments/comment-threads.ts",
     "./comments/marker-ids": "./src/comments/marker-ids.ts",
     "./comments/merge-comment-stores": "./src/comments/merge-comment-stores.ts",
+    "./comments/revert-entries": "./src/comments/revert-entries.ts",
     "./comments/sidecar-schema": "./src/comments/sidecar-schema.ts",
     "./formulas/collect-formulas": "./src/formulas/collect-formulas.ts",
     "./formulas/expression": "./src/formulas/expression.ts",

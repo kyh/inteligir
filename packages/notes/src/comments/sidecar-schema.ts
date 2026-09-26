@@ -15,14 +15,17 @@ const STORE_FILE_SUFFIX = ".json";
 export const commentsStorePath = (noteId: string): string =>
   `${COMMENTS_STORE_DIR}/${noteId}${STORE_FILE_SUFFIX}`;
 
-export const isCommentsStorePath = (path: string): boolean => {
+// the note id a store path is keyed by; null for any other path
+export const commentsStoreNoteId = (path: string): string | null => {
   const prefix = `${COMMENTS_STORE_DIR}/`;
-  return (
-    path.startsWith(prefix) &&
-    path.endsWith(STORE_FILE_SUFFIX) &&
-    isNoteIdKey(path.slice(prefix.length, -STORE_FILE_SUFFIX.length))
-  );
+  if (!path.startsWith(prefix) || !path.endsWith(STORE_FILE_SUFFIX)) {
+    return null;
+  }
+  const key = path.slice(prefix.length, -STORE_FILE_SUFFIX.length);
+  return isNoteIdKey(key) ? key : null;
 };
+
+export const isCommentsStorePath = (path: string): boolean => commentsStoreNoteId(path) !== null;
 
 // The beside-the-note spelling older vaults and older agents still write: recognised so it can be
 // folded into the store, never written.
@@ -74,6 +77,11 @@ export const commentEntrySchema = z.looseObject({
 });
 /* oxlint-enable sort-keys */
 export type CommentEntry = z.infer<typeof commentEntrySchema>;
+
+// a zod parse emits declared fields in one order, so equal entries stringify equally; an unknown
+// field in another order reads as an edit, which only ever keeps an entry
+export const sameCommentEntry = (a: CommentEntry, b: CommentEntry): boolean =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 export const commentSidecarSchema = z.record(commentIdSchema, commentEntrySchema);
 export type CommentSidecar = z.infer<typeof commentSidecarSchema>;

@@ -82,7 +82,8 @@ src/
                        # preserved byte-exactly)
   comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
                        # marker ids, the sidecar schema, and the entry-wise
-                       # merge two devices' stores take (never a line merge)
+                       # merge two devices' stores take and revert an undo
+                       # takes (never a line merge)
   formulas/            # {{source|display|meta}} pills: collection, expression
                        # evaluation, the resolve graph and the walk that loads
                        # it across notes, and result formatting

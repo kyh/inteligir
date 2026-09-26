@@ -1287,8 +1287,19 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   engine under `Undoes-Turn:`, holding commits while it writes so no flush or
   sync sweeps its writes into a commit that names no turn, and never through
   `attributeWrites`, so an agent undoing an earlier turn from inside a later
-  one does not commit the undo as its own. Comment stores are skipped: a line
-  merge can break their json. `apps/cli/src/server/agents/turn-changes.ts`.
+  one does not commit the undo as its own. A COMMENT STORE IS TAKEN BACK
+  ENTRY BY ENTRY, never as lines, which can break its json
+  (`@repo/notes/comments/revert-entries`), and after the notes: an entry the
+  turn added goes only while it is as the turn left it, nothing answers it
+  and no marker anchors it in its note once that note's revert has landed
+  (found by id through the index; a legacy sidecar's by path). An entry the
+  turn edited or deleted comes back while it is as the turn left it; a store
+  left empty goes; one gone since with its note stays gone. Per entry, not per
+  file: a store that keeps any entry the turn touched is named `edited-since`
+  and still loses the rest. The comments list finds a store by its note's id
+  alone, so a note whose revert took back the id the turn minted takes it
+  again while that store is still there, or a reply the user left would be
+  filed under nothing. `apps/cli/src/server/agents/turn-changes.ts`.
 
 ### Dictation
 
