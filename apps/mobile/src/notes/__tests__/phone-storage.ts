@@ -1,12 +1,15 @@
-// the phone's two stores for the tests: the SQL port over a real file, and attachment files kept in
-// memory under uris that name them
+// the phone's stores for the tests: the SQL port over a real file, attachment and outbox files kept
+// in memory under uris that name them, and node's SHA-1
 
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { onTestFinished } from "vitest";
 import { openNodeSqlDriver } from "../../lib/node-sql-driver";
 import type { AttachmentFiles } from "../attachment-files";
+import type { Sha1 } from "../outbox-ops";
+import type { OutboxFiles } from "../outbox-files";
 
 // a database file of its own, removed when the test ends; open it again to relaunch
 export const tempDbPath = (): string => {
@@ -39,3 +42,39 @@ export const createMemoryAttachments = (): AttachmentFiles & { names: () => stri
     },
   };
 };
+
+export const createMemoryOutboxFiles = (): OutboxFiles & { names: () => string[] } => {
+  const files = new Map<string, Uint8Array>();
+  return {
+    clear: async () => {
+      files.clear();
+    },
+    find: async (name) => (files.has(name) ? `memory://outbox/${name}` : null),
+    names: () => [...files.keys()],
+    read: async (name) => {
+      const bytes = files.get(name);
+      if (bytes === undefined) {
+        throw new Error(`no staged file ${name}`);
+      }
+      return bytes;
+    },
+    remove: async (name) => {
+      files.delete(name);
+    },
+    stage: async (name, bytes) => {
+      files.set(name, bytes);
+    },
+  };
+};
+
+export const nodeSha1: Sha1 = async (bytes) => createHash("sha1").update(bytes).digest();
+
+// the ports one notes store takes beside its database and session; no retry timer, so a test says
+// when the queue drains
+export const phonePorts = () => ({
+  attachments: createMemoryAttachments(),
+  deviceName: "Test Phone",
+  outboxFiles: createMemoryOutboxFiles(),
+  retryBaseMs: null,
+  sha1: nodeSha1,
+});

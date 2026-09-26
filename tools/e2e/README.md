@@ -105,6 +105,10 @@ what each one is FOR.
 | hosted-vault-phone-write  | a second login plays the phone against a wrangler-dev Worker: its change  |
 |                           | set lands and A syncs its bytes, history naming the phone; a stale set    |
 |                           | gets A's bytes back as a conflict, and a recommit on them converges       |
+| phone-offline-edit        | the phone's own runtime (`composeRuntime` under node, over node's sqlite) |
+|                           | edits a note offline while A edits it too; reconnected, a far edit lands  |
+|                           | merged with A's, and a same-line one keeps the phone's version with A's   |
+|                           | as the copy the phone named, both on A's disk after A syncs               |
 | thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
 |                           | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                           | so the Durable Object's ping is what delivered it                         |

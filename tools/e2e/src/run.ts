@@ -23,6 +23,7 @@ import { extractNoteBrowser } from "./scenarios/extract-note-browser";
 import { hostedVaultPhoneWrite } from "./scenarios/hosted-vault-phone-write";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
+import { phoneOfflineEdit } from "./scenarios/phone-offline-edit";
 import { remoteContentBrowser } from "./scenarios/remote-content-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
@@ -43,6 +44,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultSync,
   hostedVaultSync,
   hostedVaultPhoneWrite,
+  phoneOfflineEdit,
   threadSyncHosted,
   accountHosted,
   builtWorkerBoot,

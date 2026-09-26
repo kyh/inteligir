@@ -1,6 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -156,6 +157,33 @@ const CaptureBox = () => {
   );
 };
 
+const unsentLine = (count: number): string =>
+  count === 1
+    ? "1 change on this phone has not reached your vault yet."
+    : `${String(count)} changes on this phone have not reached your vault yet.`;
+
+// a sign-out that would discard edits the vault has not taken asks first, naming how many
+const signOut = async (): Promise<void> => {
+  const outcome = await logout();
+  if (outcome.kind === "signed-out") {
+    return;
+  }
+  Alert.alert(
+    "Sign out and discard changes?",
+    `${unsentLine(outcome.count)} Signing out discards them.`,
+    [
+      { style: "cancel", text: "Cancel" },
+      {
+        onPress: () => {
+          void logout({ discardUnsent: true });
+        },
+        style: "destructive",
+        text: "Discard and sign out",
+      },
+    ],
+  );
+};
+
 const HomeScreen = () => {
   const theme = useTheme();
   const router = useRouter();
@@ -264,7 +292,7 @@ const HomeScreen = () => {
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
         <Pressable
           onPress={() => {
-            void logout();
+            void signOut();
           }}
         >
           <Text style={[styles.smallText, { color: theme.mutedForeground }]}>

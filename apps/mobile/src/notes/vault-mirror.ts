@@ -1,8 +1,9 @@
 // every note's text, held on the phone in SQLite so the notes open offline. A refresh diffs the
 // hosted tree against the rows by blob oid and fetches only what changed, forty paths to a request
 // pinned to the listing's commit. The mirrored commit advances only once every wanted row holds its
-// text, so a refresh cut short resumes from the rows still empty. Pure over the SQL port and the
-// cloud client; the store decides what the screens see.
+// text, so a refresh cut short resumes from the rows still empty. A write the phone lands moves its
+// rows at once and stamps them, and a refresh that listed the tree before that landing leaves them
+// alone. Pure over the SQL port and the cloud client; the store decides what the screens see.
 
 import { z } from "zod";
 import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
@@ -12,6 +13,7 @@ import {
   VAULT_TREE_MAX_ENTRIES,
 } from "@repo/api/cloud/vault/vault-schema";
 import type { VaultFilesResponse, VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
+import { utf8ByteLength } from "@repo/api/cloud/bytes";
 import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { frontmatterAliases } from "@repo/notes/knowledge/link-extract";
@@ -32,7 +34,7 @@ const MAX_TREE_PAGES = Math.ceil(MAX_MIRRORED_FILES / VAULT_TREE_MAX_ENTRIES);
 const UPSERT_ROWS_PER_STATEMENT = 100;
 const DELETE_PATHS_PER_STATEMENT = 500;
 
-export type TreeEntry = VaultTreeResponse["entries"][number];
+type TreeEntry = VaultTreeResponse["entries"][number];
 
 export interface MirrorRow extends TreeEntry {
   // the commit this path's blob first appeared at: an asset url pinned to it names the same bytes
@@ -81,6 +83,21 @@ type FillOutcome =
   | { kind: "failed"; failure: CloudFailure }
   | { kind: "fenced" };
 
+// what a landed write leaves at a path, each pinned to the commit that holds it. `text` is null
+// where the phone holds no text for the blob: a move's row keeps the one it has when the blob is
+// the same, and a read fetches the rest.
+export type MirrorLanding =
+  | {
+      kind: "put";
+      path: string;
+      oid: string;
+      size: number;
+      text: string | null;
+      commit: string;
+    }
+  | { kind: "move"; from: string; to: string; oid: string; text: string | null; commit: string }
+  | { kind: "remove"; path: string };
+
 export interface VaultMirror {
   snapshot: () => Promise<MirrorSnapshot>;
   // pages the tree at head and applies it to the rows in one transaction
@@ -96,6 +113,11 @@ export interface VaultMirror {
   // lands only while the row still names `oid`: a refresh may have moved it on meanwhile
   storeText: (text: { path: string; oid: string; content: string }, fence: Fence) => Promise<void>;
   wipe: () => Promise<void>;
+}
+
+export interface NoteFacts {
+  noteId: string | null;
+  aliases: readonly string[];
 }
 
 const aliasesSchema = z.array(z.string());
@@ -131,6 +153,16 @@ const metaSchema = z.object({ mirrored_commit: z.string().nullable(), tree_commi
 
 const countsSchema = z.object({ fetched: z.number(), total: z.number() });
 
+const markSchema = z.object({ mark: z.number() });
+
+const landedPathSchema = z.object({ path: z.string() });
+
+const movedRowSchema = z.object({
+  content: z.string().nullable(),
+  oid: z.string(),
+  size: z.number(),
+});
+
 const parseAliases = (raw: string): readonly string[] => {
   try {
     const parsed = aliasesSchema.safeParse(JSON.parse(raw));
@@ -140,18 +172,20 @@ const parseAliases = (raw: string): readonly string[] => {
   }
 };
 
-// read once per text, when it lands: a listing never re-parses a note
-const payloadOf = (content: string): TextPayload => {
+// what the resolver reads off a note: its frontmatter id and aliases
+export const noteFactsOf = (content: string): NoteFacts => {
   const yaml = frontmatterYaml(content);
   const properties = yaml === null ? null : parseProperties(yaml);
-  return {
-    aliases: JSON.stringify(frontmatterAliases(properties)),
-    content,
-    note_id: noteIdOfProperties(properties),
-  };
+  return { aliases: frontmatterAliases(properties), noteId: noteIdOfProperties(properties) };
 };
 
-const wantsText = (entry: TreeEntry): boolean =>
+// read once per text, when it lands: a listing never re-parses a note
+const payloadOf = (content: string): TextPayload => {
+  const facts = noteFactsOf(content);
+  return { aliases: JSON.stringify(facts.aliases), content, note_id: facts.noteId };
+};
+
+const wantsText = (entry: Pick<TreeEntry, "path" | "size">): boolean =>
   (isDocPath(entry.path) || isCommentsStorePath(entry.path)) && entry.size <= VAULT_FILE_MAX_BYTES;
 
 const chunks = <T>(items: readonly T[], size: number): T[][] => {
@@ -188,17 +222,30 @@ const readCounts = async (db: SqlExecutor): Promise<MirrorProgress> => {
   return countsSchema.parse(row);
 };
 
-// every row the tree names is written with its path's oid, and a row it no longer names goes. A
+// the landing stamp a refresh reads before it lists the tree: a row stamped past it was landed by
+// the phone after that listing, which may not hold the write yet
+const readLandedMark = async (db: SqlExecutor): Promise<number> => {
+  const [row] = await db.all("SELECT coalesce(max(seq), 0) AS mark FROM mirror_landings");
+  return markSchema.parse(row).mark;
+};
+
+// every row the tree names is written with its path's oid, and a row it no longer names goes,
+// except a path the phone landed a write on since `mark`, which keeps the row that landing left. A
 // changed blob the mirror already holds under another path (a move, a copy, an undo) is copied
 // here rather than fetched; the copies are read before anything is written, since a swap of two
 // paths would otherwise read a row already rewritten.
 const applyTree = async (
   tx: SqlExecutor,
   commit: string,
-  entries: readonly TreeEntry[],
+  listed: readonly TreeEntry[],
+  mark: number,
 ): Promise<void> => {
+  const stamped = await tx.all("SELECT DISTINCT path FROM mirror_landings WHERE seq > ?", [mark]);
+  const kept = new Set(stamped.map((row) => landedPathSchema.parse(row).path));
+  await tx.run("DELETE FROM mirror_landings WHERE seq <= ?", [mark]);
+  const entries = listed.filter((entry) => !kept.has(entry.path));
   const raw = await tx.all("SELECT path, oid, content IS NOT NULL AS held FROM mirror_entries");
-  const rows = raw.map((row) => diffRowSchema.parse(row));
+  const rows = raw.map((row) => diffRowSchema.parse(row)).filter((row) => !kept.has(row.path));
   const oidAt = new Map(rows.map((row) => [row.path, row.oid]));
   const holderOf = new Map<string, string>();
   for (const row of rows) {
@@ -250,8 +297,8 @@ const applyTree = async (
     );
   }
 
-  const listed = new Set(entries.map((entry) => entry.path));
-  const gone = rows.filter((row) => !listed.has(row.path)).map((row) => row.path);
+  const named = new Set(entries.map((entry) => entry.path));
+  const gone = rows.filter((row) => !named.has(row.path)).map((row) => row.path);
   for (const batch of chunks(gone, DELETE_PATHS_PER_STATEMENT)) {
     await tx.run(
       `DELETE FROM mirror_entries WHERE path IN (${batch.map(() => "?").join(", ")})`,
@@ -264,6 +311,131 @@ const applyTree = async (
      ON CONFLICT (id) DO UPDATE SET tree_commit = excluded.tree_commit`,
     [commit],
   );
+};
+
+const upsertRow = async (
+  tx: SqlExecutor,
+  row: { path: string; oid: string; size: number; commit: string; text: string | null },
+): Promise<void> => {
+  const wanted = wantsText(row);
+  const payload = wanted && row.text !== null ? payloadOf(row.text) : null;
+  await tx.run(
+    `INSERT INTO mirror_entries (path, oid, size, pin_commit, wants_text, note_id, aliases, content)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (path) DO UPDATE SET
+       oid = excluded.oid, size = excluded.size, pin_commit = excluded.pin_commit,
+       wants_text = excluded.wants_text, note_id = excluded.note_id,
+       aliases = excluded.aliases, content = excluded.content`,
+    [
+      row.path,
+      row.oid,
+      row.size,
+      row.commit,
+      wanted ? 1 : 0,
+      payload?.note_id ?? null,
+      payload?.aliases ?? "[]",
+      payload?.content ?? null,
+    ],
+  );
+};
+
+const movedSize = (held: { size: number } | null, text: string | null): number => {
+  if (held !== null) {
+    return held.size;
+  }
+  return text === null ? 0 : utf8ByteLength(text);
+};
+
+const applyLanding = async (
+  tx: SqlExecutor,
+  landing: MirrorLanding,
+): Promise<readonly string[]> => {
+  switch (landing.kind) {
+    case "put": {
+      await upsertRow(tx, landing);
+      return [landing.path];
+    }
+    case "remove": {
+      await tx.run("DELETE FROM mirror_entries WHERE path = ?", [landing.path]);
+      return [landing.path];
+    }
+    case "move": {
+      const [raw] = await tx.all("SELECT oid, size, content FROM mirror_entries WHERE path = ?", [
+        landing.from,
+      ]);
+      const parsed = raw === undefined ? null : movedRowSchema.parse(raw);
+      const held = parsed?.oid === landing.oid ? parsed : null;
+      const text = held === null ? landing.text : held.content;
+      await tx.run("DELETE FROM mirror_entries WHERE path = ?", [landing.from]);
+      await upsertRow(tx, {
+        commit: landing.commit,
+        oid: landing.oid,
+        path: landing.to,
+        size: movedSize(held, text),
+        text,
+      });
+      return [landing.from, landing.to];
+    }
+    // no default
+  }
+};
+
+// a row keeps the facts it holds while its blob is the same; a new text is read for them
+const landedRow = (
+  row: { path: string; oid: string; size: number; commit: string; text: string | null },
+  held: MirrorRow | null,
+): MirrorRow => {
+  let facts: NoteFacts = { aliases: [], noteId: null };
+  if (held?.oid === row.oid) {
+    facts = { aliases: held.aliases, noteId: held.noteId };
+  } else if (row.text !== null && wantsText(row)) {
+    facts = noteFactsOf(row.text);
+  }
+  return { ...facts, oid: row.oid, path: row.path, pinCommit: row.commit, size: row.size };
+};
+
+// the same landings over the rows a caller holds in memory, so a listing moves with the write
+// rather than waiting for the next snapshot
+export const landOnRows = (
+  rows: readonly MirrorRow[],
+  landings: readonly MirrorLanding[],
+): MirrorRow[] => {
+  const byPath = new Map(rows.map((row) => [row.path, row]));
+  for (const landing of landings) {
+    switch (landing.kind) {
+      case "put": {
+        byPath.set(landing.path, landedRow(landing, byPath.get(landing.path) ?? null));
+        break;
+      }
+      case "remove": {
+        byPath.delete(landing.path);
+        break;
+      }
+      case "move": {
+        const moving = byPath.get(landing.from) ?? null;
+        const held = moving?.oid === landing.oid ? moving : null;
+        byPath.delete(landing.from);
+        const size = movedSize(held, landing.text);
+        byPath.set(landing.to, landedRow({ ...landing, path: landing.to, size }, held));
+        break;
+      }
+      // no default
+    }
+  }
+  return [...byPath.values()].toSorted((a, b) => (a.path < b.path ? -1 : 1));
+};
+
+// the rows a landed write leaves, stamped so a refresh listed before it cannot put them back. Runs
+// inside the caller's transaction, beside the outbox rows it settles.
+export const landInMirror = async (
+  tx: SqlExecutor,
+  landings: readonly MirrorLanding[],
+): Promise<void> => {
+  for (const landing of landings) {
+    for (const path of await applyLanding(tx, landing)) {
+      await tx.run("INSERT INTO mirror_landings (path) VALUES (?)", [path]);
+    }
+  }
 };
 
 // a refused or missing file will not be answered at this commit, so it stops holding the mirror
@@ -318,6 +490,7 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
   const walkHead: VaultMirror["walkHead"] = async (client, fence) => {
     await ready();
     const meta = await readMeta(db);
+    const mark = await readLandedMark(db);
     if (!fence()) {
       return { kind: "fenced" };
     }
@@ -351,7 +524,7 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
       return { kind: "too-large" };
     }
     const landed = await write(fence, async (tx) => {
-      await applyTree(tx, commit, entries);
+      await applyTree(tx, commit, entries, mark);
     });
     return landed
       ? { commit, firstMirror: meta.mirrored === null, kind: "applied" }
@@ -473,7 +646,9 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     async wipe() {
       await ready();
       await db.exclusive(async (tx) => {
-        await tx.exec("DELETE FROM mirror_entries; DELETE FROM mirror_meta;");
+        await tx.exec(
+          "DELETE FROM mirror_entries; DELETE FROM mirror_meta; DELETE FROM mirror_landings;",
+        );
       });
     },
   };

@@ -1,13 +1,14 @@
 # @repo/mobile — the inteligir phone companion
 
-A read-and-capture content client. **The agent and the vault ENGINE stay on
-the desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
+A notes-and-capture client. **The agent and the vault ENGINE stay on the
+desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
 FEEDS the CAPTURE inbox and holds a MIRROR of every note's text from the
 account's hosted vault, reaching `@repo/api/cloud` (the wire), `@repo/domain`
-(the `ThreadEvent` grammar) and `@repo/notes` (the dialect's parse + wiki
-resolution, guard-pure). No agent, no vault checkout, no git client — notes
-arrive over the /v1/vault read rows into a local SQLite file, and open
-offline, rendered read-only.
+(the `ThreadEvent` grammar) and `@repo/notes` (the dialect's parse, wiki
+resolution and the one conflict verdict, guard-pure). No agent, no vault
+checkout, no git client — notes arrive over the /v1/vault read rows into a
+local SQLite file and open offline, and the phone's own edits wait in a
+durable outbox beside them until the guarded commit route takes them.
 
 Expo + expo-router; `src/sync` is the RN implementation of the `@repo/api/cloud`
 wire.
@@ -46,8 +47,18 @@ src/
     vault-mirror.ts     every note's text in SQLite: the tree diffed by oid,
                         the changed texts fetched in pinned batches (pure over
                         the SQL port, unit-tested against node:sqlite)
-    notes-store.ts      the listing, reads and wiki resolver over the mirror,
-                        under the sync runtime's session (pure, unit-tested)
+    notes-store.ts      the listing, reads, wiki resolver and the write surface
+                        (shaped like @repo/editor's VaultIO, plus rename and
+                        putAsset) over the mirror and the outbox, under the
+                        sync runtime's session (pure, unit-tested)
+    vault-outbox.ts     the phone's unsent edits, durable in SQLite and sent
+                        oldest first as change sets (outbox-ops.ts: what a row
+                        holds; outbox-reconcile.ts: a stale set settled with
+                        @repo/notes' reconcileFile; vault-overlay.ts: the rows
+                        laid over the mirror; pure, unit-tested against
+                        node:sqlite and a fake vault that CASes like the Worker)
+    outbox-files.ts     the staged-attachment port; expo-outbox-files.ts is its
+                        expo-file-system adapter
     attachment-files.ts the attachment-file port; expo-attachment-files.ts
                         is its expo-file-system adapter
     note-projection.ts  dialect markdown → typed blocks (pure, unit-tested)
@@ -55,7 +66,8 @@ src/
   lib/          the composition root: compose-runtime.ts (platform-free and
                 unit-tested: the restore, sign-out, revocation and resume)
                 and app-runtime.ts (its binding to the Keychain, the
-                database, the attachment files and AppState, plus the
+                database, the attachment and outbox files, expo-crypto's
+                SHA-1, AppState and expo-network's reconnect, plus the
                 hooks); the database: sql-driver.ts (the port),
                 expo-sql-driver.ts (the app's), node-sql-driver.ts (the
                 tests'), phone-db.ts (every table's migrations) and
@@ -77,9 +89,9 @@ device id, a row at or below the cursor passed over, since the two move in one
 call), rebuilding the readable state. Persisting the cursor beside an in-memory
 log would claim rows the log never saw. It is also why the phone keeps no
 skipped-row marker: an app update is a relaunch, which re-reads every row the
-old build skipped. There is no outbox and no capture ledger: the phone appends
-nothing to the log and claims nothing from the inbox, so neither has anything
-to hold.
+old build skipped. There is no thread outbox and no capture ledger: the phone
+appends nothing to the log and claims nothing from the inbox, so neither has
+anything to hold. Its own NOTE edits are another matter, below.
 
 The log holds what the thread view draws from and no more: a streaming delta
 moves the cursor and the thread's recency and is dropped, because the thread
@@ -133,6 +145,48 @@ The durable follow-up is a `SyncStore` in the same database that persists both
 sync stores together; the port exists precisely so that swap touches nothing
 else.
 
+## Unsent edits
+
+A write lands on the phone the moment it is durable in the `outbox` table
+(`notes/vault-outbox.ts`), and every read, the listing and the wiki resolver
+see it from then on (`notes/vault-overlay.ts`): a pending edit reads as the
+note, a create and a staged photo list before the vault holds them, and a
+rename or a delete moves or hides the row now. The rows are sent oldest first,
+one change set per row, to `POST /v1/vault/commit`, on every write, on resume,
+when expo-network says the phone is back online, and on a backoff after a
+failure, one pass at a time (`createSingleFlight` from
+`@repo/api/cloud/sync/sync-session`).
+
+- **A write carries the blob it was computed from.** A read records the base
+  the caller's next write is guarded by, and a write the caller never read
+  throws, as the desktop's guarded io does. Three saves of one note before it
+  is sent are ONE row: a write to a path whose last row writes it replaces the
+  text and keeps the first base.
+- **A stale write is reconciled here, with the desktop's own verdict.** The
+  Worker never merges: its 409 carries what the head holds and who wrote it,
+  and `notes/outbox-reconcile.ts` runs `reconcileFile` from
+  `@repo/notes/sync/reconcile-file` on it, so a far edit merges, a true
+  overlap keeps the phone's version and copies the other device's under the
+  name that module gives it, a note deleted elsewhere comes back with the
+  phone's edit, and a delete of a note edited elsewhere is dropped. The result
+  and its copy go as ONE change set, and that set is kept on the row before it
+  is sent, so an answer lost after the vault applied it is resent as the same
+  set, which the vault answers as already held: nothing is duplicated.
+- **A landing moves the mirror in the transaction that retires the row**, and
+  stamps the paths it moved (`mirror_landings`); a refresh reads the stamp
+  before it lists the tree and leaves every row stamped after it alone, since
+  its listing may predate the write. A write made while its row was out stays
+  queued, rebased onto what landed.
+- **Nothing drops the user's text.** An unreachable vault stops the queue and
+  keeps every row; a refusal no resend passes (too large, a name another note
+  holds in other capitals) parks that row with its bytes, and the rows on
+  other paths go on. The published status (`outbox.status`) counts what is
+  unsent and lists each parked row with Retry, Save as new note and Discard,
+  and each conflict in `describeSyncConflict`'s words, for the editor's UI.
+- **Signing out asks first.** `logout` refuses while anything is unsent, and
+  the home screen's confirm names the count; a discard wipes the rows and the
+  staged photos with the mirror, and so does a revocation.
+
 ## Who applies captures
 
 The phone **produces** captures (quick-capture → `POST /v1/capture`,
@@ -182,9 +236,12 @@ that is signed in.
   the credential codec, the sign-in store, the notes store, the vault mirror
   (its SQL run for real, over `node:sqlite` on a temp file: the oid delta, a
   relaunch that cannot reach the cloud, a batch cut short, a batch that
-  outlives its sign-in), the capture sender, and the composition's restore,
+  outlives its sign-in), the outbox (offline edits across a relaunch, the
+  coalesced write, a merge, a copy, a lost answer, a parked row, a refresh
+  racing a landing), the capture sender, and the composition's restore,
   sign-out, revocation and resume — all against faked fetch. Unit tests, no
-  device.
+  device. `tools/e2e/src/scenarios/phone-offline-edit.ts` runs the same
+  composition under node against a real Worker and a desktop.
 - **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the
   config to what App Store Connect judges — the marketing version is the
@@ -199,8 +256,8 @@ that is signed in.
   actually booting, the held splash and the route guard's redirects, the
   expo-secure-store Keychain round trip, expo-sqlite and the backup exclusion
   (both native: a dev client built before them must be rebuilt), the
-  attachment files, the AppState resume, a live sign-in against a running
-  cloud Worker, an EAS Update landing on an installed build, and the offline
+  attachment and staged files, the AppState resume and expo-network's
+  reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, and the offline
   check: sync once, airplane mode, cold launch, the list and any note open.
 
 ## Dev

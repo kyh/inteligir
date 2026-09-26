@@ -1,13 +1,16 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
+import { addNetworkStateListener } from "expo-network";
 import {
   clearDeviceCredential,
   readDeviceCredential,
   writeDeviceCredential,
 } from "../credential/secure-store-credential";
+import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
+import { createExpoOutboxFiles } from "../notes/expo-outbox-files";
 import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
 import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
@@ -16,7 +19,7 @@ import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
-import type { AppRuntime } from "./compose-runtime";
+import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
 import { createExpoSqlDriver } from "./expo-sql-driver";
 
 let runtime: AppRuntime | null = null;
@@ -38,8 +41,12 @@ const build = (): AppRuntime => {
       write: writeDeviceCredential,
     },
     db: createExpoSqlDriver("inteligir.db"),
+    deviceName: defaultDeviceName(),
     // the contract requires an idempotency key of at least 8 chars.
     mintCaptureKey: () => hexFromBytes(Crypto.getRandomBytes(16)),
+    outboxFiles: createExpoOutboxFiles(),
+    sha1: async (bytes) =>
+      new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA1, bytes)),
     sync: { onDebug: devLog },
   });
   // never removed: the runtime lives as long as the app, and a resume while signed out is a no-op.
@@ -47,6 +54,15 @@ const build = (): AppRuntime => {
     if (state === "active") {
       rt.resume();
     }
+  });
+  // a phone back online sends what it saved offline without waiting for the retry timer
+  let online = true;
+  addNetworkStateListener((network) => {
+    const reachable = network.isInternetReachable ?? network.isConnected ?? false;
+    if (reachable && !online) {
+      rt.resume();
+    }
+    online = reachable;
   });
   return rt;
 };
@@ -64,9 +80,8 @@ export const syncNow = async (): Promise<void> => {
   await getRuntime().sync.syncNow();
 };
 
-export const logout = async (): Promise<void> => {
-  await getRuntime().logout();
-};
+export const logout = async (options?: { discardUnsent?: boolean }): Promise<LogoutOutcome> =>
+  await getRuntime().logout(options);
 
 export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);

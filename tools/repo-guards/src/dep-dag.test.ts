@@ -46,13 +46,15 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     ],
     "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
-    // instance.
-    "@repo/e2e": ["@repo/api", "inteligir"],
+    // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
+    // against a real Worker, since no Expo boots headless.
+    "@repo/e2e": ["@repo/api", "@repo/mobile", "inteligir"],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
-    // a partial cloud client: reads the thread log and produces captures, never pushes or claims.
-    // the @repo/notes edge is the vault read surface (the dialect's own parse and link resolver);
-    // it reaches no server, vault engine or agent.
+    // a partial cloud client: reads the thread log and produces captures, never pushes or claims,
+    // and writes the vault only through the guarded commit route. the @repo/notes edge is the
+    // dialect's own parse, link resolver and the one conflict verdict its write queue settles
+    // with; it reaches no server, vault engine or agent.
     "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/notes"],
     "@repo/notes": [],
     "@repo/repo-guards": [],
