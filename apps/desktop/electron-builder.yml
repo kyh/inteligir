@@ -22,6 +22,12 @@ files:
   # `files` (apps/cli/package.json), which the smoke derives from; only `!` patterns reach a
   # dependency, so the allowlist is an extglob inside an exclusion
   - "!node_modules/inteligir/!(bin|dist|seed|package.json){,/**/*}"
+# the git a Mac without the developer tools runs (src/main/bundled-git.ts), which
+# scripts/fetch-git.mjs stages. beside the asar, since git is spawned by path; its Mach-Os are
+# signed with the rest of Contents/, under the hardened runtime, and notarized with the app
+extraResources:
+  - from: resources/git
+    to: git
 # electron-updater names its cache dir from the package name, and @repo/desktop sanitizes to
 # "@repodesktop-updater"; the app's own name is what lands in ~/Library/Caches
 extraMetadata:

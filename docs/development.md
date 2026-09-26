@@ -102,8 +102,9 @@ shell adopted is not its child, so neither the switch nor the log reaches it.
 The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
 staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` wraps that same package in the
-.app, signed when the keychain holds a Developer ID and notarized when
-`.release/` is present (`apps/desktop/README.md` § Packaging).
+.app, beside the git a Mac without the developer tools runs (fetched and
+pinned at package time), signed when the keychain holds a Developer ID and
+notarized when `.release/` is present (`apps/desktop/README.md` § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
 the capture inbox, the hosted vault git remote — over a local D1 file and

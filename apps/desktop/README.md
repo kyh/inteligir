@@ -220,7 +220,24 @@ child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,
 fails or prints nothing leaves the usual install dirs that exist
 (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`) in its place. A dev
 launch skips it: its terminal already has the user's PATH. The unit tests pin
-the parse; the smoke's launches run it for real.
+the parse; the smoke's scratch-home launches run it for real.
+
+## The child's git is the Mac's, or the one the app ships
+
+The vault engine, the ACP adapters and every agent shell run `git` by name. On
+a Mac without Xcode or its command-line tools, `/usr/bin/git` is a stub that
+fails and offers to install them, so the vault could not initialize. The pack
+therefore carries a git of its own under `Contents/Resources/git`, and before
+the first fork main asks `xcode-select -p` which developer dir is selected
+(`src/main/bundled-git.ts`). One holding `usr/bin/git` keeps the Mac's own git,
+and with it the Keychain helper an https remote of the user's own signs in
+through, which the shipped git lacks. Any other Mac gets the shipped one: its
+`bin/` goes ahead of the login shell's PATH on the server child's environment,
+beside `GIT_EXEC_PATH`, `GIT_TEMPLATE_DIR` and `GIT_CONFIG_SYSTEM`, because it
+was built for prefix `/` and finds its helpers, templates and system config
+only where those name them. `GIT_CONFIG_COUNT` is never set there: the hosted
+remote's bearer rides it per invocation. A dev launch keeps the developer's own
+git, as `pnpm e2e` does.
 
 ## Running it
 
@@ -277,6 +294,20 @@ before the task begins. A tree with no cert or no `.release/` still packages
 — both steps are skipped with a warning — but that artifact opens only on the
 machine that built it.
 
+`package` first runs `scripts/fetch-git.mjs`, which stages the git the app
+ships into `resources/git` (gitignored), and `extraResources` carries it
+beside the asar, where osx-sign signs each of its Mach-Os with the rest of the
+bundle. The source is dugite-native's macOS arm64 tarball, pinned by tag and
+sha-256 and cached under `.cache/bundled-git`, as a file fetch rather than the
+`dugite` npm package, whose JS API nothing calls and whose postinstall would
+download it on every install. The fetch drops the Git Credential Manager (a
+.NET runtime) and Git LFS that dugite-native adds beside git: no config names
+either, and they were most of the payload and of what had to be signed. The
+tarball carries no licence text, so git's own `COPYING`, pinned the same way,
+ships beside it with a `SOURCE` note naming both source tags. A version bump is
+the tag, the name and both hashes at the top of the script, dugite's
+`script/embedded-git.json` giving the tarball's.
+
 The smoke LAUNCHES the packaged app — the binary runs no JavaScript as plain
 Node, so main is the only way in — on its own `--user-data-dir` (an installed
 Inteligir neither blocks it nor sees it) and a mock keychain (an unsigned pack
@@ -290,10 +321,14 @@ main forks the adapter, the adapter starts its bundled native codex, and codex
 refuses the session for want of a sign-in, which only a live adapter can say),
 that the bundled CLI is executable where the agent's PATH
 resolver looks for it, and that SIGTERM to main stops the server cleanly and
-exits 0. **The window opens, and the smoke checks nothing in it**: the origin
-pin is proven by its unit tests, and the window, the protocol handler, the
-bridge and the vault switch are the `desktop-shell` scenario's, over the
-checkout's build. CI's `test-macos` job runs it on every push and pull request,
+exits 0. Its first launch plays a Mac without the developer tools:
+`DEVELOPER_DIR` names a dir holding no git, and a login shell of the smoke's
+own puts a `git` first on PATH that fails and logs each call. That launch
+must still initialize the vault and commit an API write, and the log must stay
+empty through the quit, agent turn and shutdown flush included. **The window
+opens, and the smoke checks nothing in it**: the origin pin is proven by its
+unit tests, and the window, the protocol handler, the bridge and the vault
+switch are the `desktop-shell` scenario's, over the checkout's build. CI's `test-macos` job runs it on every push and pull request,
 unsigned: `CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through
 to the `package` task, because turbo's strict env mode would strip it.
 

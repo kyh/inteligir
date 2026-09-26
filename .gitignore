@@ -19,6 +19,9 @@ out/
 
 # build output
 dist/
+# the desktop app's git, fetched and pinned by apps/desktop/scripts/fetch-git.mjs at package time
+apps/desktop/resources/git/
+apps/desktop/resources/git.partial/
 
 # production
 .source
