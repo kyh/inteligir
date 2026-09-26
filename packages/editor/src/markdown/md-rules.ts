@@ -40,9 +40,9 @@ import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import type { CommentMarker, FormulaPill } from "@repo/notes/markdown/remark-inline-constructs";
 import type { TabPanel, TabGroup } from "@repo/notes/markdown/remark-tabs";
 import {
-  CALLOUT_LANG,
   CANVAS_LANG,
   CHART_LANG,
+  COMPAT_CALLOUT_LANG,
   HTML_LANG,
   isCalloutLang,
   RICH_FENCE_LANGS,
@@ -358,7 +358,7 @@ export const MD_RULES: MdRules = {
               value: children,
             }).replace(/\n$/u, "");
       return {
-        lang: CALLOUT_LANG,
+        lang: COMPAT_CALLOUT_LANG,
         type: "code",
         value: [typeLine, ...level, ...(body === "" ? [] : [body])].join("\n"),
       };

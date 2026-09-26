@@ -71,7 +71,9 @@ src/
                        # node is, never discriminates structurally
     fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
                        # and ONE callout-payload grammar — the rule table, the
-                       # scan and the mobile projection all read them
+                       # scan and the mobile projection all read them; a
+                       # COMPAT_* spelling (the inteligir-callout fence) is
+                       # read and round-tripped, never written new or taught
     frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
                        # CRLF aware), split/recombine (ONE
                        # `replaceFrontmatterYaml`, which

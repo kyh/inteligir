@@ -307,8 +307,15 @@ to the END of its group.
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
   alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
-  anchors, and `inteligir-callout` / `inteligir-chart` / `inteligir-canvas` /
-  `inteligir-html` / `:::tabs` blocks, all valid markdown, all round-tripping.
+  anchors, GitHub alerts (`> [!NOTE]` through `> [!CAUTION]`) as THE callout,
+  and `inteligir-chart` / `inteligir-canvas` / `inteligir-html` / `:::tabs`
+  blocks, all valid markdown, all round-tripping. The `inteligir-callout` fence
+  is READ-COMPAT (`COMPAT_CALLOUT_LANG`): rendered and round-tripped byte-exact
+  for the notes that hold one, never inserted, taught or seeded, which
+  `tools/repo-guards/src/agent-skills.test.ts` holds for the skills and
+  `apps/cli/seed/`. Migrating it to an alert on save is rejected: it carries
+  kinds the five-variant alert grammar cannot spell (info, error, a priority
+  with its level), and the rewrite would make a canonical construct churn.
   Every spelling lives in one place (`@repo/notes/markdown/fence-langs`,
   `@repo/editor/nodes/canvas-header`, each node's Slate type in
   `@repo/editor/dialect-node-keys`) because the rule table and the knowledge

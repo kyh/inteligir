@@ -88,21 +88,20 @@ Review-->Ship;
 
 ## Callouts
 
-```inteligir-callout
-info
-An informational callout with a {{2+2|4}} pill inside.
-```
+> [!NOTE]
+> A note callout with a {{2+2|4}} pill inside.
 
-```inteligir-callout
-warning
-A warning callout.
-```
+> [!TIP]
+> A tip callout with a [[Welcome]] link.
 
-```inteligir-callout
-priority
-high
-A priority callout carrying its level.
-```
+> [!IMPORTANT]
+> An important callout.
+
+> [!WARNING]
+> A warning callout.
+
+> [!CAUTION]
+> A caution callout.
 
 ## Tabs
 
@@ -142,11 +141,6 @@ const answer = 42;
   A sandboxed prototype — press Run to render it.
 </div>
 ```
-
-## Alert
-
-> [!NOTE]
-> A GFM alert block.
 
 ## Comments
 
