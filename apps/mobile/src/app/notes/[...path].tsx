@@ -25,8 +25,6 @@ import {
   mintBridgeNonce,
   readNote,
   readNoteComments,
-  replyToComment,
-  resolveComment,
 } from "@/lib/app-runtime";
 import { SPACE, useTheme } from "@/lib/theme";
 import type { CommentOutcome } from "@/notes/comment-ops";
@@ -153,13 +151,7 @@ const NoteScreen = () => {
     }),
   );
 
-  useEffect(
-    () =>
-      ports.watch((event) => {
-        host.send({ event, type: "vaultChanged" });
-      }),
-    [ports, host],
-  );
+  useEffect(() => ports.watch(host.send), [ports, host]);
 
   useFocusEffect(
     useCallback(
@@ -244,9 +236,16 @@ const NoteScreen = () => {
   };
   const commentEdits: CommentEdits = {
     reply: async (rootId, text) =>
-      await editComments(async (notePath) => await replyToComment(notePath, rootId, text)),
+      await editComments(async (notePath) => await ports.comments.reply(notePath, rootId, text)),
+    remove: async (rootId) =>
+      await editComments(async (notePath) => {
+        const removed = await ports.comments.remove(notePath, rootId);
+        return removed.kind === "done" ? { kind: "done" } : removed;
+      }),
     resolve: async (rootId, resolved) =>
-      await editComments(async (notePath) => await resolveComment(notePath, rootId, resolved)),
+      await editComments(
+        async (notePath) => await ports.comments.resolve(notePath, rootId, resolved),
+      ),
   };
 
   const deleteOpened = (): void => {

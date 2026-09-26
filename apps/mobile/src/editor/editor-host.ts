@@ -25,7 +25,9 @@ export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" | "
 type Unstamped<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> : never;
 
 // what the phone tells a loaded page on its own
-type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "vaultChanged" | "theme" }>>;
+export type EditorNativeEvent = Unstamped<
+  Extract<NativeFrame, { type: "vaultChanged" | "theme" | "commentMeta" | "commentsRemoved" }>
+>;
 
 // the part of the WebView the host drives
 interface EditorView {

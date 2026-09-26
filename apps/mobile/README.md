@@ -101,11 +101,12 @@ src/
                         store, planned with the rules the server runs
                         (@repo/notes' plan-rename, store-removal, asset-name;
                         platform-free, unit-tested and run by the scenario suite)
-    comment-ops.ts      add, reply and resolve over the notes store, by the
-                        server's rules (@repo/notes' comment-threads,
+    comment-ops.ts      add, reply, resolve and delete over the notes store, by
+                        the server's rules (@repo/notes' comment-threads,
                         comment-key), signed as the user; a new comment's
                         markers come from the editor page and land with its
-                        entry (platform-free, unit-tested and run by the
+                        entry, and a deleted thread's go through the page's
+                        editor (platform-free, unit-tested and run by the
                         scenario suite)
     photo-ingest.ts     the camera or the library → a JPEG at most 2048px on
                         its long edge, re-encoded without EXIF (the native half;
@@ -121,7 +122,7 @@ src/
                         unit-tested); outbox-banner.tsx draws them above the
                         list and the open note
     comments-view.tsx   a note's comment threads in a sheet over the editor,
-                        each with Reply and Resolve (or Reopen)
+                        each with Reply, Resolve (or Reopen) and Delete
   lib/          the composition root: compose-runtime.ts (platform-free and
                 unit-tested: the restore, sign-out, revocation and resume)
                 and app-runtime.ts (its binding to the Keychain, the
@@ -224,12 +225,12 @@ shows the list and opens every note before any request, and a refresh that
 fails keeps the list it has and says why above it. "Loading your vault…"
 shows only on a FIRST mirror, with its count.
 
-The listing (paths, aliases and ids, which the editor page's own resolver reads,
-so `[[Some Alias]]` and `[[Title|uuid]]` resolve) comes from the rows. `attachmentFile(path)` downloads
-an attachment on its first ask, at the commit its blob first appeared at, into
-`Paths.cache/attachments/<oid><ext>`, so an image a commit leaves alone is
-never fetched again; the editor page reads it from there, a photo not yet
-sent from its staged file.
+The listing (paths, aliases and ids, which the editor page's own resolver
+reads, so `[[Some Alias]]` and `[[Title|uuid]]` resolve) comes from the rows.
+`attachmentFile(path)` downloads an attachment on its first ask, at the
+commit its blob first appeared at, into `Paths.cache/attachments/<oid><ext>`,
+so an image a commit leaves alone is never fetched again; the editor page
+reads it from there, a photo not yet sent from its staged file.
 
 A sign-in, a sign-out and a revocation wipe the rows and the attachment files;
 the boot RESTORE keeps them — that launch is what the mirror exists for. Which
@@ -294,9 +295,12 @@ failure, one pass at a time (`createSingleFlight` from
   on the bridge): the store plans its entry under the write lock from the
   texts the phone holds and queues the note and its comment store as ONE
   `comment` row, minting a note without an id one by the desktop's line cut.
-  A reply and a resolve are the store alone. A stale set settles the note as
-  a write and the store by its entries, so a comment another device made
-  meanwhile keeps both threads.
+  A reply, a resolve and a delete are the store alone; a deleted thread's
+  markers go through the page's editor and its next write, as the desktop's
+  do. The editor ports tell the page each thread its note's store holds and
+  which are resolved (`commentMeta`), so its ranges draw as the desktop's. A
+  stale set settles the note as a write and the store by its entries, so a
+  comment another device made meanwhile keeps both threads.
 - **A photo lands in the default attachments folder** (`assets/`), since the
   Mac's attachment choice lives in its own data folder, under a free name
   (`@repo/notes/knowledge/asset-name`), as a JPEG: the Mac's editor cannot

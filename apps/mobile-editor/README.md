@@ -46,7 +46,10 @@ end that receives it.
   why a save failed, sent only when either changes), `mergeConflict`,
   `showComments`, `navigate`, `askAgent`, `showTag`, `flushed`.
 - Native to page: `init { nonce, path, focus, theme }`, `response { id, ok }`,
-  `vaultChanged`, `flush` (answered by `flushed` with its id), `theme`.
+  `vaultChanged`, `flush` (answered by `flushed` with its id), `theme`,
+  `commentMeta` (the note's threads and which are resolved, which its ranges
+  are drawn by) and `commentsRemoved` (threads deleted on the phone, whose
+  markers the page takes out and writes).
 
 The native end is `apps/mobile/src/editor/editor-host.ts`, answering over the
 phone's store through `editor-ports.ts`. Native reaches the page ONLY by

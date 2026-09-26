@@ -266,6 +266,25 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
   // write the open note's edits now (the screen is leaving, the app is backgrounding); answered by
   // a `flushed` frame with the same id
   z.object({ id: idSchema, nonce: nonceSchema, type: z.literal("flush") }).strict(),
+  // what the note's comment ranges are drawn by: every thread its store holds, and which of them
+  // are resolved; sent when the page opens the note and whenever the note or its store changes
+  z
+    .object({
+      knownIds: z.array(commentIdSchema),
+      nonce: nonceSchema,
+      path: vaultPathSchema,
+      resolvedIds: z.array(commentIdSchema),
+      type: z.literal("commentMeta"),
+    })
+    .strict(),
+  // threads deleted on the phone, whose markers the page takes out of the open note and writes
+  z
+    .object({
+      ids: z.array(commentIdSchema).min(1),
+      nonce: nonceSchema,
+      type: z.literal("commentsRemoved"),
+    })
+    .strict(),
   z.object({ nonce: nonceSchema, theme: themeSchema, type: z.literal("theme") }).strict(),
 ]);
 

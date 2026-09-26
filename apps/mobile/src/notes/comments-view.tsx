@@ -56,6 +56,8 @@ const entryMeta = (entry: CommentEntry): string => {
 export interface CommentEdits {
   reply: (rootId: string, text: string) => Promise<CommentOutcome>;
   resolve: (rootId: string, resolved: boolean) => Promise<CommentOutcome>;
+  // the thread with every reply, and its markers in the note
+  remove: (rootId: string) => Promise<CommentOutcome>;
 }
 
 const failureOf = (cause: unknown): CommentOutcome => ({
@@ -89,6 +91,25 @@ const ThreadCard = ({ edits, thread }: { edits: CommentEdits; thread: CommentThr
         setDraft("");
       }
     })();
+  };
+
+  const confirmRemove = (): void => {
+    Alert.alert(
+      "Delete this comment?",
+      thread.replies.length === 0
+        ? "It goes from this note on every device."
+        : "It and its replies go from this note on every device.",
+      [
+        { style: "cancel", text: "Cancel" },
+        {
+          onPress: () => {
+            void run(async () => await edits.remove(thread.rootId));
+          },
+          style: "destructive",
+          text: "Delete",
+        },
+      ],
+    );
   };
 
   return (
@@ -136,6 +157,18 @@ const ThreadCard = ({ edits, thread }: { edits: CommentEdits; thread: CommentThr
         >
           <Text style={[styles.action, { color: busy ? theme.mutedForeground : theme.foreground }]}>
             {thread.resolved ? "Reopen" : "Resolve"}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          hitSlop={SPACE.sm}
+          onPress={confirmRemove}
+        >
+          <Text
+            style={[styles.action, { color: busy ? theme.mutedForeground : theme.destructive }]}
+          >
+            Delete
           </Text>
         </Pressable>
       </View>

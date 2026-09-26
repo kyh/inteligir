@@ -5,17 +5,27 @@
 
 import { bytesFromBase64 } from "@repo/api/cloud/bytes";
 import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
+import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
-import type { NativeFrame, RequestResult } from "@repo/mobile-editor/bridge-protocol";
+import type { RequestResult } from "@repo/mobile-editor/bridge-protocol";
 import type { CommentOps } from "../notes/comment-ops";
 import type { FileOps } from "../notes/file-ops";
 import { linksKeptLine } from "../notes/file-ops";
 import type { HeldFile, NotesStore } from "../notes/notes-store";
 import type { PhotoIngest } from "../notes/photo-ingest";
-import type { EditorPageEvent, EditorRequestPorts } from "./editor-host";
+import type { EditorNativeEvent, EditorPageEvent, EditorRequestPorts } from "./editor-host";
 
-type VaultChangedEvent = Extract<NativeFrame, { type: "vaultChanged" }>["event"];
+// what the ports tell the page on their own: what moved under it, the open note's comments, and
+// the threads deleted here
+type PortsEvent = Extract<
+  EditorNativeEvent,
+  { type: "vaultChanged" | "commentMeta" | "commentsRemoved" }
+>;
+
+type VaultChangedEvent = Extract<PortsEvent, { type: "vaultChanged" }>["event"];
+
+type CommentMetaEvent = Extract<PortsEvent, { type: "commentMeta" }>;
 
 type WikiTargetRow = RequestResult<"wikiTargets">["targets"][number];
 
@@ -28,10 +38,17 @@ export type EditorRoute =
 export interface EditorPortsArgs {
   store: Pick<
     NotesStore,
-    "attachmentFile" | "create" | "heldFiles" | "readNote" | "tree" | "watchPath" | "write"
+    | "attachmentFile"
+    | "create"
+    | "heldFiles"
+    | "readComments"
+    | "readNote"
+    | "tree"
+    | "watchPath"
+    | "write"
   >;
   fileOps: FileOps;
-  comments: Pick<CommentOps, "add">;
+  comments: CommentOps;
   pickImage: () => Promise<PhotoIngest>;
   // a file the phone holds, as base64
   readBase64: (uri: string) => Promise<string>;
@@ -50,9 +67,12 @@ export interface EditorPorts {
   readonly handle: (event: EditorPageEvent) => void;
   // a new thread about `path`, as the header's Ask agent and the page's both open one
   readonly askAgent: (path: string, selection: string) => Promise<void>;
-  // tells `listener` what moved under the page: the listing, and the bytes of every note it read.
-  // the returned stop ends every watch this began
-  readonly watch: (listener: (event: VaultChangedEvent) => void) => () => void;
+  // the comment sheet's verbs, each telling the page what its ranges are drawn by once it lands,
+  // and a deleted thread's markers to take out
+  readonly comments: Pick<CommentOps, "reply" | "resolve" | "remove">;
+  // tells `listener` what moved under the page: the listing, the bytes of every note it read, and
+  // the open note's comments. the returned stop ends every watch this began
+  readonly watch: (listener: (event: PortsEvent) => void) => () => void;
 }
 
 const NO_FOLDER_MOVES = "A note moves to another folder from your Mac.";
@@ -89,11 +109,93 @@ const movedPaths = (
 
 export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
   const { fileOps, store } = args;
-  let listener: ((event: VaultChangedEvent) => void) | null = null;
+  let listener: ((event: PortsEvent) => void) | null = null;
   const readWatches = new Map<string, () => void>();
 
   const emit = (event: VaultChangedEvent): void => {
-    listener?.(event);
+    listener?.({ event, type: "vaultChanged" });
+  };
+
+  // the note the page shows, the comments last sent for it, and the watches that send them again
+  let openPath: string | null = null;
+  let sentMeta: string | null = null;
+  let metaSeq = 0;
+  let metaWatches: (() => void)[] = [];
+
+  // an unreadable store sends nothing, so the ranges keep what they last showed
+  const sendCommentMeta = async (): Promise<void> => {
+    const path = openPath;
+    if (path === null || listener === null) {
+      return;
+    }
+    metaSeq += 1;
+    const seq = metaSeq;
+    let meta: CommentMetaEvent;
+    try {
+      const read = await store.readNote(path);
+      const comments = read.ok ? await store.readComments(read) : null;
+      if (comments === null || !comments.ok) {
+        return;
+      }
+      meta = {
+        knownIds: comments.threads.map((thread) => thread.rootId),
+        path,
+        resolvedIds: comments.threads
+          .filter((thread) => thread.resolved)
+          .map((thread) => thread.rootId),
+        type: "commentMeta",
+      };
+    } catch {
+      return;
+    }
+    const key = JSON.stringify(meta);
+    if (seq === metaSeq && key !== sentMeta) {
+      sentMeta = key;
+      listener?.(meta);
+    }
+  };
+
+  const stopMetaWatches = (): void => {
+    for (const stop of metaWatches) {
+      stop();
+    }
+    metaWatches = [];
+  };
+
+  const noteIdOf = (path: string): string | null =>
+    store.heldFiles().find((file) => file.path === path)?.noteId ?? null;
+
+  // the comments are the store's that the note's id names: a change to that store from elsewhere
+  // reads them again, and a note whose id changed is followed to its new store. an edit of the
+  // note's text alone changes neither. an edit made here is no change to a watcher, so each of the
+  // phone's own comment verbs tells the page itself
+  const followComments = (): void => {
+    stopMetaWatches();
+    const path = openPath;
+    if (path === null || listener === null) {
+      return;
+    }
+    const noteId = noteIdOf(path);
+    metaWatches.push(
+      store.watchPath(path, () => {
+        if (noteIdOf(path) !== noteId) {
+          followComments();
+          void sendCommentMeta();
+        }
+      }),
+    );
+    if (noteId !== null) {
+      metaWatches.push(
+        store.watchPath(commentsStorePath(noteId), () => {
+          void sendCommentMeta();
+        }),
+      );
+    }
+  };
+
+  const refreshComments = (): void => {
+    followComments();
+    void sendCommentMeta();
   };
 
   // a read is what the page shows, so a change to those bytes other than its own write is told
@@ -141,6 +243,7 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
           if (added.note !== content) {
             emit({ kind: "content", path });
           }
+          refreshComments();
           return { kind: "written" };
         }
         case "changed": {
@@ -252,6 +355,33 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     });
   };
 
+  const comments: EditorPorts["comments"] = {
+    remove: async (path, rootId) => {
+      const removed = await args.comments.remove(path, rootId);
+      if (removed.kind === "done") {
+        if (removed.removedIds.length > 0) {
+          listener?.({ ids: [...removed.removedIds], type: "commentsRemoved" });
+        }
+        refreshComments();
+      }
+      return removed;
+    },
+    reply: async (path, rootId, text) => {
+      const replied = await args.comments.reply(path, rootId, text);
+      if (replied.kind === "done") {
+        refreshComments();
+      }
+      return replied;
+    },
+    resolve: async (path, rootId, resolved) => {
+      const changed = await args.comments.resolve(path, rootId, resolved);
+      if (changed.kind === "done") {
+        refreshComments();
+      }
+      return changed;
+    },
+  };
+
   const handle = (event: EditorPageEvent): void => {
     switch (event.type) {
       // the page says each of these itself: a failed save, a merge that kept its lines, and a
@@ -277,6 +407,10 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
         return;
       }
       case "opened": {
+        // a page loaded again holds no comments until it is told them
+        openPath = event.path;
+        sentMeta = null;
+        refreshComments();
         args.opened(event.path);
       }
       // no default
@@ -285,6 +419,7 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
 
   const watch: EditorPorts["watch"] = (next) => {
     listener = next;
+    followComments();
     let known = store.tree.get().state === "ready" ? factsOf(store.heldFiles()) : null;
     const unsubscribe = store.tree.subscribe(() => {
       if (store.tree.get().state !== "ready") {
@@ -301,6 +436,7 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     return () => {
       unsubscribe();
       listener = null;
+      stopMetaWatches();
       for (const stop of readWatches.values()) {
         stop();
       }
@@ -308,5 +444,5 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     };
   };
 
-  return { askAgent, handle, requests, watch };
+  return { askAgent, comments, handle, requests, watch };
 };

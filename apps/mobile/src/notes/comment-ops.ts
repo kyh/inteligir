@@ -1,13 +1,24 @@
 // The phone's comment verbs over the notes store, each an edit of the note's comment store by the
 // rules the server runs (@repo/notes/comments/comment-threads), signed as the user. A new comment
 // is the editor page's: its markers are already in the note's text, which lands in the same change
-// set as its entry. Platform-free: the scenario suite runs it under node.
+// set as its entry. A deleted thread's markers are the page's to take out, as the desktop's editor
+// takes them once its server answers. Platform-free: the scenario suite runs it under node.
 
-import { addReply, addRoot, resolveThread } from "@repo/notes/comments/comment-threads";
+import {
+  addReply,
+  addRoot,
+  deleteThread,
+  resolveThread,
+} from "@repo/notes/comments/comment-threads";
 import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import type { CommentEditOutcome, NotesStore } from "./notes-store";
 
 export type CommentOutcome = { kind: "done" } | { kind: "refused"; message: string };
+
+// `removedIds`: the thread's root and every reply, whose markers the note may still hold
+type CommentRemoval =
+  | { kind: "done"; removedIds: readonly string[] }
+  | Extract<CommentOutcome, { kind: "refused" }>;
 
 export interface CommentOps {
   // `anchor` is the note's text with the new comment's markers, computed from `expected`
@@ -19,6 +30,7 @@ export interface CommentOps {
   }) => Promise<CommentEditOutcome>;
   reply: (path: string, rootId: string, text: string) => Promise<CommentOutcome>;
   resolve: (path: string, rootId: string, resolved: boolean) => Promise<CommentOutcome>;
+  remove: (path: string, rootId: string) => Promise<CommentRemoval>;
 }
 
 export interface CommentOpsArgs {
@@ -73,6 +85,24 @@ export const createCommentOps = ({ now, randomBytes, store }: CommentOpsArgs): C
         path,
       }),
     ),
+
+  remove: async (path, rootId) => {
+    let removedIds: readonly string[] = [];
+    const outcome = outcomeOf(
+      await store.editComments({
+        anchor: null,
+        edit: (sidecar) => {
+          const deleted = deleteThread(sidecar, rootId);
+          if (deleted.ok) {
+            ({ removedIds } = deleted);
+          }
+          return deleted;
+        },
+        path,
+      }),
+    );
+    return outcome.kind === "done" ? { kind: "done", removedIds } : outcome;
+  },
 
   resolve: async (path, rootId, resolved) =>
     outcomeOf(

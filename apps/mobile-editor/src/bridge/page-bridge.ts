@@ -22,7 +22,10 @@ type WithoutNonce<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> :
 type PageEvent = WithoutNonce<Exclude<PageFrame, { type: "request" | "ready" }>>;
 
 // what the native end tells a connected page on its own
-export type NativeEvent = Extract<NativeFrame, { type: "vaultChanged" | "flush" | "theme" }>;
+export type NativeEvent = Extract<
+  NativeFrame,
+  { type: "vaultChanged" | "flush" | "theme" | "commentMeta" | "commentsRemoved" }
+>;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
 export interface BridgeTransport {

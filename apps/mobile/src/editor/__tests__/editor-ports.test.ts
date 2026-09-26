@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { base64FromBytes } from "@repo/api/cloud/bytes";
 import type { NativeFrame, RequestPayload } from "@repo/mobile-editor/bridge-protocol";
+import { serializeSidecar } from "@repo/notes/comments/sidecar-schema";
 import { describe, expect, it } from "vitest";
 import { createCommentOps } from "../../notes/comment-ops";
 import { createFileOps } from "../../notes/file-ops";
@@ -17,6 +18,8 @@ import { createEditorPorts } from "../editor-ports";
 import type { EditorRoute } from "../editor-ports";
 
 type VaultChangedEvent = Extract<NativeFrame, { type: "vaultChanged" }>["event"];
+
+type CommentMeta = Omit<Extract<NativeFrame, { type: "commentMeta" }>, "nonce">;
 
 const NONCE = "test-nonce-0123456789";
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
@@ -39,12 +42,13 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
   const notices: string[] = [];
   const opened: (string | null)[] = [];
   const comments: (readonly string[])[] = [];
+  const commentOps = createCommentOps({
+    now: () => AT,
+    randomBytes: (length) => new Uint8Array(length),
+    store,
+  });
   const editor = createEditorPorts({
-    comments: createCommentOps({
-      now: () => AT,
-      randomBytes: (length) => new Uint8Array(length),
-      store,
-    }),
+    comments: commentOps,
     fileOps,
     go: (route) => {
       routes.push(route);
@@ -69,11 +73,41 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
     store,
   });
   const changes: VaultChangedEvent[] = [];
+  const metas: CommentMeta[] = [];
+  const removals: (readonly string[])[] = [];
   const stop = editor.watch((event) => {
-    changes.push(event);
+    switch (event.type) {
+      case "vaultChanged": {
+        changes.push(event.event);
+        return;
+      }
+      case "commentMeta": {
+        metas.push(event);
+        return;
+      }
+      case "commentsRemoved": {
+        removals.push(event.ids);
+      }
+      // no default
+    }
   });
   const write = async (payload: RequestPayload<"write">) => await editor.requests.write(payload);
-  return { changes, comments, editor, fileOps, net, notices, opened, routes, stop, store, write };
+  return {
+    changes,
+    commentOps,
+    comments,
+    editor,
+    fileOps,
+    metas,
+    net,
+    notices,
+    opened,
+    removals,
+    routes,
+    stop,
+    store,
+    write,
+  };
 };
 
 describe("what the editor page asks of the phone", () => {
@@ -263,6 +297,66 @@ describe("what the phone tells the page", () => {
       { kind: "files", paths: ["c.md"] },
       { kind: "content", path: "a.md" },
     ]);
+  });
+
+  it("tells the page its note's comments as a thread is added, resolved and deleted", async () => {
+    const vault = createFakeVault({ "a.md": "# a\n\nHello there.\n" });
+    const { editor, metas, removals } = await phoneFor(vault);
+    const latest = (): CommentMeta | undefined => metas.at(-1);
+    editor.handle({ nonce: NONCE, path: "a.md", type: "opened" });
+    await expect
+      .poll(latest)
+      .toStrictEqual({ knownIds: [], path: "a.md", resolvedIds: [], type: "commentMeta" });
+
+    await editor.requests.read({ path: "a.md" });
+    await editor.requests.addComment({
+      base: "# a\n\nHello there.\n",
+      content: "# a\n\n%%i:c1:start%%Hello%%i:c1:end%% there.\n",
+      id: "c1",
+      path: "a.md",
+      text: "Why here?",
+    });
+    await expect.poll(() => latest()?.knownIds).toStrictEqual(["c1"]);
+
+    expect(await editor.comments.resolve("a.md", "c1", true)).toStrictEqual({ kind: "done" });
+    await expect.poll(() => latest()?.resolvedIds).toStrictEqual(["c1"]);
+
+    expect(await editor.comments.reply("a.md", "c1", "Fixed.")).toStrictEqual({ kind: "done" });
+    // the harness mints every id from zero bytes
+    const replyId = "a".repeat(10);
+    expect(await editor.comments.remove("a.md", "c1")).toStrictEqual({
+      kind: "done",
+      removedIds: ["c1", replyId],
+    });
+    expect(removals).toStrictEqual([["c1", replyId]]);
+    await expect.poll(() => latest()?.knownIds).toStrictEqual([]);
+  });
+
+  it("tells the page a comment another device made, and tells a page loaded again once more", async () => {
+    const note = `---\nid: ${ID}\n---\n# a\n`;
+    const vault = createFakeVault({ "a.md": note });
+    const { editor, metas, store } = await phoneFor(vault);
+    editor.handle({ nonce: NONCE, path: "a.md", type: "opened" });
+    await expect.poll(() => metas).toHaveLength(1);
+
+    vault.change({
+      [`.inteligir/comments/${ID}.json`]: serializeSidecar({
+        c9: { createdAt: AT, resolvedAt: AT, resolvedBy: "user", text: "Done?", updatedAt: AT },
+      }),
+    });
+    await store.refresh();
+    await expect
+      .poll(() => metas.at(-1))
+      .toStrictEqual({
+        knownIds: ["c9"],
+        path: "a.md",
+        resolvedIds: ["c9"],
+        type: "commentMeta",
+      });
+
+    editor.handle({ nonce: NONCE, path: "a.md", type: "opened" });
+    await expect.poll(() => metas).toHaveLength(3);
+    expect(metas[2]).toStrictEqual(metas[1]);
   });
 
   it("re-lists the page when a note's id or aliases change, and stops when the page goes", async () => {

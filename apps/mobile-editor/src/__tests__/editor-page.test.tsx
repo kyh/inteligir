@@ -21,8 +21,13 @@ afterEach(() => {
   mounted = null;
 });
 
-const mount = async (overrides: Partial<PageInit> = {}) => {
-  const phone = createFakePhone({ "Note.md": NOTE });
+const ONE_NOTE = { "Note.md": NOTE };
+
+const mount = async (
+  overrides: Partial<PageInit> = {},
+  files: Readonly<Record<string, string>> = ONE_NOTE,
+) => {
+  const phone = createFakePhone(files);
   const connecting = connectPageBridge(phone.transport);
   phone.init(overrides);
   const { bridge, init } = await connecting;
@@ -61,6 +66,23 @@ describe("the phone editor page", () => {
     expect(write.payload.content).toBe("# Note\n\nHello there. Typed on the phone.\n");
     expect(write.payload.guard).toEqual({ base: NOTE, kind: "expected" });
     expect(write.nonce).toBe(PHONE_NONCE);
+  });
+
+  it("takes a thread the phone deleted out of the note, and writes the note without it", async () => {
+    const anchored = "# Note\n\n%%i:c1:start%%Hello%%i:c1:end%% there.\n";
+    const { phone } = await mount({}, { "Note.md": anchored });
+
+    act(() => {
+      phone.deliver({ ids: ["c1"], nonce: PHONE_NONCE, type: "commentsRemoved" });
+    });
+
+    await waitFor(() => {
+      expect(phone.files.get("Note.md")).toBe(NOTE);
+    });
+    expect(phone.requests("write").at(-1)?.payload.guard).toEqual({
+      base: anchored,
+      kind: "expected",
+    });
   });
 
   it("draws the touch hand: the keyboard toolbar, and the body focused when init asks", async () => {

@@ -6,7 +6,12 @@
 import { z } from "zod";
 
 import { setAgentRequestActions } from "@repo/editor/agent-request";
-import { setCommentActions } from "@repo/editor/comments/comment-store";
+import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
+import {
+  clearCommentMeta,
+  setCommentActions,
+  setCommentMeta,
+} from "@repo/editor/comments/comment-store";
 import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
 import type { GuardedVaultPort } from "@repo/editor/guarded-vault-io";
 import type {
@@ -16,6 +21,7 @@ import type {
   VaultEntry,
 } from "@repo/editor/host-io";
 import { createLinkResolverStore } from "@repo/editor/link-resolver-store";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
@@ -320,6 +326,23 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     bridge.emit({ id, ok, type: "flushed" });
   };
 
+  // the paths the phone told this page the comments of, forgotten with the page
+  const metaPaths = new Set<string>();
+
+  // as the desktop does once its server deleted a thread: the markers go through the live editor,
+  // so its buffer and the note's bytes agree, and the write follows at once
+  const removeMarkers = async (ids: readonly string[]): Promise<void> => {
+    const { openPath } = store.state();
+    const editor = openPath === null ? null : getLiveEditor(openPath);
+    if (editor === null) {
+      return;
+    }
+    removeCommentMarkers(editor, ids);
+    if (!(await session.actions.flush().catch(() => false))) {
+      toast.error("Couldn't save this note after deleting the comment.");
+    }
+  };
+
   const onNative = (event: NativeEvent): void => {
     if (event.type === "vaultChanged") {
       formulas.forget(event.event);
@@ -331,6 +354,14 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       }
     } else if (event.type === "flush") {
       void flushFor(event.id);
+    } else if (event.type === "commentMeta") {
+      metaPaths.add(event.path);
+      setCommentMeta(event.path, {
+        knownIds: new Set(event.knownIds),
+        resolvedIds: new Set(event.resolvedIds),
+      });
+    } else if (event.type === "commentsRemoved") {
+      void removeMarkers(event.ids);
     }
   };
 
@@ -367,6 +398,10 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       unsubscribe = null;
       setAgentRequestActions(null);
       setCommentActions(null);
+      for (const metaPath of metaPaths) {
+        clearCommentMeta(metaPath);
+      }
+      metaPaths.clear();
       session.stop();
     },
   };

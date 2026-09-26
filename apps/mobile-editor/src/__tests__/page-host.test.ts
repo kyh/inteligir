@@ -270,6 +270,38 @@ describe("what the editor asks the shell for", () => {
   });
 });
 
+const metaOf = (path: string) => useCommentSurface.getState().meta.get(path);
+
+describe("what the phone tells the page of its comments", () => {
+  it("draws the note's ranges by the threads the phone names, and forgets them with the page", async () => {
+    const { host, phone } = await openHost();
+    phone.deliver({
+      knownIds: ["c1", "c2"],
+      nonce: PHONE_NONCE,
+      path: "Note.md",
+      resolvedIds: ["c2"],
+      type: "commentMeta",
+    });
+    expect(metaOf("Note.md")).toEqual({
+      knownIds: new Set(["c1", "c2"]),
+      resolvedIds: new Set(["c2"]),
+    });
+
+    phone.deliver({
+      knownIds: ["c1"],
+      nonce: PHONE_NONCE,
+      path: "Note.md",
+      resolvedIds: [],
+      type: "commentMeta",
+    });
+    expect(metaOf("Note.md")?.resolvedIds).toEqual(new Set());
+
+    host.stop();
+    started = null;
+    expect(metaOf("Note.md")).toBeUndefined();
+  });
+});
+
 const ANCHORED = "# Note\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n";
 
 // what the editor's comment surface calls on Save

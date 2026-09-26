@@ -2158,8 +2158,14 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   its store as ONE `comment` row (`editComments` in
   `apps/mobile/src/notes/notes-store.ts`), a note without an id minting one by
   the desktop's line cut (`@repo/notes/comments/comment-key`), every entry
-  signed `user`. A reply and a resolve are rows of the store alone, their
-  verbs `apps/mobile/src/notes/comment-ops.ts`. A stale set is settled per
+  signed `user`. A reply, a resolve and a delete are rows of the store alone,
+  their verbs `apps/mobile/src/notes/comment-ops.ts`; a deleted thread's
+  markers go as the desktop's do, through the page's live editor and its
+  next write (`commentsRemoved`). The page draws its ranges by the note's
+  threads and which are resolved, as the desktop's editor does: the editor
+  ports send `commentMeta` when the page opens a note, after each of the
+  phone's own comment verbs, and when a pull changes the note's store or its
+  id (`apps/mobile/src/editor/editor-ports.ts`). A stale set is settled per
   path (`reconcileComment` in `apps/mobile/src/notes/outbox-reconcile.ts`): the
   note as a write is, copy included, and the store by its entries, so a
   comment another device made meanwhile keeps both threads. Rejected: markers

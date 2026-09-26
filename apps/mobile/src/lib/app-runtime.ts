@@ -20,7 +20,7 @@ import { createEditorPorts } from "../editor/editor-ports";
 import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
 import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
-import type { CommentOutcome } from "../notes/comment-ops";
+
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
 import { createExpoOutboxFiles } from "../notes/expo-outbox-files";
 import type { CreatedNote, RenamedNote } from "../notes/file-ops";
@@ -137,18 +137,6 @@ export const renameNote = async (from: string, name: string): Promise<RenamedNot
 export const deleteNote = async (path: string): Promise<void> => {
   await getRuntime().fileOps.remove(path);
 };
-
-export const replyToComment = async (
-  path: string,
-  rootId: string,
-  text: string,
-): Promise<CommentOutcome> => await getRuntime().comments.reply(path, rootId, text);
-
-export const resolveComment = async (
-  path: string,
-  rootId: string,
-  resolved: boolean,
-): Promise<CommentOutcome> => await getRuntime().comments.resolve(path, rootId, resolved);
 
 // the view context's revision: the sha-256 of the note's bytes as the screen showed them
 const noteRevision = async (content: string): Promise<string> =>
