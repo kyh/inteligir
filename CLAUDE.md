@@ -953,9 +953,12 @@ to the END of its group.
   Advanced (`apps/desktop/src/renderer/app/settings/sync-remote-row.tsx`) and
   `inteligir vault remote` both call, runs `setOrigin` in
   `apps/cli/src/server/vault/git-engine.ts` under the repo lock and kicks a
-  pass. A url is `remote add|set-url` and drops the mark, forgetting the old
-  remote's tips so no status calls the vault synced before a pass reached the
-  new one; the account drops only an origin the provider calls the user's own
+  pass. A url is `remote add|set-url` and drops the mark. Every move of the
+  origin, this one's and a pass's (the pin, the account's url), is
+  `pointOrigin`: it forgets the old remote's tips, so no status calls the
+  vault synced before a pass reached the new one, and a hand-set
+  `remote.origin.pushurl`, which `set-url` leaves and git would keep pushing
+  to; the account drops only an origin the provider calls the user's own
   and sets the mark, so signed out the vault syncs nowhere. The url grammar is
   one, `@repo/api/local/vault/remote-url`, which the pin, the wire and the
   field all run. A pinned vault reports `remoteSource: "pinned"` and refuses a

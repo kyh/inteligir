@@ -54,6 +54,8 @@ const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
 // past this a scoped commit costs more argv (status pathspec, then add) than the unscoped sweep.
 const MAX_SCOPED_COMMIT_PATHS = 200;
 
+const ORIGIN_PUSH_URL_KEY = "remote.origin.pushurl";
+
 const autoCommitSubject = (paths: readonly string[]): string => {
   const only = paths.length === 1 ? paths[0] : undefined;
   return only === undefined
@@ -488,23 +490,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  // the origin is the vault's own record of where it syncs, so the app marks the origin it manages
-  // and drops the mark when an explicit remote takes it over.
-  const ensureOriginRemote = async (
-    remote: VaultRemoteSpec,
-    origin: OriginConfig,
-  ): Promise<void> => {
-    // "--" so the url can never read as an option.
-    if (origin.url === null) {
-      await run(["remote", "add", "--", "origin", remote.url]);
-    } else if (origin.url !== remote.url) {
-      await run(["remote", "set-url", "--", "origin", remote.url]);
-    }
-    const managed = remote.source === "account";
-    if (managed && !origin.markedAccount) {
-      await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
-    } else if (!managed && origin.markedAccount) {
-      await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
+  const readConfig = async (key: string): Promise<string | null> => {
+    try {
+      const { stdout } = await run(["config", "--get", key]);
+      const value = stdout.trim();
+      return value === "" ? null : value;
+    } catch {
+      return null;
     }
   };
 
@@ -522,6 +514,41 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
+  // the one way the app moves the origin, a pass's and a choice's alike: a hand-set pushurl
+  // outlives `set-url`, and pushes would keep going where the vault synced before.
+  const pointOrigin = async (current: string | null, url: string): Promise<void> => {
+    if (current === url) {
+      return;
+    }
+    if (current !== null) {
+      await forgetOriginTips();
+    }
+    if ((await readConfig(ORIGIN_PUSH_URL_KEY)) !== null) {
+      await run(["config", "--unset-all", ORIGIN_PUSH_URL_KEY]);
+    }
+    // "--" so the url can never read as an option.
+    await run(
+      current === null
+        ? ["remote", "add", "--", "origin", url]
+        : ["remote", "set-url", "--", "origin", url],
+    );
+  };
+
+  // the origin is the vault's own record of where it syncs, so the app marks the origin it manages
+  // and drops the mark when an explicit remote takes it over.
+  const ensureOriginRemote = async (
+    remote: VaultRemoteSpec,
+    origin: OriginConfig,
+  ): Promise<void> => {
+    await pointOrigin(origin.url, remote.url);
+    const managed = remote.source === "account";
+    if (managed && !origin.markedAccount) {
+      await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
+    } else if (!managed && origin.markedAccount) {
+      await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
+    }
+  };
+
   // the account choice drops only an origin the provider calls the user's own: the app's own stays
   // for the next signed-in pass, and the mark keeps it the app's. signed out, no pass adds one.
   const writeOrigin = async (choice: VaultSetRemoteRequest): Promise<SetOriginOutcome> => {
@@ -530,12 +557,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return "pinned";
     }
     if (choice.kind === "remote") {
-      if (origin.url === null) {
-        await run(["remote", "add", "--", "origin", choice.url]);
-      } else if (origin.url !== choice.url) {
-        await forgetOriginTips();
-        await run(["remote", "set-url", "--", "origin", choice.url]);
-      }
+      await pointOrigin(origin.url, choice.url);
       if (origin.markedAccount) {
         await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
       }
@@ -667,16 +689,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return await unmergedPaths();
     } catch {
       return fallback;
-    }
-  };
-
-  const readConfig = async (key: string): Promise<string | null> => {
-    try {
-      const { stdout } = await run(["config", "--get", key]);
-      const value = stdout.trim();
-      return value === "" ? null : value;
-    } catch {
-      return null;
     }
   };
 

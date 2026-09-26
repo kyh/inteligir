@@ -2503,6 +2503,45 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
     expect(await tipOf(second, "main")).toBe(await tipOf(root, "HEAD"));
   });
 
+  it("drops a hand-set pushurl, so the next push reaches the remote chosen", async () => {
+    const first = await makeBareRemote();
+    const root = await repoWithOrigin(`file://${first}`);
+    await runGit(root, ["config", "remote.origin.pushurl", `file://${first}`], { env });
+    const engine = engineOn(root, composedProvider(false));
+    await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
+    await engine.commitNow();
+
+    const second = await makeBareRemote();
+    await engine.setOrigin({ kind: "remote", url: `file://${second}` });
+    expect(await syncState(engine)).toBe("clean");
+    expect(await tipOf(second, "main")).toBe(await tipOf(root, "HEAD"));
+    await expect(runGit(first, ["rev-parse", "--verify", "main"], { env })).rejects.toThrow();
+    await expect(
+      runGit(root, ["config", "--get", "remote.origin.pushurl"], { env }),
+    ).rejects.toThrow();
+  });
+
+  it("forgets the old remote's tips and pushurl when a pass moves the origin itself", async () => {
+    const first = await makeBareRemote();
+    const root = await repoWithOrigin(`file://${first}`);
+    let current: VaultRemoteSpec = { source: "explicit", url: `file://${first}` };
+    const engine = engineOn(root, () => current);
+    await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+    await runGit(root, ["config", "remote.origin.pushurl", `file://${first}`], { env });
+
+    const pinned = path.join(scratchDir("inteligir-git-pinned-"), "not-yet.git");
+    current = { source: "pinned", url: pinned };
+    expect(await syncState(engine)).toBe("offline");
+    expect(await originOf(root)).toBe(pinned);
+    const tips = await runGit(root, ["for-each-ref", "refs/remotes/origin"], { env });
+    expect(tips.stdout.trim()).toBe("");
+    await expect(
+      runGit(root, ["config", "--get", "remote.origin.pushurl"], { env }),
+    ).rejects.toThrow();
+  });
+
   it("says pinned and changes nothing while INTELIGIR_VAULT_REMOTE decides", async () => {
     const pinned = await makeBareRemote();
     const root = await repoWithOrigin(`file://${pinned}`);
