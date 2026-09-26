@@ -24,6 +24,7 @@ import {
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useSystemStatus, useVaultStatus } from "../vault-hooks";
 import { bridgeFailed, Row, SectionHeading } from "./settings-chrome";
+import { SyncRemoteRow } from "./sync-remote-row";
 
 // the seconds tier of the label, or "40s ago" freezes until the minute tick
 const LAST_SYNC_TICK_MS = 1000;
@@ -72,8 +73,8 @@ export const VaultSyncRows = ({
         <Row label="Remote">
           <span className="text-body text-muted-foreground">
             {status.externalSync === null
-              ? "None — sign in under Devices to sync through your account, or give the vault folder a git origin of its own."
-              : `None — ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off; a git origin of the vault's own still syncs.`}
+              ? "None — sign in under Devices to sync through your account, or choose your own git server above."
+              : `None — ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off; your own git server, chosen above, still syncs.`}
           </span>
         </Row>
       ) : (
@@ -297,6 +298,9 @@ export const AdvancedSection = () => {
     <section className="space-y-4">
       <SectionHeading>Advanced</SectionHeading>
       <Group title="Vault sync">
+        <dl>
+          <SyncRemoteRow status={vault} />
+        </dl>
         <VaultSyncRows status={vault} nowMs={now} />
       </Group>
       <Group title="Thread sync">

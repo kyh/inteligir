@@ -348,6 +348,7 @@ describe("vault commands", () => {
     state.vaultStatus = {
       conflicts,
       device: "Fixture Mac",
+      externalSync: null,
       lastError: null,
       lastSyncAt: null,
       remote: "https://cloud.test/v1/git/vault.git",
@@ -373,6 +374,49 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(JSON.parse(json.stdout)).toMatchObject({ conflicts, device: "Fixture Mac" });
+  });
+
+  it("vault remote prints where the vault syncs, and chooses a server of the user's own or the account", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const signedOut =
+      "no remote: the account's hosted vault, once this install signs in (`inteligir cloud login`)";
+    const own = "git@git.example.test:me/vault.git";
+
+    const current = await runCliForTest({ argv: ["vault", "remote"], baseUrl: server.baseUrl });
+    expect(current.stdout).toBe(`${signedOut}\n`);
+
+    const chosen = await runCliForTest({
+      argv: ["vault", "remote", own],
+      baseUrl: server.baseUrl,
+    });
+    expect(chosen.stdout).toBe(
+      `✔ The vault syncs with a git server of your own, with this machine's git credentials.\n  ${own} (the vault's own git origin)\n`,
+    );
+    const json = await runCliForTest({
+      argv: ["vault", "remote", own, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(json.stdout)).toMatchObject({ remote: own, remoteSource: "explicit" });
+
+    const account = await runCliForTest({
+      argv: ["vault", "remote", "account"],
+      baseUrl: server.baseUrl,
+    });
+    expect(account.stdout).toBe(`✔ The vault syncs through the account.\n  ${signedOut}\n`);
+
+    state.vaultStatus = {
+      conflicts: [],
+      device: "Fixture Mac",
+      externalSync: null,
+      lastError: null,
+      lastSyncAt: null,
+      remote: own,
+      remoteSource: "pinned",
+      state: "clean",
+    };
+    const pinned = await runCliForTest({ argv: ["vault", "remote"], baseUrl: server.baseUrl });
+    expect(pinned.stdout).toBe(`${own} (pinned by INTELIGIR_VAULT_REMOTE)\n`);
   });
 
   it("lists deleted docs, and restores one that is gone with an exclusive create", async () => {
@@ -1303,6 +1347,22 @@ describe("a leaf refuses bad usage before it resolves a server", () => {
       });
       expect(result.code).toBe(1);
       expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+    }
+  });
+
+  it("vault remote refuses a url git would read as a command, an option or a path before any request", async () => {
+    // vitest types its asymmetric matchers `any`; naming one keeps the assertion typed.
+    const grammarRefusal: unknown = expect.stringMatching(/^the remote URL /u);
+    for (const operand of [["ext::sh"], ["--", "--upload-pack=x"], ["/plain/local/path"]]) {
+      const result = await runCliForTest({
+        argv: ["vault", "remote", "--json", ...operand],
+        baseUrl: null,
+      });
+      expect(result.code, operand.join(" ")).toBe(1);
+      expect(JSON.parse(result.stderr)).toMatchObject({
+        error: "INVALID_USAGE",
+        message: grammarRefusal,
+      });
     }
   });
 

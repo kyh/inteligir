@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type {
+  VaultSetRemoteRequest,
+  VaultStatusResponse,
+} from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { DiagnosticsRows, ThreadSyncRows, VaultSyncRows } from "../advanced-section";
+import { SyncRemoteForm } from "../sync-remote-row";
 
 afterEach(cleanup);
 
@@ -18,6 +22,7 @@ const GIT_STDERR =
 const REJECTED: VaultStatusResponse = {
   conflicts: [],
   device: "Kai's MacBook",
+  externalSync: null,
   lastError: GIT_STDERR,
   lastSyncAt: null,
   remote: "https://example.com/vault.git",
@@ -68,6 +73,85 @@ describe("the vault sync, raw", () => {
       screen.getByText("“Ideas” was deleted on Kai's iPhone but edited here, so it was kept."),
     ).toBeDefined();
     expect(screen.getByText("None")).toBeDefined();
+  });
+});
+
+const SIGNED_OUT: VaultStatusResponse = {
+  conflicts: [],
+  device: "Kai's MacBook",
+  externalSync: null,
+  lastError: null,
+  lastSyncAt: null,
+  state: "no-remote",
+};
+
+const renderRemote = (status: VaultStatusResponse) => {
+  const saved: VaultSetRemoteRequest[] = [];
+  render(
+    <dl>
+      <SyncRemoteForm
+        status={status}
+        pending={false}
+        onSave={(choice) => {
+          saved.push(choice);
+        }}
+      />
+    </dl>,
+  );
+  return saved;
+};
+
+const saveButton = (): HTMLButtonElement => {
+  const button = screen.getByRole("button", { name: "Save" });
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error("Save is not a button");
+  }
+  return button;
+};
+
+describe("where the vault syncs", () => {
+  it("is read-only while INTELIGIR_VAULT_REMOTE pins it, and names the variable", () => {
+    renderRemote({ ...REJECTED, remoteSource: "pinned", state: "clean" });
+    expect(screen.getByText("https://example.com/vault.git")).toBeDefined();
+    expect(screen.getByText(/Pinned by INTELIGIR_VAULT_REMOTE/u)).toBeDefined();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+
+  it("saves a server of the user's own only once its URL is one git dials", () => {
+    const saved = renderRemote(SIGNED_OUT);
+    expect(saveButton().disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Your own git server" }));
+    expect(screen.getByText(/stop seeing this vault's notes/u)).toBeDefined();
+    const field = screen.getByRole("textbox", { name: "Git server URL" });
+    for (const refused of ["--upload-pack=x", "ext::sh", "/plain/local/path"]) {
+      fireEvent.change(field, { target: { value: refused } });
+      expect(saveButton().disabled, refused).toBe(true);
+    }
+
+    fireEvent.change(field, { target: { value: "git@example.com:me/vault.git" } });
+    expect(saveButton().disabled).toBe(false);
+    fireEvent.click(saveButton());
+    expect(saved).toEqual([{ kind: "remote", url: "git@example.com:me/vault.git" }]);
+  });
+
+  it("offers the account back from a server of the user's own", () => {
+    const saved = renderRemote({ ...REJECTED, state: "clean" });
+    const field = screen.getByRole("textbox", { name: "Git server URL" });
+    expect(field instanceof HTMLInputElement && field.value).toBe("https://example.com/vault.git");
+    expect(saveButton().disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Your account" }));
+    fireEvent.click(saveButton());
+    expect(saved).toEqual([{ kind: "account" }]);
+  });
+
+  it("says the hosted vault stays off in a folder another service syncs", () => {
+    renderRemote({ ...SIGNED_OUT, externalSync: { kind: "dropbox" } });
+    expect(
+      screen.getByText("Dropbox syncs this folder, so the hosted vault stays off here."),
+    ).toBeDefined();
   });
 });
 

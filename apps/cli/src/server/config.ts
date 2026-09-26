@@ -9,6 +9,7 @@ import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-r
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/api/cloud/origin";
 import { agentModeSchema, agentModeValues } from "@repo/api/local/system/system-schema";
 import type { AgentMode } from "@repo/api/local/system/system-schema";
+import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/api/local/vault/remote-url";
 import { DEBUG_NAMESPACES, parseDebugNamespaces } from "./debug-log";
 import type { DebugNamespace } from "./debug-log";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
@@ -83,24 +84,12 @@ const parseDataDirValue = (name: string, rawValue: string, homeDir: string): str
   return path.resolve(trimmed);
 };
 
-// git remotes include scp-like `git@host:path`, which no url parser accepts, so this is an
-// allowlist of the shapes git dials; none can start with "-", which git would parse as an option.
 const parseRemoteUrlValue = (name: string, rawValue: string): string => {
-  const trimmed = rawValue.trim();
-  if (trimmed.length === 0) {
-    throw new Error(`${name} must not be empty`);
+  const verdict = parseRemoteUrl(rawValue);
+  if (!verdict.ok) {
+    throw new Error(`${name} ${verdict.reason}`);
   }
-  if (/\s/u.test(trimmed)) {
-    throw new Error(`${name} must not contain whitespace`);
-  }
-  const hasAllowedScheme = /^(?:https|ssh|git|file):\/\/./u.test(trimmed);
-  const isScpLike = /^[\w.-]+@[\w.-]+:.+$/u.test(trimmed);
-  if (!hasAllowedScheme && !isScpLike) {
-    throw new Error(
-      `${name} must be an https://, ssh://, git://, file:// URL or user@host:path (got "${trimmed}")`,
-    );
-  }
-  return trimmed;
+  return verdict.url;
 };
 
 // origin only: `new URL("/v1/…", base)` drops any path the base carries.
@@ -205,7 +194,7 @@ const ENV_VARS = {
   vaultRemote: defineEnvVar({
     description:
       "Git remote URL the vault syncs against, pinned over the vault's own origin. Unset, the vault's own origin decides; with none, a SIGNED-IN install derives the hosted remote from its device credential unless another service (iCloud Drive, Dropbox, Google Drive, OneDrive, Obsidian Sync) already syncs the folder; unset, signed out and with no origin means local-only.",
-    name: "INTELIGIR_VAULT_REMOTE",
+    name: VAULT_REMOTE_PIN_ENV_VAR,
     parse: ({ name, value }) => parseRemoteUrlValue(name, value),
   }),
   slowReads: defineEnvVar({
@@ -342,8 +331,8 @@ const retiredVaultRemoteWarnings = (
     ? []
     : [
         `${path.join(rootDataDir, CONFIG_FILE_NAME)}'s ${RETIRED_VAULT_REMOTE_CONFIG_KEY} is ` +
-          "ignored: a vault syncs with its own git origin, so run `git remote add origin <url>` " +
-          `in the vault, or pin one with ${ENV_VARS.vaultRemote.name}.`,
+          "ignored: a vault syncs with its own git origin, so run `inteligir vault remote <url>`, " +
+          `or pin one with ${ENV_VARS.vaultRemote.name}.`,
       ];
 
 // The root's config.json is the vault selector: it is what `inteligir serve` reads with no

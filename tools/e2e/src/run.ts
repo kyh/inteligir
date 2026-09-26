@@ -42,6 +42,7 @@ import { undoBrowser } from "./scenarios/undo-browser";
 import { undoScripted } from "./scenarios/undo-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
 import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
+import { vaultRemoteSetting } from "./scenarios/vault-remote-setting";
 import { vaultSync } from "./scenarios/vault-sync";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
 
@@ -49,6 +50,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
   slowStorage,
   vaultSync,
+  vaultRemoteSetting,
   hostedVaultSync,
   hostedVaultSecondMac,
   hostedVaultPhoneWrite,

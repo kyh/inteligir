@@ -54,7 +54,7 @@ scratch dir and tears everything down afterwards:
   before boot; the app's repo init commits them. `seedData` does the same for
   the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
-  `INTELIGIR_VAULT_REMOTE`.
+  `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
 - `cloudWorker()` — the product Worker (apps/web) under `wrangler dev` on a
   scratch persist dir, its D1 carrying apps/web's own `db:export` schema plus
   one invite row. Registered for teardown exactly like an instance.
@@ -105,6 +105,10 @@ what each one is FOR.
 | vault-sync                 | two instances + one bare remote (auto-sync off, every sync explicit):     |
 |                            | propagation, then a same-line edit merged with a copy aside, both repos   |
 |                            | converged byte-identical and left mid-nothing                             |
+| vault-remote-setting       | the one write to where a vault syncs: A picks a bare remote over          |
+|                            | `vault.setRemote`, B through `inteligir vault remote` and pulls A's note; |
+|                            | A back on the account signed out has no origin, across a restart too;     |
+|                            | an instance `INTELIGIR_VAULT_REMOTE` pins refuses every choice            |
 | hosted-vault-sync          | the hosted loop for real: a wrangler-dev Worker, production login,        |
 |                            | convergence through the derived remote, boot clone, a same-line edit      |
 |                            | copied aside under the signed-in device's name, revoke → unauthorized     |

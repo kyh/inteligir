@@ -79,8 +79,8 @@ describe("createVaultRemoteProvider", () => {
         externalSync: ICLOUD,
         pinnedRemote: PINNED_URL,
       });
-      expect(derive(own(OWN_URL))).toEqual({ source: "explicit", url: PINNED_URL });
-      expect(derive(NO_ORIGIN)).toEqual({ source: "explicit", url: PINNED_URL });
+      expect(derive(own(OWN_URL))).toEqual({ source: "pinned", url: PINNED_URL });
+      expect(derive(NO_ORIGIN)).toEqual({ source: "pinned", url: PINNED_URL });
     });
 
     it("an origin the user set is the vault's remote, signed in or not", () => {

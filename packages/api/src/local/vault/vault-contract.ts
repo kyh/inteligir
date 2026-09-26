@@ -17,6 +17,7 @@ import {
   vaultMkdirResponseSchema,
   vaultPrefsResponseSchema,
   vaultSetPrefsRequestSchema,
+  vaultSetRemoteRequestSchema,
   vaultReadRequestSchema,
   vaultReadResponseSchema,
   vaultRenameRequestSchema,
@@ -77,6 +78,15 @@ export const vaultContract = {
     .input(vaultRevisionRequestSchema)
     .output(vaultRevisionResponseSchema)
     .errors({ NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
+
+  // edits the vault's own origin, the one record a pass reads, and answers the status the choice
+  // leaves; the new remote's first pass is kicked, not awaited. CONFLICT: INTELIGIR_VAULT_REMOTE
+  // pins the remote, and only its environment changes it. a url the grammar refuses is the input's
+  // BAD_REQUEST.
+  setRemote: oc
+    .input(vaultSetRemoteRequestSchema)
+    .output(vaultStatusResponseSchema)
+    .errors({ CONFLICT: {} }),
 
   // INVALID_PATH: the named attachments folder is a file today, which would refuse every paste
   setPrefs: oc

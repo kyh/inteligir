@@ -11,9 +11,11 @@ import {
 import type {
   ExternalSync,
   VaultHistoryRequest,
+  VaultSetRemoteRequest,
   VaultStatusResponse,
   VaultWriteGuard,
 } from "@repo/api/local/vault/vault-schema";
+import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/api/local/vault/remote-url";
 import {
   ATTACHMENT_LOCATION_SPELLINGS,
   describeAttachmentLocation,
@@ -37,6 +39,39 @@ import {
   resolveVaultCandidate,
   selectionRefusalMessage,
 } from "../server/vault-switch";
+
+type RemoteSource = Exclude<VaultStatusResponse, { state: "no-remote" }>["remoteSource"];
+
+const REMOTE_SOURCE_LABELS = {
+  account: "the account's hosted vault",
+  explicit: "the vault's own git origin",
+  pinned: `pinned by ${VAULT_REMOTE_PIN_ENV_VAR}`,
+} satisfies Record<RemoteSource, string>;
+
+const ACCOUNT_REMOTE_ARG = "account";
+
+const describeVaultRemote = (status: VaultStatusResponse): string => {
+  if (status.state !== "no-remote") {
+    return `${status.remote} (${REMOTE_SOURCE_LABELS[status.remoteSource]})`;
+  }
+  return status.externalSync === null
+    ? "no remote: the account's hosted vault, once this install signs in (`inteligir cloud login`)"
+    : `no remote: ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off`;
+};
+
+// parsed here with the server's own grammar, so a refused url says why before any request
+const remoteChoice = (raw: string): VaultSetRemoteRequest => {
+  if (raw === ACCOUNT_REMOTE_ARG) {
+    return { kind: "account" };
+  }
+  const verdict = parseRemoteUrl(raw);
+  if (!verdict.ok) {
+    throw invalidUsage(
+      `the remote URL ${verdict.reason}; pass a git URL, or \`${ACCOUNT_REMOTE_ARG}\``,
+    );
+  }
+  return { kind: "remote", url: verdict.url };
+};
 
 const renderVaultStatus = (status: VaultStatusResponse): string[] => {
   const lines = [`state: ${status.state}`];
@@ -468,6 +503,43 @@ export const vaultCommand = (deps: CliDeps) =>
             return;
           }
           writeOut(body.content);
+        },
+      }),
+
+      remote: defineCommand({
+        args: {
+          remote: {
+            description: `\`${ACCOUNT_REMOTE_ARG}\`, or the git URL of a server of your own`,
+            required: false,
+            type: "positional",
+          },
+          ...jsonArg,
+        },
+        meta: {
+          description:
+            "Where the vault syncs: the account, or a git server of your own; with no argument, print the current one",
+          name: "remote",
+        },
+        run: async ({ args }) => {
+          if (args.remote === undefined) {
+            const body = await apiFor(deps).vault.status();
+            if (outputJson(args, body)) {
+              return;
+            }
+            writeOut(`${describeVaultRemote(body)}\n`);
+            return;
+          }
+          const choice = remoteChoice(args.remote);
+          const body = await apiFor(deps).vault.setRemote(choice);
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(
+            choice.kind === "account"
+              ? "The vault syncs through the account."
+              : "The vault syncs with a git server of your own, with this machine's git credentials.",
+          );
+          writeLines([`  ${describeVaultRemote(body)}`]);
         },
       }),
 

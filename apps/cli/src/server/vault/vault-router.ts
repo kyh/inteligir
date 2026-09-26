@@ -5,6 +5,7 @@ import {
   VAULT_HISTORY_DEFAULT_LIMIT,
 } from "@repo/api/local/vault/vault-schema";
 import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
+import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/api/local/vault/remote-url";
 import { removeEntryWithComments } from "../comments/remove-with-comments";
 import { attributeWrites, base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
@@ -118,6 +119,18 @@ const status = base.vault.status.handler(async ({ context }) => await context.va
 
 const syncNow = base.vault.syncNow.handler(async ({ context }) => await context.vault.syncNow());
 
+// the new remote's first pass is kicked, never awaited: the answer is the choice, and the pass
+// announces its own progress on the bus.
+const setRemote = base.vault.setRemote.handler(async ({ context, input, errors }) => {
+  if ((await context.vault.git.setOrigin(input)) === "pinned") {
+    throw errors.CONFLICT({
+      message: `${VAULT_REMOTE_PIN_ENV_VAR} pins this vault's remote; unset it to choose another`,
+    });
+  }
+  void context.vault.syncNow();
+  return await context.vault.status();
+});
+
 const prefs = base.vault.prefs.handler(({ context }) => ({
   attachments: context.vaultPrefs.read().attachments ?? DEFAULT_ATTACHMENT_LOCATION,
 }));
@@ -146,6 +159,7 @@ export const vaultRouter = {
   rename,
   revision,
   setPrefs,
+  setRemote,
   status,
   syncNow,
   tree,

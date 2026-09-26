@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
 import { legacyCommentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
@@ -17,6 +18,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { bootTestApp, listenTestApp, TEST_MACHINE_NAME } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { writeDeviceCredential } from "../../cloud/credential-store";
+import { hostedVaultRemoteUrl } from "../../cloud/vault-remote";
 import { WsBus } from "../../ws-bus";
 import type { BusSocket } from "../../ws-bus";
 import { runGit } from "../git-run";
@@ -605,6 +607,114 @@ describe("a note's comment store goes with the note", () => {
     const tree = await client.vault.tree();
     expect(tree.entries.some((row) => row.path.startsWith("box"))).toBe(false);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("box/huge.txt"));
+  });
+});
+
+const bareRemote = async (): Promise<string> => {
+  const dir = makeTempDir("inteligir-vault-routes-remote-");
+  await runGit(dir, ["init", "--bare", "-b", "main"], { env: hermeticGitEnv() });
+  return `file://${dir}`;
+};
+
+const gitConfig = async (vaultDir: string, key: string): Promise<string | null> => {
+  try {
+    const { stdout } = await runGit(vaultDir, ["config", "--get", key], {
+      env: hermeticGitEnv(),
+    });
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+};
+
+describe("choosing where the vault syncs", { timeout: 30_000 }, () => {
+  it("refuses any change while INTELIGIR_VAULT_REMOTE pins the remote", async () => {
+    const pinned = await bareRemote();
+    const { client, vaultDir } = await bootTestApp({ pinnedRemote: pinned });
+    expect(await client.vault.status()).toMatchObject({ remote: pinned, remoteSource: "pinned" });
+
+    for (const choice of [
+      { kind: "remote", url: await bareRemote() },
+      { kind: "account" },
+    ] as const) {
+      const [refused] = await safe(client.vault.setRemote(choice));
+      expect(isDefinedError(refused) && refused.code).toBe("CONFLICT");
+    }
+    expect(await gitConfig(vaultDir, "remote.origin.url")).toBeNull();
+    expect(await gitConfig(vaultDir, "inteligir.remote")).toBeNull();
+  });
+
+  it("refuses a url git would read as an option, a command or a path, before touching the origin", async () => {
+    const { client, vaultDir } = await bootTestApp({ remote: "derived" });
+    for (const url of ["--upload-pack=x", "ext::sh", "/plain/local/path", "-x@host:vault.git"]) {
+      const [refused] = await safe(client.vault.setRemote({ kind: "remote", url }));
+      expect(toORPCError(refused).code, url).toBe("BAD_REQUEST");
+    }
+    expect(await gitConfig(vaultDir, "remote.origin.url")).toBeNull();
+  });
+
+  it("sets a remote as the vault's own origin, drops the account's mark, and syncs there", async () => {
+    const remote = await bareRemote();
+    const { client, vaultDir } = await bootTestApp({ remote: "derived" });
+    await runGit(vaultDir, ["config", "inteligir.remote", "account"], { env: hermeticGitEnv() });
+
+    const chosen = await client.vault.setRemote({ kind: "remote", url: remote });
+    expect(chosen).toMatchObject({ remote, remoteSource: "explicit" });
+    expect(await gitConfig(vaultDir, "remote.origin.url")).toBe(remote);
+    expect(await gitConfig(vaultDir, "inteligir.remote")).toBeNull();
+
+    expect(await client.vault.syncNow()).toMatchObject({ lastError: null, state: "clean" });
+    const pushed = await runGit(fileURLToPath(remote), ["rev-parse", "main"], {
+      env: hermeticGitEnv(),
+    });
+    expect(pushed.stdout.trim()).toMatch(/^[0-9a-f]{40}$/u);
+  });
+
+  it("the account drops an origin of the user's own and marks the choice, signed out syncing nowhere", async () => {
+    const { client, vaultDir } = await bootTestApp({ remote: "derived" });
+    await runGit(vaultDir, ["remote", "add", "origin", await bareRemote()], {
+      env: hermeticGitEnv(),
+    });
+    expect(await client.vault.status()).toMatchObject({ remoteSource: "explicit" });
+
+    expect(await client.vault.setRemote({ kind: "account" })).toMatchObject({
+      externalSync: null,
+      state: "no-remote",
+    });
+    expect(await gitConfig(vaultDir, "remote.origin.url")).toBeNull();
+    expect(await gitConfig(vaultDir, "inteligir.remote")).toBe("account");
+  });
+
+  it("the account keeps an origin that is already the app's own", async () => {
+    const { client, vaultDir, config } = await bootTestApp({ remote: "derived" });
+    const hosted = hostedVaultRemoteUrl(config.cloudUrl);
+    await runGit(vaultDir, ["remote", "add", "origin", hosted], { env: hermeticGitEnv() });
+
+    await client.vault.setRemote({ kind: "account" });
+    expect(await gitConfig(vaultDir, "remote.origin.url")).toBe(hosted);
+    expect(await gitConfig(vaultDir, "inteligir.remote")).toBe("account");
+  });
+
+  it("announces the choice on the bus", async () => {
+    const { client, bus } = await bootTestApp({ remote: "derived" });
+    const frames: string[] = [];
+    const socket: BusSocket = {
+      close: () => {},
+      readyState: 1,
+      send: (data) => {
+        frames.push(data);
+      },
+    };
+    bus.registerClient(socket);
+    bus.subscribe(socket, { kind: "vault" });
+
+    await client.vault.setRemote({ kind: "remote", url: await bareRemote() });
+    const announced = frames.some((frame) => {
+      const parsed = vaultChangedMessageSchema.safeParse(JSON.parse(frame));
+      return parsed.success && parsed.data.changes.includes("sync-status-changed");
+    });
+    expect(announced).toBe(true);
+    await client.vault.syncNow();
   });
 });
 

@@ -16,8 +16,10 @@ interface VaultRemoteBase {
   env?: Record<string, string>;
 }
 
+// "explicit" is the vault's own origin; "pinned" is INTELIGIR_VAULT_REMOTE over it, which only its
+// environment changes.
 export type VaultRemoteSpec =
-  | (VaultRemoteBase & { source: "explicit" })
+  | (VaultRemoteBase & { source: "explicit" | "pinned" })
   | (VaultRemoteBase & { source: "account"; account: VaultRemoteAccount });
 
 // the vault repo's own record of where it syncs, as its config states it: the origin's url, and
@@ -55,7 +57,7 @@ export const createVaultRemoteProvider = (
   const url = hostedVaultRemoteUrl(args.cloudUrl);
   const provider = (origin: OriginConfig): VaultRemoteSpec | null => {
     if (args.pinnedRemote !== null) {
-      return { source: "explicit", url: args.pinnedRemote };
+      return { source: "pinned", url: args.pinnedRemote };
     }
     // the user's own remote keeps working inside a folder another service syncs.
     const own = ownOriginUrl(origin, url);
