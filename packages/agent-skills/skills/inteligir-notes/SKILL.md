@@ -97,21 +97,28 @@ without highlighting. Use a `plaintext` fence for ASCII diagrams.
 
 ### Callouts
 
-An `inteligir-callout` fence. The first payload line is the kind — `info`,
-`warning`, or `priority`. A `priority` callout may put `low`, `medium`, `high`,
-or `critical` on the second line. Everything after is the body, and the body is
-ordinary markdown: links and pills inside it stay live.
+A GitHub alert: a blockquote whose first line is the marker alone, then the
+body on `> ` lines. The body is ordinary markdown — links and pills inside it
+stay live, and a bare `>` line separates its paragraphs.
 
-````markdown
-```inteligir-callout
-priority
-high
-Confirm the rollback path before the queue moves.
+```markdown
+> [!WARNING]
+> Confirm the rollback path before [[Queue Design]] moves.
 ```
-````
 
-Write the bare kind, not `type:` or `level:`. An unrecognized kind leaves the
-block as plain code rather than becoming a callout.
+Pick the marker by what the reader must do with it:
+
+| Marker         | For                                           |
+| -------------- | --------------------------------------------- |
+| `[!NOTE]`      | Context worth reading even when skimming      |
+| `[!TIP]`       | A better way to do the thing                  |
+| `[!IMPORTANT]` | What the reader needs to reach the goal       |
+| `[!WARNING]`   | A risk that needs attention now               |
+| `[!CAUTION]`   | An action whose consequences are hard to undo |
+
+Only these five markers make an alert. An `inteligir-callout` fence in an
+existing note is an older spelling the app still renders: leave it exactly as
+found, and never write a new one.
 
 ### Charts
 
@@ -174,8 +181,8 @@ belongs in an `inteligir-html` fence.
 ## Before You Finish
 
 - Frontmatter (if any) opens the file, one H1 follows, then the body.
-- Every construct is spelled exactly as above — no `type:` prefixes, no legacy
-  fences in new content.
+- Every construct is spelled exactly as above — a new callout is an alert,
+  never an `inteligir-callout` fence.
 - Frontmatter, comment markers, and formula identities you did not come to
   change are byte-identical to what you found.
 - Nothing outside the vault's `.md` files and `assets/` was created.

@@ -24,10 +24,8 @@ vault/
 
 The filename is the title. There is no database, no proprietary container, and no lock-in: edit a note here, in vim, or from a script, and every tool sees the same bytes. The vault is a git repository, so your history is real history.
 
-```inteligir-callout
-info
-Because the vault is git, "undo" survives quitting the app. A deleted note stays in the history, and Deleted notes in the sidebar brings it back.
-```
+> [!NOTE]
+> Because the vault is git, "undo" survives quitting the app. A deleted note stays in the history, and Deleted notes in the sidebar brings it back.
 
 ## Writing
 
@@ -56,18 +54,13 @@ Cells hold inline content — links, pills, code — but not lists or fenced blo
 
 ### Callouts
 
-Three kinds, and `priority` carries a level:
+Pick **Callout** from the `/` menu and it starts as a note. Click into it and change `NOTE` to `TIP`, `IMPORTANT`, `WARNING` or `CAUTION` for the other kinds:
 
-```inteligir-callout
-warning
-A warning callout marks something that will bite if ignored.
-```
+> [!WARNING]
+> A warning callout marks something that will bite if ignored.
 
-```inteligir-callout
-priority
-high
-A priority callout states how urgent it is on its own line.
-```
+> [!IMPORTANT]
+> An important callout says what the reader must not miss.
 
 ## Linking Notes Together
 

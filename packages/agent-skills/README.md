@@ -91,7 +91,9 @@ skill and no phantom, and the resolver's probe file exists, so renaming
 `inteligir-notes` fails CI rather than silently dropping the pointer. The same
 guard holds the fences to the parser: every `inteligir-*` fence an example
 opens is a `*_LANG` that `@repo/notes/markdown/fence-langs` exports, and every
-one it exports is taught. `packages/editor/src/__tests__/skill-examples.test.ts`
+one it exports is taught — except a `COMPAT_*` spelling, which the app reads
+but never writes new, so no skill and no note under `apps/cli/seed/` may open
+one. `packages/editor/src/__tests__/skill-examples.test.ts`
 holds the examples themselves: each `markdown` fence in a `SKILL.md` must open
 rich through the editor's gate and settle after one save. The
 rest of the pins are downstream:

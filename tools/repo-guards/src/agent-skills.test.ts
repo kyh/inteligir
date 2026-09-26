@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT, sourceOf } from "./repo";
+import { REPO_ROOT, sourceOf, trackedFiles } from "./repo";
 
 const SKILLS_DIR = "packages/agent-skills/skills";
 const RESOLVER = "apps/cli/src/server/agents/agent-shell-env.ts";
@@ -21,8 +21,14 @@ const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 
 // read as text: @repo/notes is no dependency of this package, and the constants are plain literals.
 const FENCE_LANGS = "packages/notes/src/markdown/fence-langs.ts";
-const EXPORTED_LANG = /^export const \w+_LANG = "(?<lang>[^"]+)";$/gmu;
-const TAUGHT_FENCE = /^\s*`{3,}(?<lang>inteligir-[a-z-]+)\s*$/u;
+const EXPORTED_LANG = /^export const (?<name>\w+_LANG) = "(?<lang>[^"]+)";$/gmu;
+// a spelling the parser still reads and round-trips for the notes that hold one, and nothing
+// writes new: the constant's name carries the verdict, so the guard and the file cannot disagree.
+const COMPAT_PREFIX = "COMPAT_";
+const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/u;
+
+// the starter vault a first run copies: the notes a new user reads first and imitates after.
+const SEED_DIR = "apps/cli/seed/";
 
 const skillDirs = (): string[] =>
   fs
@@ -36,29 +42,59 @@ const skillText = (dir: string): string | null => {
   return fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : null;
 };
 
-interface TaughtLang {
+interface ExportedLang {
+  name: string;
+  lang: string;
+}
+
+interface FenceSite {
   lang: string;
   site: string;
 }
 
-const taughtFenceLangs = (): TaughtLang[] =>
+const isCompat = ({ name }: ExportedLang): boolean => name.startsWith(COMPAT_PREFIX);
+
+const fenceOpenings = (file: string, text: string): FenceSite[] =>
+  text.split("\n").flatMap((line, index) => {
+    const lang = FENCE_OPENING.exec(line)?.groups?.lang;
+    return lang === undefined ? [] : [{ lang, site: `${file}:${String(index + 1)}` }];
+  });
+
+const taughtFenceLangs = (): FenceSite[] =>
   skillDirs().flatMap((dir) =>
-    (skillText(dir) ?? "").split("\n").flatMap((line, index) => {
-      const lang = TAUGHT_FENCE.exec(line)?.groups?.lang;
-      return lang === undefined
-        ? []
-        : [{ lang, site: `${SKILLS_DIR}/${dir}/SKILL.md:${String(index + 1)}` }];
-    }),
+    fenceOpenings(`${SKILLS_DIR}/${dir}/SKILL.md`, skillText(dir) ?? ""),
   );
 
-const fenceLangDrift = (exported: readonly string[], taught: readonly TaughtLang[]): string[] => [
+const seedNotes = (): string[] =>
+  trackedFiles().filter((file) => file.startsWith(SEED_DIR) && file.endsWith(".md"));
+
+const seededFenceLangs = (): FenceSite[] =>
+  seedNotes().flatMap((file) =>
+    fenceOpenings(file, fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")),
+  );
+
+const fenceLangDrift = (
+  exported: readonly ExportedLang[],
+  taught: readonly FenceSite[],
+): string[] => [
   ...taught
-    .filter(({ lang }) => !exported.includes(lang))
+    .filter(({ lang }) => !exported.some((entry) => entry.lang === lang))
     .map(({ lang, site }) => `${site} — teaches \`${lang}\`, which ${FENCE_LANGS} does not export`),
   ...exported
-    .filter((lang) => !taught.some((entry) => entry.lang === lang))
-    .map((lang) => `${FENCE_LANGS} — exports \`${lang}\`, which no skill's example fence uses`),
+    .filter((entry) => !isCompat(entry) && !taught.some(({ lang }) => lang === entry.lang))
+    .map(({ lang }) => `${FENCE_LANGS} — exports \`${lang}\`, which no skill's example fence uses`),
 ];
+
+const compatOpenings = (exported: readonly ExportedLang[], sites: readonly FenceSite[]): string[] =>
+  sites.flatMap(({ lang, site }) => {
+    const compat = exported.find((entry) => entry.lang === lang && isCompat(entry));
+    return compat === undefined
+      ? []
+      : [`${site} — opens \`${lang}\`, which ${FENCE_LANGS} exports as ${compat.name}`];
+  });
+
+const COMPAT_RULE =
+  "a read-compat fence is rendered and round-tripped for the notes that already hold one, never written new: the editor cannot insert it, and the callout is the GitHub alert (`> [!NOTE]`)";
 
 describe("the agent skills", () => {
   it("finds the set at all", () => {
@@ -127,32 +163,90 @@ describe("the agent skills", () => {
     ).toEqual([]);
   });
 
-  describe("the fence languages the skills teach", () => {
-    const exported = [...sourceOf(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
-      (match) => match.groups?.lang ?? "",
+  describe("the dialect's fence languages", () => {
+    const exported: ExportedLang[] = [...sourceOf(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
+      (match) => ({ lang: match.groups?.lang ?? "", name: match.groups?.name ?? "" }),
     );
+    const teachable = exported.filter((entry) => !isCompat(entry));
+    const compat = exported.filter(isCompat);
 
     it("finds both sides at all", () => {
-      expect(exported.length, `${FENCE_LANGS} exports no *_LANG literal`).toBeGreaterThan(1);
+      expect(
+        teachable.length,
+        `${FENCE_LANGS} exports no *_LANG literal a skill teaches`,
+      ).toBeGreaterThan(1);
       expect(taughtFenceLangs().length).toBeGreaterThan(1);
     });
 
-    it("are exactly the ones the parser spells", () => {
+    it("finds the read-compat callout and the seed notes, so the sweeps below cannot pass empty", () => {
+      expect(
+        compat.map(({ name }) => name),
+        `${FENCE_LANGS} exports no ${COMPAT_PREFIX}*_LANG literal`,
+      ).toContain("COMPAT_CALLOUT_LANG");
+      expect(seedNotes().length, `no tracked .md under ${SEED_DIR}`).toBeGreaterThan(1);
+    });
+
+    it("are taught exactly as the parser spells them", () => {
       const drift = fenceLangDrift(exported, taughtFenceLangs());
       expect(
         drift,
         drift.length === 0
           ? ""
           : `SKILLS AND THE PARSER SPELL THE FENCES DIFFERENTLY\n${drift.map((line) => `  ${line}`).join("\n")}\n` +
-              `  rule: a fence the parser does not know opens as plain code, so a skill that teaches it has the agent write blocks nobody sees; a fence no skill teaches is a construct the agent never writes`,
+              `  rule: a fence the parser does not know opens as plain code, so a skill that teaches it has the agent write blocks nobody sees; a fence no skill teaches is a construct the agent never writes (a ${COMPAT_PREFIX}* spelling excepted: it is never taught)`,
+      ).toEqual([]);
+    });
+
+    it("never include a read-compat spelling in a skill", () => {
+      const taught = compatOpenings(exported, taughtFenceLangs());
+      expect(
+        taught,
+        taught.length === 0
+          ? ""
+          : `A SKILL TEACHES A READ-COMPAT FENCE\n${taught.map((line) => `  ${line}`).join("\n")}\n` +
+              `  rule: ${COMPAT_RULE}; a skill that teaches one has every agent write it`,
+      ).toEqual([]);
+    });
+
+    it("never include a read-compat spelling in a seed note", () => {
+      const seeded = compatOpenings(exported, seededFenceLangs());
+      expect(
+        seeded,
+        seeded.length === 0
+          ? ""
+          : `A SEED NOTE OPENS A READ-COMPAT FENCE\n${seeded.map((line) => `  ${line}`).join("\n")}\n` +
+              `  rule: ${COMPAT_RULE}; the seed is what a new user reads first and copies, so it shows the alert`,
       ).toEqual([]);
     });
 
     it("catches a renamed spelling from both sides", () => {
-      const [first = "", ...rest] = exported;
-      const drift = fenceLangDrift([`${first}s`, ...rest], taughtFenceLangs());
-      expect(drift.some((line) => line.includes(`teaches \`${first}\``))).toBe(true);
-      expect(drift.some((line) => line.includes(`exports \`${first}s\``))).toBe(true);
+      const [first, ...rest] = teachable;
+      const lang = first?.lang ?? "";
+      const drift = fenceLangDrift(
+        [{ lang: `${lang}s`, name: first?.name ?? "" }, ...rest, ...compat],
+        taughtFenceLangs(),
+      );
+      expect(drift.some((line) => line.includes(`teaches \`${lang}\``))).toBe(true);
+      expect(drift.some((line) => line.includes(`exports \`${lang}s\``))).toBe(true);
+    });
+
+    it("catches a read-compat fence however it opens", () => {
+      const [{ lang, name } = { lang: "", name: "" }] = compat;
+      const ticks = "`".repeat(3);
+      const note = [
+        `${ticks}${lang}`,
+        "info",
+        ticks,
+        "",
+        "- item",
+        "",
+        `  ~~~~${lang} x`,
+        "  ~~~~",
+      ];
+      expect(compatOpenings(exported, fenceOpenings("note.md", note.join("\n")))).toEqual([
+        `note.md:1 — opens \`${lang}\`, which ${FENCE_LANGS} exports as ${name}`,
+        `note.md:7 — opens \`${lang}\`, which ${FENCE_LANGS} exports as ${name}`,
+      ]);
     });
   });
 });

@@ -62,6 +62,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **An action another device is running** says so in its header instead of offering a Stop button that could not stop it.
 - **Sync reports what it could not send.** Settings › Devices and `inteligir cloud status` count action events this computer dropped without sending, and a sign-out that could not remove the device from your account says so and points to the Devices page.
 - **The app is smaller.** It no longer carries the command line's source code and tests inside it.
+- **The agent writes the same callouts you make from the `/` menu** (Note, Tip, Important, Warning and Caution), and a new vault's starter notes use them too. Callouts already in your notes in the older form still show and save unchanged.
 
 ### Fixed
 

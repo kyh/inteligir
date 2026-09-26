@@ -12,10 +12,8 @@ Five shapes of work that fit a vault with an agent in it. Each one says what to 
 
 For the mechanics of any construct mentioned here, see [[Getting Started|a618c388-0d20-4ebe-bcbd-55b9d59094ec]].
 
-```inteligir-callout
-info
-Two ways to reach an agent, and they share the same vault. `⌘K` runs an action inside the app, attached to the note you are reading. A coding agent in your terminal edits the same files directly — the vault is a git repo, so both are just writing markdown.
-```
+> [!NOTE]
+> Two ways to reach an agent, and they share the same vault. `⌘K` runs an action inside the app, attached to the note you are reading. A coding agent in your terminal edits the same files directly — the vault is a git repo, so both are just writing markdown.
 
 ---
 
