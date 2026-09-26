@@ -937,6 +937,10 @@ to the END of its group.
   rename rewrites links the user did not type and must not lean on the
   resolver's tie-break. Every writer takes its bytes from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and a null from it writes nothing.
+  Copy link copies the note's `[[wiki link]]`, spelled as the autocomplete
+  spells it (`wikiLinkFor`, beside `wikiTargetForPath`), because a loopback URL
+  opened nothing anywhere else and died with the port; a name no link can
+  carry copies nothing and says so (`apps/desktop/src/renderer/app/note-topbar.tsx`).
   Pinned by the round trip in `packages/notes/src/__tests__/link-resolve.test.ts`.
 
 - **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND READS

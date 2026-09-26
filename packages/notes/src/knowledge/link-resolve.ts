@@ -3,7 +3,7 @@
 // so the answer is independent of insertion order. Md urls are literal paths:
 // file-relative, then root-relative, no alias tiers.
 
-import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
+import { isUuidWikiAlias, serializeWikiBody } from "../markdown/remark-wiki-link";
 import { IMPLIED_LINK_EXTENSION, wikiLinkName, wikiLinkPath } from "./doc-file";
 import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./vault-path";
 
@@ -213,4 +213,14 @@ export const wikiTargetForPath = (
     [wikiLinkName(path), qualified, path].find((target) => resolveWiki(target) === path) ??
     qualified
   );
+};
+
+// the whole `[[…]]` for `path`, spelled as the `[[` picker writes it; null for a name no link can
+// carry, so a caller writes nothing rather than a link that lands elsewhere
+export const wikiLinkFor = (
+  path: string,
+  resolveWiki: (target: string) => string | null,
+): string | null => {
+  const body = serializeWikiBody({ target: wikiTargetForPath(path, resolveWiki) });
+  return body === null ? null : `[[${body}]]`;
 };

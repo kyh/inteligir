@@ -67,6 +67,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **The agent talks about your notes in plain language.** It no longer brings up version control or the command line unless you ask, and it never asks you to run a command. Instructions you keep in your vault's `AGENTS.md` still have the last word.
 - **The agent writes the same callouts you make from the `/` menu** (Note, Tip, Important, Warning and Caution), and a new vault's starter notes use them too. Callouts already in your notes in the older form still show and save unchanged.
 - **One Date row in the `/` menu.** Day inserted the same date chip; `/day` now finds Date.
+- **Copy link copies a link for another note.** ⋯ › Copy link now copies the note's `[[Name]]`, the link the `[[` menu writes, instead of a web address that worked only while the app was open.
 
 ### Fixed
 

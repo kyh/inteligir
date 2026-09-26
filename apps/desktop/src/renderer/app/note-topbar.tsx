@@ -1,5 +1,7 @@
 import { setFindBarAnchor } from "@repo/editor/find-bar";
+import { getEditorHostIo } from "@repo/editor/host-io";
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import { wikiLinkFor } from "@repo/notes/knowledge/link-resolve";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -26,7 +28,6 @@ import {
 import { Fragment } from "react";
 
 import { shareWithAgentText } from "./actions/share-with-agent";
-import { socketOrigin } from "./socket-origin";
 
 export interface NoteTopbarProps {
   path: string | null;
@@ -94,14 +95,18 @@ export const NoteTopbar = ({
       : dirnamePath(path)
           .split("/")
           .filter((segment) => segment !== "");
-  // the server's origin, never the page's: an `inteligir://app` link opens nowhere, the shell included.
+  // read at the click, not through useLinkResolver: the bar renders before the vault installs the
+  // editor's host, and a subscription would re-render it on every listing refresh.
   const copyLink = () => {
     if (path === null) {
       return;
     }
-    const url = new URL(socketOrigin());
-    url.searchParams.set("note", path);
-    void copyText(url.toString(), "Link copied");
+    const link = wikiLinkFor(path, getEditorHostIo().linkResolver.getState().resolveWikiTarget);
+    if (link === null) {
+      toast.error("No link can name this note, so nothing was copied.");
+      return;
+    }
+    void copyText(link, "Link copied");
   };
   const copyForAgent = () => {
     if (path === null) {

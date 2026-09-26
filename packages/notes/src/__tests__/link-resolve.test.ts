@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isDocPath } from "../knowledge/doc-file";
-import { buildResolver, wikiTargetForPath } from "../knowledge/link-resolve";
+import { buildResolver, wikiLinkFor, wikiTargetForPath } from "../knowledge/link-resolve";
 import { checkNoteName } from "../knowledge/note-name";
 import { parseWikiBody, serializeWikiBody } from "../markdown/remark-wiki-link";
 
@@ -240,6 +240,36 @@ describe("wikiTargetForPath", () => {
 
   it("qualifies a path the resolver does not know yet", () => {
     expect(target("new/Plan.md")).toBe("new/Plan");
+  });
+});
+
+describe("wikiLinkFor", () => {
+  const r = buildResolver([
+    "Plans/Weekly Plan.md",
+    "Weekly Review.md",
+    "Plans/Weekly Review.md",
+    "Issue#42.md",
+    "C# Notes.md",
+    "Plans/Draft [v2].md",
+  ]);
+  const link = (path: string): string | null => wikiLinkFor(path, r.resolveWiki);
+
+  it("writes the name alone when no other note answers to it", () => {
+    expect(link("Plans/Weekly Plan.md")).toBe("[[Weekly Plan]]");
+  });
+
+  it("qualifies a name another note wins", () => {
+    expect(link("Weekly Review.md")).toBe("[[Weekly Review]]");
+    expect(link("Plans/Weekly Review.md")).toBe("[[Plans/Weekly Review]]");
+  });
+
+  it("escapes only a `#` that would read as a heading", () => {
+    expect(link("Issue#42.md")).toBe(String.raw`[[Issue\#42]]`);
+    expect(link("C# Notes.md")).toBe("[[C# Notes]]");
+  });
+
+  it("is null for a name a link cannot carry", () => {
+    expect(link("Plans/Draft [v2].md")).toBeNull();
   });
 });
 
