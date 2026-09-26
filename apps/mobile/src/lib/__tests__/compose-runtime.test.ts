@@ -7,6 +7,8 @@ import { z } from "zod";
 import { clientOver, createFakeVault } from "../../notes/__tests__/fake-vault";
 import {
   createMemoryAttachments,
+  createMemoryOutboxFiles,
+  nodeSha1,
   openTempDb,
   tempDbPath,
 } from "../../notes/__tests__/phone-storage";
@@ -62,11 +64,13 @@ const keychain = (stored: DeviceCredential | null, overrides: Partial<Credential
 interface PhoneStorage {
   db: SqlDriver;
   attachments: ReturnType<typeof createMemoryAttachments>;
+  outboxFiles: ReturnType<typeof createMemoryOutboxFiles>;
 }
 
 const phoneStorage = (db: SqlDriver = openTempDb()): PhoneStorage => ({
   attachments: createMemoryAttachments(),
   db,
+  outboxFiles: createMemoryOutboxFiles(),
 });
 
 // a cloud whose hosted vault holds one note and one image
@@ -88,6 +92,11 @@ const heldRows = async (db: SqlDriver): Promise<number> => {
   return z.object({ held: z.number() }).parse(row).held;
 };
 
+const queuedRows = async (db: SqlDriver): Promise<number> => {
+  const [row] = await db.all("SELECT count(*) AS queued FROM outbox");
+  return z.object({ queued: z.number() }).parse(row).queued;
+};
+
 const runtimeOver = (
   cloud: FakeCloud,
   credentials: CredentialStore,
@@ -99,10 +108,14 @@ const runtimeOver = (
     cloudUrl: "https://cloud.test",
     credentials,
     db: storage.db,
+    deviceName: "Test Phone",
     mintCaptureKey: () => {
       minted += 1;
       return `key-${minted}`;
     },
+    outboxFiles: storage.outboxFiles,
+    retryBaseMs: null,
+    sha1: nodeSha1,
     sync: { createClient: () => cloud.client, pollIntervalMs: null },
   });
 };
@@ -244,7 +257,7 @@ describe("the phone's note mirror across sign-ins", () => {
       vaultTree: async () => ({ failure: { kind: "unreachable", message: "offline" }, ok: false }),
     });
     const relaunched = runtimeOver(offline, keychain(CRED).store, {
-      attachments: first.attachments,
+      ...first,
       db: openTempDb(file),
     });
     await relaunched.start();
@@ -295,5 +308,35 @@ describe("the phone's note mirror across sign-ins", () => {
       expect(await heldRows(storage.db)).toBe(0);
       expect(storage.attachments.names()).toEqual([]);
     });
+  });
+});
+
+describe("signing out with edits the vault has not taken", () => {
+  it("refuses without a discard, and a discard wipes the queue and the staged files", async () => {
+    const storage = phoneStorage();
+    // the vault's write route never answers, so every edit stays on the phone
+    const rt = runtimeOver(vaultCloud(), keychain(CRED).store, storage);
+    await mirrorOnce(rt);
+    expect(await rt.notes.readNote("note.md")).toMatchObject({ ok: true });
+    await rt.notes.write("note.md", "# note\n\nwritten offline\n");
+    await rt.notes.putAsset("media/new.png", new Uint8Array([1, 2, 3]));
+
+    expect(await rt.logout()).toStrictEqual({ count: 2, kind: "unsent" });
+    expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
+    expect(await queuedRows(storage.db)).toBe(2);
+    expect(storage.outboxFiles.names()).toHaveLength(1);
+
+    expect(await rt.logout({ discardUnsent: true })).toStrictEqual({ kind: "signed-out" });
+    expect(rt.sync.get()).toStrictEqual({ state: "signed-out" });
+    await vi.waitFor(async () => {
+      expect(await queuedRows(storage.db)).toBe(0);
+      expect(storage.outboxFiles.names()).toEqual([]);
+    });
+  });
+
+  it("signs straight out when nothing is unsent", async () => {
+    const rt = runtimeOver(vaultCloud(), keychain(CRED).store);
+    await mirrorOnce(rt);
+    expect(await rt.logout()).toStrictEqual({ kind: "signed-out" });
   });
 });

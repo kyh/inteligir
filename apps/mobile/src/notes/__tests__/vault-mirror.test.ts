@@ -10,7 +10,7 @@ import { createNotesStore } from "../notes-store";
 import type { MirrorProgress } from "../vault-mirror";
 import { createVaultMirror } from "../vault-mirror";
 import { blobOid, clientOver, createFakeVault, requestsOf } from "./fake-vault";
-import { createMemoryAttachments, openTempDb, tempDbPath } from "./phone-storage";
+import { openTempDb, phonePorts, tempDbPath } from "./phone-storage";
 
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
@@ -39,11 +39,7 @@ const launch = (fetch: CloudFetch, db: SqlDriver) => {
     pollIntervalMs: null,
     store: createMemorySyncStore(),
   });
-  const store = createNotesStore({
-    attachments: createMemoryAttachments(),
-    db,
-    session: sync.session,
-  });
+  const store = createNotesStore({ ...phonePorts(), db, session: sync.session });
   sync.setCredential(CREDENTIAL);
   store.reset("restored");
   return { store, sync };

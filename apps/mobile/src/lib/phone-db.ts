@@ -24,6 +24,22 @@ const MIGRATIONS: readonly string[] = [
      content TEXT,
      CHECK (content IS NOT NULL OR (note_id IS NULL AND aliases = '[]'))
    );`,
+  // outbox: the phone's unsent writes, oldest first; `op` and `settle` are JSON parsed on every
+  // read. mirror_landings: which paths a landed write moved, in landing order, so a refresh that
+  // listed the tree before a landing leaves those rows alone.
+  `CREATE TABLE outbox (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     op TEXT NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('pending', 'parked')),
+     reason TEXT,
+     settle TEXT,
+     created_at INTEGER NOT NULL,
+     CHECK ((state = 'parked') = (reason IS NOT NULL))
+   );
+   CREATE TABLE mirror_landings (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     path TEXT NOT NULL
+   );`,
 ];
 
 const userVersionSchema = z.object({ user_version: z.number().int().min(0) });

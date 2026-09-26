@@ -1,6 +1,6 @@
 // the platform-free half of the composition root: app-runtime.ts binds it to the Keychain, the
-// database, the attachment files and the OS, so every transition between signed in and out runs
-// under test.
+// database, the attachment and outbox files, SHA-1 and the OS, so every transition between signed
+// in and out runs under test, and the scenario suite drives it under node against a real Worker.
 
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import type { DeviceCredentialStore } from "@repo/api/cloud/device/login-flow";
@@ -10,7 +10,9 @@ import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import type { AttachmentFiles } from "../notes/attachment-files";
 import { createNotesStore } from "../notes/notes-store";
-import type { NotesStore, SignInSource } from "../notes/notes-store";
+import type { CreateNotesStoreArgs, NotesStore, SignInSource } from "../notes/notes-store";
+import type { Sha1 } from "../notes/outbox-ops";
+import type { OutboxFiles } from "../notes/outbox-files";
 import { createMemorySyncStore } from "../sync/memory-sync-store";
 import { createSyncRuntime } from "../sync/sync-runtime";
 import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
@@ -28,9 +30,18 @@ export interface ComposeRuntimeArgs {
   // opened once for the app's life; a restore keeps what it holds, every other sign-in wipes it
   db: SqlDriver;
   attachments: AttachmentFiles;
+  outboxFiles: OutboxFiles;
+  sha1: Sha1;
+  // the name the phone signs in as, which its conflict reports and copies go by
+  deviceName: string;
   mintCaptureKey: () => string;
   sync?: Omit<SyncRuntimeArgs, "cloudUrl" | "store">;
+  // the first wait after a failed send of the phone's edits; null never retries on a timer
+  retryBaseMs?: number | null;
 }
+
+// `unsent`: the phone holds edits the vault has not taken, and signing out would discard them
+export type LogoutOutcome = { kind: "signed-out" } | { kind: "unsent"; count: number };
 
 export interface AppRuntime {
   store: SyncStore;
@@ -39,8 +50,9 @@ export interface AppRuntime {
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
   start: () => Promise<void>;
-  logout: () => Promise<void>;
-  // the app is back in the foreground; both no-op while signed out
+  // refuses while edits are unsent, unless told to discard them
+  logout: (options?: { discardUnsent?: boolean }) => Promise<LogoutOutcome>;
+  // the app is back in the foreground or back online; every one no-ops while signed out
   resume: () => void;
   submitCapture: CaptureSender;
 }
@@ -48,18 +60,27 @@ export interface AppRuntime {
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const store = createMemorySyncStore();
   const sync = createSyncRuntime({ ...args.sync, cloudUrl: args.cloudUrl, store });
-  const notes = createNotesStore({
+  const notesArgs: CreateNotesStoreArgs = {
     attachments: args.attachments,
     db: args.db,
+    deviceName: args.deviceName,
+    outboxFiles: args.outboxFiles,
     session: sync.session,
-  });
+    sha1: args.sha1,
+  };
+  if (args.retryBaseMs !== undefined) {
+    notesArgs.retryBaseMs = args.retryBaseMs;
+  }
+  const notes = createNotesStore(notesArgs);
 
-  // the tree is fetched here so no screen carries its own cold-fetch effect.
+  // the tree is fetched here so no screen carries its own cold-fetch effect, and the edits the last
+  // launch left are sent.
   const activate = (credential: DeviceCredential, source: SignInSource): void => {
     sync.setCredential(credential);
     notes.reset(source);
     sync.start();
     void notes.refresh();
+    void notes.drain();
   };
 
   const login = createLoginStore({
@@ -86,7 +107,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   let started = false;
 
   return {
-    async logout() {
+    async logout(options = {}) {
+      const unsent = await notes.unsentCount();
+      if (unsent > 0 && options.discardUnsent !== true) {
+        return { count: unsent, kind: "unsent" };
+      }
       // cleared before the runtimes stop: a sign-in the screen allows once they have would write
       // a credential this delete could then remove.
       try {
@@ -98,12 +123,14 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       }
       sync.setCredential(null);
       notes.reset(null);
+      return { kind: "signed-out" };
     },
     login,
     notes,
     resume() {
       void sync.syncNow();
       void notes.refresh();
+      void notes.drain();
     },
     async start() {
       if (started) {

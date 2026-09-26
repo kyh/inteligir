@@ -1,13 +1,25 @@
-// the hosted vault's read routes as the Worker answers them, over an in-memory history of commits:
-// oids are git's own blob hash, so equal bytes share one as they do there. `requests` logs each
-// call as "tree <query>", "file <query>", "files <paths joined by ,> @<ref>" or "asset <query>".
+// the hosted vault's routes as the Worker answers them, over an in-memory history of commits: oids
+// are git's own blob hash, so equal bytes share one as they do there, and a commit is the Worker's
+// CAS per path (a change whose target the head holds is satisfied, a stale base is a 409 carrying
+// what the head holds and who wrote it). `requests` logs each call as "tree <query>", "file
+// <query>", "files <paths joined by ,> @<ref>", "asset <query>" or "commit <changes joined by ,>",
+// a change spelled "put <path>@<base>", "delete <path>@<base>" or "move <from>><to>@<base>".
 
 import { createHash } from "node:crypto";
 import { createCloudClient } from "@repo/api/cloud/client";
 import type { CloudClient, CloudFetch } from "@repo/api/cloud/client";
+import { vaultCommitRequestSchema } from "@repo/api/cloud/vault/vault-commit-schema";
+import type {
+  VaultChangeRequest,
+  VaultCommitRequest,
+  VaultCommitResponse,
+  VaultConflictAnswer,
+  VaultConflictReason,
+} from "@repo/api/cloud/vault/vault-commit-schema";
 import {
   assetMediaType,
   VAULT_API_PATHS,
+  VAULT_FILE_MAX_BYTES,
   vaultFilesRequestSchema,
 } from "@repo/api/cloud/vault/vault-schema";
 import type { VaultFilesResponse } from "@repo/api/cloud/vault/vault-schema";
@@ -25,6 +37,32 @@ const commitSha = (n: number): string => n.toString(16).padStart(40, "0");
 
 const notFound = (message: string): Response =>
   Response.json({ error: { code: "not-found", message } }, { status: 404 });
+
+// the device every phone commit is authored as
+export const FAKE_PHONE_DEVICE = "Test Phone";
+
+// a commit that moved head answers with this header, so a test can lose exactly those answers
+export const APPLIED_HEADER = "x-fake-applied";
+
+const describeChange = (change: VaultChangeRequest): string => {
+  switch (change.op) {
+    case "put": {
+      return `put ${change.path}@${change.base ?? "absent"}`;
+    }
+    case "delete": {
+      return `delete ${change.path}@${change.base}`;
+    }
+    case "move": {
+      return `move ${change.from}>${change.to}@${change.base}`;
+    }
+    // no default
+  }
+};
+
+const putText = (change: Extract<VaultChangeRequest, { op: "put" }>): string =>
+  change.content.encoding === "utf-8"
+    ? change.content.text
+    : Buffer.from(change.content.data, "base64").toString("latin1");
 
 interface Revision {
   sha: string;
@@ -65,12 +103,101 @@ const filesAnswer = (revision: Revision | null, ref: string, paths: string[]): R
   return Response.json(answer);
 };
 
+// a change against head, as the Worker plans it: already held, applicable, or a conflict
+type ChangeVerdict =
+  | { kind: "satisfied" }
+  | { kind: "apply"; writes: readonly (readonly [string, string | null])[] }
+  | { kind: "conflict"; path: string; reason: VaultConflictReason };
+
+const classifyPut = (
+  before: ReadonlyMap<string, string>,
+  change: Extract<VaultChangeRequest, { op: "put" }>,
+): ChangeVerdict => {
+  const text = putText(change);
+  const current = before.get(change.path);
+  if (current !== undefined && blobOid(current) === blobOid(text)) {
+    return { kind: "satisfied" };
+  }
+  if (current === undefined ? change.base === null : blobOid(current) === change.base) {
+    return { kind: "apply", writes: [[change.path, text]] };
+  }
+  if (current === undefined) {
+    return { kind: "conflict", path: change.path, reason: "missing" };
+  }
+  return {
+    kind: "conflict",
+    path: change.path,
+    reason: change.base === null ? "exists" : "changed",
+  };
+};
+
+const classifyChange = (
+  before: ReadonlyMap<string, string>,
+  change: VaultChangeRequest,
+): ChangeVerdict => {
+  switch (change.op) {
+    case "put": {
+      return classifyPut(before, change);
+    }
+    case "delete": {
+      const current = before.get(change.path);
+      if (current === undefined) {
+        return { kind: "satisfied" };
+      }
+      return blobOid(current) === change.base
+        ? { kind: "apply", writes: [[change.path, null]] }
+        : { kind: "conflict", path: change.path, reason: "changed" };
+    }
+    case "move": {
+      const source = before.get(change.from);
+      const destination = before.get(change.to);
+      if (source === undefined) {
+        return destination !== undefined && blobOid(destination) === change.base
+          ? { kind: "satisfied" }
+          : { kind: "conflict", path: change.from, reason: "missing" };
+      }
+      if (blobOid(source) !== change.base) {
+        return { kind: "conflict", path: change.from, reason: "changed" };
+      }
+      if (destination !== undefined) {
+        return { kind: "conflict", path: change.to, reason: "exists" };
+      }
+      return {
+        kind: "apply",
+        writes: [
+          [change.from, null],
+          [change.to, source],
+        ],
+      };
+    }
+    // no default
+  }
+};
+
+const resultOf = (change: VaultChangeRequest): VaultCommitResponse["results"][number] => {
+  switch (change.op) {
+    case "put": {
+      return { oid: blobOid(putText(change)), path: change.path };
+    }
+    case "delete": {
+      return { oid: null, path: change.path };
+    }
+    case "move": {
+      return { oid: change.base, path: change.to };
+    }
+    // no default
+  }
+};
+
 export interface FakeVault {
   requests: string[];
   fetch: CloudFetch;
   head: () => string;
-  // a new head: the current files with these changes, null deleting a path
-  change: (changes: Record<string, string | null>) => string;
+  // a new head: the current files with these changes, null deleting a path, written by `device`
+  change: (changes: Record<string, string | null>, device?: string) => string;
+  // what head holds
+  files: () => Record<string, string>;
+  commits: () => number;
 }
 
 export const createFakeVault = (
@@ -79,20 +206,84 @@ export const createFakeVault = (
 ): FakeVault => {
   const pageSize = options.pageSize ?? 2;
   const history = new Map<string, ReadonlyMap<string, string>>();
+  // the device whose commit last touched each path, which a conflict names
+  const writers = new Map<string, string>();
   let head = "";
   const requests: string[] = [];
 
-  const commit = (files: ReadonlyMap<string, string>): string => {
+  const commit = (files: ReadonlyMap<string, string>, device: string): string => {
+    const previous = history.get(head) ?? new Map<string, string>();
+    for (const path of new Set([...previous.keys(), ...files.keys()])) {
+      if (previous.get(path) !== files.get(path)) {
+        writers.set(path, device);
+      }
+    }
     head = commitSha(history.size + 1);
     history.set(head, files);
     return head;
   };
-  commit(new Map(Object.entries(initial)));
+  commit(new Map(Object.entries(initial)), "Mac");
 
   const at = (ref: string | null): Revision | null => {
     const sha = ref ?? head;
     const files = history.get(sha);
     return files === undefined ? null : { files, sha };
+  };
+
+  const conflictOn = (
+    files: ReadonlyMap<string, string>,
+    path: string,
+    reason: VaultConflictReason,
+  ): VaultConflictAnswer["conflict"]["conflicts"][number] => {
+    const content = files.get(path);
+    return {
+      current: content === undefined ? null : { content, oid: blobOid(content) },
+      device: writers.get(path) ?? null,
+      path,
+      reason,
+    };
+  };
+
+  const commitAnswer = (request: VaultCommitRequest): Response => {
+    const tooLarge = request.changes.some(
+      (change) =>
+        change.op === "put" &&
+        change.content.encoding === "utf-8" &&
+        Buffer.byteLength(change.content.text) > VAULT_FILE_MAX_BYTES,
+    );
+    if (tooLarge) {
+      return Response.json(
+        { error: { code: "file-too-large", message: "notes over the cap do not cross" } },
+        { status: 413 },
+      );
+    }
+    const before = history.get(head) ?? new Map<string, string>();
+    const verdicts = request.changes.map((change) => classifyChange(before, change));
+    const conflicts = verdicts.flatMap((verdict) =>
+      verdict.kind === "conflict" ? [conflictOn(before, verdict.path, verdict.reason)] : [],
+    );
+    if (conflicts.length > 0) {
+      const answer: VaultConflictAnswer = {
+        conflict: { conflicts, head },
+        error: { code: "vault-conflict", message: "The vault changed under this change set." },
+      };
+      return Response.json(answer, { status: 409 });
+    }
+    const results = request.changes.map(resultOf);
+    const writes = verdicts.flatMap((verdict) => (verdict.kind === "apply" ? verdict.writes : []));
+    if (writes.length === 0) {
+      return Response.json({ commit: head, results });
+    }
+    const files = new Map(before);
+    for (const [path, text] of writes) {
+      if (text === null) {
+        files.delete(path);
+      } else {
+        files.set(path, text);
+      }
+    }
+    const body: VaultCommitResponse = { commit: commit(files, FAKE_PHONE_DEVICE), results };
+    return Response.json(body, { headers: { [APPLIED_HEADER]: "true" } });
   };
 
   const fetch: CloudFetch = async (input, init) => {
@@ -119,6 +310,11 @@ export const createFakeVault = (
         requests.push(`files ${request.paths.join(",")} @${request.ref}`);
         return filesAnswer(at(request.ref), request.ref, request.paths);
       }
+      case VAULT_API_PATHS.commit: {
+        const request = vaultCommitRequestSchema.parse(JSON.parse(z.string().parse(init?.body)));
+        requests.push(`commit ${request.changes.map(describeChange).join(",")}`);
+        return commitAnswer(request);
+      }
       case VAULT_API_PATHS.asset: {
         requests.push(`asset ${url.search}`);
         const content = at(ref)?.files.get(path);
@@ -134,7 +330,7 @@ export const createFakeVault = (
   };
 
   return {
-    change: (changes) => {
+    change: (changes, device = "Mac") => {
       const files = new Map(at(null)?.files);
       for (const [changed, content] of Object.entries(changes)) {
         if (content === null) {
@@ -143,9 +339,11 @@ export const createFakeVault = (
           files.set(changed, content);
         }
       }
-      return commit(files);
+      return commit(files, device);
     },
+    commits: () => history.size,
     fetch,
+    files: () => Object.fromEntries(at(null)?.files ?? []),
     head: () => head,
     requests,
   };
@@ -155,5 +353,7 @@ export const clientOver = (fetch: CloudFetch): CloudClient =>
   createCloudClient({ baseUrl: "https://cloud.test", credential: `igd_${"a".repeat(64)}`, fetch });
 
 // the requests of one kind, in order
-export const requestsOf = (vault: FakeVault, kind: "tree" | "file" | "files" | "asset"): string[] =>
-  vault.requests.filter((line) => line.startsWith(`${kind} `));
+export const requestsOf = (
+  vault: FakeVault,
+  kind: "tree" | "file" | "files" | "asset" | "commit",
+): string[] => vault.requests.filter((line) => line.startsWith(`${kind} `));

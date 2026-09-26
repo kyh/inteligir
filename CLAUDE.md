@@ -133,7 +133,9 @@ apps/
                  note's text (src/notes/vault-mirror.ts), kept current from
                  the hosted vault's /cloud read rows by blob oid and read
                  offline, rendered through @repo/notes' own parse, with each
-                 note's comment store folded beside it (#683); reaches
+                 note's comment store folded beside it (#683), and a durable
+                 outbox of the phone's own edits (src/notes/vault-outbox.ts)
+                 sent through the guarded commit route; reaches
                  @repo/api/cloud, @repo/domain and @repo/notes only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
@@ -152,10 +154,10 @@ packages/
                  cursor is a duplicated conversation — and, for the same
                  reason, the CLIENT RUNTIME CORE both consumers run. apps/web
                  SERVES every row; apps/mobile pulls threads, produces
-                 captures and commits vault change sets, and never pushes a
-                 thread event, claims a capture or speaks git, because the
-                 desktop runs the turns and owns applying a capture to the
-                 vault. Two entries rather than one router because their
+                 captures and commits vault change sets from a queue it
+                 settles itself, and never pushes a thread event, claims a
+                 capture or speaks git, because the desktop runs the turns
+                 and owns applying a capture to the vault. Two entries rather than one router because their
                  compatibility obligations are OPPOSITE: /local's ends ship in
                  one bundle and may break freely (a CLI installed apart refuses
                  another release's server as `SERVER_VERSION_MISMATCH`),
@@ -1641,6 +1643,34 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   table another module adds is a step appended to
   `apps/mobile/src/lib/phone-db.ts`. `apps/mobile/src/notes/vault-mirror.ts`,
   `apps/mobile/src/notes/notes-store.ts`.
+
+- **A PHONE EDIT IS A QUEUED WRITE WITH ITS BASE, AND THE PHONE SETTLES ITS OWN
+  CONFLICTS.** A write is durable in the phone's `outbox` table before it
+  resolves, and reads, the listing and the resolver see it from then on; the
+  rows go to `POST /v1/vault/commit` oldest first, one change set per row, on
+  every write, resume, reconnect and a backoff. A read records the blob the
+  caller's next write is computed from and a write with none throws, the
+  desktop's guarded io; a write to a path whose last row writes it replaces the
+  text and KEEPS THE FIRST BASE, so three offline saves are one write. The
+  Worker never merges: a 409 is settled on the phone by `reconcileFile`
+  (`@repo/notes/sync/reconcile-file`), the desktop's own verdict, so a far edit
+  merges, an overlap keeps the phone's version and copies the other device's,
+  an edit beats a delete either way, and the result and its copy land as ONE
+  set. That set is kept on the row before it is sent, so an answer lost after
+  the vault applied it is resent unchanged and answered as already held. A
+  landing moves the mirror in the
+  transaction that retires the row and stamps what it moved, and a refresh
+  skips every row stamped after it read the stamp, because its tree may
+  predate the write. Nothing is dropped: unreachable stops and keeps the queue,
+  a refusal no resend passes PARKS its row with its bytes while other paths go
+  on, and a sign-out with anything unsent asks first (owner decision: it then
+  discards them, and a revocation wipes them with the mirror). Rejected: a
+  merge on the Worker, a second policy beside the desktop's; and replaying the
+  intent after a lost answer, which reconciles the phone against its own landed
+  set and can copy it again.
+  `apps/mobile/src/notes/vault-outbox.ts`,
+  `apps/mobile/src/notes/outbox-reconcile.ts`,
+  `tools/e2e/src/scenarios/phone-offline-edit.ts`.
 
 ### Server process and the desktop shell
 

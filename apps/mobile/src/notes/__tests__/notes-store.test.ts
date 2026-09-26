@@ -12,7 +12,7 @@ import { createNotesStore } from "../notes-store";
 import type { CommentsRead, NotesStore, SignInSource } from "../notes-store";
 import { blobOid, createFakeVault, requestsOf } from "./fake-vault";
 import type { FakeVault } from "./fake-vault";
-import { createMemoryAttachments, openTempDb } from "./phone-storage";
+import { openTempDb, phonePorts } from "./phone-storage";
 
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const OTHER_CREDENTIAL = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_2" };
@@ -51,8 +51,9 @@ const notesOver = (fetch: CloudFetch, db: SqlDriver = openTempDb()) => {
     pollIntervalMs: null,
     store: createMemorySyncStore(),
   });
-  const attachments = createMemoryAttachments();
-  const store = createNotesStore({ attachments, db, session: sync.session });
+  const ports = phonePorts();
+  const { attachments } = ports;
+  const store = createNotesStore({ ...ports, db, session: sync.session });
   const signIn = (credential: DeviceCredential, source: SignInSource): void => {
     sync.setCredential(credential);
     store.reset(source);
