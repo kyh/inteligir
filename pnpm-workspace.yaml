@@ -77,6 +77,8 @@ catalog:
   react-native: ~0.86.3
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
+  # exact: the SDK's bundledNativeModules pins it, and `npx expo install --check` holds it there
+  react-native-webview: 13.16.1
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0

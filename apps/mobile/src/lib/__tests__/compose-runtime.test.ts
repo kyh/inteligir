@@ -333,7 +333,7 @@ describe("signing out with edits the vault has not taken", () => {
     await rt.notes.write("note.md", "# note\n\nwritten offline\n");
     await rt.notes.putAsset("media/new.png", new Uint8Array([1, 2, 3]));
 
-    expect(await rt.logout()).toStrictEqual({ count: 2, kind: "unsent" });
+    expect(await rt.logout()).toStrictEqual({ edits: 2, kind: "unsent", requests: 0 });
     expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
     expect(await queuedRows(storage.db)).toBe(2);
     expect(storage.outboxFiles.names()).toHaveLength(1);
@@ -346,7 +346,7 @@ describe("signing out with edits the vault has not taken", () => {
     });
   });
 
-  it("wipes the requests no Mac has had yet, which a sign-out does not wait for", async () => {
+  it("counts the requests no Mac has had yet, and a discard wipes them", async () => {
     const storage = phoneStorage();
     const rt = runtimeOver(createFakeCloud(), keychain(CRED).store, storage);
     await rt.start();
@@ -355,8 +355,11 @@ describe("signing out with edits the vault has not taken", () => {
     ).toMatchObject({ ok: true });
     expect(await dispatchRows(storage.db)).toBe(1);
 
-    expect(await rt.logout()).toStrictEqual({ kind: "signed-out" });
+    expect(await rt.logout()).toStrictEqual({ edits: 0, kind: "unsent", requests: 1 });
+    expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
+    expect(await dispatchRows(storage.db)).toBe(1);
 
+    expect(await rt.logout({ discardUnsent: true })).toStrictEqual({ kind: "signed-out" });
     expect(rt.dispatch.get().dispatches).toStrictEqual([]);
     await vi.waitFor(async () => {
       expect(await dispatchRows(storage.db)).toBe(0);

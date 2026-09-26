@@ -48,6 +48,11 @@ export type DispatchPhase =
   | { kind: "delivered" }
   | { kind: "refused"; message: string };
 
+// no Mac holds it yet, so a cancel takes it back, and a sign-out, which drops the phone's waiting
+// rows from the inbox with its device, loses it
+export const noMacHasIt = (phase: DispatchPhase): boolean =>
+  phase.kind === "unsent" || phase.kind === "waiting";
+
 interface DispatchViewBase {
   id: string;
   threadId: string;
@@ -123,6 +128,8 @@ export interface DispatchRuntime extends ReadableStore<DispatchState> {
   cancel: (id: string) => Promise<CancelOutcome>;
   // forgets a refused request, whose words the phone kept until now
   dismiss: (id: string) => Promise<void>;
+  // the requests no Mac holds yet; the sign-out asks before discarding them
+  unclaimedCount: () => Promise<number>;
 }
 
 const phaseOf = (status: DispatchStatus | null, error: string | null): DispatchPhase => {
@@ -677,6 +684,11 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     suspend() {
       active = false;
       clearTimer();
+    },
+
+    async unclaimedCount() {
+      await resetWork;
+      return rows.filter((row) => noMacHasIt(phaseOf(row.status, null))).length;
     },
   };
 };

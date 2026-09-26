@@ -1,6 +1,6 @@
 // What a photo becomes on its way into a note, apart from the native calls that make it so: its
-// size (a phone camera's 12 MP frame is megabytes a note never needs), its name, and the line that
-// embeds it.
+// size (a phone camera's 12 MP frame is megabytes a note never needs) and its name. The editor
+// writes the embed where the user is typing.
 
 import { formatIsoDate } from "@repo/notes/iso-date";
 
@@ -26,16 +26,3 @@ export const photoResize = (
 // takes in a file name
 export const photoBaseName = (takenAt: Date): string =>
   `Photo ${formatIsoDate(takenAt)} ${pad2(takenAt.getHours())}.${pad2(takenAt.getMinutes())}.${pad2(takenAt.getSeconds())}.jpg`;
-
-// what makes the note's end a blank line, so the embed is a paragraph of its own
-const blankLineAfter = (content: string): string => {
-  if (content === "" || content.endsWith("\n\n")) {
-    return "";
-  }
-  return content.endsWith("\n") ? "\n" : "\n\n";
-};
-
-// the note's new last line, spelled as the Mac's editor saves an image at a vault path: in angle
-// brackets, since a photo's name holds spaces
-export const withPhotoEmbed = (content: string, assetPath: string): string =>
-  `${content}${blankLineAfter(content)}![](<${assetPath}>)\n`;

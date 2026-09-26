@@ -46,7 +46,9 @@ end that receives it.
 - Native to page: `init { nonce, path, focus, theme }`, `response { id, ok }`,
   `vaultChanged`, `flush` (answered by `flushed` with its id), `theme`.
 
-Native reaches the page ONLY by `injectJavaScript` of `nativeFrameScript(frame)`,
+The native end is `apps/mobile/src/editor/editor-host.ts`, answering over the
+phone's store through `editor-ports.ts`. Native reaches the page ONLY by
+`injectJavaScript` of `nativeFrameScript(frame)`,
 which calls the door `connectPageBridge` installs on `window`, non-writable and
 non-configurable (`src/bridge/page-bridge.ts`): a message event is one a child
 frame's `parent.postMessage` could forge. The first well-formed `init` sets the

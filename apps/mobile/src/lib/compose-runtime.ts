@@ -47,8 +47,11 @@ export interface ComposeRuntimeArgs {
   dispatchPollIntervalMs?: DispatchRuntimeArgs["pollIntervalMs"];
 }
 
-// `unsent`: the phone holds edits the vault has not taken, and signing out would discard them
-export type LogoutOutcome = { kind: "signed-out" } | { kind: "unsent"; count: number };
+// `unsent`: the phone holds edits the vault has not taken, or requests no Mac holds yet, and signing
+// out would discard them
+export type LogoutOutcome =
+  | { kind: "signed-out" }
+  | { kind: "unsent"; edits: number; requests: number };
 
 export interface AppRuntime {
   store: SyncStore;
@@ -59,7 +62,7 @@ export interface AppRuntime {
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
   start: () => Promise<void>;
-  // refuses while edits are unsent, unless told to discard them
+  // refuses while edits or requests are unsent, unless told to discard them
   logout: (options?: { discardUnsent?: boolean }) => Promise<LogoutOutcome>;
   // the app is back in the foreground or back online; every one no-ops while signed out
   resume: () => void;
@@ -139,9 +142,9 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   return {
     fileOps: createFileOps(notes),
     async logout(options = {}) {
-      const unsent = await notes.unsentCount();
-      if (unsent > 0 && options.discardUnsent !== true) {
-        return { count: unsent, kind: "unsent" };
+      const [edits, requests] = await Promise.all([notes.unsentCount(), dispatch.unclaimedCount()]);
+      if (edits + requests > 0 && options.discardUnsent !== true) {
+        return { edits, kind: "unsent", requests };
       }
       // cleared before the runtimes stop: a sign-in the screen allows once they have would write
       // a credential this delete could then remove.

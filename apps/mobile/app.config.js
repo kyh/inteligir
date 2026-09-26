@@ -69,6 +69,7 @@ const appConfig = ({ config }) => ({
   orientation: "portrait",
   plugins: [
     "expo-router",
+    "./plugins/with-editor-page",
     [
       "expo-image-picker",
       {

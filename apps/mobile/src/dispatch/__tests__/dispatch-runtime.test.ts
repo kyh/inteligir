@@ -271,6 +271,27 @@ describe("the phone's requests to a Mac", () => {
     expect(await rowsIn(db)).toBe(0);
   });
 
+  it("counts what a sign-out would lose: a request unsent or waiting, never one a Mac holds", async () => {
+    const inbox = createFakeInbox();
+    const { dispatch } = phoneOver(inbox, openTempDb());
+    const waiting = idOf(await dispatch.askAgent({ text: "first", threadId: "thr_a" }));
+    const claimed = idOf(await dispatch.askAgent({ text: "second", threadId: "thr_a" }));
+    const refused = idOf(await dispatch.askAgent({ text: "third", threadId: "thr_a" }));
+    expect(await dispatch.unclaimedCount()).toBe(3);
+
+    await dispatch.sendNow();
+    inbox.claim(claimed);
+    inbox.refuse(refused, "This thread is archived.");
+    await dispatch.sendNow();
+
+    expect(dispatch.get().dispatches.map((view) => [view.id, view.phase.kind])).toStrictEqual([
+      [waiting, "waiting"],
+      [claimed, "claimed"],
+      [refused, "refused"],
+    ]);
+    expect(await dispatch.unclaimedCount()).toBe(1);
+  });
+
   it("empties the outbox when the phone signs out", async () => {
     const inbox = createFakeInbox();
     inbox.network = "down";

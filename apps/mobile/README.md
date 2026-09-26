@@ -4,12 +4,13 @@ A notes-and-capture client. **The agent and the vault ENGINE stay on the
 desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
 FEEDS the CAPTURE inbox, ASKS a Mac's agent through the DISPATCH inbox and
 holds a MIRROR of every note's text from the account's hosted vault, reaching
-`@repo/api/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar) and
-`@repo/notes` (the dialect's parse, wiki resolution and the one conflict
-verdict, guard-pure). No agent, no vault checkout, no git client — notes arrive
-over the /v1/vault read rows into a local SQLite file and open offline, and the
-phone's own edits wait in a durable outbox beside them until the guarded commit
-route takes them.
+`@repo/api/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar),
+`@repo/notes` (wiki resolution, the rename and delete rules and the one
+conflict verdict, guard-pure) and `@repo/mobile-editor/bridge-protocol` (the
+editor page's wire). No agent, no vault checkout, no git client — notes arrive
+over the /v1/vault read rows into a local SQLite file and open offline in the
+desktop's own editor, and the phone's edits wait in a durable outbox beside
+them until the guarded commit route takes them.
 
 Expo + expo-router; `src/sync` is the RN implementation of the `@repo/api/cloud`
 wire.
@@ -58,6 +59,20 @@ src/
                         over the contract's login flow
                         (@repo/api/cloud/device/login-flow)
     device-name.ts      the name this phone offers the device list
+  editor/       the note screen's editor: the @repo/mobile-editor page in a
+                WebView, the phone answering its bridge
+    editor-host.ts      the native end of the bridge: frames only from the
+                        page's own document and under its load's nonce, the
+                        one policy for what the WebView may load, the bounded
+                        flush (pure, unit-tested)
+    editor-ports.ts     what the page asks, answered over the notes store and
+                        the file verbs: the guarded write compared with the
+                        text the phone holds, attachments on demand, the
+                        change feed, and where a page event leads (platform-
+                        free, unit-tested against the fake vault)
+    page-source.ts      the page in the app bundle (page-folder.ts: the
+                        folder's name, which plugins/with-editor-page.js puts
+                        it under)
   notes/        the vault read surface over the /v1/vault rows
     vault-mirror.ts     every note's text in SQLite: the tree diffed by oid,
                         the changed texts fetched in pinned batches (pure over
@@ -84,8 +99,13 @@ src/
                         expo-file-system adapter
     attachment-files.ts the attachment-file port; expo-attachment-files.ts
                         is its expo-file-system adapter
-    note-projection.ts  dialect markdown → typed blocks (pure, unit-tested)
-    markdown-view.tsx   projected blocks → RN elements (the thin half)
+    outbox-notices.ts   the unsent edits that need the user: a parked change
+                        with Retry, Save as new note and Discard, and a
+                        conflict in describeSyncConflict's words (pure,
+                        unit-tested); outbox-banner.tsx draws them above the
+                        list and the open note
+    comments-view.tsx   a note's comment threads, read-only, in a sheet over
+                        the editor
   lib/          the composition root: compose-runtime.ts (platform-free and
                 unit-tested: the restore, sign-out, revocation and resume)
                 and app-runtime.ts (its binding to the Keychain, the
@@ -100,8 +120,10 @@ src/
   app/          expo-router screens: sign-in, thread list + quick-capture, a
                 thread view with its composer, pending requests and approval
                 cards, the notes list (New note; Rename and Delete on a long
-                press) + read-only note view (Add photo, and Ask agent in its
-                header); _layout.tsx holds the splash and the route guard
+                press) + the note in the editor (Ask agent, Comments and
+                Delete in its header); _layout.tsx holds the splash and the
+                route guard
+plugins/        with-editor-page.js: the built page into the app bundle
 ```
 
 ## The storage choice
@@ -149,15 +171,12 @@ shows the list and opens every note before any request, and a refresh that
 fails keeps the list it has and says why above it. "Loading your vault…"
 shows only on a FIRST mirror, with its count.
 
-The listing, the resolver (paths, aliases and ids, so `[[Some Alias]]` and
-`[[Title|uuid]]` resolve) and each asset URL come from the rows. An asset URL
-pins the commit its blob first appeared at, so an image a commit leaves alone
-keeps its URL and its cached bytes. `attachmentFile(path)` downloads an
-attachment on its first ask into `Paths.cache/attachments/<oid><ext>`, for the
-editor to come; the read-only view still draws embeds from asset URLs, whose
-bytes land in the platform's own image caches, which a sign-out cannot clear —
-safe to serve (the URL pins a commit sha), but at rest until the OS evicts
-them.
+The listing and the resolver (paths, aliases and ids, so `[[Some Alias]]` and
+`[[Title|uuid]]` resolve) come from the rows. `attachmentFile(path)` downloads
+an attachment on its first ask, at the commit its blob first appeared at, into
+`Paths.cache/attachments/<oid><ext>`, so an image a commit leaves alone is
+never fetched again; the editor page reads it from there, a photo not yet
+sent from its staged file.
 
 A sign-in, a sign-out and a revocation wipe the rows and the attachment files;
 the boot RESTORE keeps them — that launch is what the mirror exists for. Which
@@ -224,9 +243,11 @@ failure, one pass at a time (`createSingleFlight` from
   Mac's attachment choice lives in its own data folder, under a free name
   (`@repo/notes/knowledge/asset-name`), as a JPEG: the Mac's editor cannot
   show a HEIC, and the re-encode leaves the photo's location behind.
-- **Signing out asks first.** `logout` refuses while anything is unsent, and
-  the home screen's confirm names the count; a discard wipes the rows and the
-  staged photos with the mirror, and so does a revocation.
+- **Signing out asks first.** `logout` refuses while an edit is unsent or a
+  request no Mac holds yet waits (a sign-out drops the phone's waiting rows
+  from the inbox with its device), and the home screen's confirm names both
+  counts; a discard wipes the rows and the staged photos with the mirror,
+  and the requests with them, and so does a revocation.
 
 ## Who applies captures
 
@@ -322,8 +343,12 @@ that is signed in.
   answered, the foreground poll), and the composition's restore, sign-out,
   revocation and resume, the file verbs (a rename's rewritten link and alias,
   a note changed under it, a delete's comment store, a new note stepping past
-  a taken name, a photo's size and cap) — all against faked fetch. Unit tests,
-  no device. `tools/e2e/src/scenarios/phone-offline-edit.ts` and
+  a taken name, a photo's size and cap), the editor page's native end (every
+  frame kind to its port, a foreign document's, another load's and a
+  malformed frame dropped, a flush held until the page answers, the load
+  policy) and its ports (a write landing, a sync landed since the read
+  handed back, a deleted note, attachments on demand, the change feed, the
+  routes) — all against faked fetch. Unit tests, no device. `tools/e2e/src/scenarios/phone-offline-edit.ts` and
   `phone-file-ops-hosted.ts` run the same composition under node against a
   real Worker and a desktop.
 - **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
@@ -348,13 +373,31 @@ that is signed in.
   the Mac, and asking a Mac: Ask agent from a note shows Waiting for your Mac,
   the desktop runs it and the reply appears after a pull, the composer rides
   above the keyboard, and quitting the desktop shows the open-inteligir line.
+  The editor: a release build opens a note from `file://` offline; a cold open
+  is editable within a second on 2,000 notes; typing, autocorrect and the
+  keyboard's dictation land once; the selection handles and the edit menu
+  work, with no floating toolbar; the toolbar rides the keyboard; a new note
+  opens with its title focused and the keyboard up; a wiki link pushes and
+  back returns; an external link opens Safari and the WebView never
+  navigates; a chart and tabs refuse edits; a photo inserts downscaled;
+  backgrounding and then killing the app keeps what was typed; a killed
+  content process reloads; dark mode follows the system.
 
 ## Dev
 
 ```bash
+pnpm --filter @repo/mobile ios                                              # builds the editor page, then the app
 pnpm --filter @repo/mobile dev                                              # against the production cloud
 EXPO_PUBLIC_CLOUD_URL=http://localhost:5174 pnpm --filter @repo/mobile dev  # against `pnpm dev:web`
 ```
+
+The note screen's editor is `@repo/mobile-editor`'s built page, carried in the
+app bundle by `plugins/with-editor-page.js`, so it changes only with a new
+native build: `pnpm --filter @repo/mobile ios` builds the page first, and
+`pnpm --filter @repo/mobile editor-page` rebuilds it alone. Metro serves the
+JavaScript alone; there is no dev server for the page (its CSP refuses the
+script a Vite dev page injects), and Safari's Web Inspector reaches it in a
+development build (`webviewDebuggingEnabled`).
 
 Unset, the phone talks to the production origin, the same rule the desktop
 follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/api/cloud/origin`, the one
@@ -376,7 +419,9 @@ marketing version is `package.json`'s, the product version the CLI and the
 desktop carry (`tools/repo-guards/src/release-versions.test.ts`). `eas.json`
 names the node and pnpm the repo is checked with, and no `.easignore`: EAS
 falls back to `.gitignore`, which keeps `.release/` and every `.env*` out of
-the upload.
+the upload. The editor page is gitignored build output, so EAS builds it in
+the `eas-build-post-install` hook, and `testflight` builds it first on this
+machine too, since the fingerprint below is taken on both.
 
 ```bash
 pnpm testflight:mobile   # eas build --platform ios --profile production --auto-submit
@@ -414,4 +459,9 @@ code fingerprints the same (`runtimeVersion: { policy: "fingerprint" }`), so a
 change to a native module, a config plugin or the SDK needs
 `pnpm testflight:mobile` instead. The script clears `EXPO_PUBLIC_CLOUD_URL`
 because, unlike `eas build`, `eas update` bundles with this shell's environment,
-and a leftover local origin would ship to every phone.
+and a leftover local origin would ship to every phone. The editor page is
+native too: it ships in the binary, so `fingerprint.config.js` adds its build
+to the fingerprint and `hotfix` builds the page before taking it. An update
+bundled beside a changed page matches no installed build and reaches nobody;
+a page change needs `pnpm testflight:mobile`, since the bridge between the
+page and the JavaScript breaks freely between releases.

@@ -2,7 +2,7 @@ import { VAULT_ASSET_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { createFileOps } from "../file-ops";
 import type { NotesStore } from "../notes-store";
-import { photoBaseName, photoResize, withPhotoEmbed } from "../photo-plan";
+import { photoBaseName, photoResize } from "../photo-plan";
 import { blobOid, createFakeVault, networkOver, requestsOf } from "./fake-vault";
 import type { FakeVault, Network } from "./fake-vault";
 import { launchPhone } from "./phone-storage";
@@ -222,15 +222,6 @@ describe("a photo from the phone", () => {
     expect(store.outbox.status.get()).toMatchObject({ unsent: 0 });
     expect(store.heldFiles()).toStrictEqual([]);
     expect(requestsOf(vault, "commit")).toStrictEqual([]);
-  });
-
-  it("is embedded as the note's last paragraph, at its vault path", () => {
-    const embed = "![](<assets/Photo 2026-09-26 14.30.05.jpg>)\n";
-    const path = "assets/Photo 2026-09-26 14.30.05.jpg";
-    expect(withPhotoEmbed("# Plan\n", path)).toBe(`# Plan\n\n${embed}`);
-    expect(withPhotoEmbed("# Plan", path)).toBe(`# Plan\n\n${embed}`);
-    expect(withPhotoEmbed("# Plan\n\n", path)).toBe(`# Plan\n\n${embed}`);
-    expect(withPhotoEmbed("", path)).toBe(embed);
   });
 
   it("is scaled to a 2048px long edge, and one that fits is left as it is", () => {

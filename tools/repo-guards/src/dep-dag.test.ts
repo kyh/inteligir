@@ -55,8 +55,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a partial cloud client: reads the thread log and produces captures, never pushes or claims,
     // and writes the vault only through the guarded commit route. the @repo/notes edge is the
     // dialect's own parse, link resolver and the one conflict verdict its write queue settles
-    // with; it reaches no server, vault engine or agent.
-    "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/notes"],
+    // with; the @repo/mobile-editor edge is the editor page's wire alone (EDITOR_PAGE_CLIENTS
+    // below), since the page itself ships built; it reaches no server, vault engine or agent.
+    "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/mobile-editor", "@repo/notes"],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
     // its own bridge, so no contract and no cloud wire.
     "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/ui"],
@@ -150,6 +151,17 @@ const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   [
     "@repo/mobile",
     "a phone install may be months stale against the deployed Worker, while /local ships in the desktop bundle and may break freely",
+  ],
+]);
+
+// The phone's editor page is DOM React built by Vite; a native client that hosts it reaches the
+// bridge's wire alone and loads the page as a built bundle. Any other import would compile DOM
+// code a second way, under the client's own bundler and TypeScript.
+const EDITOR_PAGE_WIRE = "@repo/mobile-editor/bridge-protocol";
+const EDITOR_PAGE_CLIENTS = new Map<string, string>([
+  [
+    "@repo/mobile",
+    "React Native under Metro and TypeScript 6, hosting the page in a WebView from the app bundle",
   ],
 ]);
 
@@ -440,6 +452,36 @@ describe("platform purity", () => {
           violations.push(
             `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
               `  rule: ${name} reaches @repo/api/cloud/* alone — ${why}`,
+          );
+        }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("every editor page client reaches the page's wire and nothing else of it", () => {
+    const violations: string[] = [];
+    for (const [name, why] of EDITOR_PAGE_CLIENTS) {
+      const client = workspaces().find((candidate) => candidate.name === name);
+      if (client === undefined) {
+        violations.push(
+          `EDITOR_PAGE_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
+            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
+        );
+        continue;
+      }
+      const files = workspaceFiles(client);
+      for (const file of [...files.shipped, ...files.test]) {
+        for (const specifier of importsOf(file)) {
+          if (resolveWorkspace(specifier)?.name !== "@repo/mobile-editor") {
+            continue;
+          }
+          if (specifier === EDITOR_PAGE_WIRE) {
+            continue;
+          }
+          violations.push(
+            `EDITOR PAGE SOURCE IN ITS HOST  ${file} imports "${specifier}"\n` +
+              `  rule: ${name} reaches ${EDITOR_PAGE_WIRE} alone — ${why}`,
           );
         }
       }
