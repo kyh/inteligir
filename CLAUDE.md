@@ -1377,6 +1377,10 @@ to the END of its group.
   so the add is handed back as that sign-in. A sign-in is one per agent and
   name, polled by Settings, and ended by its five-minute window, its row's
   removal or shutdown, each killing the vendor process (`mcp-sign-ins.ts`). A
+  plain list answers from the last read for ten seconds, because reading
+  codex's spawns it and runs OAuth discovery against every URL row, which that
+  poll would do every 1.5s; every edit and every sign-in's end reads again
+  (`connectors-service.ts`). A
   name this app adds cannot start with `-`, and every name rides after `--`, so
   a vendor row of any name can be removed. The retired registry is deleted at
   boot, never imported (`retired-connectors-file.ts`). A booted suite runs the

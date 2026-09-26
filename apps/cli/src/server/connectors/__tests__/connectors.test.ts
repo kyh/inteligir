@@ -48,6 +48,11 @@ const firstSignIn = async (service: ConnectorsService) => {
   return servers[0]?.signIn;
 };
 
+const listedNames = async (service: ConnectorsService): Promise<string[]> => {
+  const { servers } = await service.list();
+  return servers.map((server) => server.name);
+};
+
 const verbsOf = (runs: FakeVendorRun[]): string[] =>
   runs.map((run) => `${run.vendor} ${run.args.slice(0, 2).join(" ")}`);
 
@@ -364,6 +369,44 @@ describe("the connectors service", () => {
     const { pid } = await vi.waitFor(() => runOf(vendors, "add"), SLOW_VENDOR);
     await service.dispose();
     expect(processAlive(pid)).toBe(false);
+  });
+
+  it("reads codex's list once while a sign-in waits on its poll, and again once it ends", async () => {
+    const vendors = fakeMcpVendors();
+    const service = serviceOver(vendors, "codex");
+    const lists = (): number => vendors.runs().filter((run) => run.args[1] === "list").length;
+    await service.add({ name: "docs", target: URL_ROW });
+    await service.signIn("docs");
+    const read = lists();
+
+    for (let poll = 0; poll < 3; poll += 1) {
+      const signIn = await firstSignIn(service);
+      expect(signIn?.state).toBe("pending");
+    }
+    expect(lists()).toBe(read);
+
+    vendors.release();
+    await vi.waitFor(async () => {
+      expect(await firstSignIn(service)).toEqual({ state: "idle" });
+    }, SLOW_VENDOR);
+    await service.list();
+    expect(lists()).toBeGreaterThan(read);
+  });
+
+  it("reads a row added outside the app once the last read is older than its window", async () => {
+    const vendors = fakeMcpVendors();
+    const service = serviceOver(vendors, "codex", { listCacheMs: 1000 });
+    expect(await listedNames(service)).toEqual([]);
+    writeFileSync(
+      path.join(vendors.env.CODEX_HOME ?? "", "servers.json"),
+      JSON.stringify({
+        files: { auth_status: "unsupported", transport: { command: "srv", type: "stdio" } },
+      }),
+    );
+    expect(await listedNames(service)).toEqual([]);
+    await vi.waitFor(async () => {
+      expect(await listedNames(service)).toEqual(["files"]);
+    }, SLOW_VENDOR);
   });
 
   it("leaves a sign-in already running to run, and reads the row idle once it finishes", async () => {
