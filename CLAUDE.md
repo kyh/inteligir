@@ -2,22 +2,57 @@
 
 ## Project Overview
 
-**inteligir** — an AI-native notes app (Obsidian-with-an-agent), local-first.
-The vault is markdown files in a git repo the user owns; one local Node process
-owns that vault, indexes it, answers one API, and drives a coding agent that
-edits those same files. The only hosted piece is a Cloudflare Worker carrying
-the marketing site, accounts, cross-device thread sync, the capture inbox and
-the account's hosted vault git remote (#618).
+**inteligir** is Obsidian where an agent edits your notes with you. It is for
+general knowledge workers, not developers: a small invited cohort, on macOS
+Apple silicon only. The vault is a folder of markdown files on the user's own
+disk; one local Node process owns that vault, indexes it, answers one API, and
+drives the agent that edits those same files. The only hosted piece is a
+Cloudflare Worker carrying the marketing site, accounts, cross-device sync, the
+capture inbox and the account's hosted vault.
+
+The premises every change builds from, each with its reason:
+
+- **The agent runs on the user's own Claude or ChatGPT plan, on their Mac,**
+  through the runtimes bundled inside the .app, because the owner never pays
+  for model usage and a knowledge worker has no agent to install.
+- **Signing the agent in is the vendor's own sign-in, into the vendor's shared
+  store** (`~/.claude`, `~/.codex`), so a Mac already signed in stays signed in
+  and the app never holds a model credential of its own.
+- **There is no API-key fallback**: a key is a bill the user never chose and a
+  secret the app would have to keep.
+- **No model call goes through the Worker or the phone**, because a model call
+  there is one the owner pays for.
+- **Git is the engine, never the vocabulary.** History, undo and sync ride git,
+  and no product surface says git, commit, remote, repo, terminal, CLI, PATH or
+  MCP, because none of those words is the user's. Settings › Advanced is the one
+  exception, for the user who brings their own sync server.
+- **The phone is a full editor.** It writes through a guarded Worker endpoint
+  and asks a Mac to run the agent, because a phone holds neither git nor a
+  model.
+- **Connectors are the default agent's own MCP config**, because one registry,
+  the vendor's, with the vendor's own sign-in, beats a second one beside it.
+- **Dictation is the operating system's**, because the Mac's and the phone
+  keyboard's are already there and cost the app no speech model.
+- **Every feature is core.** Nothing sits behind a tier or a flag, and nothing
+  already built is cut for the persona: the persona changes the words.
+- **An account is optional, and offered.** Without one the app is a local notes
+  app that makes no cloud request; with one it syncs, and the hosted vault is
+  free up to about 1 GB.
 
 **TWO PROGRAMS.** `apps/desktop` is the shipped product — the window, and the
-SPA inside it. `apps/cli` is the `inteligir` binary: `serve` IS that local
-server, and every other verb is a client of a running one.
+SPA inside it — and the user installs it as the signed dmg. `apps/cli` is the
+`inteligir` binary: `serve` IS that local server, and every other verb is a
+client of a running one. The CLI is the agent's door and the developer's;
+nothing the user does needs a terminal.
 
 **The architecture's decision record is GitHub issues
 [#542](https://github.com/kyh/inteligir/issues/542) and
 [#611](https://github.com/kyh/inteligir/issues/611)** — what was chosen, and
 what was rejected and why. #611 is the v4 consolidation, and it REVERSES four
-of #542's lines deliberately; where the two disagree, #611 wins.
+of #542's lines deliberately; where the two disagree, #611 wins. Where either
+of them, or a Decisions bullet below, assumes a developer at the keyboard, this
+overview wins, and the issue that changes that code rewrites the bullet in the
+same commit.
 
 Turborepo + pnpm monorepo.
 
@@ -209,8 +244,11 @@ in `DECLARED_CI_EXTRAS` with its reason.
 
 **A change a user can notice updates `CHANGELOG.md` in the same task**: a line
 under `## Unreleased`, in the user's words rather than a commit subject, and a
-behaviour that changed or went away says what to do about it. A release's
-notes are that section (THE RELEASE NOTES ARE THE CHANGELOG, below).
+behaviour that changed or went away says what to do about it. The line is
+written for someone who takes notes, not someone who reads code; a change to
+the command line goes under `### On the command line` in that section, the one
+place the CLI's own words stay. A release's notes are that section (THE
+RELEASE NOTES ARE THE CHANGELOG, below).
 
 **There is no seeded login, and sign-up is invite-only.** `AGENTS.md` has the
 recipe. Never run `db:push:remote` or `db:studio:remote`: both hit production
@@ -1370,14 +1408,16 @@ to the END of its group.
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**
   (reversing the launcher-boots-in-process line). `npx inteligir serve --open`
-  is the zero-install path with one exit code. The desktop shell still forks a
-  child so the compositor never shares an event loop with better-sqlite3, a
-  watcher fork and `git`, supervised with the deliberate absence of a restart
-  (`apps/desktop/src/main/server-process.ts`). Whether `server.json`'s owner
-  still serves has ONE reading, `apps/cli/src/server/server-probe.ts`, which
-  the boot's guard and the shell's adoption both project; the shell refuses a
-  server of another version, because `/local`'s two ends may break freely only
-  while they ship together.
+  is the developer's and the agent's zero-install path, with one exit code; a
+  user installs the signed dmg and never meets it. The desktop shell still
+  forks a child so the compositor never shares an event loop with
+  better-sqlite3, a watcher fork and `git`, supervised with the deliberate
+  absence of a restart (`apps/desktop/src/main/server-process.ts`). Whether
+  `server.json`'s owner still serves has ONE reading,
+  `apps/cli/src/server/server-probe.ts`, which the boot's guard and the
+  shell's adoption both project; the shell refuses a server of another
+  version, because `/local`'s two ends may break freely only while they ship
+  together.
 
 - **A DATA DIR HAS ONE SERVER, AND THE LOCK, NOT THE ROW, DECIDES IT.**
   `server.json` is published only after listen, so two boots started together

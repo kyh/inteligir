@@ -1,20 +1,26 @@
 # AGENTS.md
 
-**inteligir** is an AI-native notes app — Obsidian with an agent, local-first.
-There are TWO programs. `apps/cli` is the `inteligir` binary: `serve` runs the
-whole local server (a git-versioned markdown vault, its index, the agent
-runtime and one oRPC API over SQLite), and every other verb is a client of a
-running one — which is how an agent drives the product from bash.
-`apps/desktop` is THE SHIPPED PRODUCT: one window on that server, forking it as
-a child, with the SPA as its renderer. `apps/web` is the one hosted piece — a
-Cloudflare Worker carrying the marketing site, Better Auth on D1, device
-login, cross-device thread sync, the capture inbox and the hosted vault git
-remote. This is the tool-agnostic guide for
-coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
-GitHub issues #542 and #611 the decision record, the `note` issues the declines
-register (#788, #645, #674, #603, #705; read them before raising a finding),
-`CONTEXT.md` the domain glossary, `apps/web/README.md` the Worker's own routes
-and deploy.
+**inteligir** is Obsidian where an agent edits your notes with you: a Mac app
+for general knowledge workers, not developers, shipped to a small invited
+cohort on Apple silicon. The agent runs on the user's own Claude or ChatGPT
+plan, on their Mac; git versions and syncs the vault underneath, and the user
+never meets it. `CLAUDE.md` § Project Overview holds the premises every change
+builds from, and where older prose assumes a developer, the overview wins.
+
+There are TWO programs. `apps/desktop` is THE SHIPPED PRODUCT, installed as the
+signed dmg: one window on the local server, forking it as a child, with the SPA
+as its renderer. `apps/cli` is the `inteligir` binary: `serve` runs the whole
+local server (the markdown vault, its index, the agent runtime and one oRPC API
+over SQLite), and every other verb is a client of a running one. The CLI is the
+agent's door and the developer's, which is how an agent drives the product from
+bash; nothing the user does needs a terminal. `apps/web` is the one hosted
+piece — a Cloudflare Worker carrying the marketing site, Better Auth on D1,
+device login, cross-device sync, the capture inbox and the hosted vault. This
+is the tool-agnostic guide for coding agents; `CLAUDE.md` holds the
+architecture and the durable decisions, GitHub issues #542 and #611 the
+decision record, the `note` issues the declines register (#877, #788, #645,
+#674, #603, #705; read them before raising a finding), `CONTEXT.md` the domain
+glossary, `apps/web/README.md` the Worker's own routes and deploy.
 
 ## Quickstart
 
@@ -133,7 +139,14 @@ rather than moving the app somewhere the docs don't name.
 
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
 - **A change a user can notice updates `CHANGELOG.md` in the same task**, under
-  `## Unreleased`, in the user's words: a release's notes are that section.
+  `## Unreleased`, written for someone who takes notes: a release's notes are
+  that section. A change to the command line goes under its
+  `### On the command line` heading.
+- **Product surfaces speak the user's words.** The window, the phone,
+  onboarding, the seed notes, the site and the changelog (outside its
+  `### On the command line` heading) never say git, commit, remote, repo,
+  terminal, CLI, PATH or MCP. Settings › Advanced, the CLI, the agent manual
+  and code keep their words.
 - **No `any`, no non-null `!`, no type assertions** (lint-enforced, with no
   escape comment; `as const` and `satisfies` are fine): parse at the boundary
   or narrow with a type guard. Kebab-case filenames. Make illegal states

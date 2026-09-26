@@ -137,3 +137,42 @@ delete.
 - `git push` to ANY remote is subject to that remote's own retention; the
   hosted vault repo is deleted with the account, a GitHub remote is governed
   by GitHub.
+
+## Every address the app talks to
+
+Your account's cloud is one origin, `https://inteligir.com`, and every call the
+app, the phone or the account pages make to it is one of these routes. Nothing
+else under `/v1/` exists.
+
+| Route                     | What it carries                                                                                      | What authenticates it                                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `/v1/auth/sign-up`        | Your email, name, password and invite code, once, to create the account.                             | The invite code; attempts are throttled per caller address. |
+| `/v1/device/login`        | Your email, password and this device's name, once; it answers the device's credential.               | Your password; attempts are throttled per caller address.   |
+| `/v1/device/sign-out`     | Nothing but the credential; the device it names is removed from your account.                        | That device's credential.                                   |
+| `/v1/device/list`         | Your devices' names and when each was created, last seen and revoked, for the account pages.         | Your signed-in browser session.                             |
+| `/v1/device/revoke`       | The id of the device to revoke.                                                                      | Your signed-in browser session.                             |
+| `/v1/account`             | Your account's email and id, answered to a signed-in device.                                         | The device's credential.                                    |
+| `/v1/sync/push`           | Your conversations with the agent, as events, with each one's title, note, agent and archived state. | The device's credential.                                    |
+| `/v1/sync/pull`           | The same events, written by your other devices.                                                      | The device's credential.                                    |
+| `/v1/sync/ws`             | A live connection that says only that something changed; the content moves by push and pull.         | The device's credential.                                    |
+| `/v1/capture`             | The text of a quick capture.                                                                         | The device's credential.                                    |
+| `/v1/sync/captures/claim` | The captures waiting for a computer to add them to your Inbox note.                                  | The device's credential.                                    |
+| `/v1/sync/captures/ack`   | The ids of the captures that computer added.                                                         | The device's credential and the claim it was handed.        |
+| `/v1/vault/tree`          | The names and sizes of the files in your hosted vault.                                               | The device's credential, within a per-device budget.        |
+| `/v1/vault/file`          | One note's text from your hosted vault.                                                              | The device's credential, within a per-device budget.        |
+| `/v1/vault/asset`         | One attachment from your hosted vault.                                                               | The device's credential, within a per-device budget.        |
+| `/v1/git/vault.git`       | Your vault and its history, sent up from and down to your computers.                                 | The device's credential, within a per-device budget.        |
+
+Everything else the app reaches is someone else's:
+
+- **GitHub's release feed**, for the update check described above.
+- **The agent's provider** (Anthropic for Claude, OpenAI for ChatGPT). The
+  agent runs on your Mac and sends what it reads to that provider, under your
+  own plan with them.
+- **That provider's sign-in page**, opened in your browser when you sign the
+  agent in; the credential it gives back stays in the provider's own folder on
+  your Mac.
+- **The servers you connect the agent to**, each at the address you gave it,
+  and their own sign-in pages when they ask for one.
+- **Your own sync server**, if you set one up for a vault instead of your
+  account's hosted vault.
