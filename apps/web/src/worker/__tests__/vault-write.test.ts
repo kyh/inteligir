@@ -24,6 +24,7 @@ import {
   emitted,
   loginDevice,
   ORIGIN,
+  postVaultRead,
   sessionHeaders,
   signUpUser,
   userIdOf,
@@ -32,8 +33,6 @@ import { pushVaultFiles, randomBytes, ZERO_OID } from "./git-pack";
 import type { PushFile } from "./git-pack";
 
 const COMMIT = `${ORIGIN}${VAULT_API_PATHS.commit}`;
-const FILE = `${ORIGIN}${VAULT_API_PATHS.file}`;
-const ASSET = `${ORIGIN}${VAULT_API_PATHS.asset}`;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -126,9 +125,7 @@ const textAt = async (vault: Vault, path: string): Promise<string | null> => {
 };
 
 const readFile = async (credential: string, path: string) => {
-  const response = await SELF.fetch(`${FILE}?path=${encodeURIComponent(path)}`, {
-    headers: deviceHeaders(credential),
-  });
+  const response = await postVaultRead(VAULT_API_PATHS.file, deviceHeaders(credential), { path });
   expect(response.status).toBe(200);
   return emitted(vaultFileResponseSchema, await response.text());
 };
@@ -236,10 +233,10 @@ describe("a phone's change set against the hosted vault", () => {
       ]),
     );
 
-    const asset = await SELF.fetch(
-      `${ASSET}?path=${encodeURIComponent("media/photo.png")}&ref=${answer.commit}`,
-      { headers: deviceHeaders(vault.phone) },
-    );
+    const asset = await postVaultRead(VAULT_API_PATHS.asset, deviceHeaders(vault.phone), {
+      path: "media/photo.png",
+      ref: answer.commit,
+    });
     expect(asset.status).toBe(200);
     expect(asset.headers.get("content-type")).toBe("image/png");
     expect(new Uint8Array(await asset.arrayBuffer())).toStrictEqual(png);

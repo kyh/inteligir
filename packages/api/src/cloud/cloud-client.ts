@@ -442,15 +442,12 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     },
     // the credential names the device, so the body carries nothing
     signOut: async () => await send(DEVICE_API_PATHS.signOut, {}, revokeDeviceResponseSchema),
-    // the credential rides a header, never the URL, where caches and logs would keep it
+    // every vault read posts its query and the credential rides a header: neither reaches the URL,
+    // which logs and traces keep
     vaultAsset: async (query) =>
       await readAssetCall(
         async () =>
-          await call(endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`), {
-            headers: { authorization },
-            method: "GET",
-            signal: callSignal(args.signal),
-          }),
+          await call(endpointUrl(args.baseUrl, VAULT_API_PATHS.asset), requestInit(query)),
         query.path,
       ),
     vaultCommit: async (request) =>
@@ -458,20 +455,10 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
         async () =>
           await call(endpointUrl(args.baseUrl, VAULT_API_PATHS.commit), requestInit(request)),
       ),
-    vaultFile: async (query) =>
-      await send(
-        `${VAULT_API_PATHS.file}${queryString(query)}`,
-        undefined,
-        vaultFileResponseSchema,
-      ),
+    vaultFile: async (query) => await send(VAULT_API_PATHS.file, query, vaultFileResponseSchema),
     vaultFiles: async (request) =>
       await send(VAULT_API_PATHS.files, request, vaultFilesResponseSchema),
-    vaultTree: async (query) =>
-      await send(
-        `${VAULT_API_PATHS.tree}${queryString(query)}`,
-        undefined,
-        vaultTreeResponseSchema,
-      ),
+    vaultTree: async (query) => await send(VAULT_API_PATHS.tree, query, vaultTreeResponseSchema),
   };
 };
 

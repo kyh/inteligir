@@ -235,7 +235,11 @@ account whose vault holds about 2,000 notes gives the timing check its load.
 - **No iCloud backup of the notes.** Settings › your name › iCloud › Manage
   Account Storage › Backups › this iPhone. Passing: Inteligir's backup is a
   small fraction of the notes it holds (the mirror downloads again from the
-  hosted vault).
+  hosted vault), and photos added in airplane mode do not grow it.
+- **A new phone signs in as itself.** Restore this iPhone's encrypted backup
+  onto another iPhone and open the app. Passing: it shows the sign-in screen,
+  and once signed in Settings › Account on the Mac lists it beside the first
+  phone.
 - **An update reaches an installed build.** While the internal build is the
   only one out, `pnpm hotfix:mobile` from the release commit, then open the app
   twice. Passing: `pnpm --filter @repo/mobile exec eas update:insights <group id>`

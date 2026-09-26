@@ -14,16 +14,42 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { vaultRepoName } from "../vault/git-remote";
 import { treeListingPrefix, treeListingSlot } from "../vault/tree-listing";
-import { deviceHeaders, emitted, ORIGIN, loginDevice, signUpUser, userIdOf } from "./cloud-helpers";
+import {
+  deviceHeaders,
+  emitted,
+  ORIGIN,
+  loginDevice,
+  postVaultRead,
+  signUpUser,
+  userIdOf,
+} from "./cloud-helpers";
+import type { VaultReadBody } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
-const FILE = `${ORIGIN}${VAULT_API_PATHS.file}`;
 const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
-const ASSET = `${ORIGIN}${VAULT_API_PATHS.asset}`;
 
 const errorCode = async (response: Response): Promise<string> =>
   emitted(cloudErrorSchema, await response.text()).error.code;
+
+const readTree = async (credential: string, query: VaultReadBody): Promise<Response> =>
+  await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), query);
+
+const readFile = async (credential: string, query: VaultReadBody): Promise<Response> =>
+  await postVaultRead(VAULT_API_PATHS.file, deviceHeaders(credential), query);
+
+const readAsset = async (credential: string, query: VaultReadBody): Promise<Response> =>
+  await postVaultRead(VAULT_API_PATHS.asset, deviceHeaders(credential), query);
+
+// the form installs before the body form send, which the Worker answers for as long as one exists
+const getRead = async (
+  path: string,
+  credential: string,
+  query: Record<string, string>,
+): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}${path}?${new URLSearchParams(query).toString()}`, {
+    headers: deviceHeaders(credential),
+  });
 
 const loginAndPush = async (email: string, files: Parameters<typeof pushVaultFiles>[2]) => {
   const { bearer } = await signUpUser(email);
@@ -41,16 +67,7 @@ const pageWholeTree = async (credential: string, limit: number, ref?: string) =>
   let pinned = ref;
   let after: string | undefined;
   do {
-    const query = new URLSearchParams({ limit: String(limit) });
-    if (pinned !== undefined) {
-      query.set("ref", pinned);
-    }
-    if (after !== undefined) {
-      query.set("after", after);
-    }
-    const response = await SELF.fetch(`${TREE}?${query.toString()}`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await readTree(credential, { after, limit, ref: pinned });
     expect(response.status).toBe(200);
     const page = emitted(vaultTreeResponseSchema, await response.text());
     commits.add(page.commit);
@@ -75,7 +92,7 @@ const MANY_FOLDERS = [
 
 describe("vault read rows", () => {
   it("refuses the wire without a credential", async () => {
-    const tree = await SELF.fetch(TREE);
+    const tree = await postVaultRead(VAULT_API_PATHS.tree, {}, {});
     expect(tree.status).toBe(401);
     expect(await errorCode(tree)).toBe("unauthorized");
   });
@@ -83,7 +100,7 @@ describe("vault read rows", () => {
   it("answers not-found for an account with no hosted vault — without creating one", async () => {
     const { bearer } = await signUpUser("vault-read-none@example.test");
     const { credential } = await loginDevice(bearer, "Laptop");
-    const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
+    const tree = await readTree(credential, {});
     expect(tree.status).toBe(404);
     expect(await errorCode(tree)).toBe("not-found");
   });
@@ -95,17 +112,18 @@ describe("vault read rows", () => {
       { content: "# c\n", path: "notes/deep/c.md" },
     ]);
 
-    const first = await SELF.fetch(`${TREE}?limit=2`, { headers: deviceHeaders(credential) });
+    const first = await readTree(credential, { limit: 2 });
     expect(first.status).toBe(200);
     const pageOne = emitted(vaultTreeResponseSchema, await first.text());
     expect(pageOne.commit).toBe(commit);
     expect(pageOne.entries.map((entry) => entry.path)).toEqual(["a.md", "notes/b.md"]);
     expect(pageOne.next).toBe("notes/b.md");
 
-    const second = await SELF.fetch(
-      `${TREE}?limit=2&ref=${pageOne.commit}&after=${encodeURIComponent(pageOne.next ?? "")}`,
-      { headers: deviceHeaders(credential) },
-    );
+    const second = await readTree(credential, {
+      after: pageOne.next ?? undefined,
+      limit: 2,
+      ref: pageOne.commit,
+    });
     const pageTwo = emitted(vaultTreeResponseSchema, await second.text());
     expect(pageTwo.commit).toBe(commit);
     expect(pageTwo.entries.map((entry) => entry.path)).toEqual(["notes/deep/c.md"]);
@@ -125,9 +143,7 @@ describe("vault read rows", () => {
 
     // what the slot holds is what a pinned page answers, which is how a page skips the walk
     await slot.write(commit, [{ oid: "d".repeat(40), path: "only-in-the-slot.md", size: 1 }]);
-    const pinned = await SELF.fetch(`${TREE}?ref=${commit}`, {
-      headers: deviceHeaders(credential),
-    });
+    const pinned = await readTree(credential, { ref: commit });
     expect(
       emitted(vaultTreeResponseSchema, await pinned.text()).entries.map((entry) => entry.path),
     ).toEqual(["only-in-the-slot.md"]);
@@ -156,7 +172,7 @@ describe("vault read rows", () => {
     ]);
     const repo = vaultRepoName(await userIdOf(bearer));
     const slot = treeListingSlot(env.PACK_CACHE, repo);
-    const filled = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
+    const filled = await readTree(credential, {});
     expect(filled.status).toBe(200);
     const kept = await env.PACK_CACHE.list({ prefix: treeListingPrefix(repo) });
     expect(kept.objects).toHaveLength(1);
@@ -167,7 +183,7 @@ describe("vault read rows", () => {
     }
     expect(await slot.read(commit)).toBeNull();
 
-    const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
+    const tree = await readTree(credential, {});
     const { entries } = emitted(vaultTreeResponseSchema, await tree.text());
     expect(entries).toEqual([
       { oid: expect.stringMatching(/^[0-9a-f]{40}$/u), path: "a.md", size: 4 },
@@ -182,7 +198,7 @@ describe("vault read rows", () => {
       { content: "# backslash\n", path: "a\\b.md" },
       { content: "# under a refused directory\n", path: "2024\\q1/c.md" },
     ]);
-    const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
+    const tree = await readTree(credential, {});
     expect(tree.status).toBe(200);
     expect(
       emitted(vaultTreeResponseSchema, await tree.text()).entries.map((entry) => entry.path),
@@ -193,9 +209,7 @@ describe("vault read rows", () => {
     const { credential, commit } = await loginAndPush("vault-read-file@example.test", [
       { content: "# hello\n\nfrom the vault\n", path: "notes/hello.md" },
     ]);
-    const response = await SELF.fetch(`${FILE}?path=${encodeURIComponent("notes/hello.md")}`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await readFile(credential, { path: "notes/hello.md" });
     expect(response.status).toBe(200);
     const file = emitted(vaultFileResponseSchema, await response.text());
     expect(file.commit).toBe(commit);
@@ -209,14 +223,11 @@ describe("vault read rows", () => {
       { content: "# a\n", path: "a.md" },
       { content: "# b\n", path: "notes/b.md" },
     ]);
-    const tree = await SELF.fetch(`${TREE}?ref=${commit}`, { headers: deviceHeaders(credential) });
+    const tree = await readTree(credential, { ref: commit });
     const { entries } = emitted(vaultTreeResponseSchema, await tree.text());
     expect(entries.map((entry) => entry.path)).toEqual(["a.md", "notes/b.md"]);
     for (const entry of entries) {
-      const response = await SELF.fetch(
-        `${FILE}?path=${encodeURIComponent(entry.path)}&ref=${commit}`,
-        { headers: deviceHeaders(credential) },
-      );
+      const response = await readFile(credential, { path: entry.path, ref: commit });
       expect(emitted(vaultFileResponseSchema, await response.text()).oid).toBe(entry.oid);
     }
     expect(entries[0]?.oid).not.toBe(entries[1]?.oid);
@@ -226,12 +237,10 @@ describe("vault read rows", () => {
     const { credential } = await loginAndPush("vault-read-percent@example.test", [
       { content: "# done\n", path: "100%done.md" },
     ]);
-    const response = await SELF.fetch(`${FILE}?path=${encodeURIComponent("100%done.md")}`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await readFile(credential, { path: "100%done.md" });
     expect(response.status).toBe(200);
     expect(emitted(vaultFileResponseSchema, await response.text()).content).toBe("# done\n");
-    const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
+    const tree = await readTree(credential, {});
     expect(
       emitted(vaultTreeResponseSchema, await tree.text()).entries.map((entry) => entry.path),
     ).toContain("100%done.md");
@@ -241,9 +250,7 @@ describe("vault read rows", () => {
     const { credential } = await loginAndPush("vault-read-miss@example.test", [
       { content: "# a\n", path: "a.md" },
     ]);
-    const response = await SELF.fetch(`${FILE}?path=gone.md`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await readFile(credential, { path: "gone.md" });
     expect(response.status).toBe(404);
     expect(await errorCode(response)).toBe("not-found");
   });
@@ -256,15 +263,11 @@ describe("vault read rows", () => {
       { content: huge, path: "huge.md" },
     ]);
 
-    const binary = await SELF.fetch(`${FILE}?path=image.png`, {
-      headers: deviceHeaders(credential),
-    });
+    const binary = await readFile(credential, { path: "image.png" });
     expect(binary.status).toBe(400);
     expect(await errorCode(binary)).toBe("bad-request");
 
-    const oversize = await SELF.fetch(`${FILE}?path=huge.md`, {
-      headers: deviceHeaders(credential),
-    });
+    const oversize = await readFile(credential, { path: "huge.md" });
     expect(oversize.status).toBe(413);
     expect(await errorCode(oversize)).toBe("file-too-large");
   });
@@ -276,38 +279,36 @@ describe("vault read rows", () => {
     const beta = await signUpUser("vault-read-beta@example.test");
     const betaDevice = await loginDevice(beta.bearer, "Laptop");
 
-    const asBeta = await SELF.fetch(`${FILE}?path=secret.md&ref=${alpha.commit}`, {
-      headers: deviceHeaders(betaDevice.credential),
-    });
+    const asBeta = await readFile(betaDevice.credential, { path: "secret.md", ref: alpha.commit });
     expect(asBeta.status).toBe(404);
   });
 
-  it("refuses a malformed path at parse", async () => {
+  it("refuses a malformed path, a stray field or a body that is no JSON at parse", async () => {
     const { credential } = await loginAndPush("vault-read-path@example.test", [
       { content: "# a\n", path: "a.md" },
     ]);
-    for (const bad of ["../escape.md", "/rooted.md", "a//b.md"]) {
-      const response = await SELF.fetch(`${FILE}?path=${encodeURIComponent(bad)}`, {
-        headers: deviceHeaders(credential),
-      });
-      expect(response.status).toBe(400);
+    for (const query of [
+      { path: "../escape.md" },
+      { path: "/rooted.md" },
+      { path: "a//b.md" },
+      { extra: true, path: "a.md" },
+    ]) {
+      const response = await readFile(credential, query);
+      expect(response.status, JSON.stringify(query)).toBe(400);
+      expect(await errorCode(response)).toBe("bad-request");
     }
+    const notJson = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.file}`, {
+      body: "path=a.md",
+      headers: { ...deviceHeaders(credential), "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(notJson.status).toBe(400);
+    expect(await errorCode(notJson)).toBe("bad-request");
   });
 });
 
-// loose on purpose: the refusal tests send what the contract refuses
-interface BatchBody {
-  readonly extra?: boolean;
-  readonly paths?: readonly string[];
-  readonly ref?: string;
-}
-
-const postFiles = async (auth: Record<string, string>, body: BatchBody): Promise<Response> =>
-  await SELF.fetch(FILES, {
-    body: JSON.stringify(body),
-    headers: { ...auth, "content-type": "application/json" },
-    method: "POST",
-  });
+const postFiles = async (auth: Record<string, string>, body: VaultReadBody): Promise<Response> =>
+  await postVaultRead(VAULT_API_PATHS.files, auth, body);
 
 const readBatch = async (response: Response) =>
   emitted(vaultFilesResponseSchema, await response.text());
@@ -329,7 +330,7 @@ describe("the vault batch route", () => {
     expect(response.status).toBe(200);
     const batch = await readBatch(response);
 
-    const tree = await SELF.fetch(`${TREE}?ref=${commit}`, { headers: deviceHeaders(credential) });
+    const tree = await readTree(credential, { ref: commit });
     const oids = new Map(
       emitted(vaultTreeResponseSchema, await tree.text()).entries.map((entry) => [
         entry.path,
@@ -427,17 +428,14 @@ describe("the vault batch route", () => {
   });
 });
 
-describe("the vault asset route", () => {
-  const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
+const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
 
+describe("the vault asset route", () => {
   it("answers an image embed's raw bytes with the allowlist's type", async () => {
     const { credential, commit } = await loginAndPush("vault-asset-read@example.test", [
       { content: PNG_BYTES, path: "media/diagram.png" },
     ]);
-    const response = await SELF.fetch(
-      `${ASSET}?path=${encodeURIComponent("media/diagram.png")}&ref=${commit}`,
-      { headers: deviceHeaders(credential) },
-    );
+    const response = await readAsset(credential, { path: "media/diagram.png", ref: commit });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
@@ -447,18 +445,20 @@ describe("the vault asset route", () => {
   });
 
   it("refuses the wire without a credential", async () => {
-    const response = await SELF.fetch(`${ASSET}?path=a.png&ref=${"c".repeat(40)}`);
+    const response = await postVaultRead(
+      VAULT_API_PATHS.asset,
+      {},
+      { path: "a.png", ref: "c".repeat(40) },
+    );
     expect(response.status).toBe(401);
     expect(await errorCode(response)).toBe("unauthorized");
   });
 
-  it("requires the pinning ref — an unpinned asset URL is not a cache key", async () => {
+  it("requires the pinning ref — an unpinned read names no immutable bytes", async () => {
     const { credential } = await loginAndPush("vault-asset-ref@example.test", [
       { content: PNG_BYTES, path: "a.png" },
     ]);
-    const response = await SELF.fetch(`${ASSET}?path=a.png`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await readAsset(credential, { path: "a.png" });
     expect(response.status).toBe(400);
     expect(await errorCode(response)).toBe("bad-request");
   });
@@ -468,9 +468,7 @@ describe("the vault asset route", () => {
       { content: "# text\n", path: "notes.md" },
     ]);
     for (const path of ["notes.md", "script.html", "no-extension"]) {
-      const response = await SELF.fetch(`${ASSET}?path=${path}&ref=${commit}`, {
-        headers: deviceHeaders(credential),
-      });
+      const response = await readAsset(credential, { path, ref: commit });
       expect(response.status).toBe(400);
       expect(await errorCode(response)).toBe("bad-request");
     }
@@ -480,9 +478,7 @@ describe("the vault asset route", () => {
     const { credential, commit } = await loginAndPush("vault-asset-miss@example.test", [
       { content: PNG_BYTES, path: "a.png" },
     ]);
-    const response = await SELF.fetch(`${ASSET}?path=gone.png&ref=${commit}`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await readAsset(credential, { path: "gone.png", ref: commit });
     expect(response.status).toBe(404);
     expect(await errorCode(response)).toBe("not-found");
   });
@@ -492,9 +488,7 @@ describe("the vault asset route", () => {
     const { credential, commit } = await loginAndPush("vault-asset-huge@example.test", [
       { content: huge, path: "huge.png" },
     ]);
-    const response = await SELF.fetch(`${ASSET}?path=huge.png&ref=${commit}`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await readAsset(credential, { path: "huge.png", ref: commit });
     expect(response.status).toBe(413);
     expect(await errorCode(response)).toBe("file-too-large");
   });
@@ -505,9 +499,67 @@ describe("the vault asset route", () => {
     ]);
     const beta = await signUpUser("vault-asset-beta@example.test");
     const betaDevice = await loginDevice(beta.bearer, "Laptop");
-    const asBeta = await SELF.fetch(`${ASSET}?path=secret.png&ref=${alpha.commit}`, {
-      headers: deviceHeaders(betaDevice.credential),
+    const asBeta = await readAsset(betaDevice.credential, {
+      path: "secret.png",
+      ref: alpha.commit,
     });
     expect(asBeta.status).toBe(404);
+  });
+});
+
+describe("the GET form a stale install still sends", () => {
+  it("answers the tree, a file and an asset from the URL's query exactly as from the body", async () => {
+    const { credential, commit } = await loginAndPush("vault-read-stale@example.test", [
+      { content: "# a\n", path: "a.md" },
+      { content: PNG_BYTES, path: "media/α β.png" },
+      { content: "# b\n", path: "notes/b c.md" },
+    ]);
+
+    const pageOne = await getRead(VAULT_API_PATHS.tree, credential, { limit: "2" });
+    expect(pageOne.status).toBe(200);
+    const listed = emitted(vaultTreeResponseSchema, await pageOne.text());
+    const posted = await readTree(credential, { limit: 2 });
+    expect(listed).toEqual(emitted(vaultTreeResponseSchema, await posted.text()));
+    expect(listed.next).toBe("media/α β.png");
+    const pageTwo = await getRead(VAULT_API_PATHS.tree, credential, {
+      after: "media/α β.png",
+      limit: "2",
+      ref: commit,
+    });
+    expect(
+      emitted(vaultTreeResponseSchema, await pageTwo.text()).entries.map((entry) => entry.path),
+    ).toEqual(["notes/b c.md"]);
+
+    const file = await getRead(VAULT_API_PATHS.file, credential, { path: "notes/b c.md" });
+    expect(file.status).toBe(200);
+    const postedFile = await readFile(credential, { path: "notes/b c.md" });
+    expect(emitted(vaultFileResponseSchema, await file.text())).toEqual(
+      emitted(vaultFileResponseSchema, await postedFile.text()),
+    );
+
+    const asset = await getRead(VAULT_API_PATHS.asset, credential, {
+      path: "media/α β.png",
+      ref: commit,
+    });
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("content-type")).toBe("image/png");
+    expect(asset.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+    expect(new Uint8Array(await asset.arrayBuffer())).toEqual(PNG_BYTES);
+  });
+
+  it("refuses what the body form refuses: no credential, no vault, a query it cannot read", async () => {
+    const anonymous = await SELF.fetch(`${TREE}?limit=1`);
+    expect(anonymous.status).toBe(401);
+    expect(await errorCode(anonymous)).toBe("unauthorized");
+
+    const { bearer } = await signUpUser("vault-read-stale-none@example.test");
+    const { credential } = await loginDevice(bearer, "Phone");
+    const noVault = await getRead(VAULT_API_PATHS.tree, credential, {});
+    expect(noVault.status).toBe(404);
+    expect(await errorCode(noVault)).toBe("not-found");
+
+    const unpinned = await getRead(VAULT_API_PATHS.asset, credential, { path: "a.png" });
+    expect(unpinned.status).toBe(400);
+    expect(await errorCode(unpinned)).toBe("bad-request");
   });
 });

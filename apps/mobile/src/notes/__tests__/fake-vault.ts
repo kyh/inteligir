@@ -1,9 +1,11 @@
 // the hosted vault's routes as the Worker answers them, over an in-memory history of commits: oids
 // are git's own blob hash, so equal bytes share one as they do there, and a commit is the Worker's
 // CAS per path (a change whose target the head holds is satisfied, a stale base is a 409 carrying
-// what the head holds and who wrote it). `requests` logs each call as "tree <query>", "file
-// <query>", "files <paths joined by ,> @<ref>", "asset <query>" or "commit <changes joined by ,>",
-// a change spelled "put <path>@<base>", "delete <path>@<base>" or "move <from>><to>@<base>".
+// what the head holds and who wrote it). `requests` logs each call as "tree <body>", "file
+// <body>", "files <paths joined by ,> @<ref>", "asset <body>" or "commit <changes joined by ,>",
+// a body the JSON the phone posted and a change spelled "put <path>@<base>", "delete
+// <path>@<base>" or "move <from>><to>@<base>". A read's query in the URL, the GET form a stale
+// install sends, is refused, so a suite passes only while the phone keeps paths out of the URL.
 
 import { createHash } from "node:crypto";
 import { createCloudClient } from "@repo/api/cloud/client";
@@ -20,7 +22,10 @@ import {
   assetMediaType,
   VAULT_API_PATHS,
   VAULT_FILE_MAX_BYTES,
+  vaultAssetQuerySchema,
+  vaultFileQuerySchema,
   vaultFilesRequestSchema,
+  vaultTreeQuerySchema,
 } from "@repo/api/cloud/vault/vault-schema";
 import type { VaultFilesResponse } from "@repo/api/cloud/vault/vault-schema";
 import { z } from "zod";
@@ -37,6 +42,27 @@ const commitSha = (n: number): string => n.toString(16).padStart(40, "0");
 
 const notFound = (message: string): Response =>
   Response.json({ error: { code: "not-found", message } }, { status: 404 });
+
+const getFormRefused = (): Response =>
+  Response.json(
+    { error: { code: "bad-request", message: "Post the read's query as the body." } },
+    { status: 400 },
+  );
+
+// a read answered from the query the phone posted; anything else is the GET form
+const answerPosted = <TSchema extends z.ZodType>(
+  schema: TSchema,
+  url: URL,
+  init: RequestInit | undefined,
+  answer: (query: z.infer<TSchema>, body: string) => Response,
+): Response => {
+  const body = z.string().safeParse(init?.body);
+  if (init?.method !== "POST" || url.search !== "" || !body.success) {
+    return getFormRefused();
+  }
+  const query = schema.safeParse(JSON.parse(body.data));
+  return query.success ? answer(query.data, body.data) : getFormRefused();
+};
 
 // the device every phone commit is authored as
 export const FAKE_PHONE_DEVICE = "Test Phone";
@@ -288,22 +314,24 @@ export const createFakeVault = (
 
   const fetch: CloudFetch = async (input, init) => {
     const url = new URL(input);
-    const ref = url.searchParams.get("ref");
-    const path = url.searchParams.get("path") ?? "";
     switch (url.pathname) {
       case VAULT_API_PATHS.tree: {
-        requests.push(`tree ${url.search}`);
-        const revision = at(ref);
-        return revision === null
-          ? notFound("That revision is not in the vault.")
-          : treePage(revision, url.searchParams.get("after"), pageSize);
+        return answerPosted(vaultTreeQuerySchema, url, init, ({ after, ref }, body) => {
+          requests.push(`tree ${body}`);
+          const revision = at(ref ?? null);
+          return revision === null
+            ? notFound("That revision is not in the vault.")
+            : treePage(revision, after ?? null, pageSize);
+        });
       }
       case VAULT_API_PATHS.file: {
-        requests.push(`file ${url.search}`);
-        const content = at(ref)?.files.get(path);
-        return content === undefined
-          ? notFound("That revision does not carry the path.")
-          : Response.json({ commit: ref ?? head, content, oid: blobOid(content), path });
+        return answerPosted(vaultFileQuerySchema, url, init, ({ path, ref }, body) => {
+          requests.push(`file ${body}`);
+          const content = at(ref ?? null)?.files.get(path);
+          return content === undefined
+            ? notFound("That revision does not carry the path.")
+            : Response.json({ commit: ref ?? head, content, oid: blobOid(content), path });
+        });
       }
       case VAULT_API_PATHS.files: {
         const request = vaultFilesRequestSchema.parse(JSON.parse(z.string().parse(init?.body)));
@@ -316,12 +344,14 @@ export const createFakeVault = (
         return commitAnswer(request);
       }
       case VAULT_API_PATHS.asset: {
-        requests.push(`asset ${url.search}`);
-        const content = at(ref)?.files.get(path);
-        const mediaType = assetMediaType(path);
-        return content === undefined || mediaType === null
-          ? notFound("That revision does not carry the path.")
-          : new Response(content, { headers: { "content-type": mediaType } });
+        return answerPosted(vaultAssetQuerySchema, url, init, ({ path, ref }, body) => {
+          requests.push(`asset ${body}`);
+          const content = at(ref)?.files.get(path);
+          const mediaType = assetMediaType(path);
+          return content === undefined || mediaType === null
+            ? notFound("That revision does not carry the path.")
+            : new Response(content, { headers: { "content-type": mediaType } });
+        });
       }
       default: {
         return notFound("No such route.");

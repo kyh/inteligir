@@ -921,7 +921,7 @@ describe("vault read rows", () => {
     expect(vaultTreeQuerySchema.safeParse({ ref: COMMIT }).success).toBe(true);
   });
 
-  it("the asset query REQUIRES its ref — an unpinned asset URL is no cache key", () => {
+  it("the asset query REQUIRES its ref — an unpinned read names no immutable bytes", () => {
     expect(vaultAssetQuerySchema.safeParse({ path: "a.png" }).success).toBe(false);
     expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT }).success).toBe(true);
     expect(vaultAssetQuerySchema.safeParse({ path: "../up.png", ref: COMMIT }).success).toBe(false);
@@ -930,16 +930,28 @@ describe("vault read rows", () => {
     );
   });
 
-  it("decodes each query from the search params exactly as the client wrote it", async () => {
-    const sent: string[] = [];
+  it("posts each read's query in the body the route decodes, never a path in the URL", async () => {
+    const sent: { body: unknown; method: string; url: URL }[] = [];
     const client = createCloudClient({
       baseUrl: "https://cloud.test",
       credential: `igd_${"a".repeat(64)}`,
-      fetch: async (input) => {
-        sent.push(input);
+      fetch: async (input, init) => {
+        sent.push({
+          body: JSON.parse(String(init?.body)),
+          method: init?.method ?? "GET",
+          url: new URL(input),
+        });
         return new Response(null, { status: 404 });
       },
     });
+    const posted = <TSchema extends z.ZodType>(path: string, schema: TSchema): z.infer<TSchema> => {
+      const request = sent.pop();
+      expect(request?.method).toBe("POST");
+      expect(request?.url.pathname).toBe(path);
+      expect(request?.url.search).toBe("");
+      return schema.parse(request?.body);
+    };
+
     const trees: VaultTreeQuery[] = [
       {},
       { limit: 7 },
@@ -947,18 +959,29 @@ describe("vault read rows", () => {
     ];
     for (const query of trees) {
       await client.vaultTree(query);
-      expect(vaultTreeQuerySchema.parse(paramsOf(sent.pop()))).toEqual(query);
+      expect(posted(VAULT_API_PATHS.tree, vaultTreeQuerySchema)).toEqual(query);
     }
 
     const files: VaultFileQuery[] = [{ path: "100%done.md" }, { path: "a b/c?.md", ref: COMMIT }];
     for (const query of files) {
       await client.vaultFile(query);
-      expect(vaultFileQuerySchema.parse(paramsOf(sent.pop()))).toEqual(query);
+      expect(posted(VAULT_API_PATHS.file, vaultFileQuerySchema)).toEqual(query);
     }
 
     const asset: VaultAssetQuery = { path: "media/α β#1.png", ref: COMMIT };
     await client.vaultAsset(asset);
-    expect(vaultAssetQuerySchema.parse(paramsOf(sent.pop()))).toEqual(asset);
+    expect(posted(VAULT_API_PATHS.asset, vaultAssetQuerySchema)).toEqual(asset);
+  });
+
+  it("decodes the GET form a stale install sends from its search params", () => {
+    const query: VaultTreeQuery = { after: "notes/α β&c=d+e.md", limit: 500, ref: COMMIT };
+    const url = new URL(`https://cloud.test${VAULT_API_PATHS.tree}`);
+    url.search = new URLSearchParams({
+      after: "notes/α β&c=d+e.md",
+      limit: "500",
+      ref: COMMIT,
+    }).toString();
+    expect(vaultTreeQuerySchema.parse(paramsOf(url.toString()))).toEqual(query);
   });
 
   it("refuses a tree limit that is not a whole number in range", () => {
@@ -1050,20 +1073,25 @@ describe("an attachment's bytes", () => {
       fetch,
     }).vaultAsset(QUERY);
 
-  it("answers the bytes under the allowlist's type, the bearer in a header, never the URL", async () => {
-    const seen: { authorization: string | null; uri: string }[] = [];
+  it("answers the bytes under the allowlist's type, the bearer and the path never in the URL", async () => {
+    const seen: { authorization: string | null; body: unknown; method: string; uri: string }[] = [];
     const result = await assetOver(async (input, init) => {
-      seen.push({ authorization: new Headers(init?.headers).get("authorization"), uri: input });
+      seen.push({
+        authorization: new Headers(init?.headers).get("authorization"),
+        body: JSON.parse(String(init?.body)),
+        method: init?.method ?? "GET",
+        uri: input,
+      });
       return new Response(PNG, { headers: { "content-type": "image/png" } });
     });
     expect(result).toStrictEqual({ ok: true, value: { bytes: PNG, mediaType: "image/png" } });
     expect(seen.map((request) => request.authorization)).toStrictEqual([`Bearer ${CREDENTIAL}`]);
+    expect(seen.map((request) => request.method)).toStrictEqual(["POST"]);
+    expect(vaultAssetQuerySchema.parse(seen[0]?.body)).toStrictEqual(QUERY);
     const url = new URL(seen[0]?.uri ?? "");
     expect(url.pathname).toBe(VAULT_API_PATHS.asset);
-    expect(url.searchParams.get("path")).toBe(QUERY.path);
-    expect(url.searchParams.get("ref")).toBe(COMMIT);
+    expect(url.search).toBe("");
     expect(url.username).toBe("");
-    expect(url.search).not.toContain("igd_");
   });
 
   it("reads a type the allowlist does not name for the path as malformed, never as bytes", async () => {

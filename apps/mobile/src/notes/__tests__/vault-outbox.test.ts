@@ -1,5 +1,9 @@
 import type { CloudFetch } from "@repo/api/cloud/client";
-import { VAULT_API_PATHS, VAULT_FILE_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
+import {
+  VAULT_API_PATHS,
+  VAULT_FILE_MAX_BYTES,
+  vaultTreeQuerySchema,
+} from "@repo/api/cloud/vault/vault-schema";
 import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
@@ -296,7 +300,11 @@ describe("the phone's outbox", () => {
     const fetch: CloudFetch = async (input, init) => {
       const response = await vault.fetch(input, init);
       const url = new URL(input);
-      if (held.tree && url.pathname === VAULT_API_PATHS.tree && !url.searchParams.has("after")) {
+      if (
+        held.tree &&
+        url.pathname === VAULT_API_PATHS.tree &&
+        vaultTreeQuerySchema.parse(JSON.parse(z.string().parse(init?.body))).after === undefined
+      ) {
         asked.open();
         await released.wait;
       }

@@ -104,7 +104,10 @@ describe("the vault mirror", () => {
     const head = vault.change({ "notes/b.md": "# b, edited\n" });
     await store.refresh();
 
-    expect(requestsOf(vault, "tree")).toEqual(["tree ", `tree ?after=media%2Fa.png&ref=${head}`]);
+    expect(requestsOf(vault, "tree")).toEqual([
+      "tree {}",
+      `tree {"after":"media/a.png","ref":"${head}"}`,
+    ]);
     expect(requestsOf(vault, "files")).toEqual([`files notes/b.md @${head}`]);
     expect(await store.readNote("notes/b.md")).toMatchObject({ content: "# b, edited\n" });
   });
@@ -258,8 +261,8 @@ describe("the vault mirror", () => {
     expect(await store.attachmentFile("media/b.png")).toMatchObject({ ok: true });
 
     const [kept, moved] = requestsOf(vault, "asset");
-    expect(kept).toContain(`ref=${first}`);
-    expect(moved).toContain(`ref=${vault.head()}`);
+    expect(kept).toContain(`"ref":"${first}"`);
+    expect(moved).toContain(`"ref":"${vault.head()}"`);
   });
 
   it("reads a note it has not filled at the commit that named it, and keeps the text", async () => {
@@ -276,7 +279,7 @@ describe("the vault mirror", () => {
     vault.change({ "a.md": "# a, later\n" });
 
     expect(await store.readNote("notes/b.md")).toMatchObject({ content: "# b\n", ok: true });
-    expect(requestsOf(vault, "file")).toEqual([`file ?path=notes%2Fb.md&ref=${named}`]);
+    expect(requestsOf(vault, "file")).toEqual([`file {"path":"notes/b.md","ref":"${named}"}`]);
     expect(await heldPaths(db)).toEqual(["notes/b.md"]);
   });
 

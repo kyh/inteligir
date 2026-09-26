@@ -95,7 +95,7 @@ describe("the notes store", () => {
       refreshError: null,
       state: "ready",
     });
-    expect(requestsOf(vault, "tree")[1]).toContain(`ref=${vault.head()}`);
+    expect(requestsOf(vault, "tree")[1]).toContain(`"ref":"${vault.head()}"`);
   });
 
   it("holds every note's text after a refresh — a read asks nothing more", async () => {
@@ -299,7 +299,7 @@ describe("the notes store", () => {
 
     expect(requestsOf(vault, "asset")).toHaveLength(1);
     // pinned to the commit its blob arrived at, which a later commit leaving it alone keeps
-    expect(requestsOf(vault, "asset")[0]).toContain(`ref=${vault.head()}`);
+    expect(requestsOf(vault, "asset")[0]).toContain(`"ref":"${vault.head()}"`);
     expect(attachments.names()).toEqual([name]);
   });
 });

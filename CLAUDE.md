@@ -1852,7 +1852,9 @@ to the END of its group.
 - **THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, AND ITS MIRRORED COMMIT MOVES
   ONLY WHEN THE MIRROR IS WHOLE.** One expo-sqlite file in Documents, never the
   purgeable cache, kept out of the iCloud device backup (owner decision: it
-  downloads again) by the local module `apps/mobile/modules/backup-exclusion`.
+  downloads again) by the local module `apps/mobile/modules/backup-exclusion`,
+  as is the outbox's folder of staged photos, whose rows that file holds
+  (`excludedFromBackup` in `apps/mobile/src/notes/outbox-files.ts`).
   A row per file the tree names holds its oid, the commit its blob first
   appeared at (so an attachment is fetched once), and for a note or a comment
   store its text with the frontmatter id and aliases, so the resolver's alias
@@ -1974,6 +1976,19 @@ to the END of its group.
   `apps/cli/src/server/cloud/dispatches.ts`,
   `apps/cli/src/server/cloud/sync-pass.ts`,
   `apps/cli/src/server/threads/service.ts`.
+
+- **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare
+  keeps each request's URL in the Worker's request log and in its sampled
+  traces for up to seven days, and a vault path names a user's file, so the
+  tree, file and asset reads POST their query to the routes they always had
+  (`packages/api/src/cloud/cloud-client.ts`); the Worker parses the body, or a
+  GET's search params for the installs that still send those, with one schema
+  per read (`parseRead` in `apps/web/src/worker/vault/read-routes.ts`).
+  Rejected: turning the invocation log off, which leaves the traces' URLs and
+  takes the operator's one view of a failing route, and reads addressed by
+  blob oid, which the asset route cannot type or size-gate without the path.
+  `docs/privacy.md` says what the log keeps; the phone's fake vault refuses the
+  GET form (`apps/mobile/src/notes/__tests__/fake-vault.ts`).
 
 ### Server process and the desktop shell
 

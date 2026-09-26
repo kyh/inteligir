@@ -86,12 +86,13 @@ for your vault alone — never in anything shared across accounts.
   device's reads and writes of the hosted vault, and its attempts to delete the
   account, are counted the same way under the device's id, never an address.
 - **A log of each request, kept by Cloudflare.** Cloudflare, which runs this
-  project's cloud, logs each request the cloud answers — the address asked for
-  (when your phone opens a note or an attachment, that includes the file's
-  name), the answer's status and the time — and keeps that log for up to seven
-  days, for this deployment's operator to diagnose failures with; about one
-  request in a hundred is traced in more detail. The cloud's own error lines
-  name a route, never a file.
+  project's cloud, logs each request the cloud answers — the address asked for,
+  the answer's status and the time — and keeps that log for up to seven days,
+  for this deployment's operator to diagnose failures with; about one request
+  in a hundred is traced in more detail. The address names a route, never one
+  of your files: when your phone opens a note or an attachment, the file's name
+  travels inside the request, which neither the log nor the trace keeps. The
+  cloud's own error lines name a route, never a file.
 
 ### Elsewhere, never through this project's cloud
 
@@ -186,13 +187,13 @@ offline:
   new note or discard it.
 
 It all lives in the app's own storage on the phone. The notes, conversations
-and unsent changes sit in a database the app keeps out of the phone's iCloud
-backup: a phone restored from a backup downloads your notes again, and
-anything it had not sent is gone. A photo waiting to be sent sits in the app's
-documents folder, which the backup does include, until it is sent; attachments
-you opened sit in the app's cache, which iOS may clear and never backs up. The
-phone's sign-in is kept in the iPhone's Keychain, which an encrypted backup
-carries, so a phone restored from one comes back signed in.
+and unsent changes, photos waiting to be sent included, sit where the app keeps
+them out of the phone's iCloud backup: a phone restored from a backup downloads
+your notes again, and anything it had not sent is gone. Attachments you opened
+sit in the app's cache, which iOS may clear and never backs up. The phone's
+sign-in is kept in the iPhone's Keychain for that iPhone alone: a backup
+restored onto another phone does not carry it, so the new phone signs in again
+and becomes a device of its own.
 
 - **Signing out** on the phone erases all of it — notes, attachments,
   conversations and anything unsent, which it asks about first — and tells the

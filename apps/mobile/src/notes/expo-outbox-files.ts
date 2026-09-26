@@ -4,7 +4,7 @@
 
 import { Directory, File, Paths } from "expo-file-system";
 import { settle } from "../lib/settle";
-import type { OutboxFiles } from "./outbox-files";
+import type { OutboxFolder } from "./outbox-files";
 
 const OUTBOX_DIR_NAME = "outbox";
 
@@ -13,7 +13,16 @@ const PARTIAL_SUFFIX = ".partial";
 
 const outboxDir = (): Directory => new Directory(Paths.document, OUTBOX_DIR_NAME);
 
-export const createExpoOutboxFiles = (): OutboxFiles => ({
+const createdOutboxDir = (): Directory => {
+  const dir = outboxDir();
+  dir.create({ idempotent: true, intermediates: true });
+  return dir;
+};
+
+// a Directory names itself by file:// uri; the backup flag takes a filesystem path
+const pathOfFileUri = (uri: string): string => decodeURIComponent(uri.replace(/^file:\/\//u, ""));
+
+export const createExpoOutboxFolder = (): OutboxFolder => ({
   clear: async () => {
     await settle(() => {
       const dir = outboxDir();
@@ -22,6 +31,8 @@ export const createExpoOutboxFiles = (): OutboxFiles => ({
       }
     });
   },
+
+  ensure: async () => await settle(() => pathOfFileUri(createdOutboxDir().uri)),
 
   find: async (name) =>
     await settle(() => {
@@ -42,8 +53,7 @@ export const createExpoOutboxFiles = (): OutboxFiles => ({
 
   stage: async (name, bytes) => {
     await settle(() => {
-      const dir = outboxDir();
-      dir.create({ idempotent: true, intermediates: true });
+      const dir = createdOutboxDir();
       const partial = new File(dir, `${name}${PARTIAL_SUFFIX}`);
       partial.write(bytes);
       partial.moveSync(new File(dir, name), { overwrite: true });

@@ -12,9 +12,13 @@ import {
   vaultTreeQuerySchema,
 } from "@repo/api/cloud/vault/vault-schema";
 import type {
+  VaultAssetQuery,
+  VaultFileQuery,
   VaultFileRefusal,
   VaultFileResponse,
+  VaultFilesRequest,
   VaultFilesResponse,
+  VaultTreeQuery,
 } from "@repo/api/cloud/vault/vault-schema";
 import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
@@ -52,14 +56,10 @@ const refuseWalk = (refusal: TreeWalkRefusal): Response =>
 const answerTree = async (
   stub: DurableObjectStub<RepoCell>,
   slot: TreeListingSlot,
-  url: URL,
+  query: VaultTreeQuery,
 ): Promise<Response> => {
-  const query = vaultTreeQuerySchema.safeParse(Object.fromEntries(url.searchParams));
-  if (!query.success) {
-    return refuse("bad-request", "Send ?ref=<sha>&after=<path>&limit=<1..500>, each optional.");
-  }
-  const { after, ref } = query.data;
-  const limit = query.data.limit ?? VAULT_TREE_MAX_ENTRIES;
+  const { after, ref } = query;
+  const limit = query.limit ?? VAULT_TREE_MAX_ENTRIES;
 
   const commit = await resolveCommit(stub, ref);
   if (commit === null) {
@@ -108,17 +108,15 @@ const blobText = (data: Uint8Array): BlobText => {
   }
 };
 
-const answerFile = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> => {
-  const query = vaultFileQuerySchema.safeParse(Object.fromEntries(url.searchParams));
-  if (!query.success) {
-    return refuse("bad-request", "Send ?path=<vault-relative path>&ref=<sha, optional>.");
-  }
-
-  const commit = await resolveCommit(stub, query.data.ref);
+const answerFile = async (
+  stub: DurableObjectStub<RepoCell>,
+  query: VaultFileQuery,
+): Promise<Response> => {
+  const commit = await resolveCommit(stub, query.ref);
   if (commit === null) {
     return refuse("not-found", "This vault has no content at that revision.");
   }
-  const blob = await stub.readBlob(commit, encodeGitPath(query.data.path));
+  const blob = await stub.readBlob(commit, encodeGitPath(query.path));
   if (blob === null) {
     return refuse("not-found", "That revision does not carry the path.");
   }
@@ -135,7 +133,7 @@ const answerFile = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<
     commit,
     content: text.content,
     oid: blob.oid,
-    path: query.data.path,
+    path: query.path,
   };
   return Response.json(response);
 };
@@ -146,16 +144,9 @@ const READS_IN_FLIGHT = 8;
 
 const answerFiles = async (
   stub: DurableObjectStub<RepoCell>,
-  request: Request,
+  request: VaultFilesRequest,
 ): Promise<Response> => {
-  const body = vaultFilesRequestSchema.safeParse(await request.json().catch(() => null));
-  if (!body.success) {
-    return refuse(
-      "bad-request",
-      `Send {"ref": <sha>, "paths": [1..${String(VAULT_FILES_MAX_PATHS)} unique vault-relative paths]}.`,
-    );
-  }
-  const { paths, ref } = body.data;
+  const { paths, ref } = request;
   // at a revision the repo does not hold every path would read as missing, which a mirror takes
   // for a deletion
   if ((await stub.readCommit(ref)) === null) {
@@ -200,29 +191,28 @@ const answerFiles = async (
 
 // the sandbox csp is what makes svg safe: <img> never runs its script, but a navigation to this url
 // renders it as a document, and a sandbox with no allow-scripts refuses that. immutable holds
-// because the url pins a commit.
+// because the read pins a commit.
 const ASSET_HEADERS = {
   "cache-control": "private, max-age=31536000, immutable",
   "content-security-policy": "default-src 'none'; sandbox",
   "x-content-type-options": "nosniff",
 };
 
-const answerAsset = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> => {
-  const query = vaultAssetQuerySchema.safeParse(Object.fromEntries(url.searchParams));
-  if (!query.success) {
-    return refuse("bad-request", "Send ?path=<vault-relative path>&ref=<sha> — both required.");
-  }
-  const mediaType = assetMediaType(query.data.path);
+const answerAsset = async (
+  stub: DurableObjectStub<RepoCell>,
+  query: VaultAssetQuery,
+): Promise<Response> => {
+  const mediaType = assetMediaType(query.path);
   if (mediaType === null) {
     return refuse("bad-request", "That extension is not an image type this vault serves.");
   }
 
   // size-gate from the tree first: readBlob inflates the whole blob in the cell and the rpc return
   // has its own message bound, so a huge asset gated after the hop surfaces as an opaque 500.
-  const slash = query.data.path.lastIndexOf("/");
-  const parentDir = slash === -1 ? "" : query.data.path.slice(0, slash);
-  const leaf = slash === -1 ? query.data.path : query.data.path.slice(slash + 1);
-  const parentTree = await stub.listTree(query.data.ref, encodeGitPath(parentDir));
+  const slash = query.path.lastIndexOf("/");
+  const parentDir = slash === -1 ? "" : query.path.slice(0, slash);
+  const leaf = slash === -1 ? query.path : query.path.slice(slash + 1);
+  const parentTree = await stub.listTree(query.ref, encodeGitPath(parentDir));
   if (parentTree === null) {
     return refuse("not-found", "That revision does not carry the path.");
   }
@@ -237,7 +227,7 @@ const answerAsset = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise
     );
   }
 
-  const blob = await stub.readBlob(query.data.ref, encodeGitPath(query.data.path));
+  const blob = await stub.readBlob(query.ref, encodeGitPath(query.path));
   if (blob === null) {
     return refuse("not-found", "That revision does not carry the path.");
   }
@@ -253,16 +243,69 @@ const answerAsset = async (stub: DurableObjectStub<RepoCell>, url: URL): Promise
   });
 };
 
+type VaultRead =
+  | { route: "tree"; query: VaultTreeQuery }
+  | { route: "file"; query: VaultFileQuery }
+  | { route: "files"; query: VaultFilesRequest }
+  | { route: "asset"; query: VaultAssetQuery };
+
+type ParsedRead = { ok: true; read: VaultRead } | { ok: false; message: string };
+
+// a POST's JSON body, or the search params of the GET form older installs send
+const parseRead = async (request: Request, url: URL): Promise<ParsedRead | null> => {
+  const input: unknown =
+    request.method === "POST"
+      ? await request.json().catch(() => null)
+      : Object.fromEntries(url.searchParams);
+  switch (url.pathname) {
+    case VAULT_API_PATHS.tree: {
+      const query = vaultTreeQuerySchema.safeParse(input);
+      return query.success
+        ? { ok: true, read: { query: query.data, route: "tree" } }
+        : {
+            message: `Send {"ref": <sha>, "after": <path>, "limit": <1..${String(VAULT_TREE_MAX_ENTRIES)}>}, each optional.`,
+            ok: false,
+          };
+    }
+    case VAULT_API_PATHS.file: {
+      const query = vaultFileQuerySchema.safeParse(input);
+      return query.success
+        ? { ok: true, read: { query: query.data, route: "file" } }
+        : { message: 'Send {"path": <vault-relative path>, "ref": <sha, optional>}.', ok: false };
+    }
+    case VAULT_API_PATHS.files: {
+      const query = vaultFilesRequestSchema.safeParse(input);
+      return query.success
+        ? { ok: true, read: { query: query.data, route: "files" } }
+        : {
+            message: `Send {"ref": <sha>, "paths": [1..${String(VAULT_FILES_MAX_PATHS)} unique vault-relative paths]}.`,
+            ok: false,
+          };
+    }
+    case VAULT_API_PATHS.asset: {
+      const query = vaultAssetQuerySchema.safeParse(input);
+      return query.success
+        ? { ok: true, read: { query: query.data, route: "asset" } }
+        : {
+            message: 'Send {"path": <vault-relative path>, "ref": <sha>}, both required.',
+            ok: false,
+          };
+    }
+    default: {
+      return null;
+    }
+  }
+};
+
 export const handleVaultReadRoutes = async (
   request: Request,
   env: Env,
   url: URL,
 ): Promise<Response> => {
-  const batch = url.pathname === VAULT_API_PATHS.files;
-  if (batch && request.method !== "POST") {
+  if (url.pathname === VAULT_API_PATHS.files && request.method !== "POST") {
     return refuse("bad-request", "Send the batch as a POST with a JSON body.");
   }
-  if (!batch && request.method !== "GET") {
+  if (request.method !== "POST" && request.method !== "GET") {
     return refuse("not-found", "No such route.");
   }
 
@@ -276,11 +319,20 @@ export const handleVaultReadRoutes = async (
     return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");
   }
 
+  const parsed = await parseRead(request, url);
+  if (parsed === null) {
+    return refuse("not-found", "No such route.");
+  }
+  if (!parsed.ok) {
+    return refuse("bad-request", parsed.message);
+  }
+  const { read } = parsed;
+
   const repo = vaultRepoName(verified.userId);
   // getByName on the repo namespace creates a cell, and a BYO-remote phone polls the unpinned tree
-  // forever; the registry answers "no vault" without materializing one per poll. a pinned ref
-  // already passed this gate; a batch's rides a body not yet parsed, so every batch is gated.
-  if (batch || url.searchParams.get("ref") === null) {
+  // forever; the registry answers "no vault" without materializing one per poll. A read pinned to
+  // a ref skips it, since only a read that passed it answers a ref.
+  if (read.query.ref === undefined) {
     const info = await vaultRegistry(env).get(repo);
     if (info === null) {
       return refuse("not-found", "This account has no hosted vault yet.");
@@ -288,17 +340,19 @@ export const handleVaultReadRoutes = async (
   }
   const stub = env.REPO.getByName(repo);
 
-  if (url.pathname === VAULT_API_PATHS.tree) {
-    return await answerTree(stub, treeListingSlot(env.PACK_CACHE, repo), url);
+  switch (read.route) {
+    case "tree": {
+      return await answerTree(stub, treeListingSlot(env.PACK_CACHE, repo), read.query);
+    }
+    case "file": {
+      return await answerFile(stub, read.query);
+    }
+    case "files": {
+      return await answerFiles(stub, read.query);
+    }
+    case "asset": {
+      return await answerAsset(stub, read.query);
+    }
+    // no default
   }
-  if (url.pathname === VAULT_API_PATHS.file) {
-    return await answerFile(stub, url);
-  }
-  if (batch) {
-    return await answerFiles(stub, request);
-  }
-  if (url.pathname === VAULT_API_PATHS.asset) {
-    return await answerAsset(stub, url);
-  }
-  return refuse("not-found", "No such route.");
 };

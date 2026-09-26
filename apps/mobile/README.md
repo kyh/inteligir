@@ -112,7 +112,9 @@ src/
                         its long edge, re-encoded without EXIF (the native half;
                         photo-plan.ts is the pure one: the size, the name, the
                         embed line)
-    outbox-files.ts     the staged-attachment port; expo-outbox-files.ts is its
+    outbox-files.ts     the staged-attachment port, and excludedFromBackup,
+                        which flags its folder out of the iCloud backup before
+                        every stage; expo-outbox-files.ts is its
                         expo-file-system adapter
     attachment-files.ts the attachment-file port; expo-attachment-files.ts
                         is its expo-file-system adapter
@@ -203,13 +205,19 @@ socket is latency and never correctness.
 
 The **device credential** is durable in `expo-secure-store` (the Keychain /
 Keystore), never AsyncStorage — it is a bearer secret and the sync switch,
-mirroring the desktop's `<dataDir>/device-credential`.
+mirroring the desktop's `<dataDir>/device-credential`. It is written
+`AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`, so a backup restored onto another phone
+carries no credential and that phone signs in as a device of its own; a write
+deletes the key first, since a set over an existing item keeps the
+accessibility it was written with.
 
 **Every note's text** is durable in `inteligir.db`, one expo-sqlite file in
 the app's Documents (`lib/expo-sql-driver.ts`), never `Paths.cache`, which iOS
 purges under storage pressure. Its directory is kept out of the phone's iCloud
 backup (owner decision: it downloads again from the hosted vault) by the local
-native module `modules/backup-exclusion`. The mirror (`notes/vault-mirror.ts`)
+native module `modules/backup-exclusion`, and so is the outbox's folder of
+staged photos (`excludedFromBackup` in `notes/outbox-files.ts`), flagged before
+every stage, since the rows naming them live in that database. The mirror (`notes/vault-mirror.ts`)
 keeps a row per file the hosted tree names — path, blob oid, size, the commit
 its blob first appeared at, and for a note or a comment store its text with
 the frontmatter id and aliases read once as it lands. A refresh walks the tree
@@ -399,7 +407,9 @@ that is signed in.
   the thread store over `node:sqlite` (a relaunch listing its threads and
   pulling on from its cursor, a page whose transaction fails, a grammar change,
   an unreadable row, a page racing a sign-out),
-  the credential codec, the sign-in store, the notes store, the vault mirror
+  the credential codec, the credential's Keychain accessibility (over a
+  stand-in Keychain), the outbox folder's backup flag before each stage, the
+  sign-in store, the notes store, the vault mirror
   (its SQL run for real, over `node:sqlite` on a temp file: the oid delta, a
   relaunch that cannot reach the cloud, a batch cut short, a batch that
   outlives its sign-in), the outbox (offline edits across a relaunch, the

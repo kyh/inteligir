@@ -77,10 +77,10 @@ its own `tsconfig.json`.
 | `POST /v1/sync/dispatch/approval/close` | device            | That Mac closes it: answered there, or its turn ended               |
 | `GET /v1/sync/dispatch/approvals`       | device            | The approvals waiting for the phone's answer                        |
 | `/v1/git/vault.git/*`                   | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
-| `GET /v1/vault/tree`                    | device            | Flat listing — path, size, blob oid — at one commit                 |
-| `GET /v1/vault/file`                    | device            | One note's bytes at that commit — 2 MB ceiling                      |
+| `POST /v1/vault/tree`                   | device            | Flat listing — path, size, blob oid — at one commit                 |
+| `POST /v1/vault/file`                   | device            | One note's bytes at that commit — 2 MB ceiling                      |
 | `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
-| `GET /v1/vault/asset`                   | device            | One embedded binary at that commit                                  |
+| `POST /v1/vault/asset`                  | device            | One embedded binary at that commit                                  |
 | `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
 | `GET /v1/account`                       | device            | Whose account this device credential syncs as                       |
 | `POST /v1/account/delete`               | device + password | Delete the account through Better Auth's `deleteUser`               |
@@ -99,6 +99,11 @@ verified device row's name, and a stale base answers 409 `vault-conflict` with
 what the head holds beside the envelope; the Worker never merges. Every `/v1` refusal, an unknown route and
 an unhandled fault included, is the JSON error envelope; the git mount alone
 answers git clients in plain text.
+
+The tree, file and asset reads take their query as a JSON body, so no vault
+path reaches a URL, which the Worker's request log and traces keep; each still
+answers the same query as a GET's search params, the form older installs send
+(`src/worker/vault/read-routes.ts`).
 
 ## Auth
 

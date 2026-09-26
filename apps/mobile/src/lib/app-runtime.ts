@@ -3,11 +3,8 @@ import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
-import {
-  clearDeviceCredential,
-  readDeviceCredential,
-  writeDeviceCredential,
-} from "../credential/secure-store-credential";
+import * as SecureStore from "expo-secure-store";
+import { createKeychainCredentials } from "../credential/secure-store-credential";
 import { threadDispatches, threadListEntries } from "../dispatch/dispatch-projection";
 import type { ThreadDispatches, ThreadListEntry } from "../dispatch/dispatch-projection";
 import type {
@@ -22,9 +19,10 @@ import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
 
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
-import { createExpoOutboxFiles } from "../notes/expo-outbox-files";
+import { createExpoOutboxFolder } from "../notes/expo-outbox-files";
 import type { CreatedNote, RenamedNote } from "../notes/file-ops";
 import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
+import { excludedFromBackup } from "../notes/outbox-files";
 import { ingestPhoto } from "../notes/photo-ingest";
 import type { OutboxStatus } from "../notes/vault-outbox";
 import type { LiveItem } from "../sync/live-turns";
@@ -36,6 +34,7 @@ import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { CloudFailure } from "@repo/api/cloud/client";
 import { createCloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
+import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
@@ -54,16 +53,12 @@ const build = (): AppRuntime => {
   const rt = composeRuntime({
     attachments: createExpoAttachmentFiles(),
     cloudUrl: getCloudUrl(),
-    credentials: {
-      clear: clearDeviceCredential,
-      read: readDeviceCredential,
-      write: writeDeviceCredential,
-    },
+    credentials: createKeychainCredentials(SecureStore),
     db: createExpoSqlDriver("inteligir.db"),
     deviceName: defaultDeviceName(),
     mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
     mintNoteId: Crypto.randomUUID,
-    outboxFiles: createExpoOutboxFiles(),
+    outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
     randomBytes: Crypto.getRandomBytes,
     sha1: async (bytes) =>
       new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA1, bytes)),

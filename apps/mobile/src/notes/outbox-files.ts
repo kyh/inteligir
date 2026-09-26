@@ -11,3 +11,26 @@ export interface OutboxFiles {
   remove: (name: string) => Promise<void>;
   clear: () => Promise<void>;
 }
+
+// the folder the files sit in, which a clear deletes
+export interface OutboxFolder extends OutboxFiles {
+  // makes the folder when it is missing, and answers its filesystem path
+  ensure: () => Promise<string>;
+}
+
+// the rows naming a staged photo live in the database the iCloud backup leaves out, so a backup
+// holding the photo would restore bytes nothing sends. Flagged before every stage, since the flag
+// goes with a cleared folder.
+export const excludedFromBackup = (
+  folder: OutboxFolder,
+  excludeFromBackup: (directory: string) => Promise<void>,
+): OutboxFiles => ({
+  clear: folder.clear,
+  find: folder.find,
+  read: folder.read,
+  remove: folder.remove,
+  stage: async (name, bytes) => {
+    await excludeFromBackup(await folder.ensure());
+    await folder.stage(name, bytes);
+  },
+});

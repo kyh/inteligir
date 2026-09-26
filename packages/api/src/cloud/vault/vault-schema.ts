@@ -16,8 +16,8 @@ export const VAULT_TREE_MAX_ENTRIES = 500;
 
 export const VAULT_FILE_MAX_BYTES = 2 * 1024 * 1024;
 
-// one read into the repo cell per path, beside the credential check, the budget, the registry and
-// the commit check: under the 50 subrequests a Workers Free invocation may make
+// one read into the repo cell per path, beside the credential check, the budget and the commit
+// check: under the 50 subrequests a Workers Free invocation may make
 export const VAULT_FILES_MAX_PATHS = 40;
 
 // the content one batch answers; past it the rest is deferred to a follow-up, except the first
@@ -50,7 +50,9 @@ export const vaultPathSchema = z.string().superRefine((value, ctx) => {
   }
 });
 
-// the query schemas parse a URL's search params whole, where every value arrives as a string
+// a read's query rides a POST body: a vault path names a file, and a URL is what Cloudflare's
+// request log and traces keep. The GET form older installs still send carries the same fields in
+// the URL's search params, where every value arrives as a string.
 export const vaultTreeQuerySchema = z
   .object({
     after: vaultPathSchema.optional(),
@@ -125,8 +127,8 @@ export const vaultFilesResponseSchema = z.object({
 });
 export type VaultFilesResponse = z.infer<typeof vaultFilesResponseSchema>;
 
-// ref is required: a URL pinned to a commit names immutable bytes, which makes the URL the
-// cache key (a phone's image cache ignores headers) and lets the route answer `immutable`
+// ref is required: a read pinned to a commit names immutable bytes, which the phone keeps under
+// their blob oid and the route answers `immutable`
 export const vaultAssetQuerySchema = z
   .object({
     path: vaultPathSchema,
