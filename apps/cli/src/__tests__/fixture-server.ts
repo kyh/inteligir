@@ -131,6 +131,7 @@ export const makeRevision = (
   overrides: Partial<VaultRevision> & Pick<VaultRevision, "sha">,
 ): VaultRevision => ({
   authorEmail: "vault@inteligir.local",
+  authorKind: "app",
   authorName: "inteligir",
   authoredAt: "2026-08-01T10:00:00+00:00",
   path: "notes/hello.md",

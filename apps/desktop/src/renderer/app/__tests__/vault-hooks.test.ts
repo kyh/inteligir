@@ -12,7 +12,10 @@ import { describe, expect, it } from "vitest";
 import {
   filePathsLowercased,
   renameVaultEntry,
+  syncNeedsAttention,
+  syncStateDotClass,
   syncStateLabel,
+  syncStateNote,
   untitledNotePath,
   vaultFolders,
   visibleEntries,
@@ -101,6 +104,7 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
   { state: "held", ...REMOTE },
   { state: "offline", ...REMOTE },
   { state: "unauthorized", ...REMOTE },
+  { state: "unauthorized", ...REMOTE, remoteSource: "account" },
   { state: "rejected", ...REMOTE },
   { state: "too-large", ...REMOTE },
   { state: "too-large", ...REMOTE, remoteSource: "account" },
@@ -148,6 +152,44 @@ describe("naming a sync state", () => {
       expect(source).toContain(syncStateLabel(status).split(" (")[0] ?? "");
     }
   });
+});
+
+// what a failed pass leaves in `lastError`: git's own stderr, naming its machinery
+const GIT_STDERR =
+  "fatal: unable to access 'https://example.com/vault.git/': error: failed to push some refs to origin (HEAD detached)";
+const ENGINE_WORDS = /\b(?:git|remote|push|pull|rebase|HEAD|branch|commit|sha|detached|origin)\b/iu;
+
+describe("what the rail and a toast say about sync", () => {
+  it("never speaks git, and never repeats the engine's own error", () => {
+    for (const status of EVERY_STATUS) {
+      const failed: VaultStatusResponse = { ...status, lastError: GIT_STDERR };
+      for (const said of [syncStateLabel(failed), syncStateNote(failed)?.message ?? ""]) {
+        expect(said, failed.state).not.toMatch(ENGINE_WORDS);
+        expect(said, failed.state).not.toContain(GIT_STDERR);
+      }
+    }
+  });
+
+  it("offers the details exactly where the dot says something is wrong", () => {
+    for (const status of EVERY_STATUS) {
+      expect(syncNeedsAttention(status), status.state).toBe(
+        syncStateDotClass(status) === "bg-destructive",
+      );
+    }
+  });
+
+  it.each(["app/vault-hooks.ts", "app/sidebar/sidebar.tsx"])(
+    "%s never reads the engine's last error",
+    (relative) => {
+      const source = readFileSync(
+        path.join(REPO_ROOT, "apps/desktop/src/renderer", relative),
+        "utf-8",
+      );
+      expect(source, "the engine's own error text is Settings › Advanced's to show").not.toMatch(
+        /\.lastError\b/u,
+      );
+    },
+  );
 });
 
 describe("naming a new note", () => {

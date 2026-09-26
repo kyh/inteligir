@@ -26,7 +26,31 @@ type RestoreOutcome = { kind: "restored" } | { kind: "refused"; message: string 
 
 const RESTORE_REFUSED = "The restore was refused.";
 
-const shortSha = (sha: string): string => sha.slice(0, 7);
+// a version is named by when and who, never by the engine's subject or sha: the app's own saves
+// are the user's edits, and only another device or person wrote a subject worth reading
+const authorLabel = (revision: VaultRevision): string => {
+  switch (revision.authorKind) {
+    case "app": {
+      return "You";
+    }
+    case "agent": {
+      return "Agent";
+    }
+    case "external": {
+      return revision.authorName;
+    }
+    default: {
+      const exhaustive: never = revision.authorKind;
+      return exhaustive;
+    }
+  }
+};
+
+const versionDate = (revision: VaultRevision): string =>
+  new Date(revision.authoredAt).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 
 const RevisionRow = ({
   revision,
@@ -44,12 +68,15 @@ const RevisionRow = ({
       onSelect(revision);
     }}
   >
-    <p className="truncate text-subtitle">{revision.subject}</p>
-    <p className="flex items-baseline gap-2 text-caption text-muted-foreground">
-      <span className="font-medium text-foreground/80">{revision.authorName}</span>
+    <p className="flex items-baseline gap-2 text-subtitle">
       <span>{relativeTimeLabel(Date.parse(revision.authoredAt), asOfMs)}</span>
-      <span className="font-mono">{shortSha(revision.sha)}</span>
+      <span className="min-w-0 truncate text-caption text-muted-foreground">
+        {authorLabel(revision)}
+      </span>
     </p>
+    {revision.authorKind === "external" ? (
+      <p className="truncate text-caption text-muted-foreground">{revision.subject}</p>
+    ) : null}
     {revision.renamedFrom === undefined ? null : (
       <p className="truncate text-caption text-muted-foreground">
         Renamed from {revision.renamedFrom}
@@ -66,9 +93,9 @@ const DIFF_LINE = {
 
 const revisionBody = (unread: boolean, refused: boolean): string => {
   if (!unread) {
-    return "This revision is what the note holds right now.";
+    return "This version is what the note holds right now.";
   }
-  return refused ? "This revision could not be read." : "Reading…";
+  return refused ? "This version could not be read." : "Reading…";
 };
 
 const DiffRowView = ({ row }: { row: DiffRow }) => {
@@ -85,7 +112,7 @@ const DiffRowView = ({ row }: { row: DiffRow }) => {
   if (row.kind === "unaligned") {
     return (
       <div className="py-1 text-center text-muted-foreground">
-        Too many changes to pair line by line: the note&apos;s lines, then the revision&apos;s
+        Too many changes to pair line by line: the note&apos;s lines, then the version&apos;s
       </div>
     );
   }
@@ -159,7 +186,7 @@ const RevisionDetail = ({
         toast.error(outcome.message);
         return;
       }
-      toast.success(`Restored ${docPath} to ${shortSha(revision.sha)}.`);
+      toast.success(`Restored the version from ${versionDate(revision)}.`);
       void queryClient.invalidateQueries({ queryKey: orpc.vault.history.key() });
       onBack();
     },
@@ -172,7 +199,7 @@ const RevisionDetail = ({
         <Button size="icon-compact" variant="ghost" aria-label="Back to history" onClick={onBack}>
           <ArrowLeftIcon />
         </Button>
-        <span className="min-w-0 flex-1 truncate font-medium">{revision.subject}</span>
+        <span className="min-w-0 flex-1 truncate font-medium">{versionDate(revision)}</span>
         <Button
           size="compact"
           variant="tertiary"
@@ -187,8 +214,8 @@ const RevisionDetail = ({
         </Button>
       </div>
       <div className="shrink-0 border-b border-line px-3 py-1.5 text-caption text-muted-foreground">
-        {revision.authorName} · {new Date(revision.authoredAt).toLocaleString()} ·{" "}
-        <span className="font-mono">{shortSha(revision.sha)}</span>
+        {authorLabel(revision)}
+        {revision.authorKind === "external" ? <> · {revision.subject}</> : null}
         {revision.path === docPath ? null : <> · was {revision.path}</>}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -211,11 +238,11 @@ const RevisionDetail = ({
 const OlderRevisions = ({ limit, onMore }: { limit: number; onMore: () => void }) =>
   limit < VAULT_HISTORY_MAX_LIMIT ? (
     <Button size="compact" variant="ghost" className="mt-1 w-full" onClick={onMore}>
-      Show older revisions
+      Show older versions
     </Button>
   ) : (
     <p className="p-2 text-caption text-muted-foreground">
-      Older revisions are in the vault&apos;s git log.
+      History shows the {VAULT_HISTORY_MAX_LIMIT} most recent versions.
     </p>
   );
 
@@ -283,7 +310,7 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
       )}
       {revisions.length === 0 && !historyQuery.isPending ? (
         <p className="p-3 text-subtitle text-muted-foreground">
-          No revisions yet. Edits are committed once you pause.
+          No versions yet. Your edits join the history once you pause.
         </p>
       ) : null}
     </div>

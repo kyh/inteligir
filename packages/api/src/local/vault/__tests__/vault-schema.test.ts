@@ -52,6 +52,7 @@ describe("a revision row", () => {
   it("carries the path AT that revision, and the rename only when there was one", () => {
     const row = {
       authorEmail: "vault@inteligir.local",
+      authorKind: "app",
       authorName: "inteligir",
       authoredAt: "2026-01-01T00:00:00+00:00",
       path: "Note.md",

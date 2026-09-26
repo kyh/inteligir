@@ -33,6 +33,7 @@ import {
   ChevronDownIcon,
   ChevronsUpDownIcon,
   FolderOpenIcon,
+  InfoIcon,
   LogInIcon,
   LogOutIcon,
   MoonIcon,
@@ -58,12 +59,14 @@ import {
 import { PREFS, RAIL_VIEWS, usePref } from "../prefs";
 import type { RailView } from "../prefs";
 import { SignInForm } from "../sign-in-form";
+import type { SettingsSection } from "../settings/settings-page";
 import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
-  syncBlockedReason,
+  syncNeedsAttention,
   syncStateDotClass,
   syncStateLabel,
+  syncStateNote,
   usePinnedPaths,
   useVaultStatus,
   useVaultTree,
@@ -226,21 +229,27 @@ const SignInDialog = ({
 };
 
 // The rail's ambient row: the vault's sync state as the row, and behind it the verbs that change
-// it — a sync now, and the account this device does or does not have.
-export const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
+// it — a sync now, and the account this device does or does not have. Actions sync on their own,
+// so the row offers no second sync for them.
+export const SyncRow = ({
+  onSyncNow,
+  onOpenSyncDetails,
+}: {
+  onSyncNow: () => void;
+  onOpenSyncDetails: () => void;
+}) => {
   const statusQuery = useVaultStatus();
   const agentWorking = useAgentWorking();
   const session = useCloudSession();
   const [signInOpen, setSignInOpen] = useState(false);
   const status = statusQuery.data;
   const canSync = canSyncNow(status);
-  const blocked = status === undefined ? null : (status.lastError ?? syncBlockedReason(status));
+  const note = status === undefined ? null : syncStateNote(status);
   const cloud = session.status;
   // a sign-in that landed closes its dialog, or a later sign-out would open it again
   if (cloud?.state === "signed-in" && signInOpen) {
     setSignInOpen(false);
   }
-  const handleSyncThreads = session.syncThreads;
   const handleSignOut = session.signOut;
   return (
     <>
@@ -271,15 +280,21 @@ export const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
               }
             />
             <DropdownMenuContent side="top" align="start" sideOffset={6}>
-              {blocked === null ? null : (
+              {note === null ? null : (
                 <DropdownMenuLabel className="max-w-64 whitespace-normal">
-                  {blocked}
+                  {note.message}
                 </DropdownMenuLabel>
               )}
               <DropdownMenuItem disabled={!canSync} onClick={onSyncNow}>
                 <RefreshCwIcon />
                 Sync now
               </DropdownMenuItem>
+              {status !== undefined && syncNeedsAttention(status) ? (
+                <DropdownMenuItem onClick={onOpenSyncDetails}>
+                  <InfoIcon />
+                  Sync details…
+                </DropdownMenuItem>
+              ) : null}
               {cloud === undefined || cloud.state === "signed-in" ? null : (
                 <DropdownMenuItem
                   onClick={() => {
@@ -295,10 +310,6 @@ export const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
                   <DropdownMenuLabel className="max-w-64 truncate">
                     {cloud.accountEmail ?? new URL(cloud.cloudUrl).host}
                   </DropdownMenuLabel>
-                  <DropdownMenuItem disabled={session.pending} onClick={handleSyncThreads}>
-                    <RefreshCwIcon />
-                    Sync threads now
-                  </DropdownMenuItem>
                   <DropdownMenuItem disabled={session.pending} onClick={handleSignOut}>
                     <LogOutIcon />
                     Sign out
@@ -360,7 +371,7 @@ export interface SidebarRailContentProps {
   onOpenSearch: () => void;
   searchShortcut: string | null;
   onSyncNow: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (section?: SettingsSection) => void;
 }
 
 export const SidebarRailContent = ({
@@ -516,14 +527,21 @@ export const SidebarRailContent = ({
       </SidebarContent>
       <SidebarFooter>
         <div className="flex items-center gap-1 pr-1.5">
-          <SyncRow onSyncNow={onSyncNow} />
+          <SyncRow
+            onSyncNow={onSyncNow}
+            onOpenSyncDetails={() => {
+              onOpenSettings("advanced");
+            }}
+          />
           <Tooltip content="Settings" side="top">
             <Button
               variant="ghost"
               size="icon-compact"
               className="size-6 shrink-0"
               aria-label="Settings"
-              onClick={onOpenSettings}
+              onClick={() => {
+                onOpenSettings();
+              }}
             >
               <SettingsIcon />
             </Button>

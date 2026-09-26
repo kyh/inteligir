@@ -10,12 +10,12 @@ const LOCAL_GIT_TIMEOUT_MS = 30_000;
 export const NETWORK_GIT_TIMEOUT_MS = 120_000;
 const GIT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
-const ENGINE_IDENTITY = { email: "vault@inteligir.local", name: "inteligir" };
-
 export interface CommitAuthor {
   name: string;
   email: string;
 }
+
+export const ENGINE_IDENTITY: CommitAuthor = { email: "vault@inteligir.local", name: "inteligir" };
 
 // the committer stays the engine so a commit always says which machine wrote it.
 export const identityEnv = (author?: CommitAuthor) => ({

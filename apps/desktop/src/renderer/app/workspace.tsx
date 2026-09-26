@@ -50,6 +50,7 @@ import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-r
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
 import type { SidebarActions } from "@repo/ui/components/sidebar-core";
+import type { SettingsSection } from "./settings/settings-page";
 import { SidebarRailContent } from "./sidebar/sidebar";
 import { useTreeOps } from "./sidebar/tree-ops";
 import { useNavigate } from "@tanstack/react-router";
@@ -428,19 +429,27 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
   // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette and
   // the find bar are portaled, so the cover would hide neither: both close here.
-  const onOpenSettings = useCallback((): void => {
-    closePalette();
-    const { openPath: path } = noteStore.state();
-    const editor = path === null ? null : getLiveEditor(path);
-    if (editor !== null) {
-      hideFindBar(editor);
-    }
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    void flushOpenNote();
-    void navigate({ search: true, to: "/settings" });
-  }, [closePalette, noteStore, navigate]);
+  const onOpenSettings = useCallback(
+    (section?: SettingsSection): void => {
+      closePalette();
+      const { openPath: path } = noteStore.state();
+      const editor = path === null ? null : getLiveEditor(path);
+      if (editor !== null) {
+        hideFindBar(editor);
+      }
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      void flushOpenNote();
+      // the router scrolls a hash's anchor into view once the page has rendered
+      if (section === undefined) {
+        void navigate({ search: true, to: "/settings" });
+      } else {
+        void navigate({ hash: section, search: true, to: "/settings" });
+      }
+    },
+    [closePalette, noteStore, navigate],
+  );
 
   useEffect(() => {
     setAgentRequestActions({
@@ -552,7 +561,9 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       openMatch,
       openNote: setOpenNote,
       openProblemLink,
-      openSettings: onOpenSettings,
+      openSettings: () => {
+        onOpenSettings();
+      },
       openThread,
       replaceAll,
       syncNow,

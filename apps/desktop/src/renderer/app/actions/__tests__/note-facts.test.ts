@@ -6,6 +6,7 @@ import { firstRevisionAuthoredAt, readingTimeLabel } from "../note-facts";
 
 const revision = (index: number): VaultRevision => ({
   authorEmail: "kyh@example.com",
+  authorKind: "external",
   authorName: "kyh",
   authoredAt: `2026-01-${String(1 + (index % 28)).padStart(2, "0")}T00:00:00+00:00`,
   path: "notes/a.md",

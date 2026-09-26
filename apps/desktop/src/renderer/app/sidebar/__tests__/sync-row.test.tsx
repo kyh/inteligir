@@ -52,7 +52,7 @@ describe("the rail's sign-in", () => {
     queryClient.setQueryData(orpc.vault.status.queryKey(), NO_REMOTE);
     render(
       <QueryClientProvider client={queryClient}>
-        <SyncRow onSyncNow={() => {}} />
+        <SyncRow onSyncNow={() => {}} onOpenSyncDetails={() => {}} />
       </QueryClientProvider>,
     );
 
@@ -73,5 +73,57 @@ describe("the rail's sign-in", () => {
     });
     await delay(DIALOG_PAINT_MS);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+// what a failed pass leaves in `lastError`: git's own words
+const GIT_STDERR =
+  "fatal: unable to access 'https://example.com/vault.git/': Could not resolve host";
+
+const REMOTE_FIELDS = {
+  lastError: GIT_STDERR,
+  lastSyncAt: null,
+  remote: "https://example.com/vault.git",
+  remoteSource: "explicit",
+} as const;
+
+const openRow = async (vault: VaultStatusResponse, onOpenSyncDetails = () => {}) => {
+  stubRpc({ "threads/list": () => ({ nextCursor: null, threads: [] }) });
+  const queryClient = createWorkspaceQueryClient();
+  queryClient.setQueryData(orpc.cloud.status.queryKey(), SIGNED_IN);
+  queryClient.setQueryData(orpc.vault.status.queryKey(), vault);
+  render(
+    <QueryClientProvider client={queryClient}>
+      <SyncRow onSyncNow={() => {}} onOpenSyncDetails={onOpenSyncDetails} />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByLabelText("Sync and account"));
+  await screen.findByText("Sync now");
+};
+
+describe("the rail's sync row", () => {
+  it("says a failed pass in its own words, never the engine's", async () => {
+    await openRow({ state: "offline", ...REMOTE_FIELDS });
+
+    expect(document.body.textContent).not.toContain(GIT_STDERR);
+    expect(document.body.textContent).not.toMatch(/\b(?:git|remote|fatal)\b/iu);
+    expect(screen.getByText("Offline")).toBeDefined();
+  });
+
+  it("offers no second sync for actions, which sync on their own", async () => {
+    await openRow({ state: "clean", ...REMOTE_FIELDS, lastError: null });
+
+    expect(screen.getByText("Sign out")).toBeDefined();
+    expect(screen.queryByText("Sync threads now")).toBeNull();
+    expect(screen.queryByText("Sync details…")).toBeNull();
+  });
+
+  it("opens the details in Settings when sync cannot continue on its own", async () => {
+    const opened = vi.fn<() => void>();
+    await openRow({ state: "broken", ...REMOTE_FIELDS }, opened);
+
+    fireEvent.click(screen.getByText("Sync details…"));
+    expect(opened).toHaveBeenCalledOnce();
+    expect(document.body.textContent).not.toContain(GIT_STDERR);
   });
 });

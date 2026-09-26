@@ -53,48 +53,46 @@ export const useSystemStatus = () =>
 // undefined until the status answers; the sections say nothing rather than guess
 export const useDataDirScope = (): DataDirScope | undefined => useSystemStatus().data?.dataDirScope;
 
+// Every sentence here is the user's, never the engine's: its own error text names git's
+// machinery, so the rail and a toast never show it, and Settings › Advanced shows it raw.
+const SYNC_PAUSED = "Sync paused";
+const DETAILS_IN_ADVANCED = "Details in Settings › Advanced.";
+const STUCK = `Sync can't continue on its own. ${DETAILS_IN_ADVANCED}`;
+
 export const syncStateLabel = (status: VaultStatusResponse): string => {
   switch (status.state) {
     case "no-remote": {
-      return "Local only";
+      return "Only on this Mac";
     }
     case "clean": {
       return "Synced";
     }
     case "dirty": {
-      return "Unsynced changes";
+      return "Not synced yet";
     }
     case "syncing": {
       return "Syncing…";
     }
     case "held": {
-      return "Waiting on an agent turn";
+      return "Waiting for the agent";
     }
     case "offline": {
       return "Offline";
     }
     case "unauthorized": {
-      return "Not authorized — sign this device in again";
-    }
-    case "rejected": {
-      return "The remote refused the push";
+      return status.remoteSource === "account" ? "Signed out of sync" : SYNC_PAUSED;
     }
     case "too-large": {
-      return status.remoteSource === "account"
-        ? "Too large for the hosted vault"
-        : "Too large for the remote";
+      return status.remoteSource === "account" ? "Too large to sync" : SYNC_PAUSED;
     }
     case "account-mismatch": {
       return "This vault belongs to a different account";
     }
-    case "detached": {
-      return "Not on a branch — check one out to sync";
-    }
-    case "conflict": {
-      return `Conflict (${status.conflict.files.length})`;
-    }
+    case "rejected":
+    case "detached":
+    case "conflict":
     case "broken": {
-      return "Sync broken — manual repair needed";
+      return SYNC_PAUSED;
     }
     default: {
       const exhaustive: never = status;
@@ -139,19 +137,17 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
   }
 };
 
-export const syncBlockedReason = (status: VaultStatusResponse): string | null => {
+// no pass runs in these states, so a sync asked for now would report one that never happened
+export const canSyncNow = (status: VaultStatusResponse | undefined): boolean => {
+  if (status === undefined) {
+    return false;
+  }
   switch (status.state) {
-    case "no-remote": {
-      return "No git remote configured";
-    }
-    case "syncing": {
-      return "A sync is already running";
-    }
-    case "held": {
-      return "An agent turn holds the vault; the next sync runs when it finishes";
-    }
+    case "no-remote":
+    case "syncing":
+    case "held":
     case "account-mismatch": {
-      return "This vault last synced with a different account — sign out, or move the vault aside";
+      return false;
     }
     case "clean":
     case "dirty":
@@ -162,7 +158,7 @@ export const syncBlockedReason = (status: VaultStatusResponse): string | null =>
     case "detached":
     case "conflict":
     case "broken": {
-      return null;
+      return true;
     }
     default: {
       const exhaustive: never = status;
@@ -171,82 +167,70 @@ export const syncBlockedReason = (status: VaultStatusResponse): string | null =>
   }
 };
 
-export const canSyncNow = (status: VaultStatusResponse | undefined): boolean =>
-  status !== undefined && syncBlockedReason(status) === null;
-
-interface SyncNowNotice {
+// `warning` and `error` are the states the user has to act on, or ask Settings › Advanced about.
+interface SyncStateNote {
   tone: "info" | "warning" | "error";
   message: string;
 }
 
-export interface SyncNowHandle {
-  syncNow: () => void;
-  inFlight: boolean;
-}
-
-// Total over the states: silence is indistinguishable from a sync that worked.
-const syncNowNotice = (status: VaultStatusResponse): SyncNowNotice | null => {
-  const blocked = syncBlockedReason(status);
-  if (blocked !== null) {
-    return { message: `${blocked}.`, tone: "info" };
-  }
+// The line under the rail's sync row, and what a sync the user asked for says when it ends in this
+// state. Null only where silence is the answer: a sync that worked, or edits still on their way.
+export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null => {
   switch (status.state) {
-    case "conflict": {
-      return {
-        message: "Sync hit a conflict — both sides changed the same files.",
-        tone: "warning",
-      };
+    case "no-remote": {
+      return { message: "Sign in to sync your notes across devices.", tone: "info" };
+    }
+    case "clean":
+    case "dirty": {
+      return null;
+    }
+    case "syncing": {
+      return { message: "A sync is already running.", tone: "info" };
+    }
+    case "held": {
+      return { message: "Syncs when the agent finishes.", tone: "info" };
     }
     case "offline": {
-      return {
-        message:
-          status.lastError === null
-            ? "Could not reach the git remote."
-            : `Could not reach the git remote: ${status.lastError}`,
-        tone: "error",
-      };
+      return { message: "Offline — syncs when you're back.", tone: "info" };
     }
     case "unauthorized": {
       return {
         message:
-          "The remote refused this device's credential — sign in again in Settings → Devices.",
-        tone: "error",
-      };
-    }
-    case "rejected": {
-      return {
-        message:
-          status.lastError === null
-            ? "The git remote refused the push."
-            : `The git remote refused the push: ${status.lastError}`,
+          status.remoteSource === "account"
+            ? "This Mac was signed out of sync. Sign in again in Settings."
+            : `Your sync server refused this Mac. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
     }
     case "too-large": {
       return {
-        message: status.lastError ?? "The git remote refused the push as too large.",
+        message:
+          status.remoteSource === "account"
+            ? "Your vault is larger than your account can sync."
+            : `Your vault is too large for your sync server. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
     }
-    case "detached": {
+    case "account-mismatch": {
       return {
-        message: "Sync is paused: the vault's git HEAD is detached. Check out a branch in it.",
+        message:
+          "This vault last synced with a different account — sign out, or move the vault aside.",
         tone: "warning",
       };
     }
-    case "clean":
-    case "dirty":
-    case "broken": {
-      return status.lastError === null
-        ? null
-        : { message: `Sync failed: ${status.lastError}`, tone: "error" };
+    case "conflict": {
+      const count = status.conflict.files.length;
+      return {
+        message: `${String(count)} ${count === 1 ? "note" : "notes"} changed both here and on another device. ${DETAILS_IN_ADVANCED}`,
+        tone: "warning",
+      };
     }
-    case "no-remote":
-    case "syncing":
-    case "held":
-    case "account-mismatch": {
-      // Answered by the blocked branch above.
-      return null;
+    case "detached": {
+      return { message: STUCK, tone: "warning" };
+    }
+    case "rejected":
+    case "broken": {
+      return { message: STUCK, tone: "error" };
     }
     default: {
       const exhaustive: never = status;
@@ -254,6 +238,17 @@ const syncNowNotice = (status: VaultStatusResponse): SyncNowNotice | null => {
     }
   }
 };
+
+// the rail offers Sync details… on these, which opens Settings › Advanced
+export const syncNeedsAttention = (status: VaultStatusResponse): boolean => {
+  const note = syncStateNote(status);
+  return note !== null && note.tone !== "info";
+};
+
+export interface SyncNowHandle {
+  syncNow: () => void;
+  inFlight: boolean;
+}
 
 // `useIsMutating` over the procedure's key rather than `isPending`: each
 // caller mounts its own useMutation, so isPending would answer only for the
@@ -267,9 +262,9 @@ export const useSyncNow = (): SyncNowHandle => {
       },
       onSuccess: (status) => {
         queryClient.setQueryData(orpc.vault.status.queryKey(), status);
-        const notice = syncNowNotice(status);
-        if (notice !== null) {
-          toast[notice.tone](notice.message);
+        const note = syncStateNote(status);
+        if (note !== null) {
+          toast[note.tone](note.message);
         }
       },
     }),

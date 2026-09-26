@@ -80,6 +80,9 @@ export const vaultRevisionShaSchema = z.string().regex(/^[0-9a-f]{7,64}$/u);
 export const vaultRevisionSchema = z
   .object({
     authorEmail: z.string(),
+    // read off the author by the server, so no client matches an email: the app's own save of
+    // the user's edits, an agent's turn, or anyone else (another device, a person's own git).
+    authorKind: z.enum(["app", "agent", "external"]),
     authorName: z.string(),
     // git's `%aI`.
     authoredAt: z.string().min(1),
