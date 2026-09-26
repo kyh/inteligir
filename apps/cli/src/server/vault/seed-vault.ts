@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 // a resolver miss on a broken staging degrades to this, never to an empty vault.
 const FALLBACK_WELCOME = `# Welcome to inteligir
 
-This folder is your vault: plain markdown files that belong to you, versioned with git. Edit them here or with any other tool — changes show up either way.
+This folder is your vault: your notes are ordinary files in it, and they belong to you. Edit them here or in any other app — changes show up either way.
 `;
 
 export const resolveSeedDir = (moduleUrl: string = import.meta.url): string | null => {

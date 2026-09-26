@@ -6,15 +6,9 @@
     "source": "user"
   },
   "onboarding-agent-comment": {
-    "text": "Agent comments are labelled as the agent's, so you always know who asked.",
+    "text": "The agent's comments are labelled as its own, so you always know who wrote what.",
     "createdAt": 1787788860,
     "updatedAt": 1787788860,
     "source": "agent"
-  },
-  "onboarding-external-comment": {
-    "text": "A coding agent working in the repo can write review notes back into the vault.",
-    "createdAt": 1787788920,
-    "updatedAt": 1787788920,
-    "source": "external"
   }
 }
