@@ -11,6 +11,8 @@ import type { DispatchRuntime, DispatchRuntimeArgs } from "../dispatch/dispatch-
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import type { AttachmentFiles } from "../notes/attachment-files";
+import { createCommentOps } from "../notes/comment-ops";
+import type { CommentOps } from "../notes/comment-ops";
 import { createFileOps } from "../notes/file-ops";
 import type { FileOps } from "../notes/file-ops";
 import { createNotesStore } from "../notes/notes-store";
@@ -40,6 +42,10 @@ export interface ComposeRuntimeArgs {
   deviceName: string;
   // 16 random bytes as hex: a capture's idempotency key, a dispatch's id and a new thread's
   mintId: () => string;
+  // the phone's random bytes, which a comment reply's id is minted from
+  randomBytes: (length: number) => Uint8Array;
+  // a note's new frontmatter id, uuid-shaped, for its first comment made here
+  mintNoteId: () => string;
   sync?: Omit<SyncRuntimeArgs, "cloudUrl" | "store">;
   // the first wait after a failed send of the phone's edits; null never retries on a timer
   retryBaseMs?: number | null;
@@ -58,6 +64,7 @@ export interface AppRuntime {
   sync: SyncRuntime;
   notes: NotesStore;
   fileOps: FileOps;
+  comments: CommentOps;
   dispatch: DispatchRuntime;
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
@@ -78,6 +85,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     attachments: args.attachments,
     db: args.db,
     deviceName: args.deviceName,
+    mintNoteId: args.mintNoteId,
     outboxFiles: args.outboxFiles,
     session: sync.session,
     sha1: args.sha1,
@@ -144,6 +152,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   let started = false;
 
   return {
+    comments: createCommentOps({
+      now: () => Math.floor(Date.now() / 1000),
+      randomBytes: args.randomBytes,
+      store: notes,
+    }),
     fileOps: createFileOps(notes),
     async logout(options = {}) {
       const [edits, requests] = await Promise.all([notes.unsentCount(), dispatch.unclaimedCount()]);

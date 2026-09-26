@@ -128,6 +128,10 @@ what each one is FOR.
 |                            | to, deletes one with a comment and adds a photo; after A syncs, A holds   |
 |                            | the rewritten link, the old name as the note's alias, no comment store    |
 |                            | and the photo's bytes                                                     |
+| phone-comments-hosted      | the phone's own runtime comments on a note with no id, minting it one;    |
+|                            | offline it replies and comments again while A comments on the same note;  |
+|                            | after A syncs, every thread is anchored on its own words, the reply is    |
+|                            | there, and the phone's resolve reaches A                                  |
 | phone-editor-page          | the phone's editor page, built through turbo, loads from `file://` at     |
 |                            | 390×844 with a scripted phone on its bridge: a typed paragraph writes     |
 |                            | exactly the note's new bytes under its read base, typing in a tab panel   |

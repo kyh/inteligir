@@ -1,7 +1,14 @@
+import { commentKeyOf } from "@repo/notes/comments/comment-key";
 import { foldThreads } from "@repo/notes/comments/comment-threads";
-import type { CommentThread } from "@repo/notes/comments/comment-threads";
+import type { AddResult, CommentThread } from "@repo/notes/comments/comment-threads";
 import { markerRootIds } from "@repo/notes/comments/marker-ids";
-import { commentsStorePath, isNoteIdKey, parseSidecar } from "@repo/notes/comments/sidecar-schema";
+import {
+  commentsStorePath,
+  isNoteIdKey,
+  parseSidecar,
+  serializeSidecar,
+} from "@repo/notes/comments/sidecar-schema";
+import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
@@ -17,8 +24,17 @@ import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
-import { blobOid, isTextOp, opPaths, rebaseEdit, renameLeaves, textBlobOid } from "./outbox-ops";
-import type { OutboxRow, RenameRewrite, Sha1 } from "./outbox-ops";
+import {
+  blobOid,
+  commentLeaves,
+  isTextOp,
+  leavesAt,
+  opPaths,
+  rebaseEdit,
+  renameLeaves,
+  textBlobOid,
+} from "./outbox-ops";
+import type { CommentOp, GuardedText, OutboxRow, Sha1 } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox } from "./vault-outbox";
 import type { OutboxStatus } from "./vault-outbox";
@@ -30,6 +46,10 @@ import type { OverlayEntry } from "./vault-overlay";
 const NOT_SIGNED_IN = "Not signed in.";
 
 const INCOMPLETE = "Some notes did not download. Pull down to try again.";
+
+const UNREADABLE_NOTE = "This note has not downloaded to your phone yet.";
+
+const UNREADABLE_COMMENTS = "This note's comments could not be read.";
 
 // a write races a landing that rebases the row it meant to join; past this the note keeps changing
 const MAX_WRITE_ATTEMPTS = 3;
@@ -103,6 +123,22 @@ export interface RenameEdits {
 
 const NO_EDITS: RenameEdits = { note: null, rewrites: [] };
 
+// one change to a note's comment store, planned from the texts the phone holds when it is queued:
+// `anchor` is the note's new text with a new comment's markers in it, computed from the text it
+// `expected` the note to hold, and null for a reply or a resolve, which leave the note alone
+interface CommentEdit {
+  path: string;
+  anchor: { expected: string; content: string } | null;
+  edit: (sidecar: CommentSidecar) => AddResult;
+}
+
+// `note`: the note's text on the phone now, which an id minted for its first comment adds to
+export type CommentEditOutcome =
+  | { kind: "edited"; note: string }
+  | { kind: "changed"; current: string }
+  | { kind: "vanished" }
+  | { kind: "refused"; message: string };
+
 // a listed file with the frontmatter facts its held text carries
 export interface HeldFile {
   path: string;
@@ -153,6 +189,9 @@ export interface NotesStore {
   };
   // the store at the id of a note the caller already read, folded against that read's markers
   readComments: (note: NoteText) => Promise<CommentsRead>;
+  // the store's edit and the note's anchored text, one change set; a note without an id takes one
+  // with its first comment
+  editComments: (edit: CommentEdit) => Promise<CommentEditOutcome>;
   // `alias` is what follows a link's last pipe: a uuid there names the note by its frontmatter id
   resolveWiki: (target: string, alias?: string) => string | null;
   // the bytes on this phone, downloaded on the first ask
@@ -182,6 +221,8 @@ export interface CreateNotesStoreArgs {
   sha1: Sha1;
   // the name this phone's conflict reports and copies go by
   deviceName: string;
+  // a note's new frontmatter id, uuid-shaped, for its first comment made here
+  mintNoteId: () => string;
   // the first wait after a failed send, doubling; null never retries on a timer
   retryBaseMs?: number | null;
 }
@@ -572,7 +613,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   // the vault's blob the caller's view of a path derives from: an unsent write's own base, none
-  // for an unsent create, what an unsent rename leaves there, else what was read
+  // for an unsent create, what an unsent rename or comment edit leaves there, else what was read
   const recordGuard = async (
     path: string,
     read: { content: string; oid: string | null },
@@ -583,8 +624,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       base = { content: last.op.baseContent, oid: last.op.baseOid };
     } else if (last?.op.op === "create") {
       base = null;
-    } else if (last?.op.op === "rename") {
-      const leaves = await renameLeaves(args.sha1, last.op, path);
+    } else if (last?.op.op === "rename" || last?.op.op === "comment") {
+      const leaves = await leavesAt(args.sha1, last.op, path);
       if (leaves !== null && leaves.content !== null) {
         base = { content: leaves.content, oid: leaves.oid };
       }
@@ -626,6 +667,9 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       case "rename": {
         return await renameLeaves(args.sha1, op, path);
       }
+      case "comment": {
+        return await commentLeaves(args.sha1, op, path);
+      }
       case "putAsset": {
         return { content: null, oid: await blobOid(args.sha1, await outboxBytes(op.stagedFile)) };
       }
@@ -647,6 +691,22 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
   };
 
+  // the blob a new write row is computed from: what an unsent rename or comment edit leaves at the
+  // path, else the base the caller's guard holds
+  const writeBase = async (
+    last: OutboxRow | undefined,
+    path: string,
+    guard: Guard,
+  ): Promise<{ oid: string; content: string } | null> => {
+    if (last?.op.op === "rename" || last?.op.op === "comment") {
+      const leaves = await leavesAt(args.sha1, last.op, path);
+      return leaves === null || leaves.content === null
+        ? null
+        : { content: leaves.content, oid: leaves.oid };
+    }
+    return guard.base;
+  };
+
   const write: NotesStore["write"] = async (path, content) =>
     await writing(async () => {
       await resetWork;
@@ -663,14 +723,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           return { kind: "vanished" };
         }
         const joins = last !== undefined && isTextOp(last.op) ? last.op : null;
-        let onto: { oid: string; content: string } | null = guard.base;
-        if (last?.op.op === "rename") {
-          const leaves = await renameLeaves(args.sha1, last.op, path);
-          onto =
-            leaves === null || leaves.content === null
-              ? null
-              : { content: leaves.content, oid: leaves.oid };
-        }
+        const onto = await writeBase(last, path, guard);
         const ontoText = joins === null ? onto?.content : joins.content;
         if (ontoText === undefined) {
           return { kind: "vanished" };
@@ -749,8 +802,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     edits: RenameEdits,
     moved: ReadonlySet<string>,
     skipped: string[],
-  ): Promise<RenameRewrite[]> => {
-    const rewrites: RenameRewrite[] = [];
+  ): Promise<GuardedText[]> => {
+    const rewrites: GuardedText[] = [];
     for (const rewrite of edits.rewrites) {
       const held = moved.has(rewrite.path) ? null : await heldText(rewrite.path);
       if (held === null || held.content !== rewrite.expected) {
@@ -867,6 +920,78 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return { kind: "created" };
     });
 
+  // the store's text after the edit, from what the phone holds of it: nothing where it lists none
+  const editedStore = async (
+    path: string,
+    edit: CommentEdit["edit"],
+  ): Promise<
+    | { kind: "planned"; store: CommentOp["store"] }
+    | Extract<CommentEditOutcome, { kind: "refused" }>
+  > => {
+    const held = listing?.files.has(path) === true ? await heldText(path) : null;
+    let base: CommentOp["store"]["base"] = null;
+    if (held !== null) {
+      if (held.content === null) {
+        return { kind: "refused", message: UNREADABLE_COMMENTS };
+      }
+      base = { content: held.content, oid: held.oid };
+    }
+    const parsed = base === null ? null : parseSidecar(base.content);
+    if (parsed !== null && !parsed.ok) {
+      return { kind: "refused", message: `${UNREADABLE_COMMENTS} ${parsed.error}` };
+    }
+    const edited = edit(parsed?.sidecar ?? {});
+    return edited.ok
+      ? { kind: "planned", store: { base, content: serializeSidecar(edited.sidecar), path } }
+      : { kind: "refused", message: edited.error };
+  };
+
+  // read, planned and queued under the write lock, so no write lands between the texts the edit
+  // was made from and the row that carries it
+  const editComments: NotesStore["editComments"] = async ({ anchor, edit, path }) =>
+    await writing(async () => {
+      await resetWork;
+      const fence = liveFence();
+      const note = goneHere(path) ? null : await heldText(path);
+      if (note === null) {
+        return { kind: "vanished" };
+      }
+      if (note.content === null) {
+        return { kind: "refused", message: UNREADABLE_NOTE };
+      }
+      if (anchor !== null && anchor.expected !== note.content) {
+        return { current: note.content, kind: "changed" };
+      }
+      const key = commentKeyOf(
+        anchor?.content ?? note.content,
+        anchor === null ? null : args.mintNoteId,
+      );
+      if (key.kind === "refused") {
+        return key;
+      }
+      const planned = await editedStore(commentsStorePath(key.id), edit);
+      if (planned.kind === "refused") {
+        return planned;
+      }
+      const { store } = planned;
+      const anchored =
+        key.content === note.content
+          ? null
+          : { baseContent: note.content, baseOid: note.oid, content: key.content, path };
+      expectOwn(path, key.content);
+      expectOwn(store.path, store.content);
+      if (!(await outbox.enqueue({ anchored, op: "comment", store }, fence))) {
+        throw new Error(NOT_SIGNED_IN);
+      }
+      if (anchored !== null) {
+        guards.set(path, {
+          base: { content: key.content, oid: await textBlobOid(args.sha1, key.content) },
+          seen: key.content,
+        });
+      }
+      return { kind: "edited", note: key.content };
+    });
+
   return {
     async attachmentFile(path) {
       const current = session.current();
@@ -917,6 +1042,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       await resetWork;
       await outbox.drain();
     },
+
+    editComments,
 
     heldFiles: () =>
       listing === null

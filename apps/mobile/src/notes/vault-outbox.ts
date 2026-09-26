@@ -26,6 +26,7 @@ import { migratePhoneDb } from "../lib/phone-db";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import {
+  commentChanges,
   isTextOp,
   opPaths,
   putText,
@@ -60,7 +61,8 @@ interface ParkedChange {
   seq: number;
   paths: readonly string[];
   reason: string;
-  // a note's text or an attachment can be kept under a free name; a rename or a delete cannot
+  // a note's text or an attachment can be kept under a free name; a rename, a delete or a comment
+  // cannot
   canSaveAsNew: boolean;
 }
 
@@ -497,6 +499,9 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       }
       case "rename": {
         return { changes: renameChanges(op), kind: "set" };
+      }
+      case "comment": {
+        return { changes: commentChanges(op), kind: "set" };
       }
       case "putAsset": {
         let bytes: Uint8Array;

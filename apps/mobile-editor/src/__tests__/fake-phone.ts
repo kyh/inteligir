@@ -62,6 +62,12 @@ const answerFromVault =
       case "write": {
         return writeAnswer(files, request.payload);
       }
+      // the note lands as a write does; the comment's entry is the phone's store's, which a case
+      // reads off the request
+      case "addComment": {
+        const { base, content, path } = request.payload;
+        return writeAnswer(files, { content, guard: { base, kind: "expected" }, path });
+      }
       case "remove": {
         files.delete(request.payload.path);
         return ok({});

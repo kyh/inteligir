@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 
+import { commentIdSchema } from "@repo/notes/comments/sidecar-schema";
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
@@ -34,11 +35,15 @@ const guardSchema = z.discriminatedUnion("kind", [
   z.object({ base: z.string(), kind: z.literal("expected") }).strict(),
 ]);
 
+const writtenSchema = z.object({ kind: z.literal("written") }).strict();
+const changedSchema = z.object({ current: z.string(), kind: z.literal("changed") }).strict();
+const missingSchema = z.object({ kind: z.literal("missing") }).strict();
+
 const guardedWriteResultSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("written") }).strict(),
+  writtenSchema,
   z.object({ kind: z.literal("exists") }).strict(),
-  z.object({ current: z.string(), kind: z.literal("changed") }).strict(),
-  z.object({ kind: z.literal("missing") }).strict(),
+  changedSchema,
+  missingSchema,
 ]);
 
 const renameResultSchema = z.discriminatedUnion("ok", [
@@ -72,6 +77,20 @@ const noPayload = z.object({}).strict();
 // the `absent` guard, as `GuardedVaultPort` spells it, and a note is read the same way whether it
 // is the open one or one an embed shows.
 const REQUEST_SCHEMAS = {
+  // the open note's write under the `expected` guard, carrying a new comment on the text it
+  // anchors: the phone lands the note and the comment's entry as one change set
+  addComment: {
+    payload: z
+      .object({
+        base: z.string(),
+        content: z.string(),
+        id: commentIdSchema,
+        path: vaultPathSchema,
+        text: z.string().min(1),
+      })
+      .strict(),
+    result: z.discriminatedUnion("kind", [writtenSchema, changedSchema, missingSchema]),
+  },
   list: {
     payload: noPayload,
     // files only; the page decides which are docs, through @repo/notes' one answer
@@ -144,6 +163,7 @@ const saveErrorSchema = z.discriminatedUnion("kind", [
 
 export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
+    requestFrame("addComment", REQUEST_SCHEMAS.addComment.payload),
     requestFrame("list", REQUEST_SCHEMAS.list.payload),
     requestFrame("pickImage", REQUEST_SCHEMAS.pickImage.payload),
     requestFrame("read", REQUEST_SCHEMAS.read.payload),

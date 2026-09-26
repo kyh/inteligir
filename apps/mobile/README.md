@@ -93,6 +93,12 @@ src/
                         store, planned with the rules the server runs
                         (@repo/notes' plan-rename, store-removal, asset-name;
                         platform-free, unit-tested and run by the scenario suite)
+    comment-ops.ts      add, reply and resolve over the notes store, by the
+                        server's rules (@repo/notes' comment-threads,
+                        comment-key), signed as the user; a new comment's
+                        markers come from the editor page and land with its
+                        entry (platform-free, unit-tested and run by the
+                        scenario suite)
     photo-ingest.ts     the camera or the library → a JPEG at most 2048px on
                         its long edge, re-encoded without EXIF (the native half;
                         photo-plan.ts is the pure one: the size, the name, the
@@ -106,8 +112,8 @@ src/
                         conflict in describeSyncConflict's words (pure,
                         unit-tested); outbox-banner.tsx draws them above the
                         list and the open note
-    comments-view.tsx   a note's comment threads, read-only, in a sheet over
-                        the editor
+    comments-view.tsx   a note's comment threads in a sheet over the editor,
+                        each with Reply and Resolve (or Reopen)
   lib/          the composition root: compose-runtime.ts (platform-free and
                 unit-tested: the restore, sign-out, revocation and resume)
                 and app-runtime.ts (its binding to the Keychain, the
@@ -213,8 +219,9 @@ A write lands on the phone the moment it is durable in the `outbox` table
 (`notes/vault-outbox.ts`), and every read, the listing and the wiki resolver
 see it from then on (`notes/vault-overlay.ts`): a pending edit reads as the
 note, a create and a staged photo list before the vault holds them, a rename
-moves the row and rewrites the links naming it now, and a delete hides the
-note and its comment store. The rows are sent oldest first,
+moves the row and rewrites the links naming it now, a delete hides the
+note and its comment store, and a comment reads as its store and its note.
+The rows are sent oldest first,
 one change set per row, to `POST /v1/vault/commit`, on every write, on resume,
 when expo-network says the phone is back online, and on a backoff after a
 failure, one pass at a time (`createSingleFlight` from
@@ -255,6 +262,14 @@ failure, one pass at a time (`createSingleFlight` from
   comment store unless another note carries its id
   (`@repo/notes/comments/store-removal`), so a note the vault keeps, because
   another device edited it, keeps its comments too.
+- **A comment is one set too** (`notes/comment-ops.ts`). A new one is the
+  editor page's save that writes its markers, which carries it (`addComment`
+  on the bridge): the store plans its entry under the write lock from the
+  texts the phone holds and queues the note and its comment store as ONE
+  `comment` row, minting a note without an id one by the desktop's line cut.
+  A reply and a resolve are the store alone. A stale set settles the note as
+  a write and the store by its entries, so a comment another device made
+  meanwhile keeps both threads.
 - **A photo lands in the default attachments folder** (`assets/`), since the
   Mac's attachment choice lives in its own data folder, under a free name
   (`@repo/notes/knowledge/asset-name`), as a JPEG: the Mac's editor cannot

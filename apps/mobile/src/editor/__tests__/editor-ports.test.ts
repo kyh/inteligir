@@ -2,11 +2,17 @@ import { createHash } from "node:crypto";
 import { base64FromBytes } from "@repo/api/cloud/bytes";
 import type { NativeFrame, RequestPayload } from "@repo/mobile-editor/bridge-protocol";
 import { describe, expect, it } from "vitest";
+import { createCommentOps } from "../../notes/comment-ops";
 import { createFileOps } from "../../notes/file-ops";
 import type { PhotoIngest } from "../../notes/photo-ingest";
 import { createFakeVault, networkOver } from "../../notes/__tests__/fake-vault";
 import type { FakeVault, Network } from "../../notes/__tests__/fake-vault";
-import { launchPhone, openTempDb, phonePorts } from "../../notes/__tests__/phone-storage";
+import {
+  launchPhone,
+  MINTED_NOTE_ID,
+  openTempDb,
+  phonePorts,
+} from "../../notes/__tests__/phone-storage";
 import { createEditorPorts } from "../editor-ports";
 import type { EditorRoute } from "../editor-ports";
 
@@ -14,6 +20,8 @@ type VaultChangedEvent = Extract<NativeFrame, { type: "vaultChanged" }>["event"]
 
 const NONCE = "test-nonce-0123456789";
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
+// unix seconds, when every comment in these cases is made
+const AT = 1_790_000_000;
 
 const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
 
@@ -32,6 +40,11 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
   const opened: (string | null)[] = [];
   const comments: (readonly string[])[] = [];
   const editor = createEditorPorts({
+    comments: createCommentOps({
+      now: () => AT,
+      randomBytes: (length) => new Uint8Array(length),
+      store,
+    }),
     fileOps,
     go: (route) => {
       routes.push(route);
@@ -185,6 +198,48 @@ describe("what the editor page asks of the phone", () => {
       kind: "picked",
       path: "assets/p.jpg",
     });
+  });
+
+  it("lands a comment the page anchored with its note as one set, and tells the page of the id the note took", async () => {
+    const vault = createFakeVault({ "a.md": "# a\n\nHello there.\n" });
+    const { changes, editor, store } = await phoneFor(vault);
+    await editor.requests.read({ path: "a.md" });
+    const anchored = "# a\n\n%%i:c1:start%%Hello%%i:c1:end%% there.\n";
+
+    expect(
+      await editor.requests.addComment({
+        base: "# a\n\nHello there.\n",
+        content: anchored,
+        id: "c1",
+        path: "a.md",
+        text: "Why here?",
+      }),
+    ).toStrictEqual({ kind: "written" });
+    expect(changes).toContainEqual({ kind: "content", path: "a.md" });
+
+    await store.drain();
+    const commentStore = `.inteligir/comments/${MINTED_NOTE_ID}.json`;
+    expect(Object.keys(vault.files()).toSorted()).toStrictEqual([commentStore, "a.md"]);
+    expect(vault.files()["a.md"]).toBe(`---\nid: ${MINTED_NOTE_ID}\n---\n${anchored}`);
+    expect(vault.commits()).toBe(2);
+  });
+
+  it("hands a comment's note back for the page's merge when a sync landed since the page read", async () => {
+    const vault = createFakeVault({ "a.md": "# a\n" });
+    const { editor, store } = await phoneFor(vault);
+    await editor.requests.read({ path: "a.md" });
+    vault.change({ "a.md": "# a\nfrom the mac\n" });
+    await store.refresh();
+
+    expect(
+      await editor.requests.addComment({
+        base: "# a\n",
+        content: "%%i:c1:start%%# a%%i:c1:end%%\n",
+        id: "c1",
+        path: "a.md",
+        text: "Why?",
+      }),
+    ).toStrictEqual({ current: "# a\nfrom the mac\n", kind: "changed" });
   });
 });
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { KEYS } from "platejs";
+import { KEYS, RangeApi } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
@@ -86,6 +86,18 @@ const CommentRangeLeaf = (props: PlateLeafProps) => {
   );
 };
 
+// a marker inside a code block is literal text there, so no comment anchors in one
+export const selectionTakesComment = (editor: SlateEditor): boolean =>
+  editor.selection !== null &&
+  !RangeApi.isCollapsed(editor.selection) &&
+  !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } });
+
+// the new comment's id, its markers around the selection; null when there is nothing to anchor
+export const anchorNewComment = (editor: SlateEditor): string | null => {
+  const id = mintCommentId((length) => crypto.getRandomValues(new Uint8Array(length)));
+  return insertCommentMarkers(editor, id) ? id : null;
+};
+
 const beginCreate = (editor: SlateEditor): boolean => {
   // with no note nothing would claim the popover and the marker pair would be stranded, so refuse before minting
   const path = liveEditorPath(editor);
@@ -97,8 +109,8 @@ const beginCreate = (editor: SlateEditor): boolean => {
     domSelection !== null && domSelection.rangeCount > 0
       ? domSelection.getRangeAt(0).getBoundingClientRect()
       : null;
-  const id = mintCommentId((length) => crypto.getRandomValues(new Uint8Array(length)));
-  if (!insertCommentMarkers(editor, id)) {
+  const id = anchorNewComment(editor);
+  if (id === null) {
     return false;
   }
   setPendingCreate({
@@ -281,10 +293,7 @@ export const CommentKit = [
         if (editorShortcutFor(COMMENT_SHORTCUTS, event)?.action !== "add-comment") {
           return;
         }
-        if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) {
-          return;
-        }
-        if (beginCreate(editor)) {
+        if (selectionTakesComment(editor) && beginCreate(editor)) {
           event.preventDefault();
         }
       },

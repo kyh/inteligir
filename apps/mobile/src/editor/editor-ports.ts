@@ -8,6 +8,7 @@ import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 import type { NativeFrame, RequestResult } from "@repo/mobile-editor/bridge-protocol";
+import type { CommentOps } from "../notes/comment-ops";
 import type { FileOps } from "../notes/file-ops";
 import { linksKeptLine } from "../notes/file-ops";
 import type { HeldFile, NotesStore } from "../notes/notes-store";
@@ -30,6 +31,7 @@ export interface EditorPortsArgs {
     "attachmentFile" | "create" | "heldFiles" | "readNote" | "tree" | "watchPath" | "write"
   >;
   fileOps: FileOps;
+  comments: Pick<CommentOps, "add">;
   pickImage: () => Promise<PhotoIngest>;
   // a file the phone holds, as base64
   readBase64: (uri: string) => Promise<string>;
@@ -115,6 +117,45 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
   };
 
   const requests: EditorRequestPorts = {
+    // the page's write under the `expected` guard, with the new comment its markers anchor; a
+    // first comment mints the note an id, which the page is told of as a change to the note
+    addComment: async ({ base, content, id, path, text }) => {
+      const read = await store.readNote(path);
+      if (!read.ok) {
+        if (read.notFound) {
+          return { kind: "missing" };
+        }
+        throw new Error(read.message);
+      }
+      if (read.content !== base) {
+        return { current: read.content, kind: "changed" };
+      }
+      const added = await args.comments.add({
+        anchor: { content, expected: base },
+        id,
+        path,
+        text,
+      });
+      switch (added.kind) {
+        case "edited": {
+          if (added.note !== content) {
+            emit({ kind: "content", path });
+          }
+          return { kind: "written" };
+        }
+        case "changed": {
+          return { current: added.current, kind: "changed" };
+        }
+        case "vanished": {
+          return { kind: "missing" };
+        }
+        case "refused": {
+          throw new Error(added.message);
+        }
+        // no default
+      }
+    },
+
     list: async () => await Promise.resolve({ paths: store.heldFiles().map((file) => file.path) }),
 
     pickImage: async () => await args.pickImage(),
