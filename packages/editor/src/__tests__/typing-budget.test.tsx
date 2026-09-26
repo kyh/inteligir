@@ -52,7 +52,9 @@ const CLOSING_BLOCK = "The end.";
 // keystroke costs 210-230ms in the long note against 26-27ms in the short one, 8x for eight times
 // the lines, where a pass quadratic in the note shows; the settle costs 270ms against a 1,050ms
 // parse of the note, and without patches/@platejs__core@53.3.14.patch 3,100ms, three times it.
-const KEYSTROKE_GROWTH_CEILING = 12;
+// A memory-starved CI runner's garbage collection pushed the linear case to 12.4x; a quadratic
+// pass is 64x, so 16 still catches it.
+const KEYSTROKE_GROWTH_CEILING = 16;
 const SETTLE_TO_PARSE_CEILING = 1;
 
 interface Pass {
