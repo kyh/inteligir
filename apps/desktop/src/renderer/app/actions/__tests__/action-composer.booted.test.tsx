@@ -20,7 +20,7 @@ const noteColumn = { current: document.body };
 const ACP: AgentStatus = { detail: null, mode: "auto", runtime: "acp" };
 const SCRIPTED: AgentStatus = { detail: null, mode: "scripted", runtime: "scripted" };
 const AUTH_URL = "https://claude.test/oauth/authorize?code=true";
-// longer than a signed-out agent's sign-in takes to replace the field
+// longer than the vendors take to answer the agents' status
 const SETTLE_MS = 2000;
 
 const bootAgent = async (agent: AgentStatus, claude: "signed-in" | "signed-out") => {
@@ -56,6 +56,27 @@ const mountComposer = (seed: string | null = null): void => {
 };
 
 describe("the composer over the default agent's sign-in", () => {
+  it("draws no field before the statuses answer, so the sign-in never takes one away", async () => {
+    await bootAgent(ACP, "signed-out");
+    mountComposer("Tidy the intro");
+
+    expect(screen.queryByRole("combobox", { name: "Ask the agent" })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Sign in with Claude" })).toBeDefined();
+    expect(screen.queryByRole("combobox", { name: "Ask the agent" })).toBeNull();
+  });
+
+  it("puts focus in the field it held until the statuses answered", async () => {
+    await bootAgent(ACP, "signed-in");
+    mountComposer("Tidy the intro");
+
+    expect(screen.queryByRole("combobox", { name: "Ask the agent" })).toBeNull();
+    const field = await screen.findByRole("combobox", { name: "Ask the agent" });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(field);
+    });
+    expect(field).toHaveProperty("selectionStart", "Tidy the intro".length);
+  });
+
   it("offers the sign-in in place of the field while the agent is signed out", async () => {
     const harness = await bootAgent(ACP, "signed-out");
     mountComposer("Tidy the intro");
@@ -79,6 +100,9 @@ describe("the composer over the default agent's sign-in", () => {
 
     const field = await screen.findByRole("combobox", { name: "Ask the agent" });
     expect(field).toHaveProperty("value", "Tidy the intro");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(field);
+    });
   });
 
   it("shows the field while the agent is signed in", async () => {
@@ -94,7 +118,7 @@ describe("the composer over the default agent's sign-in", () => {
     mountComposer();
 
     expect(await screen.findByRole("combobox", { name: "Ask the agent" })).toBeDefined();
-    // the field shows while the statuses load, so the sign-in is given the time it takes to arrive.
+    // a vendor's answer lands after the runtime's, so the sign-in is given the time it would take.
     await expect(
       screen.findByRole("button", { name: "Sign in with Claude" }, { timeout: SETTLE_MS }),
     ).rejects.toThrow();
@@ -125,7 +149,7 @@ describe("the composer under a refused first send", () => {
       </WorkspaceProvider>,
     );
 
-    const field = screen.getByLabelText("Ask the agent");
+    const field = await screen.findByLabelText("Ask the agent");
     fireEvent.change(field, { target: { value: "Tidy the intro" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
@@ -173,7 +197,7 @@ describe("the composer under a refused first send", () => {
       </WorkspaceProvider>
     );
     const view = render(composerOver("a.md"));
-    fireEvent.change(screen.getByLabelText("Ask the agent"), {
+    fireEvent.change(await screen.findByLabelText("Ask the agent"), {
       target: { value: "Tidy the intro" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -187,7 +211,7 @@ describe("the composer under a refused first send", () => {
 
     view.rerender(composerOver("a.md", false));
     view.rerender(composerOver("b.md"));
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Send" }));
     await waitFor(() => {
       expect(onLaunched).toHaveBeenCalledTimes(1);
     });
@@ -225,7 +249,7 @@ describe("the composer's @-mentions", () => {
       </WorkspaceProvider>,
     );
 
-    const field = screen.getByRole("combobox", { name: "Ask the agent" });
+    const field = await screen.findByRole("combobox", { name: "Ask the agent" });
     expect(field.getAttribute("aria-expanded")).toBe("false");
     fireEvent.change(field, { target: { value: "@Pla" } });
     const option = await screen.findByRole("option", { name: /Plans/u });

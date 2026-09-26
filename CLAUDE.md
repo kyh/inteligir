@@ -1183,8 +1183,12 @@ to the END of its group.
   agent (`providerId`, else the default) is signed out, and that no other device
   runs, carries it above the reply. A vendor that did not answer is not signed
   out, and a scripted or disabled agent needs no sign-in, so both keep the
-  field. Every one of those, each Settings card and onboarding draw ONE surface,
-  `AgentSignIn` (`apps/desktop/src/renderer/app/agents/agent-sign-in.tsx`, over
+  field. ⌘K draws nothing until the runtime and the vendors have answered
+  (`useSignInNeed` in `agent-hooks.ts`), because a field drawn first would be
+  swapped for the sign-in under the typing; the field takes focus whenever it
+  appears, after that wait as after a sign-in. Every one of those, each
+  Settings card and onboarding draw ONE surface, `AgentSignIn`
+  (`apps/desktop/src/renderer/app/agents/agent-sign-in.tsx`, over
   `agent-hooks.ts`): the default first ("Sign in with Claude" unless ChatGPT was
   chosen), the rest under Other, the waiting state with the page's address and
   its code, and a failure's own sentence with Try again. Settings has one Agent

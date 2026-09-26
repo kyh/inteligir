@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { bootTestApp, fakeAgentAccounts } from "inteligir/server/testing";
 import type { BootedTestApp } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -34,10 +34,10 @@ const claudeState = async (booted: BootedTestApp) => {
   return claude?.runtime === "bundled" ? claude.account.state : null;
 };
 
-const mount = (onSignedIn?: () => void): void => {
+const mount = (): void => {
   render(
     <WorkspaceProvider>
-      <AgentSignIn onSignedIn={onSignedIn} />
+      <AgentSignIn />
     </WorkspaceProvider>,
   );
 };
@@ -69,8 +69,7 @@ describe("the sign-in offer", () => {
 describe("a sign-in in the browser", () => {
   it("waits, offers the page and its code, and finishes with the pasted code", async () => {
     const booted = await bootSignedOut({ authUrl: AUTH_URL });
-    const onSignedIn = vi.fn<() => void>();
-    mount(onSignedIn);
+    mount();
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign in with Claude" }));
     expect(await screen.findByText("Finish signing in in your browser.")).toBeDefined();
@@ -83,9 +82,9 @@ describe("a sign-in in the browser", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => {
-      expect(onSignedIn).toHaveBeenCalledTimes(1);
-    });
+    // signed in, Claude is offered no more: ChatGPT, still signed out, leads the offer
+    expect(await screen.findByRole("button", { name: "Sign in with ChatGPT" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Sign in with Claude" })).toBeNull();
     expect(await claudeState(booted)).toBe("signed-in");
   });
 

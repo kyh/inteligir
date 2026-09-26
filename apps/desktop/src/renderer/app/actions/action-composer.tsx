@@ -10,10 +10,10 @@ import { useRadius } from "@repo/ui/lib/radius-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { toast } from "@repo/ui/components/sonner";
 import { XIcon } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 
-import { useSignedOutHarness } from "../agents/agent-hooks";
+import { useSignInNeed } from "../agents/agent-hooks";
 import { AgentSignIn } from "../agents/agent-sign-in";
 import { failed } from "../api";
 import { ensureOpenNoteId } from "../note/open-note-id";
@@ -47,21 +47,47 @@ export interface ActionComposerProps {
 
 // Mounted with the popup, so each open asks the vendors again: a sign-in can change outside the
 // app. Only a default agent the vendor calls signed out stands in for the field; the text typed or
-// seeded so far is the composer's, and waits for it.
-const SignInFirst = ({ children, onSignedIn }: { children: ReactNode; onSignedIn: () => void }) => {
+// seeded so far is the composer's, and waits for it. Nothing is drawn until the statuses answer:
+// a field drawn first would be swapped out from under the typing. So the field takes focus
+// whenever it appears, at an open that had to wait as after a sign-in.
+const SignInFirst = ({
+  children,
+  onFieldShown,
+}: {
+  children: ReactNode;
+  onFieldShown: () => void;
+}) => {
   const radius = useRadius();
-  const signedOut = useSignedOutHarness(null);
-  if (signedOut === null) {
-    return children;
+  const need = useSignInNeed(null);
+  const fieldShown = need.kind === "none";
+  const showField = useEffectEvent(onFieldShown);
+  useEffect(() => {
+    if (fieldShown) {
+      showField();
+    }
+  }, [fieldShown]);
+  switch (need.kind) {
+    case "unknown": {
+      return null;
+    }
+    case "none": {
+      return children;
+    }
+    case "sign-in": {
+      return (
+        <div className={cn("space-y-3 p-3", surfaceClasses(2, 2), radius.container)}>
+          <p className="text-subtitle">
+            Sign in to ask the agent. It works on your notes with your own Claude or ChatGPT plan.
+          </p>
+          <AgentSignIn />
+        </div>
+      );
+    }
+    default: {
+      const exhaustive: never = need;
+      return exhaustive;
+    }
   }
-  return (
-    <div className={cn("space-y-3 p-3", surfaceClasses(2, 2), radius.container)}>
-      <p className="text-subtitle">
-        Sign in to ask the agent. It works on your notes with your own Claude or ChatGPT plan.
-      </p>
-      <AgentSignIn onSignedIn={onSignedIn} />
-    </div>
-  );
 };
 
 export const ActionComposer = ({
@@ -216,10 +242,8 @@ export const ActionComposer = ({
         className="absolute inset-x-6 bottom-10 mx-auto max-w-xl"
       >
         <SignInFirst
-          onSignedIn={() => {
-            requestAnimationFrame(() => {
-              focusField()?.focus();
-            });
+          onFieldShown={() => {
+            focusField()?.focus();
           }}
         >
           <div className="relative">
