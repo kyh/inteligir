@@ -90,7 +90,6 @@ const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient => ({
   revokeDevice: unreachable,
   signOut: unreachable,
   vaultAsset: unreachable,
-  vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
   vaultCommit: unreachable,
   vaultFile: unreachable,
   vaultFiles: unreachable,
@@ -132,10 +131,6 @@ export const createFakeCloud = (vault: Partial<CloudClient> = {}): FakeCloud => 
         return ok({ accepted: request.events.length, duplicates: 0, lastSeq: 0 });
       },
       signOut: async () => ok({ revoked: true }),
-      vaultAssetSource: (query) => ({
-        headers: { authorization: "Bearer igd_fake" },
-        uri: `https://cloud.test/v1/vault/asset?path=${query.path}&ref=${query.ref}`,
-      }),
       vaultFile: async () => ({
         failure: { code: "not-found", deviceSeq: null, kind: "refused", message: "empty fake" },
         ok: false,

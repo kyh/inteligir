@@ -955,29 +955,14 @@ describe("vault read rows", () => {
     }
 
     const asset: VaultAssetQuery = { path: "media/α β#1.png", ref: COMMIT };
-    expect(vaultAssetQuerySchema.parse(paramsOf(client.vaultAssetSource(asset).uri))).toEqual(
-      asset,
-    );
+    await client.vaultAsset(asset);
+    expect(vaultAssetQuerySchema.parse(paramsOf(sent.pop()))).toEqual(asset);
   });
 
   it("refuses a tree limit that is not a whole number in range", () => {
     for (const limit of ["", "0", "501", "1.5", "ten"]) {
       expect(vaultTreeQuerySchema.safeParse({ limit }).success).toBe(false);
     }
-  });
-
-  it("composes an asset source through the client — bearer in a header, never the URL", () => {
-    const source = createCloudClient({
-      baseUrl: "https://cloud.test",
-      credential: `igd_${"a".repeat(64)}`,
-    }).vaultAssetSource({ path: "media/α β.png", ref: COMMIT });
-    const url = new URL(source.uri);
-    expect(url.pathname).toBe(VAULT_API_PATHS.asset);
-    expect(url.searchParams.get("path")).toBe("media/α β.png");
-    expect(url.searchParams.get("ref")).toBe(COMMIT);
-    expect(url.username).toBe("");
-    expect(url.search).not.toContain("igd_");
-    expect(source.headers).toEqual({ authorization: `Bearer igd_${"a".repeat(64)}` });
   });
 
   it("the batch REQUIRES its ref and names one to forty unique vault paths", () => {
@@ -1063,21 +1048,20 @@ describe("an attachment's bytes", () => {
       fetch,
     }).vaultAsset(QUERY);
 
-  it("answers the bytes under the allowlist's type, from the source an <img> dials", async () => {
+  it("answers the bytes under the allowlist's type, the bearer in a header, never the URL", async () => {
     const seen: { authorization: string | null; uri: string }[] = [];
     const result = await assetOver(async (input, init) => {
       seen.push({ authorization: new Headers(init?.headers).get("authorization"), uri: input });
       return new Response(PNG, { headers: { "content-type": "image/png" } });
     });
     expect(result).toStrictEqual({ ok: true, value: { bytes: PNG, mediaType: "image/png" } });
-    const source = createCloudClient({
-      baseUrl: "https://cloud.test",
-      credential: CREDENTIAL,
-    }).vaultAssetSource(QUERY);
-    expect(seen).toStrictEqual([
-      { authorization: source.headers["authorization"] ?? null, uri: source.uri },
-    ]);
-    expect(seen[0]?.uri).not.toContain("igd_");
+    expect(seen.map((request) => request.authorization)).toStrictEqual([`Bearer ${CREDENTIAL}`]);
+    const url = new URL(seen[0]?.uri ?? "");
+    expect(url.pathname).toBe(VAULT_API_PATHS.asset);
+    expect(url.searchParams.get("path")).toBe(QUERY.path);
+    expect(url.searchParams.get("ref")).toBe(COMMIT);
+    expect(url.username).toBe("");
+    expect(url.search).not.toContain("igd_");
   });
 
   it("reads a type the allowlist does not name for the path as malformed, never as bytes", async () => {

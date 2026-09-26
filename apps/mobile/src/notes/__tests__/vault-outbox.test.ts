@@ -337,7 +337,6 @@ describe("the phone's outbox", () => {
       "renamed.md",
     ]);
     expect(await readText(store, "renamed.md")).toBe("# a\n");
-    expect(store.resolveWiki("renamed")).toBe("renamed.md");
     expect(await store.create("NEW.md", "# twin\n")).toStrictEqual({ kind: "exists" });
   });
 });

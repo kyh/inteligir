@@ -359,8 +359,6 @@ export interface CloudClient {
   vaultTree: (query: VaultTreeQuery) => Promise<CloudResult<VaultTreeResponse>>;
   vaultFile: (query: VaultFileQuery) => Promise<CloudResult<VaultFileResponse>>;
   vaultFiles: (request: VaultFilesRequest) => Promise<CloudResult<VaultFilesResponse>>;
-  // synchronous: the answer is bytes an <img> fetches itself; here so the bearer has one spelling
-  vaultAssetSource: (query: VaultAssetQuery) => VaultAssetSource;
   // the bytes themselves, for a page that cannot put a header on an <img>
   vaultAsset: (query: VaultAssetQuery) => Promise<CloudResult<VaultAsset>>;
   vaultCommit: (request: VaultCommitRequest) => Promise<CloudResult<VaultCommitOutcome>>;
@@ -369,12 +367,6 @@ export interface CloudClient {
 export interface VaultAsset {
   bytes: Uint8Array;
   mediaType: string;
-}
-
-// the credential rides a header, never the URL, where image caches and logs would keep it
-export interface VaultAssetSource {
-  uri: string;
-  headers: Record<string, string>;
 }
 
 export interface CreateCloudClientArgs extends CloudEndpoint {
@@ -406,11 +398,6 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
       async () => await call(endpointUrl(args.baseUrl, path), requestInit(json)),
       schema,
     );
-
-  const assetSource = (query: VaultAssetQuery): VaultAssetSource => ({
-    headers: { authorization },
-    uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),
-  });
 
   return {
     account: async () => await send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
@@ -455,19 +442,17 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     },
     // the credential names the device, so the body carries nothing
     signOut: async () => await send(DEVICE_API_PATHS.signOut, {}, revokeDeviceResponseSchema),
-    vaultAsset: async (query) => {
-      const source = assetSource(query);
-      return await readAssetCall(
+    // the credential rides a header, never the URL, where caches and logs would keep it
+    vaultAsset: async (query) =>
+      await readAssetCall(
         async () =>
-          await call(source.uri, {
-            headers: source.headers,
+          await call(endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`), {
+            headers: { authorization },
             method: "GET",
             signal: callSignal(args.signal),
           }),
         query.path,
-      );
-    },
-    vaultAssetSource: assetSource,
+      ),
     vaultCommit: async (request) =>
       await readCommitCall(
         async () =>

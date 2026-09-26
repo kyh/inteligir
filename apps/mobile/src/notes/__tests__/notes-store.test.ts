@@ -98,16 +98,6 @@ describe("the notes store", () => {
     expect(requestsOf(vault, "tree")[1]).toContain(`ref=${vault.head()}`);
   });
 
-  it("resolves wiki targets over the tree with the vault's own tiers", async () => {
-    const vault = fakeVault();
-    const { signIn, store } = notesOver(vault.fetch);
-    signIn(CREDENTIAL, "restored");
-    await store.refresh();
-    expect(store.resolveWiki("b")).toBe("notes/b.md");
-    expect(store.resolveWiki("deep/c")).toBe("notes/deep/c.md");
-    expect(store.resolveWiki("missing")).toBeNull();
-  });
-
   it("holds every note's text after a refresh — a read asks nothing more", async () => {
     const vault = fakeVault();
     const { signIn, store } = notesOver(vault.fetch);
@@ -153,7 +143,7 @@ describe("the notes store", () => {
       ...ready,
       refreshError: "Could not reach the cloud: offline",
     });
-    expect(store.resolveWiki("b")).toBe("notes/b.md");
+    expect(store.heldFiles().map((file) => file.path)).toContain("notes/b.md");
 
     offline = false;
     await store.refresh();
@@ -198,7 +188,7 @@ describe("the notes store", () => {
 
     expect(requestsOf(vault, "tree")).toHaveLength(walked + 1);
     expect(store.tree.get()).toBe(ready);
-    expect(store.resolveWiki("b")).toBe("notes/b.md");
+    expect(store.heldFiles().map((file) => file.path)).toContain("notes/b.md");
   });
 
   it("is an error only when there is no listing to keep", async () => {
@@ -273,7 +263,7 @@ describe("the notes store", () => {
     expect(store.tree.get().state).toBe("ready");
     signIn(OTHER_CREDENTIAL, "signed-in");
     expect(store.tree.get()).toEqual({ state: "idle" });
-    expect(store.resolveWiki("b")).toBeNull();
+    expect(store.heldFiles()).toEqual([]);
   });
 
   it("signing out clears everything and answers idle", async () => {
@@ -283,7 +273,7 @@ describe("the notes store", () => {
     await store.refresh();
     signOut();
     expect(store.tree.get()).toEqual({ state: "idle" });
-    expect(store.resolveWiki("b")).toBeNull();
+    expect(store.heldFiles()).toEqual([]);
     expect(await store.readNote("a.md")).toEqual({
       message: "Not signed in.",
       notFound: false,

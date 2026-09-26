@@ -27,7 +27,6 @@ export const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient
   revokeDevice: unreachable,
   signOut: unreachable,
   vaultAsset: unreachable,
-  vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
   vaultCommit: unreachable,
   vaultFile: unreachable,
   vaultFiles: unreachable,

@@ -231,7 +231,7 @@ describe("the vault mirror", () => {
     expect(await mirroredCommit(db)).toBeNull();
   });
 
-  it("resolves a note by its alias and by its id", async () => {
+  it("lists a note with its alias and its id, which the editor's resolver reads", async () => {
     const vault = createFakeVault({
       ...VAULT,
       "projects/plan.md": `---\nid: ${NOTE_ID}\naliases:\n  - Some Alias\n---\n# Plan\n`,
@@ -239,8 +239,11 @@ describe("the vault mirror", () => {
     const { store } = launch(vault.fetch, openTempDb());
     await store.refresh();
 
-    expect(store.resolveWiki("Some Alias")).toBe("projects/plan.md");
-    expect(store.resolveWiki("Old Title", NOTE_ID)).toBe("projects/plan.md");
+    expect(store.heldFiles()).toContainEqual({
+      aliases: ["Some Alias"],
+      noteId: NOTE_ID,
+      path: "projects/plan.md",
+    });
   });
 
   it("keeps an unchanged image's pin across a commit, and moves a changed one's", async () => {

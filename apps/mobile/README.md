@@ -87,7 +87,7 @@ src/
     vault-mirror.ts     every note's text in SQLite: the tree diffed by oid,
                         the changed texts fetched in pinned batches (pure over
                         the SQL port, unit-tested against node:sqlite)
-    notes-store.ts      the listing, reads, wiki resolver and the write surface
+    notes-store.ts      the listing, reads and the write surface
                         (shaped like @repo/editor's VaultIO, plus rename and
                         putAsset) over the mirror and the outbox, under the
                         sync runtime's session (pure, unit-tested)
@@ -224,8 +224,8 @@ shows the list and opens every note before any request, and a refresh that
 fails keeps the list it has and says why above it. "Loading your vault…"
 shows only on a FIRST mirror, with its count.
 
-The listing and the resolver (paths, aliases and ids, so `[[Some Alias]]` and
-`[[Title|uuid]]` resolve) come from the rows. `attachmentFile(path)` downloads
+The listing (paths, aliases and ids, which the editor page's own resolver reads,
+so `[[Some Alias]]` and `[[Title|uuid]]` resolve) comes from the rows. `attachmentFile(path)` downloads
 an attachment on its first ask, at the commit its blob first appeared at, into
 `Paths.cache/attachments/<oid><ext>`, so an image a commit leaves alone is
 never fetched again; the editor page reads it from there, a photo not yet
@@ -243,9 +243,9 @@ appended there.
 ## Unsent edits
 
 A write lands on the phone the moment it is durable in the `outbox` table
-(`notes/vault-outbox.ts`), and every read, the listing and the wiki resolver
-see it from then on (`notes/vault-overlay.ts`): a pending edit reads as the
-note, a create and a staged photo list before the vault holds them, a rename
+(`notes/vault-outbox.ts`), and every read and the listing the editor page
+resolves links over see it from then on (`notes/vault-overlay.ts`): a pending
+edit reads as the note, a create and a staged photo list before the vault holds them, a rename
 moves the row and rewrites the links naming it now, a delete hides the
 note and its comment store, and a comment reads as its store and its note.
 The rows are sent oldest first,

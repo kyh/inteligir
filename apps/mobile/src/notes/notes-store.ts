@@ -10,8 +10,6 @@ import {
 } from "@repo/notes/comments/sidecar-schema";
 import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
-import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { diff3 } from "@repo/notes/text/diff3";
@@ -192,8 +190,6 @@ export interface NotesStore {
   // the store's edit and the note's anchored text, one change set; a note without an id takes one
   // with its first comment
   editComments: (edit: CommentEdit) => Promise<CommentEditOutcome>;
-  // `alias` is what follows a link's last pipe: a uuid there names the note by its frontmatter id
-  resolveWiki: (target: string, alias?: string) => string | null;
   // the bytes on this phone, downloaded on the first ask
   attachmentFile: (path: string) => Promise<AttachmentRead>;
 }
@@ -201,7 +197,6 @@ export interface NotesStore {
 type LiveSession = Extract<ReturnType<SessionPort["current"]>, { kind: "live" }>;
 
 interface Listing {
-  resolver: TargetResolver;
   files: ReadonlyMap<string, OverlayEntry>;
   taken: ReadonlySet<string>;
 }
@@ -232,13 +227,6 @@ const storageMessage = (detail: string): string =>
 
 const listingOf = (entries: readonly OverlayEntry[]): Listing => ({
   files: new Map(entries.map((entry) => [entry.path, entry])),
-  resolver: buildResolver(
-    entries.map((entry) => entry.path),
-    entries.flatMap((entry) => entry.aliases.map((alias): [string, string] => [alias, entry.path])),
-    entries.flatMap((entry): [string, string][] =>
-      entry.noteId === null ? [] : [[entry.noteId, entry.path]],
-    ),
-  ),
   taken: new Set(entries.map((entry) => vaultCollisionKey(entry.path))),
 });
 
@@ -1158,10 +1146,6 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       }
       const current = session.current();
       resetWork = current.kind === "live" ? hydrate(current.id) : Promise.resolve();
-    },
-
-    resolveWiki(target, alias) {
-      return listing === null ? null : listing.resolver.resolveWiki(target, alias);
     },
 
     tree,

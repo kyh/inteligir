@@ -84,7 +84,6 @@ const vaultCloud = (): FakeCloud => {
   );
   return createFakeCloud({
     vaultAsset: vault.vaultAsset,
-    vaultAssetSource: vault.vaultAssetSource,
     vaultFile: vault.vaultFile,
     vaultFiles: vault.vaultFiles,
     vaultTree: vault.vaultTree,

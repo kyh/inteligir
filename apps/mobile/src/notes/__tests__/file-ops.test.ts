@@ -57,7 +57,11 @@ describe("renaming a note on the phone", () => {
       "unrelated.md": "No links, though target is a word here.\n",
     });
     expect(await readText(store, "notes/Moved.md")).toBe(moved);
-    expect(store.resolveWiki("target")).toBe("notes/Moved.md");
+    expect(store.heldFiles()).toContainEqual({
+      aliases: ["target"],
+      noteId: null,
+      path: "notes/Moved.md",
+    });
   });
 
   it("moves a note no link names and whose name keeps its stem as it is", async () => {
@@ -94,7 +98,11 @@ describe("renaming a note on the phone", () => {
     const { conflicts, unsent } = store.outbox.status.get();
     expect(unsent).toBe(0);
     expect(conflicts).toMatchObject([{ copyPath: null, path: "a.md" }]);
-    expect(store.resolveWiki("target")).toBe("Moved.md");
+    expect(store.heldFiles()).toContainEqual({
+      aliases: ["target"],
+      noteId: null,
+      path: "Moved.md",
+    });
   });
 
   it("leaves out a note the phone changed since the rename was planned, and names it", async () => {
