@@ -377,7 +377,9 @@ to the END of its group.
   ITS SOFT-KEYBOARD TWIN.** Slash items are grouped
   data (`GROUPS` in `packages/editor/src/slash-menu.tsx`), and every row's
   markdown must re-parse to a modeled construct and be its own fixpoint
-  (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row).
+  (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row),
+  and no two rows may write the same bytes: a second name for one construct is
+  a keyword on its row, not a row (`/day` finds Date).
   A soft keyboard has no chord and a finger no hover, so the touch kit adds a
   keyboard toolbar (`packages/editor/src/touch-toolbar.tsx`) whose buttons are
   rows of the tables the desktop reads: the headings, lists, to-do and quote

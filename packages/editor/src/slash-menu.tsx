@@ -303,22 +303,12 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
       {
         description: "Inline date chip (today).",
         icon: <CalendarIcon />,
-        keywords: ["date", "today", "calendar", "@"],
+        keywords: ["date", "day", "today", "calendar", "@"],
         label: "Date",
         onSelect: (editor) => {
           insertDate(editor);
         },
         value: "date",
-      },
-      {
-        description: "Today as a date chip.",
-        icon: <CalendarIcon />,
-        keywords: ["day", "today", "date"],
-        label: "Day",
-        onSelect: (editor) => {
-          insertDate(editor);
-        },
-        value: "day",
       },
       {
         description: "This month as a date chip (its first day).",

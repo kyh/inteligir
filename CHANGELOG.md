@@ -66,6 +66,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **The app is smaller.** It no longer carries the command line's source code and tests inside it.
 - **The agent talks about your notes in plain language.** It no longer brings up version control or the command line unless you ask, and it never asks you to run a command. Instructions you keep in your vault's `AGENTS.md` still have the last word.
 - **The agent writes the same callouts you make from the `/` menu** (Note, Tip, Important, Warning and Caution), and a new vault's starter notes use them too. Callouts already in your notes in the older form still show and save unchanged.
+- **One Date row in the `/` menu.** Day inserted the same date chip; `/day` now finds Date.
 
 ### Fixed
 
