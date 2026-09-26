@@ -30,6 +30,8 @@ import { Fragment, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 
+import { useSignedOutHarness } from "../agents/agent-hooks";
+import { AgentSignIn } from "../agents/agent-sign-in";
 import { client, failed, orpc, safe } from "../api";
 import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
@@ -180,6 +182,21 @@ const NoteMetadataTab = ({
   );
 };
 
+// ⌘K would open on the sign-in while the default agent is signed out, so the list offers it here.
+const NoActionsYet = ({ modifier }: { modifier: ShortcutModifier }) =>
+  useSignedOutHarness(null) === null ? (
+    <p className="p-3 text-subtitle text-muted-foreground">
+      No actions yet. Press {bindingFor("open-action-composer", modifier)} to ask the agent.
+    </p>
+  ) : (
+    <div className="space-y-3 p-3">
+      <p className="text-subtitle text-muted-foreground">
+        No actions yet. Sign in to ask the agent to work on your notes.
+      </p>
+      <AgentSignIn />
+    </div>
+  );
+
 // picks the badge only; the wording stays THREAD_ACTIVITY_LABELS.
 const ACTIVITY_TASK_STATUS = {
   archived: "done",
@@ -290,6 +307,21 @@ const TranscriptRows = ({
       </Fragment>
     );
   });
+};
+
+// A thread not started yet runs on the default; one another device runs needs nothing from here.
+// null is a thread not read yet.
+const SignInBanner = ({ thread }: { thread: Thread | null }) => {
+  const signedOut = useSignedOutHarness(thread?.providerId ?? null);
+  if (thread === null || signedOut === null || thread.runsElsewhere) {
+    return null;
+  }
+  return (
+    <div className="space-y-2 border-t border-line px-3 py-2">
+      <p className="text-body">{signedOut.displayName} is signed out on this Mac.</p>
+      <AgentSignIn harness={signedOut.id} />
+    </div>
+  );
 };
 
 const ActionDetail = ({
@@ -443,6 +475,7 @@ const ActionDetail = ({
           ))}
         </div>
       </div>
+      <SignInBanner thread={thread} />
       <div className="border-t border-line p-2">
         <Textarea
           aria-label="Reply to the agent"
@@ -551,10 +584,7 @@ export const ActionsPanel = ({
               </>
             ) : null}
             {recent.length === 0 && noteActions.length === 0 ? (
-              <p className="p-3 text-subtitle text-muted-foreground">
-                No actions yet. Press {bindingFor("open-action-composer", modifier)} to ask the
-                agent.
-              </p>
+              <NoActionsYet modifier={modifier} />
             ) : null}
           </div>
         ) : (

@@ -9,6 +9,7 @@ import { SignInInProgressError } from "./agent-sign-in";
 import { HarnessRefusedError } from "./agents-service";
 
 const HARNESS_REFUSALS = {
+  "no-code-wanted": "CONFLICT",
   "not-found": "NOT_FOUND",
   unavailable: "PROVIDER_UNAVAILABLE",
 } as const satisfies Record<HarnessRefusedError["kind"], string>;
@@ -43,10 +44,16 @@ const signOut = base.agents.signOut.handler(
   async ({ context, input }) => await refusing(async () => await context.agents.signOut(input.id)),
 );
 
+const submitSignInCode = base.agents.submitSignInCode.handler(
+  async ({ context, input }) =>
+    await refusing(() => context.agents.submitSignInCode(input.id, input.code)),
+);
+
 export const agentsRouter = {
   cancelSignIn,
   setDefault,
   signIn,
   signOut,
   status,
+  submitSignInCode,
 };

@@ -3,6 +3,8 @@ import { oc } from "@orpc/contract";
 import { PROVIDER_UNAVAILABLE } from "../local-errors";
 import {
   agentsHarnessRequestSchema,
+  agentsSignInCodeRequestSchema,
+  agentsSignInCodeResponseSchema,
   agentsSignInResponseSchema,
   agentsSignOutResponseSchema,
   agentsStatusResponseSchema,
@@ -37,4 +39,11 @@ export const agentsContract = {
     .errors({ NOT_FOUND: {}, PROVIDER_UNAVAILABLE }),
 
   status: oc.output(agentsStatusResponseSchema),
+
+  // the code a sign-in's page shows, pasted in because the browser could not hand the sign-in
+  // back itself. CONFLICT: no sign-in of that harness is waiting for a code
+  submitSignInCode: oc
+    .input(agentsSignInCodeRequestSchema)
+    .output(agentsSignInCodeResponseSchema)
+    .errors({ CONFLICT: {}, NOT_FOUND: {} }),
 };

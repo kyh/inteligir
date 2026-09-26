@@ -205,6 +205,7 @@ const agentsRouter = {
   signIn: base.agents.signIn.handler(() => ({ outcome: "cancelled", status: FIXTURE_AGENTS })),
   signOut: base.agents.signOut.handler(() => ({ outcome: "signed-out", status: FIXTURE_AGENTS })),
   status: base.agents.status.handler(() => FIXTURE_AGENTS),
+  submitSignInCode: base.agents.submitSignInCode.handler(() => ({ outcome: "sent" })),
 };
 
 const cloudRouter = {

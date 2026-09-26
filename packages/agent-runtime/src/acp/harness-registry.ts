@@ -39,6 +39,10 @@ export interface TerminalSignIn {
   kind: "terminal";
   methodId: string;
   args: readonly string[];
+  // the vendor also reads a code pasted from its sign-in page off stdin, a line at a time, for a
+  // browser that could not hand the sign-in back. It answers a malformed one only on stderr and
+  // keeps waiting, so the host holds the same test and says so itself.
+  acceptsCode: (code: string) => boolean;
 }
 // the adapter signs in itself through `authenticate`.
 export interface AgentSignIn {
@@ -67,6 +71,9 @@ export interface HarnessDefinition {
   signIn: SignInMethod;
   // the vendor binary's own sign-out, over the same shared store its sign-in wrote.
   signOutArgs: readonly string[];
+  // the vendor's own app on this Mac, which keeps its sign-in in that same store: signing out
+  // here signs it out too.
+  vendorApp: string;
   applyModel: (model: string, env: Record<string, string>) => void;
   // the claude SDK refuses to run when it believes it is nested inside another claude session, so
   // the nesting sentinel must not leak through from whatever launched this app.
@@ -224,6 +231,13 @@ const readClaudeAccount = ({ stdout }: VendorExit): VendorAccount => {
   };
 };
 
+// the page's code is `<code>#<state>`: the bundled claude splits a pasted line on "#" and takes it
+// only when both of the first two parts are there.
+const acceptsClaudeCode = (code: string): boolean => {
+  const [authorization = "", state = ""] = code.trim().split("#");
+  return authorization !== "" && state !== "";
+};
+
 // `codex login status` answers on stderr: exit 0 is signed in, and exit 1 is either signed out or
 // unable to tell, which only the text separates.
 const CODEX_SIGNED_OUT = /^Not logged in$/mu;
@@ -271,11 +285,13 @@ export const HARNESSES = {
     sessionMeta: { claudeCode: { options: { settingSources: ["user"] } } },
     refusedVaultEntries: [],
     signIn: {
+      acceptsCode: acceptsClaudeCode,
       args: ["auth", "login", "--claudeai"],
       kind: "terminal",
       methodId: "claude-ai-login",
     },
     signOutArgs: ["auth", "logout"],
+    vendorApp: "Claude Code",
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CLAUDE_CODE_EXECUTABLE, BUNDLED_CLAUDE),
   },
@@ -298,6 +314,7 @@ export const HARNESSES = {
     refusedVaultEntries: [".codex"],
     signIn: { kind: "agent", methodId: "chat-gpt" },
     signOutArgs: ["logout"],
+    vendorApp: "Codex",
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CODEX_PATH, BUNDLED_CODEX),
   },

@@ -7,6 +7,7 @@
 // plain text when stdout is not a TTY, reads a pasted code line by line from stdin, and exits 0
 // once the credential is stored. codex's is an agent method, which its adapter runs itself.
 
+import { PassThrough } from "node:stream";
 import { adapterSpawnEnv } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import { runAgentSignIn } from "@repo/agent-runtime/acp/acp-sign-in";
@@ -39,9 +40,13 @@ type SignInOutcome =
 
 type SignOutOutcome = { outcome: "signed-out" } | { outcome: "failed"; detail: string };
 
+// incomplete: not the whole code, which the vendor would refuse only on stderr and wait on.
+type SignInCodeOutcome = "sent" | "incomplete" | "not-waiting";
+
 export interface SigningIn {
   id: HarnessId;
   authUrl: string | null;
+  acceptsCode: boolean;
 }
 
 export class SignInInProgressError extends Error {
@@ -56,6 +61,9 @@ export interface AgentAccounts extends VendorAccounts {
   signIn: (id: HarnessId, signal: AbortSignal) => Promise<SignInOutcome>;
   signOut: (id: HarnessId) => Promise<SignOutOutcome>;
   signingIn: () => SigningIn | null;
+  // hands the running sign-in a code pasted from its page, once the harness's own test says it is
+  // whole; not-waiting when no sign-in of that harness reads one.
+  submitCode: (id: HarnessId, code: string) => SignInCodeOutcome;
   // ends a running sign-in with its vendor process, which would otherwise outlive the server
   // waiting on a browser that is never coming back.
   dispose: () => Promise<void>;
@@ -90,13 +98,19 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
   const context = { cwd: args.cwd, env: args.env };
   const ceilingMs = args.signInCeilingMs ?? SIGN_IN_CEILING_MS;
   const disposed = new AbortController();
-  let current: { progress: SigningIn; ended: Promise<SignInOutcome> } | null = null;
+  // codes: the vendor's stdin while a terminal sign-in runs, null for a method that reads none.
+  let current: {
+    progress: SigningIn;
+    codes: PassThrough | null;
+    ended: Promise<SignInOutcome>;
+  } | null = null;
 
   const runTerminal = async (
     harness: HarnessDefinition,
     method: TerminalSignIn,
     signal: AbortSignal,
     progress: SigningIn,
+    codes: PassThrough,
   ): Promise<Attempt> => {
     let printed = "";
     const run = await runVendor(harness, method.args, context, {
@@ -108,6 +122,7 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
         }
       },
       signal,
+      stdin: codes,
     });
     switch (run.kind) {
       case "exited": {
@@ -213,23 +228,26 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
         throw new SignInInProgressError(HARNESSES[current.progress.id]);
       }
       const harness = HARNESSES[id];
-      const progress: SigningIn = { authUrl: null, id };
+      const method = harness.signIn;
+      const codes = new PassThrough();
+      const acceptsCode = method.kind === "terminal";
+      const progress: SigningIn = { acceptsCode, authUrl: null, id };
       // a stop the user asked for, or the server's own shutdown, is a cancel; the ceiling is not.
       const cancelled = AbortSignal.any([cancel, disposed.signal]);
       const signal = AbortSignal.any([cancelled, AbortSignal.timeout(ceilingMs)]);
       const ended = (async (): Promise<SignInOutcome> => {
-        const method = harness.signIn;
         const attempt =
           method.kind === "terminal"
-            ? await runTerminal(harness, method, signal, progress)
+            ? await runTerminal(harness, method, signal, progress, codes)
             : await runAgent(harness, method, signal);
         return await settle(id, attempt, cancelled);
       })();
-      current = { ended, progress };
+      current = { codes: acceptsCode ? codes : null, ended, progress };
       try {
         return await ended;
       } finally {
         current = null;
+        codes.destroy();
       }
     },
     signOut: async (id) => {
@@ -261,5 +279,16 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
     },
     signingIn: () => (current === null ? null : { ...current.progress }),
     status: vendor.status,
+    submitCode: (id, code) => {
+      const method = HARNESSES[id].signIn;
+      if (method.kind !== "terminal" || current?.progress.id !== id || current.codes === null) {
+        return "not-waiting";
+      }
+      if (!method.acceptsCode(code)) {
+        return "incomplete";
+      }
+      current.codes.write(`${code.trim()}\n`);
+      return "sent";
+    },
   };
 };

@@ -170,6 +170,12 @@ what each one is FOR.
 |                           | dialog on that route, and a refused connector add toasts there; signed    |
 |                           | out, Create an account asks for an invite code, and a sign-up the cloud   |
 |                           | cannot answer says so and keeps what was typed                            |
+| agent-sign-in-browser     | signed out, ⌘K offers Sign in with Claude in place of the field; the      |
+|                           | login (a fake claude, `tools/e2e/src/fixtures/fake-claude.mjs`) takes the |
+|                           | code pasted from its page and the field opens; Settings shows Claude      |
+|                           | signed in and ChatGPT under Other; a send on the real bundled codex,      |
+|                           | signed out under the instance's empty store, puts ChatGPT's sign-in above |
+|                           | the reply                                                                 |
 | vault-search-browser      | the palette's vault search lists every match; Enter lands the find bar on |
 |                           | one; Replace all rewrites the notes on disk                               |
 | tree-ops-browser          | the tree's row menu pins a note into its frontmatter, and a drag moves it |

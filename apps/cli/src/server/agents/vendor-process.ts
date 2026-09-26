@@ -5,6 +5,7 @@
 // group, since a vendor binary may start helpers that would outlive it.
 
 import { spawn } from "node:child_process";
+import type { Readable } from "node:stream";
 import type { HarnessDefinition, VendorExit } from "@repo/agent-runtime/acp/harness-registry";
 import { messageOf } from "../error-message";
 
@@ -24,6 +25,8 @@ export interface VendorRunOptions {
   signal: AbortSignal;
   // each stdout chunk as it arrives, for a run whose answer a caller needs before it exits.
   onStdout?: (chunk: string) => void;
+  // piped to the vendor's stdin while it runs; absent, the vendor reads end of input at once.
+  stdin?: Readable;
 }
 
 const vendorEnv = (harness: HarnessDefinition, env: NodeJS.ProcessEnv): Record<string, string> => {
@@ -65,8 +68,18 @@ export const runVendor = async (
     cwd: context.cwd,
     detached: true,
     env: vendorEnv(harness, context.env),
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
+  // a vendor that exits with input still unread closes the pipe under the write, and an unheard
+  // EPIPE would take the server down with it; the exit is the answer that matters.
+  child.stdin.on("error", () => {
+    /* empty */
+  });
+  if (options.stdin === undefined) {
+    child.stdin.end();
+  } else {
+    options.stdin.pipe(child.stdin);
+  }
   let stdout = "";
   let stderr = "";
   child.stdout.setEncoding("utf-8").on("data", (chunk: string) => {
@@ -98,5 +111,6 @@ export const runVendor = async (
     return { detail: messageOf(error), kind: "failed" };
   } finally {
     signal.removeEventListener("abort", stop);
+    options.stdin?.unpipe(child.stdin);
   }
 };

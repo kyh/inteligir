@@ -10,17 +10,19 @@ export const bridgeFailed = (cause: unknown, sentence: string): void => {
 };
 
 // The credential, the connectors and the agent default live in the data dir, and a second
-// vault has one of its own: one sentence, wherever a surface would otherwise look reset.
-export const SecondVaultNote = ({ scope }: { scope: DataDirScope | undefined }) => {
+// vault has one of its own: one sentence, wherever a surface would otherwise look reset. A section
+// whose state is not all the vault's own says which part is, in place of the default sentence.
+export const SecondVaultNote = ({
+  scope,
+  children = "This is a second vault with a data dir of its own: its sign-in, connectors and default agent start empty and stay with it.",
+}: {
+  scope: DataDirScope | undefined;
+  children?: React.ReactNode;
+}) => {
   if (scope !== "vault") {
     return null;
   }
-  return (
-    <p className="text-body text-muted-foreground">
-      This is a second vault with a data dir of its own: its sign-in, connectors and default agent
-      start empty and stay with it.
-    </p>
-  );
+  return <p className="text-body text-muted-foreground">{children}</p>;
 };
 
 export const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (

@@ -101,8 +101,14 @@ describe("the agents service", () => {
     });
     const status = await agents.status();
     expect(status.harnesses).toEqual([
-      { account: { state: "signed-out" }, displayName: "Claude", id: "claude", runtime: "bundled" },
-      { displayName: "ChatGPT", id: "codex", runtime: "missing" },
+      {
+        account: { state: "signed-out" },
+        displayName: "Claude",
+        id: "claude",
+        runtime: "bundled",
+        vendorApp: "Claude Code",
+      },
+      { displayName: "ChatGPT", id: "codex", runtime: "missing", vendorApp: "Codex" },
     ]);
     expect(asked).toEqual(["claude"]);
   });

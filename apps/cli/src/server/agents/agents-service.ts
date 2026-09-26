@@ -1,4 +1,5 @@
 import type {
+  AgentsSignInCodeResponse,
   AgentsSignInResponse,
   AgentsSignOutResponse,
   AgentsStatusResponse,
@@ -11,12 +12,14 @@ import { defaultHarnessId } from "./agent-driver";
 import type { AgentPrefsStore } from "./agent-prefs-store";
 import type { AgentAccounts } from "./agent-sign-in";
 
-// what is refused before any vendor runs: a harness no row names, or one this copy of the app did
-// not ship.
-export class HarnessRefusedError extends Error {
-  readonly kind: "not-found" | "unavailable";
+// what is refused before any vendor runs: a harness no row names, one this copy of the app did not
+// ship, or a sign-in code no running sign-in of that harness is waiting for.
+type HarnessRefusal = "not-found" | "unavailable" | "no-code-wanted";
 
-  constructor(kind: "not-found" | "unavailable", message: string) {
+export class HarnessRefusedError extends Error {
+  readonly kind: HarnessRefusal;
+
+  constructor(kind: HarnessRefusal, message: string) {
     super(message);
     this.name = "HarnessRefusedError";
     this.kind = kind;
@@ -37,6 +40,7 @@ export interface AgentsService {
   signIn: (id: string) => Promise<AgentsSignInResponse>;
   cancelSignIn: (id: string) => Promise<AgentsStatusResponse>;
   signOut: (id: string) => Promise<AgentsSignOutResponse>;
+  submitSignInCode: (id: string, code: string) => AgentsSignInCodeResponse;
 }
 
 export interface CreateAgentsServiceArgs {
@@ -57,11 +61,17 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
   const running = new Set<RunningSignIn>();
 
   const harnessStatus = async (id: HarnessId): Promise<HarnessStatus> => {
-    const { displayName } = HARNESSES[id];
+    const { displayName, vendorApp } = HARNESSES[id];
     if (HARNESSES[id].vendorExecutable(args.env) === null) {
-      return { displayName, id, runtime: "missing" };
+      return { displayName, id, runtime: "missing", vendorApp };
     }
-    return { account: await args.accounts.status(id), displayName, id, runtime: "bundled" };
+    return {
+      account: await args.accounts.status(id),
+      displayName,
+      id,
+      runtime: "bundled",
+      vendorApp,
+    };
   };
   const status = async (): Promise<AgentsStatusResponse> => ({
     defaultId: defaultHarnessId(args.store.read().defaultHarness ?? null),
@@ -131,5 +141,16 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
       return { ...outcome, status: await status() };
     },
     status,
+    submitSignInCode(id, code) {
+      const known = knownHarness(id);
+      const outcome = args.accounts.submitCode(known, code);
+      if (outcome === "not-waiting") {
+        throw new HarnessRefusedError(
+          "no-code-wanted",
+          `${HARNESSES[known].displayName} is not waiting for a sign-in code; start signing in first.`,
+        );
+      }
+      return { outcome };
+    },
   };
 };

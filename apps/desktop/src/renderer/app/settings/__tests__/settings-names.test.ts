@@ -10,15 +10,18 @@ const settingsDir = fileURLToPath(new URL("..", import.meta.url));
 
 type NameReader = (text: string) => string[];
 
-const SECTION_PATTERNS = [
-  /<SectionHeading>(?<name>[^<{]+)<[/]SectionHeading>/gu,
-  /<Row label="(?<name>[^"]+)"/gu,
-] as const;
+const HEADING_PATTERN = /<SectionHeading>(?<name>[^<{]+)<[/]SectionHeading>/gu;
+const SECTION_PATTERNS = [HEADING_PATTERN, /<Row label="(?<name>[^"]+)"/gu] as const;
 
-const sectionNames: NameReader = (text) =>
-  SECTION_PATTERNS.flatMap((pattern) => [...text.matchAll(pattern)]).map(
-    (match) => match.groups?.name ?? "",
-  );
+const namesMatching =
+  (patterns: readonly RegExp[]): NameReader =>
+  (text) =>
+    patterns
+      .flatMap((pattern) => [...text.matchAll(pattern)])
+      .map((match) => match.groups?.name ?? "");
+
+const sectionNames = namesMatching(SECTION_PATTERNS);
+const headingNames = namesMatching([HEADING_PATTERN]);
 
 // An inline handler's `=>` is never the end of the tag, even when backtracking asks it to be.
 const BUTTON_PATTERN = /<Button\b(?:=>|=(?!>)|[^=>])*(?<![/])>(?<label>[\s\S]*?)<[/]Button>/gu;
@@ -99,6 +102,18 @@ describe("the settings dialog names each thing once", () => {
     expect(
       sharedAcrossFiles(sectionNames),
       "two sections of Settings answer to one name; a reader cannot tell them apart",
+    ).toEqual([]);
+  });
+
+  it("gives no two sections one word, singular and plural", () => {
+    const names = new Set(
+      namesByFile(headingNames).flatMap(({ names: inFile }) =>
+        [...inFile].map((name) => name.toLowerCase()),
+      ),
+    );
+    expect(
+      [...names].filter((name) => names.has(`${name}s`)).toSorted(),
+      "two sections of Settings are one word, singular and plural; a reader cannot tell which is which",
     ).toEqual([]);
   });
 
