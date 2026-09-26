@@ -2,6 +2,7 @@ import { oc } from "@orpc/contract";
 import { PROVIDER_UNAVAILABLE } from "../local-errors";
 import {
   cloudLoginRequestSchema,
+  cloudPrefsSchema,
   cloudSignUpRequestSchema,
   cloudStatusResponseSchema,
 } from "./cloud-schema";
@@ -17,6 +18,11 @@ export const cloudContract = {
 
   // only forgets the credential; the device row on the account survives until revoked there
   logout: oc.output(cloudStatusResponseSchema),
+
+  // this Mac's own choices, kept whether or not it is signed in
+  prefs: oc.output(cloudPrefsSchema),
+
+  setPrefs: oc.input(cloudPrefsSchema).output(cloudPrefsSchema),
 
   // creates the account and signs this device into it in one step: FORBIDDEN is an invite code
   // that will not work, CONFLICT an email that already has an account, TOO_MANY_REQUESTS the

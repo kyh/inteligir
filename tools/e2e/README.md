@@ -122,6 +122,10 @@ what each one is FOR.
 | thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
 |                           | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                           | so the Durable Object's ping is what delivered it                         |
+| phone-dispatch-hosted     | a second login plays the phone: its request waits with no desktop online  |
+|                           | until A signs in and runs it over the note it named, the reply naming the |
+|                           | note and the phone's pull holding the request; with A and B both          |
+|                           | listening, exactly one runs the next, before a poll could                 |
 | account-hosted            | an account created in the app (`cloud.signUp`) against a wrangler-dev     |
 |                           | Worker signs that instance in as it; the invite is spent, so a second     |
 |                           | sign-up with it is FORBIDDEN; a second instance signs in with the same    |

@@ -1096,3 +1096,171 @@ describe("a fake-provider turn end-to-end", () => {
     expect(ahead.kind).toBe("full");
   });
 });
+
+const requestsIn = (
+  db: BootedTestApp["db"],
+  threadId: string,
+): Extract<ThreadEvent, { type: "client/turn/requested" }>[] =>
+  listStoredThreadEvents(db, { threadId }).flatMap(({ event }) =>
+    event.type === "client/turn/requested" ? [event] : [],
+  );
+
+describe("a phone's request", () => {
+  const DISPATCH = "a".repeat(32);
+  const LATER = "b".repeat(32);
+
+  it("starts a new thread under the phone's id, over the note it was asked from", async () => {
+    const { client, composed, db, driver } = await bootThreadHarness({ mode: "manual" });
+    await client.vault.write({
+      content: "---\nid: note-plans\n---\n# Plans\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
+    const threadId = "thr_phone";
+
+    const outcome = await composed.context.threads.acceptDispatch({
+      id: DISPATCH,
+      originDocPath: "Plans.md",
+      text: "Tidy the intro",
+      threadId,
+    });
+
+    expect(outcome).toEqual({ kind: "delivered" });
+    expect(getThread(db, threadId)).toMatchObject({
+      originDocPath: "Plans.md",
+      originNoteId: "note-plans",
+      status: "active",
+    });
+    expect(requestsIn(db, threadId)).toEqual([
+      {
+        dispatchId: DISPATCH,
+        scope: threadScope(),
+        text: "Tidy the intro",
+        threadId,
+        type: "client/turn/requested",
+      },
+    ]);
+    const identity = listStoredThreadEvents(db, { threadId }).find(
+      ({ event }) => event.type === "thread/meta",
+    )?.event;
+    expect(identity).toMatchObject({
+      originDocPath: "Plans.md",
+      originNoteId: "note-plans",
+      title: "Tidy the intro",
+    });
+    expect(driver.startedTurns.map((turn) => turn.dispatchId)).toEqual([DISPATCH]);
+  });
+
+  it("binds a note with no id by its path and never writes one into it", async () => {
+    const { client, composed, db } = await bootThreadHarness({ mode: "manual" });
+    await client.vault.write({
+      content: "# Plans\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
+
+    await composed.context.threads.acceptDispatch({
+      id: DISPATCH,
+      originDocPath: "Plans.md",
+      text: "go",
+      threadId: "thr_phone",
+    });
+
+    expect(getThread(db, "thr_phone")).toMatchObject({
+      originDocPath: "Plans.md",
+      originNoteId: null,
+    });
+    const note = await client.vault.read({ path: "Plans.md" });
+    expect(note.content).toBe("# Plans\n");
+  });
+
+  it("runs once however many times it is handed over", async () => {
+    const { composed, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const { threads } = composed.context;
+    const dispatch = { id: DISPATCH, text: "go", threadId: "thr_phone" };
+
+    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "delivered" });
+    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
+
+    expect(requestsIn(db, "thr_phone")).toHaveLength(1);
+    expect(driver.startedTurns).toHaveLength(1);
+  });
+
+  it("waits behind a running turn, and the request it drains into names it", async () => {
+    const { client, composed, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    const { threads } = composed.context;
+    const dispatch = { id: LATER, text: "from the phone", threadId };
+
+    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "delivered" });
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.dispatchId)).toEqual([LATER]);
+    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
+
+    driver.completeTurn(threadId, started.turnId, "completed");
+    expect(driver.startedTurns.map((turn) => turn.dispatchId)).toEqual([undefined, LATER]);
+    expect(requestsIn(db, threadId).map((request) => request.dispatchId)).toEqual([
+      undefined,
+      LATER,
+    ]);
+    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
+  });
+
+  it("is refused on an archived thread, and nothing is appended", async () => {
+    const { client, composed, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.archive({ threadId });
+
+    const outcome = await composed.context.threads.acceptDispatch({
+      id: DISPATCH,
+      text: "go",
+      threadId,
+    });
+
+    expect(outcome).toEqual({ kind: "refused", message: "That action is archived." });
+    expect(listStoredThreadEvents(db, { threadId })).toEqual([]);
+    expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
+    expect(driver.startedTurns).toEqual([]);
+  });
+
+  it("is refused while another device runs the thread's turn, which would strand it here", async () => {
+    const { composed, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = "thr_remote";
+    composed.context.threads.applySyncedEvents({
+      cursor: 1,
+      rows: [synced({ scope: turnScope("turn_remote"), threadId, type: "turn/started" }, 1)],
+      threadId,
+    });
+
+    const outcome = await composed.context.threads.acceptDispatch({
+      id: DISPATCH,
+      text: "go",
+      threadId,
+    });
+
+    expect(outcome.kind).toBe("refused");
+    expect(requestsIn(db, threadId)).toEqual([]);
+    expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
+    expect(driver.startedTurns).toEqual([]);
+  });
+
+  it("is delivered with the failure beside it when no agent can run it", async () => {
+    const { composed, db } = await bootTestApp();
+    const threadId = "thr_phone";
+
+    const outcome = await composed.context.threads.acceptDispatch({
+      id: DISPATCH,
+      text: "go",
+      threadId,
+    });
+
+    expect(outcome).toEqual({ kind: "delivered" });
+    const types = listStoredThreadEvents(db, { threadId }).map(({ event }) => event.type);
+    expect(types).toContain("client/turn/requested");
+    expect(types).toContain("provider/error");
+    expect(getThread(db, threadId)?.status).toBe("error");
+  });
+});

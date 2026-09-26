@@ -116,6 +116,21 @@ describe("subscribe/broadcast", () => {
   });
 });
 
+describe("an in-process listener", () => {
+  it("hears every thread change, whether or not a socket is subscribed", () => {
+    const bus = createBus();
+    const heard: string[] = [];
+    bus.onThreadChange((threadId, changes) => {
+      heard.push(`${threadId} ${changes.join(",")}`);
+    });
+
+    bus.notifyThread("thr_1", ["interactions-changed"]);
+    bus.notifyVault(["files-changed"]);
+
+    expect(heard).toEqual(["thr_1 interactions-changed"]);
+  });
+});
+
 describe("handleMessage", () => {
   it("subscribes and unsubscribes via the wire protocol", () => {
     const bus = createBus();

@@ -1435,6 +1435,36 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   a node process in front of the same binary.
   `apps/cli/src/server/agents/agent-sign-in.ts`.
 
+- **A PHONE'S REQUEST LANDS THROUGH THE SEND, AND THE THREAD IS ITS LEDGER**
+  (0.6 direction: the phone asks a Mac to run the agent). After the pull, the
+  sync pass claims the account's dispatch inbox, hands each `turn` row to
+  `ThreadService.acceptDispatch`, which runs the send's own decision, so a
+  request starts, queues or is refused as a message typed here would, and acks
+  what happened. No table records a claim: the request row naming the
+  `dispatchId`, or the queued message carrying it, is the ledger
+  (`threadHoldsDispatch` in `@repo/db/events`), so a lapsed claim handed over
+  again, or one another Mac ran and this one pulled, acks with no second turn.
+  Two refusals, in the phone's words: an archived thread, and one whose turn
+  another device runs, where the request would wait on a queue a remote settle
+  never drains. A signed-out agent is delivered: the request and its
+  `provider/error` are what the phone reads. A new thread keeps the phone's id
+  and binds the note it was asked over by `noteIdOf`, read and never minted,
+  because a mint waits on the vault's lock and a claim held past its lapse runs
+  on a second Mac. A PHONE-STARTED TURN'S APPROVAL (its request named a
+  dispatch, `turnDispatchId`) is opened in the inbox under an id derived from
+  the local row, so an open whose answer was lost asks for the same row, and
+  closed once it settles here, however it settled; the phone's `answer`
+  resolves it through `answerInteraction`, and an answer delivered twice reads
+  delivered both times. `pending_interactions.relay` is the only bookkeeping,
+  and the bus (`WsBus.onThreadChange`) brings a pass forward when an approval
+  moves. Let my phone ask this Mac (Settings › Devices,
+  `<dataDir>/cloud-prefs.json`, owner decision: on unless turned off) is read
+  per pass, and off, this Mac claims nothing. Residual: a follow-up one Mac
+  claims on a thread another Mac ran opens a fresh provider session there.
+  `apps/cli/src/server/cloud/dispatches.ts`,
+  `apps/cli/src/server/cloud/sync-pass.ts`,
+  `apps/cli/src/server/threads/service.ts`.
+
 ### Dictation
 
 - **DICTATION IS THE OPERATING SYSTEM'S** (owner decision, reversing streaming

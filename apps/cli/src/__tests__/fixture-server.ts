@@ -235,7 +235,9 @@ const cloudRouter = {
     context.cloud = { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" };
     return context.cloud;
   }),
-  // no verb reaches it; the contract asks every server to answer it
+  // no verb reaches these; the contract asks every server to answer them
+  prefs: base.cloud.prefs.handler(() => ({ phoneRequests: true })),
+  setPrefs: base.cloud.setPrefs.handler(({ input }) => input),
   signUp: base.cloud.signUp.handler(({ errors }) => {
     throw errors.FORBIDDEN({ message: "no invite in the fixture" });
   }),

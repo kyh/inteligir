@@ -17,6 +17,7 @@ import {
   listThreadMetaEvents,
   storedTurnCompletion,
   threadHasEvents,
+  threadHoldsDispatch,
   turnStartOriginDeviceId,
 } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
@@ -55,12 +56,13 @@ import {
   listThreads,
   nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
-import type { CreateThreadInput, ThreadRow } from "@repo/db/threads";
+import type { CreateThreadInput, ThreadOriginInput, ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { deriveThreadTitle } from "@repo/domain/thread-title";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { isThreadRunning } from "@repo/domain/thread-status";
+import type { ViewContext } from "@repo/domain/view-context";
 import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
@@ -103,6 +105,31 @@ export type SendOutcome =
 
 type QueuedSendOutcome = Extract<SendOutcome, { kind: "queued" }>;
 
+// a phone's request as a Mac claimed it: its id is the phone's, and so is the thread's, which a
+// new thread takes rather than one minted here
+export interface DispatchedTurn {
+  id: string;
+  threadId: string;
+  text: string;
+  originDocPath?: string | undefined;
+  viewContext?: ViewContext | undefined;
+}
+
+// delivered: this device took it into the thread now, started, queued, or recorded beside the
+// failure it met; held: this device already holds it, from a claim that lapsed or another Mac's
+// request pulled first; refused: this device will not, in words the phone shows.
+export type DispatchOutcome =
+  | { kind: "delivered" }
+  | { kind: "held" }
+  | { kind: "refused"; message: string };
+
+// what a send addresses: the thread, the turn it expects to be open, and what the turn carries.
+interface SendTarget {
+  threadId: string;
+  expectedTurnId?: string | undefined;
+  turn: TurnRequest;
+}
+
 // each path is a note read and maybe a write; a vault of old actions is not opened all at once.
 const ORIGIN_BACKFILL_CONCURRENCY = 4;
 
@@ -126,6 +153,17 @@ export type InterruptOutcome =
 type StopOutcome =
   | { kind: "answered"; stop: ThreadStop; thread: ThreadRow }
   | Exclude<InterruptOutcome, { kind: "answered" }>;
+
+type DispatchDecision =
+  | { kind: "send"; send: SendDecision }
+  | Exclude<DispatchOutcome, { kind: "delivered" }>;
+
+// a phone's refusals, in the words its thread shows
+const ARCHIVED_REFUSAL = "That action is archived.";
+// queued here it would never start: a settle pulled from the device running the turn does not drain
+// this device's queue
+const RUNS_ELSEWHERE_REFUSAL =
+  "That action is running on another computer. Ask again once it finishes.";
 
 type InterruptDecision =
   | { kind: "interrupt"; turnId: string | null }
@@ -255,6 +293,7 @@ const queueInTransaction = (
 ): QueuedSendOutcome => {
   const queued = createQueuedThreadMessageInTransaction(tx, {
     contextPaths: turn.contextPaths === undefined ? null : JSON.stringify(turn.contextPaths),
+    dispatchId: turn.dispatchId ?? null,
     text: turn.text,
     threadId,
   });
@@ -266,20 +305,30 @@ const storedContextPathsSchema = z.array(z.string().min(1)).min(1);
 
 // only this process writes the column, from a parsed request; bytes that no longer parse cost the
 // message its attachments, never the message.
-const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
-  if (claimed.contextPaths === null) {
-    return { text: claimed.text };
+const storedContextPaths = (stored: string | null): string[] | undefined => {
+  if (stored === null) {
+    return undefined;
   }
   let raw: unknown;
   try {
-    raw = JSON.parse(claimed.contextPaths);
+    raw = JSON.parse(stored);
   } catch {
-    return { text: claimed.text };
+    return undefined;
   }
   const parsed = storedContextPathsSchema.safeParse(raw);
-  return parsed.success
-    ? { contextPaths: parsed.data, text: claimed.text }
-    : { text: claimed.text };
+  return parsed.success ? parsed.data : undefined;
+};
+
+const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
+  const turn: TurnRequest = { text: claimed.text };
+  const contextPaths = storedContextPaths(claimed.contextPaths);
+  if (contextPaths !== undefined) {
+    turn.contextPaths = contextPaths;
+  }
+  if (claimed.dispatchId !== null) {
+    turn.dispatchId = claimed.dispatchId;
+  }
+  return turn;
 };
 
 // a send's request also carries its routing (the thread, the turn it expects), which is no part of
@@ -671,15 +720,28 @@ export class ThreadService implements ProviderEventSink {
   send(request: SendMessageRequest): SendOutcome {
     const buffer = new NotificationBuffer();
     const decision = writeTransaction(this.db, (tx) =>
-      this.resolveSendInTransaction(tx, request, buffer),
+      this.resolveSendInTransaction(
+        tx,
+        {
+          expectedTurnId: request.expectedTurnId,
+          threadId: request.threadId,
+          turn: requestedTurn(request),
+        },
+        buffer,
+      ),
     );
     buffer.flushTo(this.notifier);
+    return this.runSendDecision(request.threadId, decision);
+  }
+
+  // what the send decided, carried out after its commit: the driver may report back through ingest.
+  private runSendDecision(threadId: string, decision: SendDecision): SendOutcome {
     switch (decision.kind) {
       case "dispatch": {
         return this.dispatchTurn(decision);
       }
       case "drain": {
-        this.dispatchQueuedMessage(request.threadId, decision.claimed);
+        this.dispatchQueuedMessage(threadId, decision.claimed);
         return decision.outcome;
       }
       case "done": {
@@ -689,12 +751,78 @@ export class ThreadService implements ProviderEventSink {
     }
   }
 
+  // a phone's request lands through the send's own decision, so it starts, queues or is refused
+  // exactly as a message typed here would. the phone's thread id is kept, and a new thread takes
+  // the note it was asked over, read and never minted: a mint waits on the vault's lock, and a
+  // claim held past its lapse is the same request running on a second Mac.
+  async acceptDispatch(dispatch: DispatchedTurn): Promise<DispatchOutcome> {
+    const origin =
+      dispatch.originDocPath === undefined || getThread(this.db, dispatch.threadId) !== null
+        ? undefined
+        : {
+            noteId: await this.origins.noteIdOf(dispatch.originDocPath),
+            path: dispatch.originDocPath,
+          };
+    const buffer = new NotificationBuffer();
+    const decision = writeTransaction(this.db, (tx) =>
+      this.resolveDispatchInTransaction(tx, dispatch, origin, buffer),
+    );
+    buffer.flushTo(this.notifier);
+    if (decision.kind !== "send") {
+      return decision;
+    }
+    const outcome = this.runSendDecision(dispatch.threadId, decision.send);
+    switch (outcome.kind) {
+      case "conflict": {
+        return { kind: "refused", message: outcome.message };
+      }
+      case "not-found": {
+        throw new Error(`thread ${dispatch.threadId} vanished inside the dispatch that ensured it`);
+      }
+      // the request is in the thread; a failure to run it is a row the phone reads there
+      case "started":
+      case "queued":
+      case "provider-unavailable":
+      case "dispatch-failed": {
+        return { kind: "delivered" };
+      }
+      // no default
+    }
+  }
+
+  private resolveDispatchInTransaction(
+    tx: DbTransaction,
+    dispatch: DispatchedTurn,
+    origin: ThreadOriginInput | undefined,
+    buffer: NotificationBuffer,
+  ): DispatchDecision {
+    const { threadId } = dispatch;
+    if (threadHoldsDispatch(tx, { dispatchId: dispatch.id, threadId })) {
+      return { kind: "held" };
+    }
+    const ensured = ensureThreadInTransaction(tx, threadId, origin);
+    if (ensured.created) {
+      buffer.notifyThread(threadId, ["thread-created"]);
+    }
+    if (ensured.row.archivedAt !== null) {
+      return { kind: "refused", message: ARCHIVED_REFUSAL };
+    }
+    if (turnRunsElsewhere(tx, ensured.row)) {
+      return { kind: "refused", message: RUNS_ELSEWHERE_REFUSAL };
+    }
+    const turn: TurnRequest = { dispatchId: dispatch.id, text: dispatch.text };
+    if (dispatch.viewContext !== undefined) {
+      turn.viewContext = dispatch.viewContext;
+    }
+    return { kind: "send", send: this.resolveSendInTransaction(tx, { threadId, turn }, buffer) };
+  }
+
   private resolveSendInTransaction(
     tx: DbTransaction,
-    request: SendMessageRequest,
+    target: SendTarget,
     buffer: NotificationBuffer,
   ): SendDecision {
-    const thread = getThread(tx, request.threadId);
+    const thread = getThread(tx, target.threadId);
     if (thread === null) {
       return { kind: "done", outcome: { kind: "not-found" } };
     }
@@ -704,7 +832,7 @@ export class ThreadService implements ProviderEventSink {
         outcome: { error: "archived", kind: "conflict", message: "The thread is archived" },
       };
     }
-    if (request.expectedTurnId !== undefined && request.expectedTurnId !== thread.activeTurnId) {
+    if (target.expectedTurnId !== undefined && target.expectedTurnId !== thread.activeTurnId) {
       return {
         kind: "done",
         outcome: {
@@ -715,7 +843,7 @@ export class ThreadService implements ProviderEventSink {
       };
     }
 
-    const turn = requestedTurn(request);
+    const { turn } = target;
     switch (thread.status) {
       case "idle":
       case "error": {
@@ -775,6 +903,9 @@ export class ThreadService implements ProviderEventSink {
     }
     if (turn.viewContext !== undefined) {
       requested.viewContext = turn.viewContext;
+    }
+    if (turn.dispatchId !== undefined) {
+      requested.dispatchId = turn.dispatchId;
     }
     const firstRequest = !threadHasEvents(tx, threadId);
     this.appendLocal(tx, [requested]);

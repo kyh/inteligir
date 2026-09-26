@@ -41,9 +41,18 @@ const decodeSocketPayload = (raw: SocketPayload): string => {
   throw new Error("Unsupported socket payload");
 };
 
+export type ThreadChangeListener = (threadId: string, changes: readonly ThreadChangeKind[]) => void;
+
 export class WsBus implements DbNotifier {
   private readonly keysBySocket = new Map<BusSocket, Set<string>>();
   private readonly socketsByKey = new Map<string, Set<BusSocket>>();
+  private readonly threadListeners = new Set<ThreadChangeListener>();
+
+  // a service in this process hears what the window hears, so it reacts to a change whichever
+  // writer made it rather than asking each writer to call it too
+  onThreadChange(listener: ThreadChangeListener): void {
+    this.threadListeners.add(listener);
+  }
 
   registerClient(socket: BusSocket): void {
     if (!this.keysBySocket.has(socket)) {
@@ -138,6 +147,9 @@ export class WsBus implements DbNotifier {
   }
 
   notifyThread(threadId: string, changes: ThreadChangeKind[]): void {
+    for (const listener of this.threadListeners) {
+      listener(threadId, changes);
+    }
     this.notifyClients({
       changes,
       entity: "thread",

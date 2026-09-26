@@ -1,6 +1,7 @@
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
 import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
+import { DISPATCH_API_PATHS } from "@repo/api/cloud/dispatch/dispatch-schema";
 import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
@@ -19,7 +20,13 @@ import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import type { CaptureVault } from "../captures";
-import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
+import { createCloudClient, postDeviceLogin } from "@repo/api/cloud/client";
+import type {
+  CloudClient,
+  CloudFetch,
+  CloudSocket,
+  OpenCloudSocketArgs,
+} from "@repo/api/cloud/client";
 import { readDeviceCredential, writeDeviceCredential } from "../credential-store";
 import type { DeviceCredential } from "../credential-store";
 import type { SyncedEventSink } from "../sync-pass";
@@ -77,6 +84,12 @@ const makeVault = (): FakeVault => {
   };
 };
 
+// a sink holding no thread: every phone turn lands and no approval is found here to answer
+const dispatchStub: Pick<SyncedEventSink, "acceptDispatch" | "answerInteraction"> = {
+  acceptDispatch: async () => await Promise.resolve({ kind: "delivered" }),
+  answerInteraction: () => ({ kind: "not-found" }),
+};
+
 interface Harness {
   db: DbConnection;
   dataDir: string;
@@ -84,6 +97,8 @@ interface Harness {
   vault: FakeVault;
   runtime: CloudRuntime;
   applied: { threadId: string; events: readonly ThreadEvent[]; cursor: number }[];
+  /** the phone turns each pass handed the sink, in claim order. */
+  dispatched: string[];
   socketOpens: OpenCloudSocketArgs[];
   vaultPings: () => number;
   /** the status as each onStatusChanged found it. */
@@ -110,6 +125,7 @@ const makeHarness = (
   const cloud = options.cloud ?? new FakeCloud();
   const vault = makeVault();
   const applied: Harness["applied"] = [];
+  const dispatched: string[] = [];
   const socketOpens: OpenCloudSocketArgs[] = [];
   let vaultPings = 0;
   const statusNotices: CloudStatusResponse[] = [];
@@ -118,6 +134,11 @@ const makeHarness = (
   // after the teardown closes the db status() reads.
   let asked: CloudRuntime | null = null;
   const sink: SyncedEventSink = {
+    ...dispatchStub,
+    acceptDispatch: async (dispatch) => {
+      dispatched.push(dispatch.id);
+      return await Promise.resolve({ kind: "delivered" });
+    },
     applySyncedEvents: (args) => {
       applied.push({
         cursor: args.cursor,
@@ -169,6 +190,7 @@ const makeHarness = (
   return {
     applied,
     cloud,
+    dispatched,
     dataDir,
     db,
     runtime,
@@ -195,6 +217,22 @@ const append = (harness: Harness, events: readonly ThreadEvent[]): void => {
 
 const loginAs = async (runtime: CloudRuntime, deviceName: string): Promise<LoginOutcome> =>
   await runtime.login({ ...FAKE_ACCOUNT, deviceName });
+
+// another device on the account, asking as the phone does
+const signInPhone = async (cloud: FakeCloud): Promise<CloudClient> => {
+  const login = await postDeviceLogin(
+    { baseUrl: CLOUD_URL, fetch: cloud.fetch },
+    { ...FAKE_ACCOUNT, deviceName: "Phone" },
+  );
+  if (!login.ok) {
+    throw new Error(`the phone could not sign in: ${JSON.stringify(login.failure)}`);
+  }
+  return createCloudClient({
+    baseUrl: CLOUD_URL,
+    credential: login.value.credential,
+    fetch: cloud.fetch,
+  });
+};
 
 const signIn = async (harness: Harness): Promise<string> => {
   const outcome = await loginAs(harness.runtime, "Laptop");
@@ -647,6 +685,28 @@ describe("the invalidation socket", () => {
     expect(harness.runtime.status().state).toBe("unauthorized");
   });
 
+  it("claims a phone's request on the dispatch ping, without waiting for the poll", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    const [dial] = harness.socketOpens;
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
+    const phone = await signInPhone(harness.cloud);
+    const id = "d".repeat(32);
+    await phone.createDispatch({ id, kind: "turn", text: "Tidy it", threadId: "thr_1" });
+    expect(harness.dispatched).toEqual([]);
+
+    dial.onPing({ threadId: "thr_1", type: "dispatch" });
+
+    await vi.waitFor(() => {
+      expect(harness.dispatched).toEqual([id]);
+    });
+    // joins the requested pass, so the teardown does not close the db under it.
+    await harness.runtime.syncNow();
+    expect(harness.cloud.dispatchStatus(id).state).toBe("delivered");
+  });
+
   it("catches up once it opens: a ping sent while it was down reached nothing", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     await signIn(harness);
@@ -664,6 +724,34 @@ describe("the invalidation socket", () => {
     // joins the requested pass, so the teardown does not close the db under it.
     await harness.runtime.syncNow();
     expect(harness.statusNotices).toContainEqual(expect.objectContaining({ connected: true }));
+  });
+});
+
+describe("an approval that moved", () => {
+  it("brings a pass forward, well before the poll would", async () => {
+    const harness = makeHarness();
+    await signIn(harness);
+    vi.useFakeTimers();
+    const quiet = harness.cloud.requests.length;
+
+    harness.runtime.approvalsChanged();
+    await vi.advanceTimersByTimeAsync(2000);
+    vi.useRealTimers();
+
+    await vi.waitFor(() => {
+      expect(harness.cloud.requests.slice(quiet)).toContain(`POST ${DISPATCH_API_PATHS.claim}`);
+    });
+    await harness.runtime.syncNow();
+  });
+
+  it("brings nothing forward while signed out", async () => {
+    vi.useFakeTimers();
+    const harness = makeHarness();
+
+    harness.runtime.approvalsChanged();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+
+    expect(harness.cloud.requests).toEqual([]);
   });
 });
 
@@ -1170,6 +1258,7 @@ describe("applying the account's log", () => {
     // refuses every group (forcing the per-row retry) and one row outright.
     const cursors: number[] = [];
     harness.runtime.attach({
+      ...dispatchStub,
       applySyncedEvents: (args) => {
         if (args.rows.length > 1) {
           throw new Error("the group is refused");
@@ -1201,6 +1290,7 @@ describe("applying the account's log", () => {
     await writer.runtime.syncNow();
 
     harness.runtime.attach({
+      ...dispatchStub,
       applySyncedEvents: (args) => {
         const [only] = args.rows;
         if (
@@ -1230,6 +1320,7 @@ describe("applying the account's log", () => {
     await writer.runtime.syncNow();
 
     harness.runtime.attach({
+      ...dispatchStub,
       applySyncedEvents: () => {
         throw new Error("the disk is full");
       },

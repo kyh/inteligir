@@ -28,6 +28,34 @@ import type {
   RevokeDeviceResponse,
 } from "@repo/api/cloud/device/device-schema";
 import {
+  ackDispatchesRequestSchema,
+  answerableDecisions,
+  APPROVAL_MAX_OPEN,
+  cancelDispatchRequestSchema,
+  claimDispatchesRequestSchema,
+  closeApprovalRequestSchema,
+  createDispatchRequestSchema,
+  DISPATCH_API_PATHS,
+  DISPATCH_CLAIM_TTL_MS,
+  DISPATCH_MAX_PENDING,
+  dispatchStatusRequestSchema,
+  openApprovalRequestSchema,
+} from "@repo/api/cloud/dispatch/dispatch-schema";
+import type {
+  AckDispatchesResponse,
+  ApprovalRow,
+  ApprovalState,
+  CancelDispatchResponse,
+  ClaimDispatchesResponse,
+  ClaimedDispatch,
+  CloseApprovalResponse,
+  CreateDispatchResponse,
+  DispatchStatus,
+  DispatchStatusResponse,
+  ListApprovalsResponse,
+  OpenApprovalResponse,
+} from "@repo/api/cloud/dispatch/dispatch-schema";
+import {
   pullQuerySchema,
   pushRequestSchema,
   SYNC_API_PATHS,
@@ -67,6 +95,31 @@ interface InboxRow {
   claimedAt: number;
 }
 
+type DispatchSettle =
+  | { state: "pending" }
+  | { state: "delivered" }
+  | { state: "refused"; message: string };
+
+interface DispatchRow {
+  claimed: ClaimedDispatch;
+  fromDeviceId: string;
+  // null: any Mac may claim it; an answer is its asking Mac's alone
+  toDeviceId: string | null;
+  approvalId: string | null;
+  claimToken: string | null;
+  claimedAt: number;
+  settle: DispatchSettle;
+}
+
+const liveDispatchClaim = (row: DispatchRow, now: number): boolean =>
+  row.claimToken !== null && row.claimedAt > now - DISPATCH_CLAIM_TTL_MS;
+
+interface ApprovalEntry {
+  row: Omit<ApprovalRow, "state">;
+  fromDeviceId: string;
+  state: ApprovalState;
+}
+
 // the one account every fake cloud holds; the runtime under test signs in as it.
 export const FAKE_ACCOUNT = { email: "owner@example.test", password: "correct horse battery" };
 
@@ -87,6 +140,9 @@ export class FakeCloud {
   private readonly inviteCodes = new Set([FAKE_INVITE_CODE]);
   private readonly log: LogRow[] = [];
   private readonly inbox: InboxRow[] = [];
+  // insertion order is the claim order, as rowid is the object's
+  private readonly dispatches: DispatchRow[] = [];
+  private readonly approvals = new Map<string, ApprovalEntry>();
   private nextDevice = 0;
   private nextSeq = 0;
   private nextCapture = 0;
@@ -101,6 +157,8 @@ export class FakeCloud {
   signUpWindowShut = false;
   /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
   readonly unreadableTypes = new Set<string>();
+  /** what the status route counts as desktop sockets: this fake holds none of its own. */
+  desktopsOnline = 0;
 
   revoke(deviceId: string): void {
     for (const device of this.devices.values()) {
@@ -117,10 +175,24 @@ export class FakeCloud {
     return id;
   }
 
+  // every claim, a capture's and a dispatch's, as if its ttl ran out
   lapseClaims(): void {
     for (const row of this.inbox) {
       row.claimedAt = 0;
     }
+    for (const row of this.dispatches) {
+      row.claimedAt = 0;
+    }
+  }
+
+  /** the inbox's own view of a dispatch, as the status route answers it. */
+  dispatchStatus(id: string): DispatchStatus {
+    return this.statusOf(id) ?? { id, state: "unknown" };
+  }
+
+  /** the approvals the phone's listing would show. */
+  openApprovals(): ApprovalRow[] {
+    return this.listedApprovals();
   }
 
   logSize(): number {
@@ -176,7 +248,287 @@ export class FakeCloud {
     if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
       return this.account(device);
     }
-    return refuse("not-found", "No such route.");
+    return (
+      this.dispatchRoute(route, device.deviceId, body) ?? refuse("not-found", "No such route.")
+    );
+  }
+
+  private dispatchRoute(route: string, deviceId: string, body: RequestBody): Response | null {
+    switch (route) {
+      case `POST ${DISPATCH_API_PATHS.dispatch}`: {
+        return this.createDispatch(deviceId, body);
+      }
+      case `POST ${DISPATCH_API_PATHS.claim}`: {
+        return this.claimDispatches(deviceId, body);
+      }
+      case `POST ${DISPATCH_API_PATHS.ack}`: {
+        return this.ackDispatches(body);
+      }
+      case `POST ${DISPATCH_API_PATHS.status}`: {
+        return this.dispatchStatuses(body);
+      }
+      case `POST ${DISPATCH_API_PATHS.cancel}`: {
+        return this.cancelDispatch(body);
+      }
+      case `POST ${DISPATCH_API_PATHS.approval}`: {
+        return this.openApproval(deviceId, body);
+      }
+      case `POST ${DISPATCH_API_PATHS.approvalClose}`: {
+        return this.closeApproval(deviceId, body);
+      }
+      case `GET ${DISPATCH_API_PATHS.approvals}`: {
+        const response: ListApprovalsResponse = { approvals: this.listedApprovals() };
+        return Response.json(response);
+      }
+      default: {
+        return null;
+      }
+    }
+  }
+
+  private statusOf(id: string): DispatchStatus | null {
+    const row = this.dispatches.find((candidate) => candidate.claimed.id === id);
+    if (row === undefined) {
+      return null;
+    }
+    switch (row.settle.state) {
+      case "delivered": {
+        return { id, state: "delivered" };
+      }
+      case "refused": {
+        return { id, message: row.settle.message, state: "refused" };
+      }
+      case "pending": {
+        return { id, state: liveDispatchClaim(row, Date.now()) ? "claimed" : "waiting" };
+      }
+      // no default
+    }
+  }
+
+  private closeApprovalEntry(approvalId: string | null): void {
+    const entry = approvalId === null ? undefined : this.approvals.get(approvalId);
+    if (entry !== undefined) {
+      entry.state = "closed";
+    }
+  }
+
+  private createDispatch(deviceId: string, body: RequestBody): Response {
+    const parsed = createDispatchRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Malformed dispatch.");
+    }
+    const request = parsed.data;
+    const existing = this.statusOf(request.id);
+    if (existing !== null) {
+      const duplicate: CreateDispatchResponse = { dispatch: existing, duplicate: true };
+      return Response.json(duplicate);
+    }
+    const pending = this.dispatches.filter((row) => row.settle.state === "pending").length;
+    if (pending >= DISPATCH_MAX_PENDING) {
+      return refuse("rate-limited", "Too many requests are already waiting for a computer.");
+    }
+    const createdAt = Date.now();
+    if (request.kind === "turn") {
+      this.dispatches.push({
+        approvalId: null,
+        claimToken: null,
+        claimed: { ...request, createdAt },
+        claimedAt: 0,
+        fromDeviceId: deviceId,
+        settle: { state: "pending" },
+        toDeviceId: null,
+      });
+      const stored: CreateDispatchResponse = {
+        dispatch: { id: request.id, state: "waiting" },
+        duplicate: false,
+      };
+      return Response.json(stored);
+    }
+    const approval = this.approvals.get(request.approvalId);
+    if (approval === undefined) {
+      return refuse("not-found", "No such request is waiting for an answer.");
+    }
+    const claimed: ClaimedDispatch = { ...request, createdAt, threadId: approval.row.threadId };
+    if (approval.state !== "open") {
+      const message =
+        approval.state === "answered"
+          ? "That request was already answered."
+          : "That request is no longer waiting.";
+      this.dispatches.push({
+        approvalId: request.approvalId,
+        claimToken: null,
+        claimed,
+        claimedAt: 0,
+        fromDeviceId: deviceId,
+        settle: { message, state: "refused" },
+        toDeviceId: approval.fromDeviceId,
+      });
+      const settled: CreateDispatchResponse = {
+        dispatch: { id: request.id, message, state: "refused" },
+        duplicate: false,
+      };
+      return Response.json(settled);
+    }
+    if (!answerableDecisions(approval.row.payload).includes(request.decision)) {
+      return refuse("bad-request", "That request does not offer that answer.");
+    }
+    this.dispatches.push({
+      approvalId: request.approvalId,
+      claimToken: null,
+      claimed,
+      claimedAt: 0,
+      fromDeviceId: deviceId,
+      settle: { state: "pending" },
+      toDeviceId: approval.fromDeviceId,
+    });
+    approval.state = "answered";
+    const stored: CreateDispatchResponse = {
+      dispatch: { id: request.id, state: "waiting" },
+      duplicate: false,
+    };
+    return Response.json(stored);
+  }
+
+  private claimDispatches(deviceId: string, body: RequestBody): Response {
+    const parsed = claimDispatchesRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { limit? }.");
+    }
+    const now = Date.now();
+    const claimToken = `dclaim_${now}_${Math.random()}`;
+    const taken = this.dispatches
+      .filter(
+        (row) =>
+          row.settle.state === "pending" &&
+          (row.toDeviceId === null || row.toDeviceId === deviceId) &&
+          !liveDispatchClaim(row, now),
+      )
+      .slice(0, parsed.data.limit);
+    for (const row of taken) {
+      row.claimToken = claimToken;
+      row.claimedAt = now;
+    }
+    const response: ClaimDispatchesResponse = {
+      claimToken,
+      dispatches: taken.map((row) => row.claimed),
+      expiresAt: now + DISPATCH_CLAIM_TTL_MS,
+    };
+    return Response.json(response);
+  }
+
+  private ackDispatches(body: RequestBody): Response {
+    const parsed = ackDispatchesRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { claimToken, results }.");
+    }
+    const { claimToken } = parsed.data;
+    const response: AckDispatchesResponse = {
+      results: parsed.data.results.map((result): AckDispatchesResponse["results"][number] => {
+        const row = this.dispatches.find((candidate) => candidate.claimed.id === result.id);
+        if (row === undefined) {
+          return { id: result.id, outcome: "unknown" };
+        }
+        if (row.claimToken === claimToken && row.settle.state === "pending") {
+          row.settle =
+            result.outcome === "refused"
+              ? { message: result.message, state: "refused" }
+              : { state: "delivered" };
+          this.closeApprovalEntry(row.approvalId);
+          return { id: result.id, outcome: "recorded" };
+        }
+        return { id: result.id, outcome: row.claimToken === claimToken ? "recorded" : "reclaimed" };
+      }),
+    };
+    return Response.json(response);
+  }
+
+  private dispatchStatuses(body: RequestBody): Response {
+    const parsed = dispatchStatusRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { ids }.");
+    }
+    const response: DispatchStatusResponse = {
+      desktopsOnline: this.desktopsOnline,
+      dispatches: parsed.data.ids.map((id) => this.dispatchStatus(id)),
+    };
+    return Response.json(response);
+  }
+
+  private cancelDispatch(body: RequestBody): Response {
+    const parsed = cancelDispatchRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { id }.");
+    }
+    const index = this.dispatches.findIndex((row) => row.claimed.id === parsed.data.id);
+    const row = this.dispatches[index];
+    let outcome: CancelDispatchResponse["outcome"] = "unknown";
+    if (row !== undefined) {
+      if (row.settle.state !== "pending") {
+        outcome = "settled";
+      } else if (liveDispatchClaim(row, Date.now())) {
+        outcome = "claimed";
+      } else {
+        this.dispatches.splice(index, 1);
+        const approval = row.approvalId === null ? undefined : this.approvals.get(row.approvalId);
+        if (approval?.state === "answered") {
+          approval.state = "open";
+        }
+        outcome = "cancelled";
+      }
+    }
+    const response: CancelDispatchResponse = { outcome };
+    return Response.json(response);
+  }
+
+  private openApproval(deviceId: string, body: RequestBody): Response {
+    const parsed = openApprovalRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Malformed approval.");
+    }
+    const request = parsed.data;
+    const existing = this.approvals.get(request.id);
+    if (existing !== undefined) {
+      const duplicate: OpenApprovalResponse = { duplicate: true, state: existing.state };
+      return Response.json(duplicate);
+    }
+    const open = [...this.approvals.values()].filter((entry) => entry.state !== "closed").length;
+    if (open >= APPROVAL_MAX_OPEN) {
+      return refuse("rate-limited", "Too many requests are already waiting for an answer.");
+    }
+    this.approvals.set(request.id, {
+      fromDeviceId: deviceId,
+      row: {
+        createdAt: Date.now(),
+        id: request.id,
+        payload: request.payload,
+        threadId: request.threadId,
+        turnId: request.turnId,
+      },
+      state: "open",
+    });
+    const stored: OpenApprovalResponse = { duplicate: false, state: "open" };
+    return Response.json(stored);
+  }
+
+  private closeApproval(deviceId: string, body: RequestBody): Response {
+    const parsed = closeApprovalRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { id }.");
+    }
+    const entry = this.approvals.get(parsed.data.id);
+    let outcome: CloseApprovalResponse["outcome"] = "unknown";
+    if (entry !== undefined && entry.fromDeviceId === deviceId) {
+      entry.state = "closed";
+      outcome = "closed";
+    }
+    const response: CloseApprovalResponse = { outcome };
+    return Response.json(response);
+  }
+
+  private listedApprovals(): ApprovalRow[] {
+    return [...this.approvals.values()].flatMap((entry): ApprovalRow[] =>
+      entry.state === "closed" ? [] : [{ ...entry.row, state: entry.state }],
+    );
   }
 
   private account(device: FakeDevice): Response {

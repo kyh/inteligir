@@ -5,6 +5,8 @@
 import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
 import { describeCloudFailure } from "@repo/api/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
+import { DISPATCH_CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/dispatch/dispatch-schema";
+import type { DispatchResult } from "@repo/api/cloud/dispatch/dispatch-schema";
 import { SYNC_OUTBOX_CODES } from "@repo/api/cloud/errors";
 import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import { pullPages } from "@repo/api/cloud/sync/sync-session";
@@ -13,6 +15,7 @@ import { writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { MissingTurnStartedError } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
+import { setInteractionRelay } from "@repo/db/pending-interactions";
 import {
   countSyncOutbox,
   dropSyncOutboxThrough,
@@ -29,13 +32,15 @@ import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "../threads/thread-event-mismatch-error";
 import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
 import type { CaptureVault } from "./captures";
+import { applyDispatch, approvalsToClose, approvalsToOpen } from "./dispatches";
+import type { DispatchSink } from "./dispatches";
 import { ackPushBatch, takePushBatch } from "./outbox";
 
 // bounds one pass's drain so a backlog cannot starve the pull half or hold a shutdown open.
 const MAX_PUSH_BATCHES_PER_PASS = 25;
 
 // implemented by ThreadService alone — a second append path is a second answer to thread lifecycle.
-export interface SyncedEventSink {
+export interface SyncedEventSink extends DispatchSink {
   applySyncedEvents: (args: {
     threadId: string;
     /** each event with the log row's own identity, so the append is idempotent on it. */
@@ -64,6 +69,8 @@ export interface SyncPassDeps {
   sink: () => SyncedEventSink | null;
   /** checked after every await, before any write. */
   fenced: (context: PassContext) => boolean;
+  /** read per pass: off, this Mac claims nothing from the dispatch inbox. */
+  phoneRequests: () => boolean;
   recordFailure: (failure: CloudFailure) => "continue" | "ended";
   setLastError: (message: string | null) => void;
 }
@@ -257,10 +264,124 @@ const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<
   return captures.length < CLAIM_DEFAULT_LIMIT ? "caught-up" : "more";
 };
 
+// after the pull, so a request another Mac already ran for a dispatch is here to be found. a row's
+// ack waits for every row before it in the claim; one whose apply threw is left out, so its claim
+// lapses and it comes back.
+const applyDispatches = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
+  if (!deps.fenced(context)) {
+    return "fenced";
+  }
+  let takesRequests: boolean;
+  try {
+    takesRequests = deps.phoneRequests();
+  } catch (error) {
+    // an unreadable choice is not taken as on: the person may have turned it off
+    const message = messageOf(error);
+    deps.setLastError(message);
+    deps.debug(`reading whether this Mac takes phone requests failed: ${message}`);
+    return "failed";
+  }
+  if (!takesRequests) {
+    return "caught-up";
+  }
+  const sink = deps.sink();
+  if (sink === null) {
+    throw new Error("cloud sync has no ingest sink attached");
+  }
+  const claimed = await context.client.claimDispatches(DISPATCH_CLAIM_DEFAULT_LIMIT);
+  if (!deps.fenced(context)) {
+    return "fenced";
+  }
+  if (!claimed.ok) {
+    return failedOrFenced(deps, claimed.failure);
+  }
+  const { claimToken, dispatches } = claimed.value;
+  const results: DispatchResult[] = [];
+  let failed = false;
+  for (const dispatch of dispatches) {
+    // a turn run under a session that has ended would be enqueued into the next one's outbox
+    if (!deps.fenced(context)) {
+      return "fenced";
+    }
+    try {
+      results.push(await applyDispatch(sink, deps.db, dispatch));
+    } catch (error) {
+      failed = true;
+      const message = messageOf(error);
+      deps.setLastError(message);
+      deps.debug(`applying phone request ${dispatch.id} failed: ${message}`);
+    }
+  }
+  if (results.length > 0) {
+    if (!deps.fenced(context)) {
+      return "fenced";
+    }
+    const acked = await context.client.ackDispatches({ claimToken, results });
+    if (!deps.fenced(context)) {
+      return "fenced";
+    }
+    if (!acked.ok) {
+      return failedOrFenced(deps, acked.failure);
+    }
+    for (const outcome of acked.value.results) {
+      if (outcome.outcome !== "recorded") {
+        deps.debug(
+          `phone request ${outcome.id} was ${outcome.outcome} before this device acked it`,
+        );
+      }
+    }
+  }
+  if (failed) {
+    return "failed";
+  }
+  // a full claim may have left more in the inbox behind it.
+  return dispatches.length < DISPATCH_CLAIM_DEFAULT_LIMIT ? "caught-up" : "more";
+};
+
+// a phone-started turn's approval is offered to the phone while it waits here, and taken back once
+// it settles here, however it settled. each mark follows the inbox's answer, so an answer lost on
+// the way is asked again, under the same id.
+const relayApprovals = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
+  for (const approval of approvalsToOpen(deps.db)) {
+    if (!deps.fenced(context)) {
+      return "fenced";
+    }
+    const opened = await context.client.openApproval(approval.request);
+    if (!deps.fenced(context)) {
+      return "fenced";
+    }
+    if (!opened.ok) {
+      return failedOrFenced(deps, opened.failure);
+    }
+    setInteractionRelay(
+      deps.db,
+      approval.interactionId,
+      opened.value.state === "closed" ? "closed" : "opened",
+    );
+  }
+  for (const approval of approvalsToClose(deps.db)) {
+    if (!deps.fenced(context)) {
+      return "fenced";
+    }
+    const closed = await context.client.closeApproval(approval.approvalId);
+    if (!deps.fenced(context)) {
+      return "fenced";
+    }
+    if (!closed.ok) {
+      return failedOrFenced(deps, closed.failure);
+    }
+    // unknown too: the inbox holds nothing left to close
+    setInteractionRelay(deps.db, approval.interactionId, "closed");
+  }
+  return "caught-up";
+};
+
 const PASS_STEPS = [
   ["push", drain],
   ["pull", pullAndApply],
   ["captures", applyCaptures],
+  ["dispatch", applyDispatches],
+  ["approvals", relayApprovals],
 ] as const;
 
 // a failed step does not stop the ones after it: an unreachable push says nothing about the pull.

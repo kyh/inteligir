@@ -65,9 +65,22 @@ const logout = base.cloud.logout.handler(({ context }) => context.cloud.logout()
 
 const syncNow = base.cloud.syncNow.handler(async ({ context }) => await context.cloud.syncNow());
 
+const prefs = base.cloud.prefs.handler(({ context }) => ({
+  phoneRequests: context.cloudPrefs.phoneRequests(),
+}));
+
+// no sync is asked for: a pass reads the choice as it starts, and turning it on is answered by
+// the next ping or poll
+const setPrefs = base.cloud.setPrefs.handler(({ context, input }) => {
+  context.cloudPrefs.write({ ...context.cloudPrefs.read(), phoneRequests: input.phoneRequests });
+  return { phoneRequests: context.cloudPrefs.phoneRequests() };
+});
+
 export const cloudRouter = {
   login,
   logout,
+  prefs,
+  setPrefs,
   signUp,
   status,
   syncNow,
