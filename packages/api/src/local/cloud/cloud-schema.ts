@@ -65,6 +65,11 @@ export const cloudDevicesPageUrl = (cloudUrl: string): string =>
 export const cloudForgotPasswordPageUrl = (cloudUrl: string): string =>
   new URL("/app/forgot-password", cloudUrl).href;
 
+// what this Mac lets the account's other devices ask of it, stored in its own data dir.
+// phoneRequests: whether it takes a phone's requests to run the agent; on as it ships.
+export const cloudPrefsSchema = z.object({ phoneRequests: z.boolean() }).strict();
+export type CloudPrefs = z.infer<typeof cloudPrefsSchema>;
+
 // absent means the server's own hostname
 const localDeviceNameSchema = z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH).optional();
 

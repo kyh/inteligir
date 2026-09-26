@@ -58,10 +58,15 @@ export interface EnsureThreadOutcome {
   created: boolean;
 }
 
-// created with the log's id, not `createThread`'s: a device minting its own turns one synced
-// conversation into two. created bare: its title, origin and harness arrive as the log's
-// thread/meta rows, through `applyThreadMetaInTransaction`.
-export const ensureThreadInTransaction = (tx: DbTransaction, id: string): EnsureThreadOutcome => {
+// created with the id another device minted, not `createThread`'s: a device minting its own turns
+// one synced conversation into two. a pulled thread is created bare, its title, origin and harness
+// arriving as the log's thread/meta rows through `applyThreadMetaInTransaction`; a phone's request
+// states its origin, which only the create takes, since an existing thread already has its own.
+export const ensureThreadInTransaction = (
+  tx: DbTransaction,
+  id: string,
+  origin?: ThreadOriginInput,
+): EnsureThreadOutcome => {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
   if (existing !== undefined) {
     return { created: false, row: existing };
@@ -69,7 +74,14 @@ export const ensureThreadInTransaction = (tx: DbTransaction, id: string): Ensure
   const now = Date.now();
   const row = tx
     .insert(threads)
-    .values({ createdAt: now, id, status: "idle", updatedAt: now })
+    .values({
+      createdAt: now,
+      id,
+      originDocPath: origin?.path ?? null,
+      originNoteId: origin?.noteId ?? null,
+      status: "idle",
+      updatedAt: now,
+    })
     .returning()
     .get();
   return { created: true, row };

@@ -7,6 +7,7 @@ import { Button } from "@repo/ui/components/button";
 import { AccountForm } from "../account-form";
 import { useCloudSession } from "../cloud-session";
 import { useDataDirScope } from "../vault-hooks";
+import { PhoneRequestsRow } from "./phone-requests-row";
 import { Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
@@ -70,6 +71,7 @@ export const SyncSection = () => {
               {status.accountEmail ?? new URL(status.cloudUrl).host}
             </span>
           </Row>
+          <PhoneRequestsRow />
         </dl>
         <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
           Sign out

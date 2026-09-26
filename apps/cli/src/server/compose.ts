@@ -17,6 +17,7 @@ import { createBrowserSession } from "./browser-session";
 import { createCommentsService } from "./comments/comments-service";
 import { systemOpenExternalUrl } from "./browser-opener";
 import type { OpenExternalUrl } from "./browser-opener";
+import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import { createCloudRuntime } from "./cloud/sync-runtime";
 import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
@@ -206,6 +207,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   });
 
   // before the thread service, which takes the outbox hook at construction; attach() closes the other direction.
+  const cloudPrefs = new CloudPrefsStore(config.dataDir);
   const cloudArgs: CloudRuntimeArgs = {
     build: args.version,
     cloudUrl: config.cloudUrl,
@@ -220,6 +222,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     onVaultPing: () => {
       void vault.syncNow();
     },
+    phoneRequests: () => cloudPrefs.phoneRequests(),
     vault: vault.service,
   };
   if (args.cloudTransport !== undefined) {
@@ -228,6 +231,14 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const cloud = createCloudRuntime(cloudArgs);
   register("cloud", async () => {
     await cloud.dispose();
+  });
+  // an approval is raised by the agent runtime and settled by the thread service or its turn's
+  // end; the bus hears every one of them, so a phone-started turn's reaches the phone whoever wrote
+  // it. a disposed runtime schedules nothing, so the listener outlives it harmlessly.
+  bus.onThreadChange((_threadId, changes) => {
+    if (changes.includes("interactions-changed")) {
+      cloud.approvalsChanged();
+    }
   });
   const threads = new ThreadService({
     createTurnDriver: agentDriver.createTurnDriver,
@@ -258,6 +269,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     agents,
     browserSession: createBrowserSession(),
     cloud,
+    cloudPrefs,
     comments,
     connectors,
     connectorsOauth,

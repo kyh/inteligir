@@ -3,10 +3,11 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventItemRef, threadEventSchema } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
-import { and, desc, eq, gt, inArray, isNull, max, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, max, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createEventId } from "./ids";
-import { events } from "./schema";
+import { events, queuedThreadMessages } from "./schema";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -325,6 +326,74 @@ export const storedTurnCompletion = (
     .get();
   const event = row === undefined ? null : readStoredEvent(row.data);
   return event?.type === "turn/completed" ? event : null;
+};
+
+const requestDispatchId = sql`json_extract(${events.data}, '$.dispatchId')`;
+
+// the thread's own requests, spelled as listThreadMetaEvents spells its rows so the index seeks them
+const threadRequests = (threadId: string): SQL | undefined =>
+  and(
+    eq(events.threadId, threadId),
+    isNull(events.turnId),
+    eq(events.type, "client/turn/requested"),
+    isNull(events.itemId),
+  );
+
+// a phone's dispatch runs once on this device, and its ledger is what the send already writes: the
+// request that carries it, pulled from another device's log or appended here, or the queued message
+// that will become one. so a claim that lapsed before its ack, handed over again, finds itself here.
+export const threadHoldsDispatch = (
+  db: DbExecutor,
+  args: { threadId: string; dispatchId: string },
+): boolean =>
+  db
+    .select({ id: events.id })
+    .from(events)
+    .where(and(threadRequests(args.threadId), eq(requestDispatchId, args.dispatchId)))
+    .limit(1)
+    .get() !== undefined ||
+  db
+    .select({ id: queuedThreadMessages.id })
+    .from(queuedThreadMessages)
+    .where(
+      and(
+        eq(queuedThreadMessages.threadId, args.threadId),
+        eq(queuedThreadMessages.dispatchId, args.dispatchId),
+      ),
+    )
+    .limit(1)
+    .get() !== undefined;
+
+// the dispatch a turn carries out: the one its request named, which is the last request the thread
+// held when the turn started, since a request is recorded before any turn id exists.
+export const turnDispatchId = (
+  db: DbExecutor,
+  args: { threadId: string; turnId: string },
+): string | null => {
+  const started = db
+    .select({ sequence: events.sequence })
+    .from(events)
+    .where(
+      and(
+        eq(events.threadId, args.threadId),
+        eq(events.turnId, args.turnId),
+        eq(events.type, "turn/started"),
+      ),
+    )
+    .limit(1)
+    .get();
+  if (started === undefined) {
+    return null;
+  }
+  const request = db
+    .select({ data: events.data })
+    .from(events)
+    .where(and(threadRequests(args.threadId), lt(events.sequence, started.sequence)))
+    .orderBy(desc(events.sequence))
+    .limit(1)
+    .get();
+  const event = request === undefined ? null : readStoredEvent(request.data);
+  return event?.type === "client/turn/requested" ? (event.dispatchId ?? null) : null;
 };
 
 export const threadHasEvents = (db: DbExecutor, threadId: string): boolean =>

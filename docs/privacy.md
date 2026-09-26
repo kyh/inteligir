@@ -41,7 +41,8 @@ Durable Object — never in anything shared across accounts.
   the change the agent wants to make, and why) to the same place for your
   phone to answer. A request waits until a computer picks it up or you cancel
   it; once a computer has answered it, or the question is settled, it is
-  deleted a day later.
+  deleted a day later. A computer with Let my phone ask this Mac turned off in
+  Settings never picks one up.
 - **Captures** — quick-capture text you post from a device, held in the same
   per-user object until one of your devices applies it to your Inbox note and
   acknowledges it, which deletes the row. A capture is handed to one device at

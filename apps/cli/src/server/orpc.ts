@@ -11,6 +11,7 @@ import type { AgentsService } from "./agents/agents-service";
 import type { ListTurnChanges, UndoTurnChanges } from "./agents/turn-changes";
 import type { BrowserSession } from "./browser-session";
 import type { CommentsService } from "./comments/comments-service";
+import type { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
 import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
@@ -42,6 +43,7 @@ export interface AppContext {
   agents: AgentsService;
   browserSession: BrowserSession;
   cloud: CloudRuntime;
+  cloudPrefs: CloudPrefsStore;
   comments: CommentsService;
   connectors: ConnectorsService;
   connectorsOauth: ConnectorOauthFlow;

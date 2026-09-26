@@ -21,6 +21,8 @@ export interface TurnRequest {
   text: string;
   contextPaths?: readonly string[] | undefined;
   viewContext?: ViewContext | undefined;
+  // the phone's dispatch the message carries out, stated on its request so the phone finds it
+  dispatchId?: string | undefined;
 }
 
 export interface TurnDriverStartArgs extends TurnRequest {

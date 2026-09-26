@@ -27,6 +27,8 @@ export interface CreateQueuedThreadMessageInput {
   text: string;
   // the stored text, null for none: the caller that parses the column back owns its encoding too.
   contextPaths: string | null;
+  // the phone's dispatch this message carries out, null for one typed here
+  dispatchId: string | null;
 }
 
 // fixed-width ms timestamp so lexicographic order is arrival order; extended past the tail when
@@ -58,6 +60,7 @@ export const createQueuedThreadMessageInTransaction = (
       claimedAt: null,
       contextPaths: input.contextPaths,
       createdAt: now,
+      dispatchId: input.dispatchId,
       id: createQueuedThreadMessageId(),
       sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),
       text: input.text,

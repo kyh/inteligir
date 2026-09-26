@@ -112,11 +112,16 @@ export const queuedThreadMessages = sqliteTable(
     // json array of vault paths, null for none. Kept, unlike the view context the queue drops:
     // an @-mention is part of what the user asked, not a statement about a screen since left.
     contextPaths: text("context_paths"),
+    // the phone's dispatch this message carries out, so a claim that finds it queued here is a
+    // duplicate and the request it drains into names it
+    dispatchId: text("dispatch_id"),
   },
   (table) => [
     index("queued_thread_messages_thread_sort_idx").on(table.threadId, table.sortKey, table.id),
   ],
 );
+
+export const approvalRelayValues = ["opened", "closed"] as const;
 
 export const pendingInteractions = sqliteTable(
   "pending_interactions",
@@ -133,6 +138,9 @@ export const pendingInteractions = sqliteTable(
     createdAt: integer("created_at").notNull(),
     resolvedAt: integer("resolved_at"),
     updatedAt: integer("updated_at").notNull(),
+    // a phone-started turn's approval as the account's dispatch inbox holds it: null, never
+    // opened there; opened, the phone may answer it; closed, it settled here and was closed there
+    relay: text("relay", { enum: approvalRelayValues }),
   },
   (table) => [
     uniqueIndex("pending_interactions_thread_request_idx").on(table.threadId, table.requestKey),

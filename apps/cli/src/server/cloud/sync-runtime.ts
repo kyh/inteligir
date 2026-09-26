@@ -78,6 +78,8 @@ export interface CloudRuntimeArgs {
   onDebug?: (message: string) => void;
   /** INTELIGIR_DEBUG's sync trace, beside onDebug's always-on warnings. */
   debugLog?: DebugLog | undefined;
+  /** read per pass: whether this Mac takes a phone's requests. absent, it does, as it ships. */
+  phoneRequests?: () => boolean;
 }
 
 export type LoginOutcome =
@@ -87,6 +89,8 @@ export type LoginOutcome =
 export interface CloudRuntime {
   status: () => CloudStatusResponse;
   enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;
+  /** an approval opened or settled here: a phone-started turn's is offered or taken back soon. */
+  approvalsChanged: () => void;
   /** late-bound: the thread service needs enqueue at construction. */
   attach: (sink: SyncedEventSink) => void;
   start: () => void;
@@ -324,6 +328,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     debug,
     debugLog: args.debugLog,
     fenced,
+    phoneRequests: args.phoneRequests ?? (() => true),
     recordFailure,
     setLastError: (message) => {
       lastError = message;
@@ -454,6 +459,10 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   };
 
   return {
+    approvalsChanged() {
+      cadence.scheduleDrain();
+    },
+
     attach(next) {
       sink = next;
     },
