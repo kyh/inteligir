@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
+import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
+import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
+import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
+import { toast } from "@repo/ui/components/sonner";
 import { hotkeyCaps } from "@repo/ui/lib/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../../global-shortcuts";
@@ -25,7 +30,7 @@ import {
   renderWithQueries,
   stubPaletteFetch,
 } from "./palette-harness";
-import type { PaletteFakes } from "./palette-harness";
+import type { FakeVault, PaletteFakes } from "./palette-harness";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -781,6 +786,18 @@ describe("the search page", () => {
 });
 
 const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+// a Finder duplicate: the same bytes, the same id, the anchors' bodies in the one store
+const PLAN_COPY = `---\ntitle: Plan\nid: ${SHARED_ID}\n---\n%%i:c1:start%%Plan%%i:c1:end%%\n`;
+const SHARED_STORE_BYTES = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
+
+const copiedVault = (): FakeVault => ({
+  files: new Map([
+    ["Plan.md", PLAN_COPY],
+    ["Plan copy.md", PLAN_COPY],
+    [`.inteligir/comments/${SHARED_ID}.json`, SHARED_STORE_BYTES],
+  ]),
+  log: [],
+});
 
 const someProblems = (): KnowledgeProblemsResponse => ({
   duplicateIds: {
@@ -837,13 +854,96 @@ describe("the problems page", () => {
     expect(actions.openProblemLink).not.toHaveBeenCalled();
   });
 
-  it("names each note sharing an id, and opens the one picked", async () => {
-    const { actions } = renderPalette({ fakes: { problems: someProblems } });
+  it("names each note sharing an id, and gives the one picked its own, comments and all", async () => {
+    const vault = copiedVault();
+    let reads = 0;
+    const success = vi.spyOn(toast, "success");
+    const { actions } = renderPalette({
+      fakes: {
+        problems: () => {
+          reads += 1;
+          return someProblems();
+        },
+        vault,
+      },
+    });
+    render(<ConfirmDialogHost />);
     fireEvent.click(rows().getByText("Problems"));
     await rows().findByText("Duplicate ids · 1");
     expect(rows().getAllByText(SHARED_ID)).toHaveLength(2);
+    const copyRow = rows().getByText("Plan copy.md").closest<HTMLElement>("[data-command-item]");
+    expect(copyRow?.dataset.commandAction).toBe("Give its own id");
+
     fireEvent.click(rows().getByText("Plan copy.md"));
-    expect(actions.openNote).toHaveBeenCalledWith("Plan copy.md");
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Give Plan copy.md its own id?")).toBeDefined();
+    expect(within(dialog).getByText(/stays with Plan\.md/u)).toBeDefined();
+    expect(within(dialog).getByText(/its comments come with it/u)).toBeDefined();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
+
+    await waitFor(() => {
+      expect(vault.log).toHaveLength(2);
+    });
+    const id = frontmatterId(vault.files.get("Plan copy.md") ?? "");
+    expect(id).not.toBe(SHARED_ID);
+    expect(vault.files.get("Plan copy.md")).toBe(PLAN_COPY.replace(SHARED_ID, id ?? ""));
+    expect(vault.files.get(`.inteligir/comments/${id ?? ""}.json`)).toBe(SHARED_STORE_BYTES);
+    expect(vault.files.get("Plan.md")).toBe(PLAN_COPY);
+    expect(vault.log).toEqual([`write .inteligir/comments/${id ?? ""}.json`, "write Plan copy.md"]);
+    await waitFor(() => {
+      expect(reads).toBe(2);
+    });
+    expect(success).toHaveBeenCalledWith(
+      "Plan copy.md has its own id now, and its comments came with it.",
+    );
+    expect(actions.openNote).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when the confirm is declined", async () => {
+    const vault = copiedVault();
+    renderPalette({ fakes: { problems: someProblems, vault } });
+    render(<ConfirmDialogHost />);
+    fireEvent.click(rows().getByText("Problems"));
+    fireEvent.click(await rows().findByText("Plan copy.md"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    expect(vault.log).toEqual([]);
+    expect(vault.files.get("Plan copy.md")).toBe(PLAN_COPY);
+  });
+
+  it("lands the open note's unsaved edits before it rewrites that note, and only that one", async () => {
+    const vault = copiedVault();
+    const store = createOpenNoteStore();
+    store.setFlush(async () => {
+      vault.log.push("flush");
+      return true;
+    });
+    onTestFinished(registerOpenNoteStore(store));
+    const giveOwnId = async (openPath: string, picked: string): Promise<void> => {
+      renderPalette({ fakes: { problems: someProblems, vault }, note: makeNote(openPath) });
+      render(<ConfirmDialogHost />);
+      fireEvent.click(rows().getByText("Problems"));
+      fireEvent.click(await rows().findByText(picked));
+      const dialog = await screen.findByRole("alertdialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
+    };
+
+    await giveOwnId("Plan copy.md", "Plan copy.md");
+    await waitFor(() => {
+      expect(vault.log).toHaveLength(3);
+    });
+    expect(vault.log[0]).toBe("flush");
+
+    cleanup();
+    vault.log.length = 0;
+    await giveOwnId("Welcome.md", "Plan.md");
+    await waitFor(() => {
+      expect(vault.log).toHaveLength(2);
+    });
+    expect(vault.log).not.toContain("flush");
   });
 
   it("says when the vault is clean", async () => {

@@ -30,6 +30,7 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault rename", ["vault", "rename", "notes/hello.md", "notes/renamed.md"]],
   ["vault delete", ["vault", "delete", "notes/hello.md"]],
   ["vault mkdir", ["vault", "mkdir", "projects"]],
+  ["vault new-id", ["vault", "new-id", "notes/copy.md"]],
   ["vault attachments", ["vault", "attachments", "beside-note"]],
   ["vault deleted", ["vault", "deleted"]],
   ["vault status", ["vault", "status"]],

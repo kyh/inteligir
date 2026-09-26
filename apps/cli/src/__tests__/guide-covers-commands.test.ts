@@ -10,8 +10,10 @@ import { testProgram } from "./command-tree";
 
 const README_PATH = fileURLToPath(new URL("../../README.md", import.meta.url));
 const SURFACE_HEADING = "## Command surface\n\n";
-// `<verb>` or `<group> <leaf>|<leaf>…`; any other span in the list (`tag:`) is prose about a verb
-const COMMAND_SPAN = /^[a-z]+(?:\s+[a-z]+(?:\|[a-z]+)*)?$/u;
+// `<verb>` or `<group> <leaf>|<leaf>…`, a name's words joined by `-` (`new-id`); any other span in
+// the list (`tag:`) is prose about a verb
+const NAME = "[a-z]+(?:-[a-z]+)*";
+const COMMAND_SPAN = new RegExp(`^${NAME}(?:\\s+${NAME}(?:\\|${NAME})*)?$`, "u");
 
 // the list is the paragraph under the heading, so the exit-code line's `action wait` is not a listing
 const readmeCommandPaths = (): string[] => {

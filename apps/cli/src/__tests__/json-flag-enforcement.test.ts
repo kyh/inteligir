@@ -34,6 +34,7 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
 const seedFixture = (state: FixtureState): void => {
   state.vault.clear();
   state.vault.set("notes/hello.md", "# Hello\n");
+  state.vault.set("notes/copy.md", "---\nid: 0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b\n---\n# Copy\n");
   state.revisions.set("notes/hello.md", [
     { content: "# Hello\n", revision: makeRevision({ sha: FIXTURE_REVISION_SHA }) },
   ]);

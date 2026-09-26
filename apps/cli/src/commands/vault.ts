@@ -334,6 +334,62 @@ export const vaultCommand = (deps: CliDeps) =>
         },
       }),
 
+      "new-id": defineCommand({
+        args: {
+          path: {
+            description: "The copy's vault-relative path",
+            required: true,
+            type: "positional",
+          },
+          ...jsonArg,
+        },
+        meta: {
+          description:
+            "Give a note that shares another's id (a copied file) its own, with a copy of its comments",
+          name: "new-id",
+        },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          // dynamic imports: both read frontmatter, and a static one would load yaml before every
+          // client verb reads argv (the build refuses that, scripts/build.mjs).
+          const [{ frontmatterId }, { giveNoteOwnId }] = await Promise.all([
+            import("@repo/notes/markdown/frontmatter"),
+            import("@repo/api/local/vault/give-note-own-id"),
+          ]);
+          const { content } = await api.vault.read({ path: args.path });
+          const shared = frontmatterId(content);
+          if (shared === null) {
+            throw invalidUsage(
+              `No id to replace in ${args.path}: its frontmatter has none, or is not valid YAML`,
+            );
+          }
+          const result = await giveNoteOwnId(api, args.path, shared);
+          // a note that moved between the two reads is the refusal a guarded write names, so a
+          // caller retries it the same way.
+          if (result.kind === "changed") {
+            throw new CliExitError(`${args.path} changed since it was read; nothing was written`, {
+              serverClass: "CAS_MISMATCH",
+            });
+          }
+          if (result.kind === "invalid") {
+            throw invalidUsage(`${args.path}'s frontmatter is not valid YAML; nothing was written`);
+          }
+          if (result.kind === "failed") {
+            throw new CliExitError(
+              `Could not give ${args.path} its own id: ${getErrorMessage(result.error)}`,
+              failureFrom(result.error, "UNEXPECTED"),
+            );
+          }
+          const body = { comments: result.comments, id: result.id, path: args.path };
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(
+            `${args.path} has its own id, ${result.id}${result.comments === "copied" ? ", and a copy of its comments" : ""}`,
+          );
+        },
+      }),
+
       open: defineCommand({
         args: {
           dir: {

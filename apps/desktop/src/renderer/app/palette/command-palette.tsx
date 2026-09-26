@@ -528,6 +528,7 @@ export const CommandPalette = ({
           <ProblemsPage
             open={open}
             query={query}
+            openNotePath={actions.note?.path ?? null}
             onOpenNote={(path) => {
               run(() => {
                 actions.openNote(path);

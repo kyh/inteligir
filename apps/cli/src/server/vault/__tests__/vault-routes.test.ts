@@ -5,6 +5,7 @@ import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
 import { legacyCommentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
 import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/api/local/routes";
+import { giveNoteOwnId } from "@repo/api/local/vault/give-note-own-id";
 import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import {
   VAULT_ASSET_MAX_BYTES,
@@ -466,6 +467,39 @@ describe("a note's comment store goes with the note", () => {
 
     const listed = await client.comments.list({ path: "notes/keep.md" });
     expect(listed.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
+  });
+
+  it("is copied for a copy given its own id, so the two notes' threads diverge", async () => {
+    const { client } = await bootTestApp();
+    await client.vault.write({
+      content: NOTE,
+      guard: { kind: "overwrite" },
+      path: "notes/keep.md",
+    });
+    await client.comments.add({ id: "c1", path: "notes/keep.md", text: "kept" });
+    await client.vault.write({
+      content: NOTE,
+      guard: { kind: "absent" },
+      path: "notes/keep copy.md",
+    });
+
+    const given = await giveNoteOwnId(client, "notes/keep copy.md", NOTE_ID);
+    if (given.kind !== "done") {
+      throw new Error(`expected done, got ${given.kind}`);
+    }
+    expect(given.comments).toBe("copied");
+    const copy = await client.vault.read({ path: "notes/keep copy.md" });
+    expect(copy.content).toBe(NOTE.replace(NOTE_ID, given.id));
+    const copiedStore = await client.vault.read({ path: `.inteligir/comments/${given.id}.json` });
+    const sharedStore = await client.vault.read({ path: STORE });
+    expect(copiedStore.content).toBe(sharedStore.content);
+
+    await client.comments.add({ id: "c2", path: "notes/keep copy.md", text: "only the copy" });
+    await client.vault.remove({ path: "notes/keep.md" });
+    const [gone] = await safe(client.vault.read({ path: STORE }));
+    expect(isDefinedError(gone) && gone.code).toBe("NOT_FOUND");
+    const listed = await client.comments.list({ path: "notes/keep copy.md" });
+    expect(listed.threads.map((thread) => thread.rootId).toSorted()).toEqual(["c1", "c2"]);
   });
 
   it("goes for every note under a removed folder, and a note without an id has none to remove", async () => {
