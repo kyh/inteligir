@@ -58,7 +58,7 @@ const switchedTo = async (shell: DesktopShell): Promise<SwitchState> => ({
 
 export const desktopShell: Scenario = {
   description:
-    "the built Electron shell over DevTools: inteligir:// serves the page and its API, the socket carries the bearer, the pin and Reveal refuse, a vault switch boots a new child, quit stops it",
+    "the built Electron shell over DevTools: inteligir:// serves the page and its API, the socket carries the bearer, the pin, every permission and Reveal refuse, a vault switch boots a new child, quit stops it",
   name: "desktop-shell",
   // a cold run downloads the Electron binary and boots the shell twice (the switch)
   timeoutMs: 300_000,
@@ -121,6 +121,16 @@ export const desktopShell: Scenario = {
     expectEq(opened, "null", "window.open's answer");
     const pages = await shell.appPages();
     expectEq(pages.length, 1, "pages after window.open");
+
+    ctx.log("the window holds no permission: dictation is the OS's, so the microphone is denied");
+    const microphone = parseEval(
+      await browser([
+        "eval",
+        `navigator.permissions.query({ name: "microphone" }).then((status) => status.state)`,
+      ]),
+      z.string(),
+    );
+    expectEq(microphone, "denied", "the microphone permission's state");
 
     ctx.log("Reveal refuses what the vault does not physically contain");
     for (const entry of [ESCAPE_LINK, "../outside/secret.md"]) {

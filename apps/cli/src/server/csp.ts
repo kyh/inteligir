@@ -20,7 +20,7 @@ export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): str
     // inteligir-html's two frames, the srcdoc preview and the loader in html-block-frame.ts that
     // Run navigates to; remote frames stay refused, which also refuses a running block a way out.
     "frame-src 'self'",
-    // an audioworklet module is fetched as a script, which is why dictation uses a scriptprocessornode.
+    // no page code runs off the main thread, so a script that slipped in cannot start a worker either.
     "worker-src 'none'",
   ].join("; ");
 

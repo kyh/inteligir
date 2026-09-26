@@ -209,17 +209,6 @@ try {
   }
   process.stdout.write(`smoke: packaged CLI status --json -> dataDir ${status.dataDir}\n`);
 
-  // `ready` is allowed because the model dir is shared across installs; `unavailable`
-  // is refused because this platform ships a prebuild, so a load failure is an ABI regression
-  const voiceStatus = await rpc("voice/status");
-  if (!["no-model", "ready"].includes(voiceStatus.state)) {
-    fail(
-      `voice status is ${JSON.stringify(voiceStatus)}; expected no-model or ready — ` +
-        `the native transcription binding did not load from the installed tree`,
-    );
-  }
-  process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
-
   const { pid } = server;
   if (pid === undefined) {
     fail("the server process has no pid — it never spawned");

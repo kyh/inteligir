@@ -29,7 +29,6 @@ import { SyncSection } from "./sync-section";
 import { UpdatesRow } from "./updates-row";
 import { VaultsRow } from "./vaults-rows";
 import { VersionRow } from "./version-row";
-import { VoiceSection } from "./voice-section";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
   { label: "System", value: "system" },
@@ -44,7 +43,6 @@ const NAV = [
   { id: "agents", label: "Agents" },
   { id: "connectors", label: "Connectors" },
   { id: "folders", label: "Connected folders" },
-  { id: "voice", label: "Voice" },
   { id: "devices", label: "Devices" },
   { id: "editor", label: "Editor" },
   { id: "about", label: "About" },
@@ -208,10 +206,6 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
           <Separator />
           <div id="folders" className="scroll-mt-10">
             <FoldersSection />
-          </div>
-          <Separator />
-          <div id="voice" className="scroll-mt-10">
-            <VoiceSection />
           </div>
           <Separator />
           <div id="devices" className="scroll-mt-10">

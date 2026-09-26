@@ -1,10 +1,8 @@
 /* oxlint-disable no-script-url -- the classifiers under test must refuse `javascript:` URLs */
 import { describe, expect, it } from "vitest";
 import {
-  ALLOWED_PERMISSIONS,
   appWindowWebPreferences,
   classifyNavigation,
-  classifyPermission,
   classifyWindowOpen,
   decideExternalOpen,
   grantsActivation,
@@ -61,14 +59,6 @@ describe("the pinned custom scheme (inteligir://app)", () => {
     expect(classifyNavigation("inteligir://app@evil/x", APP)).toBe("block");
     expect(classifyNavigation("inteligir://evil/x", APP)).toBe("block");
     expect(classifyNavigation("http://127.0.0.1:4664/", APP)).toBe("block-and-open-external");
-  });
-
-  it("grants media only to the pinned origin, in both carriers Chromium delivers", () => {
-    // the check handler passes a bare origin; the request handler a full requestingUrl
-    expect(classifyPermission("media", APP, APP)).toBe(true);
-    expect(classifyPermission("media", "inteligir://app/note", APP)).toBe(true);
-    expect(classifyPermission("media", "inteligir://evil", APP)).toBe(false);
-    expect(classifyPermission("media", "inteligir://app@evil/x", APP)).toBe(false);
   });
 });
 
@@ -179,49 +169,6 @@ describe("grantsActivation", () => {
       expect(grantsActivation(type)).toBe(false);
     },
   );
-});
-
-describe("classifyPermission", () => {
-  it("grants exactly one permission — the dictation microphone", () => {
-    expect(ALLOWED_PERMISSIONS).toEqual(["media"]);
-  });
-
-  it("grants media to the window's own origin", () => {
-    expect(classifyPermission("media", ORIGIN, ORIGIN)).toBe(true);
-    expect(classifyPermission("media", `${ORIGIN}/app/note`, ORIGIN)).toBe(true);
-  });
-
-  it.each([
-    "http://127.0.0.1:46640",
-    "http://127.0.0.1:4665",
-    "https://evil.example.com",
-    "http://localhost:4664",
-    "",
-  ])("denies media to a different origin (%s)", (requestingOrigin) => {
-    expect(classifyPermission("media", requestingOrigin, ORIGIN)).toBe(false);
-  });
-
-  it("denies media when the shell has no origin of its own", () => {
-    expect(classifyPermission("media", ORIGIN, "")).toBe(false);
-  });
-
-  it.each([
-    "geolocation",
-    "notifications",
-    "midi",
-    "midiSysex",
-    "clipboard-read",
-    "display-capture",
-    "openExternal",
-    "pointerLock",
-    "fullscreen",
-    "idle-detection",
-    "serial",
-    "hid",
-    "usb",
-  ])("denies %s even from the window's own origin", (permission) => {
-    expect(classifyPermission(permission, ORIGIN, ORIGIN)).toBe(false);
-  });
 });
 
 describe("appWindowWebPreferences", () => {

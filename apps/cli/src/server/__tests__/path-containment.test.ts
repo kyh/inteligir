@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  assertModelDirOutsideVault,
-  assertVaultAndDataDirDisjoint,
-  pathContains,
-  relativeUnder,
-} from "../path-containment";
+import { assertVaultAndDataDirDisjoint, pathContains, relativeUnder } from "../path-containment";
 
 describe("pathContains", () => {
   it("counts the root itself and refuses a sibling with a shared prefix", () => {
@@ -43,16 +38,5 @@ describe("assertVaultAndDataDirDisjoint", () => {
     expect(() => {
       assertVaultAndDataDirDisjoint("/home/vault", "/home/vault-data");
     }).not.toThrow();
-  });
-});
-
-describe("assertModelDirOutsideVault", () => {
-  it("refuses a model dir inside the vault — it would be committed and pushed", () => {
-    expect(() => {
-      assertModelDirOutsideVault("/home/vault/models", "/home/vault");
-    }).toThrow(/outside the vault/u);
-    expect(() => {
-      assertModelDirOutsideVault("/home/models", "/home/models/vault");
-    }).toThrow(/outside the vault/u);
   });
 });

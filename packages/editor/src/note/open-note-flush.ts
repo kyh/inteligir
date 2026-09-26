@@ -1,10 +1,9 @@
-// non-react callers (voice, the agent store) flush the open note through this
-// module; a live store registers itself, so a torn-down session is one nothing can flush.
+// the shell's writers outside the note's own tree (a restore, a vault replace, a comment, a
+// send's view context) flush the open note through this module; a live store registers itself,
+// so a torn-down session is one nothing can flush.
 
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 
-// a flush is one host write; a serialized caller (the voice chain) must not wedge
-// forever behind one that never settles.
 const FLUSH_TIMEOUT_MS = 5000;
 
 const liveStores = new Set<OpenNoteStore>();

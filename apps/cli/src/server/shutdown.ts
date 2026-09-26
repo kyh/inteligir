@@ -11,7 +11,6 @@ export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 /* oxlint-disable sort-keys -- listed in teardown order, which the per-step comments explain */
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
-  voice: DEFAULT_STEP_TIMEOUT_MS,
   // cloud sync writes the db and the vault, so it stops above both.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
   agent: DEFAULT_STEP_TIMEOUT_MS,

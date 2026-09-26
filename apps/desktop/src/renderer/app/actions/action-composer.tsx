@@ -13,9 +13,6 @@ import type { RefObject } from "react";
 import { failed } from "../api";
 import { ensureOpenNoteId } from "../note/open-note-id";
 import type { ViewContextSource } from "../thread-activity";
-import { spliceIntoComposer } from "../voice/dictation";
-import { MicButton } from "../voice/mic-button";
-import { useVoiceStatus } from "../voice-hooks";
 import { useWikiTargets } from "../vault-hooks";
 import { createAction } from "./action-service";
 import {
@@ -61,11 +58,9 @@ export const ActionComposer = ({
   const [mentions, setMentions] = useState<string[]>([]);
   const [mention, setMention] = useState<MentionSpan | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
-  const [dictationPartial, setDictationPartial] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
   const listId = useId();
-  const voiceStatus = useVoiceStatus().data;
   const wikiTargets = useWikiTargets();
 
   // The composer outlives a close — the thread a refused send created is retried into on the
@@ -81,8 +76,6 @@ export const ActionComposer = ({
       if (seed !== null) {
         setText(seed);
       }
-    } else {
-      setDictationPartial(null);
     }
   }
 
@@ -121,15 +114,6 @@ export const ActionComposer = ({
     fieldRef.current?.focus();
     requestAnimationFrame(() => {
       fieldRef.current?.setSelectionRange(start, start);
-    });
-  };
-
-  const acceptTranscript = (transcript: string): void => {
-    const next = spliceIntoComposer(fieldRef.current, text, transcript);
-    setText(next.text);
-    fieldRef.current?.focus();
-    requestAnimationFrame(() => {
-      fieldRef.current?.setSelectionRange(next.caret, next.caret);
     });
   };
 
@@ -207,16 +191,6 @@ export const ActionComposer = ({
         aria-label="Action composer"
         className="absolute inset-x-6 bottom-10 mx-auto max-w-xl"
       >
-        {dictationPartial === null ? null : (
-          <div
-            data-dictation-preview=""
-            aria-live="polite"
-            className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-body text-muted-foreground"
-          >
-            {dictationPartial === "" ? "Listening…" : dictationPartial}
-          </div>
-        )}
-
         <div className="relative">
           <MentionCombobox
             id={listId}
@@ -299,14 +273,6 @@ export const ActionComposer = ({
             sendLabel="Send"
             disabled={sending}
             textareaRef={fieldRef}
-            rightSlot={
-              <MicButton
-                status={voiceStatus}
-                onTranscript={acceptTranscript}
-                onPartial={setDictationPartial}
-                disabled={sending}
-              />
-            }
             textareaProps={{
               "aria-activedescendant": listShown
                 ? mentionOptionId(listId, activeMention)

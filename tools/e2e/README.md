@@ -72,7 +72,7 @@ scratch dir and tears everything down afterwards:
   display it skips: run the suite under `xvfb-run -a`.
 - `browser(label)` — an agent-browser session registered for teardown like an
   instance, so a failed or abandoned scenario still closes it. It is callable
-  with any agent-browser command, and `openWorkspace(app, { path?, launchArgs? })`
+  with any agent-browser command, and `openWorkspace(app, { path? })`
   signs it in through a fresh handoff and returns once the rail and the editor
   mounted. It skips the scenario when no headless browser can launch (see CI).
 
@@ -112,9 +112,10 @@ what each one is FOR.
 |                           | client verb run from the same split bundle                                |
 | desktop-shell             | the built Electron shell over DevTools: the window is on `inteligir://`,  |
 |                           | the rail and a note ride the protocol handler's bearer, an API write      |
-|                           | reaches the open editor through the socket, `window.open` is denied,      |
-|                           | Reveal refuses a symlink out of the vault, a switch boots a new child on  |
-|                           | the new vault, and a SIGTERM quit stops it and retracts `server.json`     |
+|                           | reaches the open editor through the socket, `window.open` is denied, the  |
+|                           | microphone reads denied, Reveal refuses a symlink out of the vault, a     |
+|                           | switch boots a new child on the new vault, and a SIGTERM quit stops it    |
+|                           | and retracts `server.json`                                                |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline, and the note  |
 |                           | its changes name under the turn's own id                                  |
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
@@ -137,7 +138,6 @@ what each one is FOR.
 | external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
 |                           | clobbering                                                                |
 | view-context-browser      | the agent is told which note the message left from, and at what revision  |
-| dictation-browser         | the composer's mic captures, transcribes and inserts — never sends        |
 | settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
 |                           | dialog on that route, and a refused connector add toasts there            |
 | vault-search-browser      | the palette's vault search lists every match; Enter lands the find bar on |
@@ -175,9 +175,6 @@ Each feature issue lands with its scenario here.
 |                              | boot sync (the sync scenarios set it for determinism)  |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
 |                              | thread and action scenarios run against                |
-| `INTELIGIR_VOICE`            | `scripted` — a dictation session with no model and no  |
-|                              | native binding, so dictation-browser drives the whole  |
-|                              | streaming path on any machine                          |
 | `INTELIGIR_SLOW_READS`       | `<ms>:<vault path>` — every read of that path, and     |
 |                              | everything under it, answers that late (an empty path  |
 |                              | is the whole vault); slow-storage's stand-in for       |

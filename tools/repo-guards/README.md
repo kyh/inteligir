@@ -87,8 +87,7 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `elsewhere` row. Detection is textual and a lower bound — the shapes      |
 |                                | these were actually re-spelled in.                                        |
 | `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc`, `/health`,              |
-|                                | `/vault/asset`, `/html-frame` and `/voice/stream`; the cloud              |
-|                                | `VAULT_API_PATHS`) is                                                     |
+|                                | `/vault/asset` and `/html-frame`; the cloud `VAULT_API_PATHS`) is         |
 |                                | spelled only at its contract home. The sweep covers `scripts/`, where the |
 |                                | smokes that drift live; tests are excluded, because a test deriving its   |
 |                                | URL from the contract could not catch the contract moving.                |

@@ -3,7 +3,6 @@ import {
   HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
-  VOICE_STREAM_PATH,
   WS_PATH,
 } from "@repo/api/local/routes";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
@@ -29,7 +28,6 @@ const DECLARED_ROUTES = new Map<string, string>([
     "an image's raw BYTES, with an ETag and a 304 on if-none-match — none of which survives an RPC envelope",
   ],
   [key("GET", WS_PATH), "the invalidation bus: subscribe and ping, no payload, by decision"],
-  [key("GET", VOICE_STREAM_PATH), "dictation: PCM16 frames up, partial/final down"],
   [
     key("GET", CONNECTOR_OAUTH_CALLBACK_PATH),
     "a BROWSER arriving from a connector's authorization page — a cross-site top-level navigation that can carry no token, guarded by its single-use state instead",

@@ -12,7 +12,6 @@ import {
   HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
-  VOICE_STREAM_PATH,
   WS_PATH,
 } from "@repo/api/local/routes";
 import {
@@ -22,8 +21,6 @@ import {
 } from "@repo/api/local/system/system-schema";
 import { serverMessageLenientSchema } from "@repo/api/local/notifications";
 import type { ServerMessage } from "@repo/api/local/notifications";
-import { voiceStreamDownMessageSchema } from "@repo/api/local/voice/voice-schema";
-import type { VoiceStreamDownMessage } from "@repo/api/local/voice/voice-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { BROWSER_SESSION_COOKIE } from "../browser-session";
@@ -62,7 +59,6 @@ const signInBrowser = async (booted: BootedTestApp): Promise<string> => {
 const wireUpgradeStatus = async (
   port: number,
   headers: Record<string, string>,
-  path = WS_PATH,
 ): Promise<number | undefined> => {
   const answered = Promise.withResolvers<number | undefined>();
   const request = httpRequest({
@@ -74,7 +70,7 @@ const wireUpgradeStatus = async (
       ...headers,
     },
     host: "127.0.0.1",
-    path,
+    path: WS_PATH,
     port,
   });
   request.on("upgrade", () => {
@@ -411,22 +407,20 @@ describe("the device token", () => {
     expect(new URL(answered.headers.get("location") ?? "").host).toBe(TEST_HOST);
   });
 
-  it("gates both websocket upgrades", async () => {
+  it("gates the websocket upgrade", async () => {
     const { bareRequest } = await bootTestApp();
 
-    for (const path of [WS_PATH, VOICE_STREAM_PATH]) {
-      const bare = await bareRequest(path, { headers: { upgrade: "websocket" } });
-      expect(bare.status).toBe(401);
+    const bare = await bareRequest(WS_PATH, { headers: { upgrade: "websocket" } });
+    expect(bare.status).toBe(401);
 
-      // authenticated, the upgrade cannot complete in-process; anything but 401 is the gate passing.
-      const authed = await bareRequest(path, {
-        headers: {
-          authorization: authorizationHeader(TEST_SERVER_TOKEN),
-          upgrade: "websocket",
-        },
-      });
-      expect(authed.status).not.toBe(401);
-    }
+    // authenticated, the upgrade cannot complete in-process; anything but 401 is the gate passing.
+    const authed = await bareRequest(WS_PATH, {
+      headers: {
+        authorization: authorizationHeader(TEST_SERVER_TOKEN),
+        upgrade: "websocket",
+      },
+    });
+    expect(authed.status).not.toBe(401);
   });
 
   it("refuses a real unauthenticated upgrade over the wire", async () => {
@@ -449,7 +443,6 @@ describe("the host guard", () => {
       [STATUS_RPC_PATH, rpcPost({ authorization: bearer })],
       [`${VAULT_ASSET_PATH}?path=a.png`, { headers: { authorization: bearer } }],
       [WS_PATH, { headers: { authorization: bearer, upgrade: "websocket" } }],
-      [VOICE_STREAM_PATH, { headers: { authorization: bearer, upgrade: "websocket" } }],
       [`${CONNECTOR_OAUTH_CALLBACK_PATH}?state=s&code=c`, {}],
       ["/assets/app.js", {}],
     ];
@@ -483,17 +476,11 @@ describe("the host guard", () => {
 
   it("refuses a rebound name's websocket upgrade over the wire, bearer and all", async () => {
     const { port } = await listenTestApp(await bootTestApp());
-    for (const path of [WS_PATH, VOICE_STREAM_PATH]) {
-      const status = await wireUpgradeStatus(
-        port,
-        {
-          authorization: authorizationHeader(TEST_SERVER_TOKEN),
-          host: `rebound.example:${String(port)}`,
-        },
-        path,
-      );
-      expect(status, path).toBe(421);
-    }
+    const status = await wireUpgradeStatus(port, {
+      authorization: authorizationHeader(TEST_SERVER_TOKEN),
+      host: `rebound.example:${String(port)}`,
+    });
+    expect(status).toBe(421);
   });
 });
 
@@ -574,63 +561,5 @@ describe("the real socket upgrade", () => {
 
     await closeServer(server, booted.composed.upgradedSockets);
     await expect(closeCode.promise).resolves.toBe(1001);
-  });
-});
-
-describe("the dictation stream socket", () => {
-  it("streams a scripted partial and a final over the socket, then closes", async () => {
-    const { port } = await listenTestApp(await bootTestApp());
-
-    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
-      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
-    });
-    socket.binaryType = "arraybuffer";
-    const frames: VoiceStreamDownMessage[] = [];
-    socket.addEventListener("message", (event) => {
-      const text = z.string().safeParse(event.data);
-      if (text.success) {
-        frames.push(voiceStreamDownMessageSchema.parse(JSON.parse(text.data)));
-      }
-    });
-    await awaitOpen(socket, "voice ws error");
-
-    // two 16-bit samples up, then finalize; the scripted session names the count.
-    socket.send(new Uint8Array([1, 0, 2, 0]).buffer);
-    socket.send(JSON.stringify({ type: "finalize" }));
-
-    await vi.waitFor(
-      () => {
-        expect(frames.map((frame) => frame.type)).toContain("final");
-      },
-      {
-        timeout: 5000,
-      },
-    );
-
-    const partial = frames.find((frame) => frame.type === "partial");
-    const final = frames.find((frame) => frame.type === "final");
-    expect(partial?.type === "partial" ? partial.text : "").toBe("scripted dictation of 2 samples");
-    expect(final?.type === "final" ? final.text : "").toBe("scripted dictation of 2 samples");
-  });
-
-  it("does not stall teardown while a dictation socket is open", async () => {
-    const booted = await bootTestApp();
-    const { server, port } = await listenTestApp(booted);
-
-    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
-      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
-    });
-    await awaitOpen(socket, "voice ws error");
-    // keep it open (mid-hold): a frame up, no finalize.
-    socket.send(new Uint8Array([1, 0]).buffer);
-
-    await closeServer(server, booted.composed.upgradedSockets);
-    socket.close();
-    await vi.waitFor(
-      () => {
-        expect(booted.composed.voiceStreamHub.size, "the closed socket's onClose disposes").toBe(0);
-      },
-      { timeout: 5000 },
-    );
   });
 });

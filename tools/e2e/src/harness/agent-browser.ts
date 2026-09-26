@@ -8,8 +8,6 @@ export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Prom
 
 interface OpenWorkspaceOptions {
   path?: string;
-  // chrome flags; they take effect only on the command that launches this session's browser.
-  launchArgs?: readonly string[];
 }
 
 interface ScenarioBrowserControls {
@@ -82,9 +80,7 @@ export const createScenarioBrowser = (label: string): ScenarioBrowser => {
     },
     openWorkspace: async (app, options = {}) => {
       const url = await app.browserUrl(options.path ?? "/");
-      const launch =
-        options.launchArgs === undefined ? [] : ["--args", options.launchArgs.join(",")];
-      await run([...launch, "open", url], 60_000);
+      await run(["open", url], 60_000);
       await run(["wait", SIDEBAR], 90_000);
       await run(["wait", EDITOR], 90_000);
     },

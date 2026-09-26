@@ -30,11 +30,11 @@ be invisible until integration — an image tag cannot carry an `Authorization`
 header.
 
 The one thing that does not come through the handler is a WEBSOCKET: a browser
-`WebSocket` cannot be proxied by one. The invalidation bus and the dictation
-stream dial the loopback origin directly, main attaches the bearer to those
-upgrades with `onBeforeSendHeaders`, and the preload hands the renderer that
-origin as `window.desktopBridge.socketOrigin` — because `window.location.origin`
-is now `inteligir://app` and names no server.
+`WebSocket` cannot be proxied by one. The invalidation bus dials the loopback
+origin directly, main attaches the bearer to that upgrade with
+`onBeforeSendHeaders`, and the preload hands the renderer that origin as
+`window.desktopBridge.socketOrigin` — because `window.location.origin` is now
+`inteligir://app` and names no server.
 
 **Both carriers lend the bearer to the page alone.** Chromium tells main which
 origin made each request (`initiatorOrigin`), and neither the page nor a frame
@@ -72,9 +72,10 @@ Two more, on the window's session:
   (`sessionPartition`). The shell's scheme is ONE origin whatever vault is
   behind it, so on a shared session two different vaults would read each other's
   localStorage, IndexedDB and cookies.
-- **Every web permission is denied** except `media`, origin-scoped, which
-  dictation needs. Electron's default is to grant most of them to whatever a
-  window loads.
+- **Every web permission is denied**, the check and the prompt alike, and
+  every device picker. Electron's default is to grant most of them to whatever
+  a window loads, and the app needs none: dictation is the operating system's
+  (fn twice), typed into the field like a keyboard.
 - **A page-initiated URL reaches the system browser only with a recent user
   gesture.** Electron exposes no activation flag on `setWindowOpenHandler` or
   `will-navigate`, so the shell measures it from `webContents`'s `input-event`,
@@ -237,7 +238,7 @@ unsigned: `CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through
 to the `package` task, because turbo's strict env mode would strip it.
 
 There is no native-rebuild step, and that is a fact rather than an omission: the
-three native modules are Node-API addons shipping per-platform prebuilds, and
+two native modules are Node-API addons shipping per-platform prebuilds, and
 Node-API is ABI-stable across Node and Electron. `npmRebuild` stays off because
 an in-place rebuild in a pnpm workspace clobbers the shared store's copy the
 rest of the repo depends on. Re-check this if any of them goes back to a gyp

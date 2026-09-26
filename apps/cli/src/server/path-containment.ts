@@ -29,14 +29,3 @@ export const assertVaultAndDataDirDisjoint = (vaultDir: string, dataDir: string)
     );
   }
 };
-
-// only the vault is checked: the model dir defaults to <dataDir>/models on purpose.
-// both arguments must already be resolved.
-export const assertModelDirOutsideVault = (modelDir: string, vaultDir: string): void => {
-  if (pathContains(vaultDir, modelDir) || pathContains(modelDir, vaultDir)) {
-    throw new Error(
-      `The model directory must be outside the vault, but model dir "${modelDir}" and vault "${vaultDir}" nest. ` +
-        `A model under the vault would be committed and pushed. Set INTELIGIR_MODEL_DIR to a folder outside the vault.`,
-    );
-  }
-};

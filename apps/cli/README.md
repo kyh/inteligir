@@ -4,8 +4,8 @@ One program, two modes.
 
 **`inteligir serve` IS the product's server**: it opens the vault (a git repo
 of markdown), builds and maintains the knowledge index, drives the agent, and
-answers one oRPC API plus the invalidation and dictation sockets. Nothing else
-in the repo runs a server.
+answers one oRPC API plus the invalidation socket. Nothing else in the repo
+runs a server.
 
 **Every other verb is a CLIENT** of a running one, over that same contract
 (`@repo/api/local`). Agent-facing by design: every leaf takes `--json`, the
@@ -166,22 +166,21 @@ that.
 `dist/index.js` and the `dist/chunk-*.js` beside it are the whole program,
 bundled by esbuild — every workspace package is inlined, because they export
 TypeScript source a published install cannot resolve. What stays external is
-what a bundler cannot swallow: the three NATIVE modules (`better-sqlite3`,
-`@parcel/watcher`, `sherpa-onnx-node`, all N-API prebuilds) and the two ACP
-adapters, which are resolved at runtime with `require.resolve` and spawned as
-children.
+what a bundler cannot swallow: the two NATIVE modules (`better-sqlite3` and
+`@parcel/watcher`, both N-API prebuilds) and the two ACP adapters, which are
+resolved at runtime with `require.resolve` and spawned as children.
 
 The bundle is SPLIT at every dynamic import, so a client verb never parses the
 server `serve` loads. The chunks sit FLAT beside the entry: `src/paths.ts` and
 the two sibling lookups below resolve from whichever file they landed in, so
 every file in `dist/` has to answer them the same way.
 
-Four bundles cannot ride inside the entry and each says why beside itself: the
+Three bundles cannot ride inside the entry and each says why beside itself: the
 vault watcher is a CHILD PROCESS, the stdio host runs each ACP adapter in the
-desktop shell, and the transcriber and the knowledge projector are WORKER
-THREADS, so each needs a real file on disk resolved as a sibling of the running
-entry. In a checkout the two workers run their `.ts` source under tsx's hook
-instead (`src/server/worker-entry.ts`).
+desktop shell, and the knowledge projector is a WORKER THREAD, so each needs a
+real file on disk resolved as a sibling of the running entry. In a checkout the
+worker runs its `.ts` source under tsx's hook instead
+(`src/server/worker-entry.ts`).
 
 **Who starts a node child depends on who runs the server**
 (`src/server/child-host/node-children.ts`). Run by node (`serve`, npx, a suite),
@@ -212,7 +211,7 @@ staged-first, which is why the two resolvers read differently.
 
 `pnpm smoke:cli` proves all of it against a real `npm install` of the packed
 tarball: the layout (every file the build emitted, chunks included), the
-execute bit, the licence texts, a boot, the three native modules, a graceful
+execute bit, the licence texts, a boot, the two native modules, a graceful
 SIGTERM. The e2e `built-cli-boot` scenario boots the same bundle from the
 checkout on every CI run.
 

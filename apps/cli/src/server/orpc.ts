@@ -22,7 +22,6 @@ import type { ThreadService } from "./threads/service";
 import type { VaultPrefsStore } from "./vault/vault-prefs-store";
 import type { VaultRuntime } from "./vault/vault-runtime";
 import type { RenameNote } from "./vault/vault-router";
-import type { VoiceService } from "./voice/voice-service";
 
 interface SystemFacts {
   version: string;
@@ -61,7 +60,6 @@ export interface AppContext {
   turnChanges: ListTurnChanges;
   vault: VaultRuntime;
   vaultPrefs: VaultPrefsStore;
-  voice: VoiceService;
 }
 
 export type AppServices = Omit<AppContext, "agentThreadId" | "requestOrigin">;

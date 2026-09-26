@@ -664,21 +664,6 @@ const vaultRouter = {
   }),
 };
 
-const voiceRouter = {
-  install: base.voice.install.handler(() => ({
-    detail: "the fixture server does not dictate",
-    state: "unavailable",
-  })),
-  remove: base.voice.remove.handler(() => ({
-    detail: "the fixture server does not dictate",
-    state: "unavailable",
-  })),
-  status: base.voice.status.handler(() => ({
-    detail: "the fixture server does not dictate",
-    state: "unavailable",
-  })),
-};
-
 // a middleware rather than a handler interceptor, so the refusal reaches the client as an ORPCError like a real one.
 const fixtureRouter = base
   .use(({ context, next }) => {
@@ -698,7 +683,6 @@ const fixtureRouter = base
     system: systemRouter,
     threads: threadsRouter,
     vault: vaultRouter,
-    voice: voiceRouter,
   });
 
 export interface FixtureServer {

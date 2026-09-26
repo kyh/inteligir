@@ -78,13 +78,10 @@ Durable Object — never in anything shared across accounts.
 - **Your AI provider credentials.** The agent runs on your machine and talks
   to your provider from there; this deployment's cloud never sees or proxies
   those calls.
-- **Your voice.** Dictation is transcribed by a speech model running on this
-  machine. Microphone audio goes from the page to the local server and no
-  further — there is no speech API, no key, and nothing to opt out of. The one
-  network request the feature ever makes is downloading the model itself, once,
-  from a pinned sherpa-onnx release on GitHub when you turn it on; the archive
-  is checked against a checksum this build ships and deleted when you turn it
-  off.
+- **Your voice.** The app never opens the microphone and downloads no speech
+  model. Dictation is your operating system's own (on a Mac, press fn twice),
+  which types into the app like a keyboard; where that audio goes is the
+  operating system's to say, under its own settings and terms.
 - **Telemetry about note content.** There is none.
 
 ## Retention
