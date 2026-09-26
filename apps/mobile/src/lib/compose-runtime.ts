@@ -17,7 +17,7 @@ import { createNotesStore } from "../notes/notes-store";
 import type { CreateNotesStoreArgs, NotesStore, SignInSource } from "../notes/notes-store";
 import type { Sha1 } from "../notes/outbox-ops";
 import type { OutboxFiles } from "../notes/outbox-files";
-import { createMemorySyncStore } from "../sync/memory-sync-store";
+import { createSqliteSyncStore } from "../sync/sqlite-sync-store";
 import { createSyncRuntime } from "../sync/sync-runtime";
 import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
@@ -72,7 +72,7 @@ export interface AppRuntime {
 }
 
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
-  const store = createMemorySyncStore();
+  const store = createSqliteSyncStore({ db: args.db, sha1: args.sha1 });
   const sync = createSyncRuntime({ ...args.sync, cloudUrl: args.cloudUrl, store });
   const notesArgs: CreateNotesStoreArgs = {
     attachments: args.attachments,
@@ -104,8 +104,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const dispatch = createDispatchRuntime(dispatchArgs);
 
   // the tree is fetched here so no screen carries its own cold-fetch effect, and the edits and
-  // requests the last launch left are sent.
-  const activate = (credential: DeviceCredential, source: SignInSource): void => {
+  // requests the last launch left are sent. a restore's threads are read back before the sign-in
+  // is published, so the list mounts on what the last launch held and the first pull starts at
+  // its cursor.
+  const activate = async (credential: DeviceCredential, source: SignInSource): Promise<void> => {
+    await store.reset(source);
     sync.setCredential(credential);
     notes.reset(source);
     dispatch.reset(source);
@@ -120,7 +123,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     store: {
       write: async (credential) => {
         await args.credentials.write(credential);
-        activate(credential, "signed-in");
+        await activate(credential, "signed-in");
       },
     },
   });
@@ -133,6 +136,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     if (state === "unauthorized" && previous !== "unauthorized") {
       notes.reset(null);
       dispatch.reset(null);
+      void store.reset(null);
     }
     previous = state;
   });
@@ -158,6 +162,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       sync.setCredential(null);
       notes.reset(null);
       dispatch.reset(null);
+      await store.reset(null);
       return { kind: "signed-out" };
     },
     dispatch,
@@ -186,7 +191,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         sync.setCredential(null);
         return;
       }
-      activate(stored, "restored");
+      await activate(stored, "restored");
     },
     store,
     submitCapture: createCaptureSender({ mintKey: args.mintId, send: sync.createCapture }),

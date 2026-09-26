@@ -52,6 +52,23 @@ const MIGRATIONS: readonly string[] = [
      status TEXT,
      created_at INTEGER NOT NULL
    );`,
+  // the synced threads: thread_sync the pull cursor and the grammar the held events were parsed
+  // with, thread_events each held event by its log seq, synced_threads each thread's last seq,
+  // which a delta moves though no row holds it
+  `CREATE TABLE thread_sync (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     cursor INTEGER NOT NULL,
+     grammar TEXT NOT NULL
+   );
+   CREATE TABLE thread_events (
+     seq INTEGER PRIMARY KEY,
+     thread_id TEXT NOT NULL,
+     event TEXT NOT NULL
+   );
+   CREATE TABLE synced_threads (
+     thread_id TEXT PRIMARY KEY NOT NULL,
+     last_seq INTEGER NOT NULL
+   );`,
 ];
 
 const userVersionSchema = z.object({ user_version: z.number().int().min(0) });

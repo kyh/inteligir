@@ -6,13 +6,12 @@ import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { createMemorySyncStore } from "../../sync/memory-sync-store";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createNotesStore } from "../notes-store";
 import type { CommentsRead, NotesStore, SignInSource } from "../notes-store";
 import { blobOid, createFakeVault, requestsOf } from "./fake-vault";
 import type { FakeVault } from "./fake-vault";
-import { openTempDb, phonePorts } from "./phone-storage";
+import { openSyncStore, openTempDb, phonePorts } from "./phone-storage";
 
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const OTHER_CREDENTIAL = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_2" };
@@ -49,7 +48,7 @@ const notesOver = (fetch: CloudFetch, db: SqlDriver = openTempDb()) => {
         fetch,
       }),
     pollIntervalMs: null,
-    store: createMemorySyncStore(),
+    store: openSyncStore(db),
   });
   const ports = phonePorts();
   const { attachments } = ports;

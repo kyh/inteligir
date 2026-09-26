@@ -10,8 +10,9 @@ import type { CloudFetch } from "@repo/api/cloud/client";
 import { onTestFinished } from "vitest";
 import { openNodeSqlDriver } from "../../lib/node-sql-driver";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { createMemorySyncStore } from "../../sync/memory-sync-store";
+import { createSqliteSyncStore } from "../../sync/sqlite-sync-store";
 import { createSyncRuntime } from "../../sync/sync-runtime";
+import type { SyncStore } from "../../sync/sync-store";
 import type { AttachmentFiles } from "../attachment-files";
 import { createNotesStore } from "../notes-store";
 import type { NotesStore } from "../notes-store";
@@ -80,6 +81,10 @@ export const createMemoryOutboxFiles = (): OutboxFiles & { names: () => string[]
 
 export const nodeSha1: Sha1 = async (bytes) => createHash("sha1").update(bytes).digest();
 
+// the synced threads over a database file; reset it "restored" to read back what a file holds
+export const openSyncStore = (db: SqlDriver = openTempDb()): SyncStore =>
+  createSqliteSyncStore({ db, sha1: nodeSha1 });
+
 // the ports one notes store takes beside its database and session; no retry timer, so a test says
 // when the queue drains
 export const phonePorts = () => ({
@@ -107,7 +112,7 @@ export const launchPhone = (
         fetch,
       }),
     pollIntervalMs: null,
-    store: createMemorySyncStore(),
+    store: openSyncStore(db),
   });
   const store = createNotesStore({ ...ports, db, session: sync.session });
   sync.setCredential(CREDENTIAL);

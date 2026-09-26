@@ -140,7 +140,9 @@ apps/
                  (src/worker/vault/commit-route.ts).
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
-  mobile/        @repo/mobile — the Expo RN client (#576): synced threads it
+  mobile/        @repo/mobile — the Expo RN client (#576): synced threads,
+                 held in its SQLite file and read offline
+                 (src/sync/sqlite-sync-store.ts), that it
                  asks a Mac's agent in through the dispatch inbox, from a
                  durable queue of its own (src/dispatch/dispatch-runtime.ts),
                  produced captures and (#618) a local SQLite mirror of every
@@ -1823,7 +1825,13 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `apps/cli/src/server/cloud/sync-runtime.ts`). Rejected: `meta.schema_version`
   as the trigger, which counts migrations while a new event type ships without
   one, and a table of raw skipped rows, a second store beside the log. The
-  phone's sync store is in memory, so every launch replays from 0.
+  phone keeps its threads in its database with the digest of the event
+  grammar that parsed them, and a build whose grammar differs pulls from 0:
+  its held events lost what the old grammar did not name, so a rewind to the
+  skipped row would not be enough. Each pulled page is one transaction with
+  the cursor, and the boot restore reads the threads back before the sign-in
+  is published, so a cold launch lists them offline and pulls on from its
+  cursor (`apps/mobile/src/sync/sqlite-sync-store.ts`).
 
 - **The THREAD channel carries thread events alone, and a thread's own facts
   are events on it** (owner decision). A thread with no events never reaches
