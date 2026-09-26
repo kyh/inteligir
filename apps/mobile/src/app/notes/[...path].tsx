@@ -6,6 +6,8 @@ import type { CommentsRead } from "@/notes/notes-store";
 import {
   addPhotoToNote,
   assetSource,
+  newThreadId,
+  noteRevision,
   readNote,
   readNoteComments,
   resolveWikiPath,
@@ -31,7 +33,7 @@ const styles = StyleSheet.create({
 type ScreenState =
   | { state: "loading" }
   | { state: "error"; message: string }
-  | { state: "ready"; projection: NoteProjection };
+  | { state: "ready"; content: string; projection: NoteProjection };
 
 const NoteBody = ({
   screen,
@@ -98,7 +100,11 @@ const NoteScreen = () => {
       }
       setScreen(
         read.ok
-          ? { projection: projectNote(read.path, read.content), state: "ready" }
+          ? {
+              content: read.content,
+              projection: projectNote(read.path, read.content),
+              state: "ready",
+            }
           : { message: read.message, state: "error" },
       );
       if (!read.ok) {
@@ -145,13 +151,26 @@ const NoteScreen = () => {
     const added = await addPhotoToNote(path);
     setAddingPhoto(false);
     if (added.kind === "added") {
-      setScreen({ projection: projectNote(path, added.content), state: "ready" });
+      setScreen({
+        content: added.content,
+        projection: projectNote(path, added.content),
+        state: "ready",
+      });
     } else if (added.kind === "refused") {
       Alert.alert("Couldn't add the photo", added.message);
     }
   }, [path]);
 
   const title = screen.state === "ready" ? screen.projection.title : "…";
+
+  // a new thread about this note: its first message names the note, and hashes the bytes shown here
+  const askAgent = async (content: string): Promise<void> => {
+    const revision = await noteRevision(content);
+    router.push({
+      params: { id: newThreadId(), note: path, revision },
+      pathname: "/thread/[id]",
+    });
+  };
 
   return (
     <SafeAreaView
@@ -160,6 +179,16 @@ const NoteScreen = () => {
     >
       <Stack.Screen options={{ title }} />
       <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          hidden={screen.state !== "ready"}
+          onPress={() => {
+            if (screen.state === "ready") {
+              void askAgent(screen.content);
+            }
+          }}
+        >
+          Ask agent
+        </Stack.Toolbar.Button>
         <Stack.Toolbar.Button
           disabled={screen.state !== "ready" || addingPhoto}
           onPress={() => {

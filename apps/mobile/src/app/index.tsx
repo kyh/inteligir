@@ -11,15 +11,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { logout, submitCapture, syncNow, useSyncStatus, useThreads } from "@/lib/app-runtime";
+import { logout, submitCapture, syncNow, useSyncStatus, useThreadList } from "@/lib/app-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
-import type { ThreadProjection } from "@/sync/thread-projection";
 import { describeCloudFailure } from "@repo/api/cloud/client";
-
-const threadCaption = (thread: ThreadProjection): string =>
-  [thread.archived ? "Archived" : "", thread.preview].filter((part) => part !== "").join(" · ");
 
 const styles = StyleSheet.create({
   bodyText: { fontSize: 16, textAlign: "center" },
@@ -188,7 +184,7 @@ const HomeScreen = () => {
   const theme = useTheme();
   const router = useRouter();
   const status = useSyncStatus();
-  const threads = useThreads();
+  const threads = useThreadList();
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -256,12 +252,12 @@ const HomeScreen = () => {
           <View style={styles.empty}>
             <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>No threads yet.</Text>
             <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
-              Pull to refresh, or start one on your desktop.
+              Pull to refresh, or open a note and ask the agent.
             </Text>
           </View>
         }
         renderItem={({ item: thread }) => {
-          const caption = threadCaption(thread);
+          const { caption } = thread;
           return (
             <Pressable
               style={({ pressed }) => [

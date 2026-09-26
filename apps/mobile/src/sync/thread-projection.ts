@@ -16,9 +16,15 @@ export interface ThreadProjection {
   threadId: string;
   title: string;
   archived: boolean;
+  // a turn has started and not completed: a Mac is working on it now
+  running: boolean;
+  // the phone's requests the log holds, which the phone stops drawing as its own pending rows
+  dispatchIds: ReadonlySet<string>;
   items: readonly ThreadDisplayItem[];
   preview: string;
 }
+
+export const UNTITLED_THREAD = "Untitled thread";
 
 const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): string | null => {
   const { item } = event;
@@ -96,12 +102,23 @@ const foldThread = (thread: StoredThread): ThreadProjection => {
   const items: ThreadDisplayItem[] = [];
   let statedTitle: string | null = null;
   let archived = false;
+  const openTurns = new Set<string>();
+  const dispatchIds = new Set<string>();
   for (const [index, event] of thread.events.entries()) {
     if (event.type === "thread/meta" && event.title !== undefined) {
       statedTitle = event.title;
     }
     if (event.type === "thread/archived") {
       archived = true;
+    }
+    if (event.type === "turn/started") {
+      openTurns.add(event.scope.turnId);
+    }
+    if (event.type === "turn/completed") {
+      openTurns.delete(event.scope.turnId);
+    }
+    if (event.type === "client/turn/requested" && event.dispatchId !== undefined) {
+      dispatchIds.add(event.dispatchId);
     }
     const item = itemFrom(event, index);
     if (item !== null) {
@@ -114,10 +131,12 @@ const foldThread = (thread: StoredThread): ThreadProjection => {
   const firstLineTitle = firstUser === undefined ? null : deriveThreadTitle(firstUser.text);
   return {
     archived,
+    dispatchIds,
     items,
     preview: lastText === undefined ? "" : (firstVisibleLine(lastText.text) ?? ""),
+    running: openTurns.size > 0,
     threadId: thread.threadId,
-    title: statedTitle ?? firstLineTitle ?? "Untitled thread",
+    title: statedTitle ?? firstLineTitle ?? UNTITLED_THREAD,
   };
 };
 

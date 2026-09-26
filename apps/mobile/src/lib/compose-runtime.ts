@@ -6,6 +6,8 @@ import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import type { DeviceCredentialStore } from "@repo/api/cloud/device/login-flow";
 import { createCaptureSender } from "../capture/capture-sender";
 import type { CaptureSender } from "../capture/capture-sender";
+import { createDispatchRuntime } from "../dispatch/dispatch-runtime";
+import type { DispatchRuntime, DispatchRuntimeArgs } from "../dispatch/dispatch-runtime";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import type { AttachmentFiles } from "../notes/attachment-files";
@@ -36,10 +38,13 @@ export interface ComposeRuntimeArgs {
   sha1: Sha1;
   // the name the phone signs in as, which its conflict reports and copies go by
   deviceName: string;
-  mintCaptureKey: () => string;
+  // 16 random bytes as hex: a capture's idempotency key, a dispatch's id and a new thread's
+  mintId: () => string;
   sync?: Omit<SyncRuntimeArgs, "cloudUrl" | "store">;
   // the first wait after a failed send of the phone's edits; null never retries on a timer
   retryBaseMs?: number | null;
+  // how often a waiting request's fate is asked; null never polls on a timer
+  dispatchPollIntervalMs?: DispatchRuntimeArgs["pollIntervalMs"];
 }
 
 // `unsent`: the phone holds edits the vault has not taken, and signing out would discard them
@@ -50,6 +55,7 @@ export interface AppRuntime {
   sync: SyncRuntime;
   notes: NotesStore;
   fileOps: FileOps;
+  dispatch: DispatchRuntime;
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
   start: () => Promise<void>;
@@ -57,6 +63,8 @@ export interface AppRuntime {
   logout: (options?: { discardUnsent?: boolean }) => Promise<LogoutOutcome>;
   // the app is back in the foreground or back online; every one no-ops while signed out
   resume: () => void;
+  // the app left the foreground: nothing polls until it resumes
+  suspend: () => void;
   submitCapture: CaptureSender;
 }
 
@@ -75,15 +83,33 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     notesArgs.retryBaseMs = args.retryBaseMs;
   }
   const notes = createNotesStore(notesArgs);
+  const dispatchArgs: DispatchRuntimeArgs = {
+    db: args.db,
+    mintId: args.mintId,
+    pull: () => {
+      void sync.syncNow();
+    },
+    session: sync.session,
+    threads: store,
+  };
+  if (args.dispatchPollIntervalMs !== undefined) {
+    dispatchArgs.pollIntervalMs = args.dispatchPollIntervalMs;
+  }
+  if (args.sync?.onDebug !== undefined) {
+    dispatchArgs.onDebug = args.sync.onDebug;
+  }
+  const dispatch = createDispatchRuntime(dispatchArgs);
 
-  // the tree is fetched here so no screen carries its own cold-fetch effect, and the edits the last
-  // launch left are sent.
+  // the tree is fetched here so no screen carries its own cold-fetch effect, and the edits and
+  // requests the last launch left are sent.
   const activate = (credential: DeviceCredential, source: SignInSource): void => {
     sync.setCredential(credential);
     notes.reset(source);
+    dispatch.reset(source);
     sync.start();
     void notes.refresh();
     void notes.drain();
+    void dispatch.sendNow();
   };
 
   const login = createLoginStore({
@@ -103,6 +129,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     const { state } = sync.get();
     if (state === "unauthorized" && previous !== "unauthorized") {
       notes.reset(null);
+      dispatch.reset(null);
     }
     previous = state;
   });
@@ -127,14 +154,17 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       }
       sync.setCredential(null);
       notes.reset(null);
+      dispatch.reset(null);
       return { kind: "signed-out" };
     },
+    dispatch,
     login,
     notes,
     resume() {
       void sync.syncNow();
       void notes.refresh();
       void notes.drain();
+      dispatch.resume();
     },
     async start() {
       if (started) {
@@ -156,7 +186,10 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       activate(stored, "restored");
     },
     store,
-    submitCapture: createCaptureSender({ mintKey: args.mintCaptureKey, send: sync.createCapture }),
+    submitCapture: createCaptureSender({ mintKey: args.mintId, send: sync.createCapture }),
+    suspend() {
+      dispatch.suspend();
+    },
     sync,
   };
 };

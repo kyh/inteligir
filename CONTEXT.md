@@ -129,9 +129,10 @@ existing, and any Mac may claim it; an `answer` dispatch answers an
 may claim it. A dispatch is not a thread event: once a Mac takes a turn in,
 its `client/turn/requested` row (or, while the thread is busy, the queued
 message waiting to become one) carries the `dispatchId`, and the log is the
-record from then on. Locally the word also names a runtime handing a turn to
-its provider (`apps/cli/src/server/agents/runtime-manager.ts`); the two never
-meet. A 0.4.0 install still sends a thread **lane** beside its pushes; the
+record from then on — the phone's pending copy of the message, kept in its
+own `dispatch_outbox`, gives way to that row. Locally the word also names a
+runtime handing a turn to its provider
+(`apps/cli/src/server/agents/runtime-manager.ts`); the two never meet. A 0.4.0 install still sends a thread **lane** beside its pushes; the
 Worker drops it, and nothing else speaks of lanes.
 
 ## "event" means four things

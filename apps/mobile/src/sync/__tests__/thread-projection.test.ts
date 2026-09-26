@@ -1,7 +1,9 @@
 import { planPage } from "@repo/api/cloud/sync/plan-page";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { threadScope } from "@repo/domain/thread-event-scope";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
+import { threadListEntries, WORKING_CAPTION } from "../../dispatch/dispatch-projection";
+import type { DispatchState } from "../../dispatch/dispatch-runtime";
 import { createMemorySyncStore } from "../memory-sync-store";
 import type { StoredThread, SyncStore } from "../sync-store";
 import { applyPlan } from "../thread-log";
@@ -159,5 +161,100 @@ describe("the thread projection", () => {
         (thread) => thread.threadId,
       ),
     ).toEqual(["thr_b", "thr_a"]);
+  });
+
+  it("is running from a turn's start until that turn completes, and says so in the list", () => {
+    const store = createMemorySyncStore();
+    const started: ThreadEvent = {
+      scope: turnScope("t1"),
+      threadId: "thr_a",
+      type: "turn/started",
+    };
+    const completed: ThreadEvent = {
+      scope: turnScope("t1"),
+      status: "completed",
+      threadId: "thr_a",
+      type: "turn/completed",
+    };
+    const idle: DispatchState = { approvals: [], desktopsOnline: null, dispatches: [] };
+    applyPlan(
+      store,
+      planPage(
+        [
+          logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_a", "go"), seq: 1 }),
+          logRow({ deviceId: OTHER, deviceSeq: 1, event: started, seq: 2 }),
+        ],
+        OWN,
+      ).steps,
+    );
+    const working = projectThread(held(store, "thr_a"));
+    expect(working.running).toBe(true);
+    expect(threadListEntries([working], idle)).toStrictEqual([
+      { caption: WORKING_CAPTION, threadId: "thr_a", title: "go" },
+    ]);
+
+    applyPlan(
+      store,
+      planPage(
+        [
+          logRow({
+            deviceId: OTHER,
+            deviceSeq: 2,
+            event: agentMessage("thr_a", "t1", "m1", "done"),
+            seq: 3,
+          }),
+          logRow({ deviceId: OTHER, deviceSeq: 3, event: completed, seq: 4 }),
+        ],
+        OWN,
+      ).steps,
+    );
+    const finished = projectThread(held(store, "thr_a"));
+    expect(finished.running).toBe(false);
+    expect(threadListEntries([finished], idle)).toStrictEqual([
+      { caption: "done", threadId: "thr_a", title: "go" },
+    ]);
+  });
+
+  it("lists a thread only this phone holds so far, first and named by its first message", () => {
+    const store = createMemorySyncStore();
+    applyPlan(
+      store,
+      planPage(
+        [logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_a", "old"), seq: 1 })],
+        OWN,
+      ).steps,
+    );
+    const pending: DispatchState = {
+      approvals: [],
+      desktopsOnline: 1,
+      dispatches: [
+        {
+          createdAt: 1,
+          id: "1".repeat(32),
+          kind: "turn",
+          phase: { kind: "waiting" },
+          text: "\n  Plan the offsite\nwith the team",
+          threadId: "thr_phone",
+        },
+        {
+          createdAt: 2,
+          id: "2".repeat(32),
+          kind: "turn",
+          phase: { error: "offline", kind: "unsent" },
+          text: "and book a room",
+          threadId: "thr_phone",
+        },
+      ],
+    };
+
+    expect(
+      threadListEntries(
+        store.snapshotThreads().map((thread) => projectThread(thread)),
+        pending,
+      ),
+    ).toStrictEqual([
+      { caption: "Not sent yet — retrying", threadId: "thr_phone", title: "Plan the offsite" },
+      { caption: "old", threadId: "thr_a", title: "old" },
+    ]);
   });
 });
