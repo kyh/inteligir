@@ -141,15 +141,20 @@ export const parseProperties = (yamlText: string): ParsedProperties => {
 
 // A line cut, not a re-serialization: serializeProperties restyles what it re-emits (a flow
 // list's spacing), and a key edit must leave the other keys byte-exact. The key's own lines are
-// its `key:` line and the indented or `- ` lines that continue a block value under it. The key
-// may be quoted: the parse reads `"id":` as `id` too.
-const withoutTopLevelKey = (lines: readonly string[], key: string): string[] => {
+// its `key:` line and the indented or `- ` lines that continue a block value under it, and
+// `replacement` stands where they stood. The key may be quoted: the parse reads `"id":` as `id`.
+const withTopLevelKeyAs = (
+  lines: readonly string[],
+  key: string,
+  replacement: readonly string[],
+): string[] => {
   const keyLine = new RegExp(`^(?:${key}|"${key}"|'${key}')[ \\t]*:`, "u");
   const kept: string[] = [];
   let inValue = false;
   for (const line of lines) {
     if (keyLine.test(line)) {
       inValue = true;
+      kept.push(...replacement);
       continue;
     }
     if (inValue && /^[ \t-]/u.test(line)) {
@@ -160,6 +165,9 @@ const withoutTopLevelKey = (lines: readonly string[], key: string): string[] => 
   }
   return kept;
 };
+
+const withoutTopLevelKey = (lines: readonly string[], key: string): string[] =>
+  withTopLevelKeyAs(lines, key, []);
 
 // the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the comment
 // store is keyed by. Text only: a number or a list is not a name.
@@ -232,6 +240,31 @@ export const withFrontmatterId = (content: string, id: string): FrontmatterIdVer
   return verdict.kind === "written"
     ? { content: replaceFrontmatterYaml(content, verdict.yaml), kind: "written" }
     : verdict;
+};
+
+export type FrontmatterIdReassign =
+  | { kind: "written"; content: string }
+  | { kind: "changed" }
+  | { kind: "invalid" };
+
+// A copy that shares its original's id takes a new one on the line the old one stood on, so
+// nothing else in the block moves. `changed`: the note no longer carries `from` (it took another
+// id, lost it, or never had it), and nothing is written over an identity the caller never saw.
+export const reassignFrontmatterId = (
+  content: string,
+  from: string,
+  to: string,
+): FrontmatterIdReassign => {
+  const yaml = frontmatterYaml(content);
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") {
+    return { kind: "invalid" };
+  }
+  if (yaml === null || noteIdOfProperties(parsed) !== from) {
+    return { kind: "changed" };
+  }
+  const lines = withTopLevelKeyAs(splitLines(yaml), "id", [`id: ${to}`]);
+  return { content: replaceFrontmatterYaml(content, lines.join("\n")), kind: "written" };
 };
 
 // a note minted from a template must not inherit the template's identity: two notes with one

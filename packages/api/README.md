@@ -164,5 +164,6 @@ byte primitives, the sync clip (every event type fits the cap with its envelope
 untouched), and that the cloud vault-path grammar admits exactly what
 `parseVaultPath` returns unchanged; `src/local/**/__tests__/` pin the timeline
 fold and delta algebra, the `/ws` strict/lenient pair, each domain's schemas and
-the restore composition; `knowledge/__tests__/engine-mirror.test.ts` is
+the two comment-store compositions both clients run (a deleted note's restore,
+and a copy given its own id); `knowledge/__tests__/engine-mirror.test.ts` is
 type-level and fails under `tsc`, not `vitest`.

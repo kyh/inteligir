@@ -3,6 +3,7 @@ import {
   frontmatterId,
   frontmatterYamlWithId,
   mintNoteId,
+  reassignFrontmatterId,
   withFrontmatterId,
 } from "../frontmatter";
 
@@ -99,6 +100,57 @@ describe("the note's frontmatter id", () => {
     expect(withFrontmatterId("\uFEFFbody\r\nmore\r\n", "new")).toEqual({
       content: "\uFEFF---\r\nid: new\r\n---\r\nbody\r\nmore\r\n",
       kind: "written",
+    });
+  });
+});
+
+describe("a copy taking an id of its own", () => {
+  const FROM = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+
+  it("takes the new id on the line the shared one stood on, every other byte as found", () => {
+    expect(
+      reassignFrontmatterId(
+        `---\ntitle: Plan\nid: ${FROM}\ntags: [a,  b]\n---\n%%i:c1:start%%x%%i:c1:end%%\n`,
+        FROM,
+        "new",
+      ),
+    ).toEqual({
+      content: "---\ntitle: Plan\nid: new\ntags: [a,  b]\n---\n%%i:c1:start%%x%%i:c1:end%%\n",
+      kind: "written",
+    });
+  });
+
+  it("reads a quoted key or value as the id, and keeps a CRLF note's endings and its BOM", () => {
+    expect(reassignFrontmatterId(`---\n"id": "${FROM}"\n---\nbody\n`, FROM, "new")).toEqual({
+      content: "---\nid: new\n---\nbody\n",
+      kind: "written",
+    });
+    expect(
+      reassignFrontmatterId(
+        `\uFEFF---\r\nid: ${FROM}\r\npinned: true\r\n---\r\nbody\r\n`,
+        FROM,
+        "new",
+      ),
+    ).toEqual({
+      content: "\uFEFF---\r\nid: new\r\npinned: true\r\n---\r\nbody\r\n",
+      kind: "written",
+    });
+  });
+
+  it("writes nothing over an id the caller did not see: another one, none, or one not text", () => {
+    for (const content of [
+      "---\nid: moved\n---\nbody\n",
+      "---\ntitle: t\n---\nbody\n",
+      "body\n",
+      "---\nid: 42\n---\nbody\n",
+    ]) {
+      expect(reassignFrontmatterId(content, FROM, "new")).toEqual({ kind: "changed" });
+    }
+  });
+
+  it("refuses frontmatter it cannot read", () => {
+    expect(reassignFrontmatterId(`---\nid: ${FROM}\n: [\n---\nbody\n`, FROM, "new")).toEqual({
+      kind: "invalid",
     });
   });
 });

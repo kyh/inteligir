@@ -124,6 +124,14 @@ rather than dropped. Quote an argument that holds spaces
   one tab-separated line each: the sha that still holds the bytes, when, path.
   Feed a row to \`vault restore <path> <sha>\` to bring it back.
 - \`inteligir vault mkdir <path>\` — create a folder.
+- \`inteligir vault new-id <path>\` — give a note that shares another's
+  frontmatter \`id\` (a copied file, as \`problems\` lists it) an id of its own.
+  The note takes a new id on the same line and a copy of the comment store kept
+  under the old one, so both notes keep every thread and diverge from here; the
+  note keeping the old id keeps its \`[[Title|uuid]]\` links and its actions.
+  \`--json\` answers the \`path\`, the new \`id\` and \`comments\` (\`copied\`, or
+  \`none\` when there was no store). A note that changed since it was read is
+  refused as \`CAS_MISMATCH\` and left as it was: run it again.
 - \`inteligir vault open <dir>\` — select the vault the next \`inteligir serve\`
   boots on (the app's own vault switch writes the same selector). A running
   server is untouched and named; restart it, or reopen the app, to switch. A
@@ -160,7 +168,9 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   nothing links to, stems spelled at more than one path, and frontmatter \`id\`s
   carried by more than one note. A copied file (\`cp\`, Finder's duplicate)
   keeps its original's \`id\`, so the two share one comment store and one
-  \`[[Title|uuid]]\` identity; drop the \`id:\` line from the copy. Daily notes and
+  \`[[Title|uuid]]\` identity; run \`inteligir vault new-id <copy>\` on the copy.
+  Never delete its \`id:\` line: its comment anchors would lose the bodies the
+  store keeps under that id. Daily notes and
   templates are orphans by design and are left out unless
   \`--include-conventions\` is given. \`--limit <n>\` caps each family
   (1–${KNOWLEDGE_PROBLEMS_MAX_LIMIT}).

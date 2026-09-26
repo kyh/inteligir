@@ -122,7 +122,8 @@ what each one is FOR.
 |                           | CAS write guards the save (typed conflict, current bytes in the body);    |
 |                           | a rename drags the attachment along — all verified on disk                |
 | cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get    |
-|                           | resolves against this checkout                                            |
+|                           | resolves against this checkout; a byte copy's shared id is listed, and    |
+|                           | `vault new-id` gives it its own on the same line with a copy of the store |
 | debug-log                 | `INTELIGIR_DEBUG` traces what the watcher kept and dropped and the        |
 |                           | index's verdict, by path and never by content or credential; an instance  |
 |                           | without it writes no debug line                                           |

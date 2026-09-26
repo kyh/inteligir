@@ -35,6 +35,7 @@
     "./local/thread-timeline": "./src/local/thread-timeline.ts",
     "./local/threads/threads-schema": "./src/local/threads/threads-schema.ts",
     "./local/vault/attachment-location": "./src/local/vault/attachment-location.ts",
+    "./local/vault/give-note-own-id": "./src/local/vault/give-note-own-id.ts",
     "./local/vault/vault-schema": "./src/local/vault/vault-schema.ts",
     "./local/vault/restore-comment-store": "./src/local/vault/restore-comment-store.ts"
   },

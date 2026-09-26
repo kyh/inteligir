@@ -79,7 +79,7 @@ agent shells are given.
 ## Command surface
 
 `serve` · `open` · `vault
-list|read|history|revision|restore|write|rename|delete|deleted|mkdir|attachments|open|status|sync`
+list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|attachments|open|status|sync`
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
 `unlinked` · `problems` · `tags` · `tag notes|rename` · `action
 list|new|send|show|stop|wait|archive|changes` · `comment list|add|reply|resolve|remove` ·

@@ -421,6 +421,51 @@ describe("vault commands", () => {
     expect(state.vault.has("notes/gone.md")).toBe(true);
     expect(state.vault.has(store)).toBe(false);
   });
+
+  it("gives a copy its own id with a copy of its comments, and refuses one that moved after the read", async () => {
+    const shared = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+    const store = `.inteligir/comments/${shared}.json`;
+    const storeBytes = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
+    const copy = `---\ntitle: Copy\nid: ${shared}\n---\n# Copy\n`;
+    const state = seededState();
+    state.vault.set("notes/copy.md", copy);
+    state.vault.set(store, storeBytes);
+    const server = await boot(state);
+
+    const given = await runCliForTest({
+      argv: ["vault", "new-id", "notes/copy.md", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(given.code).toBe(0);
+    const { id } = z
+      .object({ comments: z.literal("copied"), id: z.uuid(), path: z.literal("notes/copy.md") })
+      .strict()
+      .parse(JSON.parse(given.stdout));
+    expect(state.vault.get("notes/copy.md")).toBe(copy.replace(shared, id));
+    expect(state.vault.get(`.inteligir/comments/${id}.json`)).toBe(storeBytes);
+    expect(state.vault.get(store)).toBe(storeBytes);
+
+    state.vault.set("notes/twin.md", copy);
+    state.concurrentWrite = { content: copy.replace(shared, "its-own"), path: "notes/twin.md" };
+    const stale = await runCliForTest({
+      argv: ["vault", "new-id", "notes/twin.md", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(stale.code).toBe(1);
+    expect(stale.stdout).toBe("");
+    expect(JSON.parse(stale.stderr)).toEqual({
+      error: "CAS_MISMATCH",
+      message: "notes/twin.md changed since it was read; nothing was written",
+    });
+    expect(state.vault.get("notes/twin.md")).toBe(copy.replace(shared, "its-own"));
+
+    const plain = await runCliForTest({
+      argv: ["vault", "new-id", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(plain.code).toBe(1);
+    expect(plain.stderr).toContain("No id to replace in notes/hello.md");
+  });
 });
 
 describe("knowledge commands", () => {

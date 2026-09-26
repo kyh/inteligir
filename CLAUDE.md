@@ -1026,7 +1026,14 @@ to the END of its group.
   (`remove-with-comments.ts`) unless a byte copy still carries that id, and a
   restore brings both back through
   `@repo/api/local/vault/restore-comment-store`, reporting a store it could not
-  restore, because one silently left behind strands its threads.
+  restore, because one silently left behind strands its threads. A BYTE COPY
+  IS RE-KEYED AND ITS STORE FORKED, never stripped of its id:
+  `@repo/api/local/vault/give-note-own-id` (the Problems page's Give its own
+  id, `inteligir vault new-id`) copies the store under a new id first, then
+  moves the copy's `id:` line to it under the CAS, so both notes keep every
+  thread and diverge, and the note keeping the old id keeps its
+  `[[Title|uuid]]` links and actions. Deleting the copy's `id:` line was
+  rejected: its anchors' bodies live only under that id.
 
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at travels on the send (`@repo/domain/view-context`),

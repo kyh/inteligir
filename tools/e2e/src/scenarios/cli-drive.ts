@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { copyFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
@@ -21,9 +21,28 @@ const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string(
 const turnChangesOutputSchema = z.looseObject({
   turns: z.array(z.looseObject({ paths: z.array(z.string()), state: z.string() })),
 });
+const duplicateIdRowSchema = z.looseObject({ id: z.string(), paths: z.array(z.string()) });
+type DuplicateIdRow = z.infer<typeof duplicateIdRowSchema>;
+const problemsOutputSchema = z.looseObject({
+  duplicateIds: z.looseObject({ rows: z.array(duplicateIdRowSchema) }),
+});
+const newIdOutputSchema = z.looseObject({ comments: z.literal("copied"), id: z.string() });
+
+const SHARED_NOTE = "notes/shared.md";
+const SHARED_COPY = "notes/shared copy.md";
+const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+const SHARED_CONTENT = `---\ntitle: Shared\nid: ${SHARED_ID}\n---\n# Shared\n`;
+
+const duplicateIds = async (
+  cli: (...argv: string[]) => Promise<ExecResult>,
+): Promise<DuplicateIdRow[]> => {
+  const problems = await cli("problems", "--json");
+  return problemsOutputSchema.parse(JSON.parse(problems.stdout)).duplicateIds.rows;
+};
 
 export const cliDrive: Scenario = {
-  description: "the CLI drives a real instance: vault write, search, action new+wait+show+changes",
+  description:
+    "the CLI drives a real instance: vault write, search, action new+wait+show+changes, vault new-id",
   name: "cli-drive",
   // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
   // the packed tarball pnpm smoke:cli's.
@@ -113,6 +132,46 @@ export const cliDrive: Scenario = {
       `applied Agent/${threadId}.md`,
       "the one turn, applied, and the note it wrote",
     );
+
+    ctx.log("a byte copy shares its original's id until vault new-id gives it one of its own");
+    await cli("vault", "write", SHARED_NOTE, "--content", SHARED_CONTENT, "--if-absent");
+    await cli("comment", "add", SHARED_NOTE, "The first thread");
+    await cli("comment", "add", SHARED_NOTE, "The second thread");
+    const original = path.join(app.vaultDir, SHARED_NOTE);
+    const originalBytes = await readFile(original, "utf-8");
+    const sharedStore = path.join(app.vaultDir, ".inteligir", "comments", `${SHARED_ID}.json`);
+    const storeBytes = await readFile(sharedStore, "utf-8");
+    // Finder's duplicate: the same bytes, landed beside the app rather than through it
+    await copyFile(original, path.join(app.vaultDir, SHARED_COPY));
+    const sharing = (rows: DuplicateIdRow[]): boolean =>
+      rows.some((row) => row.id === SHARED_ID && row.paths.includes(SHARED_COPY));
+    await pollUntil(async () => await duplicateIds(cli), sharing, {
+      deadlineMs: SEARCH_DEADLINE_MS,
+      describe: (rows) => `problems never listed the copy's shared id: ${JSON.stringify(rows)}`,
+    });
+    const given = await cli("vault", "new-id", SHARED_COPY, "--json");
+    const newId = newIdOutputSchema.parse(JSON.parse(given.stdout)).id;
+    expect(newId !== SHARED_ID, "the copy answers an id of its own");
+    await pollUntil(
+      async () => await duplicateIds(cli),
+      (rows) => rows.length === 0,
+      {
+        deadlineMs: SEARCH_DEADLINE_MS,
+        describe: (rows) => `problems still lists shared ids: ${JSON.stringify(rows)}`,
+      },
+    );
+    expectEq(
+      await readFile(path.join(app.vaultDir, SHARED_COPY), "utf-8"),
+      originalBytes.replace(SHARED_ID, newId),
+      "the copy's new id stands on the line the shared one did, every other byte kept",
+    );
+    expectEq(await readFile(original, "utf-8"), originalBytes, "the original is untouched");
+    expectEq(
+      await readFile(path.join(app.vaultDir, ".inteligir", "comments", `${newId}.json`), "utf-8"),
+      storeBytes,
+      "the copy's comment store is the original's, byte for byte",
+    );
+    expectEq(await readFile(sharedStore, "utf-8"), storeBytes, "the original keeps its own");
 
     ctx.log("status reports the scripted agent");
     const status = await cli("status");
