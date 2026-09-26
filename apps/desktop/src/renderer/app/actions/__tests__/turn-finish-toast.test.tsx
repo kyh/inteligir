@@ -14,11 +14,16 @@ import { WorkspaceProvider } from "../../workspace-context";
 import { createTurnFinishWatch, turnFinishMessage, useTurnFinishToast } from "../turn-finish-toast";
 import type { FinishedTurn } from "../turn-finish-toast";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
+// sonner unmounts a dismissed toast on a timer of its own (TIME_BEFORE_UNMOUNT, 200ms); one still
+// pending when the file ends fires after jsdom is gone.
+const SONNER_UNMOUNT_MS = 250;
+
+afterEach(async () => {
   // sonner replays every undismissed toast to the next Toaster that mounts.
   toast.dismiss();
+  await delay(SONNER_UNMOUNT_MS);
+  cleanup();
+  vi.unstubAllGlobals();
 });
 
 const frame = (threadId: string, changes: readonly ThreadChangeKind[]): ThreadChangedMessage => ({
