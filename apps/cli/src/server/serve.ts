@@ -22,7 +22,6 @@ import type { VaultRemoteSpec } from "./cloud/vault-remote";
 import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
 import type { ComposeRuntimeArgs } from "./compose";
-import { composeSessionMcpServers } from "./connectors/session-servers";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { debugLog } from "./debug-log";
@@ -162,16 +161,7 @@ const boot = async (
     // injected: it cannot be imported from the composed graph (cloud/cloud-socket.ts).
     cloudTransport: { openSocket: openCloudSocket },
     config,
-    driver: ({
-      config: driverConfig,
-      db,
-      bus,
-      vault,
-      connectors,
-      connectorsOauth,
-      folders,
-      agentPrefs,
-    }) => {
+    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs }) => {
       const cliBinDir = resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
@@ -183,7 +173,6 @@ const boot = async (
         config: driverConfig,
         db,
         debugLog: debugLog(driverConfig.debug, "acp"),
-        mcpServers: async () => await composeSessionMcpServers(connectors, connectorsOauth),
         notifier: bus,
         preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,
         sessionFacts: () => ({

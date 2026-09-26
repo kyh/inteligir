@@ -104,7 +104,6 @@ const bootWithManager = async (
         defaultProviderId: () => "codex",
         git: vault.git,
         hostEnv: {},
-        mcpServers: () => [],
         models: { claude: null, codex: null },
         notifier: bus,
         reapIntervalMs: null,

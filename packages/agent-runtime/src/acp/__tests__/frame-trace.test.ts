@@ -7,7 +7,6 @@ import { describeFrame } from "../frame-trace";
 
 const FAKE_AGENT = path.join(import.meta.dirname, "..", "..", "test-support", "fake-acp-agent.mjs");
 const PROMPT_SECRET = "the note body the user asked about";
-const HEADER_SECRET = "Bearer connector-secret-token";
 // a slow runner's round trip through a node child, not a claim about speed.
 const TURN_TIMEOUT_MS = 10_000;
 
@@ -55,21 +54,13 @@ describe("describeFrame", () => {
 });
 
 describe("the ACP runtime's frame trace", { timeout: 20_000 }, () => {
-  it("names every frame both ways, and no prompt, reply or connector header", async () => {
+  it("names every frame both ways, and no prompt or reply", async () => {
     const lines: string[] = [];
     const events: ProviderEvent[] = [];
     const runtime = createAcpAgentRuntime({
       debugLog: (line) => {
         lines.push(line);
       },
-      mcpServers: () => [
-        {
-          headers: { authorization: HEADER_SECRET },
-          kind: "http",
-          name: "notes",
-          url: "https://mcp.test/notes",
-        },
-      ],
       onEvent: (event) => {
         events.push(event);
       },
@@ -109,6 +100,5 @@ describe("the ACP runtime's frame trace", { timeout: 20_000 }, () => {
     ]);
     const trace = lines.join("\n");
     expect(trace).not.toContain(PROMPT_SECRET);
-    expect(trace).not.toContain(HEADER_SECRET);
   });
 });

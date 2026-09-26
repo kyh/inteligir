@@ -1258,12 +1258,19 @@ to the END of its group.
   `agent-driver.ts`, `harnessReadiness` in
   `@repo/api/local/agents/agents-schema`.
 
-- **CONNECTORS ARE AN APP-OWNED REGISTRY, injected per-session over ACP**
-  (reversing the codex-owned registry, whose premise died with the ACP runtime).
-  One store, edited in Settings alone: the CLI has no connector verb, because
-  a shell already has each harness's own (`claude mcp add --scope user`,
-  `codex mcp add`). Every harness receives the enabled rows through
-  `session/new`'s `mcpServers`. Secrets stay in the data dir and are redacted on every read
+- **CONNECTORS ARE AN APP-OWNED REGISTRY, AND NO AGENT SESSION IS HANDED IT**
+  (0.6 direction, reversing the per-session injection: the vendor's own config
+  is the one store). The registry is edited in Settings alone: the CLI has no
+  connector verb, because a shell already has each harness's own
+  (`claude mcp add --scope user`, `codex mcp add`). Its rows reach no agent:
+  `session/new` and `session/load` send `mcpServers: []`
+  (`packages/agent-runtime/src/acp/acp-runtime.ts`), so a Claude session loads
+  the user-scope servers in `<CLAUDE_CONFIG_DIR ?? HOME>/.claude.json` and a
+  Codex session `$CODEX_HOME/config.toml`, and `adapterSpawnEnv` passes
+  `HOME`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` through untouched, so the config
+  a session reads is the one `claude mcp` and `codex mcp` edit. Injecting the
+  registry's rows beside it was rejected as a second source of truth for one
+  question. Secrets stay in the data dir and are redacted on every read
   (`apps/cli/src/server/connectors/connectors-service.ts`).
 
 - **CONNECTOR OAUTH IS THE MCP AUTHORIZATION SPEC'S, AND A REFRESH TOKEN IS

@@ -108,11 +108,15 @@ scripts/
   spawn, and `INTELIGIR_THREAD_ID` is stamped on top per thread, its name
   spelled once in `@repo/domain/agent-shell-env` because the CLI reads it back
   in the same shell.
-- **`mcpServers` is a lazy, async getter for the same reason**: an enabled
-  connector row edited in Settings reaches the next `session/new` or
-  `session/load` without a reboot, and an OAuth row can refresh its token on
-  the way. The connectors registry is the app's; this package only carries the
-  rows into ACP's `McpServer` shape.
+- **A session is handed no MCP servers; the vendor's own config names them.**
+  `session/new` and `session/load` send `mcpServers: []`, so a claude session
+  loads the user-scope servers its `settingSources` reach and codex its
+  `config.toml`, and `adapterSpawnEnv` passes `HOME`, `CLAUDE_CONFIG_DIR` and
+  `CODEX_HOME` through untouched, so that config is the one the user's own
+  `claude mcp` and `codex mcp` edit. A list injected beside it would be a
+  second source of truth for one question
+  (`packages/agent-runtime/src/acp/__tests__/spawn-env.test.ts`,
+  `packages/agent-runtime/src/acp/__tests__/vault-config-isolation.test.ts`).
 - **File-shaped tool kinds become `fileChange` items.** An `edit`/`delete`/
   `move` call lands as one `fileChange` with a change per diff or location, and
   the server's commit hold stages a turn's write set from exactly these. An

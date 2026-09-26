@@ -1,7 +1,6 @@
 // a line names a frame by its method, id and session and never by its params or result: a prompt,
-// a message chunk, a tool call's command and a connector's headers all ride there. what it does
-// carry beyond that must parse as a protocol word, so a field an agent filled with prose is left
-// out rather than quoted.
+// a message chunk and a tool call's command all ride there. what it does carry beyond that must
+// parse as a protocol word, so a field an agent filled with prose is left out rather than quoted.
 
 import type { AnyMessage, Stream } from "@agentclientprotocol/sdk";
 import { z } from "zod";

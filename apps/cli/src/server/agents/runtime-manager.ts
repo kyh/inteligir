@@ -5,10 +5,7 @@
 
 import { createHash } from "node:crypto";
 import { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
-import type {
-  AcpAgentRuntimeOptions,
-  AcpMcpServerConfig,
-} from "@repo/agent-runtime/acp/acp-runtime";
+import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   HarnessDefinition,
@@ -95,7 +92,6 @@ export interface AcpRuntimeManagerDeps {
   // anything is spawned. absent, every send is attempted.
   unavailableReason?: (providerId: string) => string | null;
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
-  mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   createRuntime?: typeof createAcpAgentRuntime;
   // null disables.
   reapIntervalMs?: number | null;
@@ -204,7 +200,6 @@ class AcpTurnDriver implements TurnDriver {
       ...toShellEnv(this.deps.sessionFacts(), this.deps.hostEnv),
     });
     runtimeOptions.models = this.deps.models;
-    runtimeOptions.mcpServers = this.deps.mcpServers;
     if (this.deps.spawnAdapter !== undefined) {
       runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
     }
