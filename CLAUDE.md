@@ -2067,6 +2067,19 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   without the links it moved, and a typed name cleaned up rather than refused,
   which shows a title that was never saved.
 
+- **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**, and
+  it binds preview-only resources. Workers Builds would deploy on push and could
+  not wait for CI or keep Deploy's environment gate, so previews ride
+  `workflow_run` after CI like Deploy does (which also keeps them out of the
+  CI-parity sweep), limited to this repo's branches because that trigger holds
+  secrets. A preview inherits no binding, so `apps/web/wrangler.jsonc` restates
+  each against `inteligir-auth-preview` / `inteligir-vault-preview`; pointing a
+  preview at the production D1 was rejected, since PR code would write real
+  accounts. The status is one sticky comment plus a GitHub deployment on the
+  head commit (`.github/scripts/worker-preview.mjs`), created by the script
+  because a job's `environment:` under `workflow_run` records the default
+  branch. `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
+
 ### Server process and the desktop shell
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**
