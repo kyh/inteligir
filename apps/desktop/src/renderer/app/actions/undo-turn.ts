@@ -72,7 +72,9 @@ interface UndoSummary {
 }
 
 export const summarizeUndo = (changes: UndoTurnResponse): UndoSummary => {
-  const { kept, reverted } = changes;
+  // an undo reverts the turn's comment stores too; the user counts notes
+  const kept = changes.kept.filter((row) => !isVaultMetadataPath(row.path));
+  const reverted = changes.reverted.filter((path) => !isVaultMetadataPath(path));
   const undid =
     reverted.length > 0 ? `Undid the agent's changes to ${plural(reverted.length, "note")}.` : null;
   const [only] = kept;
