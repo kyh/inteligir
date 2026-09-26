@@ -1755,7 +1755,8 @@ to the END of its group.
   (`tools/repo-guards/src/turbo-cache-keys.test.ts`); the desktop build takes
   `^topo`, since `^build` would cycle through the CLI build that stages its
   renderer (`apps/desktop/turbo.json`). A file in no workspace is a named input
-  (`apps/cli/turbo.json`), a followed file a named output
+  (`apps/cli/turbo.json`), which the same guard holds for a bundled import
+  (`/privacy` renders `docs/privacy.md`); a followed file is a named output
   (`apps/web/turbo.json`), and `NODE_ENV` is hashed, not passed through: vite
   emits React's dev build under `development`.
 

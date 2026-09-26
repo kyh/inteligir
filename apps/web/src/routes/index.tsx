@@ -1,5 +1,5 @@
 import { Suspense, lazy } from "react";
-import { ClientOnly, createFileRoute } from "@tanstack/react-router";
+import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
 import { createDownloadUrlReader, downloadHref } from "@/lib/download-url";
@@ -41,7 +41,7 @@ const Page = () => {
             </ClientOnly>
           </div>
         </div>
-        <div className="flex flex-col items-center gap-3 px-6 pb-16">
+        <div className="flex flex-col items-center gap-3 px-6 pb-10">
           {href === null ? (
             <span className={`${CTA_PILL} bg-muted text-muted-foreground`}>
               <MacLogoIcon className="size-5 shrink-0" />
@@ -58,6 +58,14 @@ const Page = () => {
           )}
           <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
         </div>
+        <footer className="flex justify-center pb-6">
+          <Link
+            to="/privacy"
+            className="text-xs text-foreground/60 transition-colors hover:text-foreground"
+          >
+            Privacy
+          </Link>
+        </footer>
       </main>
     </>
   );
