@@ -700,27 +700,32 @@ to the END of its group.
   the push run unlocked between locked local steps: held across the network,
   the lock made every save and every turn start wait out a dropped
   connection's timeout. The price is that the world moves during the fetch, so
-  the rebase step re-checks first. A recorded conflict keeps the two tips it
-  was met between, so a pass where neither moved skips the rebase rather than
-  rewriting the conflicted files every minute. Network git gives up under
+  the integration step re-checks first. Only a merge that fails outright is
+  remembered, by the two tips it failed between, so a pass where neither moved
+  skips it rather than failing the same way every minute (CONCURRENT EDITS
+  NEVER STOP SYNC, below). Network git gives up under
   1KB/s for 30s, or an ssh connect past 20s
   (`apps/cli/src/server/vault/git-run.ts`). The split is
   `apps/cli/src/server/vault/git-engine.ts`.
 
 - **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS, AND A PASS REPORTS ONE
-  OUTCOME.** No engine git runs the vault's hooks (the `runGit` bullet) and
-  every status read passes `--untracked-files=normal`, because a user's
-  commit-msg hook or `status.showUntrackedFiles=no` would refuse or hide each
-  auto-commit and hold every sync behind it. The bootstrap makes only the empty initial commit
-  before the listen (`apps/cli/src/server/vault/git-bootstrap.ts`), since
-  staging a large folder there outran the shell's readiness wait. A pass
-  concludes one `SyncOutcome`: a detached HEAD says `detached`, never `clean`;
-  a refused push says `rejected` (a 413 `too-large`), never `offline`
-  (`classifyNetworkFailure` in `apps/cli/src/server/vault/git-run.ts`).
+  OUTCOME.** No engine git runs the vault's hooks (the `runGit` bullet), the
+  rebase and the merge run with rerere pinned off, and every status read
+  passes `--untracked-files=normal`, because a user's commit-msg hook, a
+  recorded rerere resolution or `status.showUntrackedFiles=no` would refuse,
+  rewrite or hide an engine commit and hold every sync behind it. The
+  bootstrap makes only the empty initial commit before the listen
+  (`apps/cli/src/server/vault/git-bootstrap.ts`), since staging a large folder
+  there outran the shell's readiness wait. A pass concludes one `SyncOutcome`,
+  and a path two devices changed is never one of them: a detached HEAD says
+  `detached`, never `clean`; a refused push says `rejected` (a 413
+  `too-large`), never `offline` (`classifyNetworkFailure` in
+  `apps/cli/src/server/vault/git-run.ts`).
 
 - **THE CAPTURE INBOX MERGES BY UNION.** Two desktops each appending a phone
-  capture to the root `Inbox.md` between syncs would conflict on a file the app
-  wrote itself and stop sync until someone ran git by hand. Every boot makes
+  capture to the root `Inbox.md` between syncs overlap on a file the app wrote
+  itself, and without union the merge would copy the inbox aside over a
+  conflict nobody made. Every boot makes
   sure `info/attributes` holds `/Inbox.md merge=union`: local, never a committed
   `.gitattributes`, because the vault's files are the user's. Residual: a
   bullet one device deleted beside the other's append comes back.
@@ -835,6 +840,32 @@ to the END of its group.
   `vaultRemote`, which pinned one remote for every vault the root selects and
   is now a boot warning. `inspectVaultFolder` answers the same facts before a
   folder is a vault (`inteligir vault open`), so a picker and a boot agree.
+
+- **CONCURRENT EDITS NEVER STOP SYNC** (0.6 direction: diff3 auto-merge, an
+  overlap makes a conflict copy). A pass rebases first, which keeps the
+  history a line; a rebase that stops on a path both devices changed is
+  aborted and the pass merges instead
+  (`apps/cli/src/server/vault/git-merge.ts`). git merges every path it can,
+  and each one it cannot gets `reconcileFile`'s verdict
+  (`@repo/notes/sync/reconcile-file`), the one the phone's queue lands for the
+  same inputs: an overlap keeps this device's lines and copies the other's
+  aside, named after the committer of the newest commit that touched the path
+  since the two parted. A branch holding an unpushed merge merges again,
+  never rebases, because a rebase drops a merge commit. Every verdict lands
+  through the index (`hash-object`, `update-index`, `checkout-index`), never
+  a write into the vault from JS, so the merge commits exactly the tree on
+  disk; whatever throws aborts the merge, and only that failure is
+  remembered, by its two tips, and said in plain words. Every engine commit's
+  committer is this device's name (`apps/cli/src/server/device-name.ts`: the
+  name it signed in under, else the Mac's own), because that is how another
+  device names its version; the author still says who made the change. A
+  merge or rebase a crash left is aborted before the engine's first commit.
+  The status carries this device's name and each report since boot, a copy a
+  pull brought included, and every surface words them through
+  `describeSyncConflict`. Rejected: a `conflict` state that stopped sync
+  until someone ran git, which a knowledge worker cannot, and a rebase
+  through the conflict, which replays every local commit and has nowhere to
+  keep the other version.
 
 ### Knowledge: index, search and links
 

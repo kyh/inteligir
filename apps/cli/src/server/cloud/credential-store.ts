@@ -14,6 +14,8 @@ export const DEVICE_CREDENTIAL_FILE_NAME = "device-credential";
 const CREDENTIAL_FILE_MODE = 0o600;
 
 const storedCredentialSchema = deviceCredentialSchema.extend({
+  /** the name this device signed in under, which its commits carry; absent from an older sign-in. */
+  deviceName: z.string().min(1).optional(),
   /** learned from /v1/account after the session opens; the login's answer carries no account. */
   userId: z.string().min(1).optional(),
 });

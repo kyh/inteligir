@@ -14,16 +14,35 @@ const CONFLICT_B = "# Conflict\n\nedited on B\n";
 // every sync is an explicit call, so the divergence between A and B is deterministic.
 const NO_AUTO_SYNC = { INTELIGIR_SYNC_INTERVAL_MS: "0" };
 
-const syncExpectClean = async (api: InstanceApi, label: string): Promise<void> => {
+const syncExpectClean = async (api: InstanceApi, label: string) => {
   const status = await api.vault.syncNow();
   expect(
     status.state === "clean",
     `${label}: expected a clean sync, got "${status.state}" (lastError: ${status.lastError ?? "none"})`,
   );
+  return status;
+};
+
+const gitIn = async (vaultDir: string, gitArgs: readonly string[]): Promise<string> => {
+  const { stdout } = await exec("git", ["-C", vaultDir, ...gitArgs], {
+    env: hermeticProcessEnv(),
+  });
+  return stdout.trim();
+};
+
+const expectNothingLeftBehind = async (vaultDir: string, label: string): Promise<void> => {
+  expectEq(
+    await gitIn(vaultDir, ["--no-optional-locks", "status", "--porcelain"]),
+    "",
+    `${label}'s porcelain status`,
+  );
+  for (const state of ["rebase-merge", "rebase-apply", "MERGE_HEAD"]) {
+    expect(!existsSync(path.join(vaultDir, ".git", state)), `${label}: no ${state} left behind`);
+  }
 };
 
 export const vaultSync: Scenario = {
-  description: "two instances, one bare remote: propagation, then a typed conflict",
+  description: "two instances, one bare remote: propagation, then a merged same-line edit",
   name: "vault-sync",
   async run(ctx) {
     const remote = await ctx.bareRemote();
@@ -49,7 +68,7 @@ export const vaultSync: Scenario = {
       "B's on-disk content",
     );
 
-    ctx.log("seeding the conflict base on both sides");
+    ctx.log("seeding the shared base on both sides");
     await a.api.vault.write({
       content: CONFLICT_BASE,
       guard: { kind: "overwrite" },
@@ -60,7 +79,7 @@ export const vaultSync: Scenario = {
     expectEq(
       await readFile(path.join(b.vaultDir, "conflict.md"), "utf-8"),
       CONFLICT_BASE,
-      "B holds the conflict base",
+      "B holds the base",
     );
 
     ctx.log("A edits the shared line and syncs; B edits it differently");
@@ -77,48 +96,55 @@ export const vaultSync: Scenario = {
       path: "conflict.md",
     });
 
-    ctx.log("B syncs into the conflict");
-    const conflicted = await b.api.vault.syncNow();
+    ctx.log("B syncs: it keeps its own line, copies A's aside, and pushes");
+    const merged = await syncExpectClean(b.api, "B meeting A's edit");
+    const [report, ...more] = merged.conflicts;
     expect(
-      conflicted.state === "conflict",
-      `B's sync should surface the conflict, got "${conflicted.state}" (lastError: ${conflicted.lastError ?? "none"})`,
+      report !== undefined && more.length === 0,
+      `B reports one conflict (got ${JSON.stringify(merged.conflicts)})`,
     );
     expect(
-      conflicted.conflict.files.includes("conflict.md"),
-      `conflict names the file (got ${JSON.stringify(conflicted.conflict.files)})`,
+      report.kind === "copied" && report.path === "conflict.md",
+      `B's report copies conflict.md aside (got ${JSON.stringify(report)})`,
     );
-    expect(conflicted.conflict.ours.commits >= 1, "at least one local commit in the conflict");
-    expect(conflicted.conflict.theirs.commits >= 1, "at least one remote commit in the conflict");
-
-    ctx.log("the refused rebase was aborted: B keeps its own edit, and status stays conflict");
+    expectEq(report.keptDevice, merged.device, "the version that stayed is B's");
+    const { copyPath } = report;
+    expect(
+      copyPath.startsWith("conflict (conflict, ") && copyPath.endsWith(").md"),
+      `the copy is named beside its note (got ${copyPath})`,
+    );
     expectEq(
       await readFile(path.join(b.vaultDir, "conflict.md"), "utf-8"),
       CONFLICT_B,
-      "B's working tree after the abort",
+      "B keeps its own edit",
     );
-    const statusB = await b.api.vault.status();
-    expect(statusB.state === "conflict", `B status settled on "${statusB.state}"`);
-
-    ctx.log("B's repo is intact under git's own eyes");
-    // B's edit was committed before the fetch, so an aborted rebase leaves the tree identical to
-    // HEAD.
-    const porcelain = await exec(
-      "git",
-      ["-C", b.vaultDir, "--no-optional-locks", "status", "--porcelain"],
-      { env: hermeticProcessEnv() },
-    );
-    expectEq(porcelain.stdout.trim(), "", "B's porcelain status after the abort");
-    expect(
-      !existsSync(path.join(b.vaultDir, ".git", "rebase-merge")),
-      "no rebase-merge state left behind",
-    );
-    expect(
-      !existsSync(path.join(b.vaultDir, ".git", "rebase-apply")),
-      "no rebase-apply state left behind",
+    expectEq(
+      await readFile(path.join(b.vaultDir, copyPath), "utf-8"),
+      CONFLICT_A,
+      "the copy holds A's version",
     );
 
-    ctx.log("A is untouched by B's conflict");
-    const readA = await a.api.vault.read({ path: "conflict.md" });
-    expectEq(readA.content, CONFLICT_A, "A keeps its own edit");
+    ctx.log("A pulls B's merge: the two converge byte for byte");
+    const pulled = await syncExpectClean(a.api, "A pulling B's merge");
+    expect(
+      pulled.conflicts.some((copied) => copied.kind === "copied" && copied.copyPath === copyPath),
+      `A reports the copy it pulled (got ${JSON.stringify(pulled.conflicts)})`,
+    );
+    for (const relPath of ["conflict.md", copyPath, "notes/shared.md"]) {
+      expectEq(
+        await readFile(path.join(a.vaultDir, relPath), "utf-8"),
+        await readFile(path.join(b.vaultDir, relPath), "utf-8"),
+        `A's and B's ${relPath}`,
+      );
+    }
+    expectEq(
+      await gitIn(a.vaultDir, ["rev-parse", "HEAD^{tree}"]),
+      await gitIn(b.vaultDir, ["rev-parse", "HEAD^{tree}"]),
+      "A's and B's trees",
+    );
+
+    ctx.log("neither repo is left mid-merge or mid-rebase");
+    await expectNothingLeftBehind(a.vaultDir, "A");
+    await expectNothingLeftBehind(b.vaultDir, "B");
   },
 };

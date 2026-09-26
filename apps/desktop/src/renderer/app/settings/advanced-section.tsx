@@ -6,6 +6,7 @@ import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import { externalSyncName } from "@repo/api/local/vault/vault-schema";
 import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { Switch } from "@repo/ui/components/switch";
@@ -91,16 +92,18 @@ export const VaultSyncRows = ({
       <Row label="Last error">
         <RawError error={status.lastError} />
       </Row>
-      {status.state === "conflict" ? (
-        <Row label="Conflict">
-          <span className="block text-body text-muted-foreground">
-            {plural(status.conflict.ours.commits, "commit")} here,{" "}
-            {plural(status.conflict.theirs.commits, "commit")} on the remote
-          </span>
-          <ul className="mt-1 space-y-0.5">
-            {status.conflict.files.map((file) => (
-              <li key={file}>
-                <Raw title={file}>{file}</Raw>
+      <Row label="Device">
+        <Raw title={status.device}>{status.device}</Raw>
+      </Row>
+      {status.conflicts.length > 0 ? (
+        <Row label="Conflicts">
+          <ul className="space-y-0.5">
+            {status.conflicts.map((report) => (
+              <li
+                key={`${String(report.at)}:${report.kind === "copied" ? report.copyPath : report.path}`}
+                className="text-body text-muted-foreground"
+              >
+                {describeSyncConflict(report, { thisDevice: status.device })}
               </li>
             ))}
           </ul>

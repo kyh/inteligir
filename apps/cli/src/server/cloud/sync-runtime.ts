@@ -2,7 +2,6 @@
 // values that must agree can disagree. a pass is single-flight and coalescing —
 // two concurrent drains push one batch twice. the socket is latency, never correctness.
 
-import { hostname } from "node:os";
 import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
 import type {
   CloudEndpoint,
@@ -11,6 +10,7 @@ import type {
   CloudSocketOpener,
   CreateCloudClientArgs,
 } from "@repo/api/cloud/client";
+import { normalizeDeviceName } from "@repo/api/cloud/device/device-schema";
 import { loginDevice, signUpDevice } from "@repo/api/cloud/device/login-flow";
 import type {
   DeviceCredentialStore,
@@ -68,6 +68,8 @@ export interface CloudRuntimeArgs {
   cloudUrl: string;
   /** the running build's version: a log row one build could not read is pulled again by the next. */
   build: string;
+  /** the name a sign-in that names none gives this device (`readMachineName`). */
+  machineName: string;
   vault: CaptureVault;
   transport?: CloudTransport;
   /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
@@ -439,9 +441,11 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     args.onVaultPing?.();
   };
 
-  // login and sign-up both end in a credential this device adopts, through the one store.
+  // login and sign-up both end in a credential this device adopts, through the one store, which
+  // keeps the name it joined under: the vault's commits carry it.
   const joinAccount = async (
-    join: (store: DeviceCredentialStore) => Promise<DeviceLoginOutcome>,
+    requestedName: string | undefined,
+    join: (store: DeviceCredentialStore, deviceName: string) => Promise<DeviceLoginOutcome>,
   ): Promise<LoginOutcome> => {
     if (disposed) {
       return {
@@ -449,7 +453,15 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
         kind: "refused",
       };
     }
-    const outcome = await join({ write: adoptCredential });
+    const deviceName = normalizeDeviceName(requestedName ?? args.machineName);
+    const outcome = await join(
+      {
+        write: async (credential) => {
+          await adoptCredential({ ...credential, deviceName });
+        },
+      },
+      deviceName,
+    );
     return outcome.kind === "logged-in" ? { kind: "logged-in", status: status() } : outcome;
   };
 
@@ -496,11 +508,11 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
 
     async login(request) {
       return await joinAccount(
-        async (store) =>
+        request.deviceName,
+        async (store, deviceName) =>
           await loginDevice({
             client: endpoint(),
-            // raw hostname(): the flow bounds and defaults the name.
-            deviceName: request.deviceName ?? hostname(),
+            deviceName,
             email: request.email,
             password: request.password,
             store,
@@ -526,10 +538,11 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
 
     async signUp(request) {
       return await joinAccount(
-        async (store) =>
+        request.deviceName,
+        async (store, deviceName) =>
           await signUpDevice({
             client: endpoint(),
-            deviceName: request.deviceName ?? hostname(),
+            deviceName,
             email: request.email,
             inviteCode: request.inviteCode,
             name: request.name,

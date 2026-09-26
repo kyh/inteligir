@@ -5,7 +5,7 @@ import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { resolveAgentDriver } from "../agent-driver";
 import { scriptedNotePath } from "../scripted-driver";
-import { bootTestApp, fakeAgentAccounts } from "../../__tests__/boot-app";
+import { bootTestApp, fakeAgentAccounts, TEST_MACHINE_NAME } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import {
   awaitThreadStatus,
@@ -87,7 +87,7 @@ describe("the scripted driver over real HTTP", () => {
     const [authorName, authorEmail, committerName, subject, ...trailerLines] = head.split("\n");
     expect(authorName).toBe("inteligir-agent");
     expect(authorEmail).toBe("agent@inteligir.local");
-    expect(committerName).toBe("inteligir");
+    expect(committerName).toBe(TEST_MACHINE_NAME);
     expect(subject).toBe("agent: vault update");
     expect(trailerLines.join("\n")).toContain(`Thread: ${threadId}`);
     expect(trailerLines.join("\n")).toContain(`Turn: ${turnId}`);

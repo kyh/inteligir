@@ -21,6 +21,7 @@ const bootRuntime = async () => {
     debugLog: (line) => {
       traced.push(line);
     },
+    deviceName: () => "Test Mac",
     gitEnv: hermeticGitEnv(),
     notifier: createNotifierRecorder(),
     onFilesChanged: (change) => {

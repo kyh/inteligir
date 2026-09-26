@@ -164,7 +164,14 @@ export const makeFixtureState = (): FixtureState => ({
   vault: new Map(),
   vaultLog: [],
   vaultPrefs: { attachments: DEFAULT_ATTACHMENT_LOCATION },
-  vaultStatus: { externalSync: null, lastError: null, lastSyncAt: null, state: "no-remote" },
+  vaultStatus: {
+    conflicts: [],
+    device: "Fixture Mac",
+    externalSync: null,
+    lastError: null,
+    lastSyncAt: null,
+    state: "no-remote",
+  },
 });
 
 const deriveTree = (vault: Map<string, string>): VaultEntry[] => {

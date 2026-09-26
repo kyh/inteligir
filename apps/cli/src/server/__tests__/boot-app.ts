@@ -124,6 +124,9 @@ export const fakeAgentAccounts = (
   };
 };
 
+// what a booted app calls itself before a sign-in names it, so no suite reads the host's own name.
+export const TEST_MACHINE_NAME = "Test Mac";
+
 export interface BootTestAppOptions {
   agent?: AgentStatus;
   // absent, every harness answers signed in.
@@ -195,6 +198,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
 
   const ports: ComposePorts = {
     knowledge: { projector: createInlineProjector() },
+    machineName: TEST_MACHINE_NAME,
     vault:
       options.derivedRemote === true
         ? { gitEnv: hermeticGitEnv(), watch: false }

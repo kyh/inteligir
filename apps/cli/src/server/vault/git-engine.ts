@@ -1,15 +1,20 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
+import { VAULT_SYNC_CONFLICTS_MAX } from "@repo/api/local/vault/vault-schema";
 import type {
   ExternalSync,
-  VaultConflict,
   VaultDeletedEntry,
   VaultRevision,
   VaultStatusResponse,
+  VaultSyncConflict,
 } from "@repo/api/local/vault/vault-schema";
+import { parseConflictCopyPath } from "@repo/notes/sync/conflict-copy";
+import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
+import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import { ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig, VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
+import { messageOf } from "../error-message";
 import { readOriginConfig, REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
 import { ACCOUNT_MARKER_KEY } from "./git-bootstrap";
 import {
@@ -20,6 +25,8 @@ import {
   readTurnCommits,
 } from "./git-history";
 import type { NoteHistoryPage, TurnCommit } from "./git-history";
+import { mergeFetched, mergeInProgress } from "./git-merge";
+import type { Reconcile } from "./git-merge";
 import { entryPaths, isUnmerged, readPorcelain } from "./git-porcelain";
 import type { PorcelainEntry } from "./git-porcelain";
 import {
@@ -29,6 +36,7 @@ import {
   isMissingRemoteRef,
   NETWORK_GIT_TIMEOUT_MS,
   packExceeds,
+  readGitBlob,
   redactRemoteUrl,
   runGit,
 } from "./git-run";
@@ -57,13 +65,18 @@ export interface GitEngineArgs {
   // asked every pass, over the vault's origin read then, so a sign-in, a sign-out or a remote the
   // user sets in the vault takes effect without a restart.
   remote: VaultRemoteProvider;
+  // the committer of every commit this engine makes, asked at each: a merge on another device
+  // names this one's version by it, and a sign-in may rename the device.
+  deviceName: () => string;
+  // the verdict a path both sides changed gets; a suite injects one that fails.
+  reconcile?: Reconcile;
   // the service that syncs the folder instead, which the no-remote status names.
   externalSync?: ExternalSync | null;
   // fired on a sync transition, never on a commit that lands: the state is dirty on both sides
   // of a commit, and each announcement costs every client a porcelain read under the repo lock.
   // a flush that fails, and the commit that lands after it, move the reported error, so both fire.
   onStatusChanged?: () => void;
-  // fired mid-pass, when a rebase moved the tree.
+  // fired mid-pass, when a rebase or a merge moved the tree.
   onFilesChanged?: (change: VaultFilesChange) => void;
   onError?: (message: string) => void;
   quietMs?: number;
@@ -117,13 +130,15 @@ export interface GitEngine {
   dispose: () => Promise<void>;
 }
 
-// the tips a conflict was met between: while neither moves, a rebase would only replay the same
-// conflict through the worktree, rewriting every file it touches on every pass.
-interface RecordedConflict {
-  conflict: VaultConflict;
+// the tips a merge failed outright between: while neither moves, another try fails the same way.
+interface IntegrationTips {
   head: string;
   remote: string;
 }
+
+const MERGE_FAILED_MESSAGE =
+  "This device's changes and another device's could not be combined. Sync tries again once " +
+  "either side changes.";
 
 // where a push the remote refused as too large was met. while the remote tip stands and the
 // branch only grew from the refused head, every pack a push would send holds the refused one, so
@@ -149,7 +164,6 @@ const pushTooLargeMessage = (remote: VaultRemoteSpec, maxPushBytes: number): str
 type SyncOutcome =
   | { kind: "none" }
   | { kind: "broken" }
-  | { kind: "conflict"; recorded: RecordedConflict }
   | { kind: "account-mismatch" }
   | { kind: "detached" }
   | { kind: "unreachable"; failure: NetworkFailure };
@@ -167,6 +181,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   let flushError: string | null = null;
   let lastOutcome: SyncOutcome = { kind: "none" };
   let refusedPush: RefusedPush | null = null;
+  let failedMerge: IntegrationTips | null = null;
+  // newest first, since boot
+  let conflicts: VaultSyncConflict[] = [];
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -218,10 +235,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return await run(gitArgs, options);
   };
 
+  // a lost race leaves the tree to say "unpushed".
   const recordNetworkFailure = (failure: NetworkFailure | "lost-race"): void => {
-    // a remote that did not answer says nothing about the tips a recorded conflict was met
-    // between, so the conflict stands; a lost race leaves the tree to say "unpushed".
-    if (failure !== "lost-race" && lastOutcome.kind !== "conflict") {
+    if (failure !== "lost-race") {
       lastOutcome = { failure, kind: "unreachable" };
     }
   };
@@ -229,9 +245,47 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const porcelain = async (paths: readonly string[] = []): Promise<PorcelainEntry[]> =>
     await readPorcelain(run, paths);
 
+  let rebaseStateDirs: readonly string[] | null = null;
+  const rebaseInProgress = async (): Promise<boolean> => {
+    rebaseStateDirs ??= [
+      await gitPath(run, root, "rebase-merge"),
+      await gitPath(run, root, "rebase-apply"),
+    ];
+    return rebaseStateDirs.some((dir) => existsSync(dir));
+  };
+
+  // only a pass starts a rebase or a merge, under the lock, and it ends either before letting go,
+  // so one is open before this engine's first commit only when a crash left it, and after that
+  // only when a pass could not abort its own. committing over it would seal git's conflict
+  // markers into history, or land on a rebase's detached head.
+  let mayBeMidIntegration = true;
+  const clearInterruptedIntegration = async (): Promise<void> => {
+    if (!mayBeMidIntegration) {
+      return;
+    }
+    if (await mergeInProgress({ run })) {
+      await run(["merge", "--abort"]).catch(() => {
+        /* checked below */
+      });
+    }
+    if (await rebaseInProgress()) {
+      await run(["rebase", "--abort"]).catch(() => {
+        /* checked below */
+      });
+    }
+    if ((await mergeInProgress({ run })) || (await rebaseInProgress())) {
+      lastOutcome = { kind: "broken" };
+      lastError =
+        `an interrupted merge or rebase could not be aborted; manual recovery needed: run ` +
+        `\`git merge --abort\` or \`git rebase --abort\` in ${root}, then restart inteligir`;
+      throw new Error(lastError);
+    }
+    mayBeMidIntegration = false;
+  };
+
   const commit = async (subject: string, author?: CommitAuthor): Promise<void> => {
     await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
-      env: identityEnv(author),
+      env: identityEnv(args.deviceName(), author),
     });
   };
 
@@ -245,6 +299,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // a whole-tree commit that succeeds leaves nothing a failed flush stranded, whoever ran it: a
   // sync pass or a checkpoint clears the report as a later flush would.
   const commitIfDirty = async (): Promise<{ files: number } | null> => {
+    await clearInterruptedIntegration();
     const dirty = entryPaths(await porcelain());
     if (dirty.length === 0) {
       clearFlushError();
@@ -266,6 +321,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (paths.length === 0) {
       return null;
     }
+    await clearInterruptedIntegration();
     // git add errors on a pathspec matching nothing, and a reported write may have been reverted.
     const dirty = entryPaths(await porcelain(paths));
     if (dirty.length === 0) {
@@ -304,6 +360,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (claimed.length === 0) {
       return await commitIfDirty();
     }
+    await clearInterruptedIntegration();
     // an :(exclude) pathspec is magic, which --literal-pathspecs turns off, and naming every
     // unclaimed path is the argv a large vault's first commit would overflow: the whole tree is
     // staged and the claims taken back out.
@@ -426,15 +483,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  let rebaseStateDirs: readonly string[] | null = null;
-  const rebaseInProgress = async (): Promise<boolean> => {
-    rebaseStateDirs ??= [
-      await gitPath(run, root, "rebase-merge"),
-      await gitPath(run, root, "rebase-apply"),
-    ];
-    return rebaseStateDirs.some((dir) => existsSync(dir));
-  };
-
   const revListCount = async (range: string): Promise<number> => {
     const { stdout } = await run(["rev-list", "--count", range]);
     return Math.trunc(Number(stdout.trim())) || 0;
@@ -508,8 +556,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  // what a rebase from a clean tree rewrote on disk. --no-renames: a moved note is a path gone
-  // and a path added, and a consumer has to hear about both.
+  // what a rebase or a merge from a clean tree rewrote on disk. --no-renames: a moved note is a
+  // path gone and a path added, and a consumer has to hear about both.
   const reportMovedTree = async (from: string, to: string): Promise<void> => {
     let paths: string[];
     try {
@@ -550,13 +598,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  // the repo is left off its rebase either way; "unhandled" is the caller's cue to rethrow.
-  const recoverFailedRebase = async (
-    branch: string,
-    tips: { head: string; remote: string },
-  ): Promise<"recorded" | "unhandled"> => {
+  // the repo is left off its rebase either way. "conflicted" is a rebase that stopped on paths
+  // both sides changed, which the pass merges instead; "unhandled" is the caller's cue to rethrow.
+  const recoverFailedRebase = async (): Promise<"conflicted" | "broken" | "unhandled"> => {
     // git's own unmerged set, read before the abort wipes it.
-    const conflictFiles = (await rebaseInProgress()) ? await unmergedPathsOr([]) : [];
+    const stopped = (await rebaseInProgress()) ? await unmergedPathsOr([]) : [];
     if (await rebaseInProgress()) {
       // never leave the repo mid-rebase.
       await run(["rebase", "--abort"]).catch(() => {
@@ -567,25 +613,137 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const stillUnmerged = await unmergedPathsOr(["unknown"]);
     if ((await rebaseInProgress()) || stillUnmerged.length > 0) {
       lastOutcome = { kind: "broken" };
+      mayBeMidIntegration = true;
       lastError =
         `a failed rebase could not be aborted; manual recovery needed: ` +
         `run \`git rebase --abort\` in ${root}, then restart inteligir`;
       // a tree left mid-rebase is no diff between two commits. a clean abort needs no report:
       // it puts back the tree the pass started from.
       args.onFilesChanged?.({ kind: "unknown" });
-      return "recorded";
+      return "broken";
     }
-    if (conflictFiles.length > 0) {
-      const remoteRef = `refs/remotes/origin/${branch}`;
-      const conflict: VaultConflict = {
-        files: conflictFiles,
-        ours: { commits: await revListCount(`${remoteRef}..HEAD`).catch(() => 0) },
-        theirs: { commits: await revListCount(`HEAD..${remoteRef}`).catch(() => 0) },
-      };
-      lastOutcome = { kind: "conflict", recorded: { ...tips, conflict } };
-      return "recorded";
+    return stopped.length > 0 ? "conflicted" : "unhandled";
+  };
+
+  const noteConflicts = (reports: readonly SyncConflictReport[]): void => {
+    if (reports.length === 0) {
+      return;
     }
-    return "unhandled";
+    const at = Date.now();
+    conflicts = [...reports.map((report) => ({ ...report, at })), ...conflicts].slice(
+      0,
+      VAULT_SYNC_CONFLICTS_MAX,
+    );
+  };
+
+  // a copy another device's merge or the phone made arrives as a note like any other; its name
+  // says whose version it holds, and whoever added it kept theirs at the note.
+  const pulledCopies = async (
+    from: string,
+    to: string,
+    madeHere: ReadonlySet<string>,
+  ): Promise<SyncConflictReport[]> => {
+    const { stdout } = await run([
+      "diff",
+      "--name-only",
+      "-z",
+      "--no-renames",
+      "--diff-filter=A",
+      from,
+      to,
+      "--",
+    ]);
+    const reports: SyncConflictReport[] = [];
+    for (const added of stdout.split("\0")) {
+      const copy = added === "" || madeHere.has(added) ? null : parseConflictCopyPath(added);
+      if (copy === null) {
+        continue;
+      }
+      // first-parent: a copy another desktop made lands in its merge commit, which adds the path
+      // to that device's own line.
+      const adder = await run([
+        "log",
+        "-1",
+        "--diff-merges=first-parent",
+        "--no-patch",
+        "--diff-filter=A",
+        "--format=%cn",
+        `${from}..${to}`,
+        "--",
+        added,
+      ]);
+      reports.push({
+        copyDevice: copy.device,
+        copyPath: added,
+        keptDevice: adder.stdout.trim(),
+        kind: "copied",
+        path: copy.path,
+      });
+    }
+    return reports;
+  };
+
+  // a rebase keeps the history a line, so it goes first; it replays commits one by one and drops
+  // a merge commit, so a branch still holding an unpushed merge merges again rather than lose it.
+  // answers what the merge settled, or null when the pass ends here.
+  const integrate = async (
+    remoteRef: string,
+    tips: IntegrationTips,
+  ): Promise<SyncConflictReport[] | null> => {
+    const { stdout: unpushedMerge } = await run([
+      "rev-list",
+      "--merges",
+      "--max-count=1",
+      `${remoteRef}..HEAD`,
+    ]);
+    if (unpushedMerge.trim() === "") {
+      try {
+        // --empty=drop: a local commit already landed upstream would otherwise halt the merge
+        // backend as a conflict naming no files. rerere off: a recorded resolution would replay
+        // into the worktree the abort then has to undo.
+        await run(
+          [
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "rerere.enabled=false",
+            "rebase",
+            "--empty=drop",
+            remoteRef,
+          ],
+          { env: identityEnv(args.deviceName()) },
+        );
+        return [];
+      } catch (error) {
+        const recovered = await recoverFailedRebase();
+        if (recovered === "broken") {
+          return null;
+        }
+        if (recovered === "unhandled") {
+          throw error;
+        }
+      }
+    }
+    try {
+      return await mergeFetched(
+        { readBlob: async (oid) => await readGitBlob(root, oid, { env: extraEnv }), run },
+        { device: args.deviceName(), reconcile: args.reconcile ?? reconcileFile, remoteRef },
+      );
+    } catch (error) {
+      if (await mergeInProgress({ run })) {
+        lastOutcome = { kind: "broken" };
+        mayBeMidIntegration = true;
+        lastError =
+          `a failed merge could not be aborted; manual recovery needed: ` +
+          `run \`git merge --abort\` in ${root}, then restart inteligir`;
+        args.onFilesChanged?.({ kind: "unknown" });
+        return null;
+      }
+      failedMerge = tips;
+      lastError = MERGE_FAILED_MESSAGE;
+      args.onError?.(`${MERGE_FAILED_MESSAGE} (${messageOf(error)})`);
+      return null;
+    }
   };
 
   // under the lock, before the fetch. answers the remote and the branch to sync, or null to end the
@@ -649,26 +807,19 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return true;
     }
     const remoteRef = `refs/remotes/origin/${branch}`;
-    const tips = { head: await revParse("HEAD"), remote: await revParse(remoteRef) };
-    if (
-      lastOutcome.kind === "conflict" &&
-      lastOutcome.recorded.head === tips.head &&
-      lastOutcome.recorded.remote === tips.remote
-    ) {
+    const tips: IntegrationTips = {
+      head: await revParse("HEAD"),
+      remote: await revParse(remoteRef),
+    };
+    if (await isAncestor(tips.remote, tips.head)) {
+      return true;
+    }
+    if (failedMerge?.head === tips.head && failedMerge.remote === tips.remote) {
       return false;
     }
-    try {
-      // --empty=drop: a local commit already landed upstream would otherwise halt the merge
-      // backend as a conflict naming no files.
-      // a replayed commit is committed anew, and git refuses to guess a committer on a host
-      // whose name carries no domain (a Linux box, a container); the authors stay the originals.
-      await run(["-c", "commit.gpgsign=false", "rebase", "--empty=drop", remoteRef], {
-        env: identityEnv(),
-      });
-    } catch (error) {
-      if ((await recoverFailedRebase(branch, tips)) === "unhandled") {
-        throw error;
-      }
+    failedMerge = null;
+    const settled = await integrate(remoteRef, tips);
+    if (settled === null) {
       return false;
     }
     // the push decides what this pass reports.
@@ -676,6 +827,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const head = await revParse("HEAD");
     if (head !== tips.head) {
       await reportMovedTree(tips.head, head);
+      const madeHere = new Set(
+        settled.flatMap((report) => (report.kind === "copied" ? [report.copyPath] : [])),
+      );
+      // the pull already landed; a report it could not read costs only the report.
+      const pulled = await pulledCopies(tips.head, head, madeHere).catch(() => []);
+      noteConflicts([...settled, ...pulled]);
     }
     return true;
   };
@@ -697,8 +854,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         recordNetworkFailure(classifyNetworkFailure(error));
         throw error;
       }
-      // a fresh remote: the push below creates the branch. it answered, and it holds nothing a
-      // recorded conflict could be about.
+      // a fresh remote: the push below creates the branch.
       lastOutcome = { kind: "none" };
       remoteHasBranch = false;
     }
@@ -768,13 +924,17 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
   const statusSnapshot = async (): Promise<VaultStatusResponse> => {
     const remote = await currentRemote();
-    const reportedError = flushError ?? lastError;
+    const statusFields = {
+      conflicts,
+      device: args.deviceName(),
+      lastError: flushError ?? lastError,
+      lastSyncAt,
+    };
     if (remote === null) {
-      return { externalSync, lastError: reportedError, lastSyncAt, state: "no-remote" };
+      return { ...statusFields, externalSync, state: "no-remote" };
     }
     const fields = {
-      lastError: reportedError,
-      lastSyncAt,
+      ...statusFields,
       // redacted: an https remote carries the token, and this string reaches logs and the ui.
       remote: redactRemoteUrl(remote.url),
       remoteSource: remote.source,
@@ -787,9 +947,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     // after a failed fetch, clean/dirty would be a claim about the remote this engine cannot make.
     if (outcome.kind === "broken") {
       return { ...fields, state: "broken" };
-    }
-    if (outcome.kind === "conflict") {
-      return { ...fields, conflict: outcome.recorded.conflict, state: "conflict" };
     }
     if (liveHolds.size > 0) {
       return { ...fields, state: "held" };

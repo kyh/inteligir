@@ -99,9 +99,11 @@ what each one is FOR.
 |                           | finishes and search answers without it, the boot line counts it deferred, |
 |                           | and it is indexed once its read lands                                     |
 | vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):     |
-|                           | propagation, then a typed conflict + git-verified repo integrity          |
+|                           | propagation, then a same-line edit merged with a copy aside, both repos   |
+|                           | converged byte-identical and left mid-nothing                             |
 | hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
-|                           | convergence through the derived remote, boot clone, revoke → unauthorized |
+|                           | convergence through the derived remote, boot clone, a same-line edit      |
+|                           | copied aside under the signed-in device's name, revoke → unauthorized     |
 | hosted-vault-phone-write  | a second login plays the phone against a wrangler-dev Worker: its change  |
 |                           | set lands and A syncs its bytes, history naming the phone; a stale set    |
 |                           | gets A's bytes back as a conflict, and a recommit on them converges       |

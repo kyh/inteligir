@@ -17,6 +17,11 @@ import type { Scenario } from "../harness/scenario";
 const SHARED_PATH = "notes/shared.md";
 const FROM_A = "# Shared\n\nWritten on A, pushed through the hosted remote.\n";
 const FROM_B = "# Reply\n\nWritten on B, pulled back to A.\n";
+const EDITED_ON_A = "# Shared\n\nEdited on A.\n";
+const EDITED_ON_B = "# Shared\n\nEdited on B.\n";
+// A signed in as "E2E Device A", so its commits carry that name and B's merge copies A's
+// version aside under it.
+const COPY_OF_A = "notes/shared (conflict, E2E Device A).md";
 
 // compares the live credential read back from the data dir and the contract's prefix constant: a
 // hand-copied "igd_" would keep passing after a prefix change.
@@ -91,7 +96,7 @@ export const hostedVaultSync: Scenario = {
       // through the harness hook: a path rebuilt here would send B down the init+seed path instead
       // of the clone.
       seedData: (dataDir) => {
-        writeDeviceCredential(dataDir, { ...deviceB, userId });
+        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B", userId });
       },
     });
 
@@ -129,6 +134,54 @@ export const hostedVaultSync: Scenario = {
       await readFile(path.join(a.vaultDir, "notes", "from-b.md"), "utf-8"),
       FROM_B,
       "A's on-disk content",
+    );
+
+    // B's edit lands first: A's push pings B, and a pass it runs before B's write would only pull.
+    ctx.log("both edit one line: B keeps its own and copies A's aside under A's device name");
+    await b.api.vault.write({
+      content: EDITED_ON_B,
+      guard: { kind: "overwrite" },
+      path: SHARED_PATH,
+    });
+    await a.api.vault.write({
+      content: EDITED_ON_A,
+      guard: { kind: "overwrite" },
+      path: SHARED_PATH,
+    });
+    await syncUntil(a.api, "A after its edit", "clean");
+    await syncUntil(b.api, "B meeting A's edit", "clean");
+    expectEq(
+      await readFile(path.join(b.vaultDir, SHARED_PATH), "utf-8"),
+      EDITED_ON_B,
+      "B keeps its own edit",
+    );
+    expectEq(
+      await readFile(path.join(b.vaultDir, COPY_OF_A), "utf-8"),
+      EDITED_ON_A,
+      "B's copy of A's version",
+    );
+    const merged = await b.api.vault.status();
+    expectEq(merged.device, "E2E Device B", "B's own name");
+    expect(
+      merged.conflicts.some(
+        (report) =>
+          report.kind === "copied" &&
+          report.copyPath === COPY_OF_A &&
+          report.copyDevice === "E2E Device A" &&
+          report.keptDevice === "E2E Device B",
+      ),
+      `B reports the copy it made (got ${JSON.stringify(merged.conflicts)})`,
+    );
+    await syncUntil(a.api, "A pulling B's merge", "clean");
+    expectEq(
+      await readFile(path.join(a.vaultDir, COPY_OF_A), "utf-8"),
+      EDITED_ON_A,
+      "A holds the copy B made",
+    );
+    expectEq(
+      await readFile(path.join(a.vaultDir, SHARED_PATH), "utf-8"),
+      EDITED_ON_B,
+      "A converges on B's merge",
     );
 
     await expectNoTokenInGitConfig(a.vaultDir, a.dataDir, "A");
