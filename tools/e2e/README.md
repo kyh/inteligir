@@ -186,6 +186,10 @@ what each one is FOR.
 | external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
 |                           | clobbering                                                                |
 | view-context-browser      | the agent is told which note the message left from, and at what revision  |
+| os-dictation-browser      | words the OS dictates (CDP's `Input.insertText`, the IME-style commit     |
+|                           | macOS dictation makes) and words typed after them land in order and       |
+|                           | once: in the ⌘K composer's field, sending nothing, and in the note focus  |
+|                           | returns to, on disk                                                       |
 | undo-browser              | a ⌘K action's finish toast offers Undo, which removes the note it made    |
 |                           | and the reply says Changes undone; a reply's Undo changes, clicked inside |
 |                           | the autosave debounce, takes its turn back and keeps a line typed since,  |
