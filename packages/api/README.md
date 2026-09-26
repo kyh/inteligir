@@ -59,7 +59,8 @@ src/
                        # globals alone, and the utf-8 byte count the row cap
                        # is held in — the leaf that loads everywhere
     device/            # DEVICE_API_PATHS, the igd_ credential grammar, and
-                       # login-flow.ts — the one spelling of "join an account"
+                       # login-flow.ts — the one spelling of "join an account",
+                       # or create one (signUpDevice)
     sync/              # SYNC_API_PATHS and the opaque-body event rows;
                        # plan-page.ts (the ONE page planner every reader of the
                        # merged log runs); sync-session.ts (the id-fenced

@@ -17,10 +17,11 @@ Durable Object — never in anything shared across accounts.
 - **Device records** — a name per device (that machine's hostname unless it was
   given another), timestamps (created, last seen, revoked) and the SHA-256 hash
   of each device credential. The credential itself is answered once, when the
-  device signs in with your email and password, and never stored. The password
-  crosses the wire for that one request and is held nowhere on the device; the
-  browser session that sign-in would have created is deleted in the same
-  request, so the device holds its credential and nothing else.
+  device signs in with your email and password or creates the account, and
+  never stored. The password crosses the wire for that one request and is held
+  nowhere on the device; the browser session that sign-in or sign-up would have
+  created is deleted in the same request, so the device holds its credential
+  and nothing else.
 
 - **Thread events** — the append-only log of your agent conversations
   (messages, tool activity, status, and each thread's title, the path and
@@ -150,6 +151,7 @@ else under `/v1/` exists.
 | ------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `/v1/auth/sign-up`        | Your email, name, password and invite code, once, to create the account.                             | The invite code; attempts are throttled per caller address. |
 | `/v1/device/login`        | Your email, password and this device's name, once; it answers the device's credential.               | Your password; attempts are throttled per caller address.   |
+| `/v1/device/sign-up`      | Your name, email, password, invite code and this device's name, once, to create the account.         | The invite code; attempts are throttled per caller address. |
 | `/v1/device/sign-out`     | Nothing but the credential; the device it names is removed from your account.                        | That device's credential.                                   |
 | `/v1/device/list`         | Your devices' names and when each was created, last seen and revoked, for the account pages.         | Your signed-in browser session.                             |
 | `/v1/device/revoke`       | The id of the device to revoke.                                                                      | Your signed-in browser session.                             |

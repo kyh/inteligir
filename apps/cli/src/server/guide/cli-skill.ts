@@ -298,7 +298,8 @@ files — those are git's job.
 
 There is no \`logout\` here: it discards writes that have not reached the
 account yet, so it lives in the app's Settings → Devices, in front of the state
-it would throw away.
+it would throw away. Nor is there a sign-up: creating an account takes the
+user's own invite code and password, so it is theirs to do in the app.
 
 ## System
 

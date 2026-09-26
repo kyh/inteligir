@@ -7,8 +7,8 @@ import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import { plural } from "@repo/ui/lib/plural";
 import { relativeTimeLabel, useNow } from "../relative-time";
+import { AccountForm } from "../account-form";
 import { useCloudSession } from "../cloud-session";
-import { SignInForm } from "../sign-in-form";
 import { useDataDirScope } from "../vault-hooks";
 import { Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
@@ -73,7 +73,7 @@ export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
 };
 
 export const SyncSection = () => {
-  const { status, pending, refusal, signIn, signOut, syncThreads } = useCloudSession();
+  const { status, pending, refusal, signIn, signOut, signUp, syncThreads } = useCloudSession();
   const now = useNow(LAST_SYNCED_TICK_MS);
   const scope = useDataDirScope();
 
@@ -86,8 +86,9 @@ export const SyncSection = () => {
         <div className="space-y-2">
           <SecondVaultNote scope={scope} />
           {status.revokeError === null ? null : <RevokeFailedNotice cloudUrl={status.cloudUrl} />}
-          <SignInForm
+          <AccountForm
             cloudUrl={status.cloudUrl}
+            onCreate={signUp}
             onSignIn={signIn}
             pending={pending}
             refusal={refusal}

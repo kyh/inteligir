@@ -7,6 +7,8 @@ export const CLOUD_ERROR_CODES = [
   "bad-request",
   "unauthorized",
   "invalid-credentials",
+  "invite-refused",
+  "account-exists",
   "not-found",
   "rate-limited",
   "device-limit",
@@ -21,11 +23,13 @@ export type CloudErrorCode = (typeof CLOUD_ERROR_CODES)[number];
 // account-deleted is 410, not 401: told "unauthorized", a client retries the credential forever
 export const CLOUD_ERROR_STATUS = {
   "account-deleted": 410,
+  "account-exists": 409,
   "bad-request": 400,
   "device-limit": 409,
   "file-too-large": 413,
   internal: 500,
   "invalid-credentials": 401,
+  "invite-refused": 403,
   "not-found": 404,
   "rate-limited": 429,
   "sync-conflict": 409,

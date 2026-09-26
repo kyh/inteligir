@@ -1,6 +1,7 @@
 // the credential never crosses this wire; deviceId is the only identity a client is shown.
 // no separate "sync enabled" flag beside the credential: two values that must agree can disagree.
 
+import { deviceSignUpRequestSchema } from "@repo/api/cloud/account/account-schema";
 import {
   DEVICE_NAME_MAX_LENGTH,
   deviceLoginRequestSchema,
@@ -9,6 +10,10 @@ import { z } from "zod";
 
 // imported, not restated: a name accepted here and refused at login is a shape error long after the click
 export const CLOUD_DEVICE_NAME_MAX_LENGTH = DEVICE_NAME_MAX_LENGTH;
+export {
+  PASSWORD_MAX_LENGTH as CLOUD_PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH as CLOUD_PASSWORD_MIN_LENGTH,
+} from "@repo/api/cloud/device/device-schema";
 
 export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
   z
@@ -55,12 +60,23 @@ export type CloudStatusResponse = z.infer<typeof cloudStatusResponseSchema>;
 export const cloudDevicesPageUrl = (cloudUrl: string): string =>
   new URL("/app/devices", cloudUrl).href;
 
+// where a forgotten password is reset: the Worker's page that mails the link
+// (apps/web/src/routes/app/forgot-password.tsx)
+export const cloudForgotPasswordPageUrl = (cloudUrl: string): string =>
+  new URL("/app/forgot-password", cloudUrl).href;
+
+// absent means the server's own hostname
+const localDeviceNameSchema = z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH).optional();
+
 // the cloud's own email and password fields, so a value refused there is refused here first
 export const cloudLoginRequestSchema = deviceLoginRequestSchema
   .pick({ email: true, password: true })
-  .extend({
-    // absent means the server's own hostname
-    deviceName: z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH).optional(),
-  })
+  .extend({ deviceName: localDeviceNameSchema })
   .strict();
 export type CloudLoginRequest = z.infer<typeof cloudLoginRequestSchema>;
+
+export const cloudSignUpRequestSchema = deviceSignUpRequestSchema
+  .pick({ email: true, inviteCode: true, name: true, password: true })
+  .extend({ deviceName: localDeviceNameSchema })
+  .strict();
+export type CloudSignUpRequest = z.infer<typeof cloudSignUpRequestSchema>;

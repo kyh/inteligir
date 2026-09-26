@@ -8,7 +8,8 @@ import {
   normalizeDeviceName,
 } from "../device/device-schema";
 import type { DeviceCredential } from "../device/device-schema";
-import { loginDevice } from "../device/login-flow";
+import { deviceSignUpRequestSchema } from "../account/account-schema";
+import { loginDevice, signUpDevice } from "../device/login-flow";
 import type { DeviceCredentialStore, LoginOutcome } from "../device/login-flow";
 
 const CLOUD_URL = "https://cloud.test";
@@ -146,5 +147,70 @@ describe("loginDevice", () => {
     };
     await expect(login(fetch, store)).rejects.toThrow("keychain unavailable");
     expect(calls).toBe(2);
+  });
+});
+
+const inviteRefused: CloudFetch = async () =>
+  Response.json(
+    { error: { code: "invite-refused", message: "That invite code isn't valid." } },
+    { status: 403 },
+  );
+
+const signUp = async (fetch: CloudFetch, store: DeviceCredentialStore): Promise<LoginOutcome> =>
+  await signUpDevice({
+    client: { baseUrl: CLOUD_URL, fetch },
+    deviceName: " Test Laptop ",
+    email: "owner@example.test",
+    inviteCode: "INVITE-1",
+    name: "Owner",
+    password: "correct horse battery",
+    store,
+  });
+
+describe("signUpDevice", () => {
+  it("posts the sign-up row with the normalized name and writes what came back", async () => {
+    const cloud = loginOk();
+    const { store, written } = memoryStore();
+    expect(await signUp(cloud.fetch, store)).toStrictEqual({
+      credential: LOGGED_IN,
+      kind: "logged-in",
+    });
+    expect(written).toStrictEqual([LOGGED_IN]);
+
+    expect(cloud.calls).toHaveLength(1);
+    expect(new URL(cloud.calls[0]?.url ?? "").pathname).toBe(DEVICE_API_PATHS.signUp);
+    const body = deviceSignUpRequestSchema.parse(JSON.parse(cloud.calls[0]?.body ?? ""));
+    expect(body).toStrictEqual({
+      deviceName: "Test Laptop",
+      email: "owner@example.test",
+      inviteCode: "INVITE-1",
+      name: "Owner",
+      password: "correct horse battery",
+    });
+  });
+
+  it("surfaces the invite gate's refusal as a value, and writes nothing", async () => {
+    const { store, written } = memoryStore();
+    const outcome = await signUp(inviteRefused, store);
+    expect(outcome.kind === "refused" && outcome.failure).toMatchObject({
+      code: "invite-refused",
+      kind: "refused",
+    });
+    expect(written).toEqual([]);
+  });
+
+  it("gives the fresh device's slot back when the store cannot keep its credential", async () => {
+    const cloud = loginOk();
+    const store: DeviceCredentialStore = {
+      write: () => {
+        throw new Error("keychain unavailable");
+      },
+    };
+    await expect(signUp(cloud.fetch, store)).rejects.toThrow("keychain unavailable");
+
+    const [, signOut] = cloud.calls;
+    expect(cloud.calls).toHaveLength(2);
+    expect(new URL(signOut?.url ?? "").pathname).toBe(DEVICE_API_PATHS.signOut);
+    expect(signOut?.authorization).toBe(`Bearer ${LOGGED_IN.credential}`);
   });
 });
