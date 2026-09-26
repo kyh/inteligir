@@ -25,6 +25,7 @@
     "expo-router": "catalog:",
     "expo-secure-store": "catalog:",
     "expo-splash-screen": "catalog:",
+    "expo-sqlite": "catalog:",
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
     "expo-updates": "catalog:",

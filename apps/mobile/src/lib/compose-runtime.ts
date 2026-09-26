@@ -1,5 +1,6 @@
 // the platform-free half of the composition root: app-runtime.ts binds it to the Keychain, the
-// disk cache and the OS, so every transition between signed in and out runs under test.
+// database, the attachment files and the OS, so every transition between signed in and out runs
+// under test.
 
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import type { DeviceCredentialStore } from "@repo/api/cloud/device/login-flow";
@@ -7,13 +8,14 @@ import { createCaptureSender } from "../capture/capture-sender";
 import type { CaptureSender } from "../capture/capture-sender";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
-import type { NoteCache } from "../notes/note-cache";
+import type { AttachmentFiles } from "../notes/attachment-files";
 import { createNotesStore } from "../notes/notes-store";
 import type { NotesStore, SignInSource } from "../notes/notes-store";
 import { createMemorySyncStore } from "../sync/memory-sync-store";
 import { createSyncRuntime } from "../sync/sync-runtime";
 import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
+import type { SqlDriver } from "./sql-driver";
 
 export interface CredentialStore extends DeviceCredentialStore {
   read: () => Promise<DeviceCredential | null>;
@@ -23,7 +25,9 @@ export interface CredentialStore extends DeviceCredentialStore {
 export interface ComposeRuntimeArgs {
   cloudUrl: string;
   credentials: CredentialStore;
-  cache: NoteCache;
+  // opened once for the app's life; a restore keeps what it holds, every other sign-in wipes it
+  db: SqlDriver;
+  attachments: AttachmentFiles;
   mintCaptureKey: () => string;
   sync?: Omit<SyncRuntimeArgs, "cloudUrl" | "store">;
 }
@@ -44,7 +48,11 @@ export interface AppRuntime {
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const store = createMemorySyncStore();
   const sync = createSyncRuntime({ ...args.sync, cloudUrl: args.cloudUrl, store });
-  const notes = createNotesStore({ cache: args.cache, session: sync.session });
+  const notes = createNotesStore({
+    attachments: args.attachments,
+    db: args.db,
+    session: sync.session,
+  });
 
   // the tree is fetched here so no screen carries its own cold-fetch effect.
   const activate = (credential: DeviceCredential, source: SignInSource): void => {

@@ -7,9 +7,8 @@ import {
   writeDeviceCredential,
 } from "../credential/secure-store-credential";
 import type { LoginRequest, LoginState } from "../login/login-store";
-import { createExpoNoteCache } from "../notes/expo-note-cache";
-import type { CachedNote } from "../notes/note-cache";
-import type { CommentsRead, NoteRead, NotesTreeState } from "../notes/notes-store";
+import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
+import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
 import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
@@ -18,6 +17,7 @@ import type { CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime } from "./compose-runtime";
+import { createExpoSqlDriver } from "./expo-sql-driver";
 
 let runtime: AppRuntime | null = null;
 
@@ -30,13 +30,14 @@ const devLog = (message: string): void => {
 
 const build = (): AppRuntime => {
   const rt = composeRuntime({
-    cache: createExpoNoteCache(),
+    attachments: createExpoAttachmentFiles(),
     cloudUrl: getCloudUrl(),
     credentials: {
       clear: clearDeviceCredential,
       read: readDeviceCredential,
       write: writeDeviceCredential,
     },
+    db: createExpoSqlDriver("inteligir.db"),
     // the contract requires an idempotency key of at least 8 chars.
     mintCaptureKey: () => hexFromBytes(Crypto.getRandomBytes(16)),
     sync: { onDebug: devLog },
@@ -85,11 +86,11 @@ export const refreshNotes = async (): Promise<void> => {
 export const readNote = async (path: string): Promise<NoteRead> =>
   await getRuntime().notes.readNote(path);
 
-export const readNoteComments = async (note: CachedNote): Promise<CommentsRead> =>
+export const readNoteComments = async (note: NoteText): Promise<CommentsRead> =>
   await getRuntime().notes.readComments(note);
 
-export const resolveWikiPath = (target: string): string | null =>
-  getRuntime().notes.resolveWiki(target);
+export const resolveWikiPath = (target: string, alias?: string): string | null =>
+  getRuntime().notes.resolveWiki(target, alias);
 
 export const assetSource = (path: string): VaultAssetSource | null =>
   getRuntime().notes.assetSource(path);

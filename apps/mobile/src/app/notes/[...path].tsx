@@ -38,7 +38,7 @@ const NoteBody = ({
   resolveAsset,
 }: {
   screen: ScreenState;
-  onWikiLink: (target: string) => void;
+  onWikiLink: (target: string, noteId?: string) => void;
   resolveAsset: (target: string) => VaultAssetSource | null;
 }) => {
   const theme = useTheme();
@@ -85,7 +85,7 @@ const NoteScreen = () => {
   const [screen, setScreen] = useState<ScreenState>({ state: "loading" });
   const [comments, setComments] = useState<CommentsRead | null>(null);
   const tree = useNotesTree();
-  const commit = tree.state === "ready" ? tree.commit : null;
+  const entries = tree.state === "ready" ? tree.entries : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -114,8 +114,8 @@ const NoteScreen = () => {
   }, [path]);
 
   const onWikiLink = useCallback(
-    (target: string) => {
-      const resolved = resolveWikiPath(target);
+    (target: string, noteId?: string) => {
+      const resolved = resolveWikiPath(target, noteId);
       // an image or a pdf has no screen here, and read as a note it shows its bytes
       if (resolved === null || !isDocPath(resolved)) {
         return;
@@ -125,17 +125,17 @@ const NoteScreen = () => {
     [router],
   );
 
-  // the commit is read so it is a dependency: a deep link mounts this screen before the tree
-  // lands, and the compiler keeps the body's element until this callback changes.
+  // the listing is read so it is a dependency: a deep link mounts this screen before the rows
+  // load, and the compiler keeps the body's element until this callback changes.
   const resolveAsset = useCallback(
     (target: string) => {
-      if (commit === null) {
+      if (entries === null) {
         return null;
       }
       const resolved = resolveWikiPath(target);
       return resolved === null ? null : assetSource(resolved);
     },
-    [commit],
+    [entries],
   );
 
   const title = screen.state === "ready" ? screen.projection.title : "…";

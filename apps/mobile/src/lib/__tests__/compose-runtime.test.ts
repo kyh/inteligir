@@ -2,16 +2,23 @@ import type { CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
 import type { CloudResult } from "@repo/api/cloud/client";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
-import { describe, expect, it } from "vitest";
-import { createMemoryNoteCache } from "../../notes/note-cache";
-import type { NoteCache } from "../../notes/note-cache";
+import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { clientOver, createFakeVault } from "../../notes/__tests__/fake-vault";
+import {
+  createMemoryAttachments,
+  openTempDb,
+  tempDbPath,
+} from "../../notes/__tests__/phone-storage";
 import { agentMessage, createFakeCloud, logRow, ok } from "../../sync/__tests__/fakes";
 import type { FakeCloud } from "../../sync/__tests__/fakes";
 import { composeRuntime } from "../compose-runtime";
 import type { CredentialStore } from "../compose-runtime";
 import type { ReadableStore } from "../external-store";
+import type { SqlDriver } from "../sql-driver";
 
 const CRED = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_self" };
+const OTHER_CRED = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_other" };
 
 const UNAUTHORIZED: CloudResult<PullResponse> = {
   failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
@@ -52,35 +59,62 @@ const keychain = (stored: DeviceCredential | null, overrides: Partial<Credential
   return { calls, store };
 };
 
-const recordingCache = () => {
-  const inner = createMemoryNoteCache(100);
-  const calls: string[] = [];
-  const cache: NoteCache = {
-    ...inner,
-    clear: async () => {
-      calls.push("clear");
-      await inner.clear();
-    },
-  };
-  return { cache, calls };
+interface PhoneStorage {
+  db: SqlDriver;
+  attachments: ReturnType<typeof createMemoryAttachments>;
+}
+
+const phoneStorage = (db: SqlDriver = openTempDb()): PhoneStorage => ({
+  attachments: createMemoryAttachments(),
+  db,
+});
+
+// a cloud whose hosted vault holds one note and one image
+const vaultCloud = (): FakeCloud => {
+  const vault = clientOver(
+    createFakeVault({ "media/photo.png": "png bytes", "note.md": "# note\n" }).fetch,
+  );
+  return createFakeCloud({
+    vaultAsset: vault.vaultAsset,
+    vaultAssetSource: vault.vaultAssetSource,
+    vaultFile: vault.vaultFile,
+    vaultFiles: vault.vaultFiles,
+    vaultTree: vault.vaultTree,
+  });
+};
+
+const heldRows = async (db: SqlDriver): Promise<number> => {
+  const [row] = await db.all("SELECT count(content) AS held FROM mirror_entries");
+  return z.object({ held: z.number() }).parse(row).held;
 };
 
 const runtimeOver = (
   cloud: FakeCloud,
   credentials: CredentialStore,
-  cache: NoteCache = createMemoryNoteCache(100),
+  storage: PhoneStorage = phoneStorage(),
 ) => {
   let minted = 0;
   return composeRuntime({
-    cache,
+    attachments: storage.attachments,
     cloudUrl: "https://cloud.test",
     credentials,
+    db: storage.db,
     mintCaptureKey: () => {
       minted += 1;
       return `key-${minted}`;
     },
     sync: { createClient: () => cloud.client, pollIntervalMs: null },
   });
+};
+
+type Runtime = ReturnType<typeof runtimeOver>;
+
+// signed in and mirrored, with the image downloaded, so a wipe has something of each to take
+const mirrorOnce = async (rt: Runtime): Promise<void> => {
+  await rt.start();
+  await until(rt.notes.tree, (tree) => tree.state === "ready" && tree.progress === null);
+  await rt.notes.refresh();
+  expect(await rt.notes.attachmentFile("media/photo.png")).toMatchObject({ ok: true });
 };
 
 describe("the composed runtime", () => {
@@ -116,22 +150,23 @@ describe("the composed runtime", () => {
     });
   });
 
-  it("idles the notes and wipes their cache when a pull hears unauthorized, keeping the credential", async () => {
-    const cloud = createFakeCloud();
+  it("idles the notes and wipes the mirror when a pull hears unauthorized, keeping the credential", async () => {
+    const cloud = vaultCloud();
     const credentials = keychain(CRED);
-    const { cache, calls } = recordingCache();
-    const rt = runtimeOver(cloud, credentials.store, cache);
-    await rt.start();
-    await until(rt.notes.tree, (tree) => tree.state === "ready");
+    const storage = phoneStorage();
+    const rt = runtimeOver(cloud, credentials.store, storage);
+    await mirrorOnce(rt);
     await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
-    expect(calls).toEqual([]);
 
     cloud.pullResults.push(UNAUTHORIZED);
     await rt.sync.syncNow();
 
     expect(rt.sync.get().state).toBe("unauthorized");
     expect(rt.notes.tree.get()).toStrictEqual({ state: "idle" });
-    expect(calls).toEqual(["clear"]);
+    await vi.waitFor(async () => {
+      expect(await heldRows(storage.db)).toBe(0);
+      expect(storage.attachments.names()).toEqual([]);
+    });
     expect(credentials.calls).not.toContain("clear");
   });
 
@@ -196,5 +231,69 @@ describe("the composed runtime", () => {
     expect([first.ok, retried.ok]).toEqual([false, true]);
 
     expect(cloud.captures.map((request) => request.idempotencyKey)).toEqual(["key-1", "key-1"]);
+  });
+});
+
+describe("the phone's note mirror across sign-ins", () => {
+  it("keeps what it holds across a relaunch, and serves it before any request", async () => {
+    const file = tempDbPath();
+    const first = phoneStorage(openTempDb(file));
+    await mirrorOnce(runtimeOver(vaultCloud(), keychain(CRED).store, first));
+
+    const offline = createFakeCloud({
+      vaultTree: async () => ({ failure: { kind: "unreachable", message: "offline" }, ok: false }),
+    });
+    const relaunched = runtimeOver(offline, keychain(CRED).store, {
+      attachments: first.attachments,
+      db: openTempDb(file),
+    });
+    await relaunched.start();
+    await until(relaunched.notes.tree, (tree) => tree.state === "ready");
+
+    expect(await relaunched.notes.readNote("note.md")).toMatchObject({ content: "# note\n" });
+    expect(await heldRows(first.db)).toBe(1);
+    expect(first.attachments.names()).toHaveLength(1);
+  });
+
+  it("wipes the mirror and the attachments on signing out", async () => {
+    const storage = phoneStorage();
+    const rt = runtimeOver(vaultCloud(), keychain(CRED).store, storage);
+    await mirrorOnce(rt);
+
+    await rt.logout();
+
+    await vi.waitFor(async () => {
+      expect(await heldRows(storage.db)).toBe(0);
+      expect(storage.attachments.names()).toEqual([]);
+    });
+  });
+
+  it("wipes the mirror and the attachments on signing in", async () => {
+    const storage = phoneStorage();
+    const cloud = vaultCloud();
+    const rt = runtimeOver(cloud, keychain(CRED).store, storage);
+    await mirrorOnce(rt);
+    // the new sign-in's own mirror would refill the rows; this one cannot reach its vault
+    cloud.client.vaultTree = async () => ({
+      failure: { kind: "unreachable", message: "offline" },
+      ok: false,
+    });
+    vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
+    try {
+      await rt.login.login({
+        deviceName: "phone",
+        email: "me@example.test",
+        password: "a".repeat(12),
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(rt.login.get()).toStrictEqual({ kind: "idle" });
+    expect(rt.sync.get()).toMatchObject({ deviceId: OTHER_CRED.deviceId });
+    await vi.waitFor(async () => {
+      expect(await heldRows(storage.db)).toBe(0);
+      expect(storage.attachments.names()).toEqual([]);
+    });
   });
 });

@@ -2,11 +2,12 @@
 
 A read-and-capture content client. **The agent and the vault ENGINE stay on
 the desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
-FEEDS the CAPTURE inbox and carries a READ surface over the
+FEEDS the CAPTURE inbox and holds a MIRROR of every note's text from the
 account's hosted vault, reaching `@repo/api/cloud` (the wire), `@repo/domain`
 (the `ThreadEvent` grammar) and `@repo/notes` (the dialect's parse + wiki
 resolution, guard-pure). No agent, no vault checkout, no git client — notes
-arrive over the /v1/vault read rows, rendered read-only.
+arrive over the /v1/vault read rows into a local SQLite file, and open
+offline, rendered read-only.
 
 Expo + expo-router; `src/sync` is the RN implementation of the `@repo/api/cloud`
 wire.
@@ -42,16 +43,24 @@ src/
                         (@repo/api/cloud/device/login-flow)
     device-name.ts      the name this phone offers the device list
   notes/        the vault read surface over the /v1/vault rows
-    notes-store.ts      tree + cached note reads + wiki resolver over the sync
-                        runtime's session (pure, unit-tested)
-    note-cache.ts       the note-body cache port + its memory implementation
-    expo-note-cache.ts  expo-file-system adapter ((commit, path)-keyed, durable)
+    vault-mirror.ts     every note's text in SQLite: the tree diffed by oid,
+                        the changed texts fetched in pinned batches (pure over
+                        the SQL port, unit-tested against node:sqlite)
+    notes-store.ts      the listing, reads and wiki resolver over the mirror,
+                        under the sync runtime's session (pure, unit-tested)
+    attachment-files.ts the attachment-file port; expo-attachment-files.ts
+                        is its expo-file-system adapter
     note-projection.ts  dialect markdown → typed blocks (pure, unit-tested)
     markdown-view.tsx   projected blocks → RN elements (the thin half)
   lib/          the composition root: compose-runtime.ts (platform-free and
                 unit-tested: the restore, sign-out, revocation and resume)
-                and app-runtime.ts (its binding to the Keychain, the disk
-                cache and AppState, plus the hooks); the external store the
+                and app-runtime.ts (its binding to the Keychain, the
+                database, the attachment files and AppState, plus the
+                hooks); the database: sql-driver.ts (the port),
+                expo-sql-driver.ts (the app's), node-sql-driver.ts (the
+                tests'), phone-db.ts (every table's migrations) and
+                backup-exclusion.ts (over modules/backup-exclusion, the one
+                native module this app carries); the external store the
                 runtimes publish through, theme, cloud URL
   app/          expo-router screens: sign-in, thread list + quick-capture, a
                 thread view, the notes list + read-only note view;
@@ -81,25 +90,48 @@ The **device credential** is durable in `expo-secure-store` (the Keychain /
 Keystore), never AsyncStorage — it is a bearer secret and the sync switch,
 mirroring the desktop's `<dataDir>/device-credential`.
 
-**Note bodies** are durable in an expo-file-system cache
-(`notes/expo-note-cache.ts`) behind the `NoteCache` port, keyed
-`(commit, path)` — immutable content, so rows never expire; a refresh that
-moves the tree's commit makes old rows unreachable and sweeps them. The TREE
-stays in memory on purpose: the resolver and the commit must be current before
-any read is pinned, so a cold launch re-fetches the listing and then reads
-note bodies from disk. A refresh that fails keeps the listing it has, still
-pinning every read and embed to its commit, and the list says why above it.
-A sign-in, a sign-out and a revocation wipe the rows, and a write that started
-before the wipe never lands;
-the boot RESTORE keeps them — that launch is what the cache exists for. Which
-transition it is comes from the composition root, which knows, rather than
-from comparing bearers inside the store. Image BYTES are the stated residual:
-an embed's fetch lands in the platform's own image caches, which a sign-out
-cannot clear — safe to serve (the URL pins a commit sha), but at rest until
-the OS evicts them.
+**Every note's text** is durable in `inteligir.db`, one expo-sqlite file in
+the app's Documents (`lib/expo-sql-driver.ts`), never `Paths.cache`, which iOS
+purges under storage pressure. Its directory is kept out of the phone's iCloud
+backup (owner decision: it downloads again from the hosted vault) by the local
+native module `modules/backup-exclusion`. The mirror (`notes/vault-mirror.ts`)
+keeps a row per file the hosted tree names — path, blob oid, size, the commit
+its blob first appeared at, and for a note or a comment store its text with
+the frontmatter id and aliases read once as it lands. A refresh walks the tree
+at head, stops after one page when head is the mirrored commit, and otherwise
+applies the whole listing in one transaction: a row whose oid is unchanged is
+left alone, a blob already held under another path (a move, a copy) is copied
+locally, and a path the tree no longer names goes. What is left empty is
+fetched forty paths to a `POST /v1/vault/files` pinned to that commit, each
+answer stored in its own transaction and only onto a row still naming the
+answer's oid. The mirrored commit moves only once every wanted row holds its
+text, so a refresh cut short resumes from the empty rows. So a cold launch
+shows the list and opens every note before any request, and a refresh that
+fails keeps the list it has and says why above it. "Loading your vault…"
+shows only on a FIRST mirror, with its count.
 
-The durable follow-up is an **expo-sqlite** `SyncStore` that persists both sync
-stores together; the port exists precisely so that swap touches nothing else.
+The listing, the resolver (paths, aliases and ids, so `[[Some Alias]]` and
+`[[Title|uuid]]` resolve) and each asset URL come from the rows. An asset URL
+pins the commit its blob first appeared at, so an image a commit leaves alone
+keeps its URL and its cached bytes. `attachmentFile(path)` downloads an
+attachment on its first ask into `Paths.cache/attachments/<oid><ext>`, for the
+editor to come; the read-only view still draws embeds from asset URLs, whose
+bytes land in the platform's own image caches, which a sign-out cannot clear —
+safe to serve (the URL pins a commit sha), but at rest until the OS evicts
+them.
+
+A sign-in, a sign-out and a revocation wipe the rows and the attachment files;
+the boot RESTORE keeps them — that launch is what the mirror exists for. Which
+transition it is comes from the composition root, which knows, rather than
+from comparing bearers inside the store. Every await re-checks the session,
+and a wipe bumps a generation every write re-checks inside its transaction,
+so a batch that started before the wipe never lands. The database has ONE
+`user_version` (`lib/phone-db.ts`): a table another module adds is a step
+appended there.
+
+The durable follow-up is a `SyncStore` in the same database that persists both
+sync stores together; the port exists precisely so that swap touches nothing
+else.
 
 ## Who applies captures
 
@@ -132,7 +164,7 @@ never hears leaves the row active for the Devices page to revoke.
 The notes store holds no client of its own: it reads under the sync runtime's
 session, so one fence covers every request a sign-in makes, and an
 `unauthorized` from a vault read, a capture or a pull ends the sign-in for all
-of them. The composition root then idles the tree and wipes the note cache,
+of them. The composition root then idles the tree and wipes the mirror,
 and keeps the credential, so the sign-in screen can say this device was
 signed out. Which screens exist is the ROUTE GUARD's answer
 (`Stack.Protected` in `app/_layout.tsx`), never a per-screen branch: the
@@ -147,10 +179,12 @@ that is signed in.
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the sync client (pull applies by global seq
   idempotently, and a pass neither pushes a thread event nor claims a capture),
-  the credential codec, the sign-in store, the notes store, the note cache's
-  clear fence (the expo adapter over stand-ins for its two native modules), the
-  capture sender, and the composition's restore, sign-out, revocation and
-  resume — all against faked storage / fetch. Unit tests, no device.
+  the credential codec, the sign-in store, the notes store, the vault mirror
+  (its SQL run for real, over `node:sqlite` on a temp file: the oid delta, a
+  relaunch that cannot reach the cloud, a batch cut short, a batch that
+  outlives its sign-in), the capture sender, and the composition's restore,
+  sign-out, revocation and resume — all against faked fetch. Unit tests, no
+  device.
 - **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the
   config to what App Store Connect judges — the marketing version is the
@@ -163,9 +197,11 @@ that is signed in.
   offline, on Linux and macOS alike.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
   actually booting, the held splash and the route guard's redirects, the
-  expo-secure-store Keychain round trip, the AppState resume, a live sign-in
-  against a running cloud Worker, and an EAS Update landing on an installed
-  build.
+  expo-secure-store Keychain round trip, expo-sqlite and the backup exclusion
+  (both native: a dev client built before them must be rebuilt), the
+  attachment files, the AppState resume, a live sign-in against a running
+  cloud Worker, an EAS Update landing on an installed build, and the offline
+  check: sync once, airplane mode, cold launch, the list and any note open.
 
 ## Dev
 

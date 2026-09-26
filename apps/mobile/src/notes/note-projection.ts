@@ -3,7 +3,11 @@ import type { Code, List, Paragraph, PhrasingContent, Root, RootContent } from "
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 import { parseMdast } from "@repo/notes/markdown/parse";
-import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
+import {
+  isUuidWikiAlias,
+  parseWikiBody,
+  wikiLinkLabel,
+} from "@repo/notes/markdown/remark-wiki-link";
 import { isCalloutLang, RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 
@@ -16,7 +20,8 @@ export type InlineSpan =
       strike?: boolean;
       code?: boolean;
     }
-  | { kind: "wiki-link"; target: string; label: string }
+  // `noteId`: a `[[Title|uuid]]` link names its note by frontmatter id, which outlives a rename
+  | { kind: "wiki-link"; target: string; label: string; noteId?: string }
   | { kind: "image-embed"; target: string; label: string }
   | { kind: "formula"; label: string }
   | { kind: "link"; label: string; url: string };
@@ -72,10 +77,13 @@ type LeafPhrasing = Exclude<PhrasingContent, { type: "strong" | "emphasis" | "de
 const wikiSpan = (
   node: Extract<PhrasingContent, { type: "wikiLink" | "wikiEmbed" }>,
 ): InlineSpan => {
-  const { target } = parseWikiBody(node.body);
+  const { alias, target } = parseWikiBody(node.body);
   const label = wikiLinkLabel(node.body);
-  return node.type === "wikiEmbed" && isMobileImageTarget(target)
-    ? { kind: "image-embed", label, target }
+  if (node.type === "wikiEmbed" && isMobileImageTarget(target)) {
+    return { kind: "image-embed", label, target };
+  }
+  return alias !== undefined && isUuidWikiAlias(alias)
+    ? { kind: "wiki-link", label, noteId: alias, target }
     : { kind: "wiki-link", label, target };
 };
 

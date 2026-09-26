@@ -76,7 +76,7 @@ const Spans = ({
 }: {
   spans: readonly InlineSpan[];
   theme: Theme;
-  onWikiLink: (target: string) => void;
+  onWikiLink: (target: string, noteId?: string) => void;
 }) => {
   const renderSpan = (span: InlineSpan, index: number) => {
     switch (span.kind) {
@@ -102,7 +102,7 @@ const Spans = ({
             key={spanKey(index)}
             style={{ color: theme.primary }}
             onPress={() => {
-              onWikiLink(span.target);
+              onWikiLink(span.target, span.kind === "wiki-link" ? span.noteId : undefined);
             }}
           >
             {span.label}
@@ -187,7 +187,7 @@ export const MarkdownBlocks = ({
   resolveAsset,
 }: {
   blocks: readonly NoteBlock[];
-  onWikiLink: (target: string) => void;
+  onWikiLink: (target: string, noteId?: string) => void;
   resolveAsset: (target: string) => VaultAssetSource | null;
 }) => {
   const theme = useTheme();
