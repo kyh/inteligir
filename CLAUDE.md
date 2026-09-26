@@ -142,7 +142,10 @@ apps/
                  workerd's globals must win).
   mobile/        @repo/mobile — the Expo RN client (#576): synced threads,
                  held in its SQLite file and read offline
-                 (src/sync/sqlite-sync-store.ts), that it
+                 (src/sync/sqlite-sync-store.ts), kept current over the
+                 account's socket while the app is in the foreground, with a
+                 running turn's streamed text folded in memory alone
+                 (src/sync/live-turns.ts), that it
                  asks a Mac's agent in through the dispatch inbox, from a
                  durable queue of its own (src/dispatch/dispatch-runtime.ts),
                  produced captures and (#618) a local SQLite mirror of every
@@ -1599,7 +1602,11 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   and the bus (`WsBus.onThreadChange`) brings a pass forward when an approval
   moves. Let my phone ask this Mac (Settings › Account,
   `<dataDir>/cloud-prefs.json`, owner decision: on unless turned off) is read
-  per pass, and off, this Mac claims nothing. Residual: a follow-up one Mac
+  per pass, and off, this Mac claims nothing. The Mac also says it on its
+  socket's upgrade (`SYNC_WS_PHONE_REQUESTS_PARAM`), so the phone's "a Mac is
+  listening" counts only Macs that would claim, and a change dials again
+  (`phoneRequestsChanged`), since a hibernated socket's tags are fixed when it
+  is accepted; an unreadable choice is announced off. Residual: a follow-up one Mac
   claims on a thread another Mac ran opens a fresh provider session there.
   `apps/cli/src/server/cloud/dispatches.ts`,
   `apps/cli/src/server/cloud/sync-pass.ts`,
@@ -1721,9 +1728,12 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   credential for someone else's account.
 
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
-  `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
-  phone inject only stores, timers and sockets; a security discipline with two
-  spellings is two to audit. The core is what BOTH clients run, so the
+  `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`,
+  `sync/socket-link.ts` and `sync/cloud-socket.ts`. The CLI and the phone
+  inject only stores, timers and a socket dial (node's `{ headers }`, React
+  Native's third argument: `apps/mobile/src/sync/rn-socket-dial.ts`); a
+  security discipline with two spellings is two to audit, and the socket's
+  keepalive and reconnect are one too. The core is what BOTH clients run, so the
   CLI-only browser opener sits beside its consumer
   (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path
   grammar is `parseVaultPath` with the parse required to be the identity. The
@@ -1801,7 +1811,7 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `sync-status-changed`, so nothing polls it; the socket drops itself after two
   silent keepalives, since a half-open connection neither answers nor closes.
   `apps/cli/src/server/cloud/sync-pass.ts`, `sync-runtime.ts` and
-  `cloud-socket.ts`.
+  `packages/api/src/cloud/sync/cloud-socket.ts`.
 
 - **The outbox stores the bytes it will send, once, at enqueue.** The log calls
   a position replayed with a different body `sync-conflict`; `deviceSeq` is its
@@ -2029,8 +2039,8 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   APPROVALS COME BACK THROUGH IT** (owner decision). The phone never pushes to
   the log, so a request cannot ride it: a `turn` row waits beside the captures
   in the account's `ThreadSyncDO`, any Mac may claim it and the first claim
-  wins, and it pings desktop sockets with the `dispatch` frame 0.4.0 already
-  parses. A phone-started turn's approval is opened there by the Mac holding
+  wins, and it pings the sockets of the Macs that take a phone's requests with
+  the `dispatch` frame 0.4.0 already parses. A phone-started turn's approval is opened there by the Mac holding
   its waiter and listed for the phone; the phone's `answer` is a row only that
   Mac may claim. The guarantee: at-least-once delivery to a claimant, a row
   settled only by the claim that holds it, and a Mac's apply exactly-once on
@@ -2067,6 +2077,19 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   without the links it moved, and a typed name cleaned up rather than refused,
   which shows a title that was never saved.
 
+- **THE PHONE HOLDS THE ACCOUNT'S SOCKET ONLY IN THE FOREGROUND, AND A RUNNING
+  TURN'S TEXT IS NEVER STORED.** A desktop pushes a running turn every second
+  and a half and the cloud pings every other socket on each push, so a phone
+  with the socket reads a reply as it grows; the background closes it, since
+  iOS suspends the app anyway, and the poll stays for a missed ping. The
+  deltas the store drops are folded in memory until each item's
+  `item/completed` (`apps/mobile/src/sync/live-turns.ts`), fed only what a
+  page landed, so a page pulled twice folds once. Rejected: holding the deltas
+  in the phone's database, which a long turn fills with tokens its settled
+  items already carry, and folding an item this launch never saw start, whose
+  head was pulled before a relaunch and would draw the tail as the reply.
+  `apps/mobile/src/sync/sync-runtime.ts`.
+
 ### Server process and the desktop shell
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**
@@ -2098,11 +2121,12 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   booted suites call the same composition. `ThreadService.boot()` is called
   from it because crash recovery writes. The seams: `vault/git-run` /
   `git-porcelain` / `git-bootstrap` / `git-engine`; `cloud/sync-pass` /
-  `socket-link` / `sync-cadence`; `agents/interaction-waiters` beside a
+  `sync-cadence` (the socket link is the client core's, shared with the phone);
+  `agents/interaction-waiters` beside a
   watchdog that sweeps per-turn timestamps rather than re-arming a timer per
   frame; `writeTransaction` in `@repo/db/connection` as the one spelling of
   `BEGIN IMMEDIATE`.
-  `serve.ts` injects the cloud socket opener and the agent driver because
+  `serve.ts` injects node's socket dial and the agent driver because
   compose is reachable from the renderer's test program, and, under the desktop
   shell, the brokered watcher channel and adapter spawner
   (`child-host/node-children.ts`), because only a utility-process child has a

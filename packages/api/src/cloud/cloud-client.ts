@@ -59,7 +59,7 @@ import type {
 } from "./dispatch/dispatch-schema";
 import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
 import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
-import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
+import type { SocketListener, SyncPing } from "./sync/sync-ws";
 import { vaultCommitResponseSchema, vaultConflictAnswerSchema } from "./vault/vault-commit-schema";
 import type {
   VaultCommitConflict,
@@ -474,8 +474,8 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
   };
 };
 
-// the socket dial is platform code: a browser-program import of a node dial types
-// WebSocket as the DOM one, which takes no headers, and the bearer rides the upgrade.
+// both clients open it with sync/cloud-socket.ts; a runtime takes the opener rather than
+// building it, so a test hands it a fake that never dials.
 export interface CloudSocket {
   close: () => void;
 }
@@ -483,7 +483,7 @@ export interface CloudSocket {
 export interface OpenCloudSocketArgs {
   baseUrl: string;
   credential: string;
-  platform: DevicePlatform;
+  listener: SocketListener;
   onOpen: () => void;
   onPing: (ping: SyncPing) => void;
   // called once even if the socket never opened. SYNC_WS_REVOKED_CLOSE_CODE is a hint that runs

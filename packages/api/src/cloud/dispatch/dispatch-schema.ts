@@ -176,7 +176,8 @@ export const dispatchStatusRequestSchema = z
 export type DispatchStatusRequest = z.infer<typeof dispatchStatusRequestSchema>;
 
 export const dispatchStatusResponseSchema = z.object({
-  // the phone's "open inteligir on your Mac" when this is 0: no computer is listening now
+  // the phone's "open inteligir on your Mac" when this is 0: no Mac that takes a phone's requests
+  // is listening now
   desktopsOnline: z.number().int().nonnegative(),
   dispatches: z.array(dispatchStatusSchema).max(DISPATCH_MAX_PENDING),
 });

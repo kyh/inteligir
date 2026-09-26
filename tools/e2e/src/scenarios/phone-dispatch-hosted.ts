@@ -120,7 +120,7 @@ const timesAsked = async (api: InstanceApi, threadId: string, text: string): Pro
 
 export const phoneDispatchHosted: Scenario = {
   description:
-    "a phone's request waits in the dispatch inbox until a Mac signs in, runs there over the note it was asked from, and reaches the phone's pull; with two Macs listening, exactly one runs it, before a poll could",
+    "a phone's request waits in the dispatch inbox until a Mac signs in, runs there over the note it was asked from, and reaches the phone's pull; with two Macs listening, exactly one runs it, before a poll could; a Mac that stops taking the phone's requests is no longer counted as listening",
   name: "phone-dispatch-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -260,5 +260,24 @@ export const phoneDispatchHosted: Scenario = {
     expectEq(inLog.length, 1, "requests for the second dispatch in the account's log");
     expectEq(onA, 1, "requests for the second dispatch on A");
     expectEq(onB, 1, "requests for the second dispatch on B");
+
+    ctx.log("B stops taking the phone's requests: the phone counts A alone, though B stays open");
+    const listeningMacs = async (): Promise<number> => {
+      const { desktopsOnline } = await statusOf(phone, second);
+      return desktopsOnline;
+    };
+    await b.api.cloud.setPrefs({ phoneRequests: false });
+    await pollUntil(listeningMacs, (count) => count === 1, {
+      deadlineMs: SOCKET_DEADLINE_MS,
+      describe: (count) => `the phone still counts ${count} Mac(s) after B turned requests off`,
+    });
+    await untilConnected(b, "B");
+    expectEq(await listeningMacs(), 1, "Macs listening once B's socket is back");
+
+    await b.api.cloud.setPrefs({ phoneRequests: true });
+    await pollUntil(listeningMacs, (count) => count === 2, {
+      deadlineMs: SOCKET_DEADLINE_MS,
+      describe: (count) => `the phone counts ${count} Mac(s) after B turned requests on again`,
+    });
   },
 };

@@ -20,7 +20,11 @@ import {
   SYNC_API_PATHS,
 } from "@repo/api/cloud/sync/sync-schema";
 import type { PullResponse, PushRequest, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
-import { SYNC_WS_PATH, SYNC_WS_PLATFORM_PARAM } from "@repo/api/cloud/sync/sync-ws";
+import {
+  SYNC_WS_PATH,
+  SYNC_WS_PHONE_REQUESTS_PARAM,
+  SYNC_WS_PLATFORM_PARAM,
+} from "@repo/api/cloud/sync/sync-ws";
 import { z } from "zod";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
@@ -98,6 +102,12 @@ const openSocket = async ({ device, request, stub, url }: SyncCall): Promise<Res
     SOCKET_IDENTITY_HEADERS.platform,
     url.searchParams.get(SYNC_WS_PLATFORM_PARAM) ?? "other",
   );
+  const phoneRequests = url.searchParams.get(SYNC_WS_PHONE_REQUESTS_PARAM);
+  if (phoneRequests === null) {
+    headers.delete(SOCKET_IDENTITY_HEADERS.phoneRequests);
+  } else {
+    headers.set(SOCKET_IDENTITY_HEADERS.phoneRequests, phoneRequests);
+  }
   return await stub.fetch(new Request("https://thread-sync/ws", { headers }));
 };
 

@@ -1,5 +1,5 @@
 import type { CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudResult } from "@repo/api/cloud/client";
+import type { CloudResult, CloudSocketOpener, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
 import { describe, expect, it, vi } from "vitest";
@@ -114,6 +114,7 @@ const runtimeOver = (
   cloud: FakeCloud,
   credentials: CredentialStore,
   storage: PhoneStorage = phoneStorage(),
+  openSocket?: CloudSocketOpener,
 ) => {
   let minted = 0;
   return composeRuntime({
@@ -130,7 +131,10 @@ const runtimeOver = (
     outboxFiles: storage.outboxFiles,
     retryBaseMs: null,
     sha1: nodeSha1,
-    sync: { createClient: () => cloud.client, pollIntervalMs: null },
+    sync:
+      openSocket === undefined
+        ? { createClient: () => cloud.client, pollIntervalMs: null }
+        : { createClient: () => cloud.client, openSocket, pollIntervalMs: null },
   });
 };
 
@@ -268,6 +272,44 @@ describe("the composed runtime", () => {
 
     await until(rt.sync, (status) => status.state === "signed-in" && status.cursor === 1);
     expect(rt.store.snapshotThread("thr_x")?.events).toHaveLength(1);
+  });
+
+  it("hears another device's push over the socket, and closes it in the background", async () => {
+    let trees = 0;
+    const cloud = createFakeCloud({
+      vaultTree: async () => {
+        trees += 1;
+        return ok({ commit: "0".repeat(40), entries: [], next: null });
+      },
+    });
+    const dials: OpenCloudSocketArgs[] = [];
+    let closes = 0;
+    const rt = runtimeOver(cloud, keychain(CRED).store, phoneStorage(), (args) => {
+      dials.push(args);
+      return {
+        close: () => {
+          closes += 1;
+        },
+      };
+    });
+    await rt.start();
+    // a ping during the sign-in's own refresh joins it rather than listing again
+    await rt.notes.refresh();
+    const [dial] = dials;
+    if (dial === undefined) {
+      throw new Error("expected the signed-in phone to dial its socket");
+    }
+    const listed = trees;
+
+    dial.onPing({ type: "vault" });
+    await vi.waitFor(() => {
+      expect(trees).toBeGreaterThan(listed);
+    });
+
+    rt.suspend();
+    expect(closes).toBe(1);
+    rt.resume();
+    expect(dials).toHaveLength(2);
   });
 
   it("sends a capture's retry under the key its first try carried", async () => {

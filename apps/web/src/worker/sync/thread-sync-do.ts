@@ -31,6 +31,7 @@ import {
   devicePlatformSchema,
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_KEEPALIVE_PONG,
+  SYNC_WS_PHONE_REQUESTS_ON,
   SYNC_WS_REVOKED_CLOSE_CODE,
 } from "@repo/api/cloud/sync/sync-ws";
 import type { DevicePlatform, SyncPing } from "@repo/api/cloud/sync/sync-ws";
@@ -54,11 +55,13 @@ import type { DispatchPing } from "./dispatch-inbox";
 // Worker parses every body and calls a method with the verified deviceId as an argument; fetch
 // is the socket upgrade alone, since a WebSocket cannot cross RPC, and its identity rides
 // SOCKET_IDENTITY_HEADERS, which the Worker strips and stamps. Hibernation rules: sockets are
-// accepted with ctx.acceptWebSocket under their device and platform tags, the broadcast set is
+// accepted with ctx.acceptWebSocket under their device and platform tags (and a Mac's
+// phone-requests tag, while it takes a phone's requests), the broadcast set is
 // rebuilt from ctx.getWebSockets(), and no instance field holds anything a later message needs.
 
 export const SOCKET_IDENTITY_HEADERS = {
   deviceId: "x-device-id",
+  phoneRequests: "x-device-phone-requests",
   platform: "x-device-platform",
 } as const;
 
@@ -104,6 +107,8 @@ type AckResult = AckCapturesResponse["results"][number];
 
 const deviceTag = (deviceId: string): string => `device:${deviceId}`;
 const platformTag = (platform: DevicePlatform): string => `platform:${platform}`;
+// a Mac whose person lets the phone ask it: a phone's turn pings these, and the phone counts them
+const PHONE_REQUESTS_TAG = "phone-requests";
 
 const broadcast = (frame: SyncPing, sockets: readonly WebSocket[]): void => {
   const body = JSON.stringify(frame);
@@ -176,17 +181,22 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (deviceId === null) {
       return refuse("unauthorized", "No device.");
     }
-    const platform = devicePlatformSchema.safeParse(
+    const parsed = devicePlatformSchema.safeParse(
       request.headers.get(SOCKET_IDENTITY_HEADERS.platform),
     );
+    // a delivery hint, not a capability: an unparseable value degrades to "other"
+    const platform = parsed.success ? parsed.data : "other";
+    const tags = [deviceTag(deviceId), platformTag(platform)];
+    if (
+      platform === "desktop" &&
+      request.headers.get(SOCKET_IDENTITY_HEADERS.phoneRequests) === SYNC_WS_PHONE_REQUESTS_ON
+    ) {
+      tags.push(PHONE_REQUESTS_TAG);
+    }
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
-    this.ctx.acceptWebSocket(server, [
-      deviceTag(deviceId),
-      // a delivery hint, not a capability: an unparseable value degrades to "other"
-      platformTag(platform.success ? platform.data : "other"),
-    ]);
+    this.ctx.acceptWebSocket(server, tags);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -430,7 +440,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     broadcast(
       { threadId: ping.threadId, type: "dispatch" },
       ping.to === "desktops"
-        ? this.socketsExcept(fromDeviceId, platformTag("desktop"))
+        ? this.socketsExcept(fromDeviceId, PHONE_REQUESTS_TAG)
         : this.ctx.getWebSockets(deviceTag(ping.deviceId)),
     );
   }
@@ -491,7 +501,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
       return gone;
     }
     return accepted({
-      desktopsOnline: this.ctx.getWebSockets(platformTag("desktop")).length,
+      desktopsOnline: this.ctx.getWebSockets(PHONE_REQUESTS_TAG).length,
       dispatches: dispatchStatuses(this.ctx.storage.sql, request.ids, Date.now()),
     });
   }

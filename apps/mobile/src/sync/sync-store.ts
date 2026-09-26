@@ -5,8 +5,8 @@ import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import type { ThreadEvent, ThreadEventDelta } from "@repo/domain/provider-event";
 import type { SignInSource } from "../notes/notes-store";
 
-// a streamed turn is mostly deltas and the phone renders completed items only, which carry the
-// deltas' final text: a delta moves the cursor and the thread's recency, and is never held.
+// a streamed turn is mostly deltas, and each completed item carries its deltas' final text: a delta
+// moves the cursor and the thread's recency and is never held; the live fold draws it meanwhile.
 export type StoredThreadEvent = Exclude<ThreadEvent, ThreadEventDelta>;
 
 export interface StoredThread {

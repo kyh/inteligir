@@ -31,8 +31,16 @@ src/
     sync-runtime.ts        the pull loop over the contract's own session machine
                            (@repo/api/cloud/sync/sync-session); publishes the
                            status store the screens subscribe to (`restoring`
-                           until the boot read ends), and lends that session to
-                           every other read under the sign-in
+                           until the boot read ends), lends that session to
+                           every other read under the sign-in, and holds the
+                           account's socket (@repo/api/cloud/sync/socket-link)
+                           while signed in and in the foreground
+    rn-socket-dial.ts      React Native's WebSocket with the bearer on the
+                           upgrade, the one platform line of the shared opener;
+                           only the app's composition imports it
+    live-turns.ts          what a running turn has streamed and not settled,
+                           folded from the deltas the store drops, in memory
+                           alone
     thread-projection.ts   fold a thread's events into display rows, its
                            stated title, its archive, whether a turn is
                            running and which of the phone's requests it holds,
@@ -163,9 +171,28 @@ requests to a Mac: the `dispatch_outbox` table is durable, and it is not a log
 outbox — nothing in it ever reaches the thread log (Asking a Mac, below).
 
 The log holds what the thread view draws from and no more: a streaming delta
-moves the cursor and the thread's recency and is dropped, because the thread
-view draws completed items alone and each carries its deltas' final text. A
-long streamed turn costs the phone its items, not its tokens.
+moves the cursor and the thread's recency and is dropped, because each
+completed item carries its deltas' final text. A long streamed turn costs the
+phone's disk its items, not its tokens.
+
+**A running turn's text is transient** (`sync/live-turns.ts`). The page that
+lands a delta also hands it to an in-memory fold, which draws the agent's text
+and its reasoning under the running indicator until the item's
+`item/completed` lands, and drops a turn's rows when the turn completes, and
+all of them on a sign-in, a sign-out or a revocation. It is never persisted: a
+relaunch mid-turn draws nothing for an item it did not see start, because the
+deltas before its cursor are gone and a fold from the middle would show the
+tail as the reply. The store feeds it only what a page landed, so a page pulled
+twice folds once and a page a reset dropped folds never.
+
+**The phone holds the account's socket while it is signed in and in the
+foreground** (`sync/sync-runtime.ts`). A sync ping past the cursor pulls, so a
+turn the desktop pushes every second and a half reads as it grows; a vault
+ping refreshes the notes; a dispatch ping asks the inbox, which is how a Mac's
+question reaches the phone. Going to the background closes it and stops the
+poll; coming back opens it and pulls. A drop re-dials on a backoff; a sign-out
+or a refused credential closes it for good. The 60s poll stays, since the
+socket is latency and never correctness.
 
 The **device credential** is durable in `expo-secure-store` (the Keychain /
 Keystore), never AsyncStorage — it is a bearer secret and the sync switch,
@@ -359,8 +386,11 @@ that is signed in.
   racing a landing), the capture sender, the dispatch runtime (a resend under
   the same id across a relaunch, the log replacing a pending row once, every
   state's words, cancel, a refusal kept, a stale sign-in's refusal, an approval
-  answered, the foreground poll), and the composition's restore, sign-out,
-  revocation and resume, the file verbs (a rename's rewritten link and alias,
+  answered, the foreground poll), the socket (a ping past the cursor pulls and
+  one it covers does not, the background closes it and a resume dials again,
+  a sign-out and a refused credential close it for good), the live fold (a
+  turn's deltas, an item settling, a turn ending, a reset), and the
+  composition's restore, sign-out, revocation and resume, the file verbs (a rename's rewritten link and alias,
   a note changed under it, a delete's comment store, a new note stepping past
   a taken name, a photo's size and cap), the editor page's native end (every
   frame kind to its port, a foreign document's, another load's and a
@@ -385,7 +415,9 @@ that is signed in.
   expo-secure-store Keychain round trip, expo-sqlite and the backup exclusion
   (both native: a dev client built before them must be rebuilt), the
   attachment and staged files, the AppState resume and expo-network's
-  reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, the offline
+  reconnect, the socket's upgrade from the device (React Native's headers
+  argument), a phone-started turn's reply growing while the desktop runs it
+  and ending as the settled reply, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, the offline
   check (sync once, airplane mode, cold launch, the notes list, any note and
   every thread open),
   photos: from the camera and the library each lands as `assets/<name>.jpg`,

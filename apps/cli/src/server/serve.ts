@@ -4,6 +4,7 @@
 
 import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
+import { createCloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
 import { browserHandoffUrl } from "@repo/api/local/routes";
 import { externalSyncName } from "@repo/api/local/vault/vault-schema";
 import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
@@ -17,7 +18,6 @@ import { bootReport } from "./boot-report";
 import type { BootPhases } from "./boot-report";
 import { readParentPort } from "./child-host/message-port";
 import { resolveNodeChildren } from "./child-host/node-children";
-import { openCloudSocket } from "./cloud/cloud-socket";
 import type { VaultRemoteSpec } from "./cloud/vault-remote";
 import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
@@ -158,8 +158,11 @@ const boot = async (
   const clientDir = resolveUiDir();
 
   const composeArgs: ComposeRuntimeArgs = {
-    // injected: it cannot be imported from the composed graph (cloud/cloud-socket.ts).
-    cloudTransport: { openSocket: openCloudSocket },
+    // injected: the composed graph is also compiled under the browser tsconfig, where
+    // WebSocket's second argument is a protocol list, not node's `{ headers }`.
+    cloudTransport: {
+      openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),
+    },
     config,
     driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs }) => {
       const cliBinDir = resolveCliBinDir();

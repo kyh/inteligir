@@ -28,6 +28,7 @@ import {
   cancelDispatch,
   dismissDispatch,
   useDispatches,
+  useLiveItems,
   useThread,
 } from "@/lib/app-runtime";
 import { MONO_FONT, RADIUS, SPACE, useTheme } from "@/lib/theme";
@@ -433,6 +434,7 @@ const ThreadScreen = () => {
   const revision = firstParam(params.revision);
   const quote = firstParam(params.quote);
   const thread = useThread(threadId);
+  const live = useLiveItems(threadId);
   const { approvals, desktopsOnline, pending } = useDispatches(threadId);
   const list = useRef<FlatList<ThreadRow>>(null);
 
@@ -441,9 +443,13 @@ const ThreadScreen = () => {
   const title =
     thread?.title ?? localThreadTitle(pending) ?? (notePath === null ? "Thread" : "Ask agent");
 
+  const running = thread?.running === true;
   const rows: ThreadRow[] = [
     ...(thread?.items ?? []).map((item): ThreadRow => ({ item, key: item.id, kind: "item" })),
-    ...(thread?.running === true ? [{ key: "working", kind: "working" } satisfies ThreadRow] : []),
+    ...(running ? [{ key: "working", kind: "working" } satisfies ThreadRow] : []),
+    ...(running
+      ? live.map((item): ThreadRow => ({ item, key: `live:${item.id}`, kind: "item" }))
+      : []),
     ...approvals.map((approval): ThreadRow => ({ approval, key: approval.id, kind: "approval" })),
     ...pending.map((dispatch): ThreadRow => ({ dispatch, key: dispatch.id, kind: "pending" })),
   ];

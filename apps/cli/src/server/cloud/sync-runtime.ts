@@ -19,6 +19,7 @@ import type {
   LoginOutcome as DeviceLoginOutcome,
 } from "@repo/api/cloud/device/login-flow";
 import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
+import { createSocketLink } from "@repo/api/cloud/sync/socket-link";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
@@ -39,6 +40,7 @@ import type {
   CloudStatusResponse,
 } from "@repo/api/local/cloud/cloud-schema";
 import type { DebugLog } from "../debug-log";
+import { messageOf } from "../error-message";
 import type { CaptureVault } from "./captures";
 import {
   clearDeviceCredential,
@@ -47,7 +49,6 @@ import {
 } from "./credential-store";
 import type { DeviceCredential } from "./credential-store";
 import { enqueueThreadEvents } from "./outbox";
-import { createSocketLink } from "./socket-link";
 import { createSyncCadence } from "./sync-cadence";
 import type { SyncCadenceArgs } from "./sync-cadence";
 import { runSyncPass } from "./sync-pass";
@@ -59,8 +60,8 @@ const SIGN_OUT_GRACE_MS = 3000;
 
 export interface CloudTransport {
   fetch?: CloudFetch;
-  /** absent means poll-only. injected rather than defaulted because
-   *  cloud-socket.ts cannot be imported here (browser tsconfig). */
+  /** absent means poll-only. injected rather than defaulted because node's dial
+   *  cannot be typed here (browser tsconfig). */
   openSocket?: CloudSocketOpener;
   /** null disables the poll timer and the push debounce. */
   pollIntervalMs?: number | null;
@@ -110,6 +111,8 @@ export interface CloudRuntime {
   enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;
   /** an approval opened or settled here: a phone-started turn's is offered or taken back soon. */
   approvalsChanged: () => void;
+  /** whether this Mac takes a phone's requests moved; its socket says so only when it dials. */
+  phoneRequestsChanged: () => void;
   /** late-bound: the thread service needs enqueue at construction. */
   attach: (sink: SyncedEventSink) => void;
   start: () => void;
@@ -276,6 +279,17 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   // refusal; the request is bound once the pass exists, before either can fire.
   let requestPass: (() => void) | null = null;
 
+  const phoneRequests = args.phoneRequests ?? (() => true);
+  // an unreadable choice is not announced as on: the person may have turned it off
+  const announcesPhoneRequests = (): boolean => {
+    try {
+      return phoneRequests();
+    } catch (error) {
+      debug(`reading whether this Mac takes phone requests failed: ${messageOf(error)}`);
+      return false;
+    }
+  };
+
   const link = createSocketLink({
     baseUrl: args.cloudUrl,
     canConnect: live,
@@ -283,6 +297,9 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       const current = session.current();
       return current.kind === "live" ? current.credential.credential : null;
     },
+    // this process owns the vault and drives the agent, so a phone's turn is addressed to it
+    // while it takes them.
+    listener: () => ({ phoneRequests: announcesPhoneRequests(), platform: "desktop" }),
     onPing: (ping) => {
       // pings carry no payload; a sync ping's seq is the log's high-water, so one
       // the cursor covers is skipped. vault is another device's push — the git
@@ -312,8 +329,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       requestPass?.();
     },
     openSocket: transport.openSocket ?? null,
-    // this process owns the vault and drives the agent, so a desktop-lane dispatch is addressed to it.
-    platform: "desktop",
   });
 
   const cadenceArgs: SyncCadenceArgs = {
@@ -379,7 +394,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     debug,
     debugLog: args.debugLog,
     fenced,
-    phoneRequests: args.phoneRequests ?? (() => true),
+    phoneRequests,
     recordFailure,
     setLastError: (message) => {
       lastError = message;
@@ -585,6 +600,16 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       }
       enqueueThreadEvents(tx, events);
       cadence.scheduleDrain();
+    },
+
+    phoneRequestsChanged() {
+      if (!live()) {
+        return;
+      }
+      link.close();
+      notifyStatus();
+      link.resetBackoff();
+      link.connect();
     },
 
     async login(request) {

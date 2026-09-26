@@ -3,6 +3,7 @@ import path from "node:path";
 import { createCloudClient, postDeviceLogin } from "@repo/api/cloud/client";
 import type { CloudClient, CloudFetch } from "@repo/api/cloud/client";
 import { DISPATCH_API_PATHS } from "@repo/api/cloud/dispatch/dispatch-schema";
+import type { SocketListener } from "@repo/api/cloud/sync/sync-ws";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { listStoredThreadEvents, threadHoldsDispatch } from "@repo/db/events";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
@@ -222,6 +223,50 @@ describe("a phone's request reaching a Mac", () => {
     expect(cloud.dispatchStatus(TURN).state).toBe("waiting");
     const status = await mac.client.cloud.status();
     expect(status.state === "signed-in" && status.lastError).toContain("cloud-prefs.json");
+  });
+});
+
+// a Mac recording every dial's listener, in order; the socket never opens, so no pass rides it
+const bootListening = async (cloud: FakeCloud) => {
+  const dials: SocketListener[] = [];
+  const mac = await bootThreadHarness(
+    { mode: "manual" },
+    {
+      cloudTransport: {
+        fetch: cloud.fetch,
+        openSocket: (args) => {
+          dials.push(args.listener);
+          return { close: () => {} };
+        },
+        pollIntervalMs: null,
+      },
+    },
+  );
+  return { dials, mac };
+};
+
+describe("the Mac's socket", () => {
+  it("says whether this Mac takes a phone's requests, and dials again when that changes", async () => {
+    const { dials, mac } = await bootListening(new FakeCloud());
+    await mac.client.cloud.setPrefs({ phoneRequests: false });
+    expect(dials).toEqual([]);
+
+    await signInMac(mac);
+    await mac.client.cloud.setPrefs({ phoneRequests: true });
+
+    expect(dials).toEqual([
+      { phoneRequests: false, platform: "desktop" },
+      { phoneRequests: true, platform: "desktop" },
+    ]);
+  });
+
+  it("does not say it takes them when its choice cannot be read", async () => {
+    const { dials, mac } = await bootListening(new FakeCloud());
+    writeFileSync(path.join(mac.dataDir, "cloud-prefs.json"), "{ not json");
+
+    await signInMac(mac);
+
+    expect(dials).toEqual([{ phoneRequests: false, platform: "desktop" }]);
   });
 });
 

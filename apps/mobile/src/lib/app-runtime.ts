@@ -26,11 +26,14 @@ import type { CreatedNote, RenamedNote } from "../notes/file-ops";
 import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
 import { ingestPhoto } from "../notes/photo-ingest";
 import type { OutboxStatus } from "../notes/vault-outbox";
+import type { LiveItem } from "../sync/live-turns";
+import { rnSocketDial } from "../sync/rn-socket-dial";
 import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { CloudFailure } from "@repo/api/cloud/client";
+import { createCloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
@@ -61,7 +64,7 @@ const build = (): AppRuntime => {
     outboxFiles: createExpoOutboxFiles(),
     sha1: async (bytes) =>
       new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA1, bytes)),
-    sync: { onDebug: devLog },
+    sync: { onDebug: devLog, openSocket: createCloudSocketOpener(rnSocketDial) },
   });
   // never removed: the runtime lives as long as the app, and a resume while signed out is a no-op.
   // `inactive` is a passing state on iOS (a pulled-down notification centre), not a departure.
@@ -72,11 +75,12 @@ const build = (): AppRuntime => {
       rt.suspend();
     }
   });
-  // a phone back online sends what it saved offline without waiting for the retry timer
+  // a phone back online sends what it saved offline without waiting for the retry timer; in the
+  // background it waits for the foreground, which reopens the socket too
   let online = true;
   addNetworkStateListener((network) => {
     const reachable = network.isInternetReachable ?? network.isConnected ?? false;
-    if (reachable && !online) {
+    if (reachable && !online && AppState.currentState === "active") {
       rt.resume();
     }
     online = reachable;
@@ -222,6 +226,12 @@ export const useThread = (threadId: string): ThreadProjection | null => {
     rt.store.snapshotThread(threadId),
   );
   return useMemo(() => (thread === null ? null : projectThread(thread)), [thread]);
+};
+
+// what the thread's running turn has streamed so far, cleared as its items settle
+export const useLiveItems = (threadId: string): readonly LiveItem[] => {
+  const rt = getRuntime();
+  return useSyncExternalStore(rt.live.subscribe, () => rt.live.snapshot(threadId));
 };
 
 export const useDispatches = (threadId: string): ThreadDispatches => {
