@@ -28,9 +28,9 @@ export const untilIdentityKnown = async (api: InstanceApi, label: string): Promi
   );
 };
 
-// syncNow is single-flight: a call landing during a background pass joins it and reports the state
-// it left, which can be "dirty" for a write that pass never saw, so retry; any other state fails at
-// once.
+// syncNow coalesces: a call landing during a background pass has it run once more, so the answer
+// covers every change made before the call. "dirty" is a push that lost a race to another device's,
+// which the next pass integrates, so retry; any other state fails at once.
 export const syncUntil = async (
   api: InstanceApi,
   label: string,

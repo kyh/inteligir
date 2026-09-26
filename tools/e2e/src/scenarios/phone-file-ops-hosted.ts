@@ -29,6 +29,11 @@ const exists = async (file: string): Promise<boolean> => {
   }
 };
 
+const commentStores = async (vaultDir: string): Promise<string[]> => {
+  const dir = path.join(vaultDir, COMMENTS_DIR);
+  return (await exists(dir)) ? await readdir(dir) : [];
+};
+
 export const phoneFileOpsHosted: Scenario = {
   description:
     "the phone's own runtime creates a note, renames one another note links to, deletes one with comments and adds a photo; A syncs the rewritten link, the old name as an alias, no comment store and the photo's bytes",
@@ -50,10 +55,13 @@ export const phoneFileOpsHosted: Scenario = {
     ]) {
       await a.api.vault.write({ ...note, guard: { kind: "overwrite" } });
     }
+    // the starter vault ships comment stores of its own, so the note's is the one the comment adds
+    const seeded = new Set(await commentStores(a.vaultDir));
     await a.api.comments.add({ id: "c1", path: OLD, text: "Still true?" });
-    const stores = await readdir(path.join(a.vaultDir, COMMENTS_DIR));
-    expectEq(stores.length, 1, "A's comment stores");
-    const store = `${COMMENTS_DIR}/${stores[0] ?? ""}`;
+    const stores = await commentStores(a.vaultDir);
+    const added = stores.filter((name) => !seeded.has(name));
+    expectEq(added.length, 1, "the comment stores A's comment added");
+    const store = `${COMMENTS_DIR}/${added[0] ?? ""}`;
     await syncUntil(a.api, "A after its notes", "clean");
 
     ctx.log("the phone signs in and mirrors the vault");
@@ -108,6 +116,8 @@ export const phoneFileOpsHosted: Scenario = {
     expect(!(await exists(onA(PLAN))), "the old name is gone from A");
     expect(!(await exists(onA(OLD))), "the deleted note is gone from A");
     expect(!(await exists(onA(store))), "the deleted note's comment store is gone from A");
+    const kept = await commentStores(a.vaultDir);
+    expectEq(kept.toSorted(), [...seeded].toSorted(), "the other notes' comment stores on A");
     expect(
       Buffer.from(await readFile(onA(`assets/${PHOTO_NAME}`))).equals(Buffer.from(photo)),
       "the photo's bytes on A",

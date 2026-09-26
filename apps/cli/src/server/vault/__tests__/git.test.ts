@@ -1369,6 +1369,36 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     expect(await readFile(path.join(b.root, "from-a.md"), "utf-8")).toBe("pushed by A\n");
   });
 
+  it("runs once more for a call that lands mid-pass, so a push it fetched before is pulled", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    const gate = await makeGatedService("receive-pack");
+    const b = await makeEngine({ env: gate.env, remoteUrl: remote });
+    await a.engine.syncNow();
+    await gate.open();
+    await b.engine.syncNow();
+    await gate.close();
+
+    await writeFile(path.join(b.root, "from-b.md"), "pushed by B\n", "utf-8");
+    await b.engine.commitNow();
+    const pass = b.engine.syncNow();
+    let ping: Promise<VaultStatusResponse> | null = null;
+    try {
+      await gate.reached();
+      await writeFile(path.join(a.root, "from-a.md"), "pushed by A\n", "utf-8");
+      await a.engine.commitNow();
+      expect(await syncState(a.engine)).toBe("clean");
+      // A's push pings B while B's pass is past its fetch
+      ping = b.engine.syncNow();
+    } finally {
+      await gate.open();
+    }
+
+    expect(await pass).toMatchObject({ lastError: null, state: "clean" });
+    expect(await ping).toMatchObject({ lastError: null, state: "clean" });
+    expect(await readFile(path.join(b.root, "from-a.md"), "utf-8")).toBe("pushed by A\n");
+  });
+
   it("keeps a save's own watcher echo out of the post-pass reconcile", async () => {
     const remote = await makeSilentRemote();
     const vaultDir = makeTempDir("inteligir-git-echo-vault-", { realpath: true });

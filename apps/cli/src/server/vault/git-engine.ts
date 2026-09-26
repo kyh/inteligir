@@ -187,6 +187,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
+  let syncAgain = false;
   let autoSyncTimer: ReturnType<typeof setInterval> | null = null;
 
   let repoChain: Promise<unknown> = Promise.resolve();
@@ -980,26 +981,35 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
+  // coalescing: a caller mid-pass joins it and has it run once more before anyone hears back.
+  // the running pass may have fetched before whatever that caller is about — another device's
+  // push pings mid-pass — and joining alone would answer clean without it until the next tick.
   const syncNow = async (): Promise<VaultStatusResponse> => {
     if (inflightSync !== null) {
+      syncAgain = true;
       return await inflightSync;
     }
     // claimed before the gate's read, so a second caller joins this one rather than passing the
     // gate beside it.
     const pass = (async () => {
       try {
-        // a pass starts by committing the dirty tree, which a hold exists to prevent; the
-        // snapshot says "held" rather than reporting clean as if a pass ran.
-        const remote = await currentRemote();
-        if (remote === null || lastOutcome.kind === "broken" || liveHolds.size > 0) {
-          return await statusSnapshot();
+        for (;;) {
+          syncAgain = false;
+          // a pass starts by committing the dirty tree, which a hold exists to prevent; the
+          // snapshot says "held" rather than reporting clean as if a pass ran.
+          const remote = await currentRemote();
+          if (remote === null || lastOutcome.kind === "broken" || liveHolds.size > 0) {
+            return await statusSnapshot();
+          }
+          syncing = true;
+          args.onStatusChanged?.();
+          await runSyncPass();
+          syncing = false;
+          args.onStatusChanged?.();
+          if (!syncAgain || disposed) {
+            return await statusSnapshot();
+          }
         }
-        syncing = true;
-        args.onStatusChanged?.();
-        await runSyncPass();
-        syncing = false;
-        args.onStatusChanged?.();
-        return await statusSnapshot();
       } finally {
         inflightSync = null;
       }
