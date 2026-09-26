@@ -73,7 +73,10 @@ src/
                        # read the login answer strictly
     vault/             # VAULT_API_PATHS, the hosted tree/file/files/asset
                        # shapes and ceilings, VAULT_GIT_PATH, and the asset
-                       # media-type allowlist the desktop and Worker routes share
+                       # media-type allowlist the desktop and Worker routes share;
+                       # vault-commit-schema.ts is the phone's write: a change
+                       # set CAS'd per path, its 409 conflict beside the
+                       # envelope, and the one collision key a Mac compares by
 ```
 
 ## Who consumes which half
@@ -82,9 +85,10 @@ src/
   `dep-dag.test.ts` pins that per import.
 - **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes all
   of `/cloud` — push, pull, claim, ack, the git remote.
-- **apps/mobile** consumes the read half alone: it pulls threads and produces
-  captures, never pushes or claims, because the desktop runs the turns and
-  owns applying a capture to the vault. It reaches nothing under `/local`
+- **apps/mobile** pulls threads, produces captures and commits vault change
+  sets (`vaultCommit`), and never pushes thread events, claims a capture or
+  speaks git, because the desktop runs the turns and owns applying a capture
+  to the vault. It reaches nothing under `/local`
   either, pinned by the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as
   apps/web: a phone install may be months stale against the deployed Worker.
 - **apps/desktop** compiles against `/local` (plus `cloud/bytes`, once).
@@ -125,7 +129,10 @@ src/
   `refused` (a code this build names, `internal` for one it does not),
   `unreachable` (no verdict on the credential) or `malformed` (a body this
   build cannot read); an `Error("HTTP 409")` would retry a batch the server
-  refuses forever.
+  refuses forever. One refusal is an answer: `vaultCommit` reads a 409
+  `vault-conflict` as the value `{ kind: "conflict" }`, since it carries the
+  bytes to merge against, while any reader that knows only the envelope,
+  `readCloudCall` included, still sees the refusal.
 - **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
   the literal strings behind `@repo/api/local/routes` and `VAULT_API_PATHS`
   and refuses a second spelling outside the file that owns it.

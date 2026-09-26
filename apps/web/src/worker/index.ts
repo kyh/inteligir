@@ -9,6 +9,7 @@ import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
 import { handleSyncRoutes } from "./sync/routes";
+import { handleVaultCommitRoute } from "./vault/commit-route";
 import { handleVaultGitRemote } from "./vault/git-remote";
 import { handleVaultReadRoutes } from "./vault/read-routes";
 
@@ -55,6 +56,10 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
 
   if (url.pathname.startsWith(VAULT_GIT_PATH)) {
     return await handleVaultGitRemote(request, env, ctx, url);
+  }
+
+  if (url.pathname === VAULT_API_PATHS.commit) {
+    return await handleVaultCommitRoute(request, env, ctx);
   }
 
   if (

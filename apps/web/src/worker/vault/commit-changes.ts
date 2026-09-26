@@ -1,3 +1,5 @@
+import { vaultCollisionKey } from "@repo/api/cloud/vault/vault-commit-schema";
+import type { VaultConflictReason } from "@repo/api/cloud/vault/vault-commit-schema";
 import { VAULT_FILE_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
 import type { RepoCell, TreeEntryJson, TreeResult } from "durable-git";
 import {
@@ -29,14 +31,6 @@ export type VaultChange =
     }
   | { readonly op: "delete"; readonly path: string; readonly base: string }
   | { readonly op: "move"; readonly from: string; readonly to: string; readonly base: string };
-
-export type VaultConflictReason =
-  | "changed"
-  | "exists"
-  | "missing"
-  | "blocked"
-  | "case-collision"
-  | "unwritable";
 
 export interface VaultConflict {
   readonly path: string;
@@ -413,9 +407,6 @@ const rewrittenFolders = (listings: Listings, edits: readonly LeafEdit[]): Folde
   return folders;
 };
 
-// Macs are case- and normalization-insensitive: two names that agree here are one file there
-const collisionKey = (name: string): string => name.normalize("NFC").toLowerCase();
-
 // the first name along the path the head does not hold, with the folder it would join
 const introducedName = (
   listings: Listings,
@@ -436,9 +427,9 @@ const collides = (listings: Listings, folders: Folders, path: string): boolean =
   if (introduced === null) {
     return false;
   }
-  const key = collisionKey(introduced.name);
+  const key = vaultCollisionKey(introduced.name);
   return [...(folders.get(introduced.folder)?.keys() ?? [])].some(
-    (name) => name !== introduced.name && collisionKey(name) === key,
+    (name) => name !== introduced.name && vaultCollisionKey(name) === key,
   );
 };
 

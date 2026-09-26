@@ -39,6 +39,14 @@ import {
 } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
 import {
+  VAULT_COMMIT_MAX_CHANGES,
+  vaultCollisionKey,
+  vaultCommitRequestSchema,
+  vaultCommitResponseSchema,
+  vaultConflictAnswerSchema,
+} from "../vault/vault-commit-schema";
+import type { VaultCommitRequest } from "../vault/vault-commit-schema";
+import {
   assetMediaType,
   VAULT_API_PATHS,
   VAULT_ASSET_MEDIA_TYPES,
@@ -236,6 +244,36 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
       files: [{ content: "# a\n", oid: "b".repeat(40), path: "notes/a.md" }],
       missing: ["notes/b.md"],
       refused: [{ code: "not-text", path: "notes/c.md" }],
+    },
+  ],
+  [
+    "a commit",
+    vaultCommitResponseSchema,
+    {
+      commit: COMMIT,
+      results: [
+        { oid: "b".repeat(40), path: "notes/a.md" },
+        { oid: null, path: "notes/gone.md" },
+      ],
+    },
+  ],
+  [
+    "a vault conflict",
+    vaultConflictAnswerSchema,
+    {
+      conflict: {
+        conflicts: [
+          {
+            current: { content: "# theirs\n", oid: "c".repeat(40) },
+            device: "Laptop",
+            path: "notes/a.md",
+            reason: "changed",
+          },
+          { current: null, device: null, path: "notes/b.md", reason: "missing" },
+        ],
+        head: COMMIT,
+      },
+      error: { code: "vault-conflict", message: "The vault changed under this change set." },
     },
   ],
   ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
@@ -777,5 +815,167 @@ describe("an attachment's bytes", () => {
       failure: { kind: "unreachable", message: "Failed to fetch" },
       ok: false,
     });
+  });
+});
+
+const put = (path: string): VaultCommitRequest["changes"][number] => ({
+  base: null,
+  content: { encoding: "utf-8", text: "x" },
+  op: "put",
+  path,
+});
+
+describe("a vault change set", () => {
+  const BASE = "b".repeat(40);
+  const CREDENTIAL = `igd_${"a".repeat(64)}`;
+
+  // as a phone sent it: the Worker must read this body for as long as that phone is installed
+  const RECORDED = `{"authoredAt":1790000000000,"changes":[
+    {"op":"put","path":"notes/a.md","base":"${BASE}","content":{"encoding":"utf-8","text":"# a\\n"}},
+    {"op":"put","path":"media/photo.png","base":null,"content":{"encoding":"base64","data":"iVBORw0KGgo="}},
+    {"op":"delete","path":"old.md","base":"${BASE}"},
+    {"op":"move","from":"x.md","to":"notes/x.md","base":"${BASE}"}
+  ]}`;
+
+  it("reads a set a phone recorded, every op and both encodings", () => {
+    const body: unknown = JSON.parse(RECORDED);
+    expect(vaultCommitRequestSchema.parse(body)).toStrictEqual(body);
+  });
+
+  it("refuses a set that names a path twice, a move's ends included", () => {
+    for (const changes of [
+      [put("a.md"), put("a.md")],
+      [put("b.md"), { base: BASE, from: "a.md", op: "move", to: "b.md" }],
+      [put("a.md"), { base: BASE, op: "delete", path: "a.md" }],
+    ]) {
+      expect(vaultCommitRequestSchema.safeParse({ changes }).success).toBe(false);
+    }
+  });
+
+  it("refuses an empty or oversized set, and any change it cannot read exactly", () => {
+    const many = Array.from({ length: VAULT_COMMIT_MAX_CHANGES + 1 }, (_, index) =>
+      put(`n${String(index)}.md`),
+    );
+    expect(vaultCommitRequestSchema.safeParse({ changes: many.slice(1) }).success).toBe(true);
+    for (const refused of [
+      { changes: [] },
+      { changes: many },
+      { changes: [put("a.md")], deviceId: "dev_1" },
+      { changes: [{ ...put("a.md"), mode: "100755" }] },
+      { changes: [{ ...put("a.md"), base: "abc123" }] },
+      { changes: [put("a//b.md")] },
+      { changes: [put(".git/config")] },
+      { changes: [{ ...put("a.png"), content: { data: "not base64!", encoding: "base64" } }] },
+      { changes: [{ base: null, op: "delete", path: "a.md" }] },
+      { authoredAt: -1, changes: [put("a.md")] },
+    ]) {
+      expect(vaultCommitRequestSchema.safeParse(refused).success, JSON.stringify(refused)).toBe(
+        false,
+      );
+    }
+  });
+
+  it("keys a name the way a Mac's filesystem compares it", () => {
+    expect(vaultCollisionKey("Notes/Readme.md")).toBe(vaultCollisionKey("notes/readme.md"));
+    expect(vaultCollisionKey("café.md")).toBe(vaultCollisionKey("café.md"));
+    expect(vaultCollisionKey("a.md")).not.toBe(vaultCollisionKey("b.md"));
+  });
+
+  const CONFLICT = {
+    conflict: {
+      conflicts: [
+        {
+          current: { content: "# theirs\n", oid: "c".repeat(40) },
+          device: "Laptop",
+          path: "notes/a.md",
+          reason: "changed",
+        },
+        { current: null, device: null, path: "notes/b.md", reason: "missing" },
+      ],
+      head: COMMIT,
+    },
+    error: { code: "vault-conflict", message: "The vault changed under this change set." },
+  } as const;
+
+  it("reads a conflict whose reason it does not know as a path it cannot write", () => {
+    const newer = {
+      ...CONFLICT,
+      conflict: {
+        ...CONFLICT.conflict,
+        conflicts: [{ ...CONFLICT.conflict.conflicts[1], reason: "quota" }],
+      },
+    };
+    expect(vaultConflictAnswerSchema.parse(newer).conflict.conflicts[0]?.reason).toBe("unwritable");
+  });
+
+  it("reaches a reader that knows only the envelope as the refusal vault-conflict", async () => {
+    const result = await readCloudCall(
+      async () => Response.json(CONFLICT, { status: 409 }),
+      vaultCommitResponseSchema,
+    );
+    expect(result).toStrictEqual({
+      failure: {
+        code: "vault-conflict",
+        deviceSeq: null,
+        kind: "refused",
+        message: CONFLICT.error.message,
+      },
+      ok: false,
+    });
+  });
+
+  const commitOver = async (response: Response) => {
+    const seen: { authorization: string | null; body: unknown; method: string; url: URL }[] = [];
+    const request: VaultCommitRequest = { authoredAt: 1, changes: [put("notes/α β&c.md")] };
+    const result = await createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: CREDENTIAL,
+      fetch: async (input, init) => {
+        seen.push({
+          authorization: new Headers(init?.headers).get("authorization"),
+          body: JSON.parse(String(init?.body)),
+          method: init?.method ?? "GET",
+          url: new URL(input),
+        });
+        return response;
+      },
+    }).vaultCommit(request);
+    return { request, result, seen };
+  };
+
+  it("posts the set the route decodes to exactly the request, the bearer in a header", async () => {
+    const answer = { commit: COMMIT, results: [{ oid: BASE, path: "notes/α β&c.md" }] };
+    const { request, result, seen } = await commitOver(Response.json(answer));
+    expect(result).toStrictEqual({ ok: true, value: { kind: "committed", ...answer } });
+    expect(seen).toHaveLength(1);
+    const [sent] = seen;
+    expect(sent?.method).toBe("POST");
+    expect(sent?.url.pathname).toBe(VAULT_API_PATHS.commit);
+    expect(sent?.authorization).toBe(`Bearer ${CREDENTIAL}`);
+    expect(vaultCommitRequestSchema.parse(sent?.body)).toEqual(request);
+  });
+
+  it("answers a conflict as a value carrying each path, never as a failure", async () => {
+    const { result } = await commitOver(Response.json(CONFLICT, { status: 409 }));
+    expect(result.ok && result.value.kind === "conflict" ? result.value : null).toStrictEqual({
+      ...CONFLICT.conflict,
+      kind: "conflict",
+    });
+  });
+
+  it("keeps every other refusal a failure, a 409 without the conflict included", async () => {
+    for (const [code, status] of [
+      ["not-found", 404],
+      ["device-limit", 409],
+      ["file-too-large", 413],
+    ] as const) {
+      const { result } = await commitOver(Response.json(cloudError(code, "no"), { status }));
+      expect(result.ok ? null : result.failure, code).toStrictEqual({
+        code,
+        deviceSeq: null,
+        kind: "refused",
+        message: "no",
+      });
+    }
   });
 });

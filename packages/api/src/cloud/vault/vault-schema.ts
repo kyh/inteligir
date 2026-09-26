@@ -6,6 +6,7 @@ export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-typ
 
 export const VAULT_API_PATHS = {
   asset: "/v1/vault/asset",
+  commit: "/v1/vault/commit",
   file: "/v1/vault/file",
   files: "/v1/vault/files",
   tree: "/v1/vault/tree",
@@ -27,7 +28,7 @@ export const VAULT_FILES_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 // crosses the repo cell's rpc, whose own message bound would fail opaquely
 export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 
-const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
+export const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
 const commitShaSchema = gitOidSchema;
 
 // a git push can place git's machinery and staging files in the hosted tree; the read routes
@@ -35,7 +36,7 @@ const commitShaSchema = gitOidSchema;
 
 // the parse must be the identity: these values address git trees verbatim, so a path the
 // grammar would normalize is refused rather than silently renamed
-const vaultPathSchema = z.string().superRefine((value, ctx) => {
+export const vaultPathSchema = z.string().superRefine((value, ctx) => {
   const parsed = parseVaultPath(value);
   if (!parsed.ok) {
     ctx.addIssue({ code: "custom", message: parsed.message });

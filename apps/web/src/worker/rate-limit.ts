@@ -49,6 +49,7 @@ const allowInWindow = async (
 const DEVICE_RATE_KEY_PREFIXES = {
   vaultGit: "vault-git:",
   vaultRead: "vault-read:",
+  vaultWrite: "vault-write:",
 } as const;
 
 type DeviceRateFamily = keyof typeof DEVICE_RATE_KEY_PREFIXES;
@@ -100,6 +101,9 @@ export const RATE_WINDOWS = {
   // first mirror: a batch per 40 notes and a tree page per 500, 1,350 for the 50,000 entries a kept
   // listing holds. this breaks a runaway loop, and a burst past it sees its tail answered 429
   vaultRead: { max: 3000, windowMs: 60_000 },
+  // a phone's queue drains one change set at a time, each waiting on the commit before it, so a
+  // backlog of hundreds of offline edits drains within the minute and more than that is a loop
+  vaultWrite: { max: 300, windowMs: 60_000 },
 } as const satisfies Record<CallerRateFamily | DeviceRateFamily, RateWindow>;
 
 export const spendCallerBudget = async (
