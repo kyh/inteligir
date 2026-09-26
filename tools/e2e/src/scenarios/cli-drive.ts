@@ -21,9 +21,11 @@ const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string(
 const turnChangesOutputSchema = z.looseObject({
   turns: z.array(z.looseObject({ paths: z.array(z.string()), state: z.string() })),
 });
+const undoOutputSchema = z.looseObject({ reverted: z.array(z.string()) });
 
 export const cliDrive: Scenario = {
-  description: "the CLI drives a real instance: vault write, search, action new+wait+show+changes",
+  description:
+    "the CLI drives a real instance: vault write, search, action new+wait+show+changes+undo",
   name: "cli-drive",
   // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
   // the packed tarball pnpm smoke:cli's.
@@ -112,6 +114,20 @@ export const cliDrive: Scenario = {
       changed.data?.turns.map((turn) => `${turn.state} ${turn.paths.join(",")}`).join("\n"),
       `applied Agent/${threadId}.md`,
       "the one turn, applied, and the note it wrote",
+    );
+
+    ctx.log("undo takes the turn back");
+    const undone = await cli("action", "undo", threadId, "--json");
+    const undoneParsed = undoOutputSchema.safeParse(JSON.parse(undone.stdout));
+    expectEq(
+      undoneParsed.data?.reverted.join(","),
+      `Agent/${threadId}.md`,
+      "the undo reverted the note the turn made",
+    );
+    expectEq(
+      await readFile(path.join(app.vaultDir, "Agent", `${threadId}.md`), "utf-8").catch(() => null),
+      null,
+      "the note the untouched turn made is gone from disk",
     );
 
     ctx.log("status reports the scripted agent");

@@ -272,6 +272,42 @@ export type TurnChanges = z.infer<typeof turnChangesSchema>;
 export const turnChangesResponseSchema = z.object({ turns: z.array(turnChangesSchema) }).strict();
 export type TurnChangesResponse = z.infer<typeof turnChangesResponseSchema>;
 
+export const undoTurnRequestSchema = z
+  .object({
+    threadId: z.string().min(1),
+    turnId: z.string().min(1),
+  })
+  .strict();
+export type UndoTurnRequest = z.infer<typeof undoTurnRequestSchema>;
+
+// why a path the turn changed was left as it is: edited, deleted or put back since the turn;
+// claimed by a turn still running; or not text the undo can merge (too large, or not UTF-8).
+export const undoKeptReasonSchema = z.enum([
+  "edited-since",
+  "deleted-since",
+  "recreated-since",
+  "busy",
+  "unreadable",
+]);
+export type UndoKeptReason = z.infer<typeof undoKeptReasonSchema>;
+
+export const undoKeptPathSchema = z
+  .object({
+    path: z.string().min(1),
+    reason: undoKeptReasonSchema,
+  })
+  .strict();
+export type UndoKeptPath = z.infer<typeof undoKeptPathSchema>;
+
+// a path already back as it was before the turn is in neither list.
+export const undoTurnResponseSchema = z
+  .object({
+    kept: z.array(undoKeptPathSchema),
+    reverted: z.array(z.string().min(1)),
+  })
+  .strict();
+export type UndoTurnResponse = z.infer<typeof undoTurnResponseSchema>;
+
 export const answerInteractionRequestSchema = z
   .object({
     interactionId: z.string().min(1),

@@ -39,6 +39,7 @@ import type {
   QueuedThreadMessage,
   Thread,
   TurnChanges,
+  UndoTurnResponse,
 } from "@repo/api/local/threads/threads-schema";
 import { DEFAULT_ATTACHMENT_LOCATION, contentHashHex } from "@repo/api/local/vault/vault-schema";
 import type {
@@ -65,6 +66,8 @@ export interface FixtureThread {
   // each threads.get consumes one entry; the last one sticks.
   statusSequence?: ThreadStatus[];
   turnChanges?: TurnChanges[];
+  // what undoing any applied turn answers; absent, every path the turn changed is reverted.
+  turnUndo?: UndoTurnResponse;
 }
 
 export interface FixtureState {
@@ -558,6 +561,18 @@ const threadsRouter = {
       throw errors.NOT_FOUND({ message: "Not found" });
     }
     return { turns: entry.turnChanges ?? [] };
+  }),
+  undoTurn: base.threads.undoTurn.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
+    const turn = entry?.turnChanges?.find((changes) => changes.turnId === input.turnId);
+    if (entry === undefined || turn === undefined) {
+      throw errors.NOT_FOUND({ message: "Not found" });
+    }
+    if (turn.state === "undone") {
+      throw errors.CONFLICT({ message: `Turn ${turn.turnId} was already undone` });
+    }
+    turn.state = "undone";
+    return entry.turnUndo ?? { kept: [], reverted: turn.paths };
   }),
 };
 

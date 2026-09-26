@@ -54,7 +54,8 @@
     "./sync/reconcile-file": "./src/sync/reconcile-file.ts",
     "./templates/placeholders": "./src/templates/placeholders.ts",
     "./text/diff3": "./src/text/diff3.ts",
-    "./text/line-diff": "./src/text/line-diff.ts"
+    "./text/line-diff": "./src/text/line-diff.ts",
+    "./text/revert-edit": "./src/text/revert-edit.ts"
   },
   "scripts": {
     "test": "vitest run",
