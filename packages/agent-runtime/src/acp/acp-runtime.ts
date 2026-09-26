@@ -19,6 +19,7 @@ import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
+  Stream,
 } from "@agentclientprotocol/sdk";
 import type { PendingInteractionResolution } from "@repo/domain/pending-interactions";
 import type {
@@ -48,16 +49,6 @@ const SESSION_SHUTDOWN_GRACE_MS = 1000;
 // 'exit' can arrive before the child's last stderr chunk, and that chunk is usually what names the crash.
 const STDERR_DRAIN_MS = 200;
 const STDERR_TAIL_LINES = 20;
-
-const definedProcessEnv = (): AgentRuntimeShellEnvironment => {
-  const env: AgentRuntimeShellEnvironment = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) {
-      env[key] = value;
-    }
-  }
-  return env;
-};
 
 // the slice of a child process the runtime drives: node's own ChildProcess, or a host's stand-in
 // for a process it cannot start with child_process (the desktop shell's utility-process adapters).
@@ -101,6 +92,83 @@ interface AdapterExit {
   code: number | null;
   signal: NodeJS.Signals | null;
 }
+
+export interface AdapterSpawnEnvOptions {
+  // the env the adapter inherits, less the harness's envOmit.
+  hostEnv: NodeJS.ProcessEnv;
+  // what the agent's shell inherits: it is how the server url and the cli's PATH reach `inteligir`.
+  shellEnv?: AgentRuntimeShellEnvironment | undefined;
+  // the thread the adapter serves; a sign-in serves none.
+  threadId: string | null;
+  model: string | null;
+}
+
+// one assembly for every adapter spawn, so a session and a sign-in cannot start the adapter on two
+// different envs.
+export const adapterSpawnEnv = (
+  harness: HarnessDefinition,
+  options: AdapterSpawnEnvOptions,
+): AgentRuntimeShellEnvironment => {
+  const omitted = new Set(harness.envOmit);
+  const env: AgentRuntimeShellEnvironment = {};
+  for (const [key, value] of Object.entries(options.hostEnv)) {
+    if (value !== undefined && !omitted.has(key)) {
+      env[key] = value;
+    }
+  }
+  Object.assign(
+    env,
+    options.threadId === null
+      ? options.shellEnv
+      : buildThreadShellEnvironment({ baseShellEnv: options.shellEnv, threadId: options.threadId }),
+  );
+  // a value the host already set wins: it names an install the user chose.
+  for (const [key, value] of Object.entries(harness.adapterEnv)) {
+    env[key] ??= value;
+  }
+  if (options.model !== null) {
+    harness.applyModel(options.model, env);
+  }
+  return env;
+};
+
+// the adapter as node runs it, when the host names no spawn of its own.
+export const spawnNodeAdapter = (
+  harness: HarnessDefinition,
+  env: Record<string, string>,
+  cwd: string,
+): AcpSpawnedAdapter => ({
+  child: spawn(process.execPath, [harness.adapterEntry], {
+    cwd,
+    env,
+    stdio: ["pipe", "pipe", "pipe"],
+  }),
+});
+
+const exitedWithin = async (gone: Promise<unknown>): Promise<boolean> =>
+  await Promise.race([
+    (async () => {
+      await gone;
+      return true;
+    })(),
+    delay(SESSION_SHUTDOWN_GRACE_MS, false, { ref: false }),
+  ]);
+
+// SIGTERM, then SIGKILL once the grace passes. the wait after SIGKILL is bounded too: a brokered
+// child's exit crosses a port, and a lost one must not hold its caller forever.
+export const terminateAdapter = async (
+  child: AdapterProcess,
+  gone: Promise<unknown>,
+): Promise<void> => {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+  child.kill("SIGTERM");
+  if (!(await exitedWithin(gone))) {
+    child.kill("SIGKILL");
+    await exitedWithin(gone);
+  }
+};
 
 // one spawned child, from spawn to exit. the connection closes with the child's exit, so every
 // request still pending rejects naming the harness, the exit status and the last stderr lines.
@@ -159,6 +227,64 @@ const drained = async (stream: Readable): Promise<void> => {
   }
 };
 
+export interface AdapterChannel {
+  // the child's stdin and stdout as one ACP stream.
+  stream: Stream;
+  gone: Promise<AdapterExit>;
+  // the exit, once its last stderr is in, as the error that names both: the connection closes with
+  // it, so every request still pending rejects saying why rather than "connection closed".
+  exited: Promise<Error>;
+}
+
+export const openAdapterChannel = (
+  harness: HarnessDefinition,
+  child: AdapterProcess,
+  onStderrLine?: (line: string) => void,
+): AdapterChannel => {
+  const { stdin, stdout } = child;
+  if (stdin === null || stdout === null) {
+    throw new Error(`The ${harness.displayName} adapter spawned without stdio pipes`);
+  }
+  const stdinWeb: WritableStream<Uint8Array> = Writable.toWeb(stdin);
+  // Readable.toWeb types its stream any; the identity TransformStream stamps the chunk type
+  // without an assertion. stdout's end does not close it: an ended stream closes the connection
+  // with a bare "connection closed" before the exit can name the crash.
+  const identity = new TransformStream<Uint8Array, Uint8Array>();
+  void (async () => {
+    try {
+      await Readable.toWeb(stdout).pipeTo(identity.writable, { preventClose: true });
+    } catch {
+      // a destroyed stdout is the child's exit path, which `exited` reports.
+    }
+  })();
+  const stderrTail: string[] = [];
+  child.stderr?.on("data", (chunk: Buffer) => {
+    for (const line of chunk.toString("utf-8").split("\n")) {
+      if (line.trim() !== "") {
+        stderrTail.push(line);
+        if (stderrTail.length > STDERR_TAIL_LINES) {
+          stderrTail.shift();
+        }
+        onStderrLine?.(line);
+      }
+    }
+  });
+  // oxlint-disable-next-line promise/avoid-new -- adapts the child's one-shot "exit" event
+  const gone = new Promise<AdapterExit>((resolve) => {
+    child.once("exit", (code, signal) => {
+      resolve({ code, signal });
+    });
+  });
+  const exited = (async () => {
+    const exit = await gone;
+    if (child.stderr !== null) {
+      await Promise.race([drained(child.stderr), delay(STDERR_DRAIN_MS, null, { ref: false })]);
+    }
+    return adapterExitError(harness, exit, stderrTail);
+  })();
+  return { exited, gone, stream: ndJsonStream(stdinWeb, identity.readable) };
+};
+
 // the host closed the thread while its adapter was still being opened.
 export class ThreadClosedError extends Error {
   constructor(threadId: string) {
@@ -198,33 +324,13 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   };
 
   const spawnAdapter = (harness: HarnessDefinition, threadId: string): AcpSpawnedAdapter => {
-    const omitted = new Set(harness.envOmit);
-    const env: AgentRuntimeShellEnvironment = Object.fromEntries(
-      Object.entries(definedProcessEnv()).filter(([key]) => !omitted.has(key)),
-    );
-    // the agent's shell inherits this env: it is how the server url and the cli's PATH reach
-    // `inteligir`.
-    Object.assign(
-      env,
-      buildThreadShellEnvironment({ baseShellEnv: options.shellEnv?.(), threadId }),
-    );
-    // a value the host already set wins: it names an install the user chose.
-    for (const [key, value] of Object.entries(harness.adapterEnv)) {
-      env[key] ??= value;
-    }
-    const model = options.models?.[harness.id] ?? null;
-    if (model !== null) {
-      harness.applyModel(model, env);
-    }
-    if (options.spawnAdapter !== undefined) {
-      return options.spawnAdapter(harness, env, options.workspacePath);
-    }
-    const child = spawn(process.execPath, [harness.adapterEntry], {
-      cwd: options.workspacePath,
-      env,
-      stdio: ["pipe", "pipe", "pipe"],
+    const env = adapterSpawnEnv(harness, {
+      hostEnv: process.env,
+      model: options.models?.[harness.id] ?? null,
+      shellEnv: options.shellEnv?.(),
+      threadId,
     });
-    return { child };
+    return (options.spawnAdapter ?? spawnNodeAdapter)(harness, env, options.workspacePath);
   };
 
   const requestPermission = async (
@@ -272,10 +378,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   const connectClient = (
     threadId: string,
     session: () => AcpSession | undefined,
-    stdin: WritableStream<Uint8Array>,
-    stdout: ReadableStream<Uint8Array>,
+    stream: Stream,
   ): ClientConnection => {
-    const stream = ndJsonStream(stdin, stdout);
     const { debugLog } = options;
     return client({ name: "inteligir" })
       .onRequest(
@@ -303,21 +407,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   };
 
   const kill = async (adapter: AcpAdapter): Promise<void> => {
-    const { child } = adapter;
-    if (child.exitCode !== null || child.signalCode !== null) {
-      return;
-    }
-    child.kill("SIGTERM");
-    const stopped = await Promise.race([
-      (async () => {
-        await adapter.gone;
-        return true;
-      })(),
-      delay(SESSION_SHUTDOWN_GRACE_MS, false, { ref: false }),
-    ]);
-    if (!stopped) {
-      child.kill("SIGKILL");
-    }
+    await terminateAdapter(adapter.child, adapter.gone);
   };
 
   const destroyAdapter = async (adapter: AcpAdapter): Promise<void> => {
@@ -379,58 +469,18 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       throw new ThreadClosedError(threadId);
     }
     const { child } = spawnAdapter(harness, threadId);
-    const { stdin, stdout } = child;
-    if (stdin === null || stdout === null) {
-      throw new Error(`The ${harness.displayName} adapter spawned without stdio pipes`);
-    }
-    const stdinWeb: WritableStream<Uint8Array> = Writable.toWeb(stdin);
-    // Readable.toWeb types its stream any; the identity TransformStream stamps the chunk type
-    // without an assertion. stdout's end does not close it: an ended stream closes the connection
-    // with a bare "connection closed" before the exit below can name the crash.
-    const identity = new TransformStream<Uint8Array, Uint8Array>();
-    void (async () => {
-      try {
-        await Readable.toWeb(stdout).pipeTo(identity.writable, { preventClose: true });
-      } catch {
-        // a destroyed stdout is the child's exit path, which the close below reports.
-      }
-    })();
-    const connection = connectClient(
-      threadId,
-      () => sessionOf(threadId, child),
-      stdinWeb,
-      identity.readable,
-    );
-    const stderrTail: string[] = [];
-    child.stderr?.on("data", (chunk: Buffer) => {
-      for (const line of chunk.toString("utf-8").split("\n")) {
-        if (line.trim() !== "") {
-          stderrTail.push(line);
-          if (stderrTail.length > STDERR_TAIL_LINES) {
-            stderrTail.shift();
-          }
-          options.onStderr?.(line, threadId);
-        }
-      }
+    const channel = openAdapterChannel(harness, child, (line) => {
+      options.onStderr?.(line, threadId);
     });
-    // oxlint-disable-next-line promise/avoid-new -- adapts the child's one-shot "exit" event
-    const gone = new Promise<AdapterExit>((resolve) => {
-      child.once("exit", (code, signal) => {
-        resolve({ code, signal });
-      });
-    });
+    const connection = connectClient(threadId, () => sessionOf(threadId, child), channel.stream);
     void (async () => {
-      const exit = await gone;
-      if (child.stderr !== null) {
-        await Promise.race([drained(child.stderr), delay(STDERR_DRAIN_MS, null, { ref: false })]);
-      }
-      connection.close(adapterExitError(harness, exit, stderrTail));
+      connection.close(await channel.exited);
     })();
     const adapter: AcpAdapter = {
       child,
       closing: false,
       connection,
-      gone,
+      gone: channel.gone,
       harness,
       providerId,
       threadId,

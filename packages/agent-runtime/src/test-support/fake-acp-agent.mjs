@@ -1,17 +1,26 @@
 // FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent |
 // slow (a command left running until session/cancel, then the cancelled stop the real ones answer) |
-// authOnSessionOpen | authOnPrompt (a signed-out vendor, refusing at the step the real ones do) |
+// authOnSessionOpen | authOnPrompt (a signed-out vendor, refusing at the step the real ones do;
+// authOnSessionOpen lets a session open once FAKE_ACP_AUTH_FILE exists) | signIn (authenticate
+// writes FAKE_ACP_AUTH_FILE) | signInRefused (authenticate refuses, as a login the user abandoned) |
+// signInHang (authenticate never answers, and SIGTERM is ignored, so only a SIGKILL ends it) |
 // crashOnBoot (exits before the handshake, saying why on stderr, as a missing module would).
-// FAKE_ACP_RECORD names a file each session/new and session/load appends its params to, one json
-// line each. session ids carry the pid, so two adapters never mint the same one.
+// Every mode advertises one agent sign-in method, SIGN_IN_METHOD_ID.
+// FAKE_ACP_RECORD names a file each session/new, session/load and authenticate appends its params
+// to, one json line each. session ids carry the pid, so two adapters never mint the same one.
 
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
 import { PROTOCOL_VERSION, RequestError, agent, ndJsonStream } from "@agentclientprotocol/sdk";
 
 const mode = process.env.FAKE_ACP_MODE ?? "message";
 const filePath = process.env.FAKE_ACP_FILE ?? null;
 const recordPath = process.env.FAKE_ACP_RECORD ?? null;
+const authFile = process.env.FAKE_ACP_AUTH_FILE ?? null;
+
+const SIGN_IN_METHOD_ID = "chat-gpt";
+
+const signedIn = () => authFile !== null && existsSync(authFile);
 
 const record = (method, params) => {
   if (recordPath !== null) {
@@ -24,6 +33,23 @@ let sessionCounter = 0;
 // a slow prompt's release by session id: session/cancel is a notification, so nothing else can
 // answer the prompt it names.
 const releases = new Map();
+
+/** @returns {Promise<Record<string, never>>} The empty answer a completed sign-in gets. */
+const authenticate = async () => {
+  if (mode === "signInHang") {
+    // oxlint-disable-next-line promise/avoid-new -- a login the user never finishes, which no combinator expresses
+    return await new Promise(() => {
+      /* empty */
+    });
+  }
+  if (mode === "signInRefused") {
+    throw RequestError.internalError(undefined, "the login was abandoned in the browser");
+  }
+  if (authFile !== null) {
+    writeFileSync(authFile, "signed in\n");
+  }
+  return {};
+};
 
 /**
  * @param {import("@agentclientprotocol/sdk").AgentContext} client The connection this fake agent
@@ -135,14 +161,24 @@ if (mode === "crashOnBoot") {
     process.exit(3);
   });
 } else {
+  if (mode === "signInHang") {
+    process.on("SIGTERM", () => {
+      /* a child that will not stop when asked */
+    });
+  }
   agent({ name: "fake-acp-agent" })
     .onRequest("initialize", () => ({
       agentCapabilities: { loadSession: true },
+      authMethods: [{ id: SIGN_IN_METHOD_ID, name: "Fake sign-in" }],
       protocolVersion: PROTOCOL_VERSION,
     }))
+    .onRequest("authenticate", async ({ params }) => {
+      record("authenticate", params);
+      return await authenticate();
+    })
     .onRequest("session/new", ({ params }) => {
       record("session/new", params);
-      if (mode === "authOnSessionOpen") {
+      if (mode === "authOnSessionOpen" && !signedIn()) {
         throw RequestError.authRequired();
       }
       sessionCounter += 1;
@@ -150,7 +186,7 @@ if (mode === "crashOnBoot") {
     })
     .onRequest("session/load", ({ params }) => {
       record("session/load", params);
-      if (mode === "authOnSessionOpen") {
+      if (mode === "authOnSessionOpen" && !signedIn()) {
         throw RequestError.authRequired();
       }
       return {};

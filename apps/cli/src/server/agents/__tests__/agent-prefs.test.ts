@@ -7,9 +7,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { defaultHarnessId } from "../agent-driver";
 import { AgentPrefsStore } from "../agent-prefs-store";
 import { JsonFileStoreError } from "../../json-file-store";
-import { createAgentsService, UnknownHarnessError } from "../agents-service";
-import type { VendorAccounts } from "../vendor-accounts";
-import { fakeVendorAccounts } from "../../__tests__/boot-app";
+import { createAgentsService, HarnessRefusedError } from "../agents-service";
+import type { AgentAccounts } from "../agent-sign-in";
+import { fakeAgentAccounts } from "../../__tests__/boot-app";
 
 const NOTHING_ON_PATH = { PATH: "/nonexistent-dir" };
 const dirs: string[] = [];
@@ -60,7 +60,7 @@ describe("the harness a new thread starts on", () => {
   it("falls back to claude with nothing chosen, whatever PATH holds", async () => {
     expect(defaultHarnessId(null)).toBe("claude");
     const agents = createAgentsService({
-      accounts: fakeVendorAccounts(),
+      accounts: fakeAgentAccounts(),
       env: NOTHING_ON_PATH,
       store: new AgentPrefsStore(scratch()),
     });
@@ -73,7 +73,7 @@ describe("the agents service", () => {
   it("stores a known harness and answers the new default", async () => {
     const store = new AgentPrefsStore(scratch());
     const agents = createAgentsService({
-      accounts: fakeVendorAccounts(),
+      accounts: fakeAgentAccounts(),
       env: NOTHING_ON_PATH,
       store,
     });
@@ -86,9 +86,9 @@ describe("the agents service", () => {
 
   it("reports each vendor's own answer, and a runtime this copy lacks without asking it", async () => {
     const asked: string[] = [];
-    const signedOut = fakeVendorAccounts({ claude: { state: "signed-out" } });
-    const accounts: VendorAccounts = {
-      invalidate: signedOut.invalidate,
+    const signedOut = fakeAgentAccounts({ claude: { state: "signed-out" } });
+    const accounts: AgentAccounts = {
+      ...signedOut,
       status: async (id) => {
         asked.push(id);
         return await signedOut.status(id);
@@ -110,24 +110,24 @@ describe("the agents service", () => {
   it("refuses an unknown harness without writing", async () => {
     const store = new AgentPrefsStore(scratch());
     const agents = createAgentsService({
-      accounts: fakeVendorAccounts(),
+      accounts: fakeAgentAccounts(),
       env: NOTHING_ON_PATH,
       store,
     });
-    await expect(agents.setDefault("gemini")).rejects.toThrow(UnknownHarnessError);
+    await expect(agents.setDefault("gemini")).rejects.toThrow(HarnessRefusedError);
     expect(store.read()).toEqual({});
   });
 
   it("refuses a name every object answers to", async () => {
     const store = new AgentPrefsStore(scratch());
     const agents = createAgentsService({
-      accounts: fakeVendorAccounts(),
+      accounts: fakeAgentAccounts(),
       env: NOTHING_ON_PATH,
       store,
     });
     for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
       expect(isHarnessId(name)).toBe(false);
-      await expect(agents.setDefault(name)).rejects.toThrow(UnknownHarnessError);
+      await expect(agents.setDefault(name)).rejects.toThrow(HarnessRefusedError);
     }
     expect(store.read()).toEqual({});
   });

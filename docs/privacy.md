@@ -65,7 +65,10 @@ Durable Object — never in anything shared across accounts.
 - **What your agent reads — to that agent's provider.** An action runs Claude
   Code or Codex on your machine, and the notes it reads to answer travel to
   the model provider that tool is set up for, under that provider's own terms,
-  like any other use of the tool. This deployment's cloud is not in that path.
+  like any other use of the tool. Signing the agent in from the app runs that
+  tool's own sign-in: your browser signs in with the provider directly, and the
+  credential lands in the tool's own store on this Mac, never with the app.
+  This deployment's cloud is not in either path.
 
 ## What never leaves
 

@@ -1290,6 +1290,28 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   one does not commit the undo as its own. Comment stores are skipped: a line
   merge can break their json. `apps/cli/src/server/agents/turn-changes.ts`.
 
+- **SIGNING AN AGENT IN IS THE METHOD ITS ADAPTER ADVERTISES, RUN BY THIS
+  SERVER, ONE AT A TIME.** `agents.signIn` runs the harness row's `signIn`.
+  claude's `claude-ai-login` is an ACP terminal method, which the client runs,
+  so the server runs the bundled claude with `auth login --claudeai` through
+  the one vendor spawn policy, piped, with no pty: why none is needed is the
+  header of `agent-sign-in.ts`. The first address it prints is
+  `signingIn.authUrl`. codex's `chat-gpt` is an agent method, so its adapter is
+  started for the sign-in alone, on the env a session gets (`adapterSpawnEnv`),
+  asked through `authenticate` and ended SIGTERM then SIGKILL
+  (`packages/agent-runtime/src/acp/acp-sign-in.ts`). A login that exits 0 counts
+  only once the vendor's own status says signed in. One sign-in per server,
+  because two browser logins would race for one callback (`CONFLICT`); a
+  cancel, the ten-minute ceiling and the server's shutdown each end the vendor
+  process, and a sign-in the vendor refused is a `failed` outcome, never a
+  refusal. The harness just signed in takes the default only from one a new
+  thread could not run on, so a second sign-in never moves the user off the
+  agent they already use (`agents-service.ts`). Rejected: a pty (a native
+  dependency, or `script`), which the login does not need; an API-key method,
+  since there is no API-key fallback; and claude through the adapter's `--cli`,
+  a node process in front of the same binary.
+  `apps/cli/src/server/agents/agent-sign-in.ts`.
+
 ### Dictation
 
 - **DICTATION IS THE OPERATING SYSTEM'S** (owner decision, reversing streaming

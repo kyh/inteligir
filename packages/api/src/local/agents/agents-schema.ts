@@ -47,14 +47,47 @@ export const harnessReadiness = (status: HarnessStatus): HarnessReadiness => {
   }
 };
 
+// the one sign-in this server is running. authUrl is the address the vendor printed for a browser
+// that did not open, null until it prints one (and always, for a vendor that prints none).
+export const signingInSchema = z
+  .object({ authUrl: z.url().nullable(), id: z.string().min(1) })
+  .strict();
+export type SigningIn = z.infer<typeof signingInSchema>;
+
 export const agentsStatusResponseSchema = z
   .object({
     // the harness a new thread starts on: the stored choice, else claude
     defaultId: z.string().min(1),
     harnesses: z.array(harnessStatusSchema),
+    signingIn: signingInSchema.nullable(),
   })
   .strict();
 export type AgentsStatusResponse = z.infer<typeof agentsStatusResponseSchema>;
 
-export const agentsSetDefaultRequestSchema = z.object({ id: z.string().min(1) }).strict();
-export type AgentsSetDefaultRequest = z.infer<typeof agentsSetDefaultRequestSchema>;
+export const agentsHarnessRequestSchema = z.object({ id: z.string().min(1) }).strict();
+
+// every answer carries the status after it, so a client replaces its copy rather than re-asking.
+export const agentsSignInResponseSchema = z.discriminatedUnion("outcome", [
+  z.object({ outcome: z.literal("signed-in"), status: agentsStatusResponseSchema }).strict(),
+  z.object({ outcome: z.literal("cancelled"), status: agentsStatusResponseSchema }).strict(),
+  z
+    .object({
+      detail: z.string().min(1),
+      outcome: z.literal("failed"),
+      status: agentsStatusResponseSchema,
+    })
+    .strict(),
+]);
+export type AgentsSignInResponse = z.infer<typeof agentsSignInResponseSchema>;
+
+export const agentsSignOutResponseSchema = z.discriminatedUnion("outcome", [
+  z.object({ outcome: z.literal("signed-out"), status: agentsStatusResponseSchema }).strict(),
+  z
+    .object({
+      detail: z.string().min(1),
+      outcome: z.literal("failed"),
+      status: agentsStatusResponseSchema,
+    })
+    .strict(),
+]);
+export type AgentsSignOutResponse = z.infer<typeof agentsSignOutResponseSchema>;

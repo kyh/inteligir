@@ -1,8 +1,8 @@
 // the one way this server runs a vendor's own binary. the bundled binary alone, because a vendor CLI
 // on PATH is an install the app neither ships nor pins; the data dir as cwd, because a vendor reads
 // project config from its cwd and the vault is synced content; the harness's envOmit dropped, as
-// for its adapter; and a deadline that kills the whole process group, since a vendor binary may
-// start helpers that would outlive it.
+// for its adapter; and a stop, a deadline or the caller's cancel, that kills the whole process
+// group, since a vendor binary may start helpers that would outlive it.
 
 import { spawn } from "node:child_process";
 import type { HarnessDefinition, VendorExit } from "@repo/agent-runtime/acp/harness-registry";
@@ -10,13 +10,20 @@ import { messageOf } from "../error-message";
 
 export type VendorRun =
   | ({ kind: "exited" } & VendorExit)
-  | { kind: "timed-out" }
+  // the caller's signal ended it; the caller knows whether that was its deadline or its cancel.
+  | { kind: "stopped" }
   | { kind: "missing" }
   | { kind: "failed"; detail: string };
 
 export interface VendorProcessContext {
   env: NodeJS.ProcessEnv;
   cwd: string;
+}
+
+export interface VendorRunOptions {
+  signal: AbortSignal;
+  // each stdout chunk as it arrives, for a run whose answer a caller needs before it exits.
+  onStdout?: (chunk: string) => void;
 }
 
 const vendorEnv = (harness: HarnessDefinition, env: NodeJS.ProcessEnv): Record<string, string> => {
@@ -43,13 +50,17 @@ export const runVendor = async (
   harness: HarnessDefinition,
   args: readonly string[],
   context: VendorProcessContext,
-  timeoutMs: number,
+  options: VendorRunOptions,
 ): Promise<VendorRun> => {
+  const { signal } = options;
   const executable = harness.vendorExecutable(context.env);
   if (executable === null) {
     return { kind: "missing" };
   }
-  // detached: the child leads a process group of its own, which the deadline kills whole.
+  if (signal.aborted) {
+    return { kind: "stopped" };
+  }
+  // detached: the child leads a process group of its own, which a stop kills whole.
   const child = spawn(executable, args, {
     cwd: context.cwd,
     detached: true,
@@ -60,6 +71,7 @@ export const runVendor = async (
   let stderr = "";
   child.stdout.setEncoding("utf-8").on("data", (chunk: string) => {
     stdout += chunk;
+    options.onStdout?.(chunk);
   });
   child.stderr.setEncoding("utf-8").on("data", (chunk: string) => {
     stderr += chunk;
@@ -67,25 +79,24 @@ export const runVendor = async (
   const closed = Promise.withResolvers<{ code: number | null; signal: NodeJS.Signals | null }>();
   child.once("error", closed.reject);
   // close, not exit: the pipes have drained, so the output is whole.
-  child.once("close", (code, signal) => {
-    closed.resolve({ code, signal });
+  child.once("close", (code, exitSignal) => {
+    closed.resolve({ code, signal: exitSignal });
   });
-  let timedOut = false;
-  const deadline = setTimeout(() => {
-    timedOut = true;
+  const stop = (): void => {
     killGroup(child.pid);
-  }, timeoutMs);
+  };
+  signal.addEventListener("abort", stop, { once: true });
   try {
-    const { code, signal } = await closed.promise;
-    if (code !== null) {
-      return { code, kind: "exited", stderr, stdout };
+    const exit = await closed.promise;
+    if (exit.code !== null) {
+      return { code: exit.code, kind: "exited", stderr, stdout };
     }
-    return timedOut
-      ? { kind: "timed-out" }
-      : { detail: `${harness.displayName} stopped on ${String(signal)}`, kind: "failed" };
+    return signal.aborted
+      ? { kind: "stopped" }
+      : { detail: `${harness.displayName} stopped on ${String(exit.signal)}`, kind: "failed" };
   } catch (error) {
     return { detail: messageOf(error), kind: "failed" };
   } finally {
-    clearTimeout(deadline);
+    signal.removeEventListener("abort", stop);
   }
 };

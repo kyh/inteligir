@@ -33,10 +33,15 @@ src/
                        # only what the host calls
   acp/
     acp-runtime.ts     # createAcpAgentRuntime: one adapter child per thread,
-                       # the ACP client handlers, session open/load/close/reap
+                       # the ACP client handlers, session open/load/close/reap;
+                       # and what every adapter spawn shares: its env
+                       # (adapterSpawnEnv), its stdio channel, its termination
+    acp-sign-in.ts     # runAgentSignIn: an adapter started for one agent-kind
+                       # sign-in (`authenticate`), then ended
     harness-registry.ts  # HARNESSES — claude and codex as rows: adapter entry,
-                       # bundled vendor executable, account probe,
-                       # model application, env keys to omit
+                       # bundled vendor executable, account probe, sign-in
+                       # method and sign-out args, model application, env
+                       # keys to omit
     acp-event-mapping.ts  # AcpTurnMapper: one session's notifications → the
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
@@ -48,7 +53,8 @@ src/
   thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
   test-support/
     fake-acp-agent.mjs # a scripted ACP agent (FAKE_ACP_MODE) the server's
-                       # runtime-manager suite spawns in place of a vendor
+                       # runtime-manager and sign-in suites spawn in place of
+                       # a vendor
 scripts/
   record-acp-transcripts.ts  # live turns through the runtime against the
                        # pinned adapters, scrubbed into the replay fixtures
@@ -161,6 +167,17 @@ scripts/
   other. From the cancel on, every permission request the turn holds or raises
   is answered `cancelled`, as the protocol requires, whatever the host's own
   answer would have been. An agent that never answers is the host's to close.
+- **A sign-in is the method the adapter advertises, and it never outlives
+  itself.** A harness row's `signIn` names it: a `terminal` method (claude's
+  `claude-ai-login`) is the client's to run, so the server runs the vendor
+  binary with the row's args itself; an `agent` method (codex's `chat-gpt`) is
+  `runAgentSignIn`'s. That starts the adapter on the env a session gets
+  (`adapterSpawnEnv`, so the two cannot disagree), initializes with
+  `auth.terminal` so every method is advertised, refuses a method it does not
+  find before asking for it, sends `authenticate`, and ends the child the way a
+  close does (SIGTERM, then SIGKILL after the grace) once it settles or its
+  signal aborts. `src/acp/__tests__/acp-sign-in.test.ts` runs the fake agent
+  through it and asks the pinned adapters what they advertise.
 - **Nothing here remembers.** Claude Code and Codex carry their own memory; the
   repo's decision record retired a third beside them.
 
@@ -177,11 +194,13 @@ scripts/
   `test-support/fake-acp-agent.mjs` through it, and the desktop shell's server
   has main fork each adapter as a utility process through it. A harness row's
   `adapterEnv` rides every spawn unless the host's env names it already.
-- `HARNESSES` — read by the server for "is the runtime bundled" and "what
-  does the vendor say of its sign-in"; the server runs the account probe
-  through its one vendor spawn policy
-  (`apps/cli/src/server/agents/vendor-process.ts`). The prompt and env are the
-  host's own projections of its session facts.
+- `HARNESSES` — read by the server for "is the runtime bundled", "what
+  does the vendor say of its sign-in" and "how does it sign in and out"; the
+  server runs the account probe, a terminal sign-in and a sign-out through its
+  one vendor spawn policy (`apps/cli/src/server/agents/vendor-process.ts`), and
+  an agent sign-in through `runAgentSignIn` on the same `spawnAdapter` its
+  sessions use. The prompt and env are the host's own projections of its
+  session facts.
 
 ## Testing
 

@@ -32,6 +32,21 @@ interface AccountProbe {
   read: (exit: VendorExit) => VendorAccount;
 }
 
+// a sign-in as the adapter advertises it. ACP has the client run a terminal method itself (exit 0 is
+// success) and never pass it to `authenticate`; the adapter's advertised args are `--cli` and these,
+// and `--cli` only has the adapter run its bundled vendor binary, so the host runs that binary.
+export interface TerminalSignIn {
+  kind: "terminal";
+  methodId: string;
+  args: readonly string[];
+}
+// the adapter signs in itself through `authenticate`.
+export interface AgentSignIn {
+  kind: "agent";
+  methodId: string;
+}
+export type SignInMethod = TerminalSignIn | AgentSignIn;
+
 // the claude SDK's filesystem setting tiers.
 type ClaudeSettingSource = "user" | "project" | "local";
 
@@ -49,6 +64,9 @@ export interface HarnessDefinition {
   // beside the adapter, never PATH's. null is an override naming nothing, or a bundle without it.
   vendorExecutable: (env: NodeJS.ProcessEnv) => string | null;
   accountProbe: AccountProbe;
+  signIn: SignInMethod;
+  // the vendor binary's own sign-out, over the same shared store its sign-in wrote.
+  signOutArgs: readonly string[];
   applyModel: (model: string, env: Record<string, string>) => void;
   // the claude SDK refuses to run when it believes it is nested inside another claude session, so
   // the nesting sentinel must not leak through from whatever launched this app.
@@ -252,6 +270,12 @@ export const HARNESSES = {
     // MCP servers in ~/.claude.json share those two gates, so they go too.
     sessionMeta: { claudeCode: { options: { settingSources: ["user"] } } },
     refusedVaultEntries: [],
+    signIn: {
+      args: ["auth", "login", "--claudeai"],
+      kind: "terminal",
+      methodId: "claude-ai-login",
+    },
+    signOutArgs: ["auth", "logout"],
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CLAUDE_CODE_EXECUTABLE, BUNDLED_CLAUDE),
   },
@@ -272,6 +296,8 @@ export const HARNESSES = {
     // npm applies no pnpm patch, so an npm-installed CLI runs an adapter that trusts the vault and
     // loads its .codex config; the refusal holds whichever adapter is installed.
     refusedVaultEntries: [".codex"],
+    signIn: { kind: "agent", methodId: "chat-gpt" },
+    signOutArgs: ["logout"],
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CODEX_PATH, BUNDLED_CODEX),
   },

@@ -204,7 +204,10 @@ signed in needs nothing more, asked through `src/server/agents/vendor-process.ts
 the one vendor spawn policy: the bundled binary alone, never PATH's; the data
 dir as cwd, never the vault; the harness's `envOmit` dropped; a deadline that
 kills the process group. `vendor-accounts.ts` shares one probe between
-concurrent asks and keeps its answer for 10s. Nothing about the agent reads
+concurrent asks and keeps its answer for 10s. Signing in is the vendor's own
+too (`agent-sign-in.ts`): claude's login is that binary run under the same
+policy, codex's is its adapter's `authenticate`, one sign-in per server, and a
+cancel, the ceiling or shutdown ends it. Nothing about the agent reads
 PATH: a send is refused up front only when the thread's runtime is missing
 from the install, and a signed-out vendor refuses the session itself.
 

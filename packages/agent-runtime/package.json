@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./acp/acp-runtime": "./src/acp/acp-runtime.ts",
+    "./acp/acp-sign-in": "./src/acp/acp-sign-in.ts",
     "./acp/harness-registry": "./src/acp/harness-registry.ts",
     "./acp/provider-error": "./src/acp/provider-error.ts",
     "./types": "./src/types.ts",

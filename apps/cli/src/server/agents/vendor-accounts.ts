@@ -37,12 +37,14 @@ export const createVendorAccounts = (args: CreateVendorAccountsArgs): VendorAcco
   const probe = async (id: HarnessId): Promise<VendorAccount> => {
     const harness = HARNESSES[id];
     try {
-      const run = await runVendor(harness, harness.accountProbe.args, context, timeoutMs);
+      const run = await runVendor(harness, harness.accountProbe.args, context, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
       switch (run.kind) {
         case "exited": {
           return harness.accountProbe.read(run);
         }
-        case "timed-out": {
+        case "stopped": {
           return {
             detail: `${harness.displayName} did not answer within ${String(timeoutMs / 1000)}s`,
             state: "unknown",
