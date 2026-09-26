@@ -129,6 +129,9 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     onError: (message) => {
       console.error(`vault git: ${message}`);
     },
+    onNotice: (message) => {
+      console.log(`vault git: ${message}`);
+    },
     // mid-sync: held with the watcher's batches for the consolidated notification.
     onFilesChanged: holdDuringSync,
     onStatusChanged: () => {

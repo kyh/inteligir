@@ -109,7 +109,7 @@ export const hostedVaultSync: Scenario = {
       FROM_A,
       "B's on-disk content",
     );
-    // a clone, not seed-then-merge: a seeded B would hold its own root commit no rebase erases.
+    // a clone, not a seed: a seeded B boots on a root commit of its own.
     const headA = await exec("git", ["-C", a.vaultDir, "rev-parse", "HEAD"], {
       env: hermeticProcessEnv(),
     });

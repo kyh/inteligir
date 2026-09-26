@@ -5,6 +5,7 @@ import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
 import { legacyCommentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
 import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/api/local/routes";
+import { knowledgeSearchResponseSchema } from "@repo/api/local/knowledge/knowledge-schema";
 import { giveNoteOwnId } from "@repo/api/local/vault/give-note-own-id";
 import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import {
@@ -339,7 +340,7 @@ describe("the vault routes", () => {
 
   it("names the service that syncs a vault in iCloud Drive, and runs no pass though signed in", async () => {
     const { client, dataDir, vaultDir } = await bootTestApp({
-      derivedRemote: true,
+      remote: "derived",
       vaultPath: path.join("Library", "Mobile Documents", "com~apple~CloudDocs", "Notes"),
     });
     writeDeviceCredential(dataDir, {
@@ -436,6 +437,37 @@ describe("the vault routes", () => {
       (frame) => vaultChangedMessageSchema.safeParse(JSON.parse(frame)).success,
     );
     expect(sawVaultChange).toBe(true);
+  });
+});
+
+describe("a starter vault meeting a remote with history", () => {
+  it("indexes the notes it took and forgets the starters it gave up", async () => {
+    const remote = makeTempDir("inteligir-routes-remote-");
+    await runGit(remote, ["init", "--bare", "-b", "main"], { env: hermeticGitEnv() });
+    const other = await bootTestApp({ remote: () => ({ source: "explicit", url: remote }) });
+    await other.client.vault.write({
+      content: "# Field notes\n\nA quokka sighting.\n",
+      guard: { kind: "overwrite" },
+      path: "field-notes.md",
+    });
+    expect(await other.client.vault.syncNow()).toMatchObject({ state: "clean" });
+
+    let signedIn = false;
+    const { client } = await bootTestApp({
+      remote: () => (signedIn ? { source: "explicit", url: remote } : null),
+      seedsStarters: true,
+    });
+    const paths = async (q: string): Promise<string[]> => {
+      const { results } = knowledgeSearchResponseSchema.parse(await client.knowledge.search({ q }));
+      return results.map((result) => result.path).toSorted();
+    };
+    expect(await paths("door")).toEqual(["Kitchen Sink.md", "Welcome.md"]);
+    expect(await paths("quokka")).toEqual([]);
+
+    signedIn = true;
+    expect(await client.vault.syncNow()).toMatchObject({ conflicts: [], state: "clean" });
+    expect(await paths("quokka")).toEqual(["field-notes.md"]);
+    expect(await paths("door")).toEqual([]);
   });
 });
 

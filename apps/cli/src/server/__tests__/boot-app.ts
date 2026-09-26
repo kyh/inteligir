@@ -15,6 +15,7 @@ import { onTestFinished } from "vitest";
 import { createApp } from "../app";
 import type { OpenExternalUrl } from "../browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
+import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
 import type { RecordAgentWrites } from "../agents/agent-driver";
@@ -139,8 +140,11 @@ export interface BootTestAppOptions {
   port?: number;
   // the vault's place under the instance dir, which is the config's home too; absent, "vault".
   vaultPath?: string;
-  // the vault remote the config, the vault's origin and a credential derive; absent, none.
-  derivedRemote?: boolean;
+  // the vault's remote: "derived" is the one the config, the vault's origin and a credential
+  // derive, as a server composes it; absent, none.
+  remote?: "derived" | VaultRemoteProvider;
+  // the vault's folder is left for the boot to create, so it seeds the starter notes.
+  seedsStarters?: boolean;
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
@@ -169,8 +173,10 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   const instanceDir = makeTempDir("inteligir-app-test-");
   const dataDir = path.join(instanceDir, "data");
   const vaultDir = path.join(instanceDir, options.vaultPath ?? "vault");
-  // pre-created so the boot is not virgin and seeds no starter note.
-  mkdirSync(vaultDir, { recursive: true });
+  if (options.seedsStarters !== true) {
+    // pre-created so the boot is not virgin and seeds no starter note.
+    mkdirSync(vaultDir, { recursive: true });
+  }
   mkdirSync(dataDir, { recursive: true });
 
   const agent = options.agent ?? { detail: null, mode: "off", runtime: "off" };
@@ -200,9 +206,9 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     knowledge: { projector: createInlineProjector() },
     machineName: TEST_MACHINE_NAME,
     vault:
-      options.derivedRemote === true
+      options.remote === "derived"
         ? { gitEnv: hermeticGitEnv(), watch: false }
-        : { gitEnv: hermeticGitEnv(), remote: () => null, watch: false },
+        : { gitEnv: hermeticGitEnv(), remote: options.remote ?? (() => null), watch: false },
   };
   if (options.openExternalUrl !== undefined) {
     ports.openExternalUrl = options.openExternalUrl;
