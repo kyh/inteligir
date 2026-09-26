@@ -119,7 +119,8 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | The renderer's vite dev server       | 31000, searching upward                           |
 | The product's SQLite + config.json   | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
 | A vault other than the default       | `<that dir>/vaults/<hash of the vault path>/`     |
-| Connectors, folders, agent, vault    | JSON files beside them (the app writes these)     |
+| Folders, agent, vault prefs          | JSON files beside them (the app writes these)     |
+| Connectors                           | the agent's own: `~/.claude.json`, `~/.codex`     |
 | The desktop's server log             | `<data dir>/logs/server.log` (+ one `.1`)         |
 | The desktop's debug-logging choice   | `diagnostics.json` in Electron's userData         |
 | Site + cloud Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                      |

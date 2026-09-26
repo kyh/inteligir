@@ -21,13 +21,25 @@ export interface VendorProcessContext {
   cwd: string;
 }
 
-export interface VendorRunOptions {
+export type VendorRunOptions = {
   signal: AbortSignal;
   // each stdout chunk as it arrives, for a run whose answer a caller needs before it exits.
   onStdout?: (chunk: string) => void;
+} &
   // piped to the vendor's stdin while it runs; absent, the vendor reads end of input at once.
-  stdin?: Readable;
-}
+  (
+    | { stdin?: Readable; pty?: never }
+    // a terminal of its own, for a vendor command that refuses to run without one; its stdout and
+    // stderr arrive together, as stdout.
+    | { pty: true; stdin?: never }
+  );
+
+// macOS's script(1) gives the vendor a pty and exits with its status; util-linux's takes the
+// command as one shell string, which this server never builds, and the app ships on macOS alone.
+const PTY_WRAPPER = "/usr/bin/script";
+
+const ptyArgv = (executable: string, args: readonly string[]): readonly string[] | null =>
+  process.platform === "darwin" ? ["-q", "/dev/null", executable, ...args] : null;
 
 const vendorEnv = (harness: HarnessDefinition, env: NodeJS.ProcessEnv): Record<string, string> => {
   const omitted = new Set(harness.envOmit);
@@ -63,22 +75,33 @@ export const runVendor = async (
   if (signal.aborted) {
     return { kind: "stopped" };
   }
-  // detached: the child leads a process group of its own, which a stop kills whole.
-  const child = spawn(executable, args, {
-    cwd: context.cwd,
-    detached: true,
-    env: vendorEnv(harness, context.env),
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  // a vendor that exits with input still unread closes the pipe under the write, and an unheard
-  // EPIPE would take the server down with it; the exit is the answer that matters.
-  child.stdin.on("error", () => {
-    /* empty */
-  });
-  if (options.stdin === undefined) {
-    child.stdin.end();
-  } else {
-    options.stdin.pipe(child.stdin);
+  const wrapped = options.pty === true ? ptyArgv(executable, args) : null;
+  if (options.pty === true && wrapped === null) {
+    return {
+      detail: `${harness.displayName} needs a terminal for this, which inteligir gives it only on macOS`,
+      kind: "failed",
+    };
+  }
+  // detached: the child leads a process group of its own, which a stop kills whole. under the pty
+  // wrapper the vendor leads the pty's session instead, and the wrapper's death hangs it up.
+  const spawnOptions = { cwd: context.cwd, detached: true, env: vendorEnv(harness, context.env) };
+  // the wrapper types its own stdin into the terminal. /dev/null, never a pipe: node's is a socket,
+  // which script(1) refuses; its end of input is typed as one ^D, which the vendor reads past.
+  const child =
+    wrapped === null
+      ? spawn(executable, args, { ...spawnOptions, stdio: ["pipe", "pipe", "pipe"] })
+      : spawn(PTY_WRAPPER, wrapped, { ...spawnOptions, stdio: ["ignore", "pipe", "pipe"] });
+  if (child.stdin !== null) {
+    // a vendor that exits with input still unread closes the pipe under the write, and an unheard
+    // EPIPE would take the server down with it; the exit is the answer that matters.
+    child.stdin.on("error", () => {
+      /* empty */
+    });
+    if (options.stdin === undefined) {
+      child.stdin.end();
+    } else {
+      options.stdin.pipe(child.stdin);
+    }
   }
   let stdout = "";
   let stderr = "";
@@ -111,6 +134,8 @@ export const runVendor = async (
     return { detail: messageOf(error), kind: "failed" };
   } finally {
     signal.removeEventListener("abort", stop);
-    options.stdin?.unpipe(child.stdin);
+    if (child.stdin !== null) {
+      options.stdin?.unpipe(child.stdin);
+    }
   }
 };

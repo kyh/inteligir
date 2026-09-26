@@ -23,9 +23,6 @@ export const base64FromBytes = (bytes: Uint8Array): string => {
 export const bytesFromBase64 = (value: string): Uint8Array =>
   Uint8Array.from(atob(value), (char) => char.codePointAt(0) ?? 0);
 
-export const base64UrlFromBytes = (bytes: Uint8Array): string =>
-  base64FromBytes(bytes).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-
 export const sha256Hex = async (value: string): Promise<string> => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return hexFromBytes(new Uint8Array(digest));

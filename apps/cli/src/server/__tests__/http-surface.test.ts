@@ -5,7 +5,6 @@ import {
   VAULT_ASSET_PATH,
   WS_PATH,
 } from "@repo/api/local/routes";
-import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { mkdirSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import { describe, expect, it } from "vitest";
@@ -28,10 +27,6 @@ const DECLARED_ROUTES = new Map<string, string>([
     "an image's raw BYTES, with an ETag and a 304 on if-none-match — none of which survives an RPC envelope",
   ],
   [key("GET", WS_PATH), "the invalidation bus: subscribe and ping, no payload, by decision"],
-  [
-    key("GET", CONNECTOR_OAUTH_CALLBACK_PATH),
-    "a BROWSER arriving from a connector's authorization page — a cross-site top-level navigation that can carry no token, guarded by its single-use state instead",
-  ],
 ]);
 
 // per method: `serveStatic` mounts GET and HEAD separately.

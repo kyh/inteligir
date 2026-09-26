@@ -32,7 +32,7 @@ describe("sha256Hex", () => {
   });
 });
 
-// The approval-state compare, spelled by hand because Hermes has no timing-safe primitive.
+// The credential compare, spelled by hand because Hermes has no timing-safe primitive.
 describe("constantTimeEqual", () => {
   it("is true only for identical strings, length differences included", () => {
     expect(constantTimeEqual("abc", "abc")).toBe(true);

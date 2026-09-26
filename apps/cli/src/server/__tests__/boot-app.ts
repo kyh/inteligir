@@ -13,11 +13,12 @@ import { HARNESS_IDS, HARNESSES } from "@repo/agent-runtime/acp/harness-registry
 import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
-import type { OpenExternalUrl } from "../browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
+import { createVendorMcpConfigs } from "../connectors/connectors-service";
+import type { VendorMcpConfigs } from "../connectors/vendor-mcp-config";
 import type { RecordAgentWrites } from "../agents/agent-driver";
 import { SignInInProgressError } from "../agents/agent-sign-in";
 import type { AgentAccounts, SigningIn } from "../agents/agent-sign-in";
@@ -135,8 +136,8 @@ export interface BootTestAppOptions {
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
   clientDir?: string;
-  // a suite that begins a connector authorization must supply this, or `pnpm test` pops a browser window.
-  openExternalUrl?: OpenExternalUrl;
+  // absent, the bundled vendors over stores of the instance's own, so no suite edits the Mac's.
+  connectors?: VendorMcpConfigs;
   port?: number;
   // the vault's place under the instance dir, which is the config's home too; absent, "vault".
   vaultPath?: string;
@@ -165,11 +166,27 @@ export interface BootedTestApp {
   // from the loopback host, carrying whatever credential `init` does.
   bareRequest: (input: string, init?: RequestInit) => Promise<Response>;
   config: AppConfig;
+  // the vendor configs Settings' connectors read and write, as wired.
+  connectors: VendorMcpConfigs;
   db: DbConnection;
   vault: VaultRuntime;
   vaultDir: string;
   dataDir: string;
 }
+
+// what a booted instance hands a vendor it runs: the host's env, but the vendor's stores (and the
+// home a store defaults under) are the instance's own. codex refuses a CODEX_HOME that does not exist.
+const instanceVendorEnv = (instanceDir: string): NodeJS.ProcessEnv => {
+  const home = path.join(instanceDir, "vendor-home");
+  const stores = {
+    CLAUDE_CONFIG_DIR: path.join(home, "claude"),
+    CODEX_HOME: path.join(home, "codex"),
+  };
+  for (const dir of Object.values(stores)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  return { ...process.env, ...stores, HOME: home };
+};
 
 export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<BootedTestApp> => {
   const instanceDir = makeTempDir("inteligir-app-test-");
@@ -212,9 +229,10 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
         ? { gitEnv: hermeticGitEnv(), watch: false }
         : { gitEnv: hermeticGitEnv(), remote: options.remote ?? (() => null), watch: false },
   };
-  if (options.openExternalUrl !== undefined) {
-    ports.openExternalUrl = options.openExternalUrl;
-  }
+  const connectors =
+    options.connectors ??
+    createVendorMcpConfigs({ cwd: dataDir, env: instanceVendorEnv(instanceDir) });
+  ports.connectors = connectors;
 
   // registered before composing: a compose that throws part-way has a database open, and the steps already on the array release it.
   const teardown: ShutdownStep[] = [];
@@ -269,8 +287,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     context: {
       ...runtime.context,
       agentThreadId: null,
-      // no request reached this client, so the procedure that needs a callback origin refuses.
-      requestOrigin: null,
     },
   });
   const bareRequest = async (input: string, init?: RequestInit): Promise<Response> => {
@@ -291,6 +307,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     client,
     composed,
     config,
+    connectors,
     dataDir,
     db: runtime.db,
     request,

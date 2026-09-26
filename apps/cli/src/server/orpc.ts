@@ -14,8 +14,6 @@ import type { CommentsService } from "./comments/comments-service";
 import type { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
-import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
-import type { OpenExternalUrl } from "./browser-opener";
 import type { FoldersService } from "./folders/folders-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
@@ -46,14 +44,8 @@ export interface AppContext {
   cloudPrefs: CloudPrefsStore;
   comments: CommentsService;
   connectors: ConnectorsService;
-  connectorsOauth: ConnectorOauthFlow;
   folders: FoldersService;
   knowledge: KnowledgeRuntime;
-  // injected so a suite can watch an authorization begin without opening a window.
-  openExternalUrl: OpenExternalUrl;
-  // per request: a callback url must name the port the caller reached, since
-  // listen may have probed past the configured one. null when no request reached this context.
-  requestOrigin: string | null;
   recordAgentWrites: RecordAgentWrites;
   renameNote: RenameNote;
   renameTag: RenameTag;
@@ -65,7 +57,7 @@ export interface AppContext {
   vaultPrefs: VaultPrefsStore;
 }
 
-export type AppServices = Omit<AppContext, "agentThreadId" | "requestOrigin">;
+export type AppServices = Omit<AppContext, "agentThreadId">;
 
 export const base = implement(localContract).$context<AppContext>();
 

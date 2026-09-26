@@ -107,6 +107,8 @@ export const AgentsSection = () => {
       },
       onSuccess: (next) => {
         queryClient.setQueryData(statusKey, next);
+        // connectors are the default agent's own, so the section now lists the other agent's.
+        void queryClient.invalidateQueries({ queryKey: orpc.connectors.list.key() });
       },
     }),
   );

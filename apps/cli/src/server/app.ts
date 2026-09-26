@@ -17,10 +17,8 @@ import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
-import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { AGENT_THREAD_HEADER, agentThreadIdOf } from "./agent-thread-header";
 import { isSameOriginBrowserRequest } from "./browser-request";
-import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "./html-block-frame";
@@ -78,7 +76,7 @@ export const createApp = (args: CreateAppArgs) => {
   // ws tracks every socket it upgraded, whichever route took it; the http server lost them at the upgrade.
   const upgradedSockets: ReadonlySet<UpgradedSocket> = nodeWebSocket.wss.clients;
 
-  // first, ahead of every route, /health and the oauth landing included: the server binds 127.0.0.1
+  // first, ahead of every route, /health included: the server binds 127.0.0.1
   // alone, so any other name is a page that rebound its own hostname onto this port. the header,
   // never the url: an upgrade's url is rebuilt on a fixed localhost base.
   app.use("*", async (c, next): Promise<Response | undefined> => {
@@ -109,10 +107,9 @@ export const createApp = (args: CreateAppArgs) => {
   };
 
   // one gate at the http boundary: three of the four surfaces it protects are not procedures.
-  // /health stays outside (a supervisor's spawn probe holds no credential yet), and so does the
-  // oauth browser landing (a cross-site top-level navigation carries none; its single-use state
-  // stands in). a cookie is ambient and loopback "site" ignores the port, so a co-resident page
-  // on another 127.0.0.1 port carries it: a cookie-authed request must also prove same-origin.
+  // /health stays outside (a supervisor's spawn probe holds no credential yet). a cookie is ambient
+  // and loopback "site" ignores the port, so a co-resident page on another 127.0.0.1 port carries
+  // it: a cookie-authed request must also prove same-origin.
   const requireServerToken: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
     const credential = acceptedCredential(c);
     if (credential === null) {
@@ -164,7 +161,6 @@ export const createApp = (args: CreateAppArgs) => {
       context: {
         ...args.context,
         agentThreadId: agentThreadIdOf(c.req.header(AGENT_THREAD_HEADER)),
-        requestOrigin: c.get("requestOrigin"),
       },
       prefix: RPC_PREFIX,
     });
@@ -194,15 +190,6 @@ export const createApp = (args: CreateAppArgs) => {
       },
     })),
   );
-
-  // no token: the redirect is a cross-site top-level navigation, which cannot carry one.
-  app.get(CONNECTOR_OAUTH_CALLBACK_PATH, async (c) => {
-    const answer = await handleConnectorOauthCallback(
-      args.context.connectorsOauth,
-      new URL(c.req.url),
-    );
-    return c.body(answer.body, answer.status, answer.headers);
-  });
 
   if (args.clientDir !== null) {
     const clientDir = nodePath.resolve(args.clientDir);

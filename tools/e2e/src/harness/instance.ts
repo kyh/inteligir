@@ -43,6 +43,8 @@ export interface AppInstance extends TrackedProcess {
   browserUrl: (pathAndSearch: string) => Promise<string>;
   dataDir: string;
   vaultDir: string;
+  // the vendors' stores this instance runs them over, empty until something writes them.
+  vendorDirs: VendorDirs;
   port: number;
 }
 
@@ -58,11 +60,14 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
   "NODE_ENV",
 ]);
 
-interface InstanceDirs {
-  dataDir: string;
-  vaultDir: string;
+interface VendorDirs {
   claudeConfigDir: string;
   codexHome: string;
+}
+
+interface InstanceDirs extends VendorDirs {
+  dataDir: string;
+  vaultDir: string;
 }
 
 interface LaunchCommand {
@@ -152,13 +157,8 @@ export const createInstanceApi = (baseUrl: string, dataDir: () => string): Insta
   return createORPCClient(link);
 };
 
-const attachInstance = (
-  args: LaunchAppArgs,
-  child: TrackedProcess,
-  dataDir: string,
-  vaultDir: string,
-  port: number,
-): AppInstance => {
+const attachInstance = (child: TrackedProcess, dirs: InstanceDirs, port: number): AppInstance => {
+  const { claudeConfigDir, codexHome, dataDir, vaultDir } = dirs;
   const baseUrl = loopbackOrigin(port);
   const api = createInstanceApi(baseUrl, () => dataDir);
   return {
@@ -172,6 +172,7 @@ const attachInstance = (
     dataDir,
     port,
     vaultDir,
+    vendorDirs: { claudeConfigDir, codexHome },
   };
 };
 
@@ -208,7 +209,7 @@ export const launchApp = async (args: LaunchAppArgs): Promise<AppInstance> => {
         file: command.file,
         name: args.name,
       });
-      const handle = attachInstance(args, child, dataDir, vaultDir, port);
+      const handle = attachInstance(child, dirs, port);
       args.register(handle);
       args.onLog(`booting ${args.mode} instance "${args.name}" on ${handle.baseUrl}`);
       return { child, handle };

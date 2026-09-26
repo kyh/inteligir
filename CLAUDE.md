@@ -777,10 +777,11 @@ to the END of its group.
   physically, so a symlinked spelling never mints a signed-out twin; the hash
   stays over the stored spelling, since re-deriving it would move every
   selector written.
-  Cost accepted: the credential, the connectors and the agent default live in
-  the data dir, so a second vault starts signed out, which also keeps it off
-  the account's hosted remote. The shell switches only a child it started, puts
-  the previous vault back on any failure, and opens a new window, since a
+  Cost accepted: the credential and the agent default live in the data dir, so
+  a second vault starts signed out, which also keeps it off the account's
+  hosted remote; connectors belong to the agent, so every vault shares them.
+  The shell switches only a child it started, puts the previous vault back on
+  any failure, and opens a new window, since a
   `BrowserWindow`'s session is fixed at creation. A rollback that cannot write
   the selector back quits rather than run beside a `config.json` naming the
   vault that failed, which the next launch would open (`runVaultSwitch`).
@@ -1339,34 +1340,39 @@ to the END of its group.
   `agent-driver.ts`, `harnessReadiness` in
   `@repo/api/local/agents/agents-schema`.
 
-- **CONNECTORS ARE AN APP-OWNED REGISTRY, AND NO AGENT SESSION IS HANDED IT**
-  (0.6 direction, reversing the per-session injection: the vendor's own config
-  is the one store). The registry is edited in Settings alone: the CLI has no
-  connector verb, because a shell already has each harness's own
-  (`claude mcp add --scope user`, `codex mcp add`). Its rows reach no agent:
-  `session/new` and `session/load` send `mcpServers: []`
-  (`packages/agent-runtime/src/acp/acp-runtime.ts`), so a Claude session loads
-  the user-scope servers in `<CLAUDE_CONFIG_DIR ?? HOME>/.claude.json` and a
-  Codex session `$CODEX_HOME/config.toml`, and `adapterSpawnEnv` passes
-  `HOME`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` through untouched, so the config
-  a session reads is the one `claude mcp` and `codex mcp` edit. Injecting the
-  registry's rows beside it was rejected as a second source of truth for one
-  question. Secrets stay in the data dir and are redacted on every read
-  (`apps/cli/src/server/connectors/connectors-service.ts`).
-
-- **CONNECTOR OAUTH IS THE MCP AUTHORIZATION SPEC'S, AND A REFRESH TOKEN IS
-  SPENT ONCE** (owner decision). Every request carries RFC 8707's `resource`,
-  so a provider that binds audiences mints a token for that server alone. A
-  row needs only its URL: discovery (RFC 9728, RFC 8414, then OpenID) finds the
-  authorization server and registers a public client when the row has none
-  (RFC 7591), reading only https or loopback urls, and what it finds is kept
-  with the grant, so a refresh spends a token with the client that got it.
-  Client ID Metadata Documents are not built
-  (`apps/cli/src/server/connectors/oauth-discovery.ts`). A rotating provider
-  honours a refresh token once, so the refresh is single-flight per connector;
-  only a 400 or 401 marks the row needs-reauth, never a 5xx or a captive
-  portal. A callback for a row removed mid-flow answers the page, never a 500.
-  `apps/cli/src/server/connectors/oauth-flow.ts`.
+- **CONNECTORS ARE THE DEFAULT AGENT'S OWN MCP CONFIG** (0.6 direction,
+  reversing the app-owned registry and its hand-built OAuth: one registry, the
+  vendor's, with the vendor's own sign-in). Settings lists, adds and removes the
+  servers in the default agent's user-level config through its bundled binary
+  and the one vendor spawn policy, resolved per call from `agent-prefs.json`, so
+  a change of agent moves the section and every vault shares the list. Add and
+  remove only: no toggle, and no header field, since Codex keeps no static
+  header; one-click presets
+  (`apps/desktop/src/renderer/app/settings/connector-presets.ts`). A session is
+  handed no servers of the app's (`mcpServers: []`,
+  `packages/agent-runtime/src/acp/acp-runtime.ts`), so the config Settings edits
+  is the one a session loads. Claude's is read from `mcpServers` in
+  `<CLAUDE_CONFIG_DIR ?? HOME>/.claude.json`, because `claude mcp list` prints
+  no JSON and starts every stdio server; it is written with
+  `mcp add-json -s user` (`mcp add`'s -H and -e take the name as a value) and
+  `mcp remove -s user`; and `claude mcp login` refuses a stdin that is no
+  terminal, so it runs under macOS's `script(1)` (the pty option of
+  `vendor-process.ts`). The file keeps no answer about a sign-in, so a Claude
+  URL row reads `unknown` and always offers one. Codex's is `mcp list --json`;
+  its `mcp add` silently replaces and its `mcp remove` of a missing row exits 0,
+  so both refusals are the list's, and every call on one vendor waits for the
+  one before it, or two adds of one name would both pass. A codex
+  `mcp add --url` whose server publishes a sign-in starts it and keeps running,
+  so the add is handed back as that sign-in. A sign-in is one per agent and
+  name, polled by Settings, and ended by its five-minute window, its row's
+  removal or shutdown, each killing the vendor process (`mcp-sign-ins.ts`). A
+  name this app adds cannot start with `-`, and every name rides after `--`, so
+  a vendor row of any name can be removed. The retired registry is deleted at
+  boot, never imported (`retired-connectors-file.ts`). A booted suite runs the
+  vendors over stores under its own temp dir
+  (`apps/cli/src/server/__tests__/boot-app.ts`).
+  `apps/cli/src/server/connectors/vendor-mcp-config.ts`, `claude-mcp-config.ts`,
+  `codex-mcp-config.ts`.
 
 - **AGENT MEMORY IS REMOVED** (reversing #575). Claude Code and Codex carry
   their own; a third beside them was two answers to one question. What survived
@@ -1706,9 +1712,8 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
   phone inject only stores, timers and sockets; a security discipline with two
   spellings is two to audit. The core is what BOTH clients run, so the
-  CLI-only approval slot sits beside its consumer
-  (`apps/cli/src/server/connectors/approval-slot.ts`), as does the browser
-  opener (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path
+  CLI-only browser opener sits beside its consumer
+  (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path
   grammar is `parseVaultPath` with the parse required to be the identity. The
   `[[Title|uuid]]` tier lives in `buildResolver` (tier 0), reached through the
   `id` the wiki-targets rows carry, and on the phone through the id and aliases
