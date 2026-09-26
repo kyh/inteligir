@@ -26,9 +26,45 @@ const CLICK_ADD = `(() => {
   return "clicked";
 })()`;
 
+// the confirm's own button: the section's Sign out behind the dialog carries the same name.
+const CONFIRM_SIGN_OUT = `(() => {
+  const dialog = document.querySelector('${ALERT_DIALOG}');
+  const button = dialog ? [...dialog.querySelectorAll("button")].find((el) => el.textContent.trim() === "Sign out") : null;
+  if (!button) return "missing";
+  button.click();
+  return "clicked";
+})()`;
+const NEW_ACCOUNT = {
+  email: "new@inteligir.local",
+  inviteCode: "E2E-NO-CLOUD",
+  name: "New Person",
+  password: "a fresh passphrase",
+};
+// each field of the form that holds "Invite code", by its label: the connector form beside it has a
+// Name too, and the ids are React-minted per mount.
+const ACCOUNT_FIELDS = `(() => {
+  const labelled = (root, text) => [...root.querySelectorAll("label")].find((el) => el.textContent.trim() === text);
+  const invite = labelled(document, "Invite code");
+  const form = invite ? invite.closest("form") : null;
+  if (!form) return "missing";
+  const field = (text) => {
+    const label = labelled(form, text);
+    const input = label ? document.getElementById(label.htmlFor) : null;
+    return input ? { selector: "#" + CSS.escape(input.id), value: input.value } : null;
+  };
+  return JSON.stringify({ email: field("Email"), inviteCode: field("Invite code"), name: field("Name"), password: field("Password") });
+})()`;
+const fieldSchema = z.object({ selector: z.string(), value: z.string() });
+const accountFieldsSchema = z.object({
+  email: fieldSchema,
+  inviteCode: fieldSchema,
+  name: fieldSchema,
+  password: fieldSchema,
+});
+
 export const settingsBrowser: Scenario = {
   description:
-    "/settings hosts the dialog and the toaster: Sign out confirms, a refused add toasts",
+    "/settings hosts the dialog and the toaster: Sign out confirms, a refused add toasts, and signed out a refused sign-up keeps the form",
   name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -64,18 +100,22 @@ export const settingsBrowser: Scenario = {
       },
     );
 
-    ctx.log("Sign out awaits a confirm: the dialog opens on this route");
     // by role, since the unauthorized state's prose carries the words too; retried, because a
     // click that lands before React attaches the handler is lost on a slow runner.
-    let opened = false;
-    for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
-      await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
-      opened = await agentBrowser(["wait", ALERT_DIALOG], 10_000).then(
-        () => true,
-        () => false,
-      );
-    }
-    expect(opened, "the Sign out confirm dialog never opened");
+    const openSignOutConfirm = async (): Promise<void> => {
+      let opened = false;
+      for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
+        await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
+        opened = await agentBrowser(["wait", ALERT_DIALOG], 10_000).then(
+          () => true,
+          () => false,
+        );
+      }
+      expect(opened, "the Sign out confirm dialog never opened");
+    };
+
+    ctx.log("Sign out awaits a confirm: the dialog opens on this route");
+    await openSignOutConfirm();
     const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
     expect(
       dialog.includes("Stop syncing this device?"),
@@ -93,6 +133,55 @@ export const settingsBrowser: Scenario = {
     expect(
       toastText.includes("already exists"),
       `the toast did not carry the refusal:\n${toastText}`,
+    );
+
+    ctx.log("signed out, the Devices section offers to create an account");
+    await openSignOutConfirm();
+    const confirmed = parseEval(await agentBrowser(["eval", CONFIRM_SIGN_OUT]), z.string());
+    expect(confirmed === "clicked", `the confirm's Sign out was ${confirmed}`);
+    await pollUntil(
+      async () => await agentBrowser(["get", "text", "body"]),
+      (body) => body.includes("Create an account"),
+      {
+        deadlineMs: STATUS_DEADLINE_MS,
+        describe: (body) => `the signed-out form never offered Create an account:\n${body}`,
+        intervalMs: 500,
+      },
+    );
+    await agentBrowser(["find", "role", "button", "click", "--name", "Create an account"]);
+    await pollUntil(
+      async () => await agentBrowser(["get", "text", "body"]),
+      (body) => body.includes("Invite code"),
+      {
+        deadlineMs: STATUS_DEADLINE_MS,
+        describe: (body) => `Create an account never showed an Invite code field:\n${body}`,
+        intervalMs: 500,
+      },
+    );
+    const fields = parseEval(await agentBrowser(["eval", ACCOUNT_FIELDS]), accountFieldsSchema);
+    await agentBrowser(["fill", fields.name.selector, NEW_ACCOUNT.name]);
+    await agentBrowser(["fill", fields.email.selector, NEW_ACCOUNT.email]);
+    await agentBrowser(["fill", fields.password.selector, NEW_ACCOUNT.password]);
+    await agentBrowser(["fill", fields.inviteCode.selector, NEW_ACCOUNT.inviteCode]);
+
+    ctx.log("a sign-up the dead cloud cannot answer says so, and keeps what was typed");
+    await agentBrowser(["find", "role", "button", "click", "--name", "Create account", "--exact"]);
+    await pollUntil(
+      async () => await agentBrowser(["get", "text", "body"]),
+      (body) => body.includes("Could not reach the cloud"),
+      {
+        deadlineMs: STATUS_DEADLINE_MS,
+        describe: (body) => `the refused sign-up never said why:\n${body}`,
+        intervalMs: 500,
+      },
+    );
+    const kept = parseEval(await agentBrowser(["eval", ACCOUNT_FIELDS]), accountFieldsSchema);
+    expect(
+      kept.name.value === NEW_ACCOUNT.name &&
+        kept.email.value === NEW_ACCOUNT.email &&
+        kept.password.value === NEW_ACCOUNT.password &&
+        kept.inviteCode.value === NEW_ACCOUNT.inviteCode,
+      `the form lost what was typed: ${JSON.stringify(kept)}`,
     );
   },
 };

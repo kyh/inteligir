@@ -1,3 +1,4 @@
+import { deviceSignUpRequestSchema } from "@repo/api/cloud/account/account-schema";
 import {
   DEVICE_API_PATHS,
   deviceLoginRequestSchema,
@@ -12,15 +13,17 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { verifyDeviceCredential } from "./device-auth";
 import { loginDevice } from "./login";
 import type { LoginFailure } from "./login";
-import { createAuth } from "../auth/auth";
+import { signUpDevice } from "./sign-up";
+import { createAuth, createSignUpAuth } from "../auth/auth";
+import { signUpBodyRefusal } from "../auth/invite";
 import { jsonNoStore, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { device } from "../db/schema";
 import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
-// session auth for everything except login, which IS the authentication, and sign-out, which a
-// device asks with its own credential: the local app holds no session
+// session auth for everything except login and sign-up, which ARE the authentication, and
+// sign-out, which a device asks with its own credential: the local app holds no session
 
 const sessionUserId = async (
   request: Request,
@@ -84,6 +87,25 @@ export const handleDeviceRoutes = async (
     const result = await loginDevice(db, env.DB, createAuth(env, url.origin), body.data);
     if (!result.loggedIn) {
       return refuse(result.failure, LOGIN_FAILURE_MESSAGE[result.failure]);
+    }
+    return jsonNoStore(result.response);
+  }
+
+  if (route === `POST ${DEVICE_API_PATHS.signUp}`) {
+    // the site's invite gate spends this window too, so two doors are not twice the guesses
+    if (!(await spendCallerBudget(env, db, "inviteSignUp", request))) {
+      return refuse("rate-limited", "Too many attempts — wait a minute.");
+    }
+    const body = deviceSignUpRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!body.success) {
+      return refuse(
+        "bad-request",
+        signUpBodyRefusal(body.error, "Send { name, email, password, inviteCode, deviceName }."),
+      );
+    }
+    const result = await signUpDevice(db, env.DB, createSignUpAuth(env, url.origin), body.data);
+    if (!result.signedUp) {
+      return refuse(result.failure, result.message);
     }
     return jsonNoStore(result.response);
   }

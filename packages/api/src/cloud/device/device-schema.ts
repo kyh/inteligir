@@ -6,6 +6,8 @@ export const DEVICE_API_PATHS = {
   login: "/v1/device/login",
   revoke: "/v1/device/revoke",
   signOut: "/v1/device/sign-out",
+  // creates the account and answers this device's credential, the login's answer
+  signUp: "/v1/device/sign-up",
 } as const;
 
 // the prefix routes a bearer to the device table without asking better auth, so a session
@@ -49,6 +51,17 @@ export type DeviceLoginRefusal = (typeof DEVICE_LOGIN_REFUSALS)[number];
 
 export const isDeviceLoginRefusal = (code: CloudErrorCode): code is DeviceLoginRefusal =>
   DEVICE_LOGIN_REFUSALS.some((refusal) => refusal === code);
+
+// a new account holds no device, so the cap is not among them; the window is the invite gate's
+export const DEVICE_SIGN_UP_REFUSALS = [
+  "invite-refused",
+  "account-exists",
+  "rate-limited",
+] as const satisfies readonly CloudErrorCode[];
+export type DeviceSignUpRefusal = (typeof DEVICE_SIGN_UP_REFUSALS)[number];
+
+export const isDeviceSignUpRefusal = (code: CloudErrorCode): code is DeviceSignUpRefusal =>
+  DEVICE_SIGN_UP_REFUSALS.some((refusal) => refusal === code);
 
 // the credential at rest is parsed on every read: a malformed record must read as
 // "signed out", never as a credential the cloud refuses on every request forever

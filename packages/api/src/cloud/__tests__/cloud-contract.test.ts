@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { accountResponseSchema, signUpRequestSchema } from "../account/account-schema";
+import {
+  accountResponseSchema,
+  deviceSignUpRequestSchema,
+  signUpRequestSchema,
+} from "../account/account-schema";
 import {
   ackCapturesRequestSchema,
   ackCapturesResponseSchema,
@@ -14,9 +18,11 @@ import {
   DEVICE_CREDENTIAL_PATTERN,
   DEVICE_LOGIN_REFUSALS,
   DEVICE_NAME_MAX_LENGTH,
+  DEVICE_SIGN_UP_REFUSALS,
   deviceLoginRequestSchema,
   deviceLoginResponseSchema,
   isDeviceLoginRefusal,
+  isDeviceSignUpRefusal,
   listDevicesResponseSchema,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -367,6 +373,11 @@ describe("device login", () => {
       expect(isDeviceLoginRefusal(refusal)).toBe(true);
     }
     expect(isDeviceLoginRefusal("unauthorized")).toBe(false);
+    for (const refusal of DEVICE_SIGN_UP_REFUSALS) {
+      expect(CLOUD_ERROR_CODES).toContain(refusal);
+      expect(isDeviceSignUpRefusal(refusal)).toBe(true);
+    }
+    expect(isDeviceSignUpRefusal("device-limit")).toBe(false);
   });
 });
 
@@ -407,6 +418,21 @@ describe("invite sign-up request", () => {
     expect(signUpRequestSchema.safeParse({ ...SIGN_UP, name: "  " }).success).toBe(false);
     expect(signUpRequestSchema.safeParse({ ...SIGN_UP, email: "" }).success).toBe(false);
     expect(signUpRequestSchema.safeParse({ ...SIGN_UP, rememberMe: true }).success).toBe(false);
+  });
+
+  it("folds the app's address the way login does, and asks for the device's name", () => {
+    expect(
+      deviceSignUpRequestSchema.parse({
+        ...SIGN_UP,
+        deviceName: " Laptop ",
+        email: " Owner@Example.TEST ",
+      }),
+    ).toStrictEqual({ ...SIGN_UP, deviceName: "Laptop" });
+    expect(deviceSignUpRequestSchema.safeParse(SIGN_UP).success).toBe(false);
+    expect(
+      deviceSignUpRequestSchema.safeParse({ ...SIGN_UP, deviceName: "L", email: "not-an-address" })
+        .success,
+    ).toBe(false);
   });
 });
 

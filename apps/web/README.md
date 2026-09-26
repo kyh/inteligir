@@ -58,6 +58,7 @@ its own `tsconfig.json`.
 | `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
 | `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
 | `POST /v1/device/login`        | —       | Email + password in, the durable device credential out     |
+| `POST /v1/device/sign-up`      | —       | Sign-up from the app: account + device credential out      |
 | `GET /v1/device/list`          | session | The device table (revoked rows included)                   |
 | `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
 | `POST /v1/device/sign-out`     | device  | The same revoke, for the device the credential names       |
@@ -107,7 +108,15 @@ answers git clients in plain text.
   with those same two bounds (`src/worker/auth/auth.ts`), which the reset page
   and device login hold too. Every other caller's instance carries
   `disableSignUp`, which shuts
-  `/api/auth/sign-up/email` and `auth.api.signUpEmail` together.
+  `/api/auth/sign-up/email` and `auth.api.signUpEmail` together. The gate
+  has TWO front doors over that one claim (`claimInvite` / `releaseInvite`):
+  this page's, which forwards so the browser keeps Better Auth's cookie, and
+  the app's, `POST /v1/device/sign-up` (`src/worker/device/sign-up.ts`),
+  which calls `signUpEmail` on the sign-up instance, releases the claim on any
+  refusal (`account-exists` 409 for a taken address, `invite-refused` 403 for
+  a code that will not work), deletes the session the sign-up minted and
+  answers the device credential a login would. Both spend one per-address
+  window, so two doors are not twice the guesses.
 - **The site's pages ask for a session in the route, and remember the way
   back.** `/app/devices` is `ssr: false`; its `beforeLoad` sends a signed-out
   visit to `/app/sign-in?next=<the page>`, and its loader does the same when

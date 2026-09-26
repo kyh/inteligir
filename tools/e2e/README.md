@@ -102,6 +102,10 @@ what each one is FOR.
 | thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
 |                           | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                           | so the Durable Object's ping is what delivered it                         |
+| account-hosted            | an account created in the app (`cloud.signUp`) against a wrangler-dev     |
+|                           | Worker signs that instance in as it; the invite is spent, so a second     |
+|                           | sign-up with it is FORBIDDEN; a second instance signs in with the same    |
+|                           | email and password                                                        |
 | built-worker-boot         | the vite-built bundle — what `wrangler deploy` ships — boots under        |
 |                           | wrangler dev and answers; built through turbo on every run, so it is the  |
 |                           | current source, and the one place a module-scope crash of the emitted     |
@@ -139,7 +143,9 @@ what each one is FOR.
 |                           | clobbering                                                                |
 | view-context-browser      | the agent is told which note the message left from, and at what revision  |
 | settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
-|                           | dialog on that route, and a refused connector add toasts there            |
+|                           | dialog on that route, and a refused connector add toasts there; signed    |
+|                           | out, Create an account asks for an invite code, and a sign-up the cloud   |
+|                           | cannot answer says so and keeps what was typed                            |
 | vault-search-browser      | the palette's vault search lists every match; Enter lands the find bar on |
 |                           | one; Replace all rewrites the notes on disk                               |
 | tree-ops-browser          | the tree's row menu pins a note into its frontmatter, and a drag moves it |

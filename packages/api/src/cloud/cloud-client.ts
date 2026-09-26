@@ -4,7 +4,7 @@
 
 import type { z } from "zod";
 import { ACCOUNT_API_PATHS, accountResponseSchema } from "./account/account-schema";
-import type { AccountResponse } from "./account/account-schema";
+import type { AccountResponse, DeviceSignUpRequest } from "./account/account-schema";
 import {
   ackCapturesResponseSchema,
   CAPTURE_API_PATHS,
@@ -222,15 +222,16 @@ const queryString = (values: Record<string, string | number | undefined>): strin
   return rendered === "" ? "" : `?${rendered}`;
 };
 
-// the one call made without a credential: its answer is the credential
-export const postDeviceLogin = async (
+// the two calls made without a credential: each one's answer is the credential
+const postForCredential = async (
   endpoint: CloudEndpoint,
-  request: DeviceLoginRequest,
+  path: string,
+  request: DeviceLoginRequest | DeviceSignUpRequest,
 ): Promise<CloudResult<DeviceLoginResponse>> => {
   const call = endpoint.fetch ?? fetch;
   return await readCloudCall(
     async () =>
-      await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.login), {
+      await call(endpointUrl(endpoint.baseUrl, path), {
         body: JSON.stringify(request),
         headers: { "content-type": "application/json" },
         method: "POST",
@@ -239,6 +240,18 @@ export const postDeviceLogin = async (
     deviceLoginResponseSchema,
   );
 };
+
+export const postDeviceLogin = async (
+  endpoint: CloudEndpoint,
+  request: DeviceLoginRequest,
+): Promise<CloudResult<DeviceLoginResponse>> =>
+  await postForCredential(endpoint, DEVICE_API_PATHS.login, request);
+
+export const postDeviceSignUp = async (
+  endpoint: CloudEndpoint,
+  request: DeviceSignUpRequest,
+): Promise<CloudResult<DeviceLoginResponse>> =>
+  await postForCredential(endpoint, DEVICE_API_PATHS.signUp, request);
 
 export interface CloudClient {
   push: (request: PushRequest) => Promise<CloudResult<PushResponse>>;

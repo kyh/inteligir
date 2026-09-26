@@ -8,6 +8,7 @@ import { killAllLiveGroups } from "./harness/tracked-child";
 import type { TrackedProcess } from "./harness/tracked-child";
 import { createScenarioContext } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
+import { accountHosted } from "./scenarios/account-hosted";
 import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
@@ -38,6 +39,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultSync,
   hostedVaultSync,
   threadSyncHosted,
+  accountHosted,
   builtWorkerBoot,
   builtCliBoot,
   desktopShell,

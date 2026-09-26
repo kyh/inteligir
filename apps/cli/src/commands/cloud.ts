@@ -1,5 +1,6 @@
 // no `logout` here on purpose: it discards a queue of unsent writes, a decision for a person in front of
-// that state rather than a verb for a model to drive.
+// that state rather than a verb for a model to drive. no sign-up either: creating an account is a
+// person's act, done in the app, where `cloud.signUp` is the form's.
 
 import { cloudDevicesPageUrl } from "@repo/api/local/cloud/cloud-schema";
 import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";

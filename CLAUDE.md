@@ -115,7 +115,8 @@ apps/
                  /design (src/components/gallery), Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device login (POST /v1/device/login mints the device
-                 credential from email + password; /app/devices lists and
+                 credential from email + password, POST /v1/device/sign-up
+                 creates the account and mints it; /app/devices lists and
                  revokes), the per-user ThreadSyncDO (merged thread log +
                  capture inbox + ws invalidation), and the hosted vault git
                  remote (issue #618): durable-git repo cells behind
@@ -1246,8 +1247,17 @@ to the END of its group.
   Rejected: the browser approve page, the one-time code, PKCE and the loopback
   callback, a ceremony whose point was keeping the password out of the app.
   Residual: the password passes through the app once over HTTPS. No social
-  providers: a login that must work inside the app can only be a password.
-  `@repo/api/cloud/device/login-flow.ts`, `apps/web/src/worker/device/login.ts`.
+  providers: a login that must work inside the app can only be a password. A
+  device can also CREATE the account (owner decision: sign up in the app, with
+  the invite code): `POST /v1/device/sign-up` answers the same credential
+  `mintDeviceCredential` mints for a login and deletes the session the sign-up
+  created, so a person never signs in twice in a row; `loginDevice` and
+  `signUpDevice` share one tail that keeps the credential or gives its slot
+  back. The site's sign-up page stays, and the phone stays sign-in only; the
+  CLI has no sign-up verb, since creating an account is a person's act.
+  `@repo/api/cloud/device/login-flow.ts`, `apps/web/src/worker/device/login.ts`,
+  `apps/web/src/worker/device/sign-up.ts`,
+  `apps/desktop/src/renderer/app/account-form.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
   never waited on.** Forgetting the file alone leaves the row active, and the
@@ -1409,9 +1419,14 @@ to the END of its group.
   reaching this Worker is one the deployment owns, and a fixed fallback would
   mint reset links at the wrong deployment; revisit if a hostname the
   deployment does not control reaches it (`apps/web/src/worker/auth/auth.ts`).
-  The invite route (`apps/web/src/worker/auth/invite.ts`) claims the code
-  atomically and forwards into the one instance with `disableSignUp` off;
-  every other instance carries the flag. `apps/web/README.md` § Auth.
+  The gate has two front doors over one atomic claim (`claimInvite`, one
+  `UPDATE … WHERE redeemed_at IS NULL`, in `apps/web/src/worker/auth/invite.ts`):
+  the site's page forwards into the one instance with `disableSignUp` off, so
+  the browser keeps Better Auth's cookie; the app's
+  (`apps/web/src/worker/device/sign-up.ts`) calls `signUpEmail` on that same
+  instance and then mints a device credential. Either door releases the claim
+  when no account came of it, and both spend one per-address window; every
+  other instance carries the flag. `apps/web/README.md` § Auth.
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and an additive schema; `apps/web/vitest.config.ts`

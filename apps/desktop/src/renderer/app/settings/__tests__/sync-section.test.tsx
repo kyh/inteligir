@@ -1,64 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { SignInForm } from "../../sign-in-form";
+import { afterEach, describe, expect, it } from "vitest";
 import { RevokeFailedNotice, SignedInDetails } from "../sync-section";
 
 afterEach(cleanup);
-
-const renderForm = (overrides: { pending?: boolean; refusal?: string | null } = {}) => {
-  const onSignIn = vi.fn<(login: { email: string; password: string }) => void>();
-  render(
-    <SignInForm
-      cloudUrl="https://cloud.test"
-      onSignIn={onSignIn}
-      pending={overrides.pending ?? false}
-      refusal={overrides.refusal ?? null}
-    />,
-  );
-  return { onSignIn };
-};
-
-const fill = (email: string, password: string): void => {
-  fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
-};
-
-describe("the sign-in form", () => {
-  it("asks for an email and a password, the password unseen, and names the account's host", () => {
-    renderForm();
-    expect(screen.getByLabelText("Email").getAttribute("type")).toBe("email");
-    expect(screen.getByLabelText("Password").getAttribute("type")).toBe("password");
-    expect(screen.getByText(/cloud\.test account/u)).toBeDefined();
-  });
-
-  it("submits nothing until both fields are filled, then hands both over as typed", () => {
-    const { onSignIn } = renderForm();
-    const button = screen.getByRole("button", { name: "Sign in" });
-    expect(button.hasAttribute("disabled")).toBe(true);
-
-    fill("k@example.test", " pw with spaces ");
-    expect(button.hasAttribute("disabled")).toBe(false);
-    fireEvent.click(button);
-    expect(onSignIn).toHaveBeenCalledWith({
-      email: "k@example.test",
-      password: " pw with spaces ",
-    });
-  });
-
-  it("holds the button while a sign-in is in flight", () => {
-    renderForm({ pending: true });
-    fill("k@example.test", "correct horse battery");
-    expect(screen.getByRole("button", { name: "Sign in" }).hasAttribute("disabled")).toBe(true);
-  });
-
-  it("shows the cloud's refusal beside the fields it applies to", () => {
-    renderForm({ refusal: "Wrong email or password." });
-    expect(screen.getByText("Wrong email or password.")).toBeDefined();
-  });
-});
 
 const NOW_MS = 1_756_600_000_000;
 

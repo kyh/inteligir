@@ -9,25 +9,51 @@ import { inviteCode } from "../db/schema";
 
 import { spendCallerBudget } from "../rate-limit";
 
-// The invite is claimed before the account exists: one UPDATE … WHERE redeemed_at IS NULL is
-// the only atomic step, so it settles two simultaneous sign-ups on one code. A failed sign-up
-// releases the claim; an isolate dying between the two burns a code, and the owner mints another.
+// Two front doors, one claim: the site's page (below) and the app's (../device/sign-up.ts). The
+// invite is claimed before the account exists: one UPDATE … WHERE redeemed_at IS NULL is the only
+// atomic step, so it settles two simultaneous sign-ups on one code. A failed sign-up releases the
+// claim; an isolate dying between the two burns a code, and the owner mints another.
+
+type Db = ReturnType<typeof createDb>;
 
 const CODE_PATTERN = /^[A-Za-z0-9-]{6,64}$/u;
 
 // one message for "no such code" and "already used", so a caller learns only that this code will not work
-const INVITE_REFUSED = "That invite code isn't valid. Check it and try again.";
+export const INVITE_REFUSED = "That invite code isn't valid. Check it and try again.";
+
+// false when the code will not work: malformed, unknown, or already claimed
+export const claimInvite = async (db: Db, code: string, email: string): Promise<boolean> => {
+  if (!CODE_PATTERN.test(code)) {
+    return false;
+  }
+  const claimed = await db
+    .update(inviteCode)
+    .set({ redeemedAt: new Date(), redeemedBy: email })
+    .where(and(eq(inviteCode.code, code), isNull(inviteCode.redeemedAt)))
+    .returning()
+    .get();
+  return claimed !== undefined;
+};
+
+// scoped to the email this request claimed with, so a loser never releases a concurrent winner's claim
+export const releaseInvite = async (db: Db, code: string, email: string): Promise<void> => {
+  await db
+    .update(inviteCode)
+    .set({ redeemedAt: null, redeemedBy: null })
+    .where(and(eq(inviteCode.code, code), eq(inviteCode.redeemedBy, email)));
+};
+
+// refused before the claim, so a password Better Auth would refuse never claims and releases a code
+export const signUpBodyRefusal = (error: z.ZodError, otherwise: string): string =>
+  error.issues.every((issue) => issue.path[0] === "password")
+    ? `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`
+    : otherwise;
 
 const refuse = (status: number, message: string): Response =>
   Response.json({ message }, { status });
 
-// refused before the claim, so a password Better Auth would refuse never claims and releases a code
-const bodyRefusal = (error: z.ZodError): string =>
-  error.issues.every((issue) => issue.path[0] === "password")
-    ? `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`
-    : "Fill in every field to create an account.";
-
-// through the handler rather than auth.api.signUpEmail: a rejected sign-up is then a response to forward, not an exception to translate
+// through the handler rather than auth.api.signUpEmail: a rejected sign-up is then a response to
+// forward, not an exception to translate, and the browser keeps the cookie it sets
 const forwardSignUp = async (
   request: Request,
   env: Env,
@@ -57,30 +83,16 @@ export const handleInviteSignUp = async (request: Request, env: Env): Promise<Re
 
   const body = signUpRequestSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return refuse(400, bodyRefusal(body.error));
+    return refuse(400, signUpBodyRefusal(body.error, "Fill in every field to create an account."));
   }
   const parsed = body.data;
-  if (!CODE_PATTERN.test(parsed.inviteCode)) {
-    return refuse(403, INVITE_REFUSED);
-  }
-
-  const claimed = await db
-    .update(inviteCode)
-    .set({ redeemedAt: new Date(), redeemedBy: parsed.email })
-    .where(and(eq(inviteCode.code, parsed.inviteCode), isNull(inviteCode.redeemedAt)))
-    .returning()
-    .get();
-  if (claimed === undefined) {
+  if (!(await claimInvite(db, parsed.inviteCode, parsed.email))) {
     return refuse(403, INVITE_REFUSED);
   }
 
   const response = await forwardSignUp(request, env, url.origin, parsed);
   if (!response.ok) {
-    // scoped to the email this request claimed with, so a loser never releases a concurrent winner's claim
-    await db
-      .update(inviteCode)
-      .set({ redeemedAt: null, redeemedBy: null })
-      .where(and(eq(inviteCode.code, parsed.inviteCode), eq(inviteCode.redeemedBy, parsed.email)));
+    await releaseInvite(db, parsed.inviteCode, parsed.email);
   }
   return response;
 };

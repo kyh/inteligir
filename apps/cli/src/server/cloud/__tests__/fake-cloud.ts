@@ -12,7 +12,10 @@ import type {
   CaptureRow,
   ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
-import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
+import {
+  ACCOUNT_API_PATHS,
+  deviceSignUpRequestSchema,
+} from "@repo/api/cloud/account/account-schema";
 import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
 import type { CloudErrorCode } from "@repo/api/cloud/errors";
 import {
@@ -78,11 +81,21 @@ interface InboxRow {
 // the one account every fake cloud holds; the runtime under test signs in as it.
 export const FAKE_ACCOUNT = { email: "owner@example.test", password: "correct horse battery" };
 
+// the one invite every fake cloud holds until a sign-up spends it.
+export const FAKE_INVITE_CODE = "FAKE-INVITE";
+
+interface FakeDevice {
+  deviceId: string;
+  email: string;
+  revoked: boolean;
+}
+
 export class FakeCloud {
-  private readonly devices = new Map<string, { deviceId: string; revoked: boolean }>();
-  private readonly accounts = new Map<string, string>([
-    [FAKE_ACCOUNT.email, FAKE_ACCOUNT.password],
+  private readonly devices = new Map<string, FakeDevice>();
+  private readonly accounts = new Map<string, { id: string; password: string }>([
+    [FAKE_ACCOUNT.email, { id: "user_fake", password: FAKE_ACCOUNT.password }],
   ]);
+  private readonly inviteCodes = new Set([FAKE_INVITE_CODE]);
   private readonly log: LogRow[] = [];
   // the durable object's thread_meta: last writer wins on the client's clock, and a row with no
   // title keeps the stored one.
@@ -98,6 +111,8 @@ export class FakeCloud {
   maxDevices = Number.POSITIVE_INFINITY;
   /** the login window is shut: every login answers rate-limited. */
   loginWindowShut = false;
+  /** the invite gate's window is shut: every sign-up answers rate-limited. */
+  signUpWindowShut = false;
   /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
   readonly unreadableTypes = new Set<string>();
 
@@ -143,43 +158,53 @@ export class FakeCloud {
 
   private route(input: string, init?: RequestInit): Response {
     const url = new URL(input);
-    const method = init?.method ?? "GET";
-    this.requests.push(`${method} ${url.pathname}`);
+    const route = `${init?.method ?? "GET"} ${url.pathname}`;
+    this.requests.push(route);
     const text = z.string().safeParse(init?.body);
     const body: RequestBody = text.success ? parseJson(text.data) : null;
 
-    if (method === "POST" && url.pathname === DEVICE_API_PATHS.login) {
+    if (route === `POST ${DEVICE_API_PATHS.login}`) {
       return this.login(body);
+    }
+    if (route === `POST ${DEVICE_API_PATHS.signUp}`) {
+      return this.signUp(body);
     }
 
     const device = this.authorize(init);
     if (device === null) {
       return refuse("unauthorized", "No valid device credential.");
     }
-    if (method === "POST" && url.pathname === DEVICE_API_PATHS.signOut) {
+    if (route === `POST ${DEVICE_API_PATHS.signOut}`) {
       this.revoke(device.deviceId);
       const response: RevokeDeviceResponse = { revoked: true };
       return Response.json(response);
     }
-    if (method === "POST" && url.pathname === SYNC_API_PATHS.push) {
+    if (route === `POST ${SYNC_API_PATHS.push}`) {
       return this.push(device.deviceId, body);
     }
-    if (method === "GET" && url.pathname === SYNC_API_PATHS.pull) {
+    if (route === `GET ${SYNC_API_PATHS.pull}`) {
       return this.pull(url);
     }
-    if (method === "POST" && url.pathname === CAPTURE_API_PATHS.claim) {
+    if (route === `POST ${CAPTURE_API_PATHS.claim}`) {
       return this.claim(body);
     }
-    if (method === "POST" && url.pathname === CAPTURE_API_PATHS.ack) {
+    if (route === `POST ${CAPTURE_API_PATHS.ack}`) {
       return this.ack(body);
     }
-    if (method === "GET" && url.pathname === ACCOUNT_API_PATHS.account) {
-      return Response.json({ email: FAKE_ACCOUNT.email, id: "user_fake" });
+    if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
+      return this.account(device);
     }
     return refuse("not-found", "No such route.");
   }
 
-  private authorize(init: RequestInit | undefined): { deviceId: string } | null {
+  private account(device: FakeDevice): Response {
+    const account = this.accounts.get(device.email);
+    return account === undefined
+      ? refuse("unauthorized", "No valid device credential.")
+      : Response.json({ email: device.email, id: account.id });
+  }
+
+  private authorize(init: RequestInit | undefined): FakeDevice | null {
     const headers = init?.headers;
     const authorization = z
       .string()
@@ -196,7 +221,7 @@ export class FakeCloud {
     if (device === undefined || device.revoked) {
       return null;
     }
-    return { deviceId: device.deviceId };
+    return device;
   }
 
   private login(body: RequestBody): Response {
@@ -208,18 +233,46 @@ export class FakeCloud {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
     // mirrors the worker: an unknown address and a wrong password are one answer.
-    if (this.accounts.get(parsed.data.email) !== parsed.data.password) {
+    if (this.accounts.get(parsed.data.email)?.password !== parsed.data.password) {
       return refuse("invalid-credentials", "Wrong email or password.");
     }
     if (this.activeDeviceCount() >= this.maxDevices) {
       return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
+    return this.mint(parsed.data.email);
+  }
+
+  // the worker's order: the claim, then the account, and a refused account leaves the code unspent.
+  private signUp(body: RequestBody): Response {
+    if (this.signUpWindowShut) {
+      return refuse("rate-limited", "Too many attempts — wait a minute.");
+    }
+    const parsed = deviceSignUpRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { name, email, password, inviteCode, deviceName }.");
+    }
+    const { email, inviteCode, password } = parsed.data;
+    if (!this.inviteCodes.has(inviteCode)) {
+      return refuse("invite-refused", "That invite code isn't valid. Check it and try again.");
+    }
+    if (this.accounts.has(email)) {
+      return refuse(
+        "account-exists",
+        "An account with this email already exists. Sign in instead.",
+      );
+    }
+    this.inviteCodes.delete(inviteCode);
+    this.accounts.set(email, { id: `user_${this.accounts.size + 1}`, password });
+    return this.mint(email);
+  }
+
+  private mint(email: string): Response {
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
     // random like the worker's, never derived from the per-cloud device counter: two fake clouds
     // would mint one credential, and a sign-out sent to the other would revoke a stranger
     const credential = `${DEVICE_CREDENTIAL_PREFIX}${randomBytes(32).toString("hex")}`;
-    this.devices.set(credential, { deviceId, revoked: false });
+    this.devices.set(credential, { deviceId, email, revoked: false });
     const response: DeviceLoginResponse = { credential, deviceId };
     return Response.json(response);
   }

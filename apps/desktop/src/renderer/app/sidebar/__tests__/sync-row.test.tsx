@@ -74,4 +74,38 @@ describe("the rail's sign-in", () => {
     await delay(DIALOG_PAINT_MS);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("creates the account from the same dialog, and closes once this device is signed in", async () => {
+    const signUp = vi.fn(() => SIGNED_IN);
+    stubRpc({
+      "cloud/signUp": signUp,
+      "threads/list": () => ({ nextCursor: null, threads: [] }),
+    });
+    const queryClient = createWorkspaceQueryClient();
+    queryClient.setQueryData(orpc.cloud.status.queryKey(), SIGNED_OUT);
+    queryClient.setQueryData(orpc.vault.status.queryKey(), NO_REMOTE);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SyncRow onSyncNow={() => {}} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByLabelText("Sync and account"));
+    fireEvent.click(await screen.findByText("Sign in…"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create an account" }));
+    for (const [label, value] of [
+      ["Name", "Me"],
+      ["Email", "me@cloud.test"],
+      ["Password", "correct horse battery"],
+      ["Invite code", "INVITE-1"],
+    ] as const) {
+      fireEvent.change(within(dialog).getByLabelText(label), { target: { value } });
+    }
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create account" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(signUp).toHaveBeenCalledTimes(1);
+  });
 });

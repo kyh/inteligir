@@ -1,7 +1,11 @@
 // The device's account session as one hook, so the rail's footer and Settings › Devices run the
-// same sign-in, sign-out and status: two spellings of a credential flow are two to audit.
+// same sign-in, sign-up, sign-out and status: two spellings of a credential flow are two to audit.
 
-import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
+import type {
+  CloudLoginRequest,
+  CloudSignUpRequest,
+  CloudStatusResponse,
+} from "@repo/api/local/cloud/cloud-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -11,9 +15,10 @@ import { useVaultStatus } from "./vault-hooks";
 export interface CloudSession {
   status: CloudStatusResponse | undefined;
   pending: boolean;
-  // the cloud's own words for why a sign-in was refused
+  // the cloud's own words for why a sign-in or a sign-up was refused
   refusal: string | null;
-  signIn: (login: { email: string; password: string }) => void;
+  signIn: (request: CloudLoginRequest) => void;
+  signUp: (request: CloudSignUpRequest) => void;
   // confirms first: a surface greyed out while the dialog waits claims work that has not started
   signOut: () => void;
   syncThreads: () => void;
@@ -28,15 +33,24 @@ export const useCloudSession = (): CloudSession => {
   const applyStatus = (next: CloudStatusResponse): void => {
     queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
   };
+  const joined = (next: CloudStatusResponse): void => {
+    setRefusal(null);
+    applyStatus(next);
+  };
   const login = useMutation(
     orpc.cloud.login.mutationOptions({
       onError: (error) => {
         setRefusal(refusalMessage(error, "Could not sign in."));
       },
-      onSuccess: (next) => {
-        setRefusal(null);
-        applyStatus(next);
+      onSuccess: joined,
+    }),
+  );
+  const signUp = useMutation(
+    orpc.cloud.signUp.mutationOptions({
+      onError: (error) => {
+        setRefusal(refusalMessage(error, "Could not create the account."));
       },
+      onSuccess: joined,
     }),
   );
   const logout = useMutation(
@@ -78,10 +92,11 @@ export const useCloudSession = (): CloudSession => {
   };
 
   return {
-    pending: login.isPending || logout.isPending || sync.isPending,
+    pending: login.isPending || signUp.isPending || logout.isPending || sync.isPending,
     refusal,
     signIn: login.mutate,
     signOut,
+    signUp: signUp.mutate,
     status: statusQuery.data,
     syncThreads: sync.mutate,
   };

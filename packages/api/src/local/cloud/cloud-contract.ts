@@ -1,6 +1,10 @@
 import { oc } from "@orpc/contract";
 import { PROVIDER_UNAVAILABLE } from "../local-errors";
-import { cloudLoginRequestSchema, cloudStatusResponseSchema } from "./cloud-schema";
+import {
+  cloudLoginRequestSchema,
+  cloudSignUpRequestSchema,
+  cloudStatusResponseSchema,
+} from "./cloud-schema";
 
 export const cloudContract = {
   // the account's own refusals, each its own class so a client can say which: UNAUTHORIZED is a
@@ -13,6 +17,14 @@ export const cloudContract = {
 
   // only forgets the credential; the device row on the account survives until revoked there
   logout: oc.output(cloudStatusResponseSchema),
+
+  // creates the account and signs this device into it in one step: FORBIDDEN is an invite code
+  // that will not work, CONFLICT an email that already has an account, TOO_MANY_REQUESTS the
+  // invite gate's window, PROVIDER_UNAVAILABLE as login's
+  signUp: oc
+    .input(cloudSignUpRequestSchema)
+    .output(cloudStatusResponseSchema)
+    .errors({ CONFLICT: {}, FORBIDDEN: {}, PROVIDER_UNAVAILABLE, TOO_MANY_REQUESTS: {} }),
 
   status: oc.output(cloudStatusResponseSchema),
 

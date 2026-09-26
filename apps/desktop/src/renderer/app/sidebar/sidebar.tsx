@@ -57,7 +57,7 @@ import {
 } from "../desktop-vaults";
 import { PREFS, RAIL_VIEWS, usePref } from "../prefs";
 import type { RailView } from "../prefs";
-import { SignInForm } from "../sign-in-form";
+import { AccountForm } from "../account-form";
 import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
@@ -191,8 +191,8 @@ const RAIL_VIEW_LABELS: Record<RailView, string> = {
   recent: "Recent",
 };
 
-// The sign-in the rail's sync row offers, over the same flow Settings › Devices runs.
-const SignInDialog = ({
+// The account the rail's sync row offers, over the same flow Settings › Devices runs.
+const AccountDialog = ({
   cloudUrl,
   session,
   open,
@@ -204,18 +204,19 @@ const SignInDialog = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const handleSignIn = session.signIn;
+  const handleSignUp = session.signUp;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Sign in</DialogTitle>
+          <DialogTitle>Sign in or create an account</DialogTitle>
           <DialogDescription>
-            Your threads and your vault sync through your account. Signed out, this app makes no
-            cloud requests at all.
+            Signed out, this app makes no cloud requests at all.
           </DialogDescription>
         </DialogHeader>
-        <SignInForm
+        <AccountForm
           cloudUrl={cloudUrl}
+          onCreate={handleSignUp}
           onSignIn={handleSignIn}
           pending={session.pending}
           refusal={session.refusal}
@@ -310,7 +311,7 @@ export const SyncRow = ({ onSyncNow }: { onSyncNow: () => void }) => {
         </SidebarMenuItem>
       </SidebarMenu>
       {cloud === undefined ? null : (
-        <SignInDialog
+        <AccountDialog
           cloudUrl={cloud.cloudUrl}
           session={session}
           open={signInOpen}

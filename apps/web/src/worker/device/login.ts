@@ -37,8 +37,53 @@ export interface LoginArgs {
   deviceName: string;
 }
 
+export interface MintArgs {
+  // what Better Auth's sign-in or sign-up just minted; null when it minted none
+  sessionToken: string | null;
+  userId: string;
+  deviceName: string;
+}
+
 // Not replay-safe: only the hash is stored, so a lost response leaves a "Never connected" device
-// to revoke from the dashboard, rather than storing the credential in the clear.
+// to revoke from the dashboard, rather than storing the credential in the clear. Null when the
+// account's device cap refuses.
+export const mintDeviceCredential = async (
+  db: Db,
+  d1: D1Database,
+  args: MintArgs,
+): Promise<DeviceLoginResponse | null> => {
+  // the sign-in or sign-up minted a browser session this device must never hold: the igd_
+  // credential is its only key, revocable from /app/devices, and a session row nobody sees is a
+  // bearer nobody revokes
+  if (args.sessionToken !== null) {
+    await db.delete(session).where(eq(session.token, args.sessionToken));
+  }
+
+  const credential = generateDeviceCredential();
+  const deviceId = crypto.randomUUID();
+  // epoch seconds: the schema's mode "timestamp" is what every other reader of these columns expects
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  // the cap subquery inside the insert is the guard: two logins racing the twentieth slot both
+  // count before either lands, and only the statement itself sees the other's row
+  const inserted = await d1
+    .prepare(
+      `INSERT INTO device (id, user_id, name, credential_hash, created_at)
+       SELECT ?, ?, ?, ?, ?
+       WHERE (SELECT COUNT(*) FROM device WHERE user_id = ? AND revoked_at IS NULL) < ?`,
+    )
+    .bind(
+      deviceId,
+      args.userId,
+      args.deviceName,
+      await sha256Hex(credential),
+      nowSeconds,
+      args.userId,
+      MAX_DEVICES_PER_ACCOUNT,
+    )
+    .run();
+  return inserted.meta.changes === 0 ? null : { credential, deviceId };
+};
+
 export const loginDevice = async (
   db: Db,
   d1: D1Database,
@@ -56,36 +101,12 @@ export const loginDevice = async (
     }
     throw error;
   }
-  // the sign-in minted a browser session this device must never hold: the igd_ credential is
-  // its only key, revocable from /app/devices, and a session row nobody sees is a bearer nobody revokes
-  await db.delete(session).where(eq(session.token, signedIn.token));
-
-  const credential = generateDeviceCredential();
-  const deviceId = crypto.randomUUID();
-  // epoch seconds: the schema's mode "timestamp" is what every other reader of these columns expects
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  // the cap subquery inside the insert is the guard: two logins racing the twentieth slot both
-  // count before either lands, and only the statement itself sees the other's row
-  const inserted = await d1
-    .prepare(
-      `INSERT INTO device (id, user_id, name, credential_hash, created_at)
-       SELECT ?, ?, ?, ?, ?
-       WHERE (SELECT COUNT(*) FROM device WHERE user_id = ? AND revoked_at IS NULL) < ?`,
-    )
-    .bind(
-      deviceId,
-      signedIn.user.id,
-      args.deviceName,
-      await sha256Hex(credential),
-      nowSeconds,
-      signedIn.user.id,
-      MAX_DEVICES_PER_ACCOUNT,
-    )
-    .run();
-  if (inserted.meta.changes === 0) {
-    return refuseLogin("device-limit");
-  }
-  return { loggedIn: true, response: { credential, deviceId } };
+  const minted = await mintDeviceCredential(db, d1, {
+    deviceName: args.deviceName,
+    sessionToken: signedIn.token,
+    userId: signedIn.user.id,
+  });
+  return minted === null ? refuseLogin("device-limit") : { loggedIn: true, response: minted };
 };
 
 // must run first in account deletion: while a device row lives, its credential still verifies

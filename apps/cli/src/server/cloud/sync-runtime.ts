@@ -11,8 +11,11 @@ import type {
   CloudSocketOpener,
   CreateCloudClientArgs,
 } from "@repo/api/cloud/client";
-import { loginDevice } from "@repo/api/cloud/device/login-flow";
-import type { LoginOutcome as DeviceLoginOutcome } from "@repo/api/cloud/device/login-flow";
+import { loginDevice, signUpDevice } from "@repo/api/cloud/device/login-flow";
+import type {
+  DeviceCredentialStore,
+  LoginOutcome as DeviceLoginOutcome,
+} from "@repo/api/cloud/device/login-flow";
 import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
@@ -26,7 +29,11 @@ import {
   takeRewindIfBuildChanged,
 } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
+import type {
+  CloudLoginRequest,
+  CloudSignUpRequest,
+  CloudStatusResponse,
+} from "@repo/api/local/cloud/cloud-schema";
 import type { DebugLog } from "../debug-log";
 import type { CaptureVault } from "./captures";
 import {
@@ -84,6 +91,8 @@ export interface CloudRuntime {
   attach: (sink: SyncedEventSink) => void;
   start: () => void;
   login: (request: CloudLoginRequest) => Promise<LoginOutcome>;
+  /** creates the account and keeps its first credential, exactly as login keeps one. */
+  signUp: (request: CloudSignUpRequest) => Promise<LoginOutcome>;
   logout: () => CloudStatusResponse;
   syncNow: () => Promise<CloudStatusResponse>;
   dispose: () => Promise<void>;
@@ -430,6 +439,20 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     args.onVaultPing?.();
   };
 
+  // login and sign-up both end in a credential this device adopts, through the one store.
+  const joinAccount = async (
+    join: (store: DeviceCredentialStore) => Promise<DeviceLoginOutcome>,
+  ): Promise<LoginOutcome> => {
+    if (disposed) {
+      return {
+        failure: { kind: "unreachable", message: "This app is shutting down." },
+        kind: "refused",
+      };
+    }
+    const outcome = await join({ write: adoptCredential });
+    return outcome.kind === "logged-in" ? { kind: "logged-in", status: status() } : outcome;
+  };
+
   return {
     attach(next) {
       sink = next;
@@ -472,21 +495,17 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     },
 
     async login(request) {
-      if (disposed) {
-        return {
-          failure: { kind: "unreachable", message: "This app is shutting down." },
-          kind: "refused",
-        };
-      }
-      const outcome = await loginDevice({
-        client: endpoint(),
-        // raw hostname(): the flow bounds and defaults the name.
-        deviceName: request.deviceName ?? hostname(),
-        email: request.email,
-        password: request.password,
-        store: { write: adoptCredential },
-      });
-      return outcome.kind === "logged-in" ? { kind: "logged-in", status: status() } : outcome;
+      return await joinAccount(
+        async (store) =>
+          await loginDevice({
+            client: endpoint(),
+            // raw hostname(): the flow bounds and defaults the name.
+            deviceName: request.deviceName ?? hostname(),
+            email: request.email,
+            password: request.password,
+            store,
+          }),
+      );
     },
 
     logout() {
@@ -503,6 +522,21 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       link.resetBackoff();
       notifyStatus();
       return status();
+    },
+
+    async signUp(request) {
+      return await joinAccount(
+        async (store) =>
+          await signUpDevice({
+            client: endpoint(),
+            deviceName: request.deviceName ?? hostname(),
+            email: request.email,
+            inviteCode: request.inviteCode,
+            name: request.name,
+            password: request.password,
+            store,
+          }),
+      );
     },
 
     start() {

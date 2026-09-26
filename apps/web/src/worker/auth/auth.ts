@@ -90,5 +90,6 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
 export const createAuth = (env: Env, baseURL: string) => buildAuth(env, baseURL, true);
 
 // Better Auth reads disableSignUp off the instance options with no per-call override, so the
-// invite gate (./invite.ts) needs this second instance; the flag also shuts auth.api.signUpEmail.
+// invite gate's two doors (./invite.ts, ../device/sign-up.ts) need this second instance; the flag
+// also shuts auth.api.signUpEmail.
 export const createSignUpAuth = (env: Env, baseURL: string) => buildAuth(env, baseURL, false);

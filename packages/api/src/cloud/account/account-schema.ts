@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../device/device-schema";
+import {
+  deviceLoginRequestSchema,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "../device/device-schema";
 
 // its own route, not a field on the login response: 0.4.0 and older parse that response
 // strictly, and a field they refuse fails their sign-in.
@@ -30,3 +34,13 @@ export const signUpRequestSchema = z
   })
   .strict();
 export type SignUpRequest = z.infer<typeof signUpRequestSchema>;
+
+// the app's door to the same gate: its fields, the device's name, and the email folded as login
+// folds it. here, not beside the login row: this file imports device-schema, not the reverse.
+export const deviceSignUpRequestSchema = signUpRequestSchema
+  .extend({
+    deviceName: deviceLoginRequestSchema.shape.deviceName,
+    email: deviceLoginRequestSchema.shape.email,
+  })
+  .strict();
+export type DeviceSignUpRequest = z.infer<typeof deviceSignUpRequestSchema>;
