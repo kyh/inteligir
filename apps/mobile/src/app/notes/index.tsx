@@ -6,6 +6,7 @@ import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/d
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { refreshNotes, useNotesTree } from "@/lib/app-runtime";
 import type { NotesTreeState } from "@/notes/notes-store";
+import type { MirrorProgress } from "@/notes/vault-mirror";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
 const styles = StyleSheet.create({
@@ -36,9 +37,32 @@ const Empty = ({ text }: { text: string }) => {
   );
 };
 
+const LOADING = "Loading your vault…";
+
+const Notices = ({
+  progress,
+  refreshError,
+}: {
+  progress: MirrorProgress | null;
+  refreshError: string | null;
+}) => {
+  const theme = useTheme();
+  const style = [styles.caption, styles.notice, { color: theme.mutedForeground }];
+  return (
+    <>
+      {progress === null ? null : (
+        <Text style={style}>
+          {LOADING} {String(progress.fetched)} of {String(progress.total)}
+        </Text>
+      )}
+      {refreshError === null ? null : <Text style={style}>Refresh issue: {refreshError}</Text>}
+    </>
+  );
+};
+
 const emptyLabel = (tree: NotesTreeState): string => {
   if (tree.state === "idle" || tree.state === "loading") {
-    return "Loading your vault…";
+    return LOADING;
   }
   if (tree.state === "empty" || tree.state === "error") {
     return tree.message;
@@ -65,6 +89,7 @@ const NotesScreen = () => {
       ? tree.entries.filter((entry) => isDocPath(entry.path) && !isVaultMetadataPath(entry.path))
       : [];
   const refreshError = tree.state === "ready" ? tree.refreshError : null;
+  const progress = tree.state === "ready" ? tree.progress : null;
   const emptyText = emptyLabel(tree);
 
   return (
@@ -86,13 +111,7 @@ const NotesScreen = () => {
         }
         data={docs}
         keyExtractor={(entry) => entry.path}
-        ListHeaderComponent={
-          refreshError === null ? null : (
-            <Text style={[styles.caption, styles.notice, { color: theme.mutedForeground }]}>
-              Refresh issue: {refreshError}
-            </Text>
-          )
-        }
+        ListHeaderComponent={<Notices progress={progress} refreshError={refreshError} />}
         ListEmptyComponent={<Empty text={emptyText} />}
         renderItem={({ item: entry }) => {
           const dir = dirnamePath(entry.path);

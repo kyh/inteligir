@@ -389,7 +389,7 @@ export const frontmatterTags = (yaml: string): FrontmatterTag[] =>
   });
 
 // obsidian interop: a single-string scalar and the legacy `alias:` key are accepted too
-const frontmatterAliases = (parsed: ParsedProperties | null): string[] => {
+export const frontmatterAliases = (parsed: ParsedProperties | null): string[] => {
   if (parsed === null || parsed.kind !== "valid") {
     return [];
   }

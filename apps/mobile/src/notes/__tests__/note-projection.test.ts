@@ -79,11 +79,18 @@ describe("projectNote", () => {
     ]);
   });
 
-  it("labels a resolved link by its title, never its uuid", () => {
+  it("labels a resolved link by its title, never its uuid, and keeps the uuid to resolve by", () => {
     const [paragraph] = noteBlocks("[[Plan|9e64c3df-c1e2-4a4d-8c07-91528f422413]]\n");
     expect(paragraph).toEqual({
       kind: "paragraph",
-      spans: [{ kind: "wiki-link", label: "Plan", target: "Plan" }],
+      spans: [
+        {
+          kind: "wiki-link",
+          label: "Plan",
+          noteId: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
+          target: "Plan",
+        },
+      ],
     });
   });
 

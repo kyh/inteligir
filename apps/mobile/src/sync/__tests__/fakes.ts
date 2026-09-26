@@ -95,7 +95,8 @@ export interface FakeCloud {
   captureResults: CloudResult<CaptureResponse>[];
 }
 
-export const createFakeCloud = (): FakeCloud => {
+// `vault` answers the vault reads in place of an empty tree
+export const createFakeCloud = (vault: Partial<CloudClient> = {}): FakeCloud => {
   const fake: FakeCloud = {
     captureResults: [],
     captures: [],
@@ -128,6 +129,7 @@ export const createFakeCloud = (): FakeCloud => {
         ok: false,
       }),
       vaultTree: async () => ok({ commit: "0".repeat(40), entries: [], next: null }),
+      ...vault,
     }),
     pullResults: [],
     pushes: [],

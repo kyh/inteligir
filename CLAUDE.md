@@ -125,11 +125,12 @@ apps/
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
   mobile/        @repo/mobile — the Expo RN client (#576): read-only threads,
-                 produced captures and (#618) a read-only notes surface over
-                 the hosted vault's /cloud read rows, rendered through
-                 @repo/notes' own parse, with each note's comment store
-                 folded beside it (#683); reaches @repo/api/cloud, @repo/domain
-                 and @repo/notes only.
+                 produced captures and (#618) a local SQLite mirror of every
+                 note's text (src/notes/vault-mirror.ts), kept current from
+                 the hosted vault's /cloud read rows by blob oid and read
+                 offline, rendered through @repo/notes' own parse, with each
+                 note's comment store folded beside it (#683); reaches
+                 @repo/api/cloud, @repo/domain and @repo/notes only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
                  provider events, the thread-title rule), vendored-from-bb
@@ -1286,7 +1287,8 @@ to the END of its group.
   opener (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path
   grammar is `parseVaultPath` with the parse required to be the identity. The
   `[[Title|uuid]]` tier lives in `buildResolver` (tier 0), reached through the
-  `id` the wiki-targets rows carry; the mobile listing carries none yet.
+  `id` the wiki-targets rows carry, and on the phone through the id and aliases
+  its mirror reads from each note's frontmatter as the text lands.
 
 - **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
   exactly what it declares** (owner decision, reversing "final at birth").
@@ -1489,6 +1491,31 @@ to the END of its group.
   makes at most 50 subrequests; past the byte budget the rest is `deferred`,
   never the first file. `packages/api/src/cloud/vault/vault-schema.ts`,
   `apps/web/src/worker/vault/read-routes.ts` and `tree-listing.ts`.
+
+- **THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, AND ITS MIRRORED COMMIT MOVES
+  ONLY WHEN THE MIRROR IS WHOLE.** One expo-sqlite file in Documents, never the
+  purgeable cache, kept out of the iCloud device backup (owner decision: it
+  downloads again) by the local module `apps/mobile/modules/backup-exclusion`.
+  A row per file the tree names: its oid, the commit its blob first appeared
+  at (an asset URL pinned there outlives every commit that leaves the blob
+  alone), and for a note or a comment store its text with the frontmatter id
+  and aliases read once as it lands, so the resolver's alias and uuid tiers
+  answer on the phone. A refresh applies the listing in one transaction by oid,
+  copies a blob it holds under another path rather than fetching it, and fills
+  the empty rows in pinned batches, each its own transaction landing only on a
+  row still naming the answer's oid; the commit advances when no wanted row is
+  empty, so a refresh cut short resumes from those rows. Rejected: a body
+  cache keyed `(commit, path)` beside a tree held in memory, which shows
+  nothing on a cold offline launch, loses every body to any commit, and holds
+  no frontmatter.
+  Attachments download on the first ask, named by oid, under the cache. A
+  sign-in, a sign-out and a revocation wipe the rows and the attachments; the
+  boot restore keeps them and serves them before any request; every await
+  re-checks the session and every write a wipe generation, so a batch started
+  before a wipe never lands. The phone's database has ONE `user_version`, so a
+  table another module adds is a step appended to
+  `apps/mobile/src/lib/phone-db.ts`. `apps/mobile/src/notes/vault-mirror.ts`,
+  `apps/mobile/src/notes/notes-store.ts`.
 
 ### Server process and the desktop shell
 
