@@ -325,6 +325,7 @@ overrides:
   vite: 8.1.5
 
 patchedDependencies:
+  '@agentclientprotocol/codex-acp@1.13.0': 91b830ee46fb92c46ec44c2ec0a44d5df3b5b114c7d7f210ca7aa0c442c05df2
   '@platejs/core@53.3.14': 45a878c37dbc14bf6cfe109d54ed0586971c3c85d9ea51aff996e418b566b6d8
   micromark@4.0.2: d6fb1b80f35c66a51f99e88f471d2b5903ea5a0a134bea83cd3c5cbca2f50ab8
 
@@ -361,7 +362,7 @@ importers:
         version: 0.81.0(@anthropic-ai/sdk@0.128.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))
       '@agentclientprotocol/codex-acp':
         specifier: 'catalog:'
-        version: 1.13.0
+        version: 1.13.0(patch_hash=91b830ee46fb92c46ec44c2ec0a44d5df3b5b114c7d7f210ca7aa0c442c05df2)
       '@parcel/watcher':
         specifier: 'catalog:'
         version: 2.6.0
@@ -728,7 +729,7 @@ importers:
         version: 0.81.0(@anthropic-ai/sdk@0.128.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@4.6.5))
       '@agentclientprotocol/codex-acp':
         specifier: 'catalog:'
-        version: 1.13.0
+        version: 1.13.0(patch_hash=91b830ee46fb92c46ec44c2ec0a44d5df3b5b114c7d7f210ca7aa0c442c05df2)
       '@agentclientprotocol/sdk':
         specifier: 'catalog:'
         version: 1.5.0(zod@4.6.5)
@@ -10646,7 +10647,7 @@ snapshots:
       - '@anthropic-ai/sdk'
       - '@modelcontextprotocol/sdk'
 
-  '@agentclientprotocol/codex-acp@1.13.0':
+  '@agentclientprotocol/codex-acp@1.13.0(patch_hash=91b830ee46fb92c46ec44c2ec0a44d5df3b5b114c7d7f210ca7aa0c442c05df2)':
     dependencies:
       '@agentclientprotocol/sdk': 1.5.0(zod@4.6.5)
       '@openai/codex': 0.155.1

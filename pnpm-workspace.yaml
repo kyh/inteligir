@@ -128,6 +128,10 @@ overrides:
   vite: "catalog:"
 
 patchedDependencies:
+  # the adapter marks every session root trusted, which has codex load the vault's own .codex
+  # config, hooks and exec policies, and no per-session option reaches it; the vault is synced
+  # content, so the patch marks it untrusted, dropped once upstream lets the client decide
+  "@agentclientprotocol/codex-acp@1.13.0": patches/@agentclientprotocol__codex-acp@1.13.0.patch
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
   # note's save. The patch answers from `editor.plugins`, dropped once a release does

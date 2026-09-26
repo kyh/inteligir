@@ -1,0 +1,13 @@
+diff --git a/dist/index.js b/dist/index.js
+index a5bd581b37ac93d1d774ac8258d7b3ebb26ccc1b..1cdb50e5c97675eaee8f87610cd88141a3050919 100755
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -33982,7 +33982,7 @@ var CodexAcpClient = class {
+     const mergedConfig = {
+       ...forceGitRootTurnDiffPaths(mergeGatewayConfig(this.config, this.gatewayConfig)),
+       projects: Object.fromEntries(sessionRoots.map((root) => [root, {
+-        trust_level: "trusted"
++        trust_level: "untrusted"
+       }]))
+     };
+     const configWithWorkspaceRoots = mergeSandboxWorkspaceWriteRoots(mergedConfig, additionalDirectories);

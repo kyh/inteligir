@@ -62,7 +62,8 @@
       "ignoreExportsUsedInFile": true
     },
     "packages/agent-runtime": {
-      "entry": ["src/**/__tests__/**/*.test.ts", "scripts/*.ts"],
+      // the fake vendors are spawned by path, never imported
+      "entry": ["src/**/__tests__/**/*.test.ts", "src/test-support/*.mjs", "scripts/*.ts"],
       "project": ["src/**/*.{ts,mjs}", "scripts/*.ts"],
       "ignoreDependencies": [
         "@agentclientprotocol/claude-agent-acp",

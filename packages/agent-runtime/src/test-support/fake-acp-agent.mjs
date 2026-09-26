@@ -2,14 +2,22 @@
 // slow (a command left running until session/cancel, then the cancelled stop the real ones answer) |
 // authOnSessionOpen | authOnPrompt (a signed-out vendor, refusing at the step the real ones do) |
 // crashOnBoot (exits before the handshake, saying why on stderr, as a missing module would).
-// session ids carry the pid, so two adapters never mint the same one.
+// FAKE_ACP_RECORD names a file each session/new and session/load appends its params to, one json
+// line each. session ids carry the pid, so two adapters never mint the same one.
 
-import { writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
 import { PROTOCOL_VERSION, RequestError, agent, ndJsonStream } from "@agentclientprotocol/sdk";
 
 const mode = process.env.FAKE_ACP_MODE ?? "message";
 const filePath = process.env.FAKE_ACP_FILE ?? null;
+const recordPath = process.env.FAKE_ACP_RECORD ?? null;
+
+const record = (method, params) => {
+  if (recordPath !== null) {
+    appendFileSync(recordPath, `${JSON.stringify({ method, params })}\n`);
+  }
+};
 
 let sessionCounter = 0;
 
@@ -132,14 +140,16 @@ if (mode === "crashOnBoot") {
       agentCapabilities: { loadSession: true },
       protocolVersion: PROTOCOL_VERSION,
     }))
-    .onRequest("session/new", () => {
+    .onRequest("session/new", ({ params }) => {
+      record("session/new", params);
       if (mode === "authOnSessionOpen") {
         throw RequestError.authRequired();
       }
       sessionCounter += 1;
       return { sessionId: `fakeacp_${String(process.pid)}_${String(sessionCounter)}` };
     })
-    .onRequest("session/load", () => {
+    .onRequest("session/load", ({ params }) => {
+      record("session/load", params);
       if (mode === "authOnSessionOpen") {
         throw RequestError.authRequired();
       }

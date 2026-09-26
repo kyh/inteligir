@@ -23,6 +23,13 @@ export interface HarnessKeychainProbe {
   service: string;
 }
 
+// the claude SDK's filesystem setting tiers.
+type ClaudeSettingSource = "user" | "project" | "local";
+
+interface HarnessSessionMeta {
+  claudeCode: { options: { settingSources: readonly ClaudeSettingSource[] } };
+}
+
 export interface HarnessDefinition {
   id: HarnessId;
   displayName: string;
@@ -36,6 +43,9 @@ export interface HarnessDefinition {
   // the claude SDK refuses to run when it believes it is nested inside another claude session, so
   // the nesting sentinel must not leak through from whatever launched this app.
   envOmit: readonly string[];
+  // every session/new and session/load carries it as `_meta`, the adapter's channel for vendor
+  // options; null sends none.
+  sessionMeta: HarnessSessionMeta | null;
 }
 
 const resolveAdapterEntry = (specifier: string): string => require.resolve(specifier);
@@ -99,6 +109,10 @@ export const HARNESSES = {
     envOmit: ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"],
     id: "claude",
     loginCommand: "claude /login",
+    // the vault is synced content: the `project` and `local` sources would load its .claude
+    // settings and .mcp.json and run what they name on this host. CLAUDE.md and the vault-keyed
+    // MCP servers in ~/.claude.json share those two gates, so they go too.
+    sessionMeta: { claudeCode: { options: { settingSources: ["user"] } } },
     vendorBinary: "claude",
   },
   codex: {
@@ -113,6 +127,9 @@ export const HARNESSES = {
     envOmit: [],
     id: "codex",
     loginCommand: "codex login",
+    // codex-acp takes no per-session option: the adapter patch pnpm-workspace.yaml names marks the
+    // vault untrusted.
+    sessionMeta: null,
     vendorBinary: "codex",
   },
 } satisfies Record<HarnessId, HarnessDefinition>;

@@ -13,6 +13,7 @@ import type {
   ClientConnection,
   ContentBlock,
   McpServer,
+  NewSessionRequest,
   RequestPermissionRequest,
   RequestPermissionResponse,
   SessionNotification,
@@ -468,11 +469,24 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     });
   };
 
-  const newSession = async (adapter: AcpAdapter): Promise<ResumeThreadResult> => {
-    const response = await adapter.connection.agent.request("session/new", {
+  // one shape for session/new and session/load: a resumed session must not open with less.
+  const sessionOpen = async (harness: HarnessDefinition): Promise<NewSessionRequest> => {
+    const open: NewSessionRequest = {
       cwd: options.workspacePath,
       mcpServers: await sessionMcpServers(),
-    });
+    };
+    if (harness.sessionMeta !== null) {
+      // spread: ACP types `_meta` as an open record, which an interface does not satisfy.
+      open._meta = { ...harness.sessionMeta };
+    }
+    return open;
+  };
+
+  const newSession = async (adapter: AcpAdapter): Promise<ResumeThreadResult> => {
+    const response = await adapter.connection.agent.request(
+      "session/new",
+      await sessionOpen(adapter.harness),
+    );
     return { loaded: false, providerThreadId: response.sessionId };
   };
 
@@ -586,8 +600,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         }
         try {
           await adapter.connection.agent.request("session/load", {
-            cwd: options.workspacePath,
-            mcpServers: await sessionMcpServers(),
+            ...(await sessionOpen(adapter.harness)),
             sessionId: providerThreadId,
           });
           return { loaded: true, providerThreadId };

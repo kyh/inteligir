@@ -1081,6 +1081,23 @@ to the END of its group.
   `apps/desktop/src/renderer/app/actions/thread-hooks.ts`,
   `apps/desktop/src/renderer/app/palette/threads-page.tsx`.
 
+- **NO CONFIGURATION INSIDE THE VAULT RUNS ON THE AGENT'S HOST.** The vault is
+  synced content (the hosted remote, a BYO remote, another device's pull), and
+  the dot-entries holding a vendor's config are hidden from the rail. Claude
+  sessions open with `settingSources: ["user"]`, the claude row's `sessionMeta`
+  (`packages/agent-runtime/src/acp/harness-registry.ts`), because `project` and
+  `local` read the vault's `.claude` settings and `.mcp.json`; CLAUDE.md and
+  the vault-keyed MCP servers in `~/.claude.json` sit behind the same two
+  gates, so they go too. codex-acp marks the session root trusted and takes no
+  per-session option, so a pnpm patch marks it untrusted (`pnpm-workspace.yaml`
+  names it), which also stops Codex reading the vault's AGENTS.md itself; the
+  server's instructions already carry that file to both harnesses
+  (`apps/cli/src/server/agents/agent-instructions.ts`). Rejected: keeping a
+  vault source and refusing its executing keys one by one, a list every vendor
+  release can outgrow. User-level vendor config stays.
+  `packages/agent-runtime/src/acp/__tests__/vault-config-isolation.test.ts`
+  runs each pinned adapter against a fake vendor and reads what it was handed.
+
 ### Dictation
 
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by
