@@ -1,7 +1,9 @@
-import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
+import { setImmediate as tick } from "node:timers/promises";
+import type { CloudClient, CloudResult, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import type { DeviceCredential, RevokeDeviceResponse } from "@repo/api/cloud/device/device-schema";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openSyncStore } from "../../notes/__tests__/phone-storage";
 import { createSyncRuntime } from "../sync-runtime";
@@ -304,6 +306,206 @@ describe("the sync runtime", () => {
     await runtime.syncNow();
 
     expect(debugged).toEqual(["log row 7: not a thread event this build understands"]);
+  });
+});
+
+// a runtime whose socket dials a recording fake: every dial's args, every close, every pull
+const socketed = () => {
+  const store = openSyncStore();
+  const cloud = createFakeCloud();
+  const dials: OpenCloudSocketArgs[] = [];
+  const pings = { dispatch: 0, vault: 0 };
+  let closes = 0;
+  let pulls = 0;
+  const runtime = createSyncRuntime({
+    cloudUrl: "https://cloud.test",
+    createClient: () => ({
+      ...cloud.client,
+      pull: async (query) => {
+        pulls += 1;
+        return await cloud.client.pull(query);
+      },
+    }),
+    onDispatchPing: () => {
+      pings.dispatch += 1;
+    },
+    onVaultPing: () => {
+      pings.vault += 1;
+    },
+    openSocket: (args) => {
+      dials.push(args);
+      return {
+        close: () => {
+          closes += 1;
+        },
+      };
+    },
+    pollIntervalMs: null,
+    store,
+  });
+  const lastDial = (): OpenCloudSocketArgs => {
+    const dial = dials.at(-1);
+    if (dial === undefined) {
+      throw new Error("expected a socket dial");
+    }
+    return dial;
+  };
+  return {
+    closes: () => closes,
+    cloud,
+    dials,
+    lastDial,
+    pings,
+    pulls: () => pulls,
+    runtime,
+    store,
+  };
+};
+
+describe("the account's socket", () => {
+  it("never dials while signed out, or before a credential is handed over", () => {
+    const { dials, runtime } = socketed();
+    runtime.start();
+    runtime.resume();
+    runtime.setCredential(null);
+    runtime.start();
+    runtime.resume();
+
+    expect(dials).toEqual([]);
+  });
+
+  it("dials once signed in and started, as the phone", async () => {
+    const { dials, runtime } = socketed();
+    runtime.setCredential(CRED);
+    expect(dials).toEqual([]);
+
+    runtime.start();
+    await runtime.syncNow();
+
+    expect(dials.map((dial) => dial.listener)).toEqual([{ platform: "mobile" }]);
+  });
+
+  it("pulls on a sync ping past the cursor, and skips one the cursor covers", async () => {
+    const { cloud, lastDial, pulls, runtime, store } = socketed();
+    cloud.pullResults.push(
+      ok({
+        events: [
+          logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_x", "hi"), seq: 3 }),
+        ],
+        hasMore: false,
+        lastSeq: 3,
+      }),
+    );
+    runtime.setCredential(CRED);
+    runtime.start();
+    await runtime.syncNow();
+    expect(store.readCursor()).toBe(3);
+    const settled = pulls();
+
+    lastDial().onPing({ seq: 3, type: "sync" });
+    lastDial().onPing({ seq: 1, type: "sync" });
+    await tick();
+    expect(pulls()).toBe(settled);
+
+    lastDial().onPing({ seq: 4, type: "sync" });
+    await runtime.syncNow();
+    expect(pulls()).toBeGreaterThan(settled);
+  });
+
+  it("hands a vault ping to the notes and a dispatch ping to the inbox, and pulls for neither", async () => {
+    const { lastDial, pings, pulls, runtime } = socketed();
+    runtime.setCredential(CRED);
+    runtime.start();
+    await runtime.syncNow();
+    const settled = pulls();
+
+    lastDial().onPing({ type: "vault" });
+    lastDial().onPing({ threadId: "thr_x", type: "dispatch" });
+    lastDial().onPing({ type: "capture" });
+    await tick();
+
+    expect(pings).toEqual({ dispatch: 1, vault: 1 });
+    expect(pulls()).toBe(settled);
+  });
+
+  it("catches up when it opens: a ping sent while it was down reached nothing", async () => {
+    const { lastDial, pulls, runtime } = socketed();
+    runtime.setCredential(CRED);
+    runtime.start();
+    await runtime.syncNow();
+    const settled = pulls();
+
+    lastDial().onOpen();
+    await runtime.syncNow();
+
+    expect(pulls()).toBeGreaterThan(settled);
+  });
+
+  it("closes in the background, and a resume dials again and pulls", async () => {
+    const { closes, dials, pulls, runtime } = socketed();
+    runtime.setCredential(CRED);
+    runtime.start();
+    await runtime.syncNow();
+
+    runtime.suspend();
+    expect(closes()).toBe(1);
+    runtime.start();
+    expect(dials).toHaveLength(1);
+    const suspended = pulls();
+
+    runtime.resume();
+    await runtime.syncNow();
+
+    expect(dials).toHaveLength(2);
+    expect(pulls()).toBeGreaterThan(suspended);
+  });
+
+  it("closes for good on a sign-out: the old socket's close dials nothing", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { closes, dials, lastDial, runtime } = socketed();
+    runtime.setCredential(CRED);
+    runtime.start();
+    await runtime.syncNow();
+    const dial = lastDial();
+
+    runtime.setCredential(null);
+    dial.onClose(1000);
+    vi.advanceTimersByTime(120_000);
+
+    expect(closes()).toBe(1);
+    expect(dials).toHaveLength(1);
+  });
+
+  it("closes for good on a terminal refusal a pass heard", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { closes, cloud, dials, runtime } = socketed();
+    runtime.setCredential(CRED);
+    runtime.start();
+    await runtime.syncNow();
+    cloud.pullResults.push(UNAUTHORIZED);
+
+    await runtime.syncNow();
+    vi.advanceTimersByTime(120_000);
+
+    expect(runtime.get().state).toBe("unauthorized");
+    expect(closes()).toBe(1);
+    expect(dials).toHaveLength(1);
+  });
+
+  it("asks over http when the cloud severs it, and dials no more once that is refused", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { cloud, dials, lastDial, runtime } = socketed();
+    runtime.setCredential(CRED);
+    runtime.start();
+    await runtime.syncNow();
+    cloud.pullResults.push(UNAUTHORIZED);
+
+    lastDial().onClose(SYNC_WS_REVOKED_CLOSE_CODE);
+    await runtime.syncNow();
+    vi.advanceTimersByTime(120_000);
+
+    expect(runtime.get().state).toBe("unauthorized");
+    expect(dials).toHaveLength(1);
   });
 });
 

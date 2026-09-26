@@ -17,6 +17,10 @@ import type {
   OpenApprovalRequest,
 } from "@repo/api/cloud/dispatch/dispatch-schema";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
+import {
+  SYNC_WS_PHONE_REQUESTS_ON,
+  SYNC_WS_PHONE_REQUESTS_PARAM,
+} from "@repo/api/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -35,6 +39,9 @@ import {
 } from "./cloud-helpers";
 
 const mintId = (): string => hexFromBytes(crypto.getRandomValues(new Uint8Array(16)));
+
+// what a Mac that takes a phone's requests says on its upgrade
+const TAKES_PHONE_REQUESTS = { [SYNC_WS_PHONE_REQUESTS_PARAM]: SYNC_WS_PHONE_REQUESTS_ON };
 
 // the body crosses as text, so a test can send what no client's type would let it
 const post = async (credential: string, path: string, json: string): Promise<Response> =>
@@ -229,7 +236,7 @@ describe("a phone's turn", () => {
 
   it("stores a resent turn once and pings for it once", async () => {
     const { mac, phone } = await account("dispatch-resend@example.test");
-    const macWs = await openSocket(mac.credential, "desktop");
+    const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
     const request = turn("thr_resend", "draft a reply");
 
     await create(phone.credential, request);
@@ -247,11 +254,12 @@ describe("a phone's turn", () => {
     macWs.socket.close();
   });
 
-  it("pings desktop sockets alone, never the phone's own or another kind", async () => {
-    const { bearer, mac, phone } = await account("dispatch-audience@example.test");
+  it("pings the Macs that take a phone's requests alone, never the phone's own or another kind", async () => {
+    const { bearer, mac, otherMac, phone } = await account("dispatch-audience@example.test");
     const tablet = await loginDevice(bearer, "Tablet");
-    const macWs = await openSocket(mac.credential, "desktop");
-    const tabletWs = await openSocket(tablet.credential, "other");
+    const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
+    const quietMacWs = await openSocket(otherMac.credential, "desktop");
+    const tabletWs = await openSocket(tablet.credential, "other", TAKES_PHONE_REQUESTS);
     const phoneWs = await openSocket(phone.credential, "mobile");
 
     await create(phone.credential, turn("thr_audience", "plan the trip"));
@@ -266,15 +274,17 @@ describe("a phone's turn", () => {
       }),
     );
     await awaitFrames(tabletWs, [{ seq: 1, type: "sync" }]);
+    await awaitFrames(quietMacWs, [{ seq: 1, type: "sync" }]);
     expect(phoneWs.frames).toEqual([]);
 
     macWs.socket.close();
+    quietMacWs.socket.close();
     tabletWs.socket.close();
     phoneWs.socket.close();
   });
 
   it("walks waiting, claimed and delivered or refused, and counts the Macs listening", async () => {
-    const { mac, phone } = await account("dispatch-status@example.test");
+    const { mac, otherMac, phone } = await account("dispatch-status@example.test");
     const done = turn("thr_status", "rename the draft");
     const refused = turn("thr_archived", "reopen this");
     const never = mintId();
@@ -290,7 +300,11 @@ describe("a phone's turn", () => {
       ],
     });
 
-    const macWs = await openSocket(mac.credential, "desktop");
+    // a Mac whose person turned phone requests off is open, and would never claim one
+    const quietMacWs = await openSocket(otherMac.credential, "desktop");
+    expect(await status(phone.credential, [done.id])).toMatchObject({ desktopsOnline: 0 });
+
+    const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
     const claimed = await claim(mac.credential);
     expect(await status(phone.credential, [done.id])).toEqual({
       desktopsOnline: 1,
@@ -312,6 +326,26 @@ describe("a phone's turn", () => {
       ],
     });
     macWs.socket.close();
+    quietMacWs.socket.close();
+  });
+
+  it("counts a Mac by what its upgrade's query says, never by a header it sent", async () => {
+    const { mac, phone } = await account("dispatch-forged@example.test");
+    const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws?platform=desktop`, {
+      headers: {
+        ...deviceHeaders(mac.credential),
+        upgrade: "websocket",
+        "x-device-phone-requests": SYNC_WS_PHONE_REQUESTS_ON,
+      },
+    });
+    const socket = response.webSocket;
+    if (socket === null) {
+      throw new Error("no websocket on the 101");
+    }
+    socket.accept();
+
+    expect(await status(phone.credential, [mintId()])).toMatchObject({ desktopsOnline: 0 });
+    socket.close();
   });
 
   it("cancels a row no Mac holds, and says so for one a Mac does", async () => {

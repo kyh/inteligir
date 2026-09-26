@@ -17,6 +17,8 @@ import { createNotesStore } from "../notes/notes-store";
 import type { CreateNotesStoreArgs, NotesStore, SignInSource } from "../notes/notes-store";
 import type { Sha1 } from "../notes/outbox-ops";
 import type { OutboxFiles } from "../notes/outbox-files";
+import { createLiveTurns } from "../sync/live-turns";
+import type { LiveTurns } from "../sync/live-turns";
 import { createSqliteSyncStore } from "../sync/sqlite-sync-store";
 import { createSyncRuntime } from "../sync/sync-runtime";
 import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
@@ -40,7 +42,7 @@ export interface ComposeRuntimeArgs {
   deviceName: string;
   // 16 random bytes as hex: a capture's idempotency key, a dispatch's id and a new thread's
   mintId: () => string;
-  sync?: Omit<SyncRuntimeArgs, "cloudUrl" | "store">;
+  sync?: Omit<SyncRuntimeArgs, "cloudUrl" | "onDispatchPing" | "onVaultPing" | "store">;
   // the first wait after a failed send of the phone's edits; null never retries on a timer
   retryBaseMs?: number | null;
   // how often a waiting request's fate is asked; null never polls on a timer
@@ -55,6 +57,8 @@ export type LogoutOutcome =
 
 export interface AppRuntime {
   store: SyncStore;
+  // what a running turn has streamed and not yet settled; the store holds the settled items
+  live: Pick<LiveTurns, "snapshot" | "subscribe">;
   sync: SyncRuntime;
   notes: NotesStore;
   fileOps: FileOps;
@@ -66,14 +70,28 @@ export interface AppRuntime {
   logout: (options?: { discardUnsent?: boolean }) => Promise<LogoutOutcome>;
   // the app is back in the foreground or back online; every one no-ops while signed out
   resume: () => void;
-  // the app left the foreground: nothing polls until it resumes
+  // the app left the foreground: the socket closes and nothing polls until it resumes
   suspend: () => void;
   submitCapture: CaptureSender;
 }
 
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
-  const store = createSqliteSyncStore({ db: args.db, sha1: args.sha1 });
-  const sync = createSyncRuntime({ ...args.sync, cloudUrl: args.cloudUrl, store });
+  const live = createLiveTurns();
+  const store = createSqliteSyncStore({ db: args.db, live, sha1: args.sha1 });
+  // the pings reach the notes and the dispatch runtimes, which read under the sync runtime's
+  // session and so are built after it; bound below, before start() can open the socket
+  let pinged: { vault: () => void; dispatch: () => void } | null = null;
+  const sync = createSyncRuntime({
+    ...args.sync,
+    cloudUrl: args.cloudUrl,
+    onDispatchPing: () => {
+      pinged?.dispatch();
+    },
+    onVaultPing: () => {
+      pinged?.vault();
+    },
+    store,
+  });
   const notesArgs: CreateNotesStoreArgs = {
     attachments: args.attachments,
     db: args.db,
@@ -102,6 +120,14 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     dispatchArgs.onDebug = args.sync.onDebug;
   }
   const dispatch = createDispatchRuntime(dispatchArgs);
+  pinged = {
+    dispatch: () => {
+      void dispatch.sendNow();
+    },
+    vault: () => {
+      void notes.refresh();
+    },
+  };
 
   // the tree is fetched here so no screen carries its own cold-fetch effect, and the edits and
   // requests the last launch left are sent. a restore's threads are read back before the sign-in
@@ -166,10 +192,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       return { kind: "signed-out" };
     },
     dispatch,
+    live,
     login,
     notes,
     resume() {
-      void sync.syncNow();
+      sync.resume();
       void notes.refresh();
       void notes.drain();
       dispatch.resume();
@@ -196,6 +223,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     store,
     submitCapture: createCaptureSender({ mintKey: args.mintId, send: sync.createCapture }),
     suspend() {
+      sync.suspend();
       dispatch.suspend();
     },
     sync,

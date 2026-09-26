@@ -220,6 +220,12 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   keyboard; a question the agent asks for permission is answered on the phone.
   Quit the Mac app and ask again. Passing: Waiting for your Mac — open
   inteligir on it to run this.
+- **A reply grows as the Mac writes it.** With the phone's app in the
+  foreground, ask the Mac something that takes a while. Passing: the reply's
+  text grows under the running indicator while the Mac writes it, well before
+  the 60s poll would land it (the account's socket upgraded from the device,
+  React Native's headers argument carrying the bearer), and ends as the
+  settled reply.
 - **Capture.** Passing: a quick capture lands in `Inbox.md` on the Mac.
 - **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
   asks first and names the count; confirmed, the sign-in screen shows.

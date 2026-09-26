@@ -1,5 +1,6 @@
-import type { CloudSocket, CloudSocketOpener, OpenCloudSocketArgs } from "@repo/api/cloud/client";
-import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
+import type { CloudSocket, CloudSocketOpener, OpenCloudSocketArgs } from "../cloud-client";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "./sync-ws";
+import type { SocketListener } from "./sync-ws";
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 60_000;
@@ -8,7 +9,8 @@ export interface SocketLinkArgs {
   baseUrl: string;
   /** null is poll-only; the socket carries only invalidation pings. */
   openSocket: CloudSocketOpener | null;
-  platform: OpenCloudSocketArgs["platform"];
+  /** read at every dial, so a choice the upgrade announces is the one current when it dials. */
+  listener: () => SocketListener;
   canConnect: () => boolean;
   credential: () => string | null;
   onPing: OpenCloudSocketArgs["onPing"];
@@ -49,7 +51,6 @@ export const createSocketLink = (args: SocketLinkArgs): SocketLink => {
         reconnectTimer = null;
         connect();
       }, delay);
-      reconnectTimer.unref?.();
     };
     // an opener may report a terminal failure before it returns; without the
     // generation the assignment below overwrites the null its own onClose just wrote.
@@ -58,6 +59,7 @@ export const createSocketLink = (args: SocketLinkArgs): SocketLink => {
     const opened = args.openSocket({
       baseUrl: args.baseUrl,
       credential,
+      listener: args.listener(),
       onClose: (code) => {
         if (generation !== socketGeneration) {
           return;
@@ -83,7 +85,6 @@ export const createSocketLink = (args: SocketLinkArgs): SocketLink => {
         args.onConnectionChanged(true);
       },
       onPing: args.onPing,
-      platform: args.platform,
     });
     if (generation === socketGeneration) {
       socket = opened;

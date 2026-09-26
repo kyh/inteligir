@@ -152,10 +152,11 @@ const prefs = base.cloud.prefs.handler(({ context }) => ({
   phoneRequests: context.cloudPrefs.phoneRequests(),
 }));
 
-// no sync is asked for: a pass reads the choice as it starts, and turning it on is answered by
-// the next ping or poll
+// a pass reads the choice as it starts; the socket dials again to announce it, and its opening
+// runs the pass that answers a request waiting for a Mac that takes them
 const setPrefs = base.cloud.setPrefs.handler(({ context, input }) => {
   context.cloudPrefs.write({ ...context.cloudPrefs.read(), phoneRequests: input.phoneRequests });
+  context.cloud.phoneRequestsChanged();
   return { phoneRequests: context.cloudPrefs.phoneRequests() };
 });
 

@@ -1,21 +1,26 @@
 // the synced threads in the phone's database, read back into memory on a restore: the screens read
 // the memory, and a pulled page lands on disk first, in one transaction with the cursor past it, and
 // in memory only once that commits. every write re-checks a reset generation, so a page started
-// before a sign-out or a revocation never lands.
+// before a sign-out or a revocation never lands. what a page landed, its deltas included, is handed
+// to the live fold then, so it folds each row once and never one a reset dropped.
 
 import { z } from "zod";
 import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import { isThreadEventDelta, threadEventSchema } from "@repo/domain/provider-event";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import { migratePhoneDb } from "../lib/phone-db";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { Sha1 } from "../notes/outbox-ops";
+import type { LiveTurns } from "./live-turns";
 import type { StoredThread, StoredThreadEvent, SyncStore } from "./sync-store";
 
 export interface CreateSqliteSyncStoreArgs {
   db: SqlDriver;
   sha1: Sha1;
+  // absent when nothing draws a running turn
+  live?: Pick<LiveTurns, "apply" | "reset">;
 }
 
 interface Held {
@@ -23,11 +28,13 @@ interface Held {
   threads: ReadonlyMap<string, StoredThread>;
 }
 
-// what a page's transaction writes: the held events it adds, the threads it moves, and the cursor
+// what a page's transaction writes: the held events it adds, the threads it moves, and the cursor;
+// and every row it applies, in log order, deltas included
 interface PageWrite {
   cursor: number;
   events: { seq: number; threadId: string; event: StoredThreadEvent }[];
   threads: Map<string, StoredThread>;
+  applied: ThreadEvent[];
 }
 
 const EMPTY: Held = { cursor: 0, threads: new Map() };
@@ -45,7 +52,7 @@ const grammarDigest = async (sha1: Sha1): Promise<string> =>
   );
 
 const planWrite = (held: Held, steps: readonly LogPlanStep[]): PageWrite => {
-  const write: PageWrite = { cursor: held.cursor, events: [], threads: new Map() };
+  const write: PageWrite = { applied: [], cursor: held.cursor, events: [], threads: new Map() };
   for (const step of steps) {
     if (step.kind === "skip") {
       write.cursor = Math.max(write.cursor, step.cursor);
@@ -64,6 +71,7 @@ const planWrite = (held: Held, steps: readonly LogPlanStep[]): PageWrite => {
       changed = true;
       write.cursor = row.seq;
       lastSeq = Math.max(lastSeq, row.seq);
+      write.applied.push(row.event);
       if (!isThreadEventDelta(row.event)) {
         appended.push(row.event);
         write.events.push({ event: row.event, seq: row.seq, threadId: step.threadId });
@@ -218,6 +226,7 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
           return;
         }
         adopt({ cursor: write.cursor, threads: new Map([...held.threads, ...write.threads]) });
+        args.live?.apply(write.applied);
       });
     },
 
@@ -227,6 +236,7 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
       generation += 1;
       const started = generation;
       adopt(EMPTY);
+      args.live?.reset();
       await serial(async () => {
         if (next === "restored" && (await restore(started))) {
           return;

@@ -65,7 +65,11 @@ src/
                        # plan-page.ts (the ONE page planner every reader of the
                        # merged log runs); sync-session.ts (the id-fenced
                        # session, pullPages, the single-flight pass); sync-ws.ts
-                       # (the bare ping frames); fit-sync-event.ts (the clip
+                       # (the bare ping frames and what an upgrade says of its
+                       # device); socket-link.ts (the dial, the backoff and the
+                       # generation fence) over cloud-socket.ts (the frame
+                       # parse and the keepalive, over an injected dial);
+                       # fit-sync-event.ts (the clip
                        # that fits an over-cap event to one row, payload text
                        # only, so a peer's fold settles it the same)
     captures/          # at-least-once delivery, exactly-once deletion by claim
@@ -157,9 +161,12 @@ src/
 - `CloudFetch` / `CloudEndpoint` (`cloud-client.ts`): the client takes a
   fetch and a signal, composed with its own 30s per-request timeout, so a
   shutdown never waits out a hung request and vice versa.
-- `CloudSocketOpener`: the socket dial is platform code — a browser-program
-  import of a node dial types `WebSocket` as the DOM one, which takes no
-  headers, and the bearer rides the upgrade — so each consumer injects its own.
+- `SocketDial` (`sync/cloud-socket.ts`): the one platform line of the
+  socket. The bearer rides the upgrade, node's `WebSocket` takes headers as
+  `{ headers }`, React Native's as a third argument, and the DOM's takes none,
+  so each client hands `createCloudSocketOpener` its own dial and the frame
+  parse and keepalive stay one spelling. A runtime takes the resulting
+  `CloudSocketOpener`, so a test hands it a fake that never dials.
 - `DeviceCredentialStore` (`device/login-flow.ts`): where the credential lands
   is the only thing the CLI and the phone supply to the login flow.
 

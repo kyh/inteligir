@@ -1,8 +1,11 @@
 // the phone only pulls threads and never pushes or claims: a phone claiming a capture takes one the
-// desktop never sees.
+// desktop never sees. while signed in and in the foreground it holds the account's socket, so a
+// running turn's pushes are pulled as they land; the poll stays, since the socket is latency and
+// never correctness.
 
 import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
+import { createSocketLink } from "@repo/api/cloud/sync/socket-link";
 import {
   createSingleFlight,
   createSyncSession,
@@ -10,7 +13,12 @@ import {
 } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome, SyncSessionHandle } from "@repo/api/cloud/sync/sync-session";
 import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFailure, CloudResult } from "@repo/api/cloud/client";
+import type {
+  CloudClient,
+  CloudFailure,
+  CloudResult,
+  CloudSocketOpener,
+} from "@repo/api/cloud/client";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import type { SyncStore } from "./sync-store";
@@ -38,6 +46,12 @@ export interface SyncRuntimeArgs {
   cloudUrl: string;
   createClient?: (credential: DeviceCredential) => CloudClient;
   pollIntervalMs?: number | null;
+  // absent is poll-only; the app's is React Native's dial under the shared opener
+  openSocket?: CloudSocketOpener;
+  // another device pushed to the hosted vault
+  onVaultPing?: () => void;
+  // the dispatch inbox holds something for this phone: a question a Mac is waiting on
+  onDispatchPing?: () => void;
   onDebug?: (message: string) => void;
 }
 
@@ -55,6 +69,10 @@ export interface SyncRuntime extends ReadableStore<SyncStatus> {
   setCredential: (next: DeviceCredential | null) => void;
   createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
   start: () => void;
+  // the app is in the foreground again: the socket reopens and a pass runs
+  resume: () => void;
+  // the app left the foreground: the socket closes and nothing polls until it resumes
+  suspend: () => void;
   syncNow: () => Promise<void>;
   session: SessionPort;
 }
@@ -69,6 +87,7 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
   };
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let foreground = true;
   let lastError: string | null = null;
   let lastSyncedAt: number | null = null;
   const status = createExternalStore<SyncStatus>({ state: "restoring" });
@@ -92,11 +111,50 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       });
     },
     onEnded: (failure) => {
-      clearTimer();
       debug(`credential refused (${failure.code}): ${failure.message}`);
     },
   });
   const flight = createSingleFlight();
+
+  // the socket asks for a pass once the pass exists; it cannot open before start()
+  let requestPass: (() => void) | null = null;
+
+  const link = createSocketLink({
+    baseUrl: args.cloudUrl,
+    canConnect: () => foreground && session.current().kind === "live",
+    credential: () => {
+      const current = session.current();
+      return current.kind === "live" ? current.credential.credential : null;
+    },
+    listener: () => ({ platform: "mobile" }),
+    onConnectionChanged: (connected) => {
+      // a ping sent while the socket was down reached nothing; the pull carries what it announced
+      if (connected) {
+        requestPass?.();
+      }
+    },
+    // a capture ping is the desktop's, which claims captures, and a sync ping the cursor covers
+    // (the log's high-water) is already here
+    onPing: (ping) => {
+      if (ping.type === "vault") {
+        args.onVaultPing?.();
+      } else if (ping.type === "dispatch") {
+        args.onDispatchPing?.();
+      } else if (ping.type === "sync" && ping.seq > args.store.readCursor()) {
+        requestPass?.();
+      }
+    },
+    // a hint; only an http refusal ends the sign-in
+    onSevered: () => {
+      requestPass?.();
+    },
+    openSocket: args.openSocket ?? null,
+  });
+
+  const haltTransport = (): void => {
+    clearTimer();
+    link.close();
+  };
 
   // never awaited: an unreachable cloud must not hold a sign-out open, and the row it leaves is the
   // Devices page's to revoke. its own client, because closing the session aborts every request the
@@ -140,9 +198,11 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
   };
 
   // only a terminal refusal is the sign-in's business; any other failure is its caller's to show.
+  // every request under the sign-in records through here, so its end and the transport's are one.
   const recordFailure = (failure: CloudFailure): "continue" | "ended" => {
     const outcome = session.recordFailure(failure);
     if (outcome === "ended") {
+      haltTransport();
       publish();
     }
     return outcome;
@@ -206,6 +266,10 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
     });
   };
 
+  requestPass = () => {
+    void syncNow();
+  };
+
   const armTimer = (): void => {
     if (session.current().kind !== "live" || pollIntervalMs === null || pollTimer !== null) {
       return;
@@ -214,6 +278,16 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       void syncNow();
     }, pollIntervalMs);
     pollTimer.unref?.();
+  };
+
+  // the transport a live sign-in runs while the app is in the foreground
+  const runTransport = (): void => {
+    if (!foreground || session.current().kind !== "live") {
+      return;
+    }
+    armTimer();
+    link.connect();
+    void syncNow();
   };
 
   return {
@@ -243,7 +317,8 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       if (current.kind === "live") {
         void signOutBestEffort(current.credential);
       }
-      clearTimer();
+      haltTransport();
+      link.resetBackoff();
       lastError = null;
       lastSyncedAt = null;
       if (next === null) {
@@ -253,14 +328,17 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       }
       publish();
     },
-    start() {
-      if (session.current().kind !== "live") {
-        return;
-      }
-      armTimer();
-      void syncNow();
+    resume() {
+      foreground = true;
+      link.resetBackoff();
+      runTransport();
     },
+    start: runTransport,
     subscribe: status.subscribe,
+    suspend() {
+      foreground = false;
+      haltTransport();
+    },
     syncNow,
   };
 };

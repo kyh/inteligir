@@ -97,11 +97,14 @@ export const postSignOut = async (authorization: Record<string, string>): Promis
     method: "POST",
   });
 
+// `announce` rides the upgrade's query beside the platform, as a client's hints do
 export const openSocket = async (
   credential: string,
   platform: string,
+  announce: Record<string, string> = {},
 ): Promise<{ frames: SyncPing[]; socket: WebSocket }> => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws?platform=${platform}`, {
+  const query = new URLSearchParams({ ...announce, platform });
+  const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws?${query.toString()}`, {
     headers: { ...deviceHeaders(credential), upgrade: "websocket" },
   });
   expect(response.status).toBe(101);
