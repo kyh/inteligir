@@ -12,7 +12,10 @@ const DEAD_CLOUD_URL = "http://127.0.0.1:1";
 const CONNECTOR_NAME = "dupe";
 const CONNECTOR_URL = "https://mcp.example.com/mcp";
 const STATUS_DEADLINE_MS = 30_000;
-const ALERT_DIALOG = '[role="alertdialog"]';
+// the open one: an answered confirm stays in the DOM through its exit animation, and its Sign out
+// answers nothing.
+const ALERT_DIALOG = '[role="alertdialog"][data-open]';
+const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null ? "gone" : "present"`;
 const TOAST = "[data-sonner-toast]";
 // by placeholder: the ids are React-minted per mount.
 const NAME_INPUT = 'input[placeholder="context7"]';
@@ -114,6 +117,19 @@ export const settingsBrowser: Scenario = {
       expect(opened, "the Sign out confirm dialog never opened");
     };
 
+    // until then it still covers the page, and still answers "Sign out" by that name
+    const confirmLeft = async (): Promise<void> => {
+      await pollUntil(
+        async () => parseEval(await agentBrowser(["eval", DIALOG_PRESENCE]), z.string()),
+        (presence) => presence === "gone",
+        {
+          deadlineMs: STATUS_DEADLINE_MS,
+          describe: () => "the confirm never left the page",
+          intervalMs: 100,
+        },
+      );
+    };
+
     ctx.log("Sign out awaits a confirm: the dialog opens on this route");
     await openSignOutConfirm();
     const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
@@ -122,6 +138,7 @@ export const settingsBrowser: Scenario = {
       `the confirm dialog did not carry the Sign out prompt:\n${dialog}`,
     );
     await agentBrowser(["press", "Escape"]);
+    await confirmLeft();
 
     ctx.log("a refused add toasts on this route");
     await agentBrowser(["fill", NAME_INPUT, CONNECTOR_NAME]);
@@ -139,6 +156,7 @@ export const settingsBrowser: Scenario = {
     await openSignOutConfirm();
     const confirmed = parseEval(await agentBrowser(["eval", CONFIRM_SIGN_OUT]), z.string());
     expect(confirmed === "clicked", `the confirm's Sign out was ${confirmed}`);
+    await confirmLeft();
     await pollUntil(
       async () => await agentBrowser(["get", "text", "body"]),
       (body) => body.includes("Create an account"),
