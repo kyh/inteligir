@@ -216,3 +216,25 @@ describe("a codex session", () => {
     ADAPTER_TIMEOUT_MS,
   );
 });
+
+describe("a vault that holds a vendor's own configuration", () => {
+  it("opens no codex session on it, whichever codex-acp is installed, and claude still opens", async () => {
+    const dir = scratchDir();
+    const vault = vaultIn(dir);
+    mkdirSync(path.join(vault, ".codex"));
+    writeFileSync(path.join(vault, ".codex", "config.toml"), "[mcp_servers.planted]\n");
+    const spawned: string[] = [];
+    const runtime = runtimeFor(vault, (harness, env) => {
+      spawned.push(harness.id);
+      return {
+        child: spawn(process.execPath, [FAKE_AGENT], { env, stdio: ["pipe", "pipe", "pipe"] }),
+      };
+    });
+
+    await expect(
+      runtime.startThread({ providerId: "codex", threadId: "thr_codex" }),
+    ).rejects.toThrow(/holds a \.codex folder/u);
+    await runtime.startThread({ providerId: "claude", threadId: "thr_claude" });
+    expect(spawned).toContain("claude");
+  });
+});

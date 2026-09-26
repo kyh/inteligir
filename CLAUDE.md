@@ -1092,7 +1092,9 @@ to the END of its group.
   per-session option, so a pnpm patch marks it untrusted (`pnpm-workspace.yaml`
   names it), which also stops Codex reading the vault's AGENTS.md itself; the
   server's instructions already carry that file to both harnesses
-  (`apps/cli/src/server/agents/agent-instructions.ts`). Rejected: keeping a
+  (`apps/cli/src/server/agents/agent-instructions.ts`). npm applies no pnpm
+  patch, so a Codex session also refuses to open on a vault holding `.codex`
+  (the row's `refusedVaultEntries`), whichever adapter is installed. Rejected: keeping a
   vault source and refusing its executing keys one by one, a list every vendor
   release can outgrow. User-level vendor config stays.
   `packages/agent-runtime/src/acp/__tests__/vault-config-isolation.test.ts`

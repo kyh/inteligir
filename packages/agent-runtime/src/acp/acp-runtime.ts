@@ -3,6 +3,8 @@
 // message waits in the host's queue.
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { once } from "node:events";
 import { Readable, Writable } from "node:stream";
 import { finished } from "node:stream/promises";
@@ -37,7 +39,7 @@ import { AcpTurnMapper } from "./acp-event-mapping.js";
 import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping.js";
 import { traceFrames } from "./frame-trace.js";
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
-import { requireHarness } from "./harness-registry.js";
+import { VaultConfigRefusedError, requireHarness } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
 import { describeProviderError } from "./provider-error.js";
 
@@ -59,6 +61,7 @@ const definedProcessEnv = (): AgentRuntimeShellEnvironment => {
 
 // the slice of a child process the runtime drives: node's own ChildProcess, or a host's stand-in
 // for a process it cannot start with child_process (the desktop shell's utility-process adapters).
+
 export interface AdapterProcess {
   readonly stdin: Writable | null;
   readonly stdout: Readable | null;
@@ -471,6 +474,12 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
 
   // one shape for session/new and session/load: a resumed session must not open with less.
   const sessionOpen = async (harness: HarnessDefinition): Promise<NewSessionRequest> => {
+    const refused = harness.refusedVaultEntries.find((entry) =>
+      existsSync(path.join(options.workspacePath, entry)),
+    );
+    if (refused !== undefined) {
+      throw new VaultConfigRefusedError(harness, refused);
+    }
     const open: NewSessionRequest = {
       cwd: options.workspacePath,
       mcpServers: await sessionMcpServers(),

@@ -46,6 +46,9 @@ export interface HarnessDefinition {
   // every session/new and session/load carries it as `_meta`, the adapter's channel for vendor
   // options; null sends none.
   sessionMeta: HarnessSessionMeta | null;
+  // vault entries the vendor would load as its own configuration when no session option can stop
+  // it; a session never opens on a vault that holds one.
+  refusedVaultEntries: readonly string[];
 }
 
 const resolveAdapterEntry = (specifier: string): string => require.resolve(specifier);
@@ -113,6 +116,7 @@ export const HARNESSES = {
     // settings and .mcp.json and run what they name on this host. CLAUDE.md and the vault-keyed
     // MCP servers in ~/.claude.json share those two gates, so they go too.
     sessionMeta: { claudeCode: { options: { settingSources: ["user"] } } },
+    refusedVaultEntries: [],
     vendorBinary: "claude",
   },
   codex: {
@@ -130,6 +134,9 @@ export const HARNESSES = {
     // codex-acp takes no per-session option: the adapter patch pnpm-workspace.yaml names marks the
     // vault untrusted.
     sessionMeta: null,
+    // npm applies no pnpm patch, so an npm-installed CLI runs an adapter that trusts the vault and
+    // loads its .codex config; the refusal holds whichever adapter is installed.
+    refusedVaultEntries: [".codex"],
     vendorBinary: "codex",
   },
 } satisfies Record<HarnessId, HarnessDefinition>;
@@ -146,3 +153,13 @@ export const requireHarness = (providerId: string): HarnessDefinition => {
   }
   return HARNESSES[providerId];
 };
+
+// a vault holding the vendor's own configuration would configure the agent from synced content.
+export class VaultConfigRefusedError extends Error {
+  constructor(harness: HarnessDefinition, entry: string) {
+    super(
+      `This vault holds a ${entry} folder, which ${harness.displayName} would load as its own settings. Remove it from the vault to ask ${harness.displayName} here.`,
+    );
+    this.name = "VaultConfigRefusedError";
+  }
+}
