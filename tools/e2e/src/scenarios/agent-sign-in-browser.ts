@@ -10,7 +10,12 @@ import { COMPOSER, EDITOR, PALETTE_INPUT } from "../harness/selectors";
 
 // what the fake claude's sign-in page would show, and the only code its login takes.
 const PAGE_CODE = "e2e-code#e2e-state";
-const CODE_INPUT = 'input[placeholder="Code from the sign-in page"]';
+// the ⌘K popup. The Actions panel, collapsed beside it and still in the page, draws the same
+// sign-in under the same names, so every read and press of the composer's is scoped to it: a
+// press on the panel's copy lands outside the popup and dismisses it.
+const COMPOSER_POPUP = '[role="dialog"][aria-label="Action composer"]';
+const COMPOSER_TEXT = `document.querySelector('${COMPOSER_POPUP}')?.textContent ?? ""`;
+const CODE_INPUT = `${COMPOSER_POPUP} input[placeholder="Code from the sign-in page"]`;
 const REPLY = 'textarea[aria-label="Reply to the agent"]';
 const ACTION_TITLE = "Ask ChatGPT to draft";
 const DEADLINE_MS = 60_000;
@@ -35,6 +40,43 @@ const untilBodyHolds = async (
       deadlineMs: DEADLINE_MS,
       describe: (body) => `the page never said ${needles.join(" and ")}:\n${body}`,
       intervalMs: 500,
+    },
+  );
+};
+
+const untilComposerHolds = async (
+  agentBrowser: AgentBrowser,
+  needles: readonly string[],
+): Promise<void> => {
+  await pollUntil(
+    async () => parseEval(await agentBrowser(["eval", COMPOSER_TEXT]), z.string()),
+    (text) => needles.every((needle) => text.includes(needle)),
+    {
+      deadlineMs: DEADLINE_MS,
+      describe: (text) =>
+        `the composer never said ${needles.join(" and ")}: ${text === "" ? "it is not open" : text}`,
+      intervalMs: 500,
+    },
+  );
+};
+
+const pressInComposer = (name: string): string => `(() => {
+  const popup = document.querySelector('${COMPOSER_POPUP}');
+  const button = popup ? [...popup.querySelectorAll("button")].find((el) => el.textContent.trim() === ${JSON.stringify(name)}) : null;
+  if (!button) return "missing";
+  if (button.disabled) return "disabled";
+  button.click();
+  return "clicked";
+})()`;
+
+// retried until it lands: a button drawn a render before its field's state enables it is refused.
+const clickInComposer = async (agentBrowser: AgentBrowser, name: string): Promise<void> => {
+  await pollUntil(
+    async () => parseEval(await agentBrowser(["eval", pressInComposer(name)]), z.string()),
+    (outcome) => outcome === "clicked",
+    {
+      deadlineMs: 10_000,
+      describe: (outcome) => `the composer's ${name} button stayed ${outcome}`,
     },
   );
 };
@@ -72,16 +114,19 @@ export const agentSignInBrowser: Scenario = {
 
     ctx.log("⌘K over a signed-out Claude offers its sign-in in place of the field");
     await agentBrowser(["press", modChord("k")]);
-    await untilBodyHolds(agentBrowser, ["Sign in with Claude"]);
-    await agentBrowser(["find", "role", "button", "click", "--name", "Sign in with Claude"]);
+    await untilComposerHolds(agentBrowser, ["Sign in to ask the agent.", "Sign in with Claude"]);
+    await clickInComposer(agentBrowser, "Sign in with Claude");
 
     ctx.log("the login prints its page, and takes the code pasted from it");
-    await untilBodyHolds(agentBrowser, ["Finish signing in in your browser.", "Paste the code"]);
-    await agentBrowser(["find", "role", "button", "click", "--name", "Paste the code"]);
+    await untilComposerHolds(agentBrowser, [
+      "Finish signing in in your browser.",
+      "Paste the code",
+    ]);
+    await clickInComposer(agentBrowser, "Paste the code");
     await agentBrowser(["wait", CODE_INPUT], 30_000);
     await agentBrowser(["fill", CODE_INPUT, PAGE_CODE]);
-    await agentBrowser(["find", "role", "button", "click", "--name", "Continue", "--exact"]);
-    await agentBrowser(["wait", COMPOSER], DEADLINE_MS);
+    await clickInComposer(agentBrowser, "Continue");
+    await agentBrowser(["wait", `${COMPOSER_POPUP} ${COMPOSER}`], DEADLINE_MS);
     expectEq(await accountState(app.api, "claude"), "signed-in", "claude after the sign-in");
 
     ctx.log("Settings shows Claude signed in, and ChatGPT signed out under Other");
