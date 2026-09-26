@@ -1,7 +1,7 @@
 // the phone's own runtime, the one the app composes, under node: node's sqlite, its files in
 // memory, a network the scenario can take away, and a credential the scenario holds
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createCloudClient } from "@repo/api/cloud/client";
@@ -76,7 +76,9 @@ export const phoneRuntime = async (
     db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
     deviceName: PHONE_NAME,
     mintId: () => randomBytes(16).toString("hex"),
+    mintNoteId: randomUUID,
     outboxFiles: files,
+    randomBytes: (length) => randomBytes(length),
     retryBaseMs: null,
     sha1: (bytes) => Promise.resolve(createHash("sha1").update(bytes).digest()),
     sync: {

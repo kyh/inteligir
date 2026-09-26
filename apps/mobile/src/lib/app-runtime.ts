@@ -20,6 +20,7 @@ import { createEditorPorts } from "../editor/editor-ports";
 import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
 import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
+import type { CommentOutcome } from "../notes/comment-ops";
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
 import { createExpoOutboxFiles } from "../notes/expo-outbox-files";
 import type { CreatedNote, RenamedNote } from "../notes/file-ops";
@@ -61,7 +62,9 @@ const build = (): AppRuntime => {
     db: createExpoSqlDriver("inteligir.db"),
     deviceName: defaultDeviceName(),
     mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
+    mintNoteId: Crypto.randomUUID,
     outboxFiles: createExpoOutboxFiles(),
+    randomBytes: Crypto.getRandomBytes,
     sha1: async (bytes) =>
       new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA1, bytes)),
     sync: { onDebug: devLog, openSocket: createCloudSocketOpener(rnSocketDial) },
@@ -135,6 +138,18 @@ export const deleteNote = async (path: string): Promise<void> => {
   await getRuntime().fileOps.remove(path);
 };
 
+export const replyToComment = async (
+  path: string,
+  rootId: string,
+  text: string,
+): Promise<CommentOutcome> => await getRuntime().comments.reply(path, rootId, text);
+
+export const resolveComment = async (
+  path: string,
+  rootId: string,
+  resolved: boolean,
+): Promise<CommentOutcome> => await getRuntime().comments.resolve(path, rootId, resolved);
+
 // the view context's revision: the sha-256 of the note's bytes as the screen showed them
 const noteRevision = async (content: string): Promise<string> =>
   hexFromBytes(
@@ -151,6 +166,7 @@ export const createNoteEditorPorts = (
   const rt = getRuntime();
   return createEditorPorts({
     ...screen,
+    comments: rt.comments,
     fileOps: rt.fileOps,
     newThreadId: () => rt.dispatch.newThreadId(),
     pickImage: async () => await ingestPhoto(rt.fileOps),

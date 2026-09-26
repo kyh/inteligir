@@ -174,6 +174,10 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
   const ask = async (request: PageRequest): Promise<void> => {
     const { ports } = args;
     switch (request.kind) {
+      case "addComment": {
+        await respond(request, async () => await ports.addComment(request.payload));
+        return;
+      }
       case "list": {
         await respond(request, async () => await ports.list(request.payload));
         return;

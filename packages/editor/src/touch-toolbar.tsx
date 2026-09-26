@@ -1,18 +1,20 @@
 // A soft keyboard carries no chord and a finger makes no hover, so every mark, turn-into and
 // indent a hardware keyboard reaches is a button here. Each row is named by the table its desktop
-// twin reads (the mark chords, the editor's shortcuts, the slash menu), so a rename lands on both
-// surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS. In-flow chrome, not a
-// popup: pinned to the bottom of a viewport the host sizes above the keyboard and holds at scale
-// 1, since iOS zooms into a field whose text is under 16px and the chrome speaks the type roles.
+// twin reads (the mark chords, the editor's shortcuts, the slash menu, the comment chord), so a
+// rename lands on both surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
+// In-flow chrome, not a popup: pinned to the bottom of a viewport the host sizes above the
+// keyboard and holds at scale 1, since iOS zooms into a field whose text is under 16px and the
+// chrome speaks the type roles.
 
 import { useState } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { InputHTMLAttributes, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { upsertLink } from "@platejs/link";
 import { KEYS } from "platejs";
 import type { TRange } from "platejs";
 import {
   createPlatePlugin,
   useEditorRef,
+  useEditorSelector,
   useMarkToolbarButtonState,
   useSelectionExpanded,
 } from "platejs/react";
@@ -26,6 +28,7 @@ import {
   Link2Icon,
   ListIndentDecreaseIcon,
   ListIndentIncreaseIcon,
+  MessageSquarePlusIcon,
   Redo2Icon,
   SparklesIcon,
   UnderlineIcon,
@@ -37,6 +40,14 @@ import { toast } from "@repo/ui/components/sonner";
 import type { IconComponent } from "@repo/ui/lib/icon";
 
 import { useAgentRequestActions } from "@repo/editor/agent-request";
+import {
+  ADD_COMMENT_SHORTCUT,
+  anchorNewComment,
+  selectionTakesComment,
+} from "@repo/editor/comments/comment-kit";
+import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
+import { useCommentSurface } from "@repo/editor/comments/comment-store";
+import type { CommentActions } from "@repo/editor/comments/comment-store";
 import { EDITOR_SHORTCUTS, runEditorShortcut } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
 import { getEditorHostIo } from "@repo/editor/host-io";
@@ -193,28 +204,73 @@ const ActionButton = ({
   );
 };
 
-const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
-  const actions = useAgentRequestActions((state) => state.actions);
+// what the selection can be handed to: the agent, and a new comment the host writes. The comment's
+// field takes the row, so its markers go in only once there is text to write beside them.
+const SelectionButtons = ({
+  editor,
+  onComment,
+}: {
+  editor: PlateEditor;
+  onComment: (at: TRange) => void;
+}) => {
+  const agent = useAgentRequestActions((state) => state.actions);
+  const comments = useCommentSurface((state) => state.actions);
   const expanded = useSelectionExpanded();
-  if (actions === null) {
+  const commentable = useEditorSelector(selectionTakesComment, []);
+  if (agent === null && comments === null) {
     return null;
   }
   return (
     <>
-      <ActionButton
-        action="ask-agent"
-        disabled={!expanded}
-        onPress={() => {
-          const { selection } = editor;
-          const text = selection ? editor.api.string(selection) : "";
-          if (text.trim() !== "") {
-            actions.askAboutSelection(text);
-          }
-        }}
-      />
+      {agent === null ? null : (
+        <ActionButton
+          action="ask-agent"
+          disabled={!expanded}
+          onPress={() => {
+            const { selection } = editor;
+            const text = selection ? editor.api.string(selection) : "";
+            if (text.trim() !== "") {
+              agent.askAboutSelection(text);
+            }
+          }}
+        />
+      )}
+      {comments === null ? null : (
+        <ToolbarButton
+          label={ADD_COMMENT_SHORTCUT.label}
+          disabled={!commentable}
+          onPress={() => {
+            if (editor.selection !== null) {
+              onComment(editor.selection);
+            }
+          }}
+        >
+          <MessageSquarePlusIcon />
+        </ToolbarButton>
+      )}
       <Sep />
     </>
   );
+};
+
+// A refused create strips the markers it went in with, as the desktop's popover does, and the host
+// says why.
+const commentOn = (
+  editor: PlateEditor,
+  actions: CommentActions,
+  at: TRange,
+  text: string,
+): void => {
+  editor.tf.select(at);
+  const id = anchorNewComment(editor);
+  if (id === null) {
+    return;
+  }
+  void (async () => {
+    if (!(await actions.create(id, text).catch(() => false))) {
+      removeCommentMarkers(editor, [id]);
+    }
+  })();
 };
 
 // Never rejects: the press has already happened, so a rejection would reach nobody.
@@ -237,35 +293,72 @@ const pickImageInto = async (
   }
 };
 
-const LinkPrompt = ({
+// a field that takes the row: a link's address, or a comment's text
+type PromptKind = "link" | "comment";
+
+interface PromptField {
+  readonly icon: IconComponent;
+  readonly label: string;
+  readonly placeholder: string;
+  readonly submit: string;
+  readonly input: Pick<
+    InputHTMLAttributes<HTMLInputElement>,
+    "autoCapitalize" | "autoCorrect" | "enterKeyHint" | "inputMode" | "type"
+  >;
+}
+
+// the comment's words are the desktop popover's
+const PROMPT_FIELDS = {
+  comment: {
+    icon: MessageSquarePlusIcon,
+    input: { enterKeyHint: "send", type: "text" },
+    label: "Comment",
+    placeholder: "Comment…",
+    submit: "Save",
+  },
+  link: {
+    icon: Link2Icon,
+    input: {
+      autoCapitalize: "none",
+      autoCorrect: "off",
+      enterKeyHint: "done",
+      inputMode: "url",
+      type: "url",
+    },
+    label: "Link address",
+    placeholder: "Paste or type a link…",
+    submit: "Apply",
+  },
+} satisfies Record<PromptKind, PromptField>;
+
+const ToolbarPrompt = ({
+  kind,
   onCancel,
   onSubmit,
 }: {
+  kind: PromptKind;
   onCancel: () => void;
-  onSubmit: (url: string) => void;
+  onSubmit: (value: string) => void;
 }) => {
-  const [url, setUrl] = useState("");
+  const [value, setValue] = useState("");
+  const { icon: Icon, input, label, placeholder, submit } = PROMPT_FIELDS[kind];
   return (
     <form
       className="flex min-w-0 flex-1 items-center gap-1 px-2"
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit(url.trim());
+        onSubmit(value.trim());
       }}
     >
-      <Link2Icon className="size-5 shrink-0 text-muted-foreground" />
+      <Icon className="size-5 shrink-0 text-muted-foreground" />
       <input
+        {...input}
         autoFocus
-        type="url"
-        inputMode="url"
-        autoCapitalize="none"
-        autoCorrect="off"
-        enterKeyHint="done"
-        aria-label="Link address"
-        placeholder="Paste or type a link…"
-        value={url}
+        aria-label={label}
+        placeholder={placeholder}
+        value={value}
         onChange={(event) => {
-          setUrl(event.target.value);
+          setValue(event.target.value);
         }}
         className="h-11 min-w-0 flex-1 bg-transparent px-1 text-title outline-none placeholder:text-muted-foreground"
       />
@@ -273,7 +366,7 @@ const LinkPrompt = ({
         Cancel
       </Button>
       <Button variant="ghost" size="compact" type="submit" className="h-11 text-primary">
-        Apply
+        {submit}
       </Button>
     </form>
   );
@@ -281,9 +374,23 @@ const LinkPrompt = ({
 
 export const TouchToolbar = () => {
   const editor = useEditorRef();
-  // where the link lands, held while the prompt has the focus; null is the row of buttons
-  const [linkAt, setLinkAt] = useState<TRange | null>(null);
+  // the field that has the row and where what it takes lands, held while the field has the focus;
+  // null is the row of buttons
+  const [prompt, setPrompt] = useState<{ kind: PromptKind; at: TRange } | null>(null);
+  const comments = useCommentSurface((state) => state.actions);
   const { pickImage } = getEditorHostIo();
+
+  const land = (at: TRange, kind: PromptKind, value: string): void => {
+    if (value === "") {
+      return;
+    }
+    if (kind === "link") {
+      editor.tf.select(at);
+      upsertLink(editor, { skipValidation: true, url: value });
+    } else if (comments !== null) {
+      commentOn(editor, comments, at, value);
+    }
+  };
 
   return (
     <div
@@ -291,10 +398,15 @@ export const TouchToolbar = () => {
       aria-label="Formatting"
       className="fixed inset-x-0 bottom-0 z-40 flex items-center border-t border-border bg-background pb-[env(safe-area-inset-bottom)] print:hidden"
     >
-      {linkAt === null ? (
+      {prompt === null ? (
         <>
           <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-1">
-            <AskAgentButton editor={editor} />
+            <SelectionButtons
+              editor={editor}
+              onComment={(at) => {
+                setPrompt({ at, kind: "comment" });
+              }}
+            />
             {MARK_SHORTCUTS.map((row) => (
               <MarkButton key={row.action} row={row} />
             ))}
@@ -327,7 +439,9 @@ export const TouchToolbar = () => {
             <ActionButton
               action="link"
               onPress={() => {
-                setLinkAt(editor.selection);
+                if (editor.selection !== null) {
+                  setPrompt({ at: editor.selection, kind: "link" });
+                }
               }}
             />
             {pickImage === null ? null : (
@@ -360,17 +474,15 @@ export const TouchToolbar = () => {
           />
         </>
       ) : (
-        <LinkPrompt
+        <ToolbarPrompt
+          kind={prompt.kind}
           onCancel={() => {
-            setLinkAt(null);
+            setPrompt(null);
             editor.tf.focus();
           }}
-          onSubmit={(url) => {
-            setLinkAt(null);
-            if (url !== "") {
-              editor.tf.select(linkAt);
-              upsertLink(editor, { skipValidation: true, url });
-            }
+          onSubmit={(value) => {
+            setPrompt(null);
+            land(prompt.at, prompt.kind, value);
             editor.tf.focus();
           }}
         />

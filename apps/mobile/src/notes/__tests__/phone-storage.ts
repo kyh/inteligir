@@ -85,11 +85,15 @@ export const nodeSha1: Sha1 = async (bytes) => createHash("sha1").update(bytes).
 export const openSyncStore = (db: SqlDriver = openTempDb()): SyncStore =>
   createSqliteSyncStore({ db, sha1: nodeSha1 });
 
+// the id a note's first comment on the test phone mints
+export const MINTED_NOTE_ID = "5b1f6f8e-3c2a-4f0e-9d7b-8a6c4e2f1d09";
+
 // the ports one notes store takes beside its database and session; no retry timer, so a test says
 // when the queue drains
 export const phonePorts = () => ({
   attachments: createMemoryAttachments(),
   deviceName: "Test Phone",
+  mintNoteId: () => MINTED_NOTE_ID,
   outboxFiles: createMemoryOutboxFiles(),
   retryBaseMs: null,
   sha1: nodeSha1,

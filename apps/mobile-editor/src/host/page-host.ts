@@ -20,6 +20,7 @@ import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type { SaveError, VaultEditorState } from "@repo/editor/vault-editor";
+import { newCommentRefusal } from "@repo/notes/comments/comment-key";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
@@ -74,6 +75,14 @@ const base64Of = async (blob: Blob): Promise<string> => {
   return await read.promise;
 };
 
+// `sent` once a write carrying it landed; the next write of the note goes as an ordinary one
+interface PendingComment {
+  readonly id: string;
+  readonly path: string;
+  readonly text: string;
+  sent: boolean;
+}
+
 interface EditorStateFrame {
   readonly dirty: boolean;
   readonly saveError: SaveError | null;
@@ -98,13 +107,35 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     return content;
   };
 
+  // a new comment waiting on the save that writes its markers, which carries it, so the phone lands
+  // the two as one change set and no pull ever finds markers with no comment behind them
+  let anchoring: PendingComment | null = null;
+
   const port: GuardedVaultPort = {
     read: readFile,
     remove: async (notePath) => {
       await bridge.request("remove", { path: notePath });
     },
-    write: async (notePath, content, guard) =>
-      await bridge.request("write", { content, guard, path: notePath }),
+    write: async (notePath, content, guard) => {
+      const comment = anchoring;
+      if (
+        comment === null ||
+        comment.sent ||
+        comment.path !== notePath ||
+        guard.kind !== "expected"
+      ) {
+        return await bridge.request("write", { content, guard, path: notePath });
+      }
+      const result = await bridge.request("addComment", {
+        base: guard.base,
+        content,
+        id: comment.id,
+        path: notePath,
+        text: comment.text,
+      });
+      comment.sent = result.kind === "written";
+      return result;
+    },
   };
   const io = createGuardedVaultIo(port);
 
@@ -240,6 +271,50 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       }),
   };
 
+  // The toolbar puts the markers in at Save, so the flush's write carries them and the comment
+  // together. A chord's create opens its field after its markers are in, where the autosave has
+  // already written them, so its entry lands in a set of its own once the flush writes nothing.
+  const createComment = async (id: string, text: string): Promise<boolean> => {
+    const { editor, openPath } = store.state();
+    if (openPath === null || editor.kind !== "open") {
+      return false;
+    }
+    const refusal = newCommentRefusal(editor.content);
+    if (refusal !== null) {
+      toast.error(refusal);
+      return false;
+    }
+    const pending: PendingComment = { id, path: openPath, sent: false, text };
+    anchoring = pending;
+    try {
+      if (!(await session.actions.flush())) {
+        return false;
+      }
+      if (pending.sent) {
+        return true;
+      }
+      const flushed = store.state().editor;
+      if (flushed.kind !== "open" || flushed.path !== openPath) {
+        return false;
+      }
+      const result = await bridge.request("addComment", {
+        base: flushed.content,
+        content: flushed.content,
+        id,
+        path: openPath,
+        text,
+      });
+      return result.kind === "written";
+    } catch (error) {
+      toast.error(`Couldn't add the comment — ${messageOf(error)}`);
+      return false;
+    } finally {
+      if (anchoring === pending) {
+        anchoring = null;
+      }
+    }
+  };
+
   const flushFor = async (id: number): Promise<void> => {
     const ok = await session.actions.flush().catch(() => false);
     bridge.emit({ id, ok, type: "flushed" });
@@ -277,9 +352,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
         },
       });
       setCommentActions({
-        // no touch surface mints a comment; a create a hardware chord began is refused, so its
-        // markers are stripped rather than left with no body behind them
-        create: async () => await Promise.resolve(false),
+        create: createComment,
         open: (ids) => {
           if (ids.length > 0) {
             bridge.emit({ ids, type: "showComments" });

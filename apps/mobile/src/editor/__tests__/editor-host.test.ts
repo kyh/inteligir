@@ -41,6 +41,7 @@ const settled = async (): Promise<void> => {
 
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
 const PORT_ANSWERS = {
+  addComment: { current: "# a\n", kind: "changed" },
   list: { paths: ["a.md"] },
   pickImage: { kind: "cancelled" },
   read: { content: "# a\n" },
@@ -53,6 +54,13 @@ const PORT_ANSWERS = {
 } satisfies { [K in RequestKind]: RequestResult<K> };
 
 const PAYLOADS = {
+  addComment: {
+    base: "# a\n",
+    content: "%%i:c1:start%%# a%%i:c1:end%%\n",
+    id: "c1",
+    path: "a.md",
+    text: "why?",
+  },
   list: {},
   pickImage: {},
   read: { path: "a.md" },
@@ -74,6 +82,7 @@ const KINDS: readonly RequestKind[] = [
   "wikiTargets",
   "write",
   "writeAsset",
+  "addComment",
 ];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
@@ -87,6 +96,7 @@ const requestFrames = (nonce: string): PageFrame[] => [
   { id: 6, kind: "wikiTargets", nonce, payload: PAYLOADS.wikiTargets, type: "request" },
   { id: 7, kind: "write", nonce, payload: PAYLOADS.write, type: "request" },
   { id: 8, kind: "writeAsset", nonce, payload: PAYLOADS.writeAsset, type: "request" },
+  { id: 9, kind: "addComment", nonce, payload: PAYLOADS.addComment, type: "request" },
 ];
 
 interface PortCall {
@@ -97,6 +107,10 @@ interface PortCall {
 const recordingPorts = () => {
   const calls: PortCall[] = [];
   const ports: EditorRequestPorts = {
+    addComment: async (payload) => {
+      calls.push({ kind: "addComment", payload });
+      return PORT_ANSWERS.addComment;
+    },
     list: async (payload) => {
       calls.push({ kind: "list", payload });
       return PORT_ANSWERS.list;

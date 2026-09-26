@@ -39,7 +39,9 @@ end that receives it.
 - Page to native: `ready` (the door is installed; it knows no nonce yet), then
   requests `{ id, nonce, kind, payload }` — `list`, `read`, `write` (under the
   `absent` or `expected` guard, the base TEXT the native end compares with its
-  store), `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
+  store), `addComment` (the open note's write that carries a new comment, so
+  the phone lands the note and the comment's entry as one change set),
+  `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
   `wikiTargets`, `pickImage` — and events: `opened`, `editorState` (dirty and
   why a save failed, sent only when either changes), `mergeConflict`,
   `showComments`, `navigate`, `askAgent`, `showTag`, `flushed`.
@@ -61,7 +63,11 @@ picker, which waits on the user; an answer is parsed by the kind it answers.
 `GuardedVaultPort` of frames, its link-resolver store and note formulas, and
 the `EditorHostIo`. Opening a note (a wiki link, a created note) writes this one
 and sends `navigate`, so the native stack pushes the next page and keeps the
-back gesture. A vanished note asks through the page's own confirm dialog.
+back gesture. A vanished note asks through the page's own confirm dialog. A
+new comment is the touch toolbar's: its markers go in at Save, and the flush
+that writes them goes as `addComment` rather than `write`, so no save ever
+lands markers without their comment; a hardware chord's create, whose markers
+the autosave already wrote, sends its entry on its own.
 
 ## Layout
 

@@ -17,7 +17,15 @@ import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import type { FileSide, Reconciled } from "@repo/notes/sync/reconcile-file";
 import { putText, rebaseEdit, rewritePuts } from "./outbox-ops";
-import type { OutboxRow, RenameOp, Settle, TextOp, VaultOp, VaultSide } from "./outbox-ops";
+import type {
+  CommentOp,
+  OutboxRow,
+  RenameOp,
+  Settle,
+  TextOp,
+  VaultOp,
+  VaultSide,
+} from "./outbox-ops";
 import type { MirrorLanding } from "./vault-mirror";
 
 type VaultConflict = VaultCommitConflict["conflicts"][number];
@@ -195,6 +203,29 @@ const settled = (
   return { kind: "send", settle: { against, changes: [first, ...rest], mine, reports } };
 };
 
+// one text path's verdict against what the vault holds there, and the changes that land it; null
+// where a copy of theirs could not be kept here
+const textVerdict = (
+  path: string,
+  sides: { base: string | null; mine: string; theirs: Exclude<Theirs, { kind: "failed" }> },
+  conflict: VaultCommitConflict,
+  ctx: ReconcileContext,
+): { verdict: Reconciled; against: VaultSide | null; changes: VaultChangeRequest[] } | null => {
+  const { theirs } = sides;
+  const against = theirs.kind === "present" ? theirs.side : null;
+  const verdict = reconcileFile({
+    base: sides.base === null ? ABSENT : { kind: "text", text: sides.base },
+    isTaken: takenBeside(ctx, conflict),
+    mine: { kind: "text", text: sides.mine },
+    path,
+    theirDevice: deviceOf(theirs),
+    theirs: theirs.kind === "present" ? theirs.file : ABSENT,
+    thisDevice: ctx.thisDevice,
+  });
+  const changes = changesFor(path, verdict, against, sides.mine);
+  return changes === null ? null : { against, changes, verdict };
+};
+
 // a write whose path the vault moved on, a create over a taken name, a note deleted elsewhere
 // (the edit beats the delete): the vault's version is theirs, the row's text mine
 const reconcileText = async (
@@ -210,20 +241,123 @@ const reconcileText = async (
   if (theirs.kind === "failed") {
     return theirs;
   }
-  const against = theirs.kind === "present" ? theirs.side : null;
+  const text = textVerdict(
+    op.path,
+    { base: op.op === "write" ? op.baseContent : null, mine: op.content, theirs },
+    conflict,
+    ctx,
+  );
+  return text === null
+    ? parked(NOT_KEPT_HERE)
+    : settled(op.path, text.verdict, text.against, text.changes, op.content);
+};
+
+// the store's own put this round: merged by its entries with what the head holds when the conflict
+// names it, since reconcileFile never copies a store, else the put last sent, whose base the head
+// still holds. It goes even where the head already holds what it writes, so its landing comes back.
+const storePut = async (
+  row: OutboxRow,
+  store: CommentOp["store"],
+  entry: VaultConflict | undefined,
+  conflict: VaultCommitConflict,
+  ctx: ReconcileContext,
+): Promise<{ kind: "put"; change: VaultChangeRequest } | Extract<Theirs, { kind: "failed" }>> => {
+  if (entry === undefined) {
+    const sent = row.settle?.changes.find(
+      (change) => change.op === "put" && change.path === store.path,
+    );
+    return {
+      change: sent ?? putText(store.path, store.base?.oid ?? null, store.content),
+      kind: "put",
+    };
+  }
+  const theirs = await theirsAt(entry, conflict.head, ctx);
+  if (theirs.kind === "failed") {
+    return theirs;
+  }
   const verdict = reconcileFile({
-    base: op.op === "write" ? { kind: "text", text: op.baseContent } : ABSENT,
+    base: store.base === null ? ABSENT : { kind: "text", text: store.base.content },
     isTaken: takenBeside(ctx, conflict),
-    mine: { kind: "text", text: op.content },
-    path: op.path,
+    mine: { kind: "text", text: store.content },
+    path: store.path,
     theirDevice: deviceOf(theirs),
     theirs: theirs.kind === "present" ? theirs.file : ABSENT,
     thisDevice: ctx.thisDevice,
   });
-  const changes = changesFor(op.path, verdict, against, op.content);
-  return changes === null
-    ? parked(NOT_KEPT_HERE)
-    : settled(op.path, verdict, against, changes, op.content);
+  const theirText =
+    theirs.kind === "present" && theirs.file.kind === "text" ? theirs.file.text : null;
+  let text = store.content;
+  if (verdict.stays.kind === "merged") {
+    ({ text } = verdict.stays);
+  } else if (verdict.stays.kind === "theirs" && theirText !== null) {
+    text = theirText;
+  }
+  return {
+    change: putText(store.path, theirs.kind === "present" ? theirs.side.oid : null, text),
+    kind: "put",
+  };
+};
+
+// A comment edit that met a head another device moved: its store merges by entries, so a comment
+// both devices made keeps both threads, and the note it anchored in is settled as a write is, its
+// copy and its report included. The note's side is the settle's `against`: named by the conflict,
+// held from the last round, or on the first its own base, which a conflict that names only the
+// store says the head still holds.
+const reconcileComment = async (
+  row: OutboxRow,
+  op: CommentOp,
+  conflict: VaultCommitConflict,
+  ctx: ReconcileContext,
+): Promise<Resolution> => {
+  const byPath = new Map(conflict.conflicts.map((entry) => [entry.path, entry]));
+  const store = await storePut(row, op.store, byPath.get(op.store.path), conflict, ctx);
+  if (store.kind === "failed") {
+    return store;
+  }
+  const { anchored } = op;
+  if (anchored === null) {
+    return {
+      kind: "send",
+      settle: { against: null, changes: [store.change], mine: null, reports: [] },
+    };
+  }
+  const entry = byPath.get(anchored.path);
+  let theirs: Theirs;
+  if (entry !== undefined) {
+    theirs = await theirsAt(entry, conflict.head, ctx);
+  } else if (row.settle === null) {
+    const side: VaultSide = {
+      commit: conflict.head,
+      device: null,
+      oid: anchored.baseOid,
+      path: anchored.path,
+      text: anchored.baseContent,
+    };
+    theirs = { file: fileOf(side), kind: "present", side };
+  } else {
+    theirs = heldSide(row.settle.against);
+  }
+  if (theirs.kind === "failed") {
+    return theirs;
+  }
+  const text = textVerdict(
+    anchored.path,
+    { base: anchored.baseContent, mine: anchored.content, theirs },
+    conflict,
+    ctx,
+  );
+  if (text === null) {
+    return parked(NOT_KEPT_HERE);
+  }
+  return {
+    kind: "send",
+    settle: {
+      against: text.against,
+      changes: [...text.changes, store.change],
+      mine: null,
+      reports: text.verdict.report === null ? [] : [text.verdict.report],
+    },
+  };
 };
 
 // a delete of a note another device edited keeps the edit, and its comment stores with it; a
@@ -400,6 +534,9 @@ export const resolveConflict = async (
     }
     case "remove": {
       return await reconcileRemove(op, conflict, ctx);
+    }
+    case "comment": {
+      return await reconcileComment(row, op, conflict, ctx);
     }
     case "putAsset": {
       return parked("A file with this name is already in your vault.");

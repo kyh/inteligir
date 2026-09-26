@@ -10,14 +10,15 @@ import { gitOidSchema, vaultPathSchema } from "@repo/api/cloud/vault/vault-schem
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { diff3 } from "@repo/notes/text/diff3";
 
-// a note whose links a rename rewrites, guarded by the blob it was computed from
-const rewriteSchema = z.object({
+// a note's new text, guarded by the blob it was computed from: one a rename rewrites the links of,
+// or one a new comment's markers went into
+const guardedTextSchema = z.object({
   baseContent: z.string(),
   baseOid: gitOidSchema,
   content: z.string(),
   path: vaultPathSchema,
 });
-export type RenameRewrite = z.infer<typeof rewriteSchema>;
+export type GuardedText = z.infer<typeof guardedTextSchema>;
 
 // `baseOid` / `baseContent` name the blob the write was computed from and its text: the vault
 // takes the write only while the path still holds that blob, and a write refused as stale is
@@ -26,6 +27,8 @@ export type RenameRewrite = z.infer<typeof rewriteSchema>;
 // the new name when the rename changes it (its alias, its own links), null for the bytes as they
 // are, and its `rewrites` the other notes whose links name it, all one change set. A delete takes
 // the comment stores that go with the note in the same set, so a note the vault keeps keeps them.
+// A comment edit is its store's new text and, when it anchors a new comment, the note's with the
+// markers in it, one set, so no pull finds markers with no comment behind them.
 export const vaultOpSchema = z.discriminatedUnion("op", [
   z.object({
     baseContent: z.string(),
@@ -41,8 +44,19 @@ export const vaultOpSchema = z.discriminatedUnion("op", [
     content: z.string().nullable().default(null),
     from: vaultPathSchema,
     op: z.literal("rename"),
-    rewrites: z.array(rewriteSchema).default([]),
+    rewrites: z.array(guardedTextSchema).default([]),
     to: vaultPathSchema,
+  }),
+  z.object({
+    // null: the edit leaves the note's bytes as they are (a reply, a resolve)
+    anchored: guardedTextSchema.nullable(),
+    op: z.literal("comment"),
+    // a null base is a store not there yet
+    store: z.object({
+      base: z.object({ content: z.string(), oid: gitOidSchema }).nullable(),
+      content: z.string(),
+      path: vaultPathSchema,
+    }),
   }),
   z.object({
     baseOid: gitOidSchema,
@@ -63,6 +77,8 @@ export type VaultOp = z.infer<typeof vaultOpSchema>;
 export type TextOp = Extract<VaultOp, { op: "write" | "create" }>;
 
 export type RenameOp = Extract<VaultOp, { op: "rename" }>;
+
+export type CommentOp = Extract<VaultOp, { op: "comment" }>;
 
 // what the vault held at a path when a conflict answered, and whose commit last wrote it; `text`
 // is null for bytes that are not a note's
@@ -123,6 +139,9 @@ export const opPaths = (op: VaultOp): readonly string[] => {
     case "remove": {
       return [op.path, ...op.stores.map((store) => store.path)];
     }
+    case "comment": {
+      return op.anchored === null ? [op.store.path] : [op.anchored.path, op.store.path];
+    }
     case "write":
     case "create":
     case "putAsset": {
@@ -153,6 +172,13 @@ export const renameChanges = (op: RenameOp): VaultChangeRequest[] => {
       : [{ base: op.baseOid, op: "delete", path: op.from }, putText(op.to, null, op.content)];
   return [...move, ...rewritePuts(op)];
 };
+
+export const commentChanges = (op: CommentOp): VaultChangeRequest[] => [
+  ...(op.anchored === null
+    ? []
+    : [putText(op.anchored.path, op.anchored.baseOid, op.anchored.content)]),
+  putText(op.store.path, op.store.base?.oid ?? null, op.store.content),
+];
 
 // the phone's own SHA-1: expo-crypto's on a device, node's under test
 export type Sha1 = (bytes: Uint8Array<ArrayBuffer>) => Promise<Uint8Array>;
@@ -188,6 +214,32 @@ export const renameLeaves = async (
     ? null
     : { content: rewrite.content, oid: await textBlobOid(sha1, rewrite.content) };
 };
+
+const commentTextAt = (op: CommentOp, path: string): string | null => {
+  if (path === op.store.path) {
+    return op.store.content;
+  }
+  return op.anchored !== null && path === op.anchored.path ? op.anchored.content : null;
+};
+
+// the blob and text an unsent comment edit leaves at a path: its store, or the note it anchored in
+export const commentLeaves = async (
+  sha1: Sha1,
+  op: CommentOp,
+  path: string,
+): Promise<{ oid: string; content: string } | null> => {
+  const content = commentTextAt(op, path);
+  return content === null ? null : { content, oid: await textBlobOid(sha1, content) };
+};
+
+// what an unsent rename or comment edit leaves at a path, which a write queued behind it is
+// computed from
+export const leavesAt = async (
+  sha1: Sha1,
+  op: RenameOp | CommentOp,
+  path: string,
+): Promise<{ oid: string; content: string | null } | null> =>
+  op.op === "rename" ? await renameLeaves(sha1, op, path) : await commentLeaves(sha1, op, path);
 
 // an edit computed from `base`, carried onto the text the path holds now; null where the two
 // changed the same lines, which leaves that text as it is

@@ -268,9 +268,83 @@ describe("what the editor asks the shell for", () => {
       { ids: ["c1", "c2"], nonce: PHONE_NONCE, type: "showComments" },
     ]);
   });
+});
 
-  it("refuses a comment create, so its markers go rather than stay without a body", async () => {
-    await openHost();
-    expect(await useCommentSurface.getState().actions?.create("c3", "body")).toBe(false);
+const ANCHORED = "# Note\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n";
+
+// what the editor's comment surface calls on Save
+const create = async (id: string, text: string): Promise<boolean | undefined> =>
+  await useCommentSurface.getState().actions?.create(id, text);
+
+describe("a new comment", () => {
+  it("rides the save that writes its markers, so the phone lands both as one change set", async () => {
+    const { host, phone } = await openHost();
+    host.io.actions.editNote("Note.md", ANCHORED);
+
+    expect(await create("c3", "Why here?")).toBe(true);
+    expect(phone.requests("write")).toEqual([]);
+    expect(phone.requests("addComment").map((frame) => frame.payload)).toEqual([
+      { base: NOTE, content: ANCHORED, id: "c3", path: "Note.md", text: "Why here?" },
+    ]);
+    expect(phone.files.get("Note.md")).toBe(ANCHORED);
+  });
+
+  it("merges a note the phone finds changed and carries the comment on the retry", async () => {
+    const { host, phone } = await openHost({ "Note.md": "one\n\nHello there.\n" });
+    phone.files.set("Note.md", "one\n\nHello there.\n\nfrom the Mac\n");
+    host.io.actions.editNote("Note.md", "one\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n");
+
+    expect(await create("c3", "Why here?")).toBe(true);
+    const [first, retry] = phone.requests("addComment").map((frame) => frame.payload);
+    expect(first?.base).toBe("one\n\nHello there.\n");
+    expect(retry).toEqual({
+      base: "one\n\nHello there.\n\nfrom the Mac\n",
+      content: "one\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n\nfrom the Mac\n",
+      id: "c3",
+      path: "Note.md",
+      text: "Why here?",
+    });
+  });
+
+  it("sends its entry alone when the autosave already wrote its markers, and the next save as a write", async () => {
+    const { host, phone } = await openHost();
+    host.io.actions.editNote("Note.md", ANCHORED);
+    await host.io.actions.flush();
+
+    expect(await create("c3", "Why here?")).toBe(true);
+    expect(phone.requests("addComment").map((frame) => frame.payload)).toEqual([
+      { base: ANCHORED, content: ANCHORED, id: "c3", path: "Note.md", text: "Why here?" },
+    ]);
+
+    host.io.actions.editNote("Note.md", `${ANCHORED}More.\n`);
+    await host.io.actions.flush();
+    expect(phone.requests("write").map((frame) => frame.payload.content)).toEqual([
+      ANCHORED,
+      `${ANCHORED}More.\n`,
+    ]);
+  });
+
+  it("is refused before anything is written on a note whose id is not text", async () => {
+    const { host, phone } = await openHost({ "Note.md": "---\nid: 42\n---\nHello there.\n" });
+    host.io.actions.editNote(
+      "Note.md",
+      "---\nid: 42\n---\n%%i:c3:start%%Hello%%i:c3:end%% there.\n",
+    );
+
+    expect(await create("c3", "Why here?")).toBe(false);
+    expect(phone.requests("addComment")).toEqual([]);
+    expect(phone.requests("write")).toEqual([]);
+  });
+
+  it("fails when the phone refuses its entry", async () => {
+    const { host, phone } = await openHost();
+    host.io.actions.editNote("Note.md", ANCHORED);
+    await host.io.actions.flush();
+    phone.answer = (request) =>
+      request.kind === "addComment"
+        ? { error: "The comments could not be read.", ok: false }
+        : null;
+
+    expect(await create("c3", "Why here?")).toBe(false);
   });
 });

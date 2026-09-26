@@ -8,6 +8,7 @@ import { clientOver, createFakeVault } from "../../notes/__tests__/fake-vault";
 import {
   createMemoryAttachments,
   createMemoryOutboxFiles,
+  MINTED_NOTE_ID,
   nodeSha1,
   openTempDb,
   tempDbPath,
@@ -128,7 +129,9 @@ const runtimeOver = (
       minted += 1;
       return mintedId(minted);
     },
+    mintNoteId: () => MINTED_NOTE_ID,
     outboxFiles: storage.outboxFiles,
+    randomBytes: (length) => new Uint8Array(length),
     retryBaseMs: null,
     sha1: nodeSha1,
     sync:

@@ -30,6 +30,7 @@ import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { onboardingAccountBrowser } from "./scenarios/onboarding-account-browser";
 import { osDictationBrowser } from "./scenarios/os-dictation-browser";
+import { phoneCommentsHosted } from "./scenarios/phone-comments-hosted";
 import { phoneDispatchHosted } from "./scenarios/phone-dispatch-hosted";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
@@ -61,6 +62,7 @@ const SCENARIOS: readonly Scenario[] = [
   hostedVaultFull,
   phoneOfflineEdit,
   phoneFileOpsHosted,
+  phoneCommentsHosted,
   phoneEditorPage,
   threadSyncHosted,
   phoneDispatchHosted,

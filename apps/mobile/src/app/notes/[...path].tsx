@@ -25,9 +25,13 @@ import {
   mintBridgeNonce,
   readNote,
   readNoteComments,
+  replyToComment,
+  resolveComment,
 } from "@/lib/app-runtime";
 import { SPACE, useTheme } from "@/lib/theme";
+import type { CommentOutcome } from "@/notes/comment-ops";
 import { CommentsSheet } from "@/notes/comments-view";
+import type { CommentEdits } from "@/notes/comments-view";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
 import type { CommentsRead } from "@/notes/notes-store";
 import { OutboxBanner } from "@/notes/outbox-banner";
@@ -99,6 +103,12 @@ const pushRoute = (route: EditorRoute): void => {
 
 const openNote = (path: string): void => {
   pushRoute({ kind: "note", path });
+};
+
+// the note's comments, folded against the markers its text holds now
+const loadComments = async (path: string): Promise<CommentsRead> => {
+  const read = await readNote(path);
+  return read.ok ? await readNoteComments(read) : { message: read.message, ok: false };
 };
 
 // One note in the desktop's editor: the page the app bundle carries, in a WebView that reaches the
@@ -207,10 +217,7 @@ const NoteScreen = () => {
     }
     let live = true;
     void (async () => {
-      const read = await readNote(opened);
-      const threads: CommentsRead = read.ok
-        ? await readNoteComments(read)
-        : { message: read.message, ok: false };
+      const threads = await loadComments(opened);
       if (live) {
         setComments(threads);
       }
@@ -220,6 +227,27 @@ const NoteScreen = () => {
       setComments(null);
     };
   }, [sheet, opened]);
+
+  // an edit is on the phone once it answers, so the sheet reads the store again in place rather
+  // than going back to Loading under the field being typed in
+  const editComments = async (
+    change: (path: string) => Promise<CommentOutcome>,
+  ): Promise<CommentOutcome> => {
+    if (opened === null) {
+      return { kind: "refused", message: "This note is no longer on your phone." };
+    }
+    const outcome = await change(opened);
+    if (outcome.kind === "done") {
+      setComments(await loadComments(opened));
+    }
+    return outcome;
+  };
+  const commentEdits: CommentEdits = {
+    reply: async (rootId, text) =>
+      await editComments(async (notePath) => await replyToComment(notePath, rootId, text)),
+    resolve: async (rootId, resolved) =>
+      await editComments(async (notePath) => await resolveComment(notePath, rootId, resolved)),
+  };
 
   const deleteOpened = (): void => {
     if (opened === null) {
@@ -315,6 +343,7 @@ const NoteScreen = () => {
       </KeyboardAvoidingView>
       <CommentsSheet
         comments={comments}
+        edits={commentEdits}
         ids={sheet?.ids ?? null}
         visible={sheet !== null}
         onClose={() => {

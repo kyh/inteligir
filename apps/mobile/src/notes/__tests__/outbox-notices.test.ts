@@ -50,6 +50,23 @@ describe("what the notes screens show of the phone's unsent edits", () => {
     expect(notice).toMatchObject({ actions: ["retry", "discard"], seq: 4 });
   });
 
+  it("names a reply or a resolve as a comment, never by its store's file", () => {
+    const [notice] = outboxNotices({
+      conflicts: [],
+      lastError: null,
+      parked: [
+        {
+          canSaveAsNew: false,
+          paths: [".inteligir/comments/9e64c3df-c1e2-4a4d-8c07-91528f422413.json"],
+          reason: "no",
+          seq: 5,
+        },
+      ],
+      unsent: 1,
+    });
+    expect(notice).toMatchObject({ title: "A comment is not in your vault yet" });
+  });
+
   it("opens the copy a conflict made, where the other version is", () => {
     const [notice] = outboxNotices({
       conflicts: [{ copyPath: "Plan (conflict, Mac).md", id: 2, message: "m", path: "Plan.md" }],

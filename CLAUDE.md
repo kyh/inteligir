@@ -155,7 +155,9 @@ apps/
                  @repo/mobile-editor page the app bundle carries, in a
                  WebView whose bridge the phone answers over its store
                  (src/editor/editor-host.ts, editor-ports.ts), each note's
-                 comment store read-only in a sheet beside it (#683), and a
+                 comment store in a sheet beside it that replies and
+                 resolves, a new comment made on a selection in the page
+                 (src/notes/comment-ops.ts), and a
                  durable outbox of the phone's own edits
                  (src/notes/vault-outbox.ts) sent through the guarded commit
                  route, its file verbs (create, rename, delete, photos)
@@ -439,7 +441,8 @@ to the END of its group.
   rows of the tables the desktop reads: the headings, lists, to-do and quote
   are `GROUPS` rows run as the slash menu runs them, the marks are
   `MARK_SHORTCUTS`, inline code is `EDITOR_SHORTCUTS`' row through
-  `runEditorShortcut`, and indent is what Tab runs; only what no table holds is
+  `runEditorShortcut`, Comment is `COMMENT_SHORTCUTS`' row, and indent is what
+  Tab runs; only what no table holds is
   `TOUCH_ACTIONS` (`packages/editor/src/__tests__/touch-toolbar.test.tsx`
   refuses a button named by anything else). A locked editor's slash menu
   offers no `richBlock` row, a block it could never fill.
@@ -2129,6 +2132,30 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   items already carry, and folding an item this launch never saw start, whose
   head was pulled before a relaunch and would draw the tail as the reply.
   `apps/mobile/src/sync/sync-runtime.ts`.
+
+- **A PHONE COMMENT IS ITS MARKERS AND ITS ENTRY IN ONE CHANGE SET** (owner
+  decision: the phone comments and replies in 0.6, superseding comments
+  through the capture inbox, #684). The touch toolbar's Comment takes the row
+  for the words and puts the kit's markers in only at Save, and the page's
+  flush that writes them goes as `addComment`, not `write`, carrying the
+  comment (`apps/mobile-editor/src/host/page-host.ts`); the phone plans the
+  entry under its write lock from the texts it holds and queues the note and
+  its store as ONE `comment` row (`editComments` in
+  `apps/mobile/src/notes/notes-store.ts`), a note without an id minting one by
+  the desktop's line cut (`@repo/notes/comments/comment-key`), every entry
+  signed `user`. A reply and a resolve are rows of the store alone, their
+  verbs `apps/mobile/src/notes/comment-ops.ts`. A stale set is settled per
+  path (`reconcileComment` in `apps/mobile/src/notes/outbox-reconcile.ts`): the
+  note as a write is, copy included, and the store by its entries, so a
+  comment another device made meanwhile keeps both threads. Rejected: markers
+  in at the field's opening, as the desktop's popover does, which the 600ms
+  autosave writes long before there is a comment, so a pull could find markers
+  with nothing behind them; and a store write in a row of its own after the
+  note's, which is the same gap. Residual: a hardware chord's create on the
+  phone opens the desktop's popover after its markers are in, so its entry
+  lands in a set of its own; and when two devices each give one id-less note
+  its first comment at once, whichever settles the overlap keeps its own id,
+  and the other's thread waits under an id no note carries.
 
 ### Server process and the desktop shell
 
