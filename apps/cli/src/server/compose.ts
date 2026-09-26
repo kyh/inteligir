@@ -43,10 +43,6 @@ import { slowReadStall } from "./vault/slow-reads";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
 import { VaultPrefsStore } from "./vault/vault-prefs-store";
-import { createScriptedVoiceService } from "./voice/scripted-voice-service";
-import { ParakeetVoiceService } from "./voice/voice-service";
-import type { VoiceService } from "./voice/voice-service";
-import { VoiceStreamHub } from "./voice/voice-stream-hub";
 import { WsBus } from "./ws-bus";
 
 // unshift: the listener must close its sockets before any service behind it, the vault flush included.
@@ -95,7 +91,6 @@ export interface ComposedRuntime {
   context: AppServices;
   bus: WsBus;
   db: DbConnection;
-  voiceStreamHub: VoiceStreamHub;
   vaultRemote: VaultRemoteProvider;
   // each step is unshifted as its resource comes up, so a boot that throws (EADDRINUSE
   // with the watcher forked and the db open) is still torn down by the caller.
@@ -241,17 +236,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     }
   })();
 
-  // scripted answers `ready` with no model and no native binding, so the scenario suite
-  // drives everything above the decode for real.
-  const voice: VoiceService =
-    config.voice === "scripted"
-      ? createScriptedVoiceService()
-      : new ParakeetVoiceService({ modelDir: config.modelDir });
-  register("voice", async () => {
-    await voice.dispose();
-  });
-  const voiceStreamHub = new VoiceStreamHub(voice);
-
   const comments = createCommentsService(vault.service, () => Math.floor(Date.now() / 1000));
 
   // last, once every service it announces through exists; the bus has no clients before a socket is injected.
@@ -285,8 +269,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     threads,
     vault,
     vaultPrefs,
-    voice,
   };
 
-  return { bus, context, db, teardown, vaultRemote, voiceStreamHub };
+  return { bus, context, db, teardown, vaultRemote };
 };

@@ -323,17 +323,6 @@ try {
   log(`vault tree -> ${tree.entries.length} entries under ${tree.root}`);
   await proveWatcherAlive({ fail, log, rpc, vaultDir });
 
-  // proves a worker thread can dlopen the addon from app.asar.unpacked. `ready` is
-  // allowed (shared model dir); `unavailable` is refused (this .app ships the prebuild)
-  const voiceStatus = await rpc("voice/status");
-  if (!["no-model", "ready"].includes(voiceStatus.state)) {
-    fail(
-      `packaged voice status is ${JSON.stringify(voiceStatus)}; expected no-model or ready — ` +
-        `the transcription worker could not dlopen its binding from app.asar.unpacked`,
-    );
-  }
-  log(`voice -> ${voiceStatus.state}`);
-
   await proveAgentTurn(rpc);
 
   const status = await run(cliBin, ["status", "--json"], {

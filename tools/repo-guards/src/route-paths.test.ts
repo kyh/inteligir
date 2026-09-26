@@ -3,13 +3,7 @@
 // could not catch the contract moving.
 
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
-import {
-  HEALTH_PATH,
-  HTML_FRAME_PATH,
-  RPC_PREFIX,
-  VAULT_ASSET_PATH,
-  VOICE_STREAM_PATH,
-} from "@repo/api/local/routes";
+import { HEALTH_PATH, HTML_FRAME_PATH, RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/api/local/routes";
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
@@ -17,7 +11,7 @@ import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 const NAMESPACES = [
   {
     home: "packages/api/src/local/local-routes.ts",
-    paths: [VOICE_STREAM_PATH, VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
+    paths: [VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
     use: "the constants in @repo/api/local/routes",
   },
   {

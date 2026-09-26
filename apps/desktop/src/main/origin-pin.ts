@@ -100,18 +100,3 @@ export const appWindowWebPreferences = (preloadPath: string, partition: string) 
     sandbox: true,
     webSecurity: true,
   }) as const;
-
-// `media` is dictation's microphone; Electron grants most permissions by default, so everything else is denied here.
-export const ALLOWED_PERMISSIONS: readonly string[] = ["media"];
-
-// origin-scoped, not a bare allowlist: a subframe or embed must not inherit the grant.
-export const classifyPermission = (
-  permission: string,
-  requestingOrigin: string,
-  appOrigin: string,
-): boolean => {
-  if (!ALLOWED_PERMISSIONS.includes(permission)) {
-    return false;
-  }
-  return isSameOriginNavigation(requestingOrigin, appOrigin);
-};

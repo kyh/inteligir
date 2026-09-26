@@ -10,7 +10,6 @@
         "src/**/__tests__/**/*.test.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
         "src/server/child-host/stdio-port-host-entry.ts",
-        "src/server/voice/transcribe-worker.ts",
         "src/server/knowledge/projection-worker.ts",
         "scripts/*.mjs"
       ],

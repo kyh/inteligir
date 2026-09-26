@@ -25,7 +25,6 @@ import type { ShellPathResolution } from "./login-shell-path";
 import {
   appWindowWebPreferences,
   classifyNavigation,
-  classifyPermission,
   classifyWindowOpen,
   decideExternalOpen,
   grantsActivation,
@@ -206,16 +205,15 @@ const stopOwnedServer = async (): Promise<void> => {
   await owned?.stop();
 };
 
-// both handlers are needed: the request handler answers a prompt, the check handler
-// answers `navigator.permissions.query` and `getUserMedia`'s pre-flight.
+// Electron grants most permissions by default and the app needs none, dictation included: it is
+// the operating system's. both handlers are needed: the request handler answers a prompt, the
+// check handler answers `navigator.permissions.query`.
 const lockDownSession = (partition: string): Electron.Session => {
   const windowSession = session.fromPartition(partition);
-  windowSession.setPermissionRequestHandler((_contents, permission, respond, details) => {
-    respond(classifyPermission(permission, details.requestingUrl, APP_ORIGIN));
+  windowSession.setPermissionRequestHandler((_contents, _permission, respond) => {
+    respond(false);
   });
-  windowSession.setPermissionCheckHandler((_contents, permission, requestingOrigin) =>
-    classifyPermission(permission, requestingOrigin, APP_ORIGIN),
-  );
+  windowSession.setPermissionCheckHandler(() => false);
   // device pickers are not covered by the permission handlers.
   windowSession.setDevicePermissionHandler(() => false);
   return windowSession;

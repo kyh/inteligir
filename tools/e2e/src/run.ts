@@ -15,7 +15,6 @@ import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
 import { debugLogTrace } from "./scenarios/debug-log";
 import { desktopShell } from "./scenarios/desktop-shell";
-import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { extractNoteBrowser } from "./scenarios/extract-note-browser";
@@ -52,7 +51,6 @@ const SCENARIOS: readonly Scenario[] = [
   slashMenuBrowser,
   externalEditBrowser,
   viewContextBrowser,
-  dictationBrowser,
   settingsBrowser,
   vaultSearchBrowser,
   treeOpsBrowser,

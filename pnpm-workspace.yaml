@@ -15,11 +15,6 @@ catalog:
   "@agentclientprotocol/claude-agent-acp": 0.81.0
   "@agentclientprotocol/codex-acp": 1.13.0
   "@agentclientprotocol/sdk": 1.5.0
-  # exact: prebuilt N-API addon with no build script, which `npx inteligir` depends on.
-  # tar + unbzip2-stream because Node has no bzip2 and Windows tar.exe cannot -j
-  "sherpa-onnx-node": 1.13.6
-  tar: ^7.5.22
-  unbzip2-stream: ^1.4.3
   # optional peer @vitejs/plugin-react loads for `compiler: true`
   oxc-transform-react: ^0.151.0
   "@cloudflare/vite-plugin": ^1.57.1

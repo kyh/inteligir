@@ -26,7 +26,7 @@ files:
 # "@repodesktop-updater"; the app's own name is what lands in ~/Library/Caches
 extraMetadata:
   name: inteligir
-# npmRebuild off: the three native modules are prebuilt Node-API addons (ABI-stable across
+# npmRebuild off: the two native modules are prebuilt Node-API addons (ABI-stable across
 # Node and Electron), and a rebuild would clobber the pnpm store's shared copy
 npmRebuild: false
 # flipped in the binary before signing. runAsNode is off: nothing runs this binary as Node, since
@@ -63,9 +63,6 @@ mac:
   # entitlements, which Electron then cannot start
   entitlements: resources/entitlements.mac.plist
   notarize: true
-  extendInfo:
-    # macOS kills a process that touches the microphone without this string
-    NSMicrophoneUsageDescription: Inteligir uses the microphone for dictation. Audio goes to the local server on this machine and no further.
 dmg:
   sign: true
 # the feed electron-updater reads (app-update.yml beside the app) and the manifest it fetches

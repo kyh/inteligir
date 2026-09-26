@@ -30,7 +30,7 @@ electron import here.
 src/
   local/               the oRPC contract — ONE folder per domain
     local-contract.ts  # the router: agents · cloud · comments · connectors ·
-                       # folders · knowledge · system · threads · vault · voice
+                       # folders · knowledge · system · threads · vault
     <domain>/          # each is a `<domain>-contract.ts` (rows: input, output,
                        # and ONLY the error classes that row can raise) beside
                        # a `<domain>-schema.ts` (the zod shapes)
@@ -39,7 +39,7 @@ src/
                        # and a code with no entry would answer 500 silently
     local-routes.ts    # the paths that are NOT procedures: /health, /vault/asset
                        # (bytes + etag + sandbox csp), /html-frame (the document
-                       # a note's html block runs in), /ws and /voice/stream
+                       # a note's html block runs in) and /ws
     notifications.ts   # the /ws frame grammar: subscribe/unsubscribe in, hello
                        # and `changed` pings out — never a payload
     thread-timeline.ts # the timeline row grammar, and the delta algebra

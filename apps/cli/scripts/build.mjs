@@ -21,7 +21,7 @@ const NODE_ESM_REQUIRE_BANNER = [
   "var __dirname = __pathDirname(__filename);",
 ].join("\n");
 
-const NATIVE = ["better-sqlite3", "@parcel/watcher", "sherpa-onnx-node"];
+const NATIVE = ["better-sqlite3", "@parcel/watcher"];
 
 const shared = {
   banner: { js: NODE_ESM_REQUIRE_BANNER },
@@ -111,12 +111,6 @@ const SIBLING_BUNDLES = [
     entry: path.join(packageRoot, "src", "server", "child-host", "stdio-port-host-entry.ts"),
     external: [],
     outfile: "stdio-port-host.mjs",
-  },
-  // the transcriber, a worker thread (src/server/worker-entry.ts)
-  {
-    entry: path.join(packageRoot, "src", "server", "voice", "transcribe-worker.ts"),
-    external: ["sherpa-onnx-node"],
-    outfile: "transcribe-worker.mjs",
   },
   // the projector, a worker thread (src/server/worker-entry.ts)
   {

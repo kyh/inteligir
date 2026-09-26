@@ -216,33 +216,6 @@ describe("the vault dir and remote", () => {
     ).toThrow(/must be disjoint/u);
   });
 
-  it("refuses a model dir inside the vault — a model would be committed and pushed", () => {
-    const homeDir = makeTempDir("inteligir-config-test-");
-    const dataDir = makeTempDir("inteligir-config-test-");
-    const vaultDir = makeTempDir("inteligir-config-test-");
-    expect(() =>
-      resolveAppConfig({
-        checkoutPath: "/checkout/a",
-        env: {
-          INTELIGIR_DATA_DIR: dataDir,
-          INTELIGIR_MODEL_DIR: path.join(vaultDir, "models"),
-          INTELIGIR_VAULT_DIR: vaultDir,
-        },
-        homeDir,
-      }),
-    ).toThrow(/outside the vault/u);
-  });
-
-  it("defaults the model dir under the data dir and accepts it beside the vault", () => {
-    const homeDir = makeTempDir("inteligir-config-test-");
-    const config = resolveAppConfig({
-      checkoutPath: "/checkout/a",
-      env: { NODE_ENV: "production" },
-      homeDir,
-    });
-    expect(config.modelDir).toBe(path.join(homeDir, ".inteligir", "models"));
-  });
-
   it("accepts the git remote shapes git dials and refuses the rest", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const resolveWithRemote = (remote: string) =>

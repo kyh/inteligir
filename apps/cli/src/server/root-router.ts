@@ -11,7 +11,6 @@ import { base } from "./orpc";
 import { systemRouter } from "./system/system-router";
 import { threadsRouter } from "./threads/threads-router";
 import { vaultRouter } from "./vault/vault-router";
-import { voiceRouter } from "./voice/voice-router";
 
 export const localRouter = base.router({
   agents: agentsRouter,
@@ -23,5 +22,4 @@ export const localRouter = base.router({
   system: systemRouter,
   threads: threadsRouter,
   vault: vaultRouter,
-  voice: voiceRouter,
 });

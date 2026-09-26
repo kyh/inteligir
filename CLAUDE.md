@@ -40,8 +40,8 @@ apps/
                  Recent | Files | Deleted views). The whole security surface is
                  the ORIGIN PIN (src/main/origin-pin.ts, pure + unit-tested):
                  one origin, top-level navigation away goes to the system
-                 browser, window.open denied unconditionally, permissions
-                 denied except origin-scoped media. utilityProcess forks
+                 browser, window.open denied unconditionally, every
+                 permission denied. utilityProcess forks
                  `inteligir serve` and, through main's fork broker, every node
                  child that server needs; a server already listening is
                  ADOPTED once it answers this instance's token at the bundled
@@ -60,7 +60,7 @@ apps/
                  (`apps/cli/src/__tests__/json-flag-enforcement.test.ts`), each
                  with its reason. src/server/ splits by domain (vault/,
                  knowledge/, agents/, threads/, comments/, cloud/ the sync
-                 client, voice/ dictation). Every app-written file in the data
+                 client). Every app-written file in the data
                  dir is a `json-file-store.ts` over `staged-write.ts`;
                  `config.json` is read at boot and never written by the app
                  except its `vaultDir`, the selector a switch rewrites
@@ -1102,31 +1102,20 @@ to the END of its group.
 
 ### Dictation
 
-- **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by
-  owner decision; do not "fix" it back). whisper gave punctuation and capitals
-  but made dictation batch; the owner chose live partials. So the engine is
-  `sherpa-onnx-node` with a streaming Parakeet transducer, and the final has no
-  punctuation and no capitalization. That trade is the point. English only.
-
-- **THE MODEL FILE IS THE SWITCH, AND THE SHA GATE IS THE REAL GUARD.** No
-  `voiceEnabled` flag: `install` fetches against the pinned sha, `remove`
-  deletes, off is no model on disk (`apps/cli/src/server/voice/model-catalog.ts`
-  and `model-store.ts`). Only bytes matching the pin reach the recognizer:
-  onnxruntime does not turn a parse failure into a catchable error, so an
-  unparseable model would crash rather than reach the `modelUnusable` nuke, the
-  backstop the sha gate keeps unreachable.
-
-- **A PERSISTENT SESSION WORKER PER HOLD, OVER A DEDICATED WEBSOCKET.** The
-  model loads once per hold and stays warm, and the worker is not optional:
-  `better-sqlite3` is synchronous and the watcher's liveness ping rides a bare
-  timer, so an inline native decode would stall a save, a query and the ping
-  together (`apps/cli/src/server/voice/stream-session.ts`). `/voice/stream`
-  carries PCM16 up and partials down, off the `/ws` bus, which never carries a
-  payload; there is no batch procedure, and no CLI verb, since holding a key
-  over a live microphone is not something a shell can express. The renderer
-  streams with a `ScriptProcessorNode`, not an `AudioWorklet`, which is fetched
-  as a script under a CSP naming `worker-src 'none'`
-  (`apps/desktop/src/renderer/app/voice/dictation.ts`).
+- **DICTATION IS THE OPERATING SYSTEM'S** (owner decision, reversing streaming
+  Parakeet; do not bring an in-app recognizer back). macOS dictation (fn twice,
+  Edit › Start Dictation) and the phone keyboard's mic type into a field like a
+  keyboard, so the app holds no microphone entitlement (`device.audio-input`,
+  deliberately absent from `apps/desktop/resources/entitlements.mac.plist`), no
+  `NSMicrophoneUsageDescription`, no web permission, no model and no socket.
+  Rejected: an in-app recognizer, whose live partials cost a native addon on a
+  worker, a ~100 MB third-party download behind a sha gate, a dictation socket
+  and the app's only device grant. The window's session denies every
+  permission request and check (`lockDownSession` in
+  `apps/desktop/src/main/index.ts`), which
+  `tools/e2e/src/scenarios/desktop-shell.ts` reads back as a denied microphone.
+  The model folder an install already holds is removed after listen
+  (`apps/cli/src/server/retired-model-dir.ts`).
 
 ### Cloud, sync and accounts
 

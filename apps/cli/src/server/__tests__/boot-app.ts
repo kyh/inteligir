@@ -48,7 +48,6 @@ export interface BootTestAppOptions {
   // a suite that begins a connector authorization must supply this, or `pnpm test` pops a browser window.
   openExternalUrl?: OpenExternalUrl;
   port?: number;
-  voice?: AppConfig["voice"];
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
@@ -91,8 +90,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     databasePath: path.join(dataDir, "inteligir.db"),
     debug: new Set(),
     mode: "dev",
-    // not ~/.inteligir/models: `remove` is under test and would delete a developer's downloaded model.
-    modelDir: path.join(instanceDir, "models"),
     port: options.port ?? 0,
     portSource: "env",
     rootDataDir: dataDir,
@@ -102,8 +99,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     vaultRemote: null,
     // tests drive syncNow directly; a timer would race the assertions.
     vaultSyncIntervalMs: null,
-    // never `auto`: the real runtime dlopens a native binding, making every route test a claim about this platform.
-    voice: options.voice ?? "scripted",
     warnings: [],
   };
 
@@ -161,7 +156,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     clientDir: options.clientDir ?? null,
     context: runtime.context,
     serverToken: TEST_SERVER_TOKEN,
-    voiceStreamHub: runtime.voiceStreamHub,
   });
   const composed = { ...runtime, ...wired };
   const client = createRouterClient(localRouter, {

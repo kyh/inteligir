@@ -27,6 +27,7 @@ import { messageOf } from "./error-message";
 import type { ReconcileStats } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
+import { removeRetiredModelDir } from "./retired-model-dir";
 import { acquireServeLock, serveLockPath } from "./serve-lock";
 import { loopbackOrigin, mintServerToken, removeServerFile, writeServerFile } from "./server-file";
 import { probeServerFile, processAlive, silentOwnerSentence } from "./server-probe";
@@ -190,7 +191,6 @@ const boot = async (
     clientDir,
     context: runtime.context,
     serverToken,
-    voiceStreamHub: runtime.voiceStreamHub,
   });
 
   const { port, server } = await listenWithRetry({
@@ -245,6 +245,15 @@ const boot = async (
       });
     } catch (error) {
       console.warn(`[comments] boot sweep skipped: ${messageOf(error)}`);
+    }
+  })();
+  // after listen and guarded for the same reasons: removing a folder no build reads must neither
+  // delay the readiness the shell waits on nor fail a boot.
+  void (async () => {
+    try {
+      await removeRetiredModelDir(config);
+    } catch (error) {
+      console.warn(`[models] retired model folder left in place: ${messageOf(error)}`);
     }
   })();
   const bootRemote = runtime.vaultRemote();

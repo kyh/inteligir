@@ -12,7 +12,7 @@ import { DEBUG_NAMESPACES, parseDebugNamespaces } from "./debug-log";
 import type { DebugNamespace } from "./debug-log";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
 import { errnoCode } from "./errno";
-import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
+import { assertVaultAndDataDirDisjoint } from "./path-containment";
 import { stagedWriteFileSync } from "./staged-write";
 import type { SlowReads } from "./vault/slow-reads";
 
@@ -27,7 +27,6 @@ const PROD_VAULT_DIR_NAME = "Inteligir";
 const DEV_INSTANCE_DATA_DIR_NAME = "data";
 const DEV_INSTANCE_VAULT_DIR_NAME = "vault";
 const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
-const MODELS_DIR_NAME = "models";
 export const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
 export const VAULTS_DIR_NAME = "vaults";
@@ -130,20 +129,6 @@ const parseAgentModeValue = (name: string, rawValue: string): AgentMode => {
   return parsed.data;
 };
 
-const VOICE_MODE_VALUES = ["auto", "scripted"] as const;
-type VoiceMode = (typeof VOICE_MODE_VALUES)[number];
-
-const isVoiceMode = (value: string): value is VoiceMode =>
-  VOICE_MODE_VALUES.some((mode) => mode === value);
-
-const parseVoiceModeValue = (name: string, rawValue: string): VoiceMode => {
-  const trimmed = rawValue.trim();
-  if (!isVoiceMode(trimmed)) {
-    throw new Error(`${name} must be one of ${VOICE_MODE_VALUES.join(", ")} (got "${trimmed}")`);
-  }
-  return trimmed;
-};
-
 // `<ms>:<vault path>`, split at the first colon, since a path may hold one and a count never does.
 const parseSlowReadsValue = (name: string, rawValue: string): SlowReads => {
   const trimmed = rawValue.trim();
@@ -207,12 +192,6 @@ const ENV_VARS = {
     name: "INTELIGIR_DEBUG",
     parse: ({ name, value }) => parseDebugNamespaces(name, value),
   }),
-  modelDir: defineEnvVar({
-    description:
-      "Absolute (or ~-relative) directory the downloaded local models live in; unset means ~/.inteligir/models. Shared across checkouts on purpose — a model is a cache of the NETWORK, immutable and named by its id, so duplicating it per dev instance costs a re-download and buys nothing.",
-    name: "INTELIGIR_MODEL_DIR",
-    parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
-  }),
   port: defineEnvVar({
     description: "TCP port for the local server.",
     name: "INTELIGIR_PORT",
@@ -241,12 +220,6 @@ const ENV_VARS = {
       "Vault auto-sync cadence in milliseconds; 0 disables the loop AND the boot sync, leaving the vault.syncNow procedure the only trigger (what a deterministic test harness needs). Unset means the runtime default.",
     name: "INTELIGIR_SYNC_INTERVAL_MS",
     parse: ({ name, value }) => parseSyncIntervalValue(name, value),
-  }),
-  voice: defineEnvVar({
-    description:
-      "Dictation runtime: auto (streaming Parakeet via sherpa-onnx against a downloaded model) or scripted (an in-process fake that needs neither, for e2e).",
-    name: "INTELIGIR_VOICE",
-    parse: ({ name, value }) => parseVoiceModeValue(name, value),
   }),
 };
 
@@ -387,11 +360,8 @@ export interface AppConfig {
   vaultRemote: string | null;
   // absent = runtime default, null = disabled, number = ms.
   vaultSyncIntervalMs?: number | null;
-  // under the prod data dir in both modes: a model is a network cache keyed by id, so checkouts share one copy.
-  modelDir: string;
   // null outside the scenario suite
   slowReads: SlowReads | null;
-  voice: VoiceMode;
   agent: AgentMode;
   agentModels: HarnessModels;
   cloudUrl: string;
@@ -522,12 +492,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
 
   const vaultRemote = resolveVaultRemote(args, homeDir, managed);
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
-  const modelDir =
-    readEnvVar(ENV_VARS.modelDir, args.env, homeDir) ??
-    path.join(homeDir, PROD_DATA_DIR_NAME, MODELS_DIR_NAME);
-  assertModelDirOutsideVault(path.resolve(modelDir), path.resolve(vaultDir));
   const slowReads = readEnvVar(ENV_VARS.slowReads, args.env, homeDir) ?? null;
-  const voice = readEnvVar(ENV_VARS.voice, args.env, homeDir) ?? "auto";
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModels = resolveAgentModels(args, homeDir, managed);
   const cloudUrl = resolveCloudUrl(args, homeDir, managed);
@@ -542,7 +507,6 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     dataDirSource: envDataDir === undefined ? "default" : "env",
     databasePath: path.join(dataDir, SQLITE_DATABASE_FILE_NAME),
     mode,
-    modelDir,
     port,
     portSource: configSource(envPort, managed.port),
     rootDataDir,
@@ -550,7 +514,6 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     vaultDir,
     vaultDirSource,
     vaultRemote,
-    voice,
     warnings: legacyModelWarnings(args.env, managedFile, rootDataDir),
   };
   if (envSyncIntervalMs !== undefined) {

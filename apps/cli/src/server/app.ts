@@ -10,7 +10,6 @@ import {
   HTML_FRAME_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
-  VOICE_STREAM_PATH,
   websocketOrigin,
   WS_PATH,
 } from "@repo/api/local/routes";
@@ -35,14 +34,11 @@ import { presentedCredential, tokenAccepted } from "./server-file";
 import type { PresentedCredential } from "./server-file";
 import { SIGNED_OUT_PAGE } from "./signed-out-page";
 import { handleVaultAsset } from "./vault/asset-route";
-import type { VoiceStreamConnection } from "./voice/voice-stream-connection";
-import type { VoiceStreamHub } from "./voice/voice-stream-hub";
 import type { WsBus } from "./ws-bus";
 
 export interface CreateAppArgs {
   context: AppServices;
   bus: WsBus;
-  voiceStreamHub: VoiceStreamHub;
   serverToken: string;
   clientDir: string | null;
 }
@@ -197,27 +193,6 @@ export const createApp = (args: CreateAppArgs) => {
         args.bus.registerClient(socket);
       },
     })),
-  );
-
-  // its own endpoint: it carries a payload (pcm16 up, partial/final down), which the invalidation bus never does.
-  app.get(
-    VOICE_STREAM_PATH,
-    requireServerToken,
-    upgradeWebSocket(() => {
-      let connection: VoiceStreamConnection | null = null;
-      return {
-        onClose: () => {
-          void connection?.dispose();
-          connection = null;
-        },
-        onMessage: (event) => {
-          connection?.receive(event.data);
-        },
-        onOpen: (_event, socket) => {
-          connection = args.voiceStreamHub.open(socket);
-        },
-      };
-    }),
   );
 
   // no token: the redirect is a cross-site top-level navigation, which cannot carry one.

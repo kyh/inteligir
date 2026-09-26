@@ -1,7 +1,7 @@
 // the paths outside the rpc handler, none of which may acquire a typed client: /health is an
 // unauthenticated supervisor probe, /vault/asset answers bytes with an etag, a 304 and a
 // sandbox csp, /html-frame is the document a note's html block runs in under its own sandbox
-// csp, and the two sockets carry frames. the connector oauth callback, a browser landing, is
+// csp, and the /ws socket carries frames. the connector oauth callback, a browser landing, is
 // spelled by the flow that owns its state.
 
 import { z } from "zod";
@@ -16,8 +16,6 @@ export const HTML_FRAME_PATH = "/html-frame";
 
 export const WS_PATH = "/ws";
 
-export const VOICE_STREAM_PATH = "/voice/stream";
-
 export const healthResponseSchema = z.object({ ok: z.literal(true) }).strict();
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
@@ -31,9 +29,6 @@ export const websocketOrigin = (httpOrigin: string): string => httpOrigin.replac
 
 export const workspaceSocketUrl = (httpOrigin: string): string =>
   `${websocketOrigin(httpOrigin)}${WS_PATH}`;
-
-export const voiceStreamUrl = (httpOrigin: string): string =>
-  `${websocketOrigin(httpOrigin)}${VOICE_STREAM_PATH}`;
 
 // a browser holds no bearer, so it signs in by opening a document URL carrying a single-use
 // nonce: the server trades it for the session cookie and redirects to the same URL without it.

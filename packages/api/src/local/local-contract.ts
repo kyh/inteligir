@@ -9,7 +9,6 @@ import { knowledgeContract } from "./knowledge/knowledge-contract";
 import { systemContract } from "./system/system-contract";
 import { threadsContract } from "./threads/threads-contract";
 import { vaultContract } from "./vault/vault-contract";
-import { voiceContract } from "./voice/voice-contract";
 
 export const localContract = {
   agents: agentsContract,
@@ -21,7 +20,6 @@ export const localContract = {
   system: systemContract,
   threads: threadsContract,
   vault: vaultContract,
-  voice: voiceContract,
 };
 
 export type LocalContract = typeof localContract;
