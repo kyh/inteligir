@@ -714,6 +714,76 @@ describe("action commands", () => {
     });
     expect(missing.code).toBe(1);
   });
+
+  it("undoes the newest applied turn unless told which, naming each kept note's reason", async () => {
+    const state = seededState();
+    state.threads.push(
+      {
+        pendingInteractions: [],
+        thread: makeThread({ id: "thr_1" }),
+        timeline: EMPTY_TIMELINE,
+        turnChanges: [
+          { paths: ["notes/a.md"], state: "applied", turnId: "turn_1" },
+          { paths: ["notes/a.md", "notes/b.md"], state: "applied", turnId: "turn_2" },
+          { paths: ["notes/c.md"], state: "undone", turnId: "turn_3" },
+        ],
+        turnUndo: {
+          kept: [{ path: "notes/b.md", reason: "edited-since" }],
+          reverted: ["notes/a.md"],
+        },
+      },
+      {
+        pendingInteractions: [],
+        thread: makeThread({ id: "thr_2" }),
+        timeline: EMPTY_TIMELINE,
+        turnChanges: [{ paths: ["notes/d.md"], state: "applied", turnId: "turn_4" }],
+      },
+    );
+    const server = await boot(state);
+
+    const newest = await runCliForTest({
+      argv: ["action", "undo", "thr_1"],
+      baseUrl: server.baseUrl,
+    });
+    expect(newest.code).toBe(0);
+    expect(newest.stdout).toBe(
+      [
+        "reverted  notes/a.md",
+        "kept      notes/b.md  (edited since the turn, where the turn changed it)",
+        "",
+      ].join("\n"),
+    );
+    expect(newest.stderr).toContain("Undid what it could of turn turn_2");
+    expect(state.threads[0]?.turnChanges?.map((turn) => turn.state)).toEqual([
+      "applied",
+      "undone",
+      "undone",
+    ]);
+
+    const again = await runCliForTest({
+      argv: ["action", "undo", "thr_1", "--turn", "turn_2"],
+      baseUrl: server.baseUrl,
+    });
+    expect(again.code).toBe(1);
+    expect(again.stdout).toBe("");
+
+    const json = await runCliForTest({
+      argv: ["action", "undo", "thr_2", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(json.stdout)).toEqual({
+      kept: [],
+      reverted: ["notes/d.md"],
+      turnId: "turn_4",
+    });
+
+    const nothingLeft = await runCliForTest({
+      argv: ["action", "undo", "thr_2"],
+      baseUrl: server.baseUrl,
+    });
+    expect(nothingLeft.code).toBe(1);
+    expect(nothingLeft.stderr).toContain("No turn of thr_2 has changes left to undo.");
+  });
 });
 
 describe("interactions commands", () => {

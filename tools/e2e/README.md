@@ -121,6 +121,10 @@ what each one is FOR.
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
 |                           | CAS write guards the save (typed conflict, current bytes in the body);    |
 |                           | a rename drags the attachment along — all verified on disk                |
+| undo-scripted             | undoing the second of two scripted turns leaves the first turn's text     |
+|                           | and a line the user added since, on disk and through `vault.read`; the    |
+|                           | first turn's note is then kept as edited since, and an untouched turn's   |
+|                           | undo removes the note it made                                             |
 | cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get    |
 |                           | resolves against this checkout                                            |
 | debug-log                 | `INTELIGIR_DEBUG` traces what the watcher kept and dropped and the        |

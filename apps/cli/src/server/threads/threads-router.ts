@@ -95,6 +95,24 @@ const turnChanges = base.threads.turnChanges.handler(async ({ context, input, er
   return changes;
 });
 
+// never attributed to a running turn: the agent may be asking for this undo from inside a later
+// turn of the same thread, and that turn's commit must not carry it.
+const undoTurn = base.threads.undoTurn.handler(async ({ context, input, errors }) => {
+  const outcome = await context.undoTurn(input.threadId, input.turnId);
+  switch (outcome.kind) {
+    case "undone": {
+      return outcome.changes;
+    }
+    case "not-found": {
+      throw errors.NOT_FOUND({ message: outcome.message });
+    }
+    case "conflict": {
+      throw errors.CONFLICT({ message: outcome.message });
+    }
+    // no default
+  }
+});
+
 const listInteractions = base.threads.listInteractions.handler(({ context, input }) => ({
   interactions: context.threads.listInteractions(input.threadId),
 }));
@@ -129,4 +147,5 @@ export const threadsRouter = {
   send,
   timeline,
   turnChanges,
+  undoTurn,
 };

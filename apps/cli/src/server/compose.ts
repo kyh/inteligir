@@ -10,7 +10,7 @@ import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import { createAgentsService } from "./agents/agents-service";
-import { listTurnChanges } from "./agents/turn-changes";
+import { listTurnChanges, undoTurnChanges } from "./agents/turn-changes";
 import { createBrowserSession } from "./browser-session";
 import { createCommentsService } from "./comments/comments-service";
 import { systemOpenExternalUrl } from "./browser-opener";
@@ -270,6 +270,15 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     threads,
     turnChanges: async (threadId: string) =>
       await listTurnChanges({ db, git: vault.git, threadId }),
+    undoTurn: async (threadId: string, turnId: string) =>
+      await undoTurnChanges({
+        db,
+        git: vault.git,
+        notifier: bus,
+        service: vault.service,
+        threadId,
+        turnId,
+      }),
     vault,
     vaultPrefs,
   };

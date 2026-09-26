@@ -217,6 +217,17 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   the files it reported writing (its file changes and its own \`inteligir\`
   writes), never an edit made beside it; a turn that changed nothing is not
   listed.
+- \`inteligir action undo <id> [--turn <turnId>]\` — take back what one turn
+  changed (by default the newest turn not yet undone), keeping every edit made
+  since: each note it changed goes back to how it was before that turn, with
+  later edits merged in. A note edited since where the turn changed it, deleted
+  or made again since, being changed by a running turn, or not text is kept
+  as it is and named with its reason; its history still holds the version from
+  before the turn. A turn still running, or already undone, is refused
+  (\`CONFLICT\`). When the user asks you, inside an action, to undo what you
+  did, run it on your own action (\`$INTELIGIR_THREAD_ID\`) with the \`--turn\`
+  of the earlier turn from \`inteligir action changes\`: the turn you are in has
+  not finished, so it cannot be undone yet.
 
 The spawn-and-wait loop an agent should use:
 

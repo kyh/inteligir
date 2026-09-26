@@ -1201,6 +1201,26 @@ to the END of its group.
   `packages/agent-runtime/src/acp/__tests__/vault-config-isolation.test.ts`
   runs each pinned adapter against a fake vendor and reads what it was handed.
 
+- **UNDO IS A THREE-WAY REVERT OF ONE TURN'S COMMIT, THROUGH THE VAULT'S OWN
+  CAS.** `threads.undoTurn` (`inteligir action undo`) reads each path the
+  turn's commit changed at its parent and at the commit, and merges the turn's
+  change out of the bytes on disk now (`@repo/notes/text/revert-edit`), so an
+  edit made since survives. A note whose later edits overlap or touch the
+  turn's is kept whole and named, never half undone (owner decision); no Redo,
+  since History restores. Rejected: `git revert` or `git checkout`, which
+  bypass the CAS, the re-index, the `/ws` notification and the open buffer's
+  convergence, and a byte restore to the parent, which discards every later
+  edit, the user's included — the loss undo exists to remove. Every write is
+  the vault's `writeIfUnchanged` / `removeIfUnchanged` / `absent` guard, as a
+  tag rename's are, so there is no second CAS and a write racing the undo is
+  kept and named. A path a running turn claimed is `busy`, and a turn still
+  running or already undone is refused (`CONFLICT`). The undo commits as the
+  engine under `Undoes-Turn:`, holding commits while it writes so no flush or
+  sync sweeps its writes into a commit that names no turn, and never through
+  `attributeWrites`, so an agent undoing an earlier turn from inside a later
+  one does not commit the undo as its own. Comment stores are skipped: a line
+  merge can break their json. `apps/cli/src/server/agents/turn-changes.ts`.
+
 ### Dictation
 
 - **DICTATION IS THE OPERATING SYSTEM'S** (owner decision, reversing streaming
