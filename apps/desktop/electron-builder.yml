@@ -1,6 +1,6 @@
 # Signed with the Developer ID electron-builder finds in the keychain and notarized when
 # APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER are set — scripts/package.mjs sets
-# them from <repo>/.release/notary.env; README.md § Packaging has the release path. Without
+# them from <repo>/.release/notary.env; docs/releasing.md is the release path. Without
 # a cert or those variables the step is skipped, not failed.
 appId: com.inteligir.desktop
 productName: Inteligir
@@ -72,7 +72,7 @@ mac:
 dmg:
   sign: true
 # the feed electron-updater reads (app-update.yml beside the app) and the manifest it fetches
-# (latest-mac.yml) derive from this; uploading is `gh release create`, never electron-builder
+# (latest-mac.yml) derive from this; the upload is docs/releasing.md's, never electron-builder's
 publish:
   provider: github
   owner: kyh

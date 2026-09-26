@@ -27,7 +27,7 @@ glossary, `apps/web/README.md` the Worker's own routes and deploy.
 ```sh
 pnpm install
 pnpm dev             # → THE PRODUCT: the shell over its own server, e.g.
-                     #   inteligir 0.4.0 (dev) listening on http://127.0.0.1:26723
+                     #   inteligir <version> (dev) listening on http://127.0.0.1:26723
 pnpm cli serve       # → the server ALONE, from source, no window. A shell
                      #   started afterwards ADOPTS it, so this is the loop for
                      #   iterating on server code.
@@ -132,6 +132,11 @@ pnpm format:fix && pnpm verify
 for exactly that reason. `docs/development.md` owns the full command list,
 the ports, where state lives, and what CI runs on top of `verify`.
 
+Releasing is the owner's: `docs/releasing.md` is the runbook, and its
+publishing steps need credentials no agent holds. A change whose proof needs a
+device, an account or a credential adds its check to that file's § 5, under
+its surface.
+
 Runtime — drive the running site with
 [agent-browser](https://github.com/vercel-labs/agent-browser):
 
@@ -200,3 +205,4 @@ tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 - `apps/cli/README.md` — the binary's two modes and every verb.
 - `apps/desktop/README.md` — the window, the protocol, the packaged app.
 - `docs/privacy.md` — what leaves the machine, what never does, how it dies.
+- `docs/releasing.md` — the release runbook and every owner-only check.
