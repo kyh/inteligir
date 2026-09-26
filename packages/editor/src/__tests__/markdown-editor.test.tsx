@@ -53,6 +53,10 @@ vi.mock("@repo/editor/kits/editor-kit", () => ({
   EDITOR_KIT: [],
 }));
 
+vi.mock("@repo/editor/kits/touch-editor-kit", () => ({
+  TOUCH_EDITOR_KIT: [],
+}));
+
 vi.mock("@repo/editor/markdown/markdown-doc", () => ({
   parseMarkdown: (markdown: string) => ({
     ok: true,

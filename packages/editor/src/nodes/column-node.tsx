@@ -10,7 +10,10 @@ import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 
+import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
+
+import { LockedContent } from "./rich-block-chrome";
 
 const MIN_PCT = 10;
 
@@ -24,6 +27,9 @@ export const ColumnGroupElement = (props: PlateElementProps) => (
 
 export const ColumnElement = (props: PlateElementProps) => {
   const readOnly = useReadOnly();
+  const locked = useRichBlocksLocked();
+  // a locked column draws as a read-only one: no edit frame, no resize handle
+  const frozen = readOnly || locked;
   const editor = useEditorRef();
   const element = useElement();
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -137,12 +143,12 @@ export const ColumnElement = (props: PlateElementProps) => {
       ref={hostRef}
       className={cn(
         "group/column relative",
-        !readOnly && "rounded-lg border border-dashed border-border p-1.5",
+        !frozen && "rounded-lg border border-dashed border-border p-1.5",
       )}
       style={width ? { flex: `0 1 ${width}` } : { flex: "1 1 0%" }}
     >
-      {props.children}
-      {!readOnly && !isLast ? (
+      <LockedContent locked={locked}>{props.children}</LockedContent>
+      {!frozen && !isLast ? (
         <div
           contentEditable={false}
           onPointerDown={startResize}

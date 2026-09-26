@@ -28,6 +28,9 @@ src/
   markdown-editor.tsx, editor-column.tsx, editor-chrome.tsx
                        # the editor surface, its chrome, and the column that
                        # shows the open note
+  editor-profile.tsx   # which hand the editor is drawn for, `desktop` (unset)
+                       # or `touch`: the kit, the outline rail, the column's
+                       # inset
   markdown/
     md-rules.ts        # the Slate↔mdast rules — one per node type
     alert-marker.ts    # the `> [!NOTE]` alert grammar, spelled once: the
@@ -41,7 +44,19 @@ src/
   dialect-node-keys.ts # every dialect node's Slate type, spelled once; a leaf, so
                        # the kits, the rules and the walks import it without a cycle
   kits/
-    editor-kit.ts      # the React composition Plate actually runs
+    editor-kit.ts      # CONTENT_KIT (every node, the dialect's inputs and
+                       # decorations, the comment tint, the markdown wiring)
+                       # and DESKTOP_CHROME_KIT; EDITOR_KIT, the desktop's,
+                       # is the two in that order
+    touch-editor-kit.ts
+                       # CONTENT_KIT, the rich-block lock and the touch chrome:
+                       # composed, never the desktop kit minus its pointer
+                       # chrome (drag, block menu, selection toolbar, find bar,
+                       # comment gutter)
+    rich-block-lock-kit.ts
+                       # the model guard that makes a chart, a canvas, an html
+                       # block, tabs and columns read-only: no op inside one
+                       # applies, a whole-block insert, remove or move does
     base-kit.ts        # the headless mirror, for the serializer
     markdown-kit.ts    # the markdown plugin wiring
   nodes/               # every node type as a Base (headless) + React pair
@@ -70,6 +85,9 @@ src/
   cursor-overlay.tsx, insert-void.ts
                        # the in-document affordances — every surface a node can
                        # be inserted from, and the transforms behind them
+  touch-toolbar.tsx    # the soft keyboard's toolbar: every button a row of the
+                       # table its desktop twin reads (MARK_SHORTCUTS,
+                       # EDITOR_SHORTCUTS, the slash menu's GROUPS)
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
   formula-*.ts(x)      # the `{{` picker and its insertion
   agent-request.ts     # the action registry the app fills at mount (Ask agent,
@@ -97,7 +115,7 @@ src/
 - **Every node type is a Base + React pair.** `base-kit.ts` composes the Base
   halves for the headless serializer; `kit-parity.test.ts` fails when the two
   compositions disagree, so a node that renders but does not serialize is
-  impossible.
+  impossible, and `touch-kit.test.ts` holds the touch kit to the same.
 - **Rich is the default surface.** Anything that PARSES opens Rich and
   normalizes on the first real edit. Constructs with no editor node — unknown
   JSX, `{…}` expressions, raw HTML — are opaque nodes
@@ -129,7 +147,11 @@ src/
   built over, which the `[[` picker and the slash menu's templates list —
   subscribed to rather than read, because it moves with every refresh while the
   actions never do), vault reads, asset bytes in and out, the knowledge queries,
-  and the change events that invalidate them. The editor never reaches the
+  and the change events that invalidate them, plus what only some hosts have:
+  a frame to run an html block in (`htmlFrameUrl`, null hides Run) and a
+  native photo picker that writes what it picks (`pickImage`, null hides the
+  touch toolbar's image button; a picked path lands through `insertVaultImage`,
+  as a paste does). The editor never reaches the
   server for any of it; the app installs it once
   (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), and `host.ts` is
   React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
@@ -143,6 +165,9 @@ src/
   (`askVanished`). Drivable without React.
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.
+- `editor-profile.tsx` — `EditorProfileProvider`, set once by a host around
+  the column. The desktop sets none; a touch host sets `touch` and gets the
+  touch kit, no outline rail and a narrower inset.
 - `live-editor.ts` — the path-keyed registry the shell reaches a mounted
   editor through (the pin, comments, the Metadata tab's properties). A render
   SUBSCRIBES — `useLiveEditor`, or `subscribeLiveEditors` for a snapshot of

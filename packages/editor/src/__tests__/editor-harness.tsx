@@ -8,8 +8,9 @@ import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 
-import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import type { EditorProfile } from "@repo/editor/editor-profile";
 import { registerLiveEditor } from "@repo/editor/live-editor";
+import { PROFILE_KITS } from "@repo/editor/markdown-editor";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 
@@ -19,6 +20,7 @@ export const EditorHarness = ({
   ref,
   livePath,
   nodeIds = false,
+  profile = "desktop",
 }: {
   value: Value;
   store: OpenNoteStore;
@@ -27,8 +29,10 @@ export const EditorHarness = ({
   // Plate turns NodeIdPlugin off under NODE_ENV=test; the app runs it, and the block overlays
   // address blocks by that id.
   nodeIds?: boolean;
+  // the kit the app mounts for that hand
+  profile?: EditorProfile;
 }) => {
-  const editor = usePlateEditor({ nodeId: nodeIds, plugins: EDITOR_KIT, value });
+  const editor = usePlateEditor({ nodeId: nodeIds, plugins: PROFILE_KITS[profile], value });
   useImperativeHandle(ref, () => editor, [editor]);
   useEffect(() => {
     if (livePath === undefined) {
