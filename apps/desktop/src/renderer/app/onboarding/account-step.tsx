@@ -1,40 +1,14 @@
 // The first run's offer of an account, over the one AccountForm and `useCloudSession`, opening on
-// Create: the cohort joins with an invite. What an account does for these notes depends on where
-// they already sync, so the offer follows the vault's status. A device signed in has nothing left
-// to be offered, which is also how a sign-up or a sign-in moves the step on.
+// Create: the cohort joins with an invite. A device signed in has nothing left to be offered,
+// which is also how a sign-up or a sign-in moves the step on.
 
-import { externalSyncName } from "@repo/api/local/vault/vault-schema";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useEffectEvent } from "react";
 import { AccountForm } from "../account-form";
+import { accountOffer } from "../account-offer";
 import { useCloudSession } from "../cloud-session";
 import { useVaultStatus } from "../vault-hooks";
-
-interface AccountOffer {
-  title: string;
-  lead: string;
-}
-
-const accountOffer = (vault: VaultStatusResponse): AccountOffer => {
-  if (vault.state === "no-remote" && vault.externalSync !== null) {
-    return {
-      lead: `${externalSyncName(vault.externalSync)} already syncs these notes, and your phone won't show them. An account still carries your conversations with the agent to your other Macs.`,
-      title: "Create your account",
-    };
-  }
-  if (vault.state !== "no-remote" && vault.remoteSource === "explicit") {
-    return {
-      lead: "These notes keep syncing where they already do. An account carries your conversations with the agent to your other devices.",
-      title: "Create your account",
-    };
-  }
-  return {
-    lead: "An account backs up your notes and brings them to your other Macs and your iPhone.",
-    title: "Back up your notes",
-  };
-};
 
 export const AccountStep = ({ onNext }: { onNext: () => void }) => {
   const session = useCloudSession();

@@ -10,6 +10,7 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AccountForm } from "../account-form";
+import { accountOffer } from "../account-offer";
 import { failed, orpc } from "../api";
 import { useCloudSession } from "../cloud-session";
 import { relativeTimeLabel, useNow } from "../relative-time";
@@ -199,6 +200,7 @@ export const AccountSection = () => {
   const accountForm = (cloudUrl: string) => (
     <AccountForm
       cloudUrl={cloudUrl}
+      lead={vaultStatus === undefined ? undefined : accountOffer(vaultStatus).lead}
       onCreate={signUp}
       onSignIn={signIn}
       pending={pending}

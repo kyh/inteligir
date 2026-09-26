@@ -25,9 +25,9 @@ export interface AccountFormProps {
   refusal: string | null;
   // absent, sign-in: only a first run meets someone who most likely has an invite and no account
   initialMode?: AccountFormMode;
-  // in place of the form's own sentence, which promises the notes start syncing: a surface that
-  // knows the vault says what an account does for it
-  lead?: string;
+  // what an account does for these notes (`accountOffer`), which depends on where they already
+  // sync; absent until the vault's status is known, the form's own sentence
+  lead?: string | undefined;
 }
 
 const Field = ({ id, label, ...input }: { label: string } & ComponentProps<typeof Input>) => (
