@@ -204,5 +204,6 @@ tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 - `docs/development.md` — the dev loop in one page.
 - `apps/cli/README.md` — the binary's two modes and every verb.
 - `apps/desktop/README.md` — the window, the protocol, the packaged app.
-- `docs/privacy.md` — what leaves the machine, what never does, how it dies.
+- `docs/privacy.md` — what leaves the machine, what never does, what the phone
+  keeps, how it dies.
 - `docs/releasing.md` — the release runbook and every owner-only check.
