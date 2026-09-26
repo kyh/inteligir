@@ -1275,9 +1275,10 @@ to the END of its group.
   on the device, never the address: a stolen credential moves between addresses
   and the device row is what `/app/devices` revokes. Two families so a drained
   read budget never takes sync down; both ceilings are set from the worst
-  legitimate minute, and revocation is the control. A read-scoped credential
-  is the deeper answer and is not built; the trigger is a second party holding
-  a credential for someone else's account.
+  legitimate minute, which for reads includes a phone's first mirror (a batch
+  per 40 notes, a tree page per 500), and revocation is the control. A
+  read-scoped credential is the deeper answer and is not built; the trigger is
+  a second party holding a credential for someone else's account.
 
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
   `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
@@ -1477,6 +1478,20 @@ to the END of its group.
   normalization, since a Mac cannot hold both. Author and committer both name
   the device, the committer's email marking the Worker, because a conflict
   copy names the other device from the committer.
+
+- **A MIRROR READ IS PINNED AND BATCHED.** A phone holds every note's text, so
+  the tree lists each blob's `oid` and the phone fetches only what changed,
+  forty paths to a `POST /v1/vault/files` that spends one read unit. Rejected:
+  one `/v1/vault/file` per note, which made a 5,000-note first mirror 5,000
+  requests against the device's budget. `ref` is REQUIRED on the batch: the
+  mirror diffed one listing, and a batch read at a head a push moved would
+  hand it bytes that listing never named. The listing slot stays one per repo,
+  keyed by the head a read resolved, and now holds the oids; a slot kept in the
+  older shape fails its parse and is walked again, so it needs no migration.
+  Forty because each path is a call into the repo cell and a Free invocation
+  makes at most 50 subrequests; past the byte budget the rest is `deferred`,
+  never the first file. `packages/api/src/cloud/vault/vault-schema.ts`,
+  `apps/web/src/worker/vault/read-routes.ts` and `tree-listing.ts`.
 
 ### Server process and the desktop shell
 

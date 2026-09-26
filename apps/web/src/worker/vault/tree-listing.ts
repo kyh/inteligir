@@ -8,8 +8,11 @@ export const treeListingPrefix = (repo: string): string => `listing/${repo}/`;
 const listingKey = (repo: string): string => `${treeListingPrefix(repo)}head.json`;
 
 // this worker is the slot's only writer, so the parse checks shape alone; the walk that filled it
-// already refused every path the contract would.
-const listingSchema = z.array(z.object({ path: z.string(), size: z.number() }).strict());
+// already refused every path the contract would. A slot kept in an older shape fails it, so it is
+// a miss the next head-resolving read walks again and overwrites.
+const listingSchema = z.array(
+  z.object({ oid: z.string(), path: z.string(), size: z.number() }).strict(),
+);
 
 export interface TreeListingSlot {
   // the listing at `commit`, sorted by path; null when the slot holds another commit or none.

@@ -14,6 +14,7 @@ import type { CommentsRead, NotesStore, SignInSource } from "../notes-store";
 
 const COMMIT = "c".repeat(40);
 const LATER_COMMIT = "e".repeat(40);
+const NOTE_OID = "d".repeat(40);
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const OTHER_CREDENTIAL = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_2" };
 
@@ -42,7 +43,7 @@ const fakeCloud = (extra: Record<string, string> = {}): FakeCloud => {
         const last = page.at(-1);
         return Response.json({
           commit: COMMIT,
-          entries: page.map((path) => ({ path, size: 4 })),
+          entries: page.map((path) => ({ oid: NOTE_OID, path, size: 4 })),
           next: from.length > page.length && last !== undefined ? last : null,
         });
       }
@@ -55,7 +56,7 @@ const fakeCloud = (extra: Record<string, string> = {}): FakeCloud => {
             { status: 404 },
           );
         }
-        return Response.json({ commit: COMMIT, content, oid: "d".repeat(40), path });
+        return Response.json({ commit: COMMIT, content, oid: NOTE_OID, path });
       }
       return Response.json(
         { error: { code: "not-found", message: "No such route." } },
@@ -122,9 +123,9 @@ describe("the notes store", () => {
     expect(tree).toEqual({
       commit: COMMIT,
       entries: [
-        { path: "a.md", size: 4 },
-        { path: "notes/b.md", size: 4 },
-        { path: "notes/deep/c.md", size: 4 },
+        { oid: NOTE_OID, path: "a.md", size: 4 },
+        { oid: NOTE_OID, path: "notes/b.md", size: 4 },
+        { oid: NOTE_OID, path: "notes/deep/c.md", size: 4 },
       ],
       refreshError: null,
       state: "ready",
@@ -201,7 +202,7 @@ describe("the notes store", () => {
       endless && new URL(input).pathname === VAULT_API_PATHS.tree
         ? Response.json({
             commit: LATER_COMMIT,
-            entries: [{ path: "a.md", size: 4 }],
+            entries: [{ oid: NOTE_OID, path: "a.md", size: 4 }],
             next: "a.md",
           })
         : await cloud.fetch(input, init),
@@ -384,7 +385,7 @@ const grownWorker: CloudFetch = async (input) => {
   if (url.pathname === VAULT_API_PATHS.tree) {
     return Response.json({
       commit: COMMIT,
-      entries: [{ mode: "100644", path: "a.md", size: 4 }],
+      entries: [{ mode: "100644", oid: NOTE_OID, path: "a.md", size: 4 }],
       next: null,
       walkedAt: 1,
     });
@@ -394,7 +395,7 @@ const grownWorker: CloudFetch = async (input) => {
       commit: COMMIT,
       content: "# a\n",
       encoding: "utf-8",
-      oid: "d".repeat(40),
+      oid: NOTE_OID,
       path: "a.md",
     });
   }
@@ -434,7 +435,7 @@ describe("a worker newer than this build", () => {
 
     expect(store.tree.get()).toEqual({
       commit: COMMIT,
-      entries: [{ path: "a.md", size: 4 }],
+      entries: [{ oid: NOTE_OID, path: "a.md", size: 4 }],
       refreshError: null,
       state: "ready",
     });

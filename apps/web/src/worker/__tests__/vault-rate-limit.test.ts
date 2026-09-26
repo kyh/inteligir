@@ -18,8 +18,10 @@ import {
   sessionHeaders,
   signUpUser,
 } from "./cloud-helpers";
+import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
+const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
 
 const spendBudget = async (key: string): Promise<void> => {
@@ -100,6 +102,41 @@ describe("the hosted vault's per-device budgets", () => {
 });
 
 // outside the window above: a fourth sign-up there meets better auth's own sign-up throttle
+describe("a batch read's budget", () => {
+  it("spends one unit for the whole batch, however many paths it names", async () => {
+    const { bearer } = await signUpUser("vault-budget-batch@example.test");
+    const phone = await loginDevice(bearer, "Phone");
+    const paths = ["a.md", "b.md", "c.md", "notes/d.md"];
+    const pushed = await pushVaultFiles(
+      phone.credential,
+      "vault: initialize",
+      paths.map((path) => ({ content: `# ${path}\n`, path })),
+      ZERO_OID,
+    );
+    expect(pushed.response.status).toBe(200);
+
+    const wasDisabled = env.RATE_LIMIT_DISABLED;
+    env.RATE_LIMIT_DISABLED = "false";
+    try {
+      const batch = await SELF.fetch(FILES, {
+        body: JSON.stringify({ paths, ref: pushed.commit }),
+        headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(batch.status).toBe(200);
+    } finally {
+      env.RATE_LIMIT_DISABLED = wasDisabled;
+    }
+
+    const rows = await createDb(env.DB)
+      .select({ count: rateLimit.count })
+      .from(rateLimit)
+      .where(eq(rateLimit.key, deviceRateKey("vaultRead", phone.deviceId)))
+      .all();
+    expect(rows).toEqual([{ count: 1 }]);
+  });
+});
+
 describe("a signed-out device's budgets", () => {
   it("go with it, as a revoked device's do", async () => {
     const { bearer } = await signUpUser("vault-budget-signout@example.test");

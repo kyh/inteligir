@@ -60,6 +60,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   if (
     url.pathname === VAULT_API_PATHS.tree ||
     url.pathname === VAULT_API_PATHS.file ||
+    url.pathname === VAULT_API_PATHS.files ||
     url.pathname === VAULT_API_PATHS.asset
   ) {
     return await handleVaultReadRoutes(request, env, url);

@@ -96,8 +96,9 @@ export const RATE_WINDOWS = {
   // set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
   // device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
   vaultGit: { max: 600, windowMs: 60_000 },
-  // the legitimate burst is one note's embeds, which the format does not bound; this breaks a
-  // runaway loop, and a note past it sees its tail answered 429
+  // the legitimate bursts are one note's embeds, which the format does not bound, and a phone's
+  // first mirror: a batch per 40 notes and a tree page per 500, 1,350 for the 50,000 entries a kept
+  // listing holds. this breaks a runaway loop, and a burst past it sees its tail answered 429
   vaultRead: { max: 3000, windowMs: 60_000 },
 } as const satisfies Record<CallerRateFamily | DeviceRateFamily, RateWindow>;
 

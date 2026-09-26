@@ -19,10 +19,13 @@ interface FakeVault {
   visits: () => number;
 }
 
+// distinct per blob, so a walk that dropped or crossed them shows
+const blobOid = (index: number): string => (index + 1).toString(16).padStart(40, "0");
+
 // a vault given as its file paths; every listing counts, because each one is a cell rpc.
 const fakeVault = (paths: readonly string[], missing?: string): FakeVault => {
   const trees = new Map<string, TreeEntryJson[]>();
-  for (const path of paths) {
+  for (const [index, path] of paths.entries()) {
     const segments = path.split("/");
     for (const [depth, name] of segments.entries()) {
       const dir = segments.slice(0, depth).join("/");
@@ -33,7 +36,7 @@ const fakeVault = (paths: readonly string[], missing?: string): FakeVault => {
       }
       entries.push(
         depth === segments.length - 1
-          ? { mode: "100644", name, oid: OID, size: path.length, type: "blob" }
+          ? { mode: "100644", name, oid: blobOid(index), size: path.length, type: "blob" }
           : { mode: "40000", name, oid: OID, type: "tree" },
       );
     }
@@ -166,10 +169,24 @@ describe("the hosted tree walk", () => {
     const vault = fakeVault(["a.md", ".git/config", "a\\b.md", "2024\\q1/c.md", "d/e.md"]);
     expect(await walkedPaths(vault)).toEqual(["a.md", "d/e.md"]);
   });
+
+  it("carries each blob's oid beside its path, so a reader can diff a listing by content", async () => {
+    const paths = ["z.md", "notes/b.md", "notes/deep/a.md"];
+    const walk = await walkTree({ listTree: fakeVault(paths).listTree, maxDirs: MAX_DIRS });
+    expect(walk).toEqual({
+      files: [
+        { oid: blobOid(1), path: "notes/b.md", size: "notes/b.md".length },
+        { oid: blobOid(2), path: "notes/deep/a.md", size: "notes/deep/a.md".length },
+        { oid: blobOid(0), path: "z.md", size: "z.md".length },
+      ],
+      ok: true,
+    });
+  });
 });
 
 describe("a tree page", () => {
   const LISTING: TreeFile[] = ["a.md", "b/c.md", "b/d.md", "e.md"].map((path) => ({
+    oid: OID,
     path,
     size: 1,
   }));

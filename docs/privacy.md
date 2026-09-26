@@ -110,9 +110,9 @@ account row itself goes:
    on purpose: while a device row lives its credential still works, so any
    later step could be undone by a request that arrives a moment after it.
 2. **Your hosted vault repo** — created once a signed-in device first pushes —
-   with the listing of its file names and sizes kept for your phone's reads. A
-   never-pushed account wipes empty tables, so the step is idempotent either
-   way.
+   with the listing of its file names, sizes and content ids kept for your
+   phone's reads. A never-pushed account wipes empty tables, so the step is
+   idempotent either way.
 3. **Your thread-sync Durable Object** is purged whole: every thread event,
    every capture, every open socket closed. It is then tombstoned, so a
    request that authenticated microseconds before step 1 cannot rebuild what
@@ -163,8 +163,9 @@ else under `/v1/` exists.
 | `/v1/capture`             | The text of a quick capture.                                                                         | The device's credential.                                    |
 | `/v1/sync/captures/claim` | The captures waiting for a computer to add them to your Inbox note.                                  | The device's credential.                                    |
 | `/v1/sync/captures/ack`   | The ids of the captures that computer added.                                                         | The device's credential and the claim it was handed.        |
-| `/v1/vault/tree`          | The names and sizes of the files in your hosted vault.                                               | The device's credential, within a per-device budget.        |
+| `/v1/vault/tree`          | The names, sizes and content ids of the files in your hosted vault.                                  | The device's credential, within a per-device budget.        |
 | `/v1/vault/file`          | One note's text from your hosted vault.                                                              | The device's credential, within a per-device budget.        |
+| `/v1/vault/files`         | Up to 40 notes' text from your hosted vault, in one request.                                         | The device's credential, within a per-device budget.        |
 | `/v1/vault/asset`         | One attachment from your hosted vault.                                                               | The device's credential, within a per-device budget.        |
 | `/v1/git/vault.git`       | Your vault and its history, sent up from and down to your computers.                                 | The device's credential, within a per-device budget.        |
 

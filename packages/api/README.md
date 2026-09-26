@@ -70,9 +70,9 @@ src/
     captures/          # at-least-once delivery, exactly-once deletion by claim
     account/           # /v1/account — its own route, because 0.4.0 and older
                        # read the login answer strictly
-    vault/             # VAULT_API_PATHS, the hosted tree/file/asset shapes and
-                       # ceilings, VAULT_GIT_PATH, and the asset media-type
-                       # allowlist the desktop and Worker routes share
+    vault/             # VAULT_API_PATHS, the hosted tree/file/files/asset
+                       # shapes and ceilings, VAULT_GIT_PATH, and the asset
+                       # media-type allowlist the desktop and Worker routes share
 ```
 
 ## Who consumes which half
