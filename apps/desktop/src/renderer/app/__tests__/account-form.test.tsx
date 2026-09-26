@@ -143,4 +143,23 @@ describe("the account form, creating an account", () => {
     fireEvent.click(button("I have an account"));
     expect(screen.queryByText(/invite code isn't valid/u)).toBeNull();
   });
+
+  it("opens on Create when asked, saying the surface's sentence in place of its own", () => {
+    render(
+      <AccountForm
+        cloudUrl="https://cloud.test"
+        onCreate={vi.fn<(request: CloudSignUpRequest) => void>()}
+        onSignIn={vi.fn<(request: CloudLoginRequest) => void>()}
+        pending={false}
+        refusal={null}
+        initialMode="create"
+        lead="Dropbox already syncs these notes."
+      />,
+    );
+    expect(screen.getByLabelText("Invite code")).toBeDefined();
+    expect(screen.getByText("Dropbox already syncs these notes.")).toBeDefined();
+    expect(screen.queryByText(/start syncing/u)).toBeNull();
+    fireEvent.click(button("I have an account"));
+    expect(screen.getByText("Dropbox already syncs these notes.")).toBeDefined();
+  });
 });

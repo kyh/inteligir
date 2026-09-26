@@ -8,3 +8,6 @@ export const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 export const treeRow = (vaultPath: string): string => `[role="tree"] [data-path="${vaultPath}"]`;
 export const OPTION = "[role=option]";
 export const OPTION_COUNT = `String(document.querySelectorAll('${OPTION}').length)`;
+// the step /welcome draws over the workspace after a first run; none once it is finished.
+export const WELCOME_STEP = "[data-welcome-step]";
+export const welcomeStep = (step: "agent" | "account"): string => `[data-welcome-step="${step}"]`;

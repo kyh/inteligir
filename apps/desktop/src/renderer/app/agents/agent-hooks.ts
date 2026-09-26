@@ -24,18 +24,39 @@ export const useAgentsStatus = (signingInHere = false) =>
     staleTime: 0,
   });
 
-// The harness an action would run on when it needs a sign-in first: `id` is a thread's own, null
-// the default a new action starts on. Only the ACP runtime asks a vendor, so a scripted or
-// disabled agent never needs one, and a vendor that did not answer is not called signed out.
-export const useSignedOutHarness = (id: string | null): HarnessStatus | null => {
-  const runtime = useSystemStatus().data?.agent.runtime;
-  const status = useAgentsStatus().data;
-  if (runtime !== "acp" || status === undefined) {
-    return null;
+// What an action on a harness needs first: `id` is a thread's own, null the default a new action
+// starts on. Only the ACP runtime asks a vendor, so a scripted or disabled agent never needs a
+// sign-in, and a vendor that did not answer is not called signed out. `unknown` until both answer,
+// so a surface that swaps its field for the sign-in can wait rather than draw the field and pull
+// it out from under the typing; a status that failed to answer is no reason to hold anything.
+export type SignInNeed =
+  | { kind: "unknown" }
+  | { kind: "none" }
+  | { kind: "sign-in"; harness: HarnessStatus };
+
+export const useSignInNeed = (id: string | null): SignInNeed => {
+  const system = useSystemStatus();
+  const agents = useAgentsStatus();
+  if (system.data === undefined) {
+    return { kind: system.isError ? "none" : "unknown" };
   }
-  const wanted = id ?? status.defaultId;
-  const harness = status.harnesses.find((candidate) => candidate.id === wanted);
-  return harness !== undefined && harnessReadiness(harness) === "signed-out" ? harness : null;
+  if (system.data.agent.runtime !== "acp") {
+    return { kind: "none" };
+  }
+  if (agents.data === undefined) {
+    return { kind: agents.isError ? "none" : "unknown" };
+  }
+  const wanted = id ?? agents.data.defaultId;
+  const harness = agents.data.harnesses.find((candidate) => candidate.id === wanted);
+  return harness !== undefined && harnessReadiness(harness) === "signed-out"
+    ? { harness, kind: "sign-in" }
+    : { kind: "none" };
+};
+
+// the harness to offer a sign-in for, where drawing nothing until the statuses answer is fine
+export const useSignedOutHarness = (id: string | null): HarnessStatus | null => {
+  const need = useSignInNeed(id);
+  return need.kind === "sign-in" ? need.harness : null;
 };
 
 export interface SignInWaiting {
@@ -59,7 +80,7 @@ export interface AgentSignInFlow {
   waiting: SignInWaiting | null;
   // the last sign-in this surface started, when it did not end signed in
   failure: SignInFailure | null;
-  start: (id: string, onSignedIn?: () => void) => void;
+  start: (id: string) => void;
   cancel: () => void;
   submitCode: (code: string) => void;
   code: { pending: boolean; answer: SignInCodeAnswer | null; refusal: string | null };
@@ -152,18 +173,9 @@ export const useAgentSignIn = (): AgentSignInFlow => {
       refusal: code.isError ? refusalMessage(code.error, "Could not send the code.") : null,
     },
     failure: waiting === null ? failure : null,
-    start: (id, onSignedIn) => {
+    start: (id) => {
       code.reset();
-      signIn.mutate(
-        { id },
-        {
-          onSuccess: (answer) => {
-            if (answer.outcome === "signed-in") {
-              onSignedIn?.();
-            }
-          },
-        },
-      );
+      signIn.mutate({ id });
     },
     status,
     submitCode: (pasted) => {

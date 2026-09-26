@@ -82,8 +82,7 @@ import type { VaultSwitchOutcome } from "./vaults";
 import { forkRequestSchema } from "inteligir/server/child-host/fork-broker-wire";
 import { writeManagedVaultDir } from "inteligir/server/config";
 import { authorizationHeader } from "inteligir/server/server-file";
-import { inspectVaultFolder } from "inteligir/server/vault/folder-facts";
-import type { VaultFolderFacts } from "inteligir/server/vault/folder-facts";
+import { folderExternalSync, inspectVaultFolder } from "inteligir/server/vault/folder-facts";
 import { outsideSyncWarning } from "../first-run-state";
 import type {
   FirstRunAnswer,
@@ -817,20 +816,14 @@ const inspectFolder = async (dir: string) =>
   );
 
 // the folder's own service keeps syncing it and the app will not, which the first run says on its
-// page and a picked switch asks here, in the same words; a folder that cannot be read is not asked
-// about, and its boot says what is wrong with it
+// page and a picked switch asks here, in the same words; the switch needs that alone, so it neither
+// counts the notes nor asks git, and whatever else is wrong with the folder its boot says
 const confirmOutsideSync = async (vaultDir: string): Promise<boolean> => {
-  let facts: VaultFolderFacts;
-  try {
-    facts = await inspectFolder(vaultDir);
-  } catch (error) {
-    console.warn(`[desktop] could not look at ${vaultDir}: ${toErrorMessage(error)}`);
+  const externalSync = folderExternalSync(vaultDir, homedir());
+  if (externalSync === null) {
     return true;
   }
-  if (facts.externalSync === null) {
-    return true;
-  }
-  const warning = outsideSyncWarning(facts.externalSync);
+  const warning = outsideSyncWarning(externalSync);
   const options: Electron.MessageBoxOptions = {
     buttons: ["Open", "Cancel"],
     cancelId: 1,

@@ -117,11 +117,15 @@ export interface InspectVaultFolderContext {
   gitEnv?: Record<string, string>;
 }
 
+// the outside-sync check alone, for an ask that needs nothing else: no walk, no git
+export const folderExternalSync = (dir: string, homeDir: string): ExternalSync | null =>
+  detectExternalSync(dir, nodeExternalSyncDeps(homeDir));
+
 export const inspectVaultFolder = async (
   dir: string,
   context: InspectVaultFolderContext,
 ): Promise<VaultFolderFacts> => {
-  const externalSync = detectExternalSync(dir, nodeExternalSyncDeps(context.homeDir));
+  const externalSync = folderExternalSync(dir, context.homeDir);
   if (!isDirectory(dir)) {
     return { exists: false, externalSync };
   }

@@ -24,10 +24,11 @@ const WorkspaceLayout = () => {
         covered={covered}
         onOpenNote={(path) => {
           // replace, and on the current route: the note store keeps the one back/forward history,
-          // and a note that moves while Settings shows must not take Settings down
+          // and a note that moves while Settings shows must not take Settings down, nor a boot
+          // that lands under /welcome drop the step it is on
           void navigate({
             replace: true,
-            search: path === null ? {} : { note: path },
+            search: (prior) => ({ ...prior, note: path ?? undefined }),
             to: ".",
           });
         }}

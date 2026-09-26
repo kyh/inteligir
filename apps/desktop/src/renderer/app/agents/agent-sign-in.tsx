@@ -112,10 +112,9 @@ const Waiting = ({ flow, waiting }: { flow: AgentSignInFlow; waiting: SignInWait
 export interface AgentSignInProps {
   // one agent's sign-in alone; absent, the default agent first and the rest under Other
   harness?: string;
-  onSignedIn?: (() => void) | undefined;
 }
 
-export const AgentSignIn = ({ harness, onSignedIn }: AgentSignInProps) => {
+export const AgentSignIn = ({ harness }: AgentSignInProps) => {
   const flow = useAgentSignIn();
   const [otherOpen, setOtherOpen] = useState(false);
   const { failure, status, waiting } = flow;
@@ -142,7 +141,7 @@ export const AgentSignIn = ({ harness, onSignedIn }: AgentSignInProps) => {
       variant={lead ? "primary" : "tertiary"}
       disabled={waiting !== null}
       onClick={() => {
-        flow.start(candidate.id, onSignedIn);
+        flow.start(candidate.id);
       }}
     >
       {failure?.id === candidate.id ? "Try again" : `Sign in with ${candidate.displayName}`}

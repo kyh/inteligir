@@ -3,7 +3,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { hostedVaultRemoteUrl, NO_ORIGIN } from "../../cloud/vault-remote";
-import { inspectVaultFolder, readOriginConfig, REMOTE_MARKER_KEY } from "../folder-facts";
+import {
+  folderExternalSync,
+  inspectVaultFolder,
+  readOriginConfig,
+  REMOTE_MARKER_KEY,
+} from "../folder-facts";
 import { runGit } from "../git-run";
 import type { RunGitCommand } from "../git-run";
 import { hermeticGitEnv } from "./git-test-env";
@@ -141,5 +146,17 @@ describe("inspectVaultFolder", () => {
     const docs = path.join(outer, "docs");
     mkdirSync(docs);
     expect(await inspect(home, docs)).toMatchObject({ isRepo: false, remote: null });
+  });
+});
+
+describe("folderExternalSync", () => {
+  it("says what inspectVaultFolder says of the service, there or not yet", async () => {
+    const home = scratchHome();
+    const synced = path.join(home, "Library", "Mobile Documents", "Notes");
+    expect(folderExternalSync(synced, home)).toEqual({ kind: "icloud-drive" });
+    mkdirSync(synced, { recursive: true });
+    const facts = await inspect(home, synced);
+    expect(folderExternalSync(synced, home)).toEqual(facts.externalSync);
+    expect(folderExternalSync(path.join(home, "Notes"), home)).toBeNull();
   });
 });

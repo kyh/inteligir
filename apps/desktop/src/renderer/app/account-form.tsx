@@ -1,6 +1,6 @@
-// The one account form, which the rail's dialog and Settings › Devices draw over
-// `useCloudSession`. Creating the account signs this device in with it, so nobody meets a second
-// sign-in right after the first.
+// The one account form, which the rail's dialog, Settings › Devices and the first run's account
+// step draw over `useCloudSession`. Creating the account signs this device in with it, so nobody
+// meets a second sign-in right after the first.
 
 import {
   CLOUD_PASSWORD_MAX_LENGTH,
@@ -23,6 +23,11 @@ export interface AccountFormProps {
   pending: boolean;
   // the cloud's own words for why it said no, shown beside the fields it applies to
   refusal: string | null;
+  // absent, sign-in: only a first run meets someone who most likely has an invite and no account
+  initialMode?: AccountFormMode;
+  // in place of the form's own sentence, which promises the notes start syncing: a surface that
+  // knows the vault says what an account does for it
+  lead?: string;
 }
 
 const Field = ({ id, label, ...input }: { label: string } & ComponentProps<typeof Input>) => (
@@ -40,9 +45,11 @@ export const AccountForm = ({
   onSignIn,
   pending,
   refusal,
+  initialMode = "sign-in",
+  lead,
 }: AccountFormProps) => {
   const formId = useId();
-  const [mode, setMode] = useState<AccountFormMode>("sign-in");
+  const [mode, setMode] = useState<AccountFormMode>(initialMode);
   // a refusal answers the mode it was asked in; switched away, it would sit under the wrong fields
   const [askedIn, setAskedIn] = useState<AccountFormMode | null>(null);
   const [name, setName] = useState("");
@@ -73,9 +80,10 @@ export const AccountForm = ({
       }}
     >
       <p className="text-body text-muted-foreground">
-        {creating
-          ? `Create a ${host} account with your invite code. This device signs in to it right away, and your notes start syncing.`
-          : `Sign in with your ${host} account to sync your notes between your devices.`}
+        {lead ??
+          (creating
+            ? `Create a ${host} account with your invite code. This device signs in to it right away, and your notes start syncing.`
+            : `Sign in with your ${host} account to sync your notes between your devices.`)}
       </p>
       {creating ? (
         <Field

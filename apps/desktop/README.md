@@ -42,7 +42,17 @@ the page why (`runFirstRun`). Until a vault is open, the Dock, a second launch
 and the tray show the first-run window, and Open Vault…, Open Recent Vault and
 Open Data Folder are off. A picked switch (File › Open Vault…, Settings) asks
 first when another service syncs the folder, in the first run's words
-(`outsideSyncWarning` in `src/first-run-state.ts`).
+(`outsideSyncWarning` in `src/first-run-state.ts`), over the outside-sync check
+alone (`folderExternalSync`): it neither counts the notes nor asks git.
+
+`/welcome` (`src/renderer/routes/_workspace/welcome.tsx`) draws over the
+workspace like Settings, so the vault loads underneath, and offers two steps in
+turn, each with Skip for now: the agent (`AgentSignIn`, or the default agent
+shown connected when its vendor's shared store is already signed in), then an
+account (`AccountForm` opening on Create, in words that follow where the vault
+already syncs; a sign-up or a sign-in moves on by itself). The step rides
+`?step=`, beside the `?note=` the workspace mirrors, and finishing opens the
+notes on the one the workspace booted on: Welcome.md when the vault has one.
 
 The first-run preload is a build of its own: a sandboxed preload can require
 no file beside it, and two inputs to one build share a chunk each would
@@ -271,8 +281,8 @@ symlink out of the vault and a `..`, that a switch to a remembered vault stops
 the child and boots one on the new vault's data dir, and that a SIGTERM quit
 stops that child and retracts its `server.json`. `desktop-onboarding` launches
 it on a home with no vault: only the first-run page, no server, then Create
-boots the default vault and the app window opens on `/welcome`, and a relaunch
-goes straight to the app. Both run on the checkout's build, not the packaged `.app`, so the fuses, the signature and the login
+boots the default vault and the app window opens on `/welcome`, skipping its
+two steps shows Welcome.md, and a relaunch goes straight to the app. Both run on the checkout's build, not the packaged `.app`, so the fuses, the signature and the login
 shell's PATH stay the smoke's and the unit tests'. On Linux it needs a display:
 CI runs the suite under `xvfb-run`.
 
