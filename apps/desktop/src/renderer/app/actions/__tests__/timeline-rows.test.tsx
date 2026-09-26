@@ -6,9 +6,10 @@ import type {
   TimelineRow,
   TimelineTurnRow,
 } from "@repo/api/local/thread-timeline";
-import { cleanup, render } from "@testing-library/react";
-import { afterEach, expect, it } from "vitest";
-import { TimelineRowView } from "../timeline-rows";
+import type { TurnChanges } from "@repo/api/local/threads/threads-schema";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { TimelineRowView, TurnChangesFooter, turnFooterSlots } from "../timeline-rows";
 
 afterEach(cleanup);
 
@@ -194,4 +195,89 @@ it("draws the notes a message attached under its bubble, apart from the text", (
   expect(bubble.textContent).toBe("make this shorter");
   expect(view.getByText("Notes/Plans.md")).toBeTruthy();
   expect(view.getByText("Notes/Goals.md")).toBeTruthy();
+});
+
+const turnChanges = (state: TurnChanges["state"]): TurnChanges => ({
+  paths: ["Plans.md", ".inteligir/comments/note-1.json", "Ideas.md"],
+  state,
+  turnId: "turn_1",
+});
+
+describe("a turn's changes footer", () => {
+  it("names the notes a settled turn edited, and offers them back", () => {
+    const onUndo = vi.fn<(turnId: string) => void>();
+    const view = render(
+      <TurnChangesFooter
+        status="completed"
+        changes={turnChanges("applied")}
+        undo="offered"
+        onUndo={onUndo}
+      />,
+    );
+
+    expect(view.getByText("Edited 2 notes")).toBeTruthy();
+    expect(view.getByText("Plans.md")).toBeTruthy();
+    expect(view.getByText("Ideas.md")).toBeTruthy();
+    expect(view.queryByText(".inteligir/comments/note-1.json")).toBeNull();
+    fireEvent.click(view.getByRole("button", { name: "Undo changes" }));
+    expect(onUndo).toHaveBeenCalledWith("turn_1");
+  });
+
+  it("draws nothing for a turn still running", () => {
+    const view = render(
+      <TurnChangesFooter
+        status="pending"
+        changes={turnChanges("applied")}
+        undo="offered"
+        onUndo={() => {}}
+      />,
+    );
+
+    expect(view.container.textContent).toBe("");
+  });
+
+  it("offers no undo while the thread runs, and holds one in flight", () => {
+    const withheld = render(
+      <TurnChangesFooter
+        status="completed"
+        changes={turnChanges("applied")}
+        undo="withheld"
+        onUndo={() => {}}
+      />,
+    );
+    expect(withheld.getByText("Edited 2 notes")).toBeTruthy();
+    expect(withheld.queryByRole("button", { name: "Undo changes" })).toBeNull();
+    cleanup();
+
+    const pending = render(
+      <TurnChangesFooter
+        status="completed"
+        changes={turnChanges("applied")}
+        undo="pending"
+        onUndo={() => {}}
+      />,
+    );
+    expect(pending.getByRole("button", { name: "Undo changes" })).toHaveProperty("disabled", true);
+  });
+
+  it("says a turn's changes were undone, and offers nothing more", () => {
+    const view = render(
+      <TurnChangesFooter
+        status="completed"
+        changes={turnChanges("undone")}
+        undo="offered"
+        onUndo={() => {}}
+      />,
+    );
+
+    expect(view.container.textContent).toBe("Changes undone");
+    expect(view.queryByRole("button")).toBeNull();
+  });
+
+  it("follows the turn's reply, not the turn's own row", () => {
+    const settled: TimelineTurnRow = { ...pendingTurn, status: "completed" };
+    const slots = turnFooterSlots([userMessage(null), settled, assistant("Done.", 6)]);
+
+    expect([...slots]).toEqual([["item:turn_1:item_a", settled]]);
+  });
 });

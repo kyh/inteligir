@@ -77,6 +77,20 @@ const MOVES_THE_DETAIL = {
   "title-changed": true,
 } satisfies Record<ThreadChangeKind, boolean>;
 
+// what each turn changed is read from the vault's log, which only a commit moves: a turn's, or an
+// undo's.
+const MOVES_THE_CHANGES = {
+  "archived-changed": false,
+  "changes-committed": true,
+  "events-appended": false,
+  "interactions-changed": false,
+  "origin-changed": false,
+  "queue-changed": false,
+  "status-changed": false,
+  "thread-created": false,
+  "title-changed": false,
+} satisfies Record<ThreadChangeKind, boolean>;
+
 const movesAny = (
   table: Record<ThreadChangeKind, boolean>,
   kinds: ReadonlySet<ThreadChangeKind>,
@@ -221,6 +235,14 @@ export class ChangeBatch {
             threadId === undefined
               ? orpc.threads.get.key()
               : orpc.threads.get.key({ input: { threadId } }),
+        });
+      }
+      if (movesAny(MOVES_THE_CHANGES, kinds)) {
+        void queryClient.invalidateQueries({
+          queryKey:
+            threadId === undefined
+              ? orpc.threads.turnChanges.key()
+              : orpc.threads.turnChanges.key({ input: { threadId } }),
         });
       }
       const changes = [...kinds];

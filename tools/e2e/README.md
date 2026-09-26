@@ -158,6 +158,10 @@ what each one is FOR.
 | external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
 |                           | clobbering                                                                |
 | view-context-browser      | the agent is told which note the message left from, and at what revision  |
+| undo-browser              | a ⌘K action's finish toast offers Undo, which removes the note it made    |
+|                           | and the reply says Changes undone; a reply's Undo changes, clicked inside |
+|                           | the autosave debounce, takes its turn back and keeps a line typed since,  |
+|                           | on disk and in the editor                                                 |
 | settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
 |                           | dialog on that route, and a refused connector add toasts there; signed    |
 |                           | out, Create an account asks for an invite code, and a sign-up the cloud   |

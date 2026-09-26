@@ -6,6 +6,7 @@ import type {
   ListThreadsQuery,
   ListThreadsResponse,
   Thread,
+  TurnChangesResponse,
 } from "@repo/api/local/threads/threads-schema";
 import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
@@ -50,6 +51,11 @@ export const useAgentWorking = (): boolean =>
 
 export const useThreadDetail = (threadId: string): UseQueryResult<GetThreadResponse> =>
   useQuery(orpc.threads.get.queryOptions({ input: { threadId } }));
+
+// kept fresh by the thread's changes-committed frame, which the workspace's batch sweeps whether or
+// not a transcript is open: a cached answer outlives the panel that read it.
+export const useTurnChanges = (threadId: string): UseQueryResult<TurnChangesResponse> =>
+  useQuery(orpc.threads.turnChanges.queryOptions({ input: { threadId } }));
 
 // total over the kinds: one not weighed here is a row the user never sees until they reopen the thread.
 const MOVES_THE_TIMELINE = {
