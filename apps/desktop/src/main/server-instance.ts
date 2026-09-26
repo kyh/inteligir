@@ -54,10 +54,14 @@ const resolveConfigFor = (args: ResolveServerTargetArgs): AppConfig => {
 };
 
 // what a folder is judged against before it is a vault: the home the outside-sync roots hang from,
-// and the cloud whose hosted url is the app's own origin rather than one the folder brought
-export const folderFactsContext = (args: ResolveServerTargetArgs): InspectVaultFolderContext => {
+// the cloud whose hosted url is the app's own origin rather than one the folder brought, and the
+// git a server would read its origin with
+export const folderFactsContext = (
+  args: ResolveServerTargetArgs,
+  git: BundledGitEnv | null,
+): InspectVaultFolderContext => {
   const { cloudUrl, homeDir } = resolveConfigFor(args);
-  return { cloudUrl, homeDir };
+  return git === null ? { cloudUrl, homeDir } : { cloudUrl, gitEnv: { ...git }, homeDir };
 };
 
 export const resolveServerTarget = (args: ResolveServerTargetArgs): ServerTargetResult => {

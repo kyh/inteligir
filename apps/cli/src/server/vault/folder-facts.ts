@@ -112,6 +112,9 @@ const isDirectory = (dir: string): boolean => {
 export interface InspectVaultFolderContext {
   homeDir: string;
   cloudUrl: string;
+  // the desktop's main runs no git of its own, and on a Mac without the developer tools the one on
+  // its PATH is the stub that offers the install, so main hands over the git its server runs
+  gitEnv?: Record<string, string>;
 }
 
 export const inspectVaultFolder = async (
@@ -124,8 +127,9 @@ export const inspectVaultFolder = async (
   }
   // only its own: git run in a folder inside another repo would read that repo's origin.
   const isRepo = existsSync(path.join(dir, ".git"));
+  const gitOptions = context.gitEnv === undefined ? {} : { env: context.gitEnv };
   const origin = isRepo
-    ? await readOriginConfig(async (gitArgs) => await runGit(dir, gitArgs))
+    ? await readOriginConfig(async (gitArgs) => await runGit(dir, gitArgs, gitOptions))
     : NO_ORIGIN;
   const own = ownOriginUrl(origin, hostedVaultRemoteUrl(context.cloudUrl));
   return {

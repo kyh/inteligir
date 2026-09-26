@@ -2193,7 +2193,8 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   which dugite-native does not build); any other Mac gets the bundled one, as
   its `bin/` ahead of the login shell's PATH plus `GIT_EXEC_PATH`,
   `GIT_TEMPLATE_DIR` and `GIT_CONFIG_SYSTEM` on the server child's env, which
-  the engine, the ACP adapters and every agent shell inherit; built for prefix
+  the engine, the ACP adapters and every agent shell inherit, and on main's one
+  git read, a picked folder's origin (`folderFactsContext`); built for prefix
   `/` without `RUNTIME_PREFIX`, it finds none of those on its own. Never
   `GIT_CONFIG_COUNT`: the hosted remote's bearer rides those rows per
   invocation. A dev or e2e launch keeps the host's git. The fetch drops what

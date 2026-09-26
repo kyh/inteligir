@@ -55,6 +55,17 @@ describe("readOriginConfig", () => {
 });
 
 describe("inspectVaultFolder", () => {
+  it("reads the origin with the git the caller names", async () => {
+    const home = scratchHome();
+    const repo = await repoIn(home, "Vault");
+    await gitIn(repo)(["remote", "add", "origin", "https://example.test/vault.git"]);
+    expect(await inspect(home, repo)).toMatchObject({ remote: "https://example.test/vault.git" });
+    const noGit = { PATH: path.join(home, "no-git-here") };
+    expect(
+      await inspectVaultFolder(repo, { cloudUrl: CLOUD_URL, gitEnv: noGit, homeDir: home }),
+    ).toMatchObject({ exists: true, remote: null });
+  });
+
   it("a folder not there yet is judged where it would land", async () => {
     const home = scratchHome();
     expect(await inspect(home, path.join(home, "Nowhere"))).toEqual({

@@ -813,7 +813,7 @@ const resolveLaunchTarget = (): ServerTarget => {
 const inspectFolder = async (dir: string) =>
   await inspectVaultFolder(
     dir,
-    folderFactsContext({ env: process.env, isPackaged: app.isPackaged }),
+    folderFactsContext({ env: process.env, isPackaged: app.isPackaged }, gitEnv),
   );
 
 // the folder's own service keeps syncing it and the app will not, which the first run says on its
