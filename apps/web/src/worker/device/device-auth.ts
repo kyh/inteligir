@@ -13,6 +13,7 @@ export const LAST_SEEN_RESOLUTION_MS = 5 * 60_000;
 
 export interface VerifiedDevice {
   readonly deviceId: string;
+  readonly deviceName: string;
   readonly userId: string;
 }
 
@@ -66,7 +67,12 @@ export const verifyDeviceCredentialValue = async (
   const hash = await sha256Hex(credential);
   const live = and(eq(device.credentialHash, hash), isNull(device.revokedAt));
   const row = await db
-    .select({ deviceId: device.id, lastSeenAt: device.lastSeenAt, userId: device.userId })
+    .select({
+      deviceId: device.id,
+      deviceName: device.name,
+      lastSeenAt: device.lastSeenAt,
+      userId: device.userId,
+    })
     .from(device)
     .where(live)
     .get();
@@ -79,14 +85,14 @@ export const verifyDeviceCredentialValue = async (
     row.lastSeenAt !== null &&
     now.getTime() - row.lastSeenAt.getTime() < LAST_SEEN_RESOLUTION_MS
   ) {
-    return { deviceId: row.deviceId, userId: row.userId };
+    return { deviceId: row.deviceId, deviceName: row.deviceName, userId: row.userId };
   }
   // the touch is the verdict: a revoke committed since the read refuses this request too
   const touched = await db
     .update(device)
     .set({ lastSeenAt: now })
     .where(live)
-    .returning({ deviceId: device.id, userId: device.userId })
+    .returning({ deviceId: device.id, deviceName: device.name, userId: device.userId })
     .get();
   return touched ?? null;
 };

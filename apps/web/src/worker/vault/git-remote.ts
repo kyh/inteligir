@@ -21,7 +21,7 @@ const PROTOCOL_ROUTES = new Map<string, VaultCellRoute>([
 const MAX_UPLOAD_PACK_BYTES = 16 * 1024 * 1024;
 
 // NaN when undeclared, never 0: Number("") is 0, so an absent header would read as a tiny body
-const declaredLength = (request: Request): number => {
+export const declaredLength = (request: Request): number => {
   const header = request.headers.get("content-length") ?? "";
   return /^\d+$/u.test(header) ? Number(header) : Number.NaN;
 };

@@ -18,6 +18,7 @@ import { desktopShell } from "./scenarios/desktop-shell";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { extractNoteBrowser } from "./scenarios/extract-note-browser";
+import { hostedVaultPhoneWrite } from "./scenarios/hosted-vault-phone-write";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { remoteContentBrowser } from "./scenarios/remote-content-browser";
@@ -37,6 +38,7 @@ const SCENARIOS: readonly Scenario[] = [
   slowStorage,
   vaultSync,
   hostedVaultSync,
+  hostedVaultPhoneWrite,
   threadSyncHosted,
   builtWorkerBoot,
   builtCliBoot,

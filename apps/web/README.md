@@ -72,6 +72,7 @@ its own `tsconfig.json`.
 | `GET /v1/vault/file`           | device  | One note's bytes at that commit — 2 MB ceiling             |
 | `POST /v1/vault/files`         | device  | Up to 40 notes at a pinned commit — 4 MiB, rest deferred   |
 | `GET /v1/vault/asset`          | device  | One embedded binary at that commit                         |
+| `POST /v1/vault/commit`        | device  | A change set, each change CAS'd on its blob — one commit   |
 | `GET /v1/account`              | device  | Whose account this device credential syncs as              |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
@@ -82,8 +83,10 @@ VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the sync and capture routes fan out to that user's own
 `ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
 verified deviceId; only the socket upgrade is a forwarded request), the git
-remote and the `/v1/vault/*` reads to that user's own durable-git `RepoCell`,
-and `/v1/account` reads D1 directly. Every `/v1` refusal, an unknown route and
+remote and the `/v1/vault/*` reads and commits to that user's own durable-git
+`RepoCell`, and `/v1/account` reads D1 directly. A commit is authored by the
+verified device row's name, and a stale base answers 409 `vault-conflict` with
+what the head holds beside the envelope; the Worker never merges. Every `/v1` refusal, an unknown route and
 an unhandled fault included, is the JSON error envelope; the git mount alone
 answers git clients in plain text.
 
@@ -151,13 +154,15 @@ answers git clients in plain text.
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
   that failed to load, as its message and a retry
   (`src/routes/app/devices.tsx`). The hosted
-  vault's two read budgets (`/v1/git/*` 600/min, `/v1/vault/*` 3,000/min) spend
-  the same table keyed on the DEVICE, never the address: a stolen credential
-  moves between addresses, and the device row is what `/app/devices` revokes.
-  A batch of files spends one unit however many paths it names, so a phone's
-  first mirror of 50,000 notes costs about 1,350. Two families so a drained
-  read budget never takes sync down; revocation and account deletion drop the
-  rows. Better Auth prunes the shared table on its own writes, every row past
+  vault's three budgets (`/v1/git/*` 600/min, the `/v1/vault/*` reads
+  3,000/min, `/v1/vault/commit` 300/min) spend the same table keyed on the
+  DEVICE, never the address: a stolen credential moves between addresses, and
+  the device row is what `/app/devices` revokes. A batch of files spends one
+  unit however many paths it names, so a phone's first mirror of 50,000 notes
+  costs about 1,350; a phone's queue sends one change set at a time, so 300
+  drains a long offline backlog within the minute. Three families so a drained
+  budget never takes another down: a looping writer still syncs and reads.
+  Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
   its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
   and a guard holds each to 60s or less.
 - **No CORS**, deliberately: every browser client is served by this Worker from

@@ -1,13 +1,9 @@
+import type { VaultConflictReason } from "@repo/api/cloud/vault/vault-commit-schema";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { commitChanges } from "../vault/commit-changes";
-import type {
-  CommitChangesResult,
-  VaultChange,
-  VaultConflict,
-  VaultConflictReason,
-} from "../vault/commit-changes";
+import type { CommitChangesResult, VaultChange, VaultConflict } from "../vault/commit-changes";
 import { blobObject } from "../vault/git-objects";
 import { vaultRegistry, vaultRepoName } from "../vault/git-remote";
 import { pushVaultPack } from "../vault/receive-pack";

@@ -121,7 +121,9 @@ apps/
                  remote (issue #618): durable-git repo cells behind
                  src/worker/vault/git-remote.ts, one per user, device-authed,
                  which the Worker commits to itself through the cell's own
-                 receive-pack (src/worker/vault/commit-changes.ts).
+                 receive-pack (src/worker/vault/commit-changes.ts) when a
+                 phone posts a change set to /v1/vault/commit
+                 (src/worker/vault/commit-route.ts).
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
   mobile/        @repo/mobile — the Expo RN client (#576): read-only threads,
@@ -146,9 +148,11 @@ packages/
                  two answers to "did this row move the cursor?", and a mis-set
                  cursor is a duplicated conversation — and, for the same
                  reason, the CLIENT RUNTIME CORE both consumers run. apps/web
-                 SERVES every row; apps/mobile consumes the read half alone,
-                 because the desktop runs the turns and owns applying a capture
-                 to the vault. Two entries rather than one router because their
+                 SERVES every row; apps/mobile pulls threads, produces
+                 captures and commits vault change sets, and never pushes a
+                 thread event, claims a capture or speaks git, because the
+                 desktop runs the turns and owns applying a capture to the
+                 vault. Two entries rather than one router because their
                  compatibility obligations are OPPOSITE: /local's ends ship in
                  one bundle and may break freely (a CLI installed apart refuses
                  another release's server as `SERVER_VERSION_MISMATCH`),
@@ -1267,15 +1271,18 @@ to the END of its group.
   `apps/mobile/src/sync/sync-runtime.ts`,
   `packages/api/src/cloud/device/login-flow.ts`.
 
-- **THE HOSTED VAULT'S READ PATHS ARE BUDGETED PER DEVICE, and the budget buys
-  time, not prevention.** `/v1/vault/*` and `/v1/git/*` consume a window keyed
-  on the device, never the address: a stolen credential moves between addresses
-  and the device row is what `/app/devices` revokes. Two families so a drained
-  read budget never takes sync down; both ceilings are set from the worst
-  legitimate minute, which for reads includes a phone's first mirror (a batch
-  per 40 notes, a tree page per 500), and revocation is the control. A
-  read-scoped credential is the deeper answer and is not built; the trigger is
-  a second party holding a credential for someone else's account.
+- **THE HOSTED VAULT'S PATHS ARE BUDGETED PER DEVICE, and the budget buys
+  time, not prevention.** The `/v1/vault/*` reads, `/v1/vault/commit` and
+  `/v1/git/*` each consume a window keyed on the device, never the address: a
+  stolen credential moves between addresses and the device row is what
+  `/app/devices` revokes. Three families so a drained budget never takes
+  another down, a looping phone writer included; each ceiling is set from the
+  worst legitimate minute, which for reads includes a phone's first mirror (a
+  batch per 40 notes, a tree page per 500) and for writes a queue draining one
+  change set at a time, and revocation is the control
+  (`apps/web/src/worker/rate-limit.ts`). A read-scoped credential is the
+  deeper answer and is not built; the trigger is a second party holding a
+  credential for someone else's account.
 
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
   `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
@@ -1489,6 +1496,26 @@ to the END of its group.
   makes at most 50 subrequests; past the byte budget the rest is `deferred`,
   never the first file. `packages/api/src/cloud/vault/vault-schema.ts`,
   `apps/web/src/worker/vault/read-routes.ts` and `tree-listing.ts`.
+
+- **A PHONE WRITE IS A CHANGE SET OF BLOB-CAS'D CHANGES, ONE COMMIT OR NONE.**
+  `POST /v1/vault/commit` takes puts, deletes and moves, each naming the blob
+  it was computed from (null: the path must be absent), so a rename's link
+  rewrites, a photo and the note embedding it, or a merge and its conflict copy
+  land together. A stale base answers 409 `vault-conflict` with what the head
+  holds, its text and the device that last wrote it, beside the ordinary
+  envelope, so a reader that knows only the envelope still reads a refusal it
+  can name; the Worker never merges, the phone reconciles with the desktop's
+  own policy and sends one new set. A replay is "the head already holds the
+  target", answered with the commit that holds it, so an offline queue's
+  resend is harmless with no idempotency key, which would be a second store
+  the Worker must keep and expire beside the repo. The base is a blob oid, not
+  a commit: a desktop push of another note between the phone's read and its
+  write must not refuse it. An account whose hosted vault does not exist yet
+  is refused, never created: the Mac's first push creates it. The request's
+  bytes are bounded on the declared length, text as UTF-8 with no lone
+  surrogate and base64 only on an attachment path, and the device row's name
+  authors the commit. `packages/api/src/cloud/vault/vault-commit-schema.ts`,
+  `apps/web/src/worker/vault/commit-route.ts`.
 
 ### Server process and the desktop shell
 

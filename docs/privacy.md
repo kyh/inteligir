@@ -43,7 +43,7 @@ Durable Object — never in anything shared across accounts.
   host for your repo, per user, reachable only with a device credential from
   your own account. It is encrypted at rest by Cloudflare, but this
   deployment can read it — there is no end-to-end encryption; the trade is
-  what lets your phone read notes without holding a git client.
+  what lets your phone read and edit notes without holding a git client.
 - **Your IP address, for throttling — the one row NOT tied to your account.**
   Signing a device in, redeeming an invite, and every Better Auth route but the
   session read count attempts per caller address in D1's `rate_limit` table:
@@ -164,6 +164,7 @@ else under `/v1/` exists.
 | `/v1/vault/file`          | One note's text from your hosted vault.                                                              | The device's credential, within a per-device budget.        |
 | `/v1/vault/files`         | Up to 40 notes' text from your hosted vault, in one request.                                         | The device's credential, within a per-device budget.        |
 | `/v1/vault/asset`         | One attachment from your hosted vault.                                                               | The device's credential, within a per-device budget.        |
+| `/v1/vault/commit`        | Your phone's edits and photos; a note another device changed first answers its text and name.        | The device's credential, within a per-device budget.        |
 | `/v1/git/vault.git`       | Your vault and its history, sent up from and down to your computers.                                 | The device's credential, within a per-device budget.        |
 
 Everything else the app reaches is someone else's:

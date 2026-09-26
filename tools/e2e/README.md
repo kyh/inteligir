@@ -80,8 +80,9 @@ Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
 and fails with what the last read held; `untilThreadIdle` (`threads.ts`);
 `modChord` for the platform's modifier key (`agent-browser.ts`); the workspace
-selectors (`selectors.ts`); and the account's sign-up and device routes against
-a dev Worker (`cloud-account.ts`).
+selectors (`selectors.ts`); the account's sign-up and device routes against
+a dev Worker (`cloud-account.ts`); and a signed-in instance's explicit sync
+against the hosted vault (`hosted-vault.ts`).
 
 ## The scenarios
 
@@ -99,6 +100,9 @@ what each one is FOR.
 |                           | propagation, then a typed conflict + git-verified repo integrity          |
 | hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
 |                           | convergence through the derived remote, boot clone, revoke → unauthorized |
+| hosted-vault-phone-write  | a second login plays the phone against a wrangler-dev Worker: its change  |
+|                           | set lands and A syncs its bytes, history naming the phone; a stale set    |
+|                           | gets A's bytes back as a conflict, and a recommit on them converges       |
 | thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
 |                           | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                           | so the Durable Object's ping is what delivered it                         |

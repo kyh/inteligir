@@ -80,6 +80,7 @@ const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient => ({
   signOut: unreachable,
   vaultAsset: unreachable,
   vaultAssetSource: () => ({ headers: {}, uri: "https://cloud.test/fake" }),
+  vaultCommit: unreachable,
   vaultFile: unreachable,
   vaultFiles: unreachable,
   vaultTree: unreachable,

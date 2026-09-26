@@ -4,7 +4,7 @@ import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
@@ -22,6 +22,7 @@ import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
+const COMMIT = `${ORIGIN}${VAULT_API_PATHS.commit}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
 
 const spendBudget = async (key: string): Promise<void> => {
@@ -75,8 +76,14 @@ describe("the hosted vault's per-device budgets", () => {
   it("drops a revoked device's rows at once, not on Better Auth's next prune", async () => {
     const { bearer } = await signUpUser("vault-budget-revoke@example.test");
     const device = await loginDevice(bearer, "Laptop");
-    const key = deviceRateKey("vaultRead", device.deviceId);
-    await spendBudget(key);
+    const keys = [
+      deviceRateKey("vaultRead", device.deviceId),
+      deviceRateKey("vaultGit", device.deviceId),
+      deviceRateKey("vaultWrite", device.deviceId),
+    ];
+    for (const key of keys) {
+      await spendBudget(key);
+    }
 
     const revoked = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
       body: JSON.stringify({ deviceId: device.deviceId }),
@@ -88,7 +95,7 @@ describe("the hosted vault's per-device budgets", () => {
     const rows = await createDb(env.DB)
       .select()
       .from(rateLimit)
-      .where(eq(rateLimit.key, key))
+      .where(inArray(rateLimit.key, keys))
       .all();
     expect(rows).toEqual([]);
   });
@@ -134,6 +141,47 @@ describe("a batch read's budget", () => {
       .where(eq(rateLimit.key, deviceRateKey("vaultRead", phone.deviceId)))
       .all();
     expect(rows).toEqual([{ count: 1 }]);
+  });
+});
+
+describe("a vault write's budget", () => {
+  it("refuses a commit once spent, and leaves the reads and the git remote whole", async () => {
+    const { bearer } = await signUpUser("vault-budget-write@example.test");
+    const phone = await loginDevice(bearer, "Phone");
+    const pushed = await pushVaultFiles(
+      phone.credential,
+      "vault: initialize",
+      [{ content: "# a\n", path: "a.md" }],
+      ZERO_OID,
+    );
+    expect(pushed.response.status).toBe(200);
+    await pushed.response.arrayBuffer();
+    await spendBudget(deviceRateKey("vaultWrite", phone.deviceId));
+
+    const wasDisabled = env.RATE_LIMIT_DISABLED;
+    env.RATE_LIMIT_DISABLED = "false";
+    try {
+      const refused = await SELF.fetch(COMMIT, {
+        body: JSON.stringify({
+          changes: [
+            { base: null, content: { encoding: "utf-8", text: "# b\n" }, op: "put", path: "b.md" },
+          ],
+        }),
+        headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(refused.status).toBe(429);
+      expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
+
+      const tree = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
+      expect(tree.status).toBe(200);
+      await tree.arrayBuffer();
+      const git = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(phone.credential) });
+      expect(git.status).toBe(200);
+      await git.arrayBuffer();
+    } finally {
+      env.RATE_LIMIT_DISABLED = wasDisabled;
+    }
   });
 });
 

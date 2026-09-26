@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  base64FromBytes,
+  bytesFromBase64,
   constantTimeEqual,
   exceedsUtf8Bytes,
   hexFromBytes,
@@ -11,6 +13,14 @@ describe("hexFromBytes", () => {
   it("encodes to lowercase, zero-padded hex", () => {
     expect(hexFromBytes(new Uint8Array([0, 15, 255]))).toBe("000fff");
     expect(hexFromBytes(new Uint8Array([]))).toBe("");
+  });
+});
+
+describe("bytesFromBase64", () => {
+  it("reads back every byte base64FromBytes wrote, the high half included", () => {
+    const bytes = Uint8Array.from({ length: 256 }, (_, index) => index);
+    expect(bytesFromBase64(base64FromBytes(bytes))).toStrictEqual(bytes);
+    expect(bytesFromBase64("")).toStrictEqual(new Uint8Array());
   });
 });
 

@@ -19,6 +19,10 @@ export const base64FromBytes = (bytes: Uint8Array): string => {
   return btoa(binary);
 };
 
+// atob throws on a string that is not base64; a caller parses before it decodes
+export const bytesFromBase64 = (value: string): Uint8Array =>
+  Uint8Array.from(atob(value), (char) => char.codePointAt(0) ?? 0);
+
 export const base64UrlFromBytes = (bytes: Uint8Array): string =>
   base64FromBytes(bytes).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 

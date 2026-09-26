@@ -19,7 +19,7 @@ import type {
   ClaimCapturesResponse,
 } from "./captures/captures-schema";
 import { cloudErrorSchema } from "./cloud-errors";
-import type { CloudErrorCode } from "./cloud-errors";
+import type { CloudError, CloudErrorCode } from "./cloud-errors";
 import {
   DEVICE_API_PATHS,
   deviceLoginResponseSchema,
@@ -33,6 +33,12 @@ import type {
 import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
 import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
 import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
+import { vaultCommitResponseSchema, vaultConflictAnswerSchema } from "./vault/vault-commit-schema";
+import type {
+  VaultCommitConflict,
+  VaultCommitRequest,
+  VaultCommitResponse,
+} from "./vault/vault-commit-schema";
 import {
   assetMediaType,
   VAULT_API_PATHS,
@@ -84,28 +90,38 @@ const unreachable = (cause: unknown): CloudFailure => ({
 const isTransientStatus = (status: number): boolean =>
   status >= 500 || status === 408 || status === 429;
 
+// the envelope a refusal carried, or null when its body carried none
+const failureOf = (status: number, envelope: CloudError | null): CloudFailure => {
+  if (envelope === null) {
+    // every refusal the worker means rides the envelope, so a bare 5xx, 408 or 429 is a fault or
+    // an edge in front of it: retryable, and no verdict on the credential
+    if (isTransientStatus(status)) {
+      return { kind: "unreachable", message: `HTTP ${status} with no error body` };
+    }
+    return {
+      kind: "malformed",
+      message: `The cloud answered HTTP ${status} with a body this build cannot read.`,
+    };
+  }
+  return {
+    code: envelope.error.code,
+    deviceSeq: envelope.error.deviceSeq ?? null,
+    kind: "refused",
+    message: envelope.error.message,
+  };
+};
+
 const readFailure = async (response: Response): Promise<CloudFailure> => {
   const body: unknown = await response.json().catch(() => {
     /* empty */
   });
-  const parsed = cloudErrorSchema.safeParse(body);
-  if (!parsed.success) {
-    // every refusal the worker means rides the envelope, so a bare 5xx, 408 or 429 is a fault or
-    // an edge in front of it: retryable, and no verdict on the credential
-    if (isTransientStatus(response.status)) {
-      return { kind: "unreachable", message: `HTTP ${response.status} with no error body` };
-    }
-    return {
-      kind: "malformed",
-      message: `The cloud answered HTTP ${response.status} with a body this build cannot read.`,
-    };
-  }
-  return {
-    code: parsed.data.error.code,
-    deviceSeq: parsed.data.error.deviceSeq ?? null,
-    kind: "refused",
-    message: parsed.data.error.message,
-  };
+  const envelope = cloudErrorSchema.safeParse(body);
+  return failureOf(response.status, envelope.success ? envelope.data : null);
+};
+
+const UNREADABLE_OK: CloudFailure = {
+  kind: "malformed",
+  message: "The cloud answered 200 with a body this build cannot read.",
 };
 
 // response schemas strip what they do not declare, so a newer worker may add a field and this
@@ -123,16 +139,7 @@ const readValue = async <TSchema extends z.ZodType>(
     /* empty */
   });
   const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return {
-      failure: {
-        kind: "malformed",
-        message: "The cloud answered 200 with a body this build cannot read.",
-      },
-      ok: false,
-    };
-  }
-  return { ok: true, value: parsed.data };
+  return parsed.success ? { ok: true, value: parsed.data } : { failure: UNREADABLE_OK, ok: false };
 };
 
 // every HTTP call on the wire is read through this, the site's cookie-authed pages included, so a
@@ -179,6 +186,41 @@ const readAssetCall = async (
     };
   }
   return { ok: true, value: { bytes, mediaType } };
+};
+
+export type VaultCommitOutcome =
+  | ({ kind: "committed" } & VaultCommitResponse)
+  | ({ kind: "conflict" } & VaultCommitConflict);
+
+// a vault-conflict is an answer, not a failure: it carries the bytes the caller merges against. A
+// reader that knows only the envelope still reads it as a refusal it can name.
+const readCommitCall = async (
+  send: () => Promise<Response>,
+): Promise<CloudResult<VaultCommitOutcome>> => {
+  let response: Response;
+  try {
+    response = await send();
+  } catch (error) {
+    return { failure: unreachable(error), ok: false };
+  }
+  const body: unknown = await response.json().catch(() => {
+    /* empty */
+  });
+  if (response.ok) {
+    const committed = vaultCommitResponseSchema.safeParse(body);
+    return committed.success
+      ? { ok: true, value: { kind: "committed", ...committed.data } }
+      : { failure: UNREADABLE_OK, ok: false };
+  }
+  const answer = vaultConflictAnswerSchema.safeParse(body);
+  if (answer.success && answer.data.error.code === "vault-conflict") {
+    return { ok: true, value: { kind: "conflict", ...answer.data.conflict } };
+  }
+  const envelope = cloudErrorSchema.safeParse(body);
+  return {
+    failure: failureOf(response.status, envelope.success ? envelope.data : null),
+    ok: false,
+  };
 };
 
 // every call runs inside the single-flight pass, so a black-holed request stalls the whole
@@ -257,6 +299,7 @@ export interface CloudClient {
   vaultAssetSource: (query: VaultAssetQuery) => VaultAssetSource;
   // the bytes themselves, for a page that cannot put a header on an <img>
   vaultAsset: (query: VaultAssetQuery) => Promise<CloudResult<VaultAsset>>;
+  vaultCommit: (request: VaultCommitRequest) => Promise<CloudResult<VaultCommitOutcome>>;
 }
 
 export interface VaultAsset {
@@ -278,26 +321,27 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
   const call = args.fetch ?? fetch;
   const authorization = `Bearer ${args.credential}`;
 
+  const requestInit = (json: JsonBody): RequestInit => {
+    const signal = callSignal(args.signal);
+    return json === undefined
+      ? { headers: { authorization }, method: "GET", signal }
+      : {
+          body: JSON.stringify(json),
+          headers: { authorization, "content-type": "application/json" },
+          method: "POST",
+          signal,
+        };
+  };
+
   const send = async <TSchema extends z.ZodType>(
     path: string,
     json: JsonBody,
     schema: TSchema,
-  ): Promise<CloudResult<z.infer<TSchema>>> => {
-    const signal = callSignal(args.signal);
-    const init: RequestInit =
-      json === undefined
-        ? { headers: { authorization }, method: "GET", signal }
-        : {
-            body: JSON.stringify(json),
-            headers: { authorization, "content-type": "application/json" },
-            method: "POST",
-            signal,
-          };
-    return await readCloudCall(
-      async () => await call(endpointUrl(args.baseUrl, path), init),
+  ): Promise<CloudResult<z.infer<TSchema>>> =>
+    await readCloudCall(
+      async () => await call(endpointUrl(args.baseUrl, path), requestInit(json)),
       schema,
     );
-  };
 
   const assetSource = (query: VaultAssetQuery): VaultAssetSource => ({
     headers: { authorization },
@@ -334,6 +378,11 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
       );
     },
     vaultAssetSource: assetSource,
+    vaultCommit: async (request) =>
+      await readCommitCall(
+        async () =>
+          await call(endpointUrl(args.baseUrl, VAULT_API_PATHS.commit), requestInit(request)),
+      ),
     vaultFile: async (query) =>
       await send(
         `${VAULT_API_PATHS.file}${queryString(query)}`,
