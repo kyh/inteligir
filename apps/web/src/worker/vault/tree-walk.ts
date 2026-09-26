@@ -19,9 +19,16 @@ interface WalkTreeArgs {
   keep?: number | undefined;
 }
 
-// list only what the file route answers: git allows any byte but NUL and `/` in a name, and one
-// pushed `a\b.md` would otherwise fail the phone's parse of the whole listing.
-const servable = (path: string): boolean => vaultFileQuerySchema.safeParse({ path }).success;
+// what the file route answers, and so all a listing shows or a Worker commit writes: git allows any
+// byte but NUL and `/` in a name, and one pushed `a\b.md` would otherwise fail the phone's parse of
+// the whole listing.
+export const isServablePath = (path: string): boolean =>
+  vaultFileQuerySchema.safeParse({ path }).success;
+
+// durable-git url-decodes every path it receives, so a legal filename holding % must be encoded per
+// segment.
+export const encodeGitPath = (path: string): string =>
+  path.split("/").map(encodeURIComponent).join("/");
 
 const byPath = (a: TreeFile, b: TreeFile): number => {
   if (a.path < b.path) {
@@ -65,7 +72,7 @@ const readLevel = (listed: ListedDir[], after: string | undefined): TreeLevel | 
     }
     for (const entry of tree.entries) {
       const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
-      if (isIgnoredEntryName(entry.name) || !servable(path)) {
+      if (isIgnoredEntryName(entry.name) || !isServablePath(path)) {
         continue;
       }
       if (entry.type === "tree") {

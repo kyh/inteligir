@@ -17,7 +17,7 @@ import { spendDeviceBudget } from "../rate-limit";
 import { vaultRegistry, vaultRepoName } from "./git-remote";
 import { treeListingSlot } from "./tree-listing";
 import type { TreeListingSlot } from "./tree-listing";
-import { pageTree, walkTree } from "./tree-walk";
+import { encodeGitPath, pageTree, walkTree } from "./tree-walk";
 import type { TreeWalkRefusal } from "./tree-walk";
 
 const MAX_TREE_DIRS = 10_000;
@@ -36,10 +36,6 @@ const resolveCommit = async (
   const head = await stub.readCommit();
   return head === null ? null : head.oid;
 };
-
-// durable-git url-decodes every path it receives, so a legal filename holding % must be encoded per
-// segment.
-const encodeGitPath = (path: string): string => path.split("/").map(encodeURIComponent).join("/");
 
 const refuseWalk = (refusal: TreeWalkRefusal): Response =>
   refusal === "missing"
