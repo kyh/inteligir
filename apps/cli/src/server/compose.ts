@@ -7,6 +7,7 @@ import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
+import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
 import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
@@ -19,7 +20,6 @@ import type { OpenExternalUrl } from "./browser-opener";
 import { createCloudRuntime } from "./cloud/sync-runtime";
 import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
-import type { VaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
 import { createConnectorsService } from "./connectors/connectors-service";
 import type { ConnectorsService } from "./connectors/connectors-service";
@@ -41,6 +41,7 @@ import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
+import { detectExternalSync, nodeExternalSyncDeps } from "./vault/external-sync";
 import { slowReadStall } from "./vault/slow-reads";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
@@ -93,7 +94,8 @@ export interface ComposedRuntime {
   context: AppServices;
   bus: WsBus;
   db: DbConnection;
-  vaultRemote: VaultRemoteProvider;
+  // the service that syncs the vault's folder instead, which withholds the hosted vault
+  externalSync: ExternalSync | null;
   // each step is unshifted as its resource comes up, so a boot that throws (EADDRINUSE
   // with the watcher forked and the db open) is still torn down by the caller.
   teardown: ShutdownStep[];
@@ -117,16 +119,20 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   // late-bound: the knowledge runtime needs the vault service; changes before it exists
   // are covered by the boot reconcile.
   let knowledgeRef: KnowledgeRuntime | null = null;
+  // once: a folder does not move under a running server.
+  const externalSync = detectExternalSync(config.vaultDir, nodeExternalSyncDeps(config.homeDir));
   const vaultRemote =
     ports.vault?.remote ??
     createVaultRemoteProvider({
       cloudUrl: config.cloudUrl,
       dataDir: config.dataDir,
-      explicitRemote: config.vaultRemote,
+      externalSync,
+      pinnedRemote: config.vaultRemote,
     });
   const vaultArgs: VaultRuntimeArgs = {
     dataDir: config.dataDir,
     debugLog: debugLog(config.debug, "watcher"),
+    externalSync,
     notifier: bus,
     onFilesChanged: (change) => {
       knowledgeRef?.noteVaultChange(change);
@@ -288,5 +294,5 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vaultPrefs,
   };
 
-  return { bus, context, db, teardown, vaultRemote };
+  return { bus, context, db, externalSync, teardown };
 };

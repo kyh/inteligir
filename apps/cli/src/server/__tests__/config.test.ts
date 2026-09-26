@@ -241,6 +241,32 @@ describe("the vault dir and remote", () => {
     expect(() => resolveWithRemote("ext::sh -c evil")).toThrow(/INTELIGIR_VAULT_REMOTE/u);
   });
 
+  it("reads no remote from config.json, which would pin every vault, and says so", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
+    const configPath = path.join(dataDir, "config.json");
+    // a value the pin's grammar refuses is ignored too: the key is read by nothing
+    for (const remote of ["https://github.com/kyh/vault.git", "--upload-pack=/bin/evil"]) {
+      writeFileSync(configPath, JSON.stringify({ vaultRemote: remote }));
+      const retired = resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_DATA_DIR: dataDir },
+        homeDir,
+      });
+      expect(retired.vaultRemote).toBeNull();
+      expect(retired.warnings).toEqual([
+        `${configPath}'s vaultRemote is ignored: a vault syncs with its own git origin, so run \`git remote add origin <url>\` in the vault, or pin one with INTELIGIR_VAULT_REMOTE.`,
+      ]);
+    }
+
+    const pinned = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_VAULT_REMOTE: "git@example.com:v.git" },
+      homeDir,
+    });
+    expect(pinned.vaultRemote).toBe("git@example.com:v.git");
+  });
+
   it("INTELIGIR_SYNC_INTERVAL_MS: unset = absent, 0 = disabled (null), positive = cadence", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const resolveWithInterval = (interval?: string) =>

@@ -4,6 +4,7 @@ import path from "node:path";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import type { VaultRemoteSpec } from "../cloud/vault-remote";
+import { REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
 import {
   gitPath,
   identityEnv,
@@ -102,9 +103,14 @@ export const ensureVaultRepo = async (
     "info/attributes",
     `/${CAPTURE_INBOX_PATH} merge=union`,
   );
-  if (created && cloned && remote?.source === "account" && remote.account.state === "known") {
-    // so a later sign-in to a different account refuses rather than pushing these notes into it.
-    await git(["config", ACCOUNT_MARKER_KEY, remote.account.id]);
+  if (created && cloned && remote?.source === "account") {
+    // the clone's origin is the hosted vault, marked as the app's so no pass adopts it as the
+    // user's own.
+    await git(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
+    if (remote.account.state === "known") {
+      // so a later sign-in to a different account refuses rather than pushing these notes into it.
+      await git(["config", ACCOUNT_MARKER_KEY, remote.account.id]);
+    }
   }
   // the hosted worker says "no repository" only for a truly absent repo (auth precedes it);
   // github answers 404 for a private repo the credential cannot see, so a byo not-found boots empty.

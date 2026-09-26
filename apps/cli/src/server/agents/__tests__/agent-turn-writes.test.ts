@@ -48,6 +48,7 @@ const recordingEngine = (options: RecordingEngineOptions = {}): RecordingEngine 
       return await Promise.resolve(null);
     },
     claimedPaths: () => state.claims.flat(),
+    currentRemote: async () => await Promise.resolve(null),
     commitNow: async () => {
       state.wholeTreeCommits += 1;
       return await Promise.resolve(null);
@@ -82,9 +83,19 @@ const recordingEngine = (options: RecordingEngineOptions = {}): RecordingEngine 
     scheduleCommit() {},
     startAutoSync() {},
     status: async () =>
-      await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+      await Promise.resolve({
+        externalSync: null,
+        lastError: null,
+        lastSyncAt: null,
+        state: "no-remote",
+      }),
     syncNow: async () =>
-      await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+      await Promise.resolve({
+        externalSync: null,
+        lastError: null,
+        lastSyncAt: null,
+        state: "no-remote",
+      }),
     turnCommits: async () => await Promise.resolve([]),
   };
   return {

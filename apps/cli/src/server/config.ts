@@ -204,7 +204,7 @@ const ENV_VARS = {
   }),
   vaultRemote: defineEnvVar({
     description:
-      "Git remote URL the vault syncs against. Unset, a SIGNED-IN install derives the hosted remote from its device credential; unset and signed out means local-only.",
+      "Git remote URL the vault syncs against, pinned over the vault's own origin. Unset, the vault's own origin decides; with none, a SIGNED-IN install derives the hosted remote from its device credential unless another service (iCloud Drive, Dropbox, Google Drive, OneDrive, Obsidian Sync) already syncs the folder; unset, signed out and with no origin means local-only.",
     name: "INTELIGIR_VAULT_REMOTE",
     parse: ({ name, value }) => parseRemoteUrlValue(name, value),
   }),
@@ -271,7 +271,6 @@ const managedConfigSchema = z.object({
   cloudUrl: z.string().min(1).optional(),
   port: z.number().int().min(1).max(65_535).optional(),
   vaultDir: z.string().min(1).optional(),
-  vaultRemote: z.string().min(1).optional(),
 });
 
 // the file as its bytes name it, unknown keys included: a rewrite must carry a newer build's keys through
@@ -331,6 +330,22 @@ const legacyModelWarnings = (
   return warnings;
 };
 
+// one remote for every vault the root selects, where a vault's record of where it syncs is its
+// own repo's origin. warned, never refused, for the same reason as the model keys.
+const RETIRED_VAULT_REMOTE_CONFIG_KEY = "vaultRemote";
+
+const retiredVaultRemoteWarnings = (
+  managedFile: z.infer<typeof managedConfigFileSchema>,
+  rootDataDir: string,
+): string[] =>
+  managedFile[RETIRED_VAULT_REMOTE_CONFIG_KEY] === undefined
+    ? []
+    : [
+        `${path.join(rootDataDir, CONFIG_FILE_NAME)}'s ${RETIRED_VAULT_REMOTE_CONFIG_KEY} is ` +
+          "ignored: a vault syncs with its own git origin, so run `git remote add origin <url>` " +
+          `in the vault, or pin one with ${ENV_VARS.vaultRemote.name}.`,
+      ];
+
 // The root's config.json is the vault selector: it is what `inteligir serve` reads with no
 // shell around, so a switch made in the shell is the CLI's next boot too.
 export const writeManagedVaultDir = (rootDataDir: string, vaultDir: string): void => {
@@ -350,12 +365,15 @@ export interface AppConfig {
   dataDirSource: "env" | "default";
   // where config.json lives and where the default vault's data is; `dataDir` sits beneath it for any other vault
   rootDataDir: string;
+  // what `~/` resolved against, and where the boot looks for a service syncing the vault's folder
+  homeDir: string;
   mode: RuntimeMode;
   port: number;
   portSource: ConfigSource;
   vaultDir: string;
   vaultDirSource: VaultDirSource;
-  // null is not local-only: a signed-in install still derives the hosted remote per pass.
+  // the INTELIGIR_VAULT_REMOTE pin. null is not local-only: the vault's own origin, else a
+  // signed-in install's hosted remote, is decided per pass.
   vaultRemote: string | null;
   // absent = runtime default, null = disabled, number = ms.
   vaultSyncIntervalMs?: number | null;
@@ -413,16 +431,6 @@ const resolveVaultDir = (
     vaultDirSource: configSource(envVaultDir, managedVaultDir),
   };
 };
-
-const resolveVaultRemote = (
-  args: ResolveAppConfigArgs,
-  homeDir: string,
-  managed: ManagedConfig,
-): string | null =>
-  readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir) ??
-  (managed.vaultRemote === undefined
-    ? null
-    : parseRemoteUrlValue("config.json vaultRemote", managed.vaultRemote));
 
 const resolveAgentModels = (
   args: ResolveAppConfigArgs,
@@ -489,7 +497,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
   assertVaultAndDataDirDisjoint(path.resolve(vaultDir), path.resolve(rootDataDir));
   assertVaultAndDataDirDisjoint(path.resolve(vaultDir), path.resolve(dataDir));
 
-  const vaultRemote = resolveVaultRemote(args, homeDir, managed);
+  const vaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir) ?? null;
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
   const slowReads = readEnvVar(ENV_VARS.slowReads, args.env, homeDir) ?? null;
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
@@ -505,6 +513,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     dataDir,
     dataDirSource: envDataDir === undefined ? "default" : "env",
     databasePath: path.join(dataDir, SQLITE_DATABASE_FILE_NAME),
+    homeDir,
     mode,
     port,
     portSource: configSource(envPort, managed.port),
@@ -513,7 +522,10 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     vaultDir,
     vaultDirSource,
     vaultRemote,
-    warnings: legacyModelWarnings(args.env, managedFile, rootDataDir),
+    warnings: [
+      ...legacyModelWarnings(args.env, managedFile, rootDataDir),
+      ...retiredVaultRemoteWarnings(managedFile, rootDataDir),
+    ],
   };
   if (envSyncIntervalMs !== undefined) {
     config.vaultSyncIntervalMs = envSyncIntervalMs === 0 ? null : envSyncIntervalMs;

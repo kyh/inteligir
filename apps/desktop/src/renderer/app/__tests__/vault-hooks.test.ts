@@ -4,6 +4,7 @@ import { ORPCError } from "@orpc/client";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
 import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
 import type {
+  ExternalSync,
   VaultEntry,
   VaultStatusResponse,
   VaultTreeResponse,
@@ -97,7 +98,7 @@ const REMOTE = {
 };
 
 const EVERY_STATUS: readonly VaultStatusResponse[] = [
-  { state: "no-remote", ...SYNC_FIELDS },
+  { externalSync: null, state: "no-remote", ...SYNC_FIELDS },
   { state: "clean", ...REMOTE },
   { state: "dirty", ...REMOTE },
   { state: "syncing", ...REMOTE },
@@ -190,6 +191,37 @@ describe("what the rail and a toast say about sync", () => {
       );
     },
   );
+});
+
+describe("a folder another service syncs", () => {
+  const SERVICES: readonly (readonly [ExternalSync, string])[] = [
+    [{ kind: "icloud-drive" }, "Synced by iCloud Drive"],
+    [{ kind: "icloud-desktop-documents" }, "Synced by iCloud Drive"],
+    [{ kind: "dropbox" }, "Synced by Dropbox"],
+    [{ kind: "google-drive" }, "Synced by Google Drive"],
+    [{ kind: "onedrive" }, "Synced by OneDrive"],
+    [{ kind: "cloud-storage", provider: "Box" }, "Synced by Box"],
+    [{ kind: "obsidian-sync" }, "Synced by Obsidian Sync"],
+  ];
+
+  it.each(SERVICES)("names %o where a vault alone says Only on this Mac", (externalSync, label) => {
+    const status: VaultStatusResponse = {
+      externalSync,
+      lastError: GIT_STDERR,
+      lastSyncAt: null,
+      state: "no-remote",
+    };
+    expect(syncStateLabel(status)).toBe(label);
+    const note = syncStateNote(status);
+    expect(note?.tone).toBe("info");
+    for (const said of [syncStateLabel(status), note?.message ?? ""]) {
+      expect(said).not.toMatch(ENGINE_WORDS);
+      expect(said).not.toContain(GIT_STDERR);
+    }
+    // sync is the service's here, so there is nothing to sign in to and nothing wrong
+    expect(note?.message).not.toMatch(/sign in/iu);
+    expect(syncNeedsAttention(status)).toBe(false);
+  });
 });
 
 describe("naming a new note", () => {

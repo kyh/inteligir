@@ -6,8 +6,10 @@ import {
   VAULT_MAX_CONTENT_LENGTH,
   contentHashHex,
   contentHashSchema,
+  externalSyncName,
 } from "@repo/api/local/vault/vault-schema";
 import type {
+  ExternalSync,
   VaultHistoryRequest,
   VaultStatusResponse,
   VaultWriteGuard,
@@ -39,6 +41,10 @@ const renderVaultStatus = (status: VaultStatusResponse): string[] => {
   const lines = [`state: ${status.state}`];
   if (status.state !== "no-remote") {
     lines.push(`remote: ${status.remote}`);
+  } else if (status.externalSync !== null) {
+    lines.push(
+      `synced by: ${externalSyncName(status.externalSync)}, so the hosted vault stays off`,
+    );
   }
   lines.push(
     `last sync: ${status.lastSyncAt === null ? "never" : new Date(status.lastSyncAt).toISOString()}`,
@@ -127,11 +133,15 @@ interface VaultSelection {
   previousVaultDir: string;
   // the server serving the previous vault, if one is up: a selection never restarts it
   running: { baseUrl: string } | null;
+  // another service that syncs the folder, so the hosted vault stays off for it
+  externalSync: ExternalSync | null;
+  // the folder's own git remote, redacted, which it keeps syncing with
+  remote: string | null;
 }
 
 // the same plan the shell's switch runs, minus the restart: the root config.json is the selector
 // `inteligir serve` reads, so the next boot is on the new vault and a running server is untouched
-const selectVault = (deps: CliDeps, rawDir: string): VaultSelection => {
+const selectVault = async (deps: CliDeps, rawDir: string): Promise<VaultSelection> => {
   const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env: deps.env };
   if (deps.homeDir !== undefined) {
     configArgs.homeDir = deps.homeDir;
@@ -147,14 +157,36 @@ const selectVault = (deps: CliDeps, rawDir: string): VaultSelection => {
   if (plan.kind === "refused") {
     throw invalidUsage(selectionRefusalMessage(plan.reason));
   }
+  // loaded here alone: no other verb runs git or judges a folder.
+  const { inspectVaultFolder } = await import("../server/vault/folder-facts");
+  const facts = await inspectVaultFolder(candidate.vaultDir, {
+    cloudUrl: candidate.cloudUrl,
+    homeDir: candidate.homeDir,
+  });
   writeManagedVaultDir(current.rootDataDir, candidate.vaultDir);
   const server = readServerFile(current.dataDir);
   return {
     dataDir: candidate.dataDir,
+    externalSync: facts.externalSync,
     previousVaultDir: current.vaultDir,
+    remote: facts.exists ? facts.remote : null,
     running: server === null ? null : { baseUrl: loopbackOrigin(server.port) },
     vaultDir: candidate.vaultDir,
   };
+};
+
+// what the next boot will sync the folder with, when that is not the account's hosted vault
+const selectionSyncNote = (selection: VaultSelection): string | null => {
+  const service = selection.externalSync === null ? null : externalSyncName(selection.externalSync);
+  if (selection.remote !== null) {
+    return (
+      `${selection.remote} is this folder's own git remote, so it syncs there and never with ` +
+      `the hosted vault${service === null ? "" : `; ${service} syncs the folder as well`}.`
+    );
+  }
+  return service === null
+    ? null
+    : `${service} syncs this folder; inteligir will not sync its notes.`;
 };
 
 export const vaultCommand = (deps: CliDeps) =>
@@ -403,13 +435,17 @@ export const vaultCommand = (deps: CliDeps) =>
           description: "Select the vault the next `serve` boots on; a running server is untouched",
           name: "open",
         },
-        run: ({ args }) => {
-          const body = selectVault(deps, args.dir);
+        run: async ({ args }) => {
+          const body = await selectVault(deps, args.dir);
           if (outputJson(args, body)) {
             return;
           }
           out.success(`Selected ${body.vaultDir}; the next \`inteligir serve\` boots on it.`);
           writeLines([`  data: ${body.dataDir}`]);
+          const syncNote = selectionSyncNote(body);
+          if (syncNote !== null) {
+            out.info(syncNote);
+          }
           if (body.running !== null) {
             out.info(
               `The server at ${body.running.baseUrl} keeps serving ${body.previousVaultDir}; restart it, or reopen Inteligir, to switch.`,

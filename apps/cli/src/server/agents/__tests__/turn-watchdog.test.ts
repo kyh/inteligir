@@ -28,6 +28,7 @@ afterEach(() => {
 const fakeGitEngine = (): GitEngine => ({
   checkpointUnclaimed: async () => await Promise.resolve(null),
   claimedPaths: () => [],
+  currentRemote: async () => await Promise.resolve(null),
   commitNow: async () => await Promise.resolve(null),
   commitPaths: async () => await Promise.resolve(null),
   deleted: async () => await Promise.resolve([]),
@@ -42,9 +43,19 @@ const fakeGitEngine = (): GitEngine => ({
   scheduleCommit: () => {},
   startAutoSync: () => {},
   status: async () =>
-    await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+    await Promise.resolve({
+      externalSync: null,
+      lastError: null,
+      lastSyncAt: null,
+      state: "no-remote",
+    }),
   syncNow: async () =>
-    await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+    await Promise.resolve({
+      externalSync: null,
+      lastError: null,
+      lastSyncAt: null,
+      state: "no-remote",
+    }),
   turnCommits: async () => await Promise.resolve([]),
 });
 

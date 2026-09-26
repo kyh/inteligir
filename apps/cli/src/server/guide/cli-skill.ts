@@ -136,7 +136,9 @@ rather than dropped. Quote an argument that holds spaces
   boots on (the app's own vault switch writes the same selector). A running
   server is untouched and named; restart it, or reopen the app, to switch. A
   vault other than the default keeps its own data dir beneath the root, so it
-  starts with no index and no credential.
+  starts with no index and no credential. \`--json\` also carries the folder's
+  \`externalSync\` (another service that syncs it, so the hosted vault stays
+  off) and \`remote\` (its own git origin, which it keeps syncing with).
 - \`inteligir vault attachments [root|beside-note|folder:<path>]\` — where a
   pasted image lands; with no argument, print the current choice.
 - \`inteligir vault status\` — git sync state (remote, dirty, conflicts).
