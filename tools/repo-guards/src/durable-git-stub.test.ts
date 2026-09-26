@@ -52,7 +52,7 @@ describe("the durable-git type stub", () => {
       transcribedVersion(),
       `${STUB} was transcribed from another durable-git than the ${version} the lockfile resolves.\n` +
         `  rule: the stub is what tsc checks the Worker against, and tsc never reads the package the bundler ships\n` +
-        `  fix: re-transcribe the stub from durable-git@${version}'s source, re-check apps/web/src/worker/vault/git-remote.ts's reliance on its internals (the x-changed and x-commit-time headers, the cell DELETE, the R2 raw/ and pack/ prefixes, the negotiation-body ceiling), then update the header`,
+        `  fix: re-transcribe the stub from durable-git@${version}'s source, re-check the Worker's reliance on its internals — apps/web/src/worker/vault/git-remote.ts (the cell DELETE, the R2 raw/ and pack/ prefixes, the negotiation-body ceiling), apps/web/src/worker/vault/receive-pack.ts (the x-changed and x-commit-time headers, report-status's "fetch first") and apps/web/src/worker/vault/commit-changes.ts (listTree's tree oid and its lenient name decode) — then update the header`,
     ).toBe(version);
   });
 });

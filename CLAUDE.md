@@ -84,7 +84,9 @@ apps/
                  revokes), the per-user ThreadSyncDO (merged thread log +
                  capture inbox + ws invalidation), and the hosted vault git
                  remote (issue #618): durable-git repo cells behind
-                 src/worker/vault/git-remote.ts, one per user, device-authed.
+                 src/worker/vault/git-remote.ts, one per user, device-authed,
+                 which the Worker commits to itself through the cell's own
+                 receive-pack (src/worker/vault/commit-changes.ts).
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
   mobile/        @repo/mobile — the Expo RN client (#576): read-only threads,
@@ -1365,6 +1367,25 @@ to the END of its group.
   send, counted and killed at the cap (`packExceeds` in
   `apps/cli/src/server/vault/git-run.ts`). A measurement that fails pushes,
   with the 413 behind it.
+
+- **THE WORKER WRITES THE HOSTED VAULT THROUGH THE CELL'S OWN RECEIVE-PACK.**
+  durable-git's `RepoCell` answers reads alone, and its one write path, a push,
+  already guards each ref with a CAS under a savepoint on a serialized chain.
+  So the Worker builds a change set's git objects itself
+  (`apps/web/src/worker/vault/git-objects.ts`) and pushes them like any client,
+  through the one door every push takes (`receive-pack.ts`, which also runs the
+  after-push ping and registry upsert). Rejected: patching a write RPC into
+  durable-git, a second writer with its own locking beside the push chain. A
+  set commits whole or not at all on the head it was checked against, each
+  change a CAS on the blob it was computed from, and a change whose target the
+  head already holds is satisfied, which is what makes a resent set harmless
+  (`apps/web/src/worker/vault/commit-changes.ts`). Two things the cell cannot
+  settle are refused rather than guessed: a tree whose listing does not hash
+  back to its own oid, since the cell decodes names leniently and a rebuild
+  would rename a sibling, and a name a sibling holds in another case or
+  normalization, since a Mac cannot hold both. Author and committer both name
+  the device, the committer's email marking the Worker, because a conflict
+  copy names the other device from the committer.
 
 ### Server process and the desktop shell
 

@@ -1,24 +1,19 @@
 import { VAULT_GIT_MAX_PUSH_BYTES, VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
-import { createDurableGit } from "durable-git";
 import type { Registry } from "durable-git";
 import { createDb } from "../db/client";
 import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
 import { spendDeviceBudget } from "../rate-limit";
-import { pingVaultAdvanced } from "../sync/routes";
+import { sendToVaultCell } from "./receive-pack";
+import type { VaultCellRoute } from "./receive-pack";
 import { treeListingPrefix } from "./tree-listing";
 
-// The URL is identity-free: the repo name is derived from the verified credential and rewritten
-// into the path, keeping the userId's case so `user:<userId>` round-trips for the push ping.
-// Verification lives here, not in dgit's Basic-only hook; its authorize stays as defense-in-depth
-// over a marker header. The ping does not use dgit's onPush, which cannot name the pushing device.
+// The URL is identity-free: the repo is named from the verified credential. Verification lives
+// here, not in dgit's Basic-only hook; receive-pack.ts is the door the verified request takes.
 
-// stamped after verification; any inbound copy is stripped first
-const AUTHORIZED_HEADER = "x-vault-authorized";
-
-const PROTOCOL_ROUTES = new Set([
-  "GET /info/refs",
-  "POST /git-upload-pack",
-  "POST /git-receive-pack",
+const PROTOCOL_ROUTES = new Map<string, VaultCellRoute>([
+  ["GET /info/refs", "/info/refs"],
+  ["POST /git-upload-pack", "/git-upload-pack"],
+  ["POST /git-receive-pack", "/git-receive-pack"],
 ]);
 
 // mirrors durable-git's negotiation-body ceiling, enforced on the declared length because the
@@ -85,21 +80,6 @@ export const vaultRepoName = (userId: string): string => `vault-${userId}`;
 export const vaultRegistry = (env: Env): DurableObjectStub<Registry> =>
   env.REGISTRY.getByName("registry");
 
-// dgit suppresses a registry upsert failure ("next push heals"), but the read routes gate on the
-// registry, so a suppressed failure after the first push leaves the vault invisible; idempotent
-const upsertVaultRegistry = async (env: Env, repo: string, idle: number): Promise<void> => {
-  try {
-    await vaultRegistry(env).upsert(repo, idle);
-  } catch {
-    // dgit's next-push-heals fallback still stands
-  }
-};
-
-const handler = createDurableGit<Env>({
-  authorize: (ctx) => ctx.request.headers.get(AUTHORIZED_HEADER) === ctx.repo,
-  ui: false,
-});
-
 // plain text plus a Basic challenge: the challenge is what makes a stock git client prompt
 const unauthorized = (): Response =>
   new Response("auth required\n", {
@@ -113,8 +93,10 @@ export const handleVaultGitRemote = async (
   ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> => {
-  const sub = url.pathname.slice(VAULT_GIT_PATH.length);
-  if (!PROTOCOL_ROUTES.has(`${request.method} ${sub}`)) {
+  const route = PROTOCOL_ROUTES.get(
+    `${request.method} ${url.pathname.slice(VAULT_GIT_PATH.length)}`,
+  );
+  if (route === undefined) {
     return new Response("not found\n", { status: 404 });
   }
 
@@ -135,7 +117,7 @@ export const handleVaultGitRemote = async (
     return new Response("internal error\n", { status: 500 });
   }
 
-  if (sub === "/git-upload-pack") {
+  if (route === "/git-upload-pack") {
     const declared = declaredLength(request);
     if (!Number.isFinite(declared) || declared > MAX_UPLOAD_PACK_BYTES) {
       return new Response("upload-pack body must declare a length within the ceiling\n", {
@@ -146,7 +128,7 @@ export const handleVaultGitRemote = async (
 
   let { body } = request;
   let capped: CappedBody | null = null;
-  if (sub === "/git-receive-pack") {
+  if (route === "/git-receive-pack") {
     const declared = declaredLength(request);
     if (declared > VAULT_GIT_MAX_PUSH_BYTES) {
       return pushTooLarge();
@@ -158,23 +140,20 @@ export const handleVaultGitRemote = async (
     }
   }
 
-  const target = new URL(request.url);
-  target.pathname = `/${repo}.git${sub}`;
-  const headers = new Headers(request.headers);
-  headers.delete("authorization");
-  headers.set(AUTHORIZED_HEADER, repo);
-
-  const response = await handler.fetch(
-    new Request(target, { body, headers, method: request.method }),
-    env,
+  const door = {
     ctx,
-  );
-
-  if (sub === "/git-receive-pack" && response.ok && response.headers.get("x-changed") === "1") {
-    ctx.waitUntil(pingVaultAdvanced(env, verified.userId, verified.deviceId));
-    const idle = Number(response.headers.get("x-commit-time")) || Date.now();
-    ctx.waitUntil(upsertVaultRegistry(env, repo, idle));
-  }
+    deviceId: verified.deviceId,
+    env,
+    registry: vaultRegistry(env),
+    repo,
+    userId: verified.userId,
+  };
+  const response = await sendToVaultCell(door, route, {
+    body,
+    headers: request.headers,
+    method: request.method,
+    url: request.url,
+  });
   // durable-git answers a cut pack 200 with every ref refused; the cap is the reason
   return capped?.exceeded() === true ? pushTooLarge() : response;
 };
