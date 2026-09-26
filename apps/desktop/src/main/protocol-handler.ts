@@ -8,6 +8,7 @@ import { HTML_FRAME_PATH } from "@repo/api/local/routes";
 import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "inteligir/server/html-block-frame";
 import { authorizationHeader } from "inteligir/server/server-file";
 import { bundleFile, isProxiedPath } from "./credential-scope";
+import type { LiveServer } from "./server-instance";
 
 export const APP_SCHEME = "inteligir";
 
@@ -29,8 +30,8 @@ export type AppRenderer = { kind: "files"; dir: string } | { kind: "dev"; origin
 export interface AppRequestHandlerArgs {
   fetch: (url: string, init?: RequestInit) => Promise<Response>;
   renderer: AppRenderer;
-  serverOrigin: string;
-  token: string;
+  // null before the first boot: the first-run page is served, and nothing is behind its API yet
+  server: LiveServer | null;
   documentHeaders: Record<string, string>;
 }
 
@@ -68,8 +69,12 @@ export const createAppRequestHandler =
       if (!initiator.success || !carriesBearer(initiator.data.initiatorOrigin)) {
         return new Response("Forbidden", { status: 403 });
       }
+      const { server } = args;
+      if (server === null) {
+        return new Response("No vault is open yet", { status: 503 });
+      }
       const headers = new Headers(request.headers);
-      headers.set("authorization", authorizationHeader(args.token));
+      headers.set("authorization", authorizationHeader(server.token));
       // buffered, not streamed: Electron's `net.fetch` takes no `duplex`.
       const init: RequestInit = { headers, method: request.method };
       if (request.method !== "GET" && request.method !== "HEAD") {
@@ -77,7 +82,7 @@ export const createAppRequestHandler =
       }
       // a child going away drops the socket mid-request, and an unanswered rejection logs as unhandled.
       const proxied = await args
-        .fetch(`${args.serverOrigin}${pathname}${search}`, init)
+        .fetch(`${server.origin}${pathname}${search}`, init)
         .catch(() => null);
       return proxied ?? new Response("The inteligir server is not answering", { status: 502 });
     }

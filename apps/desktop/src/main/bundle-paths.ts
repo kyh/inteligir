@@ -12,3 +12,7 @@ const bundlePath = (...segments: string[]): string =>
 export const rendererDir = (): string => bundlePath("renderer");
 
 export const appPreloadScript = (): string => bundlePath("preload", "index.cjs");
+
+// a build of its own (electron.vite.config.ts says why): the first-run window loads nothing of the
+// app window's bridge
+export const firstRunPreloadScript = (): string => bundlePath("preload", "first-run.cjs");

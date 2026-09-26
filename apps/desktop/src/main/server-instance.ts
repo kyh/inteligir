@@ -4,10 +4,11 @@ import path from "node:path";
 import { z } from "zod";
 import { browserHandoffUrl } from "@repo/api/local/routes";
 import { resolveAppConfig } from "inteligir/server/config";
-import type { ResolveAppConfigArgs, VaultDirSource } from "inteligir/server/config";
+import type { AppConfig, ResolveAppConfigArgs, VaultDirSource } from "inteligir/server/config";
 import { DEBUG_NAMESPACES } from "inteligir/server/debug-log";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { resolveVaultCandidate } from "inteligir/server/vault-switch";
+import type { InspectVaultFolderContext } from "inteligir/server/vault/folder-facts";
 import { toErrorMessage } from "../types";
 import { createLocalClient } from "inteligir/server/local-client";
 import { probeServerFile, silentOwnerSentence } from "inteligir/server/server-probe";
@@ -35,22 +36,32 @@ export interface ResolveServerTargetArgs {
   vaultDir?: string;
 }
 
+const resolveConfigFor = (args: ResolveServerTargetArgs): AppConfig => {
+  // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
+  // production would drive the developer's real ~/.inteligir and ~/Inteligir.
+  const env: NodeJS.ProcessEnv = {
+    ...args.env,
+    NODE_ENV: args.isPackaged ? "production" : "development",
+  };
+  const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env };
+  if (args.homeDir !== undefined) {
+    configArgs.homeDir = args.homeDir;
+  }
+  return args.vaultDir === undefined
+    ? resolveAppConfig(configArgs)
+    : resolveVaultCandidate(configArgs, args.vaultDir);
+};
+
+// what a folder is judged against before it is a vault: the home the outside-sync roots hang from,
+// and the cloud whose hosted url is the app's own origin rather than one the folder brought
+export const folderFactsContext = (args: ResolveServerTargetArgs): InspectVaultFolderContext => {
+  const { cloudUrl, homeDir } = resolveConfigFor(args);
+  return { cloudUrl, homeDir };
+};
+
 export const resolveServerTarget = (args: ResolveServerTargetArgs): ServerTargetResult => {
   try {
-    // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
-    // production would drive the developer's real ~/.inteligir and ~/Inteligir.
-    const env: NodeJS.ProcessEnv = {
-      ...args.env,
-      NODE_ENV: args.isPackaged ? "production" : "development",
-    };
-    const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env };
-    if (args.homeDir !== undefined) {
-      configArgs.homeDir = args.homeDir;
-    }
-    const config =
-      args.vaultDir === undefined
-        ? resolveAppConfig(configArgs)
-        : resolveVaultCandidate(configArgs, args.vaultDir);
+    const config = resolveConfigFor(args);
     return {
       kind: "resolved",
       target: {

@@ -361,7 +361,9 @@ try {
   const home = path.join(scratch, "home");
   const rootDataDir = path.join(home, PROD_DATA_DIR_NAME);
   const secondVault = path.join(scratch, "second-vault");
-  await mkdir(home, { recursive: true });
+  // a home with no default vault opens the first run and boots nothing until one is chosen, so
+  // the folder is made first, as a launch before first run left it
+  await mkdir(path.join(home, PROD_VAULT_DIR_NAME), { recursive: true });
   const selectorPort = port + 1;
   const selectorUrl = `http://127.0.0.1:${selectorPort}`;
   const selectorEnv = {

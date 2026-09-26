@@ -347,12 +347,15 @@ const retiredVaultRemoteWarnings = (
       ];
 
 // The root's config.json is the vault selector: it is what `inteligir serve` reads with no
-// shell around, so a switch made in the shell is the CLI's next boot too.
-export const writeManagedVaultDir = (rootDataDir: string, vaultDir: string): void => {
+// shell around, so a switch made in the shell is the CLI's next boot too. null removes the key, so
+// the next boot is on the default vault again: a first run whose boot failed must not leave the
+// next launch opening the folder that failed.
+export const writeManagedVaultDir = (rootDataDir: string, vaultDir: string | null): void => {
   const current = readManagedConfigFile(rootDataDir);
+  const kept = Object.fromEntries(Object.entries(current).filter(([key]) => key !== "vaultDir"));
   stagedWriteFileSync(
     path.join(rootDataDir, CONFIG_FILE_NAME),
-    `${JSON.stringify({ ...current, vaultDir }, null, 2)}\n`,
+    `${JSON.stringify(vaultDir === null ? kept : { ...kept, vaultDir }, null, 2)}\n`,
   );
 };
 

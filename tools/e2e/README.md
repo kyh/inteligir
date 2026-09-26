@@ -61,8 +61,12 @@ scratch dir and tears everything down afterwards:
 - `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
-- `desktopShell({ seedVault?, seedUserData? })` — the checkout's built Electron
-  shell, launched with `--remote-debugging-port` on a scratch `HOME` and
+- `desktopShell({ seedVault?, seedUserData?, firstRun? })` — the checkout's
+  built Electron shell. It makes the default vault's folder before launch, as a
+  launch before first run left it, so the shell boots it; `firstRun: true`
+  makes nothing, so the shell opens its first-run page and boots no server
+  until a vault is chosen, and a relaunch over the same scratch finds the vault
+  that run made. Launched with `--remote-debugging-port` on a scratch `HOME` and
   `--user-data-dir` (never `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which
   would make it refuse a vault switch), a pinned server port and
   `INTELIGIR_AGENT=scripted`. Its `cdpPort` is what an agent-browser session
@@ -137,6 +141,10 @@ what each one is FOR.
 |                           | `logs/server.log`: off, the boot line and no trace; on, an external write |
 |                           | traced there, the bridge reports the choice, and turning it off asks for  |
 |                           | a restart                                                                 |
+| desktop-onboarding        | the built shell on a fresh home opens only its first-run page and boots   |
+|                           | nothing; Create with the defaults boots the default vault, and the app    |
+|                           | window replaces the page on `/welcome` over the seeded vault; finishing   |
+|                           | shows Welcome.md, and a relaunch goes straight to the app                 |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline, and the note  |
 |                           | its changes name under the turn's own id                                  |
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |

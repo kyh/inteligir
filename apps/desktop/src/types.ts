@@ -4,9 +4,16 @@
 // itself), and what lives in main: the updater, the spell checker, the vault
 // switch, Reveal/Open and the diagnostics. Everything else rides the protocol
 // handler, so the renderer never holds the token. Each channel is one row in
-// ipc-contract.ts.
+// ipc-contract.ts. The first-run window has a bridge of its own, below.
 
 import type { DiagnosticsAnswer, DiagnosticsState } from "./diagnostics-state";
+import type {
+  FirstRunAnswer,
+  FirstRunChoice,
+  FirstRunState,
+  PickFolderAnswer,
+  PickParentAnswer,
+} from "./first-run-state";
 import type { PathActionResult } from "./path-action";
 import type { SpellcheckChoice, SpellcheckState } from "./spellcheck-state";
 import type { UpdateState } from "./update-state";
@@ -59,6 +66,16 @@ export interface DesktopBridge {
   spellcheck: DesktopSpellcheckBridge;
   paths: DesktopPathsBridge;
   vaults: DesktopVaultsBridge;
+}
+
+// the first-run window's whole bridge, on its own preload: before the first boot there is no
+// server, so the page asks main for the vault choice and nothing else. The folders it names are
+// ones main handed out, and `finish` answers only when no vault opened
+export interface FirstRunBridge {
+  getState: () => Promise<FirstRunState>;
+  pickParent: () => Promise<PickParentAnswer>;
+  pickFolder: () => Promise<PickFolderAnswer>;
+  finish: (choice: FirstRunChoice) => Promise<FirstRunAnswer>;
 }
 
 export const toErrorMessage = (cause: unknown): string =>

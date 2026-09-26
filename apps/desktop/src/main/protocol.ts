@@ -8,6 +8,7 @@ import { websocketOrigin } from "@repo/api/local/routes";
 import { documentSecurityHeaders } from "inteligir/server/csp";
 import { APP_SCHEME, createAppRequestHandler } from "./protocol-handler";
 import type { AppRenderer } from "./protocol-handler";
+import type { LiveServer } from "./server-instance";
 
 // must run before `app.whenReady`; Electron enforces the ordering.
 // `standard` gives Chromium a real origin for the pin; `supportFetchAPI` lets `fetch` reach it at all.
@@ -22,18 +23,20 @@ export const registerAppScheme = (): void => {
 
 export interface AppProtocolArgs {
   session: Session;
-  serverOrigin: string;
-  token: string;
+  // null for the first-run window's session, which has no server behind it and dials no socket
+  server: LiveServer | null;
   renderer: AppRenderer;
 }
 
 export const registerAppProtocol = (args: AppProtocolArgs): void => {
+  const { server } = args;
   const handler = createAppRequestHandler({
-    documentHeaders: documentSecurityHeaders({ wsOrigin: websocketOrigin(args.serverOrigin) }),
+    documentHeaders: documentSecurityHeaders({
+      wsOrigin: server === null ? null : websocketOrigin(server.origin),
+    }),
     fetch: async (url, init) => await net.fetch(url, init),
     renderer: args.renderer,
-    serverOrigin: args.serverOrigin,
-    token: args.token,
+    server,
   });
 
   // a vault revisited in one launch gets a fresh child and a fresh token, so the handler is

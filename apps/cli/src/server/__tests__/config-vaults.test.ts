@@ -165,6 +165,24 @@ describe("rewriting the vault selector", () => {
     });
   });
 
+  it("clears vaultDir back to the default vault and keeps every other key", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const root = path.join(homeDir, PROD_DATA_DIR_NAME);
+    mkdirSync(root);
+    writeFileSync(
+      path.join(root, "config.json"),
+      JSON.stringify({ futureKey: { on: true }, port: 4555, vaultDir: "/vaults/one" }),
+    );
+    writeManagedVaultDir(root, null);
+    expect(JSON.parse(readFileSync(path.join(root, "config.json"), "utf-8"))).toEqual({
+      futureKey: { on: true },
+      port: 4555,
+    });
+    const config = resolveAppConfig({ checkoutPath: "/checkout/a", env: PROD, homeDir });
+    expect(config.vaultDirSource).toBe("default");
+    expect(config.dataDir).toBe(root);
+  });
+
   it("creates the file when there is none and refuses to clobber bytes it cannot read", () => {
     const root = path.join(makeTempDir("inteligir-config-test-"), "fresh");
     writeManagedVaultDir(root, "/vaults/one");

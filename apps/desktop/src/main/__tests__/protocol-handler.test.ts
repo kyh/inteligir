@@ -2,19 +2,23 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HTML_FRAME_PATH } from "@repo/api/local/routes";
+import { documentSecurityHeaders } from "inteligir/server/csp";
 import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "inteligir/server/html-block-frame";
 import { authorizationHeader } from "inteligir/server/server-file";
 import { APP_ORIGIN, carriesBearer, createAppRequestHandler } from "../protocol-handler";
 import type { AppRenderer } from "../protocol-handler";
+import type { LiveServer } from "../server-instance";
 
 const SERVER = "http://127.0.0.1:4664";
 const TOKEN = "tok_test";
+const LIVE = { origin: SERVER, token: TOKEN } satisfies LiveServer;
 const DIR = "/app/renderer";
 const CSP = "default-src 'self'";
 const DOCUMENT_HEADERS = { "content-security-policy": CSP };
 
 const BUNDLE = {
   "assets/app.js": { body: "console.log(1)", type: "text/javascript" },
+  "first-run.html": { body: "<!doctype html><title>first run</title>", type: "text/html" },
   "index.html": { body: "<!doctype html><title>shell</title>", type: "text/html" },
 } satisfies Record<string, { body: string; type: string }>;
 
@@ -26,11 +30,16 @@ interface FetchCall {
   init: RequestInit | undefined;
 }
 
+interface MountOptions {
+  server?: LiveServer | null;
+  documentHeaders?: Record<string, string>;
+}
+
 // net.fetch rejects a file that is not there; every other origin answers its own url.
-const mount = (renderer: AppRenderer = FILES_RENDERER) => {
+const mount = (renderer: AppRenderer = FILES_RENDERER, options: MountOptions = {}) => {
   const calls: FetchCall[] = [];
   const handler = createAppRequestHandler({
-    documentHeaders: DOCUMENT_HEADERS,
+    documentHeaders: options.documentHeaders ?? DOCUMENT_HEADERS,
     fetch: async (url, init) => {
       calls.push({ init, url });
       if (!url.startsWith("file:")) {
@@ -46,8 +55,7 @@ const mount = (renderer: AppRenderer = FILES_RENDERER) => {
       return new Response(file.body, { headers: { "content-type": file.type } });
     },
     renderer,
-    serverOrigin: SERVER,
-    token: TOKEN,
+    server: options.server === undefined ? LIVE : options.server,
   });
   return { calls, handler };
 };
@@ -115,8 +123,7 @@ describe("the proxied API", () => {
       documentHeaders: DOCUMENT_HEADERS,
       fetch: () => Promise.reject(new Error("net::ERR_EMPTY_RESPONSE")),
       renderer: FILES_RENDERER,
-      serverOrigin: SERVER,
-      token: TOKEN,
+      server: LIVE,
     });
     const response = await handler(
       appRequest("/rpc/vault/read", { init: { body: "{}", method: "POST" } }),
@@ -179,6 +186,39 @@ describe("the bundle", () => {
     const { calls, handler } = mount();
     await handler(appRequest("/rpcx/steal", { initiatorOrigin: APP_ORIGIN }));
     expect(calls.some((call) => call.url.startsWith(SERVER))).toBe(false);
+  });
+});
+
+const firstRun = () =>
+  mount(FILES_RENDERER, {
+    documentHeaders: documentSecurityHeaders({ wsOrigin: null }),
+    server: null,
+  });
+
+describe("before the first boot, with no server", () => {
+  it.each(["/rpc/vault/tree", "/vault/asset?path=a.png"])(
+    "answers the page's %s with a 503 and forwards nothing",
+    async (pathname) => {
+      const { calls, handler } = firstRun();
+      const response = await handler(appRequest(pathname, { initiatorOrigin: APP_ORIGIN }));
+      expect(response.status).toBe(503);
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it("still refuses a stranger with a 403, ahead of saying nothing is open", async () => {
+    const { handler } = firstRun();
+    const response = await handler(appRequest("/rpc/vault/tree", { initiatorOrigin: "null" }));
+    expect(response.status).toBe(403);
+  });
+
+  it("serves the first-run page under a policy that dials no socket", async () => {
+    const { handler } = firstRun();
+    const page = await handler(appRequest("/first-run.html"));
+    expect(await page.text()).toBe(BUNDLE["first-run.html"].body);
+    const policy = page.headers.get("content-security-policy") ?? "";
+    expect(policy).toContain("connect-src 'self'; ");
+    expect(policy).not.toContain("ws:");
   });
 });
 

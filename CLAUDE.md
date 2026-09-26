@@ -62,18 +62,22 @@ Turborepo + pnpm monorepo.
 apps/
   desktop/       @repo/desktop — THE SHIPPED PRODUCT (issue #611). THREE
                  bundles under electron-vite: src/main/ (the window, the
-                 inteligir:// protocol handler, the forked server),
-                 src/preload/ (the bridge: only what main owns — the loopback
-                 ws origin, the updater, the spell checker, the vault switch,
-                 Reveal/Open of a vault entry, the diagnostics (data folder,
-                 debug choice, restart, log) — and nothing that holds a
-                 token; every frame crosses as `unknown` and is parsed on both
-                 sides, the page mirroring each through one `bridge-store.ts`),
+                 inteligir:// protocol handler, the forked server, the first
+                 run), src/preload/ (the bridge: only what main owns — the
+                 loopback ws origin, the updater, the spell checker, the vault
+                 switch, Reveal/Open of a vault entry, the diagnostics (data
+                 folder, debug choice, restart, log) — and nothing that holds
+                 a token; every frame crosses as `unknown` and is parsed on
+                 both sides, the page mirroring each through one
+                 `bridge-store.ts`; beside it the first-run window's own,
+                 which carries the vault choice alone),
                  and src/renderer/ (the SPA: TanStack Router file routes over
                  @repo/api/local; `app/workspace.tsx` owns the note, the rail,
                  the palette and the panel; `app/note/` the guarded writes;
                  `app/palette/` the ⌘P pages; `app/sidebar/` the rail's
-                 Recent | Files | Deleted views). The whole security surface is
+                 Recent | Files | Deleted views; and `first-run/`, the page a
+                 launch with no vault opens, with no router and no server).
+                 The whole security surface is
                  the ORIGIN PIN (src/main/origin-pin.ts, pure + unit-tested):
                  one origin, top-level navigation away goes to the system
                  browser, window.open denied unconditionally, every
@@ -690,8 +694,13 @@ to the END of its group.
   `BrowserWindow`'s session is fixed at creation. A rollback that cannot write
   the selector back quits rather than run beside a `config.json` naming the
   vault that failed, which the next launch would open (`runVaultSwitch`).
-  The folder is picked in main, so the page never names a path it was not
-  handed. `inteligir vault open <dir>` runs the same plan
+  A first run writes the selector before the first child exists, unless it
+  chose the default vault, and a failed first boot removes it again
+  (`writeManagedVaultDir(root, null)`), so the next launch asks rather than
+  opening the folder that failed (FIRST RUN IS DECIDED IN MAIN, in the Server
+  group). The folder is picked in main, so the page never names a path it was
+  not handed, and a picked switch to a folder another service syncs asks first,
+  in the first run's words. `inteligir vault open <dir>` runs the same plan
   (`apps/cli/src/server/vault-switch.ts`) and restarts nothing.
   `apps/desktop/src/main/vaults.ts`, `main/index.ts` (`switchVault`),
   `apps/desktop/src/vaults-state.ts`.
@@ -1900,7 +1909,9 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   so `script-src` is `'self'` and one fixed header serves both the protocol
   handler and the server; `connect-src` earns the most, since a script that
   cannot reach a third-party origin cannot exfiltrate the vault
-  (`apps/cli/src/server/csp.ts`). NOTHING REMOTE LOADS IN A NOTE: a remote embed
+  (`apps/cli/src/server/csp.ts`). The first-run page has a second policy, as
+  static, that names no websocket origin (`wsOrigin: null`), since no server
+  exists for it to dial. NOTHING REMOTE LOADS IN A NOTE: a remote embed
   is a beacon on every open, so it draws as a card
   (`packages/editor/src/nodes/remote-content-card.tsx`); widening the policy is
   a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN,
@@ -1919,9 +1930,13 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   loopback origin. BOTH CARRIERS LEND THE BEARER ONLY TO THE PAGE
   (`carriesBearer`), so a sandboxed note frame gets a 403 and a bare upgrade.
   The pin cannot use `URL.origin`, which answers `"null"` for any non-special
-  scheme. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS (the loopback origin, the
+  scheme. Before the first boot the same scheme serves the first-run page on a
+  session of its own with no server behind it: `/rpc/*` and `/vault/asset`
+  answer 503. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS (the loopback origin, the
   updater, the spell checker, the vault switch, Reveal/Open, the diagnostics),
-  because no server can answer for any of them. Each channel is one row
+  because no server can answer for any of them; the first-run window has a
+  preload of its own carrying the vault choice alone, and main answers each
+  window's rows to that window only. Each channel is one row
   (`apps/desktop/src/ipc-contract.ts`) typing both ends, every frame parsed by
   the side that receives it, and its test holds both ends to every row
   (`apps/desktop/src/main/__tests__/ipc-contract.test.ts`). A refusal crosses
@@ -2017,6 +2032,31 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   the switch is refused and says why. `apps/desktop/src/main/diagnostics.ts`,
   `apps/desktop/src/main/server-log.ts`, end to end in
   `tools/e2e/src/scenarios/desktop-diagnostics.ts`.
+
+- **FIRST RUN IS DECIDED IN MAIN BEFORE ANY SERVER EXISTS** (0.6 direction: a
+  knowledge worker chooses between a new vault and a folder they already
+  have). A server is bound to one vault and one data dir, so the vault is
+  main's to ask for before any child is forked; the agent and the account
+  follow as steps in the app window, which opens on `/welcome`, a layer over
+  the workspace like Settings. `planLaunch` asks only when nothing chose a
+  vault (no env pin, no `vaultDir` in config.json) and the default vault's
+  folder does not exist, so an upgrade, `inteligir serve` and a pinned harness
+  never meet it. It replaces booting the default vault unasked, which created,
+  seeded and committed `~/Inteligir` before the user said anything and left it
+  behind when they opened a folder instead. The first-run window is its own: an
+  in-memory partition locked down like a vault's, `inteligir://app/first-run.html`
+  with no server behind the handler, and a preload of its own, built apart
+  because a sandboxed preload can require no chunk beside it
+  (`apps/desktop/electron.vite.config.ts`). Every folder the page names back is
+  one main handed out (the proposal's parent, a pick), and a choice is resolved
+  exactly as a boot would before anything is written (`planFirstRunChoice`). An
+  existing folder is plain markdown where it is, shown before it opens with what
+  `inspectVaultFolder` says of it: its notes, a service that syncs it (which
+  keeps it, so the hosted vault stays off), an origin of its own. Until a vault
+  is open the updater still runs and the menus offer nothing that needs one.
+  `apps/desktop/src/main/first-run.ts`, `apps/desktop/src/first-run-state.ts`,
+  `apps/desktop/src/renderer/first-run/vault-step.tsx`,
+  `tools/e2e/src/scenarios/desktop-onboarding.ts`.
 
 ### Desktop workspace surfaces
 

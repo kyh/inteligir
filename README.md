@@ -16,7 +16,8 @@ The desktop app is the product: one window on that local server, which it
 starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). The
 signed, notarized macOS build is on the latest GitHub release (the site's
 Download button reads it), and an installed app offers each new release from
-Settings › About.
+Settings › About. Its first launch asks where your notes live, a new vault or
+a folder you already have, before it starts anything.
 
 Without installing anything:
 
@@ -25,7 +26,7 @@ npx inteligir serve --open
 ```
 
 Same server, same workspace, in a browser tab instead of a window. The vault is
-created at `~/Inteligir` on first run; the database and settings live in
+created at `~/Inteligir` the first time it serves; the database and settings live in
 `~/.inteligir`. `--port`, `--data-dir` and `--vault` override that; `^C` stops
 it cleanly (the pending vault commit is flushed and the database closed before
 it exits). Every other verb of that same binary is a client against a running

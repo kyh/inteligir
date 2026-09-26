@@ -6,11 +6,50 @@ affordances a browser tab cannot give — a dedicated window, a tray, a menu, an
 a process that starts and stops the server with the app.
 
 ```
-src/main/       the Electron main process: the window, the protocol, the fork
-src/preload/    the ONE bridge into the app window (the loopback ws origin, the updater,
-                the spell checker, the vault switch, Reveal/Open, the diagnostics)
-src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
+src/main/       the Electron main process: the window, the protocol, the fork, the first run
+src/preload/    index.ts: the ONE bridge into the app window (the loopback ws origin, the
+                updater, the spell checker, the vault switch, Reveal/Open, the diagnostics);
+                first-run.ts: the first-run window's, which carries the vault choice alone
+src/renderer/   the SPA — TanStack Router file routes over @repo/api/local — and
+                first-run.html, the page a launch with no vault opens (first-run/)
 ```
+
+## The first run is decided before any server exists
+
+A server is bound to one vault and one data dir, so the vault is chosen before
+one boots, and the agent and the account follow as steps inside the app.
+`planLaunch` (`src/main/first-run.ts`, pure and unit-tested) makes the call at
+launch: a first run only when nothing chose a vault (no `INTELIGIR_VAULT_DIR`,
+no `INTELIGIR_DATA_DIR`, no `vaultDir` in `config.json`) and the default vault's
+folder does not exist yet. Every other launch boots as it always has, so an
+upgrade, `inteligir serve` and a pinned harness never meet it.
+
+A first run opens its own window, on an in-memory partition locked down like a
+vault's, loading `inteligir://app/first-run.html` over its own preload
+(`window.firstRunBridge`: `getState`, `pickParent`, `pickFolder`, `finish`,
+answered only to that window). The same scheme serves the page with no server
+behind it: `/rpc/*` and `/vault/asset` answer 503, and the page's policy names
+no websocket origin. The page offers a new vault (the default's name and place,
+or another folder main's picker handed out) or an existing folder of notes,
+with what the folder already is: how many notes, whether another service
+(iCloud Drive, Dropbox, Obsidian Sync…) syncs it, which the app then leaves to
+that service, and whether it already syncs somewhere of its own. `finish`
+plans the choice exactly as a boot would resolve it (`planFirstRunChoice`),
+writes the vault selector unless the choice is the default vault, boots, and
+opens the app window at `/welcome` before closing the first-run window; a boot
+that fails stops what it started, removes the selector it wrote, and answers
+the page why (`runFirstRun`). Until a vault is open, the Dock, a second launch
+and the tray show the first-run window, and Open Vault…, Open Recent Vault and
+Open Data Folder are off. A picked switch (File › Open Vault…, Settings) asks
+first when another service syncs the folder, in the first run's words
+(`outsideSyncWarning` in `src/first-run-state.ts`).
+
+The first-run preload is a build of its own: a sandboxed preload can require
+no file beside it, and two inputs to one build share a chunk each would
+require (`electron.vite.config.ts` says how).
+
+A fresh checkout's `pnpm dev` shows the first run too, since its dev instance
+has no vault yet; `INTELIGIR_VAULT_DIR` (or `INTELIGIR_DATA_DIR`) skips it.
 
 ## The renderer's only door
 
@@ -56,9 +95,10 @@ between this shell and a browser:
   a phishing surface inside the product's chrome, so it is blocked; an http(s)
   target is handed to the system browser instead.
 - **`window.open` is denied unconditionally**, even same-origin.
-- `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The one
-  preload exposes the loopback origin, the updater, the spell checker, the
-  vault switch, Reveal/Open and the diagnostics, nothing that holds a token.
+- `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The app
+  window's preload exposes the loopback origin, the updater, the spell checker,
+  the vault switch, Reveal/Open and the diagnostics, nothing that holds a
+  token; the first-run window's exposes the vault choice alone.
 
 Origins are compared **field by field** — scheme, host, and port only where the
 scheme has one — never with `URL.origin`: Node's parser answers the opaque
@@ -212,8 +252,10 @@ handler's bearer, that an API write reaches the open editor (so the socket
 upgrade carried the bearer), that `window.open` is denied, that Reveal refuses a
 symlink out of the vault and a `..`, that a switch to a remembered vault stops
 the child and boots one on the new vault's data dir, and that a SIGTERM quit
-stops that child and retracts its `server.json`. It runs on the checkout's
-build, not the packaged `.app`, so the fuses, the signature and the login
+stops that child and retracts its `server.json`. `desktop-onboarding` launches
+it on a home with no vault: only the first-run page, no server, then Create
+boots the default vault and the app window opens on `/welcome`, and a relaunch
+goes straight to the app. Both run on the checkout's build, not the packaged `.app`, so the fuses, the signature and the login
 shell's PATH stay the smoke's and the unit tests'. On Linux it needs a display:
 CI runs the suite under `xvfb-run`.
 
