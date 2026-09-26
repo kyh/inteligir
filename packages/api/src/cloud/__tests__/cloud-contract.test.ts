@@ -14,6 +14,31 @@ import {
 } from "../captures/captures-schema";
 import { CLOUD_ERROR_CODES, cloudError, cloudErrorSchema } from "../cloud-errors";
 import {
+  ackDispatchesRequestSchema,
+  ackDispatchesResponseSchema,
+  cancelDispatchRequestSchema,
+  cancelDispatchResponseSchema,
+  claimDispatchesRequestSchema,
+  claimDispatchesResponseSchema,
+  closeApprovalRequestSchema,
+  closeApprovalResponseSchema,
+  createDispatchRequestSchema,
+  createDispatchResponseSchema,
+  DISPATCH_API_PATHS,
+  DISPATCH_CLAIM_DEFAULT_LIMIT,
+  DISPATCH_MAX_CHARS,
+  dispatchStatusRequestSchema,
+  dispatchStatusResponseSchema,
+  listApprovalsResponseSchema,
+  openApprovalRequestSchema,
+  openApprovalResponseSchema,
+} from "../dispatch/dispatch-schema";
+import type {
+  AckDispatchesRequest,
+  CreateDispatchRequest,
+  OpenApprovalRequest,
+} from "../dispatch/dispatch-schema";
+import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PATTERN,
   DEVICE_LOGIN_REFUSALS,
@@ -175,6 +200,14 @@ const grown = (value: Json): Json => {
 };
 
 const COMMIT = "a".repeat(40);
+const DISPATCH_ID = "d".repeat(32);
+const APPROVAL_ID = "a".repeat(32);
+const APPROVAL_PAYLOAD = {
+  availableDecisions: ["allow_once", "deny"],
+  kind: "approval",
+  reason: null,
+  subject: { command: "make notes", cwd: null, itemId: "item_1", kind: "command" },
+} satisfies OpenApprovalRequest["payload"];
 
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ["the account", accountResponseSchema, { email: "owner@example.test", id: "user_1" }],
@@ -278,6 +311,73 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ],
   ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
   ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
+  [
+    "a dispatch created",
+    createDispatchResponseSchema,
+    { dispatch: { id: DISPATCH_ID, state: "waiting" }, duplicate: false },
+  ],
+  [
+    "a dispatch claim",
+    claimDispatchesResponseSchema,
+    {
+      claimToken: "tok",
+      dispatches: [
+        {
+          createdAt: 1,
+          id: DISPATCH_ID,
+          kind: "turn",
+          originDocPath: "notes/Week.md",
+          text: "summarise this week",
+          threadId: "thr_1",
+          viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
+        },
+        {
+          approvalId: APPROVAL_ID,
+          createdAt: 2,
+          decision: "allow_once",
+          id: "e".repeat(32),
+          kind: "answer",
+          threadId: "thr_1",
+        },
+      ],
+      expiresAt: 3,
+    },
+  ],
+  [
+    "a dispatch ack",
+    ackDispatchesResponseSchema,
+    { results: [{ id: DISPATCH_ID, outcome: "recorded" }] },
+  ],
+  [
+    "a dispatch status",
+    dispatchStatusResponseSchema,
+    {
+      desktopsOnline: 1,
+      dispatches: [
+        { id: DISPATCH_ID, state: "claimed" },
+        { id: "e".repeat(32), message: "That conversation is archived.", state: "refused" },
+      ],
+    },
+  ],
+  ["a dispatch cancel", cancelDispatchResponseSchema, { outcome: "cancelled" }],
+  ["an approval opened", openApprovalResponseSchema, { duplicate: false, state: "open" }],
+  ["an approval closed", closeApprovalResponseSchema, { outcome: "closed" }],
+  [
+    "the open approvals",
+    listApprovalsResponseSchema,
+    {
+      approvals: [
+        {
+          createdAt: 1,
+          id: APPROVAL_ID,
+          payload: APPROVAL_PAYLOAD,
+          state: "answered",
+          threadId: "thr_1",
+          turnId: "turn_1",
+        },
+      ],
+    },
+  ],
   ["a refusal", cloudErrorSchema, { error: { code: "sync-conflict", deviceSeq: 7, message: "" } }],
 ];
 
@@ -485,17 +585,20 @@ describe("push request", () => {
           threadId: "th_1",
         },
       ],
-      threads: [{ lane: "desktop", threadId: "th_1", title: "Fix the build", updatedAt: 1 }],
     });
     expect(result.success).toBe(true);
   });
 
-  it("demands the client's own timestamp on a metadata upsert", () => {
-    const result = pushRequestSchema.safeParse({
-      events: [],
-      threads: [{ lane: "desktop", threadId: "th_1" }],
-    });
-    expect(result.success).toBe(false);
+  it("still reads a 0.4.0 push, whose threads half carries each thread's lane", () => {
+    const stale = {
+      events: [{ createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" }],
+      threads: [
+        { lane: "desktop", threadId: "th_1", title: "Fix the build", updatedAt: 1 },
+        { lane: "any", threadId: "th_2", updatedAt: 2 },
+      ],
+    };
+    expect(pushRequestSchema.safeParse(stale).success).toBe(true);
+    expect(pushRequestSchema.safeParse({ ...stale, lanes: [] }).success).toBe(false);
   });
 
   it("refuses an event body over the byte ceiling", () => {
@@ -558,6 +661,152 @@ describe("capture handoff", () => {
     });
     expect(parsed.results.map((row) => row.outcome)).toEqual(["deleted", "reclaimed", "unknown"]);
     expect(ackCapturesRequestSchema.safeParse({ ids: ["c1"] }).success).toBe(false);
+  });
+});
+
+describe("the dispatch inbox", () => {
+  const TURN: CreateDispatchRequest = {
+    id: DISPATCH_ID,
+    kind: "turn",
+    originDocPath: "notes/Week.md",
+    text: "summarise this week",
+    threadId: "thr_1",
+    viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
+  };
+  const ANSWER: CreateDispatchRequest = {
+    approvalId: APPROVAL_ID,
+    decision: "allow_once",
+    id: "e".repeat(32),
+    kind: "answer",
+  };
+  const APPROVAL: OpenApprovalRequest = {
+    id: APPROVAL_ID,
+    payload: APPROVAL_PAYLOAD,
+    threadId: "thr_1",
+    turnId: "turn_1",
+  };
+  const ACK: AckDispatchesRequest = {
+    claimToken: "tok",
+    results: [
+      { id: DISPATCH_ID, outcome: "delivered" },
+      { id: "e".repeat(32), message: "That conversation is archived.", outcome: "refused" },
+    ],
+  };
+
+  it("reads every request it sends as exactly that request", () => {
+    expect(createDispatchRequestSchema.parse(TURN)).toStrictEqual(TURN);
+    expect(createDispatchRequestSchema.parse(ANSWER)).toStrictEqual(ANSWER);
+    expect(openApprovalRequestSchema.parse(APPROVAL)).toStrictEqual(APPROVAL);
+    expect(ackDispatchesRequestSchema.parse(ACK)).toStrictEqual(ACK);
+    expect(dispatchStatusRequestSchema.parse({ ids: [DISPATCH_ID] })).toStrictEqual({
+      ids: [DISPATCH_ID],
+    });
+    expect(cancelDispatchRequestSchema.parse({ id: DISPATCH_ID })).toStrictEqual({
+      id: DISPATCH_ID,
+    });
+    expect(closeApprovalRequestSchema.parse({ id: APPROVAL_ID })).toStrictEqual({
+      id: APPROVAL_ID,
+    });
+    expect(claimDispatchesRequestSchema.parse({})).toStrictEqual({
+      limit: DISPATCH_CLAIM_DEFAULT_LIMIT,
+    });
+  });
+
+  it("refuses a turn it cannot read exactly", () => {
+    const refused = [
+      { ...TURN, id: "D".repeat(32) },
+      { ...TURN, id: "d".repeat(31) },
+      { ...TURN, originDocPath: "notes//Week.md" },
+      {
+        ...TURN,
+        viewContext: { resource: "/etc/passwd", revision: "c".repeat(64), surface: "doc" },
+      },
+      { ...TURN, viewContext: { resource: "notes/Week.md", revision: "HEAD", surface: "doc" } },
+      { ...TURN, text: "" },
+      { ...TURN, text: "x".repeat(DISPATCH_MAX_CHARS + 1) },
+      { ...TURN, threadId: "" },
+      { ...TURN, lane: "desktop" },
+      { ...ANSWER, decision: "allow_forever" },
+      { ...ANSWER, kind: "cancel" },
+    ];
+    for (const body of refused) {
+      expect(createDispatchRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
+    }
+  });
+
+  it("demands a refusal's reason, and gives no other outcome one", () => {
+    expect(
+      ackDispatchesRequestSchema.safeParse({
+        claimToken: "tok",
+        results: [{ id: DISPATCH_ID, outcome: "refused" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      ackDispatchesRequestSchema.safeParse({
+        claimToken: "tok",
+        results: [{ id: DISPATCH_ID, message: "fine", outcome: "delivered" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      dispatchStatusResponseSchema.safeParse({
+        desktopsOnline: 0,
+        dispatches: [{ id: DISPATCH_ID, state: "refused" }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("posts each call where the route reads it, a body the route decodes to exactly the request", async () => {
+    const seen: { body: unknown; method: string; path: string }[] = [];
+    const client = createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: `igd_${"a".repeat(64)}`,
+      fetch: async (input, init) => {
+        seen.push({
+          body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+          method: init?.method ?? "GET",
+          path: new URL(input).pathname,
+        });
+        return Response.json({});
+      },
+    });
+    await client.createDispatch(TURN);
+    await client.claimDispatches(5);
+    await client.ackDispatches(ACK);
+    await client.dispatchStatus([DISPATCH_ID]);
+    await client.cancelDispatch(DISPATCH_ID);
+    await client.openApproval(APPROVAL);
+    await client.closeApproval(APPROVAL_ID);
+    await client.listApprovals();
+
+    expect(seen.map(({ method, path }) => `${method} ${path}`)).toEqual([
+      `POST ${DISPATCH_API_PATHS.dispatch}`,
+      `POST ${DISPATCH_API_PATHS.claim}`,
+      `POST ${DISPATCH_API_PATHS.ack}`,
+      `POST ${DISPATCH_API_PATHS.status}`,
+      `POST ${DISPATCH_API_PATHS.cancel}`,
+      `POST ${DISPATCH_API_PATHS.approval}`,
+      `POST ${DISPATCH_API_PATHS.approvalClose}`,
+      `GET ${DISPATCH_API_PATHS.approvals}`,
+    ]);
+    const decoded = [
+      createDispatchRequestSchema.parse(seen[0]?.body),
+      claimDispatchesRequestSchema.parse(seen[1]?.body),
+      ackDispatchesRequestSchema.parse(seen[2]?.body),
+      dispatchStatusRequestSchema.parse(seen[3]?.body),
+      cancelDispatchRequestSchema.parse(seen[4]?.body),
+      openApprovalRequestSchema.parse(seen[5]?.body),
+      closeApprovalRequestSchema.parse(seen[6]?.body),
+    ];
+    expect(decoded).toStrictEqual([
+      TURN,
+      { limit: 5 },
+      ACK,
+      { ids: [DISPATCH_ID] },
+      { id: DISPATCH_ID },
+      APPROVAL,
+      { id: APPROVAL_ID },
+    ]);
+    expect(seen[7]?.body).toBeUndefined();
   });
 });
 

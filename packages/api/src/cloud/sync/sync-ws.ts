@@ -18,8 +18,10 @@ export const SYNC_WS_KEEPALIVE_PONG = "pong";
 // the verdict: the client answers it with an http pass, and that pass's refusal is what ends it.
 export const SYNC_WS_REVOKED_CLOSE_CODE = 1008;
 
-// sync and vault are not sent to the pushing device's own sockets; dispatch goes only to
-// desktop-platform sockets. every frame is bare: the pull carries the state.
+// sync and vault are not sent to the pushing device's own sockets. dispatch says the dispatch
+// inbox holds something for the thread: a phone's turn, to desktop sockets; an answer, to the
+// sockets of the Mac that asked; an approval, to mobile sockets. every frame is bare: the pull,
+// the claim or the listing carries the state.
 export const syncPingSchema = z.discriminatedUnion("type", [
   z.object({
     seq: z.number().int().nonnegative(),

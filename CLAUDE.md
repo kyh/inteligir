@@ -119,12 +119,13 @@ apps/
                  credential from email + password, POST /v1/device/sign-up
                  creates the account and mints it; /app/devices lists and
                  revokes), the per-user ThreadSyncDO (merged thread log +
-                 capture inbox + ws invalidation), and the hosted vault git
-                 remote (issue #618): durable-git repo cells behind
-                 src/worker/vault/git-remote.ts, one per user, device-authed,
-                 which the Worker commits to itself through the cell's own
-                 receive-pack (src/worker/vault/commit-changes.ts) when a
-                 phone posts a change set to /v1/vault/commit
+                 capture inbox + dispatch inbox + ws invalidation), and the
+                 hosted vault git remote (issue #618): durable-git repo
+                 cells behind src/worker/vault/git-remote.ts, one per user,
+                 device-authed, which the Worker commits to itself through
+                 the cell's own receive-pack
+                 (src/worker/vault/commit-changes.ts) when a phone posts a
+                 change set to /v1/vault/commit
                  (src/worker/vault/commit-route.ts).
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
@@ -1489,10 +1490,12 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `@repo/domain/provider-event`); a fact about a thread that never made a
   request stays local, since alone it would arrive as an empty action. A stale
   install skips a type it cannot read, so a new event type needs no new route.
-  The push's `threads` half is read off the batch's titled `thread/meta` rows,
-  so the Worker's `thread_meta` cannot disagree with the log; keeping that
-  lane, rather than deleting it, is the owner's call.
-  `apps/cli/src/server/threads/service.ts`.
+  The Worker keeps no per-thread row beside the log (owner decision): the
+  push's `threads` half and the `thread_meta` lane it filled are gone, the
+  dispatch inbox carrying what the lane was for, and a 0.4.0 install's
+  `threads` is still accepted and dropped, since refusing the key would refuse
+  its every push. `apps/cli/src/server/threads/service.ts`,
+  `packages/api/src/cloud/sync/sync-schema.ts`.
 
 - **Cloud state names its Durable Object from a VERIFIED credential.** Account
   deletion revokes credentials first, then purges, then writes a tombstone every
@@ -1641,6 +1644,26 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   table another module adds is a step appended to
   `apps/mobile/src/lib/phone-db.ts`. `apps/mobile/src/notes/vault-mirror.ts`,
   `apps/mobile/src/notes/notes-store.ts`.
+
+- **A PHONE ASKS A MAC THROUGH A CLAIMABLE DISPATCH INBOX, AND THE MAC'S
+  APPROVALS COME BACK THROUGH IT** (owner decision). The phone never pushes to
+  the log, so a request cannot ride it: a `turn` row waits beside the captures
+  in the account's `ThreadSyncDO`, any Mac may claim it and the first claim
+  wins, and it pings desktop sockets with the `dispatch` frame 0.4.0 already
+  parses. A phone-started turn's approval is opened there by the Mac holding
+  its waiter and listed for the phone; the phone's `answer` is a row only that
+  Mac may claim. The guarantee: at-least-once delivery to a claimant, a row
+  settled only by the claim that holds it, and a Mac's apply exactly-once on
+  the dispatch id, which the phone mints so a resend is one row. An unclaimed
+  row waits until a Mac claims it or the phone cancels it; a claim lapses
+  after `DISPATCH_CLAIM_TTL_MS`, judged on read. Revoking a phone drops its
+  waiting rows, revoking a Mac closes its approvals, and a settled row is kept
+  a day for the phone's status poll. Rejected: the `thread_meta` lane, which
+  carried no message and no claim, so two Macs would both run it, and which
+  every desktop push overwrote; and the phone as a log pusher, which would
+  give it an outbox and a `deviceSeq` of its own.
+  `packages/api/src/cloud/dispatch/dispatch-schema.ts`,
+  `apps/web/src/worker/sync/dispatch-inbox.ts`.
 
 ### Server process and the desktop shell
 

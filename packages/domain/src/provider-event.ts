@@ -196,6 +196,9 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   z.object({
     // the notes the user attached by @-mention, held to the vault path grammar at the wire.
     contextPaths: z.array(z.string().min(1)).optional(),
+    // the phone's dispatch this request carries out, so the phone swaps its pending message for
+    // this row; a build that predates it strips it, since this object is not strict.
+    dispatchId: z.string().min(1).optional(),
     // recorded before the provider accepts a turn, so no turn id exists yet.
     scope: threadScopeSchema,
     text: z.string(),

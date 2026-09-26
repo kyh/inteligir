@@ -2,9 +2,9 @@
 
 One Cloudflare Worker serving the marketing site and the whole v3 cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
-per-user thread-sync Durable Object, the capture inbox and the hosted vault
-git remote. The wire contract is `@repo/api/cloud` — the Worker implements
-it, the local app's sync client consumes it.
+per-user thread-sync Durable Object, the capture and dispatch inboxes and the
+hosted vault git remote. The wire contract is `@repo/api/cloud` — the Worker
+implements it, the local app's sync client consumes it.
 
 ## Layout
 
@@ -25,7 +25,8 @@ src/
     index.ts         The API route table (also the test suite's entry)
     auth/            Better Auth factory, invite gate, reset email + page
     device/          Device login, credential verification, /v1/account
-    sync/            ThreadSyncDO + the device-authed route chokepoint
+    sync/            ThreadSyncDO + the device-authed route chokepoint + the
+                     dispatch inbox's SQL (dispatch-inbox.ts)
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the git-less /v1/vault/* read routes + the
                      Worker's own commits (commit-changes.ts, pushed through
@@ -45,35 +46,43 @@ its own `tsconfig.json`.
 
 ## Routes
 
-| Route                          | Auth    | What                                                       |
-| ------------------------------ | ------- | ---------------------------------------------------------- |
-| `/`                            | —       | Marketing page (SSR)                                       |
-| `/privacy`                     | —       | Renders `docs/privacy.md` itself (SSR) — never a copy      |
-| `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
-| `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
-| `/app/forgot-password`         | —       | Requests the reset link                                    |
-| `/app/devices`                 | session | The device table: list and revoke                          |
-| `/api/auth/*`                  | —       | Better Auth (email+password, bearer)                       |
-| `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
-| `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
-| `POST /v1/device/login`        | —       | Email + password in, the durable device credential out     |
-| `POST /v1/device/sign-up`      | —       | Sign-up from the app: account + device credential out      |
-| `GET /v1/device/list`          | session | The device table (revoked rows included)                   |
-| `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
-| `POST /v1/device/sign-out`     | device  | The same revoke, for the device the credential names       |
-| `POST /v1/sync/push`           | device  | Outbox batch in — idempotent, conflict-aware               |
-| `GET /v1/sync/pull`            | device  | Page the merged log by global `seq`                        |
-| `GET /v1/sync/ws`              | device  | Invalidation socket (Bearer on the upgrade; hibernatable)  |
-| `POST /v1/capture`             | device  | Quick capture in, deduped on an idempotency key            |
-| `POST /v1/sync/captures/claim` | device  | Take the inbox for a five-minute window                    |
-| `POST /v1/sync/captures/ack`   | device  | Delete what that claim owns — per-id outcomes              |
-| `/v1/git/vault.git/*`          | device  | The hosted vault git remote — smart HTTP, 90 MiB push cap  |
-| `GET /v1/vault/tree`           | device  | Flat listing — path, size, blob oid — at one commit        |
-| `GET /v1/vault/file`           | device  | One note's bytes at that commit — 2 MB ceiling             |
-| `POST /v1/vault/files`         | device  | Up to 40 notes at a pinned commit — 4 MiB, rest deferred   |
-| `GET /v1/vault/asset`          | device  | One embedded binary at that commit                         |
-| `POST /v1/vault/commit`        | device  | A change set, each change CAS'd on its blob — one commit   |
-| `GET /v1/account`              | device  | Whose account this device credential syncs as              |
+| Route                                   | Auth    | What                                                                |
+| --------------------------------------- | ------- | ------------------------------------------------------------------- |
+| `/`                                     | —       | Marketing page (SSR)                                                |
+| `/privacy`                              | —       | Renders `docs/privacy.md` itself (SSR) — never a copy               |
+| `/app/sign-in`                          | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
+| `/app/sign-up`                          | —       | Sign-up form; submits to the invite gate                            |
+| `/app/forgot-password`                  | —       | Requests the reset link                                             |
+| `/app/devices`                          | session | The device table: list and revoke                                   |
+| `/api/auth/*`                           | —       | Better Auth (email+password, bearer)                                |
+| `/auth/reset`                           | —       | The ONE reset page — Worker-served, static, `no-store`              |
+| `/v1/auth/sign-up`                      | —       | The invite gate in front of Better Auth's sign-up                   |
+| `POST /v1/device/login`                 | —       | Email + password in, the durable device credential out              |
+| `POST /v1/device/sign-up`               | —       | Sign-up from the app: account + device credential out               |
+| `GET /v1/device/list`                   | session | The device table (revoked rows included)                            |
+| `POST /v1/device/revoke`                | session | Cut a device off — bites on its next request                        |
+| `POST /v1/device/sign-out`              | device  | The same revoke, for the device the credential names                |
+| `POST /v1/sync/push`                    | device  | Outbox batch in — idempotent, conflict-aware                        |
+| `GET /v1/sync/pull`                     | device  | Page the merged log by global `seq`                                 |
+| `GET /v1/sync/ws`                       | device  | Invalidation socket (Bearer on the upgrade; hibernatable)           |
+| `POST /v1/capture`                      | device  | Quick capture in, deduped on an idempotency key                     |
+| `POST /v1/sync/captures/claim`          | device  | Take the inbox for a five-minute window                             |
+| `POST /v1/sync/captures/ack`            | device  | Delete what that claim owns — per-id outcomes                       |
+| `POST /v1/sync/dispatch`                | device  | A phone's turn or approval answer in, deduped on its id             |
+| `POST /v1/sync/dispatch/claim`          | device  | Take waiting turns, and answers meant for this Mac, for two minutes |
+| `POST /v1/sync/dispatch/ack`            | device  | Settle what that claim owns, delivered or refused — per-id outcomes |
+| `POST /v1/sync/dispatch/status`         | device  | Each dispatch's state, and how many desktops are listening          |
+| `POST /v1/sync/dispatch/cancel`         | device  | Withdraw a dispatch no Mac holds                                    |
+| `POST /v1/sync/dispatch/approval`       | device  | A Mac opens an approval a phone-started turn waits on               |
+| `POST /v1/sync/dispatch/approval/close` | device  | That Mac closes it: answered there, or its turn ended               |
+| `GET /v1/sync/dispatch/approvals`       | device  | The approvals waiting for the phone's answer                        |
+| `/v1/git/vault.git/*`                   | device  | The hosted vault git remote — smart HTTP, 90 MiB push cap           |
+| `GET /v1/vault/tree`                    | device  | Flat listing — path, size, blob oid — at one commit                 |
+| `GET /v1/vault/file`                    | device  | One note's bytes at that commit — 2 MB ceiling                      |
+| `POST /v1/vault/files`                  | device  | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
+| `GET /v1/vault/asset`                   | device  | One embedded binary at that commit                                  |
+| `POST /v1/vault/commit`                 | device  | A change set, each change CAS'd on its blob — one commit            |
+| `GET /v1/account`                       | device  | Whose account this device credential syncs as                       |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its

@@ -406,7 +406,6 @@ describe("two installs against one account", () => {
       title: "Plan the week",
     });
     expect(getThread(b.db, thread.id)?.providerThreadId).toBeNull();
-    expect(cloud.threadMetaRow(thread.id)).toMatchObject({ lane: "any", title: "Plan the week" });
 
     await a.client.vault.rename({ from: "Week.md", to: "Plans/Week.md" });
     await a.client.threads.archive({ threadId: thread.id });
