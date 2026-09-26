@@ -16,8 +16,8 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import type { FileSide, Reconciled } from "@repo/notes/sync/reconcile-file";
-import { putText } from "./outbox-ops";
-import type { OutboxRow, Settle, TextOp, VaultOp, VaultSide } from "./outbox-ops";
+import { putText, rebaseEdit, rewritePuts } from "./outbox-ops";
+import type { OutboxRow, RenameOp, Settle, TextOp, VaultOp, VaultSide } from "./outbox-ops";
 import type { MirrorLanding } from "./vault-mirror";
 
 type VaultConflict = VaultCommitConflict["conflicts"][number];
@@ -36,8 +36,10 @@ export interface ReconcileContext {
 }
 
 // `send`: the set to send next, kept on the row so a resend after a lost answer is the same set.
-// `local`: the vault already holds the answer, so nothing is sent. `retarget`: a rename moves the
-// version the vault holds now.
+// `local`: the vault already holds the answer, so nothing is sent. `retarget`: the row's own change
+// again, over what the vault holds now: a rename moves the version there and leaves out the links
+// it could not rewrite (`unlinked` names the notes another device changed first), a delete takes
+// the comment stores as they are now.
 export type Resolution =
   | { kind: "send"; settle: Settle }
   | {
@@ -45,7 +47,7 @@ export type Resolution =
       landings: readonly MirrorLanding[];
       reports: readonly SyncConflictReport[];
     }
-  | { kind: "retarget"; op: VaultOp }
+  | { kind: "retarget"; op: VaultOp; unlinked: readonly string[] }
   | { kind: "park"; reason: string }
   | { kind: "failed"; failure: CloudFailure };
 
@@ -62,8 +64,8 @@ const NOT_KEPT_HERE = "Both versions could not be kept on your phone. Try again 
 
 const parked = (reason: string): Resolution => ({ kind: "park", reason });
 
-const refusedFor = (conflict: VaultCommitConflict): string | null => {
-  for (const entry of conflict.conflicts) {
+const refusedFor = (conflicts: readonly VaultConflict[]): string | null => {
+  for (const entry of conflicts) {
     const reason = PARKED_REASONS.get(entry.reason);
     if (reason !== undefined) {
       return reason;
@@ -224,16 +226,27 @@ const reconcileText = async (
     : settled(op.path, verdict, against, changes, op.content);
 };
 
-// a delete of a note another device edited keeps the edit; a comment store or a dot-entry gets
-// whatever reconcileFile answers for it
+// a delete of a note another device edited keeps the edit, and its comment stores with it; a
+// comment store or a dot-entry gets whatever reconcileFile answers for it. A store another device
+// wrote since still goes with a note that goes, as the server takes it whatever it holds.
 const reconcileRemove = async (
   op: Extract<VaultOp, { op: "remove" }>,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
 ): Promise<Resolution> => {
-  const entry = conflict.conflicts.find((candidate) => candidate.path === op.path);
+  const byPath = new Map(conflict.conflicts.map((entry) => [entry.path, entry]));
+  const stores = op.stores.flatMap((store) => {
+    const current = byPath.get(store.path)?.current;
+    if (current === undefined) {
+      return [store];
+    }
+    return current === null ? [] : [{ ...store, baseOid: current.oid }];
+  });
+  const entry = byPath.get(op.path);
   if (entry === undefined) {
-    return parked(NOT_KEPT_HERE);
+    return op.stores.some((store) => byPath.has(store.path))
+      ? { kind: "retarget", op: { ...op, stores }, unlinked: [] }
+      : parked(NOT_KEPT_HERE);
   }
   const theirs = await theirsAt(entry, conflict.head, ctx);
   if (theirs.kind === "failed") {
@@ -250,38 +263,90 @@ const reconcileRemove = async (
     thisDevice: ctx.thisDevice,
   });
   const changes: VaultChangeRequest[] = [];
-  if (verdict.stays.kind === "delete" && against !== null) {
-    changes.push({ base: against.oid, op: "delete", path: op.path });
+  if (verdict.stays.kind === "delete") {
+    if (against !== null) {
+      changes.push({ base: against.oid, op: "delete", path: op.path });
+    }
+    for (const store of stores) {
+      changes.push({ base: store.baseOid, op: "delete", path: store.path });
+    }
   }
   return settled(op.path, verdict, against, changes, null);
 };
 
-// a rename changes no bytes, so a source another device edited moves as it is now; a name taken
-// meanwhile is the two notes meeting at one path, reconciled like a create there
+// the note's own edit (its alias, its own links) carried onto the version another device left;
+// dropped where the two changed the same lines, so the note moves as that device left it
+const carriedContent = (op: RenameOp, theirs: string | null): string | null =>
+  op.content === null || op.baseContent === null || theirs === null
+    ? null
+    : rebaseEdit(op.baseContent, op.content, theirs);
+
+// the rename again without the rewrites the vault refused, over the source as it is now
+const retargetRename = async (
+  op: RenameOp,
+  byPath: ReadonlyMap<string, VaultConflict>,
+  head: string,
+  ctx: ReconcileContext,
+): Promise<Resolution> => {
+  const kept: RenameOp = {
+    ...op,
+    rewrites: op.rewrites.filter((rewrite) => !byPath.has(rewrite.path)),
+  };
+  // a note deleted since has no link left to name
+  const unlinked = op.rewrites
+    .filter((rewrite) => {
+      const entry = byPath.get(rewrite.path);
+      return entry !== undefined && entry.current !== null;
+    })
+    .map((rewrite) => rewrite.path);
+  const source = byPath.get(op.from);
+  if (source?.reason !== "changed") {
+    return { kind: "retarget", op: kept, unlinked };
+  }
+  const theirs = await theirsAt(source, head, ctx);
+  if (theirs.kind === "failed") {
+    return theirs;
+  }
+  if (theirs.kind === "absent") {
+    return parked(NOT_KEPT_HERE);
+  }
+  return {
+    kind: "retarget",
+    op: {
+      ...kept,
+      baseContent: theirs.side.text,
+      baseOid: theirs.side.oid,
+      content: carriedContent(op, theirs.side.text),
+    },
+    unlinked,
+  };
+};
+
+// a rename changes no bytes but its own note's and the links it rewrites. A source another device
+// edited moves as it is now, and a note whose link it rewrites that another device changed first
+// keeps its bytes and is named, both in one round; a name taken meanwhile is the two notes meeting
+// at one path, reconciled like a create there, with the rewrites still in the set.
 const reconcileRename = async (
   row: OutboxRow,
-  op: Extract<VaultOp, { op: "rename" }>,
+  op: RenameOp,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
 ): Promise<Resolution> => {
-  const source = conflict.conflicts.find((candidate) => candidate.path === op.from);
-  if (source?.reason === "changed") {
-    const theirs = await theirsAt(source, conflict.head, ctx);
-    if (theirs.kind === "failed") {
-      return theirs;
-    }
-    if (theirs.kind === "absent") {
-      return parked(NOT_KEPT_HERE);
-    }
-    return {
-      kind: "retarget",
-      op: { ...op, baseContent: theirs.side.text, baseOid: theirs.side.oid },
-    };
+  const byPath = new Map(conflict.conflicts.map((entry) => [entry.path, entry]));
+  const rewritten = new Set(op.rewrites.map((rewrite) => rewrite.path));
+  const refusal = refusedFor(conflict.conflicts.filter((entry) => !rewritten.has(entry.path)));
+  if (refusal !== null) {
+    return parked(refusal);
   }
-  if (op.baseContent === null) {
+  const source = byPath.get(op.from);
+  if (op.rewrites.some((rewrite) => byPath.has(rewrite.path)) || source?.reason === "changed") {
+    return await retargetRename(op, byPath, conflict.head, ctx);
+  }
+  const noteText = op.content ?? op.baseContent;
+  if (noteText === null) {
     return parked(NOT_KEPT_HERE);
   }
-  const destination = conflict.conflicts.find((candidate) => candidate.path === op.to);
+  const destination = byPath.get(op.to);
   const held = row.settle?.against ?? null;
   const theirs =
     destination === undefined ? heldSide(held) : await theirsAt(destination, conflict.head, ctx);
@@ -292,21 +357,21 @@ const reconcileRename = async (
   const verdict = reconcileFile({
     base: ABSENT,
     isTaken: takenBeside(ctx, conflict),
-    mine: { kind: "text", text: op.baseContent },
+    mine: { kind: "text", text: noteText },
     path: op.to,
     theirDevice: deviceOf(theirs),
     theirs: theirs.kind === "present" ? theirs.file : ABSENT,
     thisDevice: ctx.thisDevice,
   });
-  const changes = changesFor(op.to, verdict, against, op.baseContent);
+  const changes = changesFor(op.to, verdict, against, noteText);
   if (changes === null) {
     return parked(NOT_KEPT_HERE);
   }
   // a source already gone was deleted or moved elsewhere; the note stays at its new name
   const sourceGone = source?.reason === "missing";
   const moved: VaultChangeRequest[] = sourceGone
-    ? changes
-    : [{ base: op.baseOid, op: "delete", path: op.from }, ...changes];
+    ? [...changes, ...rewritePuts(op)]
+    : [{ base: op.baseOid, op: "delete", path: op.from }, ...changes, ...rewritePuts(op)];
   const resolution = settled(op.to, verdict, against, moved, null);
   if (resolution.kind === "local" && sourceGone) {
     return { ...resolution, landings: [...resolution.landings, { kind: "remove", path: op.from }] };
@@ -319,11 +384,15 @@ export const resolveConflict = async (
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
 ): Promise<Resolution> => {
-  const refusal = refusedFor(conflict);
+  const { op } = row;
+  // a note a rename could not rewrite costs its link, never the rename
+  if (op.op === "rename") {
+    return await reconcileRename(row, op, conflict, ctx);
+  }
+  const refusal = refusedFor(conflict.conflicts);
   if (refusal !== null) {
     return parked(refusal);
   }
-  const { op } = row;
   switch (op.op) {
     case "write":
     case "create": {
@@ -331,9 +400,6 @@ export const resolveConflict = async (
     }
     case "remove": {
       return await reconcileRemove(op, conflict, ctx);
-    }
-    case "rename": {
-      return await reconcileRename(row, op, conflict, ctx);
     }
     case "putAsset": {
       return parked("A file with this name is already in your vault.");

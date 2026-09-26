@@ -1,5 +1,6 @@
 import { hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/placeholders";
 import { z } from "zod";
 
 // the same grammar as the server's filesystem gate; it normalizes as it parses, so handlers
@@ -213,7 +214,6 @@ export const attachmentLocationSchema = z.discriminatedUnion("kind", [
 ]);
 export type AttachmentLocation = z.infer<typeof attachmentLocationSchema>;
 
-export const DEFAULT_ATTACHMENTS_FOLDER = "assets";
 export const DEFAULT_ATTACHMENT_LOCATION: AttachmentLocation = {
   kind: "folder",
   path: DEFAULT_ATTACHMENTS_FOLDER,

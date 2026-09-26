@@ -2,6 +2,7 @@ import { foldThreads } from "@repo/notes/comments/comment-threads";
 import type { CommentThread } from "@repo/notes/comments/comment-threads";
 import { markerRootIds } from "@repo/notes/comments/marker-ids";
 import { commentsStorePath, isNoteIdKey, parseSidecar } from "@repo/notes/comments/sidecar-schema";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
@@ -16,8 +17,8 @@ import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
-import { blobOid, isTextOp, opPaths, textBlobOid } from "./outbox-ops";
-import type { OutboxRow, Sha1 } from "./outbox-ops";
+import { blobOid, isTextOp, opPaths, rebaseEdit, renameLeaves, textBlobOid } from "./outbox-ops";
+import type { OutboxRow, RenameRewrite, Sha1 } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox } from "./vault-outbox";
 import type { OutboxStatus } from "./vault-outbox";
@@ -84,7 +85,27 @@ type WriteOutcome = { kind: "landed"; content: string; conflicted: boolean } | {
 
 type CreateOutcome = { kind: "created" } | { kind: "exists" };
 
-type RenameOutcome = { kind: "renamed" } | { kind: "exists" } | { kind: "vanished" };
+// `skipped`: notes whose planned text no longer matches what the phone holds, so they keep theirs
+type RenameOutcome =
+  | { kind: "renamed"; skipped: readonly string[] }
+  | { kind: "exists" }
+  | { kind: "vanished" };
+
+// what a rename changes beside the move, each computed from the text it `expected` the path to
+// hold: the note's own text at its new name, and the other notes whose links name it
+export interface RenameEdits {
+  note: { expected: string; content: string } | null;
+  rewrites: readonly { path: string; expected: string; content: string }[];
+}
+
+const NO_EDITS: RenameEdits = { note: null, rewrites: [] };
+
+// a listed file with the frontmatter facts its held text carries
+export interface HeldFile {
+  path: string;
+  noteId: string | null;
+  aliases: readonly string[];
+}
 
 // restored: the boot read of a credential whose rows are on disk. signed-in: nothing on disk is
 // this sign-in's.
@@ -105,9 +126,16 @@ export interface NotesStore {
   // throws when the caller never read the path: an inferred base lets a concurrent edit win
   write: (path: string, content: string) => Promise<WriteOutcome>;
   create: (path: string, content: string) => Promise<CreateOutcome>;
-  rename: (from: string, to: string) => Promise<RenameOutcome>;
-  remove: (path: string) => Promise<void>;
+  // the move and its edits are one change set
+  rename: (from: string, to: string, edits?: RenameEdits) => Promise<RenameOutcome>;
+  // the note and the comment `stores` that go with it are one change set
+  remove: (path: string, stores?: readonly string[]) => Promise<void>;
   putAsset: (path: string, bytes: Uint8Array) => Promise<CreateOutcome>;
+  // every file the phone lists, unsent changes laid over; none before the first listing
+  heldFiles: () => readonly HeldFile[];
+  // the text the phone holds for each note it lists; a note whose text has not downloaded is
+  // left out
+  noteTexts: () => Promise<ReadonlyMap<string, string>>;
   // told when the bytes this phone holds for a path change other than through `write`: a merge
   // that landed more than was written, another device's edit, a discard
   watchPath: (path: string, onChange: () => void) => () => void;
@@ -545,16 +573,22 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   // the vault's blob the caller's view of a path derives from: an unsent write's own base, none
-  // for an unsent create, else what was read
-  const recordGuard = (path: string, read: { content: string; oid: string | null }): void => {
+  // for an unsent create, what an unsent rename leaves there, else what was read
+  const recordGuard = async (
+    path: string,
+    read: { content: string; oid: string | null },
+  ): Promise<void> => {
     const last = lastRowOn(outbox.rows(), path);
     let base: Guard["base"] = read.oid === null ? null : { content: read.content, oid: read.oid };
     if (last?.op.op === "write") {
       base = { content: last.op.baseContent, oid: last.op.baseOid };
     } else if (last?.op.op === "create") {
       base = null;
-    } else if (last?.op.op === "rename" && last.op.baseContent !== null) {
-      base = { content: last.op.baseContent, oid: last.op.baseOid };
+    } else if (last?.op.op === "rename") {
+      const leaves = await renameLeaves(args.sha1, last.op, path);
+      if (leaves !== null && leaves.content !== null) {
+        base = { content: leaves.content, oid: leaves.oid };
+      }
     }
     guards.set(path, { base, seen: read.content });
   };
@@ -591,7 +625,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         return { content: op.content, oid: await textBlobOid(args.sha1, op.content) };
       }
       case "rename": {
-        return op.to === path ? { content: op.baseContent, oid: op.baseOid } : null;
+        return await renameLeaves(args.sha1, op, path);
       }
       case "putAsset": {
         return { content: null, oid: await blobOid(args.sha1, await outboxBytes(op.stagedFile)) };
@@ -632,10 +666,11 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         const joins = last !== undefined && isTextOp(last.op) ? last.op : null;
         let onto: { oid: string; content: string } | null = guard.base;
         if (last?.op.op === "rename") {
+          const leaves = await renameLeaves(args.sha1, last.op, path);
           onto =
-            last.op.baseContent === null
+            leaves === null || leaves.content === null
               ? null
-              : { content: last.op.baseContent, oid: last.op.baseOid };
+              : { content: leaves.content, oid: leaves.oid };
         }
         const ontoText = joins === null ? onto?.content : joins.content;
         if (ontoText === undefined) {
@@ -687,7 +722,53 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return { kind: "created" };
     });
 
-  const rename: NotesStore["rename"] = async (from, to) =>
+  const vaultRowFor = (path: string): MirrorRow | null => {
+    const entry = listing?.files.get(path);
+    return entry?.source.kind === "vault" ? entry.source.row : null;
+  };
+
+  // what the phone holds at a path now, and the blob the vault takes a change to it against: the
+  // mirror's row, not the base an open note's guard keeps, since a rename plans every other note
+  // from the text it holds
+  const heldText = async (
+    path: string,
+  ): Promise<{ oid: string; content: string | null } | null> => {
+    if (lastRowOn(outbox.rows(), path) !== undefined) {
+      return await projectedBase(path);
+    }
+    const row = vaultRowFor(path);
+    if (row === null) {
+      return null;
+    }
+    const read = await readFromMirror(path, row);
+    return { content: read.ok ? read.content : null, oid: row.oid };
+  };
+
+  // a note that no longer holds the text its rewrite was planned from is left out, never merged,
+  // as the server's rewrite leaves one; the renamed note's alias still answers its link
+  const heldRewrites = async (
+    edits: RenameEdits,
+    moved: ReadonlySet<string>,
+    skipped: string[],
+  ): Promise<RenameRewrite[]> => {
+    const rewrites: RenameRewrite[] = [];
+    for (const rewrite of edits.rewrites) {
+      const held = moved.has(rewrite.path) ? null : await heldText(rewrite.path);
+      if (held === null || held.content !== rewrite.expected) {
+        skipped.push(rewrite.path);
+        continue;
+      }
+      rewrites.push({
+        baseContent: held.content,
+        baseOid: held.oid,
+        content: rewrite.content,
+        path: rewrite.path,
+      });
+    }
+    return rewrites;
+  };
+
+  const rename: NotesStore["rename"] = async (from, to, edits = NO_EDITS) =>
     await writing(async () => {
       await resetWork;
       const fence = liveFence();
@@ -701,26 +782,44 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (base === null) {
         return { kind: "vanished" };
       }
+      const skipped: string[] = [];
+      // the note's own edit rides onto a note that changed since it was planned
+      const carried =
+        edits.note === null || base.content === null
+          ? null
+          : rebaseEdit(edits.note.expected, edits.note.content, base.content);
+      const content = carried === base.content ? null : carried;
+      const rewrites = await heldRewrites(edits, new Set([from, to]), skipped);
       const moved = guards.get(from);
       if (
         !(await outbox.enqueue(
-          { baseContent: base.content, baseOid: base.oid, from, op: "rename", to },
+          {
+            baseContent: base.content,
+            baseOid: base.oid,
+            content,
+            from,
+            op: "rename",
+            rewrites,
+            to,
+          },
           fence,
         ))
       ) {
         throw new Error(NOT_SIGNED_IN);
       }
       guards.delete(from);
-      if (base.content !== null) {
+      const leaves =
+        content === null ? base : { content, oid: await textBlobOid(args.sha1, content) };
+      if (leaves.content !== null) {
         guards.set(to, {
-          base: { content: base.content, oid: base.oid },
-          seen: moved?.seen ?? base.content,
+          base: { content: leaves.content, oid: leaves.oid },
+          seen: moved?.seen ?? leaves.content,
         });
       }
-      return { kind: "renamed" };
+      return { kind: "renamed", skipped };
     });
 
-  const remove: NotesStore["remove"] = async (path) => {
+  const remove: NotesStore["remove"] = async (path, stores = []) => {
     await writing(async () => {
       await resetWork;
       const fence = liveFence();
@@ -729,9 +828,22 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         return;
       }
       const base = await projectedBase(path);
+      if (base === null) {
+        return;
+      }
+      const storeBases: { baseOid: string; path: string }[] = [];
+      for (const store of stores) {
+        const held = listing?.files.has(store) === true ? await projectedBase(store) : null;
+        if (held !== null) {
+          guards.delete(store);
+          storeBases.push({ baseOid: held.oid, path: store });
+        }
+      }
       if (
-        base !== null &&
-        !(await outbox.enqueue({ baseOid: base.oid, op: "remove", path }, fence))
+        !(await outbox.enqueue(
+          { baseOid: base.oid, op: "remove", path, stores: storeBases },
+          fence,
+        ))
       ) {
         throw new Error(NOT_SIGNED_IN);
       }
@@ -755,11 +867,6 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       }
       return { kind: "created" };
     });
-
-  const vaultRowFor = (path: string): MirrorRow | null => {
-    const entry = listing?.files.get(path);
-    return entry?.source.kind === "vault" ? entry.source.row : null;
-  };
 
   return {
     assetSource(path) {
@@ -827,6 +934,40 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       await outbox.drain();
     },
 
+    heldFiles: () =>
+      listing === null
+        ? []
+        : [...listing.files.values()].map((entry) => ({
+            aliases: entry.aliases,
+            noteId: entry.noteId,
+            path: entry.path,
+          })),
+
+    async noteTexts() {
+      await resetWork;
+      const listed = listing;
+      if (listed === null) {
+        return new Map();
+      }
+      const mirrored = await mirror.readTexts();
+      const held = new Map(mirrored.map((text) => [text.path, text]));
+      const texts = new Map<string, string>();
+      for (const entry of listed.files.values()) {
+        if (!isDocPath(entry.path)) {
+          continue;
+        }
+        if (entry.source.kind === "text") {
+          texts.set(entry.path, entry.source.text);
+        } else if (entry.source.kind === "vault") {
+          const text = held.get(entry.source.row.path);
+          if (text?.oid === entry.source.row.oid && text.content !== null) {
+            texts.set(entry.path, text.content);
+          }
+        }
+      }
+      return texts;
+    },
+
     outbox: {
       discard: outbox.discard,
       dismiss: outbox.dismiss,
@@ -866,7 +1007,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (!read.ok) {
         return { message: read.message, ok: false };
       }
-      recordGuard(path, read);
+      await recordGuard(path, read);
       return { content: read.content, ok: true, path: read.path };
     },
 

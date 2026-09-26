@@ -1,4 +1,4 @@
-import { commentsStorePath, isNoteIdKey } from "@repo/notes/comments/sidecar-schema";
+import { commentStoresFreedBy } from "@repo/notes/comments/store-removal";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 
@@ -37,33 +37,29 @@ const readForId = async (service: VaultService, doc: string): Promise<string | n
   }
 };
 
-// A note's comment store goes with the note, a folder's with every note under it, so nothing
-// leaks under `.inteligir/`; the deleted-notes restore brings both back from the same revision.
-// The entry goes first: a store left behind is a leak, a store gone before its note is a loss.
-// A byte copy carries the `id:` line along, so a store whose id another note still carries
-// stays. An index that has not seen that note yet names no other owner, so the guard never
-// removes more than an unguarded delete would. Answers every path it removed, the entry first.
+// A note's comment store goes with the note, a folder's with every note under it, by the one
+// rule in `@repo/notes/comments/store-removal`; the deleted-notes restore brings both back from
+// the same revision. The entry goes first: a store left behind is a leak, a store gone before its
+// note is a loss. Answers every path it removed, the entry first.
 export const removeEntryWithComments = async (
   service: VaultService,
   path: string,
   knowledge: Pick<KnowledgeRuntime, "noteIdOwners">,
 ): Promise<string[]> => {
   const docs = await docsUnder(service, path);
-  const found = await mapWithConcurrency(docs, ID_READ_CONCURRENCY, async (doc) => {
+  const removedDocs = await mapWithConcurrency(docs, ID_READ_CONCURRENCY, async (doc) => {
     const content = await readForId(service, doc);
-    const id = content === null ? null : frontmatterId(content);
-    return id !== null && isNoteIdKey(id) ? id : null;
+    return { noteId: content === null ? null : frontmatterId(content), path: doc };
   });
-  const ids = new Set(found.filter((id) => id !== null));
   await service.remove(path);
   const removedPaths = [path];
-  const removed = new Set(docs);
-  for (const id of ids) {
-    const owners = await knowledge.noteIdOwners(id);
-    if (owners.some((owner) => !removed.has(owner))) {
-      continue;
+  const owners = new Map<string, readonly string[]>();
+  for (const { noteId } of removedDocs) {
+    if (noteId !== null && !owners.has(noteId)) {
+      owners.set(noteId, await knowledge.noteIdOwners(noteId));
     }
-    const storePath = commentsStorePath(id);
+  }
+  for (const storePath of commentStoresFreedBy(removedDocs, (id) => owners.get(id) ?? [])) {
     try {
       await service.remove(storePath);
       removedPaths.push(storePath);

@@ -9,6 +9,8 @@ import type { CaptureSender } from "../capture/capture-sender";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import type { AttachmentFiles } from "../notes/attachment-files";
+import { createFileOps } from "../notes/file-ops";
+import type { FileOps } from "../notes/file-ops";
 import { createNotesStore } from "../notes/notes-store";
 import type { CreateNotesStoreArgs, NotesStore, SignInSource } from "../notes/notes-store";
 import type { Sha1 } from "../notes/outbox-ops";
@@ -47,6 +49,7 @@ export interface AppRuntime {
   store: SyncStore;
   sync: SyncRuntime;
   notes: NotesStore;
+  fileOps: FileOps;
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
   start: () => Promise<void>;
@@ -107,6 +110,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   let started = false;
 
   return {
+    fileOps: createFileOps(notes),
     async logout(options = {}) {
       const unsent = await notes.unsentCount();
       if (unsent > 0 && options.discardUnsent !== true) {

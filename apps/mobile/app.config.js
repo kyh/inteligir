@@ -69,6 +69,15 @@ const appConfig = ({ config }) => ({
   orientation: "portrait",
   plugins: [
     "expo-router",
+    [
+      "expo-image-picker",
+      {
+        cameraPermission: "Inteligir uses the camera when you take a photo to add to your notes.",
+        microphonePermission: false,
+        photosPermission:
+          "Inteligir opens your photo library when you choose a photo to add to your notes.",
+      },
+    ],
     ["expo-secure-store", { faceIDPermission: false }],
     [
       "expo-splash-screen",

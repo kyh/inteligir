@@ -137,8 +137,10 @@ apps/
                  offline, rendered through @repo/notes' own parse, with each
                  note's comment store folded beside it (#683), and a durable
                  outbox of the phone's own edits (src/notes/vault-outbox.ts)
-                 sent through the guarded commit route; reaches
-                 @repo/api/cloud, @repo/domain and @repo/notes only.
+                 sent through the guarded commit route, its file verbs
+                 (create, rename, delete, photos) planned in
+                 src/notes/file-ops.ts; reaches @repo/api/cloud,
+                 @repo/domain and @repo/notes only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
                  provider events, the thread-title rule), vendored-from-bb
@@ -651,7 +653,10 @@ to the END of its group.
   file dragged in from the desktop is ignored. No second write path: the move
   rides `vault.rename`, which rewrites links for a folder as for a note
   (`apps/cli/src/server/knowledge/rename.ts`), and the vault session carries
-  the open note through it (`packages/editor/src/note/vault-session.ts`).
+  the open note through it (`packages/editor/src/note/vault-session.ts`). The
+  rename's pure half (the moves, the old stem a renamed note keeps as an alias,
+  the writes) is `@repo/notes/knowledge/plan-rename`, which the phone plans its
+  renames with too; only the guards are each caller's.
 
 - **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
   the editor.** `<dataDir>/vault-prefs.json` holds `attachments` (the root,
@@ -661,7 +666,11 @@ to the END of its group.
   (`@repo/api/local/vault/attachment-location`). `setPrefs` refuses only a path
   that is a file, which would refuse every paste. The bytes ride as a
   multipart Blob rather than base64 inside the json.
-  `apps/cli/src/server/vault/vault-prefs-store.ts`.
+  `apps/cli/src/server/vault/vault-prefs-store.ts`. The file's name is
+  `freeAssetPath` (`@repo/notes/knowledge/asset-name`), which the phone's
+  photos run too; `vault-prefs.json` never reaches the phone, so they land in
+  the default folder, spelled once as `DEFAULT_ATTACHMENTS_FOLDER` in
+  `@repo/notes/templates/placeholders`.
 
 - **THE OS SEES A VAULT ENTRY THROUGH MAIN ALONE, and main checks physically.**
   Reveal in Finder and Open with default app send main a vault-relative path;
@@ -1104,7 +1113,9 @@ to the END of its group.
   `<note>.comments.json` is folded in on first touch and over the whole tree
   once the server listens (`comments-migration.ts`, kicked from `serve.ts`, so
   it neither delays nor fails the boot). A deleted note's store goes with it
-  (`remove-with-comments.ts`) unless a byte copy still carries that id, and a
+  unless a byte copy still carries that id, one rule
+  (`@repo/notes/comments/store-removal`) the server's delete
+  (`remove-with-comments.ts`) and the phone's both ask, and a
   restore brings both back through
   `@repo/api/local/vault/restore-comment-store`, reporting a store it could not
   restore, because one silently left behind strands its threads. A BYTE COPY
@@ -1770,6 +1781,28 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   give it an outbox and a `deviceSeq` of its own.
   `packages/api/src/cloud/dispatch/dispatch-schema.ts`,
   `apps/web/src/worker/sync/dispatch-inbox.ts`.
+
+- **THE PHONE'S FILE VERBS PLAN WITH THE SERVER'S PURE RULES, AND EACH IS ONE
+  CHANGE SET** (0.6 direction: the phone is a full editor). Create, rename,
+  delete and a photo (`apps/mobile/src/notes/file-ops.ts`) run the rules the
+  server does (`plan-rename`, `store-removal`, `asset-name` in `@repo/notes`),
+  because a phone copy is a second spelling that drifts. A rename plans over
+  the phone's own link graph, built from the text it holds, and queues the
+  move, the note's own new text and every rewritten note as ONE row: the
+  commit route names each path once, so a rename that changes its note's text
+  deletes the old path and puts the new one under the same guards a move
+  takes. A rewritten note another device changed first keeps its bytes and is
+  named (`reconcileRename` in `apps/mobile/src/notes/outbox-reconcile.ts`), as
+  is one past what a set carries; the old stem's alias still answers its link.
+  A delete carries the note's comment store in its set, so a note the vault
+  keeps because another device edited it keeps its comments. Notes only: no
+  folder verbs on the phone in 0.6 (owner decision). A photo is a JPEG at most
+  2048px on its long edge (`apps/mobile/src/notes/photo-ingest.ts`): a HEIC is
+  no asset type the vault takes and the Mac's editor cannot draw it, and the
+  re-encode writes no EXIF, so no location reaches the vault's history.
+  Rejected: link rewrites as rows of their own, which could land a rename
+  without the links it moved, and a typed name cleaned up rather than refused,
+  which shows a title that was never saved.
 
 ### Server process and the desktop shell
 

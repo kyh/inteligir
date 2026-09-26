@@ -19,8 +19,11 @@ import {
 import path from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
+import { freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
+  dirnamePath,
   isIgnoredEntryName,
+  joinPath,
   VaultPathError,
   VAULT_TMP_PREFIX,
 } from "@repo/notes/knowledge/vault-path";
@@ -598,31 +601,23 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async writeAsset(dir, baseName, bytes) {
       return await lock(async () => {
-        const dot = baseName.lastIndexOf(".");
-        const ext = dot > 0 ? baseName.slice(dot).toLowerCase() : "";
-        const stem = (dot > 0 ? baseName.slice(0, dot) : baseName)
-          .replaceAll(/[^\p{L}\p{N}._ -]+/gu, "-")
-          .replaceAll(/^[.\s-]+|[.\s-]+$/gu, "");
-        const safeStem = stem === "" ? "asset" : stem;
-        const candidate = (n: number) => {
-          const name = n === 1 ? `${safeStem}${ext}` : `${safeStem}-${n}${ext}`;
-          return resolveVaultPath(rootReal, dir === "" ? name : `${dir}/${name}`);
-        };
-        const first = candidate(1);
+        const taken: string[] = [];
+        const first = resolveVaultPath(rootReal, freeAssetPath(dir, baseName, taken));
         // every candidate shares this folder, so its ancestry is checked once, before the read.
         await assertAncestryInsideVault(first.absPath);
         // one read of the folder, not a stat per name: a folder holding a thousand pastes of one
-        // name would otherwise probe a thousand paths under the lock. case-folded, since a
-        // case-insensitive filesystem answers `Shot.png` for `shot.png`.
+        // name would otherwise probe a thousand paths under the lock.
+        const folder = dirnamePath(first.relPath);
         const listed = await namesIn(path.dirname(first.absPath));
-        const taken = new Set(listed.map((name) => name.toLowerCase()));
-        for (let n = 1; ; n += 1) {
-          const { relPath, absPath } = n === 1 ? first : candidate(n);
-          if (taken.has(path.basename(absPath).toLowerCase())) {
-            continue;
-          }
+        taken.push(...listed.map((name) => joinPath(folder, name)));
+        for (;;) {
+          const { relPath, absPath } = resolveVaultPath(
+            rootReal,
+            freeAssetPath(folder, baseName, taken),
+          );
           // the race guard: a writer outside this service may have landed since the read.
           if ((await lstatRefusingSymlink(absPath, relPath)) !== null) {
+            taken.push(relPath);
             continue;
           }
           await performAtomicWrite(relPath, absPath, bytes, null);

@@ -57,6 +57,14 @@ src/
                         @repo/notes' reconcileFile; vault-overlay.ts: the rows
                         laid over the mirror; pure, unit-tested against
                         node:sqlite and a fake vault that CASes like the Worker)
+    file-ops.ts         create, rename, delete and add a photo over the notes
+                        store, planned with the rules the server runs
+                        (@repo/notes' plan-rename, store-removal, asset-name;
+                        platform-free, unit-tested and run by the scenario suite)
+    photo-ingest.ts     the camera or the library → a JPEG at most 2048px on
+                        its long edge, re-encoded without EXIF (the native half;
+                        photo-plan.ts is the pure one: the size, the name, the
+                        embed line)
     outbox-files.ts     the staged-attachment port; expo-outbox-files.ts is its
                         expo-file-system adapter
     attachment-files.ts the attachment-file port; expo-attachment-files.ts
@@ -75,7 +83,8 @@ src/
                 native module this app carries); the external store the
                 runtimes publish through, theme, cloud URL
   app/          expo-router screens: sign-in, thread list + quick-capture, a
-                thread view, the notes list + read-only note view;
+                thread view, the notes list (New note; Rename and Delete on a
+                long press) + read-only note view (Add photo);
                 _layout.tsx holds the splash and the route guard
 ```
 
@@ -150,8 +159,9 @@ else.
 A write lands on the phone the moment it is durable in the `outbox` table
 (`notes/vault-outbox.ts`), and every read, the listing and the wiki resolver
 see it from then on (`notes/vault-overlay.ts`): a pending edit reads as the
-note, a create and a staged photo list before the vault holds them, and a
-rename or a delete moves or hides the row now. The rows are sent oldest first,
+note, a create and a staged photo list before the vault holds them, a rename
+moves the row and rewrites the links naming it now, and a delete hides the
+note and its comment store. The rows are sent oldest first,
 one change set per row, to `POST /v1/vault/commit`, on every write, on resume,
 when expo-network says the phone is back online, and on a backoff after a
 failure, one pass at a time (`createSingleFlight` from
@@ -183,6 +193,19 @@ failure, one pass at a time (`createSingleFlight` from
   other paths go on. The published status (`outbox.status`) counts what is
   unsent and lists each parked row with Retry, Save as new note and Discard,
   and each conflict in `describeSyncConflict`'s words, for the editor's UI.
+- **A rename and a delete are one set each** (`notes/file-ops.ts`). A rename
+  carries the move, the note's own new text (its old name kept as an alias,
+  its own links rewritten) and every note whose links name it, planned over
+  the phone's own link graph with `@repo/notes/knowledge/plan-rename`, the
+  server's rules; a note another device changed first keeps its bytes and is
+  named, and the alias still answers its link. A delete carries the note's
+  comment store unless another note carries its id
+  (`@repo/notes/comments/store-removal`), so a note the vault keeps, because
+  another device edited it, keeps its comments too.
+- **A photo lands in the default attachments folder** (`assets/`), since the
+  Mac's attachment choice lives in its own data folder, under a free name
+  (`@repo/notes/knowledge/asset-name`), as a JPEG: the Mac's editor cannot
+  show a HEIC, and the re-encode leaves the photo's location behind.
 - **Signing out asks first.** `logout` refuses while anything is unsent, and
   the home screen's confirm names the count; a discard wipes the rows and the
   staged photos with the mirror, and so does a revocation.
@@ -239,9 +262,12 @@ that is signed in.
   outlives its sign-in), the outbox (offline edits across a relaunch, the
   coalesced write, a merge, a copy, a lost answer, a parked row, a refresh
   racing a landing), the capture sender, and the composition's restore,
-  sign-out, revocation and resume — all against faked fetch. Unit tests, no
-  device. `tools/e2e/src/scenarios/phone-offline-edit.ts` runs the same
-  composition under node against a real Worker and a desktop.
+  sign-out, revocation and resume, the file verbs (a rename's rewritten link
+  and alias, a note changed under it, a delete's comment store, a new note
+  stepping past a taken name, a photo's size and cap) — all against faked
+  fetch. Unit tests, no device. `tools/e2e/src/scenarios/phone-offline-edit.ts`
+  and `phone-file-ops-hosted.ts` run the same composition under node against a
+  real Worker and a desktop.
 - **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the
   config to what App Store Connect judges — the marketing version is the
@@ -257,8 +283,11 @@ that is signed in.
   expo-secure-store Keychain round trip, expo-sqlite and the backup exclusion
   (both native: a dev client built before them must be rebuilt), the
   attachment and staged files, the AppState resume and expo-network's
-  reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, and the offline
-  check: sync once, airplane mode, cold launch, the list and any note open.
+  reconnect, a live sign-in against a running cloud Worker, an EAS Update landing on an installed build, the offline
+  check (sync once, airplane mode, cold launch, the list and any note open),
+  and photos: from the camera and the library each lands as
+  `assets/<name>.jpg`, about 1 MB or less, with no location in its EXIF, and
+  draws in its note on the Mac.
 
 ## Dev
 

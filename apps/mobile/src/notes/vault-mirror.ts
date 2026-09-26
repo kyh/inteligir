@@ -110,6 +110,8 @@ export interface VaultMirror {
     onProgress: (progress: MirrorProgress) => void,
   ) => Promise<FillOutcome>;
   readText: (path: string) => Promise<MirrorText | null>;
+  // every row that holds its text
+  readTexts: () => Promise<MirrorText[]>;
   // lands only while the row still names `oid`: a refresh may have moved it on meanwhile
   storeText: (text: { path: string; oid: string; content: string }, fence: Fence) => Promise<void>;
   wipe: () => Promise<void>;
@@ -608,6 +610,17 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
         path: parsed.path,
         pinCommit: parsed.pin_commit,
       };
+    },
+
+    async readTexts() {
+      await ready();
+      const rows = await db.all(
+        "SELECT path, oid, pin_commit, content FROM mirror_entries WHERE content IS NOT NULL",
+      );
+      return rows.map((raw) => {
+        const row = textRowSchema.parse(raw);
+        return { content: row.content, oid: row.oid, path: row.path, pinCommit: row.pin_commit };
+      });
     },
 
     async snapshot() {

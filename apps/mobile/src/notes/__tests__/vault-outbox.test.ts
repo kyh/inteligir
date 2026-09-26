@@ -1,4 +1,3 @@
-import { createCloudClient } from "@repo/api/cloud/client";
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { VAULT_API_PATHS, VAULT_FILE_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
 import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
@@ -7,70 +6,20 @@ import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { createMemorySyncStore } from "../../sync/memory-sync-store";
-import { createSyncRuntime } from "../../sync/sync-runtime";
-import { createNotesStore } from "../notes-store";
 import type { NotesStore } from "../notes-store";
-import {
-  APPLIED_HEADER,
-  blobOid,
-  createFakeVault,
-  FAKE_PHONE_DEVICE,
-  requestsOf,
-} from "./fake-vault";
-import type { FakeVault } from "./fake-vault";
-import { openTempDb, phonePorts, tempDbPath } from "./phone-storage";
-
-const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+import { blobOid, createFakeVault, FAKE_PHONE_DEVICE, networkOver, requestsOf } from "./fake-vault";
+import type { FakeVault, Network } from "./fake-vault";
+import { launchPhone, openTempDb, tempDbPath } from "./phone-storage";
 
 // ten lines, so an edit on line 1 and one on line 10 are far apart and two on line 5 overlap
 const TEN_LINES = Array.from({ length: 10 }, (_, index) => `line ${String(index + 1)}`);
 const note = (edits: Record<number, string> = {}): string =>
   `${TEN_LINES.map((line, index) => edits[index + 1] ?? line).join("\n")}\n`;
 
-// the network between the phone and the vault: off, or on and losing the answer to every set
-// the vault applied, once
-interface Network {
-  online: boolean;
-  loseApplied: boolean;
-}
-
-const networkOver =
-  (vault: FakeVault, net: Network): CloudFetch =>
-  async (input, init) => {
-    if (!net.online) {
-      throw new Error("offline");
-    }
-    const response = await vault.fetch(input, init);
-    if (net.loseApplied && response.headers.get(APPLIED_HEADER) === "true") {
-      throw new Error("the answer was lost on the way back");
-    }
-    return response;
-  };
-
-// one launch of the phone over a database file, signed in as the boot restore does
-const launch = (fetch: CloudFetch, db: SqlDriver): NotesStore => {
-  const sync = createSyncRuntime({
-    cloudUrl: "https://cloud.test",
-    createClient: (credential) =>
-      createCloudClient({
-        baseUrl: "https://cloud.test",
-        credential: credential.credential,
-        fetch,
-      }),
-    pollIntervalMs: null,
-    store: createMemorySyncStore(),
-  });
-  const store = createNotesStore({ ...phonePorts(), db, session: sync.session });
-  sync.setCredential(CREDENTIAL);
-  store.reset("restored");
-  return store;
-};
-
 const phone = async (vault: FakeVault) => {
   const net: Network = { loseApplied: false, online: true };
   const db = openTempDb();
-  const store = launch(networkOver(vault, net), db);
+  const store = launchPhone(networkOver(vault, net), db);
   await store.refresh();
   return { db, net, store };
 };
@@ -113,7 +62,7 @@ describe("the phone's outbox", () => {
     const vault = createFakeVault({ "a.md": "# a\n", "b.md": "# b\n" });
     const file = tempDbPath();
     const net: Network = { loseApplied: false, online: true };
-    const first = launch(networkOver(vault, net), openTempDb(file));
+    const first = launchPhone(networkOver(vault, net), openTempDb(file));
     await first.refresh();
     await readText(first, "a.md");
     await readText(first, "b.md");
@@ -125,7 +74,7 @@ describe("the phone's outbox", () => {
     await first.drain();
     expect(first.outbox.status.get()).toMatchObject({ unsent: 3 });
 
-    const relaunched = launch(networkOver(vault, net), openTempDb(file));
+    const relaunched = launchPhone(networkOver(vault, net), openTempDb(file));
     expect(await readText(relaunched, "a.md")).toBe("# a\n\nfrom the train\n");
     net.online = true;
     await relaunched.drain();
@@ -284,7 +233,7 @@ describe("the phone's outbox", () => {
     await store.write("a.md", note({ 5: "phone 5" }));
     await store.create("c.md", "# c\n");
     // the mac takes the name meanwhile, so the rename settles as a set with a copy too
-    expect(await store.rename("b.md", "e.md")).toStrictEqual({ kind: "renamed" });
+    expect(await store.rename("b.md", "e.md")).toStrictEqual({ kind: "renamed", skipped: [] });
     vault.change({ "a.md": note({ 5: "mac 5" }), "e.md": "# e from the mac\n" });
 
     net.online = true;
@@ -354,7 +303,7 @@ describe("the phone's outbox", () => {
       return response;
     };
     const db = openTempDb();
-    const store = launch(fetch, db);
+    const store = launchPhone(fetch, db);
     await store.refresh();
     await readText(store, "a.md");
 
