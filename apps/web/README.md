@@ -12,6 +12,7 @@ it, the local app's sync client consumes it.
 src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
+    privacy.tsx      docs/privacy.md itself, rendered
     design.tsx       The @repo/ui gallery, client-only
     app/             /app/sign-in, /app/sign-up, /app/forgot-password and
                      /app/devices (the device table, client-only)
@@ -47,6 +48,7 @@ its own `tsconfig.json`.
 | Route                          | Auth    | What                                                       |
 | ------------------------------ | ------- | ---------------------------------------------------------- |
 | `/`                            | —       | Marketing page (SSR)                                       |
+| `/privacy`                     | —       | Renders `docs/privacy.md` itself (SSR) — never a copy      |
 | `/design`                      | —       | The @repo/ui gallery (client-only)                         |
 | `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
 | `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |

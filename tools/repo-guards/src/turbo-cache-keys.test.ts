@@ -10,8 +10,10 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   REPO_ROOT,
+  importsOf,
   manifestWorkspaceDeps,
   turboTaskBodies,
+  workspaceFiles,
   workspaceTurboConfig,
   workspaces,
 } from "./repo";
@@ -29,6 +31,7 @@ const WITHOUT_DEPENDENCY_EDGE = new Map<string, string>();
 const turboTaskSchema = z.looseObject({
   cache: z.boolean().optional(),
   dependsOn: z.array(z.string()).optional(),
+  inputs: z.array(z.string()).optional(),
 });
 type TurboTask = z.infer<typeof turboTaskSchema>;
 
@@ -40,7 +43,7 @@ const turboTasks = (configPath: string): Map<string, TurboTask> => {
     const task = turboTaskSchema.safeParse(body);
     if (!task.success) {
       throw new Error(
-        `${configPath}: tasks.${name} must be an object whose dependsOn is an array of strings and whose cache is a boolean`,
+        `${configPath}: tasks.${name} must be an object whose dependsOn and inputs are arrays of strings and whose cache is a boolean`,
       );
     }
     tasks.set(name, task.data);
@@ -84,12 +87,13 @@ interface JudgedTask {
 }
 
 // a workspace's override replaces the root's field whole, unless it spells EXTENDS_ROOT.
-const effectiveDependsOn = (
+const effectiveList = (
   rootTask: TurboTask | undefined,
   ownTask: TurboTask | undefined,
+  field: "dependsOn" | "inputs",
 ): string[] => {
-  const rootList = rootTask?.dependsOn ?? [];
-  const ownList = ownTask?.dependsOn;
+  const rootList = rootTask?.[field] ?? [];
+  const ownList = ownTask?.[field];
   if (ownList === undefined) {
     return rootList;
   }
@@ -120,7 +124,7 @@ const cachedTasks = (): JudgedTask[] => {
         declaredIn:
           ownConfig !== null && ownTask?.dependsOn !== undefined ? ownConfig : ROOT_CONFIG,
         dependencies,
-        dependsOn: effectiveDependsOn(rootTask, ownTask),
+        dependsOn: effectiveList(rootTask, ownTask, "dependsOn"),
         id: `${workspace.name}#${name}`,
         task: name,
       });
@@ -178,5 +182,83 @@ describe("every cached turbo task hashes the workspaces it depends on", () => {
       }
     }
     expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
+  });
+});
+
+// a file in no workspace is hashed by no task until one names it, so a build that bundles it
+// through a relative import replays its stale output after an edit to that file alone.
+
+// turbo's microsyntax for the repo root inside an input glob.
+const TURBO_ROOT = "$TURBO_ROOT$/";
+
+interface StrayImport {
+  workspace: Workspace;
+  file: string;
+  // repo-relative, its query dropped.
+  target: string;
+}
+
+const buildInputs = (workspace: Workspace): string[] => {
+  const ownConfig = workspaceTurboConfig(workspace);
+  const own = ownConfig === null ? undefined : turboTasks(ownConfig).get("build");
+  return effectiveList(rootTasks().get("build"), own, "inputs");
+};
+
+const namesInput = (inputs: readonly string[], target: string): boolean =>
+  inputs.some((input) => {
+    if (!input.startsWith(TURBO_ROOT)) {
+      return false;
+    }
+    const glob = input.slice(TURBO_ROOT.length);
+    return glob === target || (glob.endsWith("/**") && target.startsWith(glob.slice(0, -2)));
+  });
+
+const strayImports = (): StrayImport[] => {
+  const dirs = workspaces().map((workspace) => workspace.dir);
+  const found: StrayImport[] = [];
+  for (const workspace of workspaces()) {
+    if (!scriptsOf(workspace).has("build")) {
+      continue;
+    }
+    for (const file of workspaceFiles(workspace).shipped) {
+      for (const specifier of importsOf(file)) {
+        if (!specifier.startsWith(".")) {
+          continue;
+        }
+        const [bare = specifier] = specifier.split("?");
+        const target = path.join(path.dirname(file), bare);
+        if (dirs.some((dir) => target === dir || target.startsWith(`${dir}/`))) {
+          continue;
+        }
+        found.push({ file, target, workspace });
+      }
+    }
+  }
+  return found;
+};
+
+describe("a bundled file outside every workspace is a named build input", () => {
+  const judged = strayImports();
+
+  it("finds the imports it judges", () => {
+    expect(
+      judged.map((stray) => stray.target),
+      "apps/web's /privacy bundles docs/privacy.md — the sweep is broken, not the tree",
+    ).toContain(path.join("docs", "privacy.md"));
+  });
+
+  it("every one is named in its workspace's build inputs", () => {
+    const violations: string[] = [];
+    for (const stray of judged) {
+      if (namesInput(buildInputs(stray.workspace), stray.target)) {
+        continue;
+      }
+      violations.push(
+        `UNHASHED INPUT  ${stray.target}, imported by ${stray.file}\n` +
+          `  rule: turbo hashes a file in no workspace only where a task names it — without that, an edit to it alone is a cache hit that replays the stale ${stray.workspace.name} build\n` +
+          `  fix: add "${TURBO_ROOT}${stray.target}" to tasks.build.inputs in ${stray.workspace.dir}/turbo.json, beside "$TURBO_DEFAULT$"`,
+      );
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 });

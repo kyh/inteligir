@@ -3,6 +3,9 @@
   "extends": ["//"],
   "tasks": {
     "build": {
+      // /privacy bundles docs/privacy.md, which sits in no workspace, so turbo hashes it only
+      // where it is named.
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/privacy.md"],
       // The Cloudflare plugin also writes `.wrangler/deploy/config.json`, the
       // redirect `wrangler deploy` and `vite preview` follow to the built
       // worker. A cache hit that restored dist/ alone would leave them on

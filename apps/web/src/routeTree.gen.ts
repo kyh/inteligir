@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as DesignRouteImport } from './routes/design'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppDevicesRouteImport } from './routes/app/devices'
@@ -32,6 +33,11 @@ const AppRoute = AppRouteImport.update({
 const DesignRoute = DesignRouteImport.update({
   id: '/design',
   path: '/design',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/design': typeof DesignRoute
+  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
+  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/design': typeof DesignRoute
+  '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/design'
+    | '/privacy'
     | '/robots.txt'
     | '/app/devices'
     | '/app/forgot-password'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/design'
+    | '/privacy'
     | '/robots.txt'
     | '/app/devices'
     | '/app/forgot-password'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/design'
+    | '/privacy'
     | '/robots.txt'
     | '/app/devices'
     | '/app/forgot-password'
@@ -137,6 +149,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   DesignRoute: typeof DesignRoute
+  PrivacyRoute: typeof PrivacyRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
 }
 
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/design'
       fullPath: '/design'
       preLoaderRoute: typeof DesignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/robots.txt': {
@@ -230,6 +250,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   DesignRoute: DesignRoute,
+  PrivacyRoute: PrivacyRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
 }
 export const routeTree = rootRouteImport

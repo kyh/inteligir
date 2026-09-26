@@ -100,7 +100,9 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | override, or both through `$TURBO_EXTENDS$`) — turbo hashes another       |
 |                                | workspace's files into a key only through one, so without it an edit to   |
 |                                | a bundled package replays stale output. `^topo` is the edge where `^self` |
-|                                | would cycle; a `WITHOUT_DEPENDENCY_EDGE` row carries its reason.          |
+|                                | would cycle; a `WITHOUT_DEPENDENCY_EDGE` row carries its reason. And a    |
+|                                | relative import that leaves every workspace (`/privacy`'s                 |
+|                                | `docs/privacy.md`) is named in its build's `inputs` as `$TURBO_ROOT$/…`.  |
 | `ui-orphan-exports.test.ts`    | PER EXPORT under `@repo/ui`'s wildcard-exported roots: a consumer outside |
 |                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
 |                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |
