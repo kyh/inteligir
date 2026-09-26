@@ -12,6 +12,7 @@
     "./cloud/device/device-schema": "./src/cloud/device/device-schema.ts",
     "./cloud/device/login-flow": "./src/cloud/device/login-flow.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",
+    "./cloud/origin": "./src/cloud/cloud-origin.ts",
     "./cloud/sync/fit-sync-event": "./src/cloud/sync/fit-sync-event.ts",
     "./cloud/sync/plan-page": "./src/cloud/sync/plan-page.ts",
     "./cloud/sync/sync-session": "./src/cloud/sync/sync-session.ts",

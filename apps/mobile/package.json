@@ -1,11 +1,15 @@
 {
   "name": "@repo/mobile",
+  "version": "0.4.0",
   "private": true,
   "main": "index.ts",
   "scripts": {
     "dev": "expo start",
     "android": "expo run:android",
+    "build": "expo export --platform ios --output-dir dist",
+    "hotfix": "EXPO_PUBLIC_CLOUD_URL= eas update --channel production --platform ios --environment production",
     "ios": "expo run:ios",
+    "testflight": "eas build --platform ios --profile production --auto-submit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -23,6 +27,7 @@
     "expo-splash-screen": "catalog:",
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
+    "expo-updates": "catalog:",
     "react": "catalog:expo",
     "react-native": "catalog:",
     "react-native-safe-area-context": "catalog:",
@@ -30,9 +35,11 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@expo/plist": "catalog:",
     "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "eas-cli": "catalog:",
     "typescript": "catalog:expo",
     "vitest": "catalog:"
   }

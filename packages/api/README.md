@@ -53,6 +53,8 @@ src/
                        # codes end a session vs. condemn an outbox position
     cloud-client.ts    # fetch over the paths: a refusal is a VALUE (CloudResult),
                        # never a throw, so the sync loop switches on the code
+    cloud-origin.ts    # the production origin, the one spelling both clients
+                       # fall back to when nothing names another
     bytes.ts           # hex/base64/sha256/constant-time compare on web-crypto
                        # globals alone, and the utf-8 byte count the row cap
                        # is held in — the leaf that loads everywhere

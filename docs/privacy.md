@@ -8,7 +8,7 @@ machine, what never does, how long the cloud keeps it, and how it dies.
 
 ## What leaves your machine
 
-Everything below but the last three items lands in infrastructure scoped to
+Everything below but the last four items lands in infrastructure scoped to
 YOUR account — a Cloudflare D1 row keyed to your user, or your own per-user
 Durable Object — never in anything shared across accounts.
 
@@ -56,6 +56,11 @@ Durable Object — never in anything shared across accounts.
   address and the app's version, nothing about your vault or your account.
   Nothing downloads or installs without a click. `inteligir serve`, from a
   checkout or through `npx`, makes no such check.
+- **The phone's update check — to Expo, not this project's cloud.** Each time
+  the phone app starts it asks Expo's update service whether a newer version of
+  its app code exists, downloads one in the background and runs it from the
+  next start. Expo sees your IP address, the app's build and a random id the
+  app keeps for that install, nothing about your vault or your account.
 - **What your agent reads — to that agent's provider.** An action runs Claude
   Code or Codex on your machine, and the notes it reads to answer travel to
   the model provider that tool is set up for, under that provider's own terms,

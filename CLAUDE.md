@@ -1141,8 +1141,8 @@ to the END of its group.
 
 - **SYNC IS PERMISSIONED BY ACCOUNT; the account IS the entitlement.**
   Accountless, the app sends this project's cloud nothing; what does leave the
-  machine (the desktop's update check against GitHub, the agent's own
-  provider) is `docs/privacy.md`'s to list. Signed in, the credential alone
+  machine (the desktop's update check against GitHub, the phone's against
+  Expo, the agent's own provider) is `docs/privacy.md`'s to list. Signed in, the credential alone
   entitles threads, captures and the hosted vault, with no second flag. The
   invite gate is account-creation policy. The BYO git remote
   (`INTELIGIR_VAULT_REMOTE`) stays accountless.
@@ -1814,6 +1814,25 @@ to the END of its group.
   verbs that need them. A static import that reaches yaml passes every test and
   every review, so `apps/cli/scripts/build.mjs` walks the metafile's static
   closure and fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`).
+
+- **THE PHONE SHIPS THROUGH EAS TO TESTFLIGHT, AND AN UNSET CLOUD URL IS THE
+  PRODUCTION ORIGIN ON BOTH CLIENTS.** `pnpm testflight:mobile` builds on EAS
+  and submits, iPhone only (owner decision); the signing credentials live on
+  EAS, never in the repo, and build numbers are EAS's
+  (`appVersionSource: remote` in `apps/mobile/eas.json`), so no commit bumps
+  one. The marketing version is `apps/mobile/package.json`'s, one product
+  version with the CLI and the desktop, and EAS builds with the repo's node
+  and pnpm (`tools/repo-guards/src/release-versions.test.ts`). A JS-only fix is
+  an EAS Update to builds of the same native fingerprint, a native change a new
+  build (owner decision). `PRODUCTION_CLOUD_ORIGIN` (`@repo/api/cloud/origin`)
+  is the one spelling the CLI's config and the phone's `getCloudUrl` fall back
+  to; the phone reads `EXPO_PUBLIC_CLOUD_URL` at bundle time and refuses a
+  malformed one. Rejected: per-profile env in `eas.json`, a second spelling of
+  the origin, and a fallback to a dead host, which made a misconfigured build
+  one that could only fail. `apps/mobile/src/__tests__/app-config.test.ts`
+  holds the store config to what App Store Connect judges: the version, the
+  encryption answer, no Expo default purpose string, and every required-reason
+  API a linked module's privacy manifest declares.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

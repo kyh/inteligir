@@ -151,19 +151,85 @@ that is signed in.
   clear fence (the expo adapter over stand-ins for its two native modules), the
   capture sender, and the composition's restore, sign-out, revocation and
   resume — all against faked storage / fetch. Unit tests, no device.
+- **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
+  own CLIs for the resolved config and the autolinked modules, and holds the
+  config to what App Store Connect judges — the marketing version is the
+  package's, the encryption answer is given, no permission carries an Expo
+  default purpose string, and every required-reason API a linked module's
+  privacy manifest declares is declared by the app's. A new native module that
+  brings a manifest or a permission fails it until `app.config.js` says why.
+- **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
+  `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
+  offline, on Linux and macOS alike.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
   actually booting, the held splash and the route guard's redirects, the
-  expo-secure-store Keychain round trip, the AppState resume, and a live
-  sign-in against a running cloud Worker.
+  expo-secure-store Keychain round trip, the AppState resume, a live sign-in
+  against a running cloud Worker, and an EAS Update landing on an installed
+  build.
 
 ## Dev
 
 ```bash
-pnpm --filter @repo/mobile dev          # expo start
-EXPO_PUBLIC_CLOUD_URL=… pnpm --filter @repo/mobile dev   # point at a cloud
+pnpm --filter @repo/mobile dev                                              # against the production cloud
+EXPO_PUBLIC_CLOUD_URL=http://localhost:5174 pnpm --filter @repo/mobile dev  # against `pnpm dev:web`
 ```
 
-The cloud origin is REQUIRED: `EXPO_PUBLIC_CLOUD_URL` in the shell, or
-`extra.cloudUrl` in `app.config.js`. With neither, the first cloud read throws
-rather than guessing — the Worker's dev server binds localhost, so an origin
-derived from the Metro host could never answer a phone on the LAN.
+Unset, the phone talks to the production origin, the same rule the desktop
+follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/api/cloud/origin`, the one
+spelling both read). `EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time,
+through `src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no
+value and cannot point anywhere else. A value that is not an absolute http(s)
+URL throws rather than guessing, and there is no LAN-host fallback: the
+Worker's dev server binds localhost, so an origin derived from the Metro host
+could never answer a phone. The simulator shares the Mac's localhost; a
+physical phone needs a URL it can reach.
+
+## Shipping
+
+The phone ships through EAS Build to TestFlight, iPhone only. The credentials
+(the distribution certificate, the provisioning profile, the App Store Connect
+API key) live on EAS, never in this repo, and build numbers are EAS's
+(`appVersionSource: remote`, `autoIncrement`), so no commit bumps one. The
+marketing version is `package.json`'s, the product version the CLI and the
+desktop carry (`tools/repo-guards/src/release-versions.test.ts`). `eas.json`
+names the node and pnpm the repo is checked with, and no `.easignore`: EAS
+falls back to `.gitignore`, which keeps `.release/` and every `.env*` out of
+the upload.
+
+```bash
+pnpm testflight:mobile   # eas build --platform ios --profile production --auto-submit
+pnpm hotfix:mobile       # eas update to the production channel: a JS-only fix
+```
+
+### One-time setup (owner)
+
+1. `pnpm --filter @repo/mobile exec eas login`, then
+   `pnpm --filter @repo/mobile exec eas init`. EAS cannot write a dynamic
+   config, so commit the owner and project id it prints into `easProject` in
+   `app.config.js`; that one value also points EAS Update at the project.
+2. If `apps/mobile/ios` exists from an earlier `expo run:ios`, run
+   `npx expo prebuild --clean` in `apps/mobile`: it was generated for the old
+   bundle id.
+3. The first `pnpm testflight:mobile` logs into the Apple team that signs the
+   desktop app and lets EAS create and keep the certificate, the profile and an
+   App Store Connect API key. Its submit creates the App Store Connect record
+   for `com.inteligir.mobile`.
+4. Commit that record's id as `submit.production.ios.ascAppId` in `eas.json`,
+   so later submits ask nothing.
+5. In App Store Connect › TestFlight, create the internal group `Owner` and add
+   yourself. Builds go to that group alone until 0.6.
+
+If EAS's install fails under pnpm 12, the fallback is a custom build,
+`.eas/build/production.yml`, that installs with
+`pnpm install --frozen-lockfile --filter @repo/mobile...`.
+
+### Hotfixes
+
+A fix that touches only JavaScript ships as an EAS Update, never a new build:
+`pnpm hotfix:mobile` bundles on this machine and publishes to the `production`
+channel the store builds listen on. An update reaches only builds whose native
+code fingerprints the same (`runtimeVersion: { policy: "fingerprint" }`), so a
+change to a native module, a config plugin or the SDK needs
+`pnpm testflight:mobile` instead. The script clears `EXPO_PUBLIC_CLOUD_URL`
+because, unlike `eas build`, `eas update` bundles with this shell's environment,
+and a leftover local origin would ship to every phone.

@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/api/cloud/origin";
 import { agentModeSchema, agentModeValues } from "@repo/api/local/system/system-schema";
 import type { AgentMode } from "@repo/api/local/system/system-schema";
 import { DEBUG_NAMESPACES, parseDebugNamespaces } from "./debug-log";
@@ -103,8 +104,6 @@ const parseRemoteUrlValue = (name: string, rawValue: string): string => {
   return trimmed;
 };
 
-export const DEFAULT_CLOUD_URL = "https://inteligir.com";
-
 // origin only: `new URL("/v1/…", base)` drops any path the base carries.
 const parseCloudUrlValue = (name: string, rawValue: string): string => {
   const trimmed = rawValue.trim();
@@ -192,7 +191,7 @@ const ENV_VARS = {
     parse: ({ name, value }) => parseAgentModeValue(name, value),
   }),
   cloudUrl: defineEnvVar({
-    description: `Origin of the hosted deployment this install signs in to for thread sync; unset means ${DEFAULT_CLOUD_URL}. Signing in is what turns sync on — an install with no device credential opens no socket and makes no request whatever this says.`,
+    description: `Origin of the hosted deployment this install signs in to for thread sync; unset means ${PRODUCTION_CLOUD_ORIGIN}. Signing in is what turns sync on — an install with no device credential opens no socket and makes no request whatever this says.`,
     name: "INTELIGIR_CLOUD_URL",
     parse: ({ name, value }) => parseCloudUrlValue(name, value),
   }),
@@ -472,7 +471,7 @@ const resolveCloudUrl = (
 ): string =>
   readEnvVar(ENV_VARS.cloudUrl, args.env, homeDir) ??
   (managed.cloudUrl === undefined
-    ? DEFAULT_CLOUD_URL
+    ? PRODUCTION_CLOUD_ORIGIN
     : parseCloudUrlValue("config.json cloudUrl", managed.cloudUrl));
 
 export const runtimeModeOf = (env: NodeJS.ProcessEnv): RuntimeMode =>
