@@ -28,6 +28,7 @@ import {
   threadResponseSchema,
   timelineQuerySchema,
   timelineResponseSchema,
+  turnChangesResponseSchema,
 } from "./threads-schema";
 
 export const threadsContract = {
@@ -64,4 +65,9 @@ export const threadsContract = {
   }),
 
   timeline: oc.input(timelineQuerySchema).output(timelineResponseSchema).errors({ NOT_FOUND: {} }),
+
+  turnChanges: oc
+    .input(threadIdQuerySchema)
+    .output(turnChangesResponseSchema)
+    .errors({ NOT_FOUND: {} }),
 };

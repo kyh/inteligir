@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { browserHandoffUrl } from "@repo/api/local/routes";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
+import type { TurnChanges } from "@repo/api/local/threads/threads-schema";
 import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/api/local/vault/vault-schema";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -801,6 +802,59 @@ describe("action commands", () => {
     });
     expect(missing.code).toBe(1);
     expect(missing.stdout).toBe("");
+  });
+
+  it("lists what each turn changed, oldest first, and says so when none did", async () => {
+    const state = seededState();
+    const turnChanges: TurnChanges[] = [
+      { paths: ["notes/a.md", "notes/[b].md"], state: "undone", turnId: "turn_1" },
+      { paths: ["notes/a.md"], state: "applied", turnId: "turn_2" },
+    ];
+    state.threads.push(
+      {
+        pendingInteractions: [],
+        thread: makeThread({ id: "thr_1" }),
+        timeline: EMPTY_TIMELINE,
+        turnChanges,
+      },
+      { pendingInteractions: [], thread: makeThread({ id: "thr_2" }), timeline: EMPTY_TIMELINE },
+    );
+    const server = await boot(state);
+
+    const listed = await runCliForTest({
+      argv: ["action", "changes", "thr_1"],
+      baseUrl: server.baseUrl,
+    });
+    expect(listed.code).toBe(0);
+    expect(listed.stdout).toBe(
+      [
+        "turn_1  undone",
+        "  notes/a.md",
+        "  notes/[b].md",
+        "turn_2  applied",
+        "  notes/a.md",
+        "",
+      ].join("\n"),
+    );
+
+    const json = await runCliForTest({
+      argv: ["action", "changes", "thr_1", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(json.stdout)).toEqual({ turns: turnChanges });
+
+    const none = await runCliForTest({
+      argv: ["action", "changes", "thr_2"],
+      baseUrl: server.baseUrl,
+    });
+    expect(none.code).toBe(0);
+    expect(none.stdout).toBe("ℹ No turn of thr_2 changed the vault.\n");
+
+    const missing = await runCliForTest({
+      argv: ["action", "changes", "thr_missing"],
+      baseUrl: server.baseUrl,
+    });
+    expect(missing.code).toBe(1);
   });
 });
 

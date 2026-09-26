@@ -1,6 +1,7 @@
 // echoes the composed prompt rather than the raw text: the prompt is assembled by production
 // code a real provider would receive and an e2e otherwise cannot see.
 
+import type { DbNotifier } from "@repo/domain/notifier";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { messageOf } from "../error-message";
 import type { GitEngine } from "../vault/git-engine";
@@ -19,6 +20,7 @@ import { turnPromptInput } from "./view-context-prompt";
 export interface ScriptedDriverDeps {
   vault: VaultService;
   git: GitEngine;
+  notifier: DbNotifier;
   onError?: (message: string) => void;
 }
 
@@ -61,12 +63,17 @@ class ScriptedTurnDriver implements TurnDriver {
   ): Promise<void> {
     const turnCommit = beginAgentTurnWrites({
       git: this.deps.git,
+      notifier: this.deps.notifier,
+      onError: (message) => {
+        this.deps.onError?.(message);
+      },
       threadId: args.threadId,
       turnId: args.turnId,
     });
     const fileItemId = `item_${args.turnId}_file`;
     try {
-      // waits out a mid-flight sync so the write never lands in a rebase window.
+      // waits out a mid-flight sync so the write never lands in a rebase window, and the
+      // checkpoint so the turn's commit never carries what the user had not yet committed.
       await turnCommit.ready;
       const notePath = scriptedNotePath(args.threadId);
       const written = await this.deps.vault.write(notePath, `# Agent note\n\n${args.text}\n`);

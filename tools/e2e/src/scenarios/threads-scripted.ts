@@ -1,11 +1,12 @@
-import { expect } from "../harness/assert";
+import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 import { untilThreadIdle } from "../harness/threads";
 
 const TURN_TEXT = "Hello from the e2e harness";
 
 export const threadsScripted: Scenario = {
-  description: "create thread, send a turn through the scripted driver, read the timeline",
+  description:
+    "create thread, send a turn through the scripted driver, read the timeline and its changes",
   name: "threads-scripted",
   async run(ctx) {
     const app = await ctx.boot({
@@ -41,5 +42,13 @@ export const threadsScripted: Scenario = {
       rows.some((row) => row.kind === "conversation" && row.role === "assistant"),
       "the scripted driver produced an assistant row",
     );
+
+    ctx.log("read what the turn changed");
+    const { turns } = await app.api.threads.turnChanges({ threadId: thread.id });
+    const [turn] = turns;
+    expectEq(turns.length, 1, "turns that changed the vault");
+    expectEq(turn?.turnId, outcome.turnId, "the change is filed under the turn's own id");
+    expectEq(turn?.state, "applied", "the turn's state");
+    expectEq(turn?.paths.join("\n"), `Agent/${thread.id}.md`, "the paths the turn changed");
   },
 };

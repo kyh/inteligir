@@ -14,7 +14,9 @@ import {
   readDeletedNotes,
   readNoteHistory,
   readNoteRevision,
+  readTurnCommits,
 } from "../git-history";
+import { agentCommitMessage, undoCommitMessage } from "../turn-trailers";
 import { VaultServiceError } from "../vault-service";
 import { hermeticGitEnv } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -24,29 +26,34 @@ const anIsoTimestamp: unknown = expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u);
 
 const env = hermeticGitEnv();
 
+const IDENTITY = {
+  GIT_AUTHOR_EMAIL: "a@b.c",
+  GIT_AUTHOR_NAME: "A",
+  GIT_COMMITTER_EMAIL: "a@b.c",
+  GIT_COMMITTER_NAME: "A",
+};
+
 const makeVault = async (): Promise<{
   root: string;
   run: (args: readonly string[]) => Promise<{ stdout: string }>;
-  commit: (subject: string) => Promise<void>;
+  commit: (subject: string, extraEnv?: Record<string, string>) => Promise<void>;
+  // as the committer, which a rebase needs.
+  runAs: (args: readonly string[]) => Promise<{ stdout: string }>;
 }> => {
   const root = makeTempDir("inteligir-history-");
   await ensureVaultRepo({ env, root });
   const run = async (args: readonly string[], options?: { env?: Record<string, string> }) =>
     await runGit(root, args, { env: { ...env, ...options?.env } });
   return {
-    commit: async (subject) => {
+    commit: async (subject, extraEnv) => {
       await run(["add", "-A"]);
       await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
-        env: {
-          GIT_AUTHOR_EMAIL: "a@b.c",
-          GIT_AUTHOR_NAME: "A",
-          GIT_COMMITTER_EMAIL: "a@b.c",
-          GIT_COMMITTER_NAME: "A",
-        },
+        env: { ...IDENTITY, ...extraEnv },
       });
     },
     root,
     run,
+    runAs: async (args) => await run(args, { env: IDENTITY }),
   };
 };
 
@@ -410,5 +417,111 @@ describe("cachedDeletionLog", () => {
     await expect(readDeletedNotes(flaky, deletionLog, onDisk(root))).rejects.toThrow("log failed");
     const entries = await readDeletedNotes(flaky, deletionLog, onDisk(root));
     expect(entries.map((entry) => entry.path)).toEqual(["Gone.md"]);
+  });
+});
+
+// the walk's bound: every commit a test makes, but one dated otherwise on purpose, is after it.
+const aMinuteAgo = (): number => Date.now() - 60_000;
+
+describe("readTurnCommits", () => {
+  it("finds a turn's commit after a rebase replays it onto another device's commit", async () => {
+    const { root, run, runAs, commit } = await makeVault();
+    await run(["branch", "other-device"]);
+    await writeFile(nodePath.join(root, "note.md"), "the agent's edit\n", "utf-8");
+    await commit(agentCommitMessage("thr_1", "turn_1"));
+    const [before] = await readTurnCommits(run, { since: aMinuteAgo(), threadId: "thr_1" });
+
+    await run(["switch", "-q", "other-device"]);
+    await writeFile(nodePath.join(root, "other.md"), "pushed by another device\n", "utf-8");
+    await commit("vault: update other.md");
+    const { stdout: otherTip } = await run(["rev-parse", "HEAD"]);
+    await run(["switch", "-q", "main"]);
+    await runAs(["-c", "commit.gpgsign=false", "rebase", "-q", "other-device"]);
+
+    const after = await readTurnCommits(run, { since: aMinuteAgo(), threadId: "thr_1" });
+    expect(after).toHaveLength(1);
+    expect(after[0]?.sha).not.toBe(before?.sha);
+    expect(after[0]?.parent).toBe(otherTip.trim());
+    expect(after[0]?.trailers).toEqual({ kind: "turn", threadId: "thr_1", turnId: "turn_1" });
+    expect(after[0]?.changes).toEqual([{ path: "note.md", status: "A" }]);
+  });
+
+  it("reads only commits dated after the bound", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(nodePath.join(root, "old.md"), "long ago\n", "utf-8");
+    await commit(agentCommitMessage("thr_1", "turn_old"), {
+      GIT_COMMITTER_DATE: "@1000000000 +0000",
+    });
+    await writeFile(nodePath.join(root, "new.md"), "just now\n", "utf-8");
+    await commit(agentCommitMessage("thr_1", "turn_new"));
+
+    const commits = await readTurnCommits(run, { since: aMinuteAgo(), threadId: "thr_1" });
+    expect(commits.map((turn) => turn.trailers)).toEqual([
+      { kind: "turn", threadId: "thr_1", turnId: "turn_new" },
+    ]);
+  });
+
+  it("ignores every other thread's commits, one whose id extends this one's included", async () => {
+    const { root, run, commit } = await makeVault();
+    const turns = [
+      { threadId: "thr_a", turnId: "turn_1" },
+      { threadId: "thr_ab", turnId: "turn_2" },
+      { threadId: "thr_b", turnId: "turn_3" },
+      { threadId: "thr_a", turnId: "turn_4" },
+    ];
+    for (const { threadId, turnId } of turns) {
+      await writeFile(nodePath.join(root, `${turnId}.md`), `${threadId}\n`, "utf-8");
+      await commit(agentCommitMessage(threadId, turnId));
+    }
+    await writeFile(nodePath.join(root, "user.md"), "a user's own commit\n", "utf-8");
+    await commit("vault: update user.md\n\nThread: thr_a");
+
+    const commits = await readTurnCommits(run, { since: aMinuteAgo(), threadId: "thr_a" });
+    expect(commits.map((turn) => turn.trailers)).toEqual([
+      { kind: "turn", threadId: "thr_a", turnId: "turn_1" },
+      { kind: "turn", threadId: "thr_a", turnId: "turn_4" },
+    ]);
+  });
+
+  it("classifies an undo by the turn it names", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(nodePath.join(root, "note.md"), "the agent's edit\n", "utf-8");
+    await commit(agentCommitMessage("thr_1", "turn_1"));
+    await rm(nodePath.join(root, "note.md"));
+    await commit(undoCommitMessage("thr_1", "turn_1"));
+
+    const commits = await readTurnCommits(run, { since: aMinuteAgo(), threadId: "thr_1" });
+    expect(commits.map((turn) => [turn.trailers, turn.changes])).toEqual([
+      [{ kind: "turn", threadId: "thr_1", turnId: "turn_1" }, [{ path: "note.md", status: "A" }]],
+      [
+        { kind: "undo", threadId: "thr_1", undoesTurnId: "turn_1" },
+        [{ path: "note.md", status: "D" }],
+      ],
+    ]);
+  });
+
+  it("reports each path added, edited or deleted, a move as the path it left and the one it made", async () => {
+    const { root, run, commit } = await makeVault();
+    for (const name of ["edited.md", "deleted.md", "moved.md", "a.md"]) {
+      await writeFile(nodePath.join(root, name), `${name}\n`, "utf-8");
+    }
+    await commit("vault: update 4 files");
+    await writeFile(nodePath.join(root, "edited.md"), "edited\n", "utf-8");
+    await rm(nodePath.join(root, "deleted.md"));
+    await mkdir(nodePath.join(root, "folder"));
+    await rename(nodePath.join(root, "moved.md"), nodePath.join(root, "folder", "moved.md"));
+    await writeFile(nodePath.join(root, "[a].md"), "a glob would name a.md\n", "utf-8");
+    await writeFile(nodePath.join(root, "odd nöte.md"), "quoted by the line format\n", "utf-8");
+    await commit(agentCommitMessage("thr_1", "turn_1"));
+
+    const [turn] = await readTurnCommits(run, { since: aMinuteAgo(), threadId: "thr_1" });
+    expect(turn?.changes).toEqual([
+      { path: "[a].md", status: "A" },
+      { path: "deleted.md", status: "D" },
+      { path: "edited.md", status: "M" },
+      { path: "folder/moved.md", status: "A" },
+      { path: "moved.md", status: "D" },
+      { path: "odd nöte.md", status: "A" },
+    ]);
   });
 });

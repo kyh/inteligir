@@ -251,6 +251,10 @@ class AcpTurnDriver implements TurnDriver {
       phase: { kind: "dispatched" },
       writes: beginAgentTurnWrites({
         git: this.deps.git,
+        notifier: this.deps.notifier,
+        onError: (message) => {
+          this.debug(message);
+        },
         threadId: args.threadId,
         turnId: args.turnId,
       }),

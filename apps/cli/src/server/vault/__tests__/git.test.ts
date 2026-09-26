@@ -479,8 +479,8 @@ describe("auto-commit", { timeout: 30_000 }, () => {
 
   it("a scoped commitNow commits only its paths, under a turn's hold too", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null });
-    const release = engine.holdCommits();
-    onTestFinished(release);
+    const hold = engine.holdCommits();
+    onTestFinished(hold.release);
     await writeFile(path.join(root, "restored.md"), "checkpoint me\n", "utf-8");
     await writeFile(path.join(root, "mid-turn.md"), "the turn's own write\n", "utf-8");
 
@@ -505,8 +505,8 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
-    const releaseA = engine.holdCommits();
-    const releaseB = engine.holdCommits();
+    const holdA = engine.holdCommits();
+    const holdB = engine.holdCommits();
     await writeFile(path.join(root, "a.md"), "turn A\n", "utf-8");
     await writeFile(path.join(root, "b.md"), "turn B\n", "utf-8");
     await writeFile(path.join(root, "user.md"), "user edit\n", "utf-8");
@@ -518,7 +518,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
       "agent: vault update\n\nThread: thr_a",
     );
     expect(committedA).toEqual({ files: 1 });
-    releaseA();
+    holdA.release();
     let shown = await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env });
     expect(shown.stdout).toContain("agent-a");
     expect(shown.stdout).toContain("a.md");
@@ -531,7 +531,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
       "agent: vault update\n\nThread: thr_b",
     );
     expect(committedB).toEqual({ files: 1 });
-    releaseB();
+    holdB.release();
     shown = await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env });
     expect(shown.stdout).toContain("agent-b");
     expect(shown.stdout).toContain("b.md");
@@ -552,7 +552,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
-    const release = engine.holdCommits();
+    const hold = engine.holdCommits();
     await writeFile(path.join(root, "mid-turn.md"), "agent writing\n", "utf-8");
     engine.scheduleCommit();
     await debounceSettled(FAST_COMMIT);
@@ -564,7 +564,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
       "agent: vault update\n\nThread: thr_test",
     );
     expect(committed).toEqual({ files: 1 });
-    release();
+    hold.release();
 
     await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before + 1);
@@ -575,6 +575,67 @@ describe("auto-commit", { timeout: 30_000 }, () => {
       env,
     });
     expect(stdout.trim()).toBe("Thread: thr_test");
+    await expectCleanRepo(root);
+  });
+
+  it("a turn starts by committing what the user had not, so its commit's parent holds the user's bytes", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null });
+    await writeFile(path.join(root, "note.md"), "the first draft\n", "utf-8");
+    await engine.commitNow();
+    await writeFile(path.join(root, "note.md"), "typed just before the agent was asked\n", "utf-8");
+    engine.scheduleCommit(["note.md"]);
+
+    const turn = beginAgentTurnWrites({
+      git: engine,
+      notifier: createNotifierRecorder(),
+      threadId: "thr_1",
+      turnId: "turn_1",
+    });
+    await turn.ready;
+    const checkpoint = await runGit(root, ["log", "-1", "--format=%an|%s"], { env });
+    expect(checkpoint.stdout.trim()).toBe("inteligir|vault: update note.md");
+    const checkpointed = await runGit(root, ["show", "HEAD:note.md"], { env });
+    expect(checkpointed.stdout).toBe("typed just before the agent was asked\n");
+
+    await writeFile(path.join(root, "note.md"), "the agent's rewrite\n", "utf-8");
+    turn.recordPaths(["note.md"]);
+    await turn.finish();
+    const agent = await runGit(root, ["log", "-1", "--format=%H|%an"], { env });
+    const [agentSha, agentName] = agent.stdout.trim().split("|");
+    expect(agentName).toBe("inteligir-agent");
+    const parentBytes = await runGit(root, ["show", `${agentSha ?? ""}^:note.md`], { env });
+    expect(parentBytes.stdout).toBe("typed just before the agent was asked\n");
+    await expectCleanRepo(root);
+  });
+
+  it("a checkpoint leaves every live turn's claimed paths to that turn and commits the rest", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null });
+    await writeFile(path.join(root, "gone.md"), "tracked\n", "utf-8");
+    await engine.commitNow();
+
+    const holdA = engine.holdCommits();
+    onTestFinished(holdA.release);
+    await writeFile(path.join(root, "[a].md"), "turn A's note\n", "utf-8");
+    await rm(path.join(root, "gone.md"));
+    holdA.claim(["[a].md", "gone.md"]);
+    await writeFile(path.join(root, "a.md"), "the user's note\n", "utf-8");
+    await writeFile(path.join(root, "user.md"), "the user's other note\n", "utf-8");
+    expect(engine.claimedPaths()).toEqual(["[a].md", "gone.md"]);
+
+    expect(await engine.checkpointUnclaimed()).toEqual({ files: 2 });
+    const shown = await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env });
+    expect(shown.stdout.split("\n").filter((line) => line.length > 0)).toEqual([
+      "inteligir",
+      "a.md",
+      "user.md",
+    ]);
+    const { stdout } = await runGit(root, ["status", "--porcelain"], { env });
+    expect(stdout).toBe(" D gone.md\n?? [a].md\n");
+
+    holdA.release();
+    holdA.claim(["late.md"]);
+    expect(engine.claimedPaths()).toEqual([]);
+    expect(await engine.checkpointUnclaimed()).toEqual({ files: 2 });
     await expectCleanRepo(root);
   });
 });
@@ -689,11 +750,11 @@ describe("sync", { timeout: 30_000 }, () => {
     const { engine } = await makeEngine({ remoteUrl: remote });
     expect(await syncState(engine)).toBe("clean");
 
-    const release = engine.holdCommits();
+    const hold = engine.holdCommits();
     expect(await syncState(engine)).toBe("held");
     expect(await reportedState(engine)).toBe("held");
 
-    release();
+    hold.release();
     expect(await syncState(engine)).toBe("clean");
   });
 
@@ -886,7 +947,12 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
 
     const pass = b.engine.syncNow();
     await gate.reached();
-    const turn = beginAgentTurnWrites({ git: b.engine, threadId: "thr_mid", turnId: "turn_mid" });
+    const turn = beginAgentTurnWrites({
+      git: b.engine,
+      notifier: createNotifierRecorder(),
+      threadId: "thr_mid",
+      turnId: "turn_mid",
+    });
     try {
       const ready = await Promise.race([
         turn.ready.then(() => "ready"),

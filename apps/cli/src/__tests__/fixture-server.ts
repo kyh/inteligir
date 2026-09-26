@@ -38,6 +38,7 @@ import type {
   PendingInteraction,
   QueuedThreadMessage,
   Thread,
+  TurnChanges,
 } from "@repo/api/local/threads/threads-schema";
 import { DEFAULT_ATTACHMENT_LOCATION, contentHashHex } from "@repo/api/local/vault/vault-schema";
 import type {
@@ -63,6 +64,7 @@ export interface FixtureThread {
   timeline: ThreadTimeline;
   // each threads.get consumes one entry; the last one sticks.
   statusSequence?: ThreadStatus[];
+  turnChanges?: TurnChanges[];
 }
 
 export interface FixtureState {
@@ -550,6 +552,13 @@ const threadsRouter = {
       throw errors.NOT_FOUND({ message: "Not found" });
     }
     return { kind: "full", timeline: entry.timeline };
+  }),
+  turnChanges: base.threads.turnChanges.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
+    if (entry === undefined) {
+      throw errors.NOT_FOUND({ message: "Not found" });
+    }
+    return { turns: entry.turnChanges ?? [] };
   }),
 };
 

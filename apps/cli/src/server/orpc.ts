@@ -8,6 +8,7 @@ import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
 import type { RecordAgentWrites } from "./agents/agent-driver";
 import type { AgentsService } from "./agents/agents-service";
+import type { ListTurnChanges } from "./agents/turn-changes";
 import type { BrowserSession } from "./browser-session";
 import type { CommentsService } from "./comments/comments-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
@@ -57,6 +58,7 @@ export interface AppContext {
   renameTag: RenameTag;
   system: SystemFacts;
   threads: ThreadService;
+  turnChanges: ListTurnChanges;
   vault: VaultRuntime;
   vaultPrefs: VaultPrefsStore;
   voice: VoiceService;

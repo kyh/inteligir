@@ -479,10 +479,13 @@ to the END of its group.
   its file and a fifteen-second pause ends an editing session. A scheduler that
   names no paths (the boot sweep, the post-sync drain), a window past
   `MAX_SCOPED_COMMIT_PATHS` or the flush after a failed one is unscoped; a
-  change nobody announced waits for one. Unscoped `add -A` survives for a large
-  vault's first commit, where a pathspec would exceed ARG_MAX.
-  `apps/cli/src/server/vault/git-engine.ts` says why the max wait is the sync
-  interval.
+  change nobody announced waits for one. A turn's start is one too, less every
+  path a live turn has claimed (`checkpointUnclaimed`): it stages the whole
+  tree and takes the claims back out, because `--literal-pathspecs` rules out
+  an `:(exclude)` and naming every other path is the argv a first commit
+  overflows. Unscoped `add -A` survives for a large vault's first commit, where
+  a pathspec would exceed ARG_MAX. `apps/cli/src/server/vault/git-engine.ts`
+  says why the max wait is the sync interval.
 
 - **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** History reads the
   vault's own git repo, so it works offline. A restore writes the revision's
@@ -890,7 +893,23 @@ to the END of its group.
   what they wrote to its running turn (`attributeWrites` in
   `apps/cli/src/server/orpc.ts`), a delete's comment stores and a comment's
   minted note id included, since whatever is not handed over lands unattributed
-  in the next auto-commit; the header is attribution, not authority.
+  in the next auto-commit; the header is attribution, not authority. A TURN IS
+  FOUND BY ITS TRAILERS, NEVER BY ITS SHA, which a rebase onto another device's
+  push rewrites: the commit carries `Thread:` and `Turn:`, an undo
+  `Undoes-Turn:`, spelled once in `apps/cli/src/server/vault/turn-trailers.ts`
+  and read back by `threads.turnChanges`
+  (`apps/cli/src/server/agents/turn-changes.ts`). Undo
+  needs the bytes from just before the turn, so the hold claims each path the
+  turn reports and the turn starts with a checkpoint of the unclaimed dirty
+  tree: the note the user was typing in lands as the engine's, never inside the
+  turn. The turn settles before its commit lands, so the window hears
+  `changes-committed` once it has. Undo covers reported edits alone (owner
+  decision): nothing made beside a running action is attributed to it.
+  Residuals: lines typed into a note WHILE the agent edits that note belong to
+  the turn, since the canonicalizing save-back leaves no sound per-writer split;
+  a crash mid-turn leaves its writes to the boot sweep, so that turn cannot be
+  undone; a thread pulled from another device lists only what was committed
+  after it arrived here.
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (what it
   retired is the register on #645; do not bring any of it back). An action is an

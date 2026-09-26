@@ -5,6 +5,8 @@ import {
 import type { VaultDeletedEntry, VaultRevision } from "@repo/api/local/vault/vault-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { RunGitCommand } from "./git-run";
+import { parseAgentCommitTrailers, threadTrailer } from "./turn-trailers";
+import type { AgentCommitTrailers } from "./turn-trailers";
 import { VaultServiceError } from "./vault-service";
 
 // nul-separated: git c-quotes paths holding a space or a non-ascii byte in the line format.
@@ -286,4 +288,94 @@ export const readDeletedNotes = async (
     }
   }
   return entries;
+};
+
+const TURN_LOG_FORMAT = "%H%x00%P%x00%B";
+
+const TURN_HEADER_FIELDS = TURN_LOG_FORMAT.split("%x00").length;
+
+type TurnChangeStatus = "A" | "M" | "D";
+
+// --no-renames: a moved note is the path it left and the path it made. a type change (a file
+// turned symlink) is still an edit of that path.
+const TURN_CHANGE_STATUS = new Map<string, TurnChangeStatus>([
+  ["A", "A"],
+  ["D", "D"],
+  ["M", "M"],
+  ["T", "M"],
+]);
+
+interface TurnFileChange {
+  status: TurnChangeStatus;
+  path: string;
+}
+
+export interface TurnCommit {
+  sha: string;
+  // the tree just before the commit, which holds the bytes the commit replaced.
+  parent: string;
+  trailers: AgentCommitTrailers;
+  changes: TurnFileChange[];
+}
+
+const parseTurnLog = (stdout: string, threadId: string): TurnCommit[] => {
+  const tokens = stdout.split("\0");
+  const commits: TurnCommit[] = [];
+  let index = 0;
+  while (index < tokens.length) {
+    const sha = tokens[index];
+    if (sha === undefined || !OBJECT_NAME.test(sha)) {
+      break;
+    }
+    const [parent] = (tokens[index + 1] ?? "").split(" ");
+    const trailers = parseAgentCommitTrailers(tokens[index + 2] ?? "");
+    index += TURN_HEADER_FIELDS;
+
+    const changes: TurnFileChange[] = [];
+    for (
+      let read = readStatusTuple(tokens, index);
+      read !== null;
+      read = readStatusTuple(tokens, index)
+    ) {
+      index = read.next;
+      const status = TURN_CHANGE_STATUS.get(read.tuple.letter);
+      if (status !== undefined) {
+        changes.push({ path: read.tuple.path, status });
+      }
+    }
+    // the grep matches a substring, so `thr_a` also finds the commits of `thr_ab`.
+    if (trailers?.threadId === threadId && parent !== undefined && OBJECT_NAME.test(parent)) {
+      commits.push({ changes, parent, sha, trailers });
+    }
+  }
+  return commits;
+};
+
+interface TurnLogQuery {
+  threadId: string;
+  // epoch ms; a commit its device committed earlier is not read.
+  since: number;
+}
+
+// oldest first. --fixed-strings: the id is data, and a user's grep.patternType would otherwise
+// decide what its characters mean. --since reads the committer date, which a rebase moves
+// forward and never back, so a turn replayed onto another device's push is still found.
+export const readTurnCommits = async (
+  run: RunGitCommand,
+  query: TurnLogQuery,
+): Promise<TurnCommit[]> => {
+  const { stdout } = await run([
+    "log",
+    "--no-merges",
+    "--no-renames",
+    "--no-show-signature",
+    "--reverse",
+    "-z",
+    "--name-status",
+    `--format=${TURN_LOG_FORMAT}`,
+    "--fixed-strings",
+    `--grep=${threadTrailer(query.threadId)}`,
+    `--since=@${String(Math.floor(query.since / 1000))} +0000`,
+  ]);
+  return parseTurnLog(stdout, query.threadId);
 };

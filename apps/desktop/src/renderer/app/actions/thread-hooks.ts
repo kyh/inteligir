@@ -54,6 +54,7 @@ export const useThreadDetail = (threadId: string): UseQueryResult<GetThreadRespo
 // total over the kinds: one not weighed here is a row the user never sees until they reopen the thread.
 const MOVES_THE_TIMELINE = {
   "archived-changed": false,
+  "changes-committed": false,
   "events-appended": true,
   "interactions-changed": false,
   "origin-changed": false,
