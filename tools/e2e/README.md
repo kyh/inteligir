@@ -56,9 +56,11 @@ scratch dir and tears everything down afterwards:
   the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
-- `cloudWorker()` — the product Worker (apps/web) under `wrangler dev` on a
-  scratch persist dir, its D1 carrying apps/web's own `db:export` schema plus
-  one invite row. Registered for teardown exactly like an instance.
+- `cloudWorker({ builtConfig?, vars? })` — the product Worker (apps/web) under
+  `wrangler dev` on a scratch persist dir, its D1 carrying apps/web's own
+  `db:export` schema plus one invite row; `vars` override wrangler.jsonc's
+  (a storage cap a scenario can fill). Registered for teardown exactly like an
+  instance.
 - `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
@@ -120,6 +122,10 @@ what each one is FOR.
 | hosted-vault-phone-write   | a second login plays the phone against a wrangler-dev Worker: its change  |
 |                            | set lands and A syncs its bytes, history naming the phone; a stale set    |
 |                            | gets A's bytes back as a conflict, and a recommit on them converges       |
+| hosted-vault-full          | a wrangler-dev Worker capped at 1 MiB: A's first note syncs, an           |
+|                            | attachment past the cap leaves A `full` with its own words, a later note  |
+|                            | commits on A and `inteligir vault status --json` still says full, and B's |
+|                            | clone holds the first note alone                                          |
 | phone-offline-edit         | the phone's own runtime (`composeRuntime` under node, over node's sqlite) |
 |                            | edits a note offline while A edits it too; reconnected, a far edit lands  |
 |                            | merged with A's, and a same-line one keeps the phone's version with A's   |

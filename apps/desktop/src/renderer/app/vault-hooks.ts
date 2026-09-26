@@ -88,6 +88,11 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     case "too-large": {
       return status.remoteSource === "account" ? "Too large to sync" : SYNC_PAUSED;
     }
+    case "full": {
+      return status.remoteSource === "account"
+        ? "Cloud vault full — notes stay on this Mac"
+        : SYNC_PAUSED;
+    }
     case "account-mismatch": {
       return "This vault belongs to a different account";
     }
@@ -126,6 +131,7 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
     case "unauthorized":
     case "rejected":
     case "too-large":
+    case "full":
     case "account-mismatch":
     case "detached":
     case "broken": {
@@ -156,6 +162,7 @@ export const canSyncNow = (status: VaultStatusResponse | undefined): boolean => 
     case "unauthorized":
     case "rejected":
     case "too-large":
+    case "full":
     case "detached":
     case "broken": {
       return true;
@@ -213,6 +220,15 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
           status.remoteSource === "account"
             ? "Your vault is larger than your account can sync."
             : `Your vault is too large for your sync server. ${DETAILS_IN_ADVANCED}`,
+        tone: "error",
+      };
+    }
+    case "full": {
+      return {
+        message:
+          status.remoteSource === "account"
+            ? "Your cloud vault is full. New changes stay on this Mac."
+            : `Your sync server is out of space. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
     }

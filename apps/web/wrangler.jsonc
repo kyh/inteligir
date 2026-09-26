@@ -44,6 +44,9 @@
   // caps vault size. create once: `npx wrangler r2 bucket create inteligir-vault`
   "r2_buckets": [{ "binding": "PACK_CACHE", "bucket_name": "inteligir-vault" }],
 
+  // what one account's hosted vault may store, history included: 1 GiB
+  "vars": { "VAULT_STORAGE_CAP_BYTES": "1073741824" },
+
   // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
   "d1_databases": [
     {

@@ -12,7 +12,12 @@ import {
   captureResponseSchema,
   claimCapturesResponseSchema,
 } from "../captures/captures-schema";
-import { CLOUD_ERROR_CODES, cloudError, cloudErrorSchema } from "../cloud-errors";
+import {
+  CLOUD_ERROR_CODES,
+  CLOUD_ERROR_STATUS,
+  cloudError,
+  cloudErrorSchema,
+} from "../cloud-errors";
 import {
   ackDispatchesRequestSchema,
   ackDispatchesResponseSchema,
@@ -101,6 +106,13 @@ describe("error envelope", () => {
     expect(
       cloudErrorSchema.parse({ error: { code: "teapot", message: "Short and stout." } }),
     ).toEqual({ error: { code: "internal", message: "Short and stout." } });
+  });
+
+  it("carries a full hosted vault as vault-full on a 507", () => {
+    expect(CLOUD_ERROR_CODES).toContain("vault-full");
+    expect(CLOUD_ERROR_STATUS["vault-full"]).toBe(507);
+    const envelope = cloudError("vault-full", "Your cloud vault is full.");
+    expect(cloudErrorSchema.parse(envelope)).toEqual(envelope);
   });
 
   it("names the outbox position on a sync refusal", () => {
@@ -1217,6 +1229,7 @@ describe("a vault change set", () => {
       ["not-found", 404],
       ["device-limit", 409],
       ["file-too-large", 413],
+      ["vault-full", 507],
     ] as const) {
       const { result } = await commitOver(Response.json(cloudError(code, "no"), { status }));
       expect(result.ok ? null : result.failure, code).toStrictEqual({

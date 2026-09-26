@@ -146,6 +146,10 @@ patchedDependencies:
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
   # note's save. The patch answers from `editor.plugins`, dropped once a release does
   "@platejs/core@53.3.14": patches/@platejs__core@53.3.14.patch
+  # the hosted vault is capped on what a repo cell stores, and the cell exposes no size; the patch
+  # adds a `usage()` RPC over the SQLite file and the R2-held packs. Upstream takes no pull
+  # requests, so it stays until a release exposes a size
+  durable-git@0.0.8: patches/durable-git@0.0.8.patch
   # micromark merges a paragraph's text with one splice per line, so a long paragraph parses in time
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it

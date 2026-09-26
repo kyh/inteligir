@@ -381,6 +381,10 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   // a proxy in front of the user's own remote. not `rejected`: what is refused is the history, so
   // the engine stops resending it until the history or the remote moves.
   remoteState("too-large"),
+  // the remote answered that it has no room left (a 507): the hosted vault's storage cap, which
+  // counts every version it keeps. commits land here and pulls go on; not `too-large`: a vault
+  // with no room refuses any history, so the engine stops pushing until the remote's tip moves.
+  remoteState("full"),
   // the signed-in account is not the one this vault last synced with; no pass runs, since a push
   // would upload these notes into an account that never held them.
   remoteState("account-mismatch"),

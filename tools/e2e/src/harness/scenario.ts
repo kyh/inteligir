@@ -27,7 +27,9 @@ export interface ScenarioContext {
   log: (message: string) => void;
   boot: (options: BootOptions) => Promise<AppInstance>;
   bareRemote: (name?: string) => Promise<string>;
-  cloudWorker: (options?: { builtConfig?: string }) => Promise<CloudWorker>;
+  cloudWorker: (
+    options?: Pick<LaunchCloudWorkerArgs, "builtConfig" | "vars">,
+  ) => Promise<CloudWorker>;
   // the built Electron shell on a scratch home, driven over DevTools; skips with no display.
   desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
   // skips the scenario when no headless browser can launch; closed at teardown like an instance.
@@ -125,6 +127,9 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     };
     if (options?.builtConfig !== undefined) {
       launch.builtConfig = options.builtConfig;
+    }
+    if (options?.vars !== undefined) {
+      launch.vars = options.vars;
     }
     return await launchCloudWorker(launch);
   },

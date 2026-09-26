@@ -16,13 +16,13 @@ import {
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
 } from "@repo/api/cloud/vault/vault-schema";
-import { refuse } from "../cloud-http";
+import { declaredLength, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import { spendDeviceBudget } from "../rate-limit";
 import { commitChanges } from "./commit-changes";
 import type { CommitChangesResult, VaultChange } from "./commit-changes";
-import { declaredLength, vaultRegistry, vaultRepoName } from "./git-remote";
+import { vaultRegistry, vaultRepoName } from "./git-remote";
 import { pushVaultPack } from "./receive-pack";
 
 // The Worker is a CAS and never merges: a conflict answers what the head holds, and the device
@@ -106,6 +106,9 @@ const answer = (result: CommitChangesResult): Response => {
     case "exhausted": {
       return refuse("internal", "The vault kept moving under this change set; send it again.");
     }
+    case "full": {
+      return refuse("vault-full", "Your cloud vault is full. This change stays on your phone.");
+    }
     // the cell refusing a pack this Worker built is a bug, logged like any other throw
     case "refused": {
       throw new Error(`the repo cell refused a commit: ${result.reason}`);
@@ -126,7 +129,7 @@ export const handleVaultCommitRoute = async (
     return refuse("bad-request", "Send the change set as a POST with a JSON body.");
   }
   // the body is parsed whole, so its length is known before any of it is read
-  const declared = declaredLength(request);
+  const declared = declaredLength(request.headers);
   if (Number.isNaN(declared) || declared > VAULT_COMMIT_MAX_BYTES) {
     return refuse(
       "file-too-large",

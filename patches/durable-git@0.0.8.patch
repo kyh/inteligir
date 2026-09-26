@@ -1,0 +1,63 @@
+diff --git a/src/git/packstore.ts b/src/git/packstore.ts
+index b96966fdfe32ca0f848fce0f88a1621db22d0e65..3b35ca0b6b3d8c00b78bd1a45414f6830d3926ed 100644
+--- a/src/git/packstore.ts
++++ b/src/git/packstore.ts
+@@ -302,6 +302,13 @@ export class PackStore {
+     return this.sql.exec<{ n: number }>("SELECT COALESCE(SUM(size), 0) AS n FROM pack_meta").one().n;
+   }
+ 
++  /** Stored bytes of the packs held in R2, which the SQLite file does not count. */
++  r2PackBytes(): number {
++    return this.sql
++      .exec<{ n: number }>("SELECT COALESCE(SUM(size), 0) AS n FROM pack_meta WHERE store = 'r2'")
++      .one().n;
++  }
++
+   /**
+    * Bytes of pack storage the raw-chunk LRU keeps hot. A pack no larger than
+    * this fits entirely in cache, so readRaw never re-decodes a chunk no matter
+diff --git a/src/mod.ts b/src/mod.ts
+index 1d88d05d3bcc35935f89fcc1f4e33b06c25b007c..f50aed2e751e1e9ba7e2d893d6d094232e65cff3 100644
+--- a/src/mod.ts
++++ b/src/mod.ts
+@@ -20,7 +20,7 @@ export { RepoCell } from "./repo";
+ export { Registry } from "./registry";
+ export type { Env } from "./env";
+ export type { RepoInfo, RepoConfig } from "./registry";
+-export type { RefsResult, CommitJson, TreeResult, TreeEntryJson, BlobResult, LogResult, DiffResult, DiffFileJson } from "./repo";
++export type { UsageResult, RefsResult, CommitJson, TreeResult, TreeEntryJson, BlobResult, LogResult, DiffResult, DiffFileJson } from "./repo";
+ export type { Person } from "./git/objects";
+ 
+ /** an upload-pack negotiation body is wants/haves/caps only — a few hundred KB */
+diff --git a/src/repo.ts b/src/repo.ts
+index d08d0412bdf1d42212e75c85c217eb0006c967f6..11eebc3eb1d76a1a24a62f4101838b71d555646f 100644
+--- a/src/repo.ts
++++ b/src/repo.ts
+@@ -89,6 +89,10 @@ interface AppliedUpdate {
+ // The shapes returned by the cell's typed content surface (see the methods
+ // below currentPackKey).
+ 
++export interface UsageResult {
++  storedBytes: number;
++}
++
+ export interface RefsResult {
+   head: string | null;
+   refs: { name: string; target: string; peeled?: string }[];
+@@ -448,6 +452,16 @@ export class RepoCell extends DurableObject<Env> {
+     if (name) this.bindR2(name);
+   }
+ 
++  /**
++   * Bytes this repo keeps: the cell's SQLite file (loose objects, SQLite-held
++   * packs, refs, indexes) plus the packs offloaded to R2. History counts, so a
++   * deleted file frees nothing; the derived clone-cache packs do not. Not the
++   * gc guard's sum, which counts a SQLite-held pack twice.
++   */
++  async usage(): Promise<UsageResult> {
++    return { storedBytes: this.store.dbSize() + this.store.packs.r2PackBytes() };
++  }
++
+   async listRefs(): Promise<RefsResult> {
+     this.rpcBind();
+     const refs: RefsResult["refs"] = [];

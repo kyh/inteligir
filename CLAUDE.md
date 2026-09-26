@@ -822,7 +822,7 @@ to the END of its group.
   there outran the shell's readiness wait. A pass concludes one `SyncOutcome`,
   and a path two devices changed is never one of them: a detached HEAD says
   `detached`, never `clean`; a refused push says `rejected` (a 413
-  `too-large`), never `offline` (`classifyNetworkFailure` in
+  `too-large`, a 507 `full`), never `offline` (`classifyNetworkFailure` in
   `apps/cli/src/server/vault/git-run.ts`).
 
 - **THE CAPTURE INBOX MERGES BY UNION.** Two desktops each appending a phone
@@ -1652,7 +1652,9 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   Expo, the agent's own provider) is `docs/privacy.md`'s to list. Signed in, the credential alone
   entitles threads, captures and the hosted vault, with no second flag, except
   that a folder with an origin of its own, or one another service syncs, never
-  takes the hosted vault; its threads sync either way. The invite gate is
+  takes the hosted vault; its threads sync either way. The hosted vault has a
+  storage ceiling the Worker states, which is a size, not a flag (the storage
+  cap bullet below). The invite gate is
   account-creation policy. The BYO remote is the vault's own origin, edited in
   Settings › Advanced and `inteligir vault remote`, and stays accountless;
   `INTELIGIR_VAULT_REMOTE` only pins one over it, and config.json's
@@ -1906,7 +1908,7 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `too-large`** (owner decision: a stated cap now, large files later).
   `VAULT_GIT_MAX_PUSH_BYTES` in `packages/api/src/cloud/vault/vault-git.ts` sits
   under the edge's 100 MB request body, so the 413 is always the Worker's own
-  (`apps/web/src/worker/vault/git-remote.ts`). Splitting the push into
+  (`apps/web/src/worker/vault/receive-pack.ts`). Splitting the push into
   commit-sized steps was rejected: a vault's first commit is the whole tree.
   The engine skips a push while the tips a 413 refused still stand, since each
   retry would upload the cap's worth again
@@ -2066,6 +2068,27 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   Rejected: link rewrites as rows of their own, which could land a rename
   without the links it moved, and a typed name cleaned up rather than refused,
   which shows a title that was never saved.
+
+- **THE HOSTED VAULT IS CAPPED ON WHAT THE CELL STORES** (owner decision: free,
+  about 1 GB an account, every stored version counted, so deleting notes frees
+  nothing, and no compaction in 0.6). `VAULT_STORAGE_CAP_BYTES` in
+  `apps/web/wrangler.jsonc` is the ceiling, and the cell's own size is
+  `RepoCell.usage()`, a pnpm patch over durable-git
+  (`patches/durable-git@0.0.8.patch`): its SQLite file plus the packs it keeps
+  in R2, not the gc guard's sum, which counts a SQLite-held pack twice. ONE
+  gate, in `apps/web/src/worker/vault/receive-pack.ts`, meets every pack headed
+  for a cell, a desktop's push and a phone's commit alike, so the two cannot
+  disagree: a full vault is refused before the body is read, a declared length
+  past the room left is refused, and a streamed body is cut at the tighter of
+  the room and the 90 MiB push cap, the answer naming which. Pushes landing
+  together may each fit and jointly cross the cap; the next is refused. The
+  remote answers 507 (the push cap stays 413), the commit route `vault-full`;
+  reads are never refused for size. The engine reads the 507 as `full`, not
+  the offline a 5xx would be, and pushes again only once the remote's tip
+  moves or the app restarts, while commits land and pulls go on
+  (`apps/cli/src/server/vault/git-engine.ts`); the phone keeps the refused
+  edits queued. Rejected: a Worker-side meter, which counts bytes offered, not
+  kept, and the head tree's size, which ignores the history that grows.
 
 ### Server process and the desktop shell
 

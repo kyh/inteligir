@@ -23,6 +23,7 @@ import { desktopShell } from "./scenarios/desktop-shell";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { extractNoteBrowser } from "./scenarios/extract-note-browser";
+import { hostedVaultFull } from "./scenarios/hosted-vault-full";
 import { hostedVaultPhoneWrite } from "./scenarios/hosted-vault-phone-write";
 import { hostedVaultSecondMac } from "./scenarios/hosted-vault-second-mac";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
@@ -57,6 +58,7 @@ const SCENARIOS: readonly Scenario[] = [
   hostedVaultSync,
   hostedVaultSecondMac,
   hostedVaultPhoneWrite,
+  hostedVaultFull,
   phoneOfflineEdit,
   phoneFileOpsHosted,
   phoneEditorPage,

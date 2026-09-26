@@ -17,6 +17,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { blobObject } from "../vault/git-objects";
 import { vaultRegistry, vaultRepoName } from "../vault/git-remote";
+import { vaultStorageCap } from "../vault/receive-pack";
 import { encodeGitPath } from "../vault/tree-walk";
 import {
   deviceHeaders,
@@ -27,7 +28,7 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-import { pushVaultFiles, ZERO_OID } from "./git-pack";
+import { pushVaultFiles, randomBytes, ZERO_OID } from "./git-pack";
 import type { PushFile } from "./git-pack";
 
 const COMMIT = `${ORIGIN}${VAULT_API_PATHS.commit}`;
@@ -342,6 +343,26 @@ describe("a phone's change set against the hosted vault", () => {
       expect(response.status, label).toBe(status);
       expect(await errorCode(response), label).toBe(code);
     }
+    expect(await headOf(vault)).toBe(vault.initial);
+  });
+
+  it("refuses a set the vault has no room left for as vault-full, landing none of it", async () => {
+    const vault = await openVault([{ content: "# a\n", path: "a.md" }]);
+    const { storedBytes } = await cellOf(vault).usage();
+    const photo = randomBytes(vaultStorageCap(env) - storedBytes + 1024);
+
+    const response = await sendChanges(vault.phone, [
+      {
+        base: null,
+        content: { data: base64FromBytes(photo), encoding: "base64" },
+        op: "put",
+        path: "media/photo.png",
+      },
+      put("a.md", await oidOf("# a\n"), "# a\n\n![[photo.png]]\n"),
+    ]);
+
+    expect(response.status).toBe(507);
+    expect(await errorCode(response)).toBe("vault-full");
     expect(await headOf(vault)).toBe(vault.initial);
   });
 

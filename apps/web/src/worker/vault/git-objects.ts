@@ -164,7 +164,7 @@ const entryHeader = (type: GitObjectType, size: number): Uint8Array => {
   return Uint8Array.from(bytes);
 };
 
-export const packHeader = (count: number): Uint8Array => {
+const packHeader = (count: number): Uint8Array => {
   const header = new Uint8Array(12);
   header.set(encoder.encode("PACK"));
   const view = new DataView(header.buffer);

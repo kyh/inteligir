@@ -149,20 +149,35 @@ const MERGE_FAILED_MESSAGE =
   "This device's changes and another device's could not be combined. Sync tries again once " +
   "either side changes.";
 
-// where a push the remote refused as too large was met. while the remote tip stands and the
-// branch only grew from the refused head, every pack a push would send holds the refused one, so
-// the pass skips a push that could only upload the same refusal again.
-interface RefusedPush {
-  url: string;
+// where a push the remote refused was met, so the pass skips a push that could only upload the
+// same refusal again. too large: while the remote tip stands and the branch only grew from the
+// refused head, every pack a push would send holds the refused one. full: while the remote tip
+// stands, no pack fits, since the remote frees nothing on its own.
+interface PushTips {
   head: string;
   remote: string | null;
 }
 
-const pushTooLargeMessage = (remote: VaultRemoteSpec, maxPushBytes: number): string =>
-  remote.source === "account"
+type RefusedPush =
+  | ({ failure: "too-large"; url: string } & PushTips)
+  | { failure: "full"; url: string; remote: string | null };
+
+const refusedPushMessage = (
+  remote: VaultRemoteSpec,
+  failure: RefusedPush["failure"],
+  maxPushBytes: number,
+): string => {
+  const account = remote.source === "account";
+  if (failure === "full") {
+    return account
+      ? "Your cloud vault is full. New changes stay on this Mac."
+      : "Your sync server is out of space.";
+  }
+  return account
     ? `This vault's unsynced history is over the hosted vault's ` +
-      `${String(maxPushBytes / (1024 * 1024))} MiB push limit.`
+        `${String(maxPushBytes / (1024 * 1024))} MiB push limit.`
     : "The git remote refused the push as too large.";
+};
 
 // what the latest pass to reach a verdict concluded; a pass that ends before one (a pending
 // account, a hold taken during its fetch, a dispose) leaves the last one standing. "none" leaves
@@ -561,10 +576,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   };
 
   // what `push origin <branch>` sends, against the tip it is measured from.
-  const pushTips = async (
-    branch: string,
-    remoteHasBranch: boolean,
-  ): Promise<Omit<RefusedPush, "url">> => ({
+  const pushTips = async (branch: string, remoteHasBranch: boolean): Promise<PushTips> => ({
     head: await revParse(`refs/heads/${branch}`),
     remote: remoteHasBranch ? await revParse(`refs/remotes/origin/${branch}`) : null,
   });
@@ -590,11 +602,14 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return false;
     }
     const tips = await pushTips(branch, remoteHasBranch);
-    if (tips.remote !== refused.remote || !(await isAncestor(refused.head, tips.head))) {
+    if (tips.remote !== refused.remote) {
       return false;
     }
-    lastOutcome = { failure: "too-large", kind: "unreachable" };
-    lastError = pushTooLargeMessage(remote, maxPushBytes);
+    if (refused.failure === "too-large" && !(await isAncestor(refused.head, tips.head))) {
+      return false;
+    }
+    lastOutcome = { failure: refused.failure, kind: "unreachable" };
+    lastError = refusedPushMessage(remote, refused.failure, maxPushBytes);
     return true;
   };
 
@@ -605,7 +620,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const measuredOverCap = async (
     branch: string,
     remoteHasBranch: boolean,
-  ): Promise<Omit<RefusedPush, "url"> | null> => {
+  ): Promise<PushTips | null> => {
     const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
     const revisions = tips.remote === null ? [tips.head] : [tips.head, `^${tips.remote}`];
     try {
@@ -981,8 +996,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       const overCap = await measuredOverCap(branch, remoteHasBranch);
       if (overCap !== null) {
         recordNetworkFailure("too-large");
-        refusedPush = { url: remote.url, ...overCap };
-        throw new Error(pushTooLargeMessage(remote, maxPushBytes));
+        refusedPush = { failure: "too-large", url: remote.url, ...overCap };
+        throw new Error(refusedPushMessage(remote, "too-large", maxPushBytes));
       }
     }
 
@@ -991,14 +1006,17 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     } catch (error) {
       const failure = classifyNetworkFailure(error);
       recordNetworkFailure(failure);
-      if (failure !== "too-large") {
+      if (failure !== "too-large" && failure !== "full") {
         throw error;
       }
       // read after the refusal: the branch only grows past what the push sent, and a head that
       // holds the refused one is as large.
       const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
-      refusedPush = { url: remote.url, ...tips };
-      throw new Error(pushTooLargeMessage(remote, maxPushBytes), { cause: error });
+      refusedPush =
+        failure === "full"
+          ? { failure, remote: tips.remote, url: remote.url }
+          : { failure, url: remote.url, ...tips };
+      throw new Error(refusedPushMessage(remote, failure, maxPushBytes), { cause: error });
     }
     refusedPush = null;
     if (remote.source === "account" && remote.account.state === "known") {

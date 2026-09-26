@@ -1706,6 +1706,10 @@ describe("classifyNetworkFailure", () => {
       "too-large",
     ],
     [
+      "error: RPC failed; HTTP 507 curl 22 The requested URL returned error: 507\nsend-pack: unexpected disconnect while reading sideband packet\nfatal: the remote end hung up unexpectedly",
+      "full",
+    ],
+    [
       " ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs",
       "rejected",
     ],
@@ -2006,6 +2010,94 @@ describe("a push too large for the remote", { timeout: 30_000 }, () => {
     expect(refused.lastError).toContain("push limit");
     expect(await syncState(engine)).toBe("too-large");
     expect(remote.pushes()).toBe(0);
+  });
+});
+
+// a remote with no room left: every push fails as git reports the hosted vault's 507, while the
+// fetch reads the real repo, so another device's push still moves its tip. counts the pushes.
+const makeFullRemote = async () => {
+  const bare = await makeBareRemote();
+  const dir = scratchDir("inteligir-git-full-");
+  const log = path.join(dir, "pushes");
+  const script = path.join(dir, "receive-pack.sh");
+  await writeFile(
+    script,
+    [
+      "#!/bin/sh",
+      `echo push >> '${log}'`,
+      "echo 'error: RPC failed; HTTP 507 curl 22 The requested URL returned error: 507' >&2",
+      "exit 1",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  await chmod(script, 0o755);
+  return {
+    bare,
+    // after hermeticGitEnv's own row
+    env: {
+      GIT_CONFIG_COUNT: "2",
+      GIT_CONFIG_KEY_1: "remote.origin.receivepack",
+      GIT_CONFIG_VALUE_1: script,
+    },
+    pushes: async (): Promise<number> => {
+      if (!existsSync(log)) {
+        return 0;
+      }
+      const lines = await readFile(log, "utf-8");
+      return lines.split("\n").filter(Boolean).length;
+    },
+  };
+};
+
+describe("a remote with no room left", { timeout: 30_000 }, () => {
+  it("says full, keeps committing and pulling, and pushes again only once the remote tip moves", async () => {
+    const remote = await makeFullRemote();
+    const other = await makeEngine({ remoteUrl: remote.bare });
+    expect(await syncState(other.engine)).toBe("clean");
+    const { engine, root } = await makeEngine({ env: remote.env, remoteUrl: remote.bare });
+
+    const refused = await engine.syncNow();
+    expect(refused.state).toBe("full");
+    expect(refused.lastError).toBe("Your sync server is out of space.");
+    expect(await remote.pushes()).toBe(1);
+
+    await writeFile(path.join(root, "kept.md"), "stays on this device\n", "utf-8");
+    expect(await engine.commitNow()).toEqual({ files: 1 });
+    expect(await syncState(engine)).toBe("full");
+    expect(await reportedState(engine)).toBe("full");
+    expect(await remote.pushes()).toBe(1);
+
+    await writeFile(path.join(other.root, "from-other.md"), "pushed elsewhere\n", "utf-8");
+    await other.engine.commitNow();
+    expect(await syncState(other.engine)).toBe("clean");
+    expect(await syncState(engine)).toBe("full");
+    expect(await readFile(path.join(root, "from-other.md"), "utf-8")).toBe("pushed elsewhere\n");
+    expect(await remote.pushes()).toBe(2);
+    expect(await trackedFiles(other.root)).not.toContain("kept.md");
+  });
+
+  it("names the account's cloud vault on the account remote", async () => {
+    const remote = await makeFullRemote();
+    const root = scratchDir("inteligir-git-full-account-");
+    await ensureVaultRepo({ env, root });
+    const engine = createGitEngine({
+      deviceName: () => TEST_DEVICE,
+      env: { ...env, ...remote.env },
+      remote: () => ({
+        account: { id: "user-a", state: "known" },
+        source: "account",
+        url: remote.bare,
+      }),
+      root,
+    });
+    onTestFinished(async () => {
+      await engine.dispose();
+    });
+
+    const refused = await engine.syncNow();
+    expect(refused.state).toBe("full");
+    expect(refused.lastError).toBe("Your cloud vault is full. New changes stay on this Mac.");
   });
 });
 

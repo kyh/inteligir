@@ -60,6 +60,7 @@ export type CommitChangesResult =
       readonly conflicts: readonly VaultConflict[];
     }
   | { readonly kind: "no-head" }
+  | { readonly kind: "full" }
   | { readonly kind: "refused"; readonly reason: string }
   | { readonly kind: "exhausted" };
 
@@ -648,6 +649,9 @@ export const commitChanges = async ({
     });
     if (outcome.kind === "applied") {
       return { commit: commit.oid, kind: "committed", results };
+    }
+    if (outcome.kind === "full") {
+      return { kind: "full" };
     }
     if (outcome.kind === "refused") {
       return { kind: "refused", reason: outcome.reason };

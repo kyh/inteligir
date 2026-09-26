@@ -33,6 +33,8 @@ export interface LaunchCloudWorkerArgs {
   // the vite-emitted dist/server/wrangler.json; its own `main` names the built module, so no
   // positional entry is passed.
   builtConfig?: string;
+  // over wrangler.jsonc's own `vars`, such as a storage cap a scenario can fill
+  vars?: Readonly<Record<string, string>>;
 }
 
 const workerEnv = (): NodeJS.ProcessEnv => {
@@ -133,6 +135,10 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
           // the suite signs up more than one account from one IP.
           "--var",
           "RATE_LIMIT_DISABLED:true",
+          ...Object.entries(args.vars ?? {}).flatMap(([name, value]) => [
+            "--var",
+            `${name}:${value}`,
+          ]),
         ],
         cwd: webDir,
         env: workerEnv(),
