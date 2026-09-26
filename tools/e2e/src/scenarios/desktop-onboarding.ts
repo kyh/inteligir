@@ -76,8 +76,10 @@ export const desktopOnboarding: Scenario = {
     expect(content.includes(WELCOME_HEADING), `the server reads another vault:\n${content}`);
 
     ctx.log("finishing uncovers the workspace on Welcome.md");
-    // the first-run page closed with its window; the app window is the only page left to bind
+    // the first-run page closed with its window; the app window is the only page left to bind,
+    // and its url names /welcome before the route has drawn
     await browser(["connect", String(shell.cdpPort)], 60_000);
+    await browser(["wait", "--text", FINISH_LINE], EDITOR_DEADLINE_MS);
     await browser(["find", "role", "button", "click", "--name", "Open my notes", "--exact"]);
     const covered = `document.body.textContent.includes(${JSON.stringify(FINISH_LINE)}) ? "covered" : "uncovered"`;
     await pollUntil(

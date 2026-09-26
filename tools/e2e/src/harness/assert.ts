@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { ScenarioSkipError } from "./scenario-skip-error";
 
 class ScenarioFailureError extends Error {
@@ -16,8 +17,9 @@ export const expect: (condition: boolean, message: string) => asserts condition 
   }
 };
 
+// deep, so a list or a record compares by what it holds, as the message prints it
 export const expectEq = <T>(actual: T, expected: T, label: string): void => {
-  if (!Object.is(actual, expected)) {
+  if (!isDeepStrictEqual(actual, expected)) {
     throw new ScenarioFailureError(
       `${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
     );
