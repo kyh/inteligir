@@ -1,7 +1,8 @@
 import path from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { createVaultIgnore, isGitignorePath } from "@repo/notes/knowledge/vault-ignore";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import { NO_ORIGIN } from "../cloud/vault-remote";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import type { DebugLog } from "../debug-log";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
@@ -31,6 +32,8 @@ const SELF_WRITE_ECHO_WINDOW_MS = 2000;
 export interface VaultRuntimeArgs {
   vaultDir: string;
   remote: VaultRemoteProvider;
+  // judged once at boot, as the provider's own copy was.
+  externalSync?: ExternalSync | null;
   dataDir: string;
   notifier: DbNotifier;
   onFilesChanged?: (change: VaultFilesChange) => void;
@@ -67,7 +70,8 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   assertVaultAndDataDirDisjoint(root, path.resolve(args.dataDir));
 
   const ensureArgs: EnsureVaultRepoArgs = {
-    remote: args.remote(),
+    // the clone is the one reader, and a folder not created yet has no origin to read.
+    remote: args.remote(NO_ORIGIN),
     root,
     seed: async (vaultRoot) => {
       await seedVault(vaultRoot);
@@ -150,6 +154,9 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   };
   if (args.gitEnv) {
     gitArgs.env = args.gitEnv;
+  }
+  if (args.externalSync !== undefined) {
+    gitArgs.externalSync = args.externalSync;
   }
   const git = createGitEngine(gitArgs);
   engine = git;

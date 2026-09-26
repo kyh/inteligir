@@ -1,3 +1,4 @@
+import { externalSyncName } from "@repo/api/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
 import { useTheme } from "@repo/ui/lib/theme";
@@ -60,8 +61,9 @@ const gitRemote = (status: VaultStatus) => {
   if (status.state === "no-remote") {
     return (
       <span className="text-muted-foreground">
-        None — sign in under Devices to sync through your account, or set INTELIGIR_VAULT_REMOTE /
-        config.json for your own remote.
+        {status.externalSync === null
+          ? "None — sign in under Devices to sync through your account, or give the vault folder a git origin of its own."
+          : `None — ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off; a git origin of the vault's own still syncs.`}
       </span>
     );
   }

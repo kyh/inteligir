@@ -15,8 +15,10 @@ import {
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { bootTestApp, listenTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
+import { writeDeviceCredential } from "../../cloud/credential-store";
 import { WsBus } from "../../ws-bus";
 import type { BusSocket } from "../../ws-bus";
+import { runGit } from "../git-run";
 import { createVaultRuntime } from "../vault-runtime";
 import { hermeticGitEnv } from "./git-test-env";
 
@@ -332,6 +334,32 @@ describe("the vault routes", () => {
     expect(reported.state).toBe("no-remote");
     const synced = await client.vault.syncNow();
     expect(synced.state).toBe("no-remote");
+  });
+
+  it("names the service that syncs a vault in iCloud Drive, and runs no pass though signed in", async () => {
+    const { client, dataDir, vaultDir } = await bootTestApp({
+      derivedRemote: true,
+      vaultPath: path.join("Library", "Mobile Documents", "com~apple~CloudDocs", "Notes"),
+    });
+    writeDeviceCredential(dataDir, {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      userId: "usr_1",
+    });
+    await client.vault.write({ content: "# mine\n", guard: { kind: "overwrite" }, path: "a.md" });
+
+    const expected = {
+      externalSync: { kind: "icloud-drive" },
+      lastError: null,
+      lastSyncAt: null,
+      state: "no-remote",
+    };
+    expect(await client.vault.status()).toEqual(expected);
+    expect(await client.vault.syncNow()).toEqual(expected);
+    // a pass would have written the hosted url into the vault's config
+    await expect(
+      runGit(vaultDir, ["remote", "get-url", "origin"], { env: hermeticGitEnv() }),
+    ).rejects.toThrow();
   });
 
   it("serves an image asset with a pinned type, a sandbox CSP and an ETag", async () => {

@@ -9,6 +9,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { freeDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
+import { externalSyncName } from "@repo/api/local/vault/vault-schema";
 import type {
   VaultEntry,
   VaultStatusResponse,
@@ -62,7 +63,9 @@ const STUCK = `Sync can't continue on its own. ${DETAILS_IN_ADVANCED}`;
 export const syncStateLabel = (status: VaultStatusResponse): string => {
   switch (status.state) {
     case "no-remote": {
-      return "Only on this Mac";
+      return status.externalSync === null
+        ? "Only on this Mac"
+        : `Synced by ${externalSyncName(status.externalSync)}`;
     }
     case "clean": {
       return "Synced";
@@ -178,7 +181,12 @@ interface SyncStateNote {
 export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null => {
   switch (status.state) {
     case "no-remote": {
-      return { message: "Sign in to sync your notes across devices.", tone: "info" };
+      return status.externalSync === null
+        ? { message: "Sign in to sync your notes across devices.", tone: "info" }
+        : {
+            message: `${externalSyncName(status.externalSync)} syncs this folder, so Inteligir leaves its sync to it.`,
+            tone: "info",
+          };
     }
     case "clean":
     case "dirty": {

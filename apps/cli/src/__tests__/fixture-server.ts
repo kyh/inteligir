@@ -164,7 +164,7 @@ export const makeFixtureState = (): FixtureState => ({
   vault: new Map(),
   vaultLog: [],
   vaultPrefs: { attachments: DEFAULT_ATTACHMENT_LOCATION },
-  vaultStatus: { lastError: null, lastSyncAt: null, state: "no-remote" },
+  vaultStatus: { externalSync: null, lastError: null, lastSyncAt: null, state: "no-remote" },
 });
 
 const deriveTree = (vault: Map<string, string>): VaultEntry[] => {

@@ -316,6 +316,7 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(JSON.parse(sync.stdout)).toEqual({
+      externalSync: null,
       lastError: null,
       lastSyncAt: null,
       state: "no-remote",

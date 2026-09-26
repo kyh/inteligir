@@ -5,17 +5,22 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { externalSyncSchema } from "@repo/api/local/vault/vault-schema";
 import { DEV_DATA_ROOT_DIR, resolveAppConfig, vaultDataDir } from "../server/config";
 import { resolveCheckoutRoot } from "../server/dev-instance";
 import { writeServerFile } from "../server/server-file";
 import { makeTempDir } from "../server/__tests__/temp-dir";
+import { runGit } from "../server/vault/git-run";
+import { hermeticGitEnv } from "../server/vault/__tests__/git-test-env";
 import { runCliForTest } from "./run-cli";
 
 const envelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
 const selectionSchema = z
   .object({
     dataDir: z.string(),
+    externalSync: externalSyncSchema.nullable(),
     previousVaultDir: z.string(),
+    remote: z.string().nullable(),
     running: z.object({ baseUrl: z.string() }).nullable(),
     vaultDir: z.string(),
   })
@@ -61,7 +66,9 @@ describe("inteligir vault open", () => {
     const body = selectionSchema.parse(JSON.parse(result.stdout));
     expect(body).toEqual({
       dataDir: vaultDataDir(rootDataDir, work),
+      externalSync: null,
       previousVaultDir: defaultVaultDir,
+      remote: null,
       running: null,
       vaultDir: work,
     });
@@ -123,6 +130,49 @@ describe("inteligir vault open", () => {
     });
     // untouched: the row still names the previous vault
     expect(readFileSync(path.join(rootDataDir, "server.json"), "utf-8")).toContain(defaultVaultDir);
+  });
+
+  it("names the service that syncs a folder, which the hosted vault then stays off", async () => {
+    const { homeDir } = scratch();
+    const notes = newVault(
+      homeDir,
+      path.join("Library", "Mobile Documents", "com~apple~CloudDocs"),
+    );
+    const json = await open(homeDir, notes);
+    expect(json.code, json.stderr).toBe(0);
+    expect(selectionSchema.parse(JSON.parse(json.stdout))).toMatchObject({
+      externalSync: { kind: "icloud-drive" },
+      remote: null,
+    });
+
+    const other = newVault(homeDir, path.join("Library", "CloudStorage", "Dropbox", "Notes"));
+    const said = await runCliForTest({
+      argv: ["vault", "open", other],
+      baseUrl: NO_SERVER,
+      env: {},
+      homeDir,
+    });
+    expect(said.code, said.stderr).toBe(0);
+    expect(`${said.stdout}${said.stderr}`).toContain(
+      "Dropbox syncs this folder; inteligir will not sync its notes.",
+    );
+  });
+
+  it("names a folder's own git remote, redacted", async () => {
+    const { homeDir } = scratch();
+    const repo = newVault(homeDir, "Repo");
+    const env = hermeticGitEnv();
+    await runGit(repo, ["init", "-b", "main"], { env });
+    await runGit(repo, ["remote", "add", "origin", "https://me:secret@git.example.com/v.git"], {
+      env,
+    });
+    const result = await open(homeDir, repo);
+    expect(result.code, result.stderr).toBe(0);
+    expect(selectionSchema.parse(JSON.parse(result.stdout))).toMatchObject({
+      externalSync: null,
+      remote: "https://git.example.com/v.git",
+    });
+    expect(result.stdout).not.toContain("secret");
   });
 
   describe("refuses, non-zero and with the JSON envelope, and writes nothing", () => {

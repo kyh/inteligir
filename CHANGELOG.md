@@ -71,6 +71,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **The agent needs nothing else installed.** Claude and ChatGPT run from inside the app, so neither Claude Code nor Codex has to be on your Mac, and a Mac already signed in to either stays signed in. Settings › Agents and `inteligir agents list` show each one's sign-in as Claude or ChatGPT reports it, with the plan and account.
 - **One Date row in the `/` menu.** Day inserted the same date chip; `/day` now finds Date.
 - **Copy link copies a link for another note.** ⋯ › Copy link now copies the note's `[[Name]]`, the link the `[[` menu writes, instead of a web address that worked only while the app was open.
+- **A folder you open keeps the sync it already has.** A folder that iCloud Drive, Dropbox, Google Drive, OneDrive or Obsidian Sync already keeps in sync stays with that service: the app leaves its own sync off for it, even when you are signed in, so two services never fight over one folder, and the sidebar says which one syncs it. A folder that already syncs with a server of its own keeps syncing there and never moves into your account.
 
 ### Fixed
 
@@ -104,6 +105,11 @@ Everything since 0.4.0 (September 4, 2026).
 - **What an agent deletes** is committed with the rest of its action, rather than landing in the next automatic commit.
 - **`inteligir open`** against a server started without the app's interface says how to fix it, instead of opening a link that leads nowhere.
 - **Your phone** no longer re-reads the whole notes list on every refresh when nothing in the vault changed.
+
+### On the command line
+
+- **`vaultRemote` in `config.json` is no longer read.** It applied to every vault the app opened. A vault now syncs with its own repo's `origin`, which it keeps when you sign in: run `git remote add origin <url>` in the vault, or pin one with `INTELIGIR_VAULT_REMOTE`. The server warns at start-up when it finds the old key.
+- `inteligir vault open` says when another service syncs the folder or it has a git remote of its own, and `--json` carries both as `externalSync` and `remote`; `inteligir vault status` names the service too.
 
 ### Security
 

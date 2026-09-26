@@ -94,6 +94,10 @@ export interface BootTestAppOptions {
   // a suite that begins a connector authorization must supply this, or `pnpm test` pops a browser window.
   openExternalUrl?: OpenExternalUrl;
   port?: number;
+  // the vault's place under the instance dir, which is the config's home too; absent, "vault".
+  vaultPath?: string;
+  // the vault remote the config, the vault's origin and a credential derive; absent, none.
+  derivedRemote?: boolean;
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
@@ -121,7 +125,7 @@ export interface BootedTestApp {
 export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<BootedTestApp> => {
   const instanceDir = makeTempDir("inteligir-app-test-");
   const dataDir = path.join(instanceDir, "data");
-  const vaultDir = path.join(instanceDir, "vault");
+  const vaultDir = path.join(instanceDir, options.vaultPath ?? "vault");
   // pre-created so the boot is not virgin and seeds no starter note.
   mkdirSync(vaultDir, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
@@ -135,6 +139,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     dataDirSource: "env",
     databasePath: path.join(dataDir, "inteligir.db"),
     debug: new Set(),
+    homeDir: instanceDir,
     mode: "dev",
     port: options.port ?? 0,
     portSource: "env",
@@ -150,7 +155,10 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
 
   const ports: ComposePorts = {
     knowledge: { projector: createInlineProjector() },
-    vault: { gitEnv: hermeticGitEnv(), remote: () => null, watch: false },
+    vault:
+      options.derivedRemote === true
+        ? { gitEnv: hermeticGitEnv(), watch: false }
+        : { gitEnv: hermeticGitEnv(), remote: () => null, watch: false },
   };
   if (options.openExternalUrl !== undefined) {
     ports.openExternalUrl = options.openExternalUrl;

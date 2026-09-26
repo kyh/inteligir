@@ -185,7 +185,8 @@ Each feature issue lands with its scenario here.
 | `INTELIGIR_DATA_DIR`         | absolute data dir (SQLite + config.json)               |
 | `INTELIGIR_VAULT_DIR`        | absolute vault dir; must be disjoint from the data dir |
 | `INTELIGIR_PORT`             | exact port (env-configured ports are never probed)     |
-| `INTELIGIR_VAULT_REMOTE`     | git remote URL for the sync loop; unset = local-only   |
+| `INTELIGIR_VAULT_REMOTE`     | git remote URL pinned over the vault's own origin;     |
+|                              | unset = that origin, else the signed-in account's      |
 | `INTELIGIR_CLOUD_URL`        | the cloud origin; hosted-vault-sync points it at its   |
 |                              | own scratch wrangler-dev Worker                        |
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |

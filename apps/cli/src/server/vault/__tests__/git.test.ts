@@ -10,7 +10,10 @@ import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { beginAgentTurnWrites } from "../../agents/agent-commits";
+import { writeDeviceCredential } from "../../cloud/credential-store";
+import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../../cloud/vault-remote";
 import type { VaultRemoteSpec } from "../../cloud/vault-remote";
+import { REMOTE_MARKER_KEY } from "../folder-facts";
 import { ensureVaultRepo } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
@@ -1671,5 +1674,149 @@ describe("a live remote provider", () => {
 
     current = null;
     expect(await reportedState(engine)).toBe("no-remote");
+  });
+});
+
+const OWN_ORIGIN_CLOUD_URL = "https://cloud.test";
+
+// the provider the server composes, over a data dir of its own
+const composedProvider = (signedIn: boolean) => {
+  const dataDir = scratchDir("inteligir-git-own-origin-data-");
+  if (signedIn) {
+    writeDeviceCredential(dataDir, {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      userId: "user-a",
+    });
+  }
+  return createVaultRemoteProvider({
+    cloudUrl: OWN_ORIGIN_CLOUD_URL,
+    dataDir,
+    externalSync: null,
+    pinnedRemote: null,
+  });
+};
+
+const repoWithOrigin = async (origin: string): Promise<string> => {
+  const root = scratchDir("inteligir-git-own-origin-");
+  await ensureVaultRepo({ env, root });
+  await runGit(root, ["remote", "add", "origin", origin], { env });
+  return root;
+};
+
+const originOf = async (root: string): Promise<string> => {
+  const { stdout } = await runGit(root, ["config", "--get", "remote.origin.url"], { env });
+  return stdout.trim();
+};
+
+const tipOf = async (dir: string, ref: string): Promise<string> => {
+  const { stdout } = await runGit(dir, ["rev-parse", ref], { env });
+  return stdout.trim();
+};
+
+const engineOn = (root: string, remote: GitEngineArgs["remote"]): GitEngine => {
+  const engine = createGitEngine({ env, remote, root });
+  onTestFinished(async () => {
+    await engine.dispose();
+  });
+  return engine;
+};
+
+describe("the vault's own origin", { timeout: 30_000 }, () => {
+  it("a signed-in pass keeps a foreign origin and syncs there, never with the hosted vault", async () => {
+    const bare = await makeBareRemote();
+    const foreign = `file://${bare}`;
+    const root = await repoWithOrigin(foreign);
+    const engine = engineOn(root, composedProvider(true));
+
+    await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
+    await engine.commitNow();
+    expect(await engine.syncNow()).toMatchObject({
+      remote: foreign,
+      remoteSource: "explicit",
+      state: "clean",
+    });
+    expect(await originOf(root)).toBe(foreign);
+    expect(await tipOf(bare, "main")).toBe(await tipOf(root, "HEAD"));
+    await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
+  });
+
+  it("an origin changed outside the app is the next pass's, with no restart", async () => {
+    const first = await makeBareRemote();
+    const second = await makeBareRemote();
+    const root = await repoWithOrigin(`file://${first}`);
+    const engine = engineOn(root, composedProvider(false));
+
+    await writeFile(path.join(root, "note.md"), "# one\n", "utf-8");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+    expect(await tipOf(first, "main")).toBe(await tipOf(root, "HEAD"));
+
+    await runGit(root, ["remote", "set-url", "origin", `file://${second}`], { env });
+    await writeFile(path.join(root, "note.md"), "# two\n", "utf-8");
+    await engine.commitNow();
+    expect(await engine.syncNow()).toMatchObject({
+      remote: `file://${second}`,
+      state: "clean",
+    });
+    expect(await tipOf(second, "main")).toBe(await tipOf(root, "HEAD"));
+    expect(await tipOf(first, "main")).not.toBe(await tipOf(root, "HEAD"));
+  });
+
+  it("a signed-out vault whose origin is the hosted vault has no remote of its own", async () => {
+    const root = await repoWithOrigin(hostedVaultRemoteUrl(OWN_ORIGIN_CLOUD_URL));
+    const engine = engineOn(root, composedProvider(false));
+    expect(await engine.status()).toEqual({
+      externalSync: null,
+      lastError: null,
+      lastSyncAt: null,
+      state: "no-remote",
+    });
+  });
+
+  it("an account pass that meets an origin of the user's own leaves it and pushes nothing", async () => {
+    const own = await makeBareRemote();
+    const hosted = await makeBareRemote();
+    const root = await repoWithOrigin(`file://${own}`);
+    // a provider that hands out the account remote past the origin, as none the server composes does
+    const engine = engineOn(root, () => ({
+      account: { id: "user-a", state: "known" },
+      source: "account",
+      url: hosted,
+    }));
+
+    await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
+    await engine.commitNow();
+    const status = await engine.syncNow();
+    expect(status.lastError).toMatch(/origin/u);
+    expect(await originOf(root)).toBe(`file://${own}`);
+    for (const remote of [own, hosted]) {
+      await expect(runGit(remote, ["rev-parse", "--verify", "main"], { env })).rejects.toThrow();
+    }
+  });
+
+  it("an account pass marks the origin it writes; an explicit remote takes it over unmarked", async () => {
+    const hosted = await makeBareRemote();
+    const pinned = await makeBareRemote();
+    const root = scratchDir("inteligir-git-marked-");
+    await ensureVaultRepo({ env, root });
+    let current: VaultRemoteSpec = {
+      account: { id: "user-a", state: "known" },
+      source: "account",
+      url: hosted,
+    };
+    const engine = engineOn(root, () => current);
+
+    await writeFile(path.join(root, "note.md"), "# hosted\n", "utf-8");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+    expect(await originOf(root)).toBe(hosted);
+    const marker = await runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env });
+    expect(marker.stdout.trim()).toBe("account");
+
+    current = { source: "explicit", url: pinned };
+    expect(await syncState(engine)).toBe("clean");
+    expect(await originOf(root)).toBe(pinned);
+    await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
   });
 });

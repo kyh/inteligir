@@ -5,6 +5,8 @@
 import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
 import { browserHandoffUrl } from "@repo/api/local/routes";
+import { externalSyncName } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
 import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
 import type { ResolveAgentDriverArgs } from "./agents/agent-driver";
@@ -16,6 +18,7 @@ import type { BootPhases } from "./boot-report";
 import { readParentPort } from "./child-host/message-port";
 import { resolveNodeChildren } from "./child-host/node-children";
 import { openCloudSocket } from "./cloud/cloud-socket";
+import type { VaultRemoteSpec } from "./cloud/vault-remote";
 import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
 import type { ComposeRuntimeArgs } from "./compose";
@@ -82,6 +85,20 @@ const liveOwnerRefusal = (dataDir: string, probe: ServerFileProbe): string | nul
 };
 
 const STOP_IT_FIRST = "Stop it first, or select another instance with INTELIGIR_DATA_DIR.";
+
+// where the vault syncs, for the boot line; a folder another service syncs says so, since that is
+// why a signed-in install has no hosted remote.
+const bootSyncNote = (
+  remote: VaultRemoteSpec | null,
+  externalSync: ExternalSync | null,
+): string => {
+  if (remote !== null) {
+    return ` ⇄ ${redactRemoteUrl(remote.url)}${remote.source === "account" ? " (account)" : ""}`;
+  }
+  return externalSync === null
+    ? ""
+    : ` — ${externalSyncName(externalSync)} syncs this folder, so the hosted vault stays off`;
+};
 
 export const assertNoLiveServer = async (dataDir: string): Promise<void> => {
   const refusal = liveOwnerRefusal(dataDir, await probeServerFile(dataDir));
@@ -262,11 +279,11 @@ const boot = async (
       console.warn(`[models] retired model folder left in place: ${messageOf(error)}`);
     }
   })();
-  const bootRemote = runtime.vaultRemote();
+  const bootRemote = await runtime.context.vault.git.currentRemote();
   const agent = runtime.context.system.agent();
   const serverUrl = loopbackOrigin(port);
   console.log(
-    `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "account" ? " (account)" : ""}`}`,
+    `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootSyncNote(bootRemote, runtime.externalSync)}`,
   );
   console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
   for (const warning of config.warnings) {

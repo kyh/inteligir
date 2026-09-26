@@ -2,12 +2,15 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
 import type {
+  ExternalSync,
   VaultConflict,
   VaultDeletedEntry,
   VaultRevision,
   VaultStatusResponse,
 } from "@repo/api/local/vault/vault-schema";
-import type { VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
+import { ownOriginUrl } from "../cloud/vault-remote";
+import type { OriginConfig, VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
+import { readOriginConfig, REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
 import { ACCOUNT_MARKER_KEY } from "./git-bootstrap";
 import {
   cachedDeletionLog,
@@ -51,8 +54,11 @@ const autoCommitSubject = (paths: readonly string[]): string => {
 
 export interface GitEngineArgs {
   root: string;
-  // re-read every pass so a sign-in or sign-out flips sync live without a restart.
+  // asked every pass, over the vault's origin read then, so a sign-in, a sign-out or a remote the
+  // user sets in the vault takes effect without a restart.
   remote: VaultRemoteProvider;
+  // the service that syncs the folder instead, which the no-remote status names.
+  externalSync?: ExternalSync | null;
   // fired on a sync transition, never on a commit that lands: the state is dirty on both sides
   // of a commit, and each announcement costs every client a porcelain read under the repo lock.
   // a flush that fails, and the commit that lands after it, move the reported error, so both fire.
@@ -102,6 +108,8 @@ export interface GitEngine {
   turnCommits: (threadId: string, sinceMs: number) => Promise<TurnCommit[]>;
   syncNow: () => Promise<VaultStatusResponse>;
   status: () => Promise<VaultStatusResponse>;
+  // what the next pass would sync with, read as a pass reads it.
+  currentRemote: () => Promise<VaultRemoteSpec | null>;
   isSyncing: () => boolean;
   // vault mutations run through this so a write cannot interleave a rebase's checkout/abort window.
   runExclusive: <T>(work: () => Promise<T>) => Promise<T>;
@@ -150,6 +158,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const { root } = args;
   const extraEnv = args.env ?? {};
   const maxPushBytes = args.maxPushBytes ?? VAULT_GIT_MAX_PUSH_BYTES;
+  const externalSync = args.externalSync ?? null;
 
   let lastSyncAt: number | null = null;
   let lastError: string | null = null;
@@ -184,6 +193,22 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     await runGit(root, gitArgs, { ...options, env: { ...extraEnv, ...options.env } });
 
   const deletionLog = cachedDeletionLog(run);
+
+  // a pass reads under the repo lock, the one the origin and its marker are written under, so a
+  // change to both lands whole on one side of its read. a status or a gate reads off it: one
+  // written half-way still names the same remote, and a pass reads again before it acts.
+  const readRemote = async (): Promise<{
+    origin: OriginConfig;
+    remote: VaultRemoteSpec | null;
+  }> => {
+    const origin = await readOriginConfig(run);
+    return { origin, remote: args.remote(origin) };
+  };
+
+  const currentRemote = async (): Promise<VaultRemoteSpec | null> => {
+    const { remote } = await readRemote();
+    return remote;
+  };
 
   const runNetwork = async (gitArgs: readonly string[], env?: Record<string, string>) => {
     const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
@@ -381,19 +406,23 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  const ensureOriginRemote = async (url: string): Promise<void> => {
-    let existing: string | null;
-    try {
-      const { stdout } = await run(["remote", "get-url", "origin"]);
-      existing = stdout.trim();
-    } catch {
-      existing = null;
-    }
+  // the origin is the vault's own record of where it syncs, so the app marks the origin it manages
+  // and drops the mark when an explicit remote takes it over.
+  const ensureOriginRemote = async (
+    remote: VaultRemoteSpec,
+    origin: OriginConfig,
+  ): Promise<void> => {
     // "--" so the url can never read as an option.
-    if (existing === null) {
-      await run(["remote", "add", "--", "origin", url]);
-    } else if (existing !== url) {
-      await run(["remote", "set-url", "--", "origin", url]);
+    if (origin.url === null) {
+      await run(["remote", "add", "--", "origin", remote.url]);
+    } else if (origin.url !== remote.url) {
+      await run(["remote", "set-url", "--", "origin", remote.url]);
+    }
+    const managed = remote.source === "account";
+    if (managed && !origin.markedAccount) {
+      await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
+    } else if (!managed && origin.markedAccount) {
+      await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
     }
   };
 
@@ -559,9 +588,24 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return "unhandled";
   };
 
-  // under the lock, before the fetch. answers the branch to sync, or null to end the pass.
-  const preparePass = async (remote: VaultRemoteSpec): Promise<string | null> => {
+  // under the lock, before the fetch. answers the remote and the branch to sync, or null to end the
+  // pass. the remote is asked again here, so an origin changed since the caller's read is this
+  // pass's, never overwritten by it.
+  const preparePass = async (): Promise<{ remote: VaultRemoteSpec; branch: string } | null> => {
+    const { origin, remote } = await readRemote();
+    if (remote === null) {
+      return null;
+    }
     if (remote.source === "account") {
+      // the provider hands out the account remote only past an origin of the user's own; were one
+      // here anyway, the set-url below would push the user's repo into the hosted vault.
+      const own = ownOriginUrl(origin, remote.url);
+      if (own !== null) {
+        lastError =
+          `origin is ${redactRemoteUrl(own)}, a remote of the vault's own; this pass left it ` +
+          "alone and did not sync with the account's hosted vault";
+        return null;
+      }
       if (remote.account.state === "pending") {
         // fail closed: a pass now would skip the marker check, the window a new sign-in pushes
         // the old vault through. the thread sync retries the account fetch and pings this
@@ -578,7 +622,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       }
     }
     await commitIfDirty();
-    await ensureOriginRemote(remote.url);
+    await ensureOriginRemote(remote, origin);
     const branch = await currentBranch();
     if (branch === null) {
       lastOutcome = { kind: "detached" };
@@ -589,7 +633,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (lastOutcome.kind === "account-mismatch" || lastOutcome.kind === "detached") {
       lastOutcome = { kind: "none" };
     }
-    return branch;
+    return { branch, remote };
   };
 
   // under the lock, between the fetch and the push. false ends the pass before its push.
@@ -638,11 +682,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
   // the network steps run off the repo lock: a fetch or push on a dropped network waits out its
   // timeout, and under the lock every save and every turn start would wait with it.
-  const doSync = async (remote: VaultRemoteSpec): Promise<void> => {
-    const branch = await withRepoLock(async () => await preparePass(remote));
-    if (branch === null) {
+  const doSync = async (): Promise<void> => {
+    const prepared = await withRepoLock(preparePass);
+    if (prepared === null) {
       return;
     }
+    const { branch, remote } = prepared;
 
     let remoteHasBranch = true;
     try {
@@ -722,17 +767,17 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     });
 
   const statusSnapshot = async (): Promise<VaultStatusResponse> => {
+    const remote = await currentRemote();
     const reportedError = flushError ?? lastError;
-    const currentRemote = args.remote();
-    if (currentRemote === null) {
-      return { lastError: reportedError, lastSyncAt, state: "no-remote" };
+    if (remote === null) {
+      return { externalSync, lastError: reportedError, lastSyncAt, state: "no-remote" };
     }
     const fields = {
       lastError: reportedError,
       lastSyncAt,
       // redacted: an https remote carries the token, and this string reaches logs and the ui.
-      remote: redactRemoteUrl(currentRemote.url),
-      remoteSource: currentRemote.source,
+      remote: redactRemoteUrl(remote.url),
+      remoteSource: remote.source,
     };
     if (syncing) {
       return { ...fields, state: "syncing" };
@@ -769,9 +814,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  const runSyncPass = async (remote: VaultRemoteSpec): Promise<void> => {
+  const runSyncPass = async (): Promise<void> => {
     try {
-      await doSync(remote);
+      await doSync();
     } catch (error) {
       lastError = error instanceof Error ? error.message : "sync failed";
       args.onError?.(lastError);
@@ -782,18 +827,19 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (inflightSync !== null) {
       return await inflightSync;
     }
-    // a pass starts by committing the dirty tree, which a hold exists to prevent; the snapshot
-    // says "held" rather than reporting clean as if a pass ran. the provider is read once so
-    // the gate and the pass agree on the remote.
-    const remote = args.remote();
-    if (remote === null || lastOutcome.kind === "broken" || liveHolds.size > 0) {
-      return await statusSnapshot();
-    }
-    syncing = true;
-    args.onStatusChanged?.();
+    // claimed before the gate's read, so a second caller joins this one rather than passing the
+    // gate beside it.
     const pass = (async () => {
       try {
-        await runSyncPass(remote);
+        // a pass starts by committing the dirty tree, which a hold exists to prevent; the
+        // snapshot says "held" rather than reporting clean as if a pass ran.
+        const remote = await currentRemote();
+        if (remote === null || lastOutcome.kind === "broken" || liveHolds.size > 0) {
+          return await statusSnapshot();
+        }
+        syncing = true;
+        args.onStatusChanged?.();
+        await runSyncPass();
         syncing = false;
         args.onStatusChanged?.();
         return await statusSnapshot();
@@ -810,6 +856,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return await withRepoLock(commitUnclaimed);
     },
     claimedPaths,
+    currentRemote,
     async commitNow(paths?: readonly string[]) {
       return await withRepoLock(
         async () =>

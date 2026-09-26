@@ -276,8 +276,52 @@ const syncStatusFields = {
   lastSyncAt: z.number().int().nullable(),
 };
 
+// another service that already syncs the vault's folder, judged from where the folder physically
+// sits. a second sync engine over one tree fights the first, so the hosted vault stays off there.
+// `cloud-storage` is a File Provider folder this build has no name for; `provider` is the one its
+// folder carries.
+export const externalSyncSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("icloud-drive") }).strict(),
+  z.object({ kind: z.literal("icloud-desktop-documents") }).strict(),
+  z.object({ kind: z.literal("dropbox") }).strict(),
+  z.object({ kind: z.literal("google-drive") }).strict(),
+  z.object({ kind: z.literal("onedrive") }).strict(),
+  z.object({ kind: z.literal("cloud-storage"), provider: z.string().min(1) }).strict(),
+  z.object({ kind: z.literal("obsidian-sync") }).strict(),
+]);
+export type ExternalSync = z.infer<typeof externalSyncSchema>;
+
+// the service's own name, the one spelling the app and the CLI both say.
+export const externalSyncName = (sync: ExternalSync): string => {
+  switch (sync.kind) {
+    case "icloud-drive":
+    case "icloud-desktop-documents": {
+      return "iCloud Drive";
+    }
+    case "dropbox": {
+      return "Dropbox";
+    }
+    case "google-drive": {
+      return "Google Drive";
+    }
+    case "onedrive": {
+      return "OneDrive";
+    }
+    case "cloud-storage": {
+      return sync.provider;
+    }
+    case "obsidian-sync": {
+      return "Obsidian Sync";
+    }
+    default: {
+      const exhaustive: never = sync;
+      return exhaustive;
+    }
+  }
+};
+
 // "account" is the remote derived from the signed-in account (signing out removes it); "explicit"
-// is the user's own.
+// is the user's own: the vault's own origin, or the one INTELIGIR_VAULT_REMOTE pins.
 const remoteFields = {
   remote: z.string().min(1),
   remoteSource: z.enum(["explicit", "account"]),
@@ -287,7 +331,15 @@ const remoteState = <State extends string>(state: State) =>
   z.object({ state: z.literal(state), ...remoteFields, ...syncStatusFields }).strict();
 
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
-  z.object({ state: z.literal("no-remote"), ...syncStatusFields }).strict(),
+  // `externalSync` names the service that syncs the folder instead, which is why no hosted vault
+  // was derived even when signed in.
+  z
+    .object({
+      state: z.literal("no-remote"),
+      externalSync: externalSyncSchema.nullable(),
+      ...syncStatusFields,
+    })
+    .strict(),
   // rebase state even `rebase --abort` could not clear; `lastError` names the manual recovery
   // and no pass runs while broken.
   remoteState("broken"),

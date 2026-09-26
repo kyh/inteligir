@@ -38,9 +38,12 @@ Durable Object — never in anything shared across accounts.
   claim. If that device dies mid-apply the claim lapses after five minutes and
   the capture is offered again — so a capture can be delivered twice and is
   never silently lost. The app deduplicates on the capture's id.
-- **Your vault — ONLY if you configure a git remote or sign a device in.** Sync
-  is `git push` to a remote you choose. No remote configured and no device
-  signed in, no vault bytes leave the machine. The hosted remote is exactly that: a git
+- **Your vault — ONLY if it has a git remote or you sign a device in.** Sync
+  is `git push` to a remote you choose: one you pin, or the one a folder you
+  open already has, which it keeps syncing with. No remote and no device signed
+  in, no vault bytes leave the machine; a folder with a remote of its own, or
+  one iCloud Drive, Dropbox, Google Drive, OneDrive or Obsidian Sync already
+  syncs, never goes to the hosted remote. The hosted remote is exactly that: a git
   host for your repo, per user, reachable only with a device credential from
   your own account. It is encrypted at rest by Cloudflare, but this
   deployment can read it — there is no end-to-end encryption; the trade is

@@ -30,7 +30,12 @@ const SIGNED_IN: CloudStatusResponse = {
   state: "signed-in",
 };
 
-const NO_REMOTE: VaultStatusResponse = { lastError: null, lastSyncAt: null, state: "no-remote" };
+const NO_REMOTE: VaultStatusResponse = {
+  externalSync: null,
+  lastError: null,
+  lastSyncAt: null,
+  state: "no-remote",
+};
 
 // a dialog opens through a portal a frame after its state flips, so an absent one is only
 // absent after a wait

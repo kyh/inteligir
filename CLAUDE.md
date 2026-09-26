@@ -806,6 +806,30 @@ to the END of its group.
   makes it the user's. `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts`
   holds the copy to that and guards both sources against reading `lastError`.
 
+- **AN OPENED FOLDER'S OWN ORIGIN IS ITS BYO REMOTE, AND A FOLDER ANOTHER
+  SERVICE SYNCS NEVER TAKES THE HOSTED VAULT** (0.6 direction: an existing
+  folder is a first-run path). Where a vault syncs has one record, its repo's
+  own `origin`, read every pass under the repo lock (`readOriginConfig` in
+  `apps/cli/src/server/vault/folder-facts.ts`), so a remote the user already
+  had, or sets later, is the next pass's with no restart. The app marks the
+  origin it manages (`inteligir.remote=account`, set whenever it writes the
+  hosted url, dropped when an explicit remote takes the origin over), and an
+  origin at the hosted url counts as marked, which covers a vault that synced
+  before the mark. The order is the pin (`INTELIGIR_VAULT_REMOTE`), an
+  unmarked origin, outside sync, then the account
+  (`apps/cli/src/server/cloud/vault-remote.ts`); an account pass that meets an
+  unmarked origin anyway records it and pushes nothing, since its set-url
+  would push the user's repo into the hosted vault. OUTSIDE SYNC is judged
+  once at boot from where the folder physically sits, never stored and never
+  asked of the service (`apps/cli/src/server/vault/external-sync.ts`): two sync
+  engines over one tree fight, so the folder keeps its service, the hosted
+  vault stays off, `no-remote` names the service, and an origin of the user's
+  own still syncs. Rejected: a stored per-vault sync choice, a second record a
+  user's own `git remote set-url` would contradict, and config.json's
+  `vaultRemote`, which pinned one remote for every vault the root selects and
+  is now a boot warning. `inspectVaultFolder` answers the same facts before a
+  folder is a vault (`inteligir vault open`), so a picker and a boot agree.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index does not persist a stat fingerprint.** A warm reconcile
@@ -1337,16 +1361,22 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   "sync enabled" flag: two values that must agree can disagree. Signed out, the
   sync client opens no socket, arms no timer and makes no request, asserted in
   `apps/cli/src/server/cloud/__tests__/sync-runtime.test.ts`. Cost accepted:
-  "pause sync" is signing out, which discards the queue.
+  "pause sync" is signing out, which discards the queue. Still no stored flag
+  for the vault either, but the folder's own facts withhold the hosted vault
+  from a signed-in install: an origin of its own, or another service syncing it
+  (AN OPENED FOLDER'S OWN ORIGIN, in the Vault group).
   `apps/cli/src/server/cloud/credential-store.ts` and `sync-runtime.ts`.
 
 - **SYNC IS PERMISSIONED BY ACCOUNT; the account IS the entitlement.**
   Accountless, the app sends this project's cloud nothing; what does leave the
   machine (the desktop's update check against GitHub, the phone's against
   Expo, the agent's own provider) is `docs/privacy.md`'s to list. Signed in, the credential alone
-  entitles threads, captures and the hosted vault, with no second flag. The
-  invite gate is account-creation policy. The BYO git remote
-  (`INTELIGIR_VAULT_REMOTE`) stays accountless.
+  entitles threads, captures and the hosted vault, with no second flag, except
+  that a folder with an origin of its own, or one another service syncs, never
+  takes the hosted vault; its threads sync either way. The invite gate is
+  account-creation policy. The BYO remote is the vault's own origin and stays
+  accountless; `INTELIGIR_VAULT_REMOTE` only pins one over it, and config.json's
+  `vaultRemote` is retired.
 
 - **A DEVICE SIGNS IN WITH EMAIL + PASSWORD, and gets the same device
   credential** (owner decision, the Obsidian model, reversing the
