@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
 import { buildProcessEnv, exec } from "../harness/exec";
@@ -9,6 +9,16 @@ import type { Scenario } from "../harness/scenario";
 const BUILD_TIMEOUT_MS = 300_000;
 
 const PRIVACY_DOC = path.join("docs", "privacy.md");
+
+const GALLERY_HTML = path.join("apps", "web", "gallery.html");
+
+// read from the page on every run, so a retitled gallery cannot leave this check hunting a stale
+// literal
+const htmlTitle = (html: string): string => {
+  const title = /<title>(?<title>[^<]+)<\/title>/u.exec(html)?.groups?.title?.trim();
+  expect(title !== undefined && title !== "", `${GALLERY_HTML} has no <title>`);
+  return title;
+};
 
 interface PrivacyLandmarks {
   heading: string;
@@ -103,6 +113,27 @@ export const builtWorkerBoot: Scenario = {
       ` ${pageWords(html)} `.includes(` ${docWords(sentence)} `),
       `/privacy does not carry ${PRIVACY_DOC}'s first sentence ("${sentence}")\n` +
         `  rule: the page renders the doc itself, and turbo rebuilds it only for an input apps/web/turbo.json names`,
+    );
+
+    const unknown = await fetch(`${worker.origin}/no-route-answers-this`);
+    expectEq(unknown.status, 404, "an unknown path against the built bundle");
+    const design = await fetch(`${worker.origin}/design`);
+    expectEq(design.status, unknown.status, "/design against the built bundle, as an unknown path");
+    const galleryTitle = htmlTitle(
+      await readFile(path.join(context.repoRoot, GALLERY_HTML), "utf-8"),
+    );
+    const assetsDir = path.join(context.repoRoot, "apps", "web", "dist", "client", "assets");
+    const carriers: string[] = [];
+    for (const name of await readdir(assetsDir)) {
+      const asset = await readFile(path.join(assetsDir, name), "utf-8");
+      if (asset.includes(galleryTitle)) {
+        carriers.push(name);
+      }
+    }
+    expect(
+      carriers.length === 0,
+      `built assets carry the gallery's title ("${galleryTitle}"): ${carriers.join(", ")}\n` +
+        `  rule: the gallery is ${GALLERY_HTML}, served by pnpm dev:gallery alone, never a route`,
     );
   },
 };

@@ -29,7 +29,7 @@ const chipDates = (nodes: Descendant[]): string[] => {
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
 describe("date chip inserts", () => {
-  it("/day inserts today's ISO date", () => {
+  it("/date inserts today's ISO date", () => {
     const editor = createPlateEditor({ plugins: EDITOR_KIT });
     editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 0, path: [0, 0] } });
     insertDate(editor);

@@ -1,25 +1,31 @@
 // @vitest-environment jsdom
 
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { SidebarProvider } from "@repo/ui/components/sidebar-core";
+import { toast } from "@repo/ui/components/sonner";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NoteTopbar } from "../note-topbar";
-import { inertBridge } from "./inert-bridge";
 
 afterEach(() => {
   cleanup();
-  delete window.desktopBridge;
   vi.restoreAllMocks();
 });
 
-const copiedAfterClick = async (): Promise<string | undefined> => {
+// the host's resolver over this listing, as the vault installs it
+const copiedAfterClick = async (
+  path: string,
+  listing: readonly string[],
+): Promise<string | undefined> => {
+  installFakeEditorHost({ resolveWikiTarget: buildResolver(listing).resolveWiki });
   const writeText = vi.fn<Clipboard["writeText"]>().mockResolvedValue();
   vi.stubGlobal("navigator", { clipboard: { writeText } });
   render(
     <SidebarProvider>
       <NoteTopbar
-        path="Plans/Weekly Plan.md"
+        path={path}
         railOpen
         onToggleRail={vi.fn<() => void>()}
         canBack={false}
@@ -41,13 +47,22 @@ const copiedAfterClick = async (): Promise<string | undefined> => {
 };
 
 describe("copy link", () => {
-  it("names the loopback server, not the shell's own scheme", async () => {
-    window.desktopBridge = { ...inertBridge(), socketOrigin: "http://127.0.0.1:26723" };
-    expect(await copiedAfterClick()).toBe("http://127.0.0.1:26723/?note=Plans%2FWeekly+Plan.md");
+  it("copies the note's wiki link by its name when no other note answers to it", async () => {
+    expect(await copiedAfterClick("Plans/Weekly Plan.md", ["Plans/Weekly Plan.md", "b.md"])).toBe(
+      "[[Weekly Plan]]",
+    );
   });
 
-  it("falls back to the page's origin in a plain browser tab", async () => {
-    expect(await copiedAfterClick()).toBe(`${window.location.origin}/?note=Plans%2FWeekly+Plan.md`);
+  it("qualifies the link when another note shares the name", async () => {
+    expect(
+      await copiedAfterClick("Plans/Weekly Plan.md", ["Weekly Plan.md", "Plans/Weekly Plan.md"]),
+    ).toBe("[[Plans/Weekly Plan]]");
+  });
+
+  it("copies nothing, and says so, for a name no link can carry", async () => {
+    const refused = vi.spyOn(toast, "error");
+    expect(await copiedAfterClick("Draft [v2].md", ["Draft [v2].md"])).toBeUndefined();
+    expect(refused).toHaveBeenCalledOnce();
   });
 });
 

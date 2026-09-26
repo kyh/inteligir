@@ -111,8 +111,9 @@ apps/
                  and the desktop renderer's bundle as dist/ui, which
                  `serve --open` answers over plain HTTP.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
-                 marketing site, the auth pages, the @repo/ui gallery at
-                 /design (src/components/gallery), Better Auth on D1
+                 marketing site, the auth pages, the @repo/ui gallery
+                 (src/components/gallery: `pnpm dev:gallery`, a dev-only
+                 page the Worker never ships), Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device login (POST /v1/device/login mints the device
                  credential from email + password, POST /v1/device/sign-up
@@ -386,7 +387,9 @@ to the END of its group.
   ITS SOFT-KEYBOARD TWIN.** Slash items are grouped
   data (`GROUPS` in `packages/editor/src/slash-menu.tsx`), and every row's
   markdown must re-parse to a modeled construct and be its own fixpoint
-  (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row).
+  (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row),
+  and no two rows may write the same bytes: a second name for one construct is
+  a keyword on its row, not a row (`/day` finds Date).
   A soft keyboard has no chord and a finger no hover, so the touch kit adds a
   keyboard toolbar (`packages/editor/src/touch-toolbar.tsx`) whose buttons are
   rows of the tables the desktop reads: the headings, lists, to-do and quote
@@ -969,6 +972,10 @@ to the END of its group.
   rename rewrites links the user did not type and must not lean on the
   resolver's tie-break. Every writer takes its bytes from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and a null from it writes nothing.
+  Copy link copies the note's `[[wiki link]]`, spelled as the autocomplete
+  spells it (`wikiLinkFor`, beside `wikiTargetForPath`), because a loopback URL
+  opened nothing anywhere else and died with the port; a name no link can
+  carry copies nothing and says so (`apps/desktop/src/renderer/app/note-topbar.tsx`).
   Pinned by the round trip in `packages/notes/src/__tests__/link-resolve.test.ts`.
 
 - **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND READS

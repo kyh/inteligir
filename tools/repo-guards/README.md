@@ -106,9 +106,9 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
 |                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |
 |                                | refused as un-attributable.                                               |
-| `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the `/design`       |
-|                                | gallery or is a `NOT_DEMOED` row; `hooks` and `lib` are declared          |
-|                                | non-component roots.                                                      |
+| `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the gallery         |
+|                                | (`pnpm dev:gallery`) or is a `NOT_DEMOED` row; `hooks` and `lib` are      |
+|                                | declared non-component roots.                                             |
 | `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`, `packages/editor/src`,      |
 |                                | `packages/ui/src/components` and `packages/ui/src/ai` (minus              |
 |                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed note size |

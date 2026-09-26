@@ -69,6 +69,8 @@ Everything since 0.4.0 (September 4, 2026).
 - **Sync and History speak plainly.** The sync row at the bottom of the sidebar says Synced, Not synced yet, Only on this Mac, Offline or Sync paused instead of a technical error message; when sync needs you, Sync details… opens the new Settings › Advanced, which keeps the full detail. Actions sync on their own, so the row no longer offers a separate sync for them. History lists each version by when and who made it (you, the agent, or another device or person), and restoring one says which version came back.
 - **The agent writes the same callouts you make from the `/` menu** (Note, Tip, Important, Warning and Caution), and a new vault's starter notes use them too. Callouts already in your notes in the older form still show and save unchanged.
 - **The agent needs nothing else installed.** Claude and ChatGPT run from inside the app, so neither Claude Code nor Codex has to be on your Mac, and a Mac already signed in to either stays signed in. Settings › Agents and `inteligir agents list` show each one's sign-in as Claude or ChatGPT reports it, with the plan and account.
+- **One Date row in the `/` menu.** Day inserted the same date chip; `/day` now finds Date.
+- **Copy link copies a link for another note.** ⋯ › Copy link now copies the note's `[[Name]]`, the link the `[[` menu writes, instead of a web address that worked only while the app was open.
 
 ### Fixed
 

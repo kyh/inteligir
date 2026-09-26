@@ -1,10 +1,8 @@
 // not a consumer for the orphan guard: a gallery proves a component renders, not that the product needs it.
 
-import { Button } from "@repo/ui/components/button";
 import { useTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { cn } from "@repo/ui/lib/cn";
-import { ArrowLeftIcon } from "lucide-react";
 
 import { ActionsSection } from "./actions-section";
 import { AgentSection } from "./agent-section";
@@ -35,17 +33,13 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { label: "Dark", value: "dark" },
 ];
 
-export const GalleryPage = ({ onBack }: { onBack: () => void }) => {
+export const GalleryPage = () => {
   const { theme, setTheme } = useTheme();
 
   return (
     <div className="min-h-dvh overflow-y-auto bg-surface text-ink">
       <div className="mx-auto flex max-w-4xl gap-10 px-6 py-10">
         <nav className="sticky top-10 hidden w-40 shrink-0 self-start md:block">
-          <Button variant="ghost" size="compact" className="-ml-2 mb-6 gap-1.5" onClick={onBack}>
-            <ArrowLeftIcon />
-            Notes
-          </Button>
           <ul className="space-y-1 text-sm">
             {NAV.map((item) => (
               <li key={item.id}>
@@ -81,22 +75,11 @@ export const GalleryPage = ({ onBack }: { onBack: () => void }) => {
         </nav>
 
         <main className="min-w-0 flex-1 space-y-12">
-          <header className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              aria-label="Back to notes"
-              className="md:hidden"
-              onClick={onBack}
-            >
-              <ArrowLeftIcon />
-            </Button>
-            <div>
-              <h2 className="text-lg font-semibold">Components</h2>
-              <p className="text-sm text-muted-foreground">
-                Every component in @repo/ui, with the states worth seeing.
-              </p>
-            </div>
+          <header>
+            <h2 className="text-lg font-semibold">Components</h2>
+            <p className="text-sm text-muted-foreground">
+              Every component in @repo/ui, with the states worth seeing.
+            </p>
           </header>
 
           <ActionsSection />
