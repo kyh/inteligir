@@ -507,8 +507,11 @@ const SidebarPanel = ({
 }: SidebarPanelProps) => {
   const radius = useRadius();
   const closedX = side === "left" ? "-100%" : "100%";
+  // closed, the panel is slid off-screen rather than unmounted, so inert is what takes its
+  // controls out of the tab order and the accessibility tree
   return (
     <motion.div
+      inert={!open}
       className={cn(
         "absolute inset-y-0 flex h-full flex-col",
         side === "left" ? "left-0" : "right-0",

@@ -93,6 +93,33 @@ describe("the rail's resize", () => {
   });
 });
 
+// testing-library's role queries do not read `inert`, so the attribute is what is asserted
+const inertAncestor = (element: HTMLElement): Element | null => element.closest("[inert]");
+
+const panel = (open: boolean, peek: "click" | "none" = "none") => (
+  <SidebarProvider open={open} peek={peek}>
+    <Sidebar side="right">
+      <button type="button">Row action</button>
+    </Sidebar>
+  </SidebarProvider>
+);
+
+describe("the collapsed panel", () => {
+  it("stays mounted but inert, so its controls leave the tab order", () => {
+    const view = render(panel(false));
+    expect(inertAncestor(screen.getByText("Row action"))).not.toBeNull();
+
+    view.rerender(panel(true));
+    expect(inertAncestor(screen.getByText("Row action"))).toBeNull();
+  });
+
+  it("leaves the peek strip reachable, since it is the way back in", () => {
+    render(panel(false, "click"));
+    expect(screen.queryByText("Row action")).toBeNull();
+    expect(inertAncestor(screen.getByRole("button", { name: "Peek sidebar" }))).toBeNull();
+  });
+});
+
 describe("the provider", () => {
   it("listens for no key: the app's own table owns the toggle", () => {
     const onOpenChange = vi.fn<(open: boolean) => void>();

@@ -111,6 +111,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **What an agent deletes** is committed with the rest of its action, rather than landing in the next automatic commit.
 - **`inteligir open`** against a server started without the app's interface says how to fix it, instead of opening a link that leads nowhere.
 - **Your phone** no longer re-reads the whole notes list on every refresh when nothing in the vault changed.
+- **Tab skips the closed right panel.** With the panel closed, Tab and VoiceOver no longer reach the buttons hidden inside it.
 
 ### On the command line
 

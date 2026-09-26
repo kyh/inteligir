@@ -2279,7 +2279,10 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   the rail's own Fluid resize handle (`panelWidth` beside `sidebarWidth` in
   `app/prefs.ts`), because a second resize mechanism would be a second answer
   to one drag, and is reported once a drag lets go (`onWidthCommitted`), never
-  per frame.
+  per frame. Closed, a sidebar is slid off-screen rather than unmounted, so it
+  is `inert` (`SidebarPanel` in `packages/ui/src/components/sidebar-core.tsx`):
+  otherwise its controls answer Tab and share their names with the surface
+  that is open, the ⌘K composer's sign-in included.
 
 - **AMBIENT STATE LIVES IN THE RAIL'S FOOTER; THE NOTE KEEPS ITS COUNT.** A
   strip across the whole window was a second bar under a rail that already
