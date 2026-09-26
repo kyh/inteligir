@@ -61,6 +61,7 @@ const rebootCloud = async (
   await running.dispose();
   const runtime = createCloudRuntime({
     build,
+    machineName: "Test Mac",
     cloudUrl: install.config.cloudUrl,
     dataDir: install.dataDir,
     db: install.db,

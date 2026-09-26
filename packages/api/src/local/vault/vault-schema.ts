@@ -261,17 +261,40 @@ export type VaultDeleteRequest = z.infer<typeof vaultDeleteRequestSchema>;
 export const vaultDeleteResponseSchema = z.object({ ok: z.literal(true) }).strict();
 export type VaultDeleteResponse = z.infer<typeof vaultDeleteResponseSchema>;
 
-// computed after the abort; the repo is already back on a clean head when this is reported.
-export const vaultConflictSchema = z
-  .object({
-    files: z.array(z.string().min(1)),
-    ours: z.object({ commits: z.number().int().min(0) }).strict(),
-    theirs: z.object({ commits: z.number().int().min(0) }).strict(),
-  })
-  .strict();
-export type VaultConflict = z.infer<typeof vaultConflictSchema>;
+// a path two devices changed at once, settled by a sync here or by the device a pull came from:
+// which version stayed at `path`, and where the other went. `at` is when this device learned of
+// it. every surface words it through `describeSyncConflict` (`@repo/notes/sync/conflict-copy`).
+export const vaultSyncConflictSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      at: z.number().int(),
+      copyDevice: z.string(),
+      copyPath: z.string().min(1),
+      keptDevice: z.string(),
+      kind: z.literal("copied"),
+      path: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      at: z.number().int(),
+      deletedDevice: z.string(),
+      keptDevice: z.string(),
+      kind: z.literal("kept-edit"),
+      path: z.string().min(1),
+    })
+    .strict(),
+]);
+export type VaultSyncConflict = z.infer<typeof vaultSyncConflictSchema>;
+
+// since the server started, newest first: a notice reads each as it arrives, and the copies
+// themselves are the lasting record.
+export const VAULT_SYNC_CONFLICTS_MAX = 20;
 
 const syncStatusFields = {
+  conflicts: z.array(vaultSyncConflictSchema).max(VAULT_SYNC_CONFLICTS_MAX),
+  // the name a report's devices are told against: "yours" and "here" when one of them is this one.
+  device: z.string().min(1),
   lastError: z.string().nullable(),
   lastSyncAt: z.number().int().nullable(),
 };
@@ -340,7 +363,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncStatusFields,
     })
     .strict(),
-  // rebase state even `rebase --abort` could not clear; `lastError` names the manual recovery
+  // a rebase or merge even its own abort could not clear; `lastError` names the manual recovery
   // and no pass runs while broken.
   remoteState("broken"),
   remoteState("clean"),
@@ -365,13 +388,5 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   remoteState("account-mismatch"),
   // the vault's HEAD names no branch, so a pass has nothing to push; not `clean`, which it is not.
   remoteState("detached"),
-  z
-    .object({
-      state: z.literal("conflict"),
-      ...remoteFields,
-      conflict: vaultConflictSchema,
-      ...syncStatusFields,
-    })
-    .strict(),
 ]);
 export type VaultStatusResponse = z.infer<typeof vaultStatusResponseSchema>;

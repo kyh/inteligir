@@ -21,6 +21,7 @@ import {
   parseAttachmentLocation,
 } from "@repo/api/local/vault/attachment-location";
 import type { CommentStoreRestore } from "@repo/api/local/vault/restore-comment-store";
+import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
 import { CliExitError, failureFrom, getErrorMessage, invalidUsage } from "../cli-error";
@@ -52,12 +53,11 @@ const renderVaultStatus = (status: VaultStatusResponse): string[] => {
   if (status.lastError !== null) {
     lines.push(`last error: ${status.lastError}`);
   }
-  if (status.state === "conflict") {
-    lines.push(
-      `conflict: ${status.conflict.ours.commits} local vs ${status.conflict.theirs.commits} remote commits`,
-      ...status.conflict.files.map((file) => `  both changed: ${file}`),
-    );
-  }
+  lines.push(
+    ...status.conflicts.map((report) =>
+      describeSyncConflict(report, { thisDevice: status.device }),
+    ),
+  );
   return lines;
 };
 
@@ -579,7 +579,10 @@ export const vaultCommand = (deps: CliDeps) =>
 
       status: defineCommand({
         args: { ...jsonArg },
-        meta: { description: "Git sync state (remote, dirty, conflicts)", name: "status" },
+        meta: {
+          description: "Git sync state (remote, dirty), and each note two devices changed at once",
+          name: "status",
+        },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.vault.status();

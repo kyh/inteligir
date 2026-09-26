@@ -31,6 +31,8 @@ const SIGNED_IN: CloudStatusResponse = {
 };
 
 const NO_REMOTE: VaultStatusResponse = {
+  conflicts: [],
+  device: "This Mac",
   externalSync: null,
   lastError: null,
   lastSyncAt: null,
@@ -120,11 +122,13 @@ const GIT_STDERR =
   "fatal: unable to access 'https://example.com/vault.git/': Could not resolve host";
 
 const REMOTE_FIELDS = {
+  conflicts: [],
+  device: "This Mac",
   lastError: GIT_STDERR,
   lastSyncAt: null,
   remote: "https://example.com/vault.git",
   remoteSource: "explicit",
-} as const;
+} satisfies Omit<Extract<VaultStatusResponse, { state: "offline" }>, "state">;
 
 const openRow = async (vault: VaultStatusResponse, onOpenSyncDetails = () => {}) => {
   stubRpc({ "threads/list": () => ({ nextCursor: null, threads: [] }) });

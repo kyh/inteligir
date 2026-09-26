@@ -6,6 +6,7 @@ import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import type { VaultRemoteSpec } from "../cloud/vault-remote";
 import { REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
 import {
+  ENGINE_IDENTITY,
   gitPath,
   identityEnv,
   isMissingRemoteRepo,
@@ -48,6 +49,8 @@ export interface EnsureVaultRepoArgs {
   // a seed that writes synchronously is a seed; the bootstrap awaits either.
   seed?: (root: string) => void | Promise<void>;
   remote?: VaultRemoteSpec | null;
+  // the initial commit's committer, as every engine commit's; unset, the engine's own name.
+  deviceName?: string;
   env?: Record<string, string>;
   // the full runGit, not RunGitCommand: the clone runs in the parent directory.
   run?: RunGit;
@@ -74,8 +77,8 @@ const tryCloneVault = async (
   }
 };
 
-// an existing vault beside a populated remote is not merged here: the first sync pass
-// surfaces unrelated histories as its conflict state.
+// an existing vault beside a populated remote is not merged here: the first sync pass merges the
+// unrelated histories, and copies aside only the paths the two hold differently.
 export const ensureVaultRepo = async (
   args: EnsureVaultRepoArgs,
 ): Promise<{ created: boolean; cloned: boolean }> => {
@@ -94,9 +97,9 @@ export const ensureVaultRepo = async (
   }
   await ensureLocalInfoLine(git, args.root, "info/exclude", `${VAULT_TMP_PREFIX}*`);
   // the app writes both sides: two desktops each append their captures to the end of one file,
-  // and a line merge of those appends wedges the rebase on a conflict nobody made. union keeps
-  // both; a bullet deleted upstream beside the other device's append comes back. anchored, so a
-  // nested Inbox.md merges like any note.
+  // and a line merge of those appends overlaps, so the inbox would be copied aside over a
+  // conflict nobody made. union keeps both; a bullet deleted upstream beside the other device's
+  // append comes back. anchored, so a nested Inbox.md merges like any note.
   await ensureLocalInfoLine(
     git,
     args.root,
@@ -125,7 +128,7 @@ export const ensureVaultRepo = async (
     await run(
       args.root,
       ["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "vault: initialize"],
-      { env: { ...args.env, ...identityEnv() } },
+      { env: { ...args.env, ...identityEnv(args.deviceName ?? ENGINE_IDENTITY.name) } },
     );
   }
   return { cloned, created };

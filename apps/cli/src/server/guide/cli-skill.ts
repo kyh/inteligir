@@ -141,7 +141,11 @@ rather than dropped. Quote an argument that holds spaces
   off) and \`remote\` (its own git origin, which it keeps syncing with).
 - \`inteligir vault attachments [root|beside-note|folder:<path>]\` — where a
   pasted image lands; with no argument, print the current choice.
-- \`inteligir vault status\` — git sync state (remote, dirty, conflicts).
+- \`inteligir vault status\` — git sync state (remote, dirty), then one line
+  per note two devices changed at once since the server started: which
+  version stayed and which note holds the other. A sync never stops on one;
+  \`--json\` carries them as \`conflicts\`, beside this device's name as
+  \`device\`.
 - \`inteligir vault sync\` — run a sync against the configured remote now.
 
 Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links

@@ -32,6 +32,8 @@ const SELF_WRITE_ECHO_WINDOW_MS = 2000;
 export interface VaultRuntimeArgs {
   vaultDir: string;
   remote: VaultRemoteProvider;
+  // this device's name, which every vault commit carries as its committer (`deviceNameReader`).
+  deviceName: () => string;
   // judged once at boot, as the provider's own copy was.
   externalSync?: ExternalSync | null;
   dataDir: string;
@@ -70,6 +72,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   assertVaultAndDataDirDisjoint(root, path.resolve(args.dataDir));
 
   const ensureArgs: EnsureVaultRepoArgs = {
+    deviceName: args.deviceName(),
     // the clone is the one reader, and a folder not created yet has no origin to read.
     remote: args.remote(NO_ORIGIN),
     root,
@@ -122,6 +125,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   const gitIsSyncing = () => engine?.isSyncing() ?? false;
 
   const gitArgs: GitEngineArgs = {
+    deviceName: args.deviceName,
     onError: (message) => {
       console.error(`vault git: ${message}`);
     },

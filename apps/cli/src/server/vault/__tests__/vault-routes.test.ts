@@ -13,7 +13,7 @@ import {
   contentHashHex,
 } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { bootTestApp, listenTestApp } from "../../__tests__/boot-app";
+import { bootTestApp, listenTestApp, TEST_MACHINE_NAME } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { writeDeviceCredential } from "../../cloud/credential-store";
 import { WsBus } from "../../ws-bus";
@@ -223,6 +223,7 @@ describe("the vault routes", () => {
     await expect(
       createVaultRuntime({
         dataDir: instanceDir,
+        deviceName: () => "Test Mac",
         gitEnv: hermeticGitEnv(),
         notifier: new WsBus(),
         remote: () => null,
@@ -349,6 +350,8 @@ describe("the vault routes", () => {
     await client.vault.write({ content: "# mine\n", guard: { kind: "overwrite" }, path: "a.md" });
 
     const expected = {
+      conflicts: [],
+      device: TEST_MACHINE_NAME,
       externalSync: { kind: "icloud-drive" },
       lastError: null,
       lastSyncAt: null,

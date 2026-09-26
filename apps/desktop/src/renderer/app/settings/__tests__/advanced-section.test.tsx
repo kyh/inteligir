@@ -16,6 +16,8 @@ const GIT_STDERR =
   "fatal: unable to access 'https://example.com/vault.git/': error: failed to push some refs to origin (HEAD detached)";
 
 const REJECTED: VaultStatusResponse = {
+  conflicts: [],
+  device: "Kai's MacBook",
   lastError: GIT_STDERR,
   lastSyncAt: null,
   remote: "https://example.com/vault.git",
@@ -30,20 +32,41 @@ describe("the vault sync, raw", () => {
     expect(screen.getByText("rejected")).toBeDefined();
     expect(screen.getByText("https://example.com/vault.git")).toBeDefined();
     expect(screen.getByText("explicit")).toBeDefined();
+    expect(screen.getByText("Kai's MacBook")).toBeDefined();
   });
 
-  it("names every file a conflict stopped on", () => {
-    const conflicted: VaultStatusResponse = {
-      conflict: { files: ["a.md", "notes/b.md"], ours: { commits: 1 }, theirs: { commits: 2 } },
+  it("says each note two devices changed at once, from this device's side", () => {
+    const merged: VaultStatusResponse = {
+      ...REJECTED,
+      conflicts: [
+        {
+          at: NOW_MS,
+          copyDevice: "Kai's iPhone",
+          copyPath: "notes/Plan (conflict, Kai's iPhone).md",
+          keptDevice: "Kai's MacBook",
+          kind: "copied",
+          path: "notes/Plan.md",
+        },
+        {
+          at: NOW_MS,
+          deletedDevice: "Kai's iPhone",
+          keptDevice: "Kai's MacBook",
+          kind: "kept-edit",
+          path: "Ideas.md",
+        },
+      ],
       lastError: null,
-      lastSyncAt: null,
-      remote: "https://example.com/vault.git",
-      remoteSource: "explicit",
-      state: "conflict",
+      state: "clean",
     };
-    render(<VaultSyncRows status={conflicted} nowMs={NOW_MS} />);
-    expect(screen.getByText("a.md")).toBeDefined();
-    expect(screen.getByText("notes/b.md")).toBeDefined();
+    render(<VaultSyncRows status={merged} nowMs={NOW_MS} />);
+    expect(
+      screen.getByText(
+        "Both versions of “Plan” were kept: yours stays, and the one from Kai's iPhone is in “Plan (conflict, Kai's iPhone)”.",
+      ),
+    ).toBeDefined();
+    expect(
+      screen.getByText("“Ideas” was deleted on Kai's iPhone but edited here, so it was kept."),
+    ).toBeDefined();
     expect(screen.getByText("None")).toBeDefined();
   });
 });

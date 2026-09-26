@@ -74,6 +74,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **Copy link copies a link for another note.** ⋯ › Copy link now copies the note's `[[Name]]`, the link the `[[` menu writes, instead of a web address that worked only while the app was open.
 - **A folder you open keeps the sync it already has.** A folder that iCloud Drive, Dropbox, Google Drive, OneDrive or Obsidian Sync already keeps in sync stays with that service: the app leaves its own sync off for it, even when you are signed in, so two services never fight over one folder, and the sidebar says which one syncs it. A folder that already syncs with a server of its own keeps syncing there and never moves into your account.
 - **Settings › Advanced keeps the technical detail in one place.** The data folder (with Open data folder), the database version and uptime moved there from About, and this device's id, queue and last error from Devices, beside your vault's sync detail; Sync threads now moved with them, since actions sync on their own. Devices keeps your account and Sign out.
+- **Editing a note on two devices at once no longer stops sync.** Edits to different parts of a note are combined. Where both devices changed the same lines, the computer that syncs second keeps its own version and saves the other beside it as a new note named after the device it came from, such as “Plan (conflict, Kai’s MacBook).md”, which you can read, fold back in by hand or delete. A note edited on one device and deleted on the other is kept, and comments made on both are all kept. Settings › Advanced lists what sync settled this way since the app started.
 
 ### Fixed
 
@@ -112,6 +113,7 @@ Everything since 0.4.0 (September 4, 2026).
 
 - **`vaultRemote` in `config.json` is no longer read.** It applied to every vault the app opened. A vault now syncs with its own repo's `origin`, which it keeps when you sign in: run `git remote add origin <url>` in the vault, or pin one with `INTELIGIR_VAULT_REMOTE`. The server warns at start-up when it finds the old key.
 - `inteligir vault open` says when another service syncs the folder or it has a git remote of its own, and `--json` carries both as `externalSync` and `remote`; `inteligir vault status` names the service too.
+- **A sync no longer stops in a `conflict` state.** When a rebase meets a note both devices changed, the pass merges instead and pushes. `inteligir vault status` prints a line for each note it settled that way since the server started, and `--json` carries them as `conflicts`, beside this device's name as `device`; the `conflict` state and its `conflict` field are gone. Every commit the app makes names this device as its committer: the name it signed in under, else the Mac's own name.
 
 ### Security
 

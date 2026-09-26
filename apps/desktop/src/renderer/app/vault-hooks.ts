@@ -93,7 +93,6 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     }
     case "rejected":
     case "detached":
-    case "conflict":
     case "broken": {
       return SYNC_PAUSED;
     }
@@ -129,7 +128,6 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
     case "too-large":
     case "account-mismatch":
     case "detached":
-    case "conflict":
     case "broken": {
       return "bg-destructive";
     }
@@ -159,7 +157,6 @@ export const canSyncNow = (status: VaultStatusResponse | undefined): boolean => 
     case "rejected":
     case "too-large":
     case "detached":
-    case "conflict":
     case "broken": {
       return true;
     }
@@ -223,13 +220,6 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
       return {
         message:
           "This vault last synced with a different account — sign out, or move the vault aside.",
-        tone: "warning",
-      };
-    }
-    case "conflict": {
-      const count = status.conflict.files.length;
-      return {
-        message: `${String(count)} ${count === 1 ? "note" : "notes"} changed both here and on another device. ${DETAILS_IN_ADVANCED}`,
         tone: "warning",
       };
     }

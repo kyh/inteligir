@@ -182,8 +182,8 @@ describe("readNoteHistory", () => {
       await writeFile(nodePath.join(root, "Note.md"), `${line}\n`, "utf-8");
       await commit(`edit ${line}`, author);
     };
-    await edit("engine", identityEnv());
-    await edit("agent", identityEnv(AGENT_COMMIT_AUTHOR));
+    await edit("engine", identityEnv("Test Mac"));
+    await edit("agent", identityEnv("Test Mac", AGENT_COMMIT_AUTHOR));
     // a phone's commit names its device
     await edit("phone", {
       GIT_AUTHOR_EMAIL: "dev_1@devices.test",

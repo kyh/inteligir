@@ -140,6 +140,7 @@ const makeHarness = (
   }
   const runtime = createCloudRuntime({
     build: "0.0.0-test",
+    machineName: "Test Mac",
     cloudUrl: CLOUD_URL,
     dataDir,
     db,
@@ -245,7 +246,12 @@ describe("signing in", () => {
 
     const stored = readDeviceCredential(harness.dataDir);
     expect(stored?.credential).toMatch(/^igd_[0-9a-f]{64}$/u);
-    expect(stored).toEqual({ credential: stored?.credential, deviceId, userId: "user_fake" });
+    expect(stored).toEqual({
+      credential: stored?.credential,
+      deviceId,
+      deviceName: "Laptop",
+      userId: "user_fake",
+    });
     const status = harness.runtime.status();
     expect(status.state).toBe("signed-in");
   });
@@ -295,11 +301,15 @@ describe("signing in", () => {
     expect(harness.runtime.status()).toEqual(SIGNED_OUT);
   });
 
-  it("defaults the device name to this machine's hostname", async () => {
+  it("defaults the device name to this machine's, and keeps the name it signed in under", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     const outcome = await harness.runtime.login(FAKE_ACCOUNT);
     expect(outcome.kind).toBe("logged-in");
     expect(harness.cloud.deviceCount()).toBe(1);
+    expect(readDeviceCredential(harness.dataDir)?.deviceName).toBe("Test Mac");
+
+    await loginAs(harness.runtime, "  Kai's Laptop ");
+    expect(readDeviceCredential(harness.dataDir)?.deviceName).toBe("Kai's Laptop");
   });
 
   it("replaces the previous account's queue and positions with a clean slate", async () => {

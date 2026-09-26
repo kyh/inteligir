@@ -4,6 +4,7 @@ import { browserHandoffUrl } from "@repo/api/local/routes";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import type { TurnChanges } from "@repo/api/local/threads/threads-schema";
 import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/api/local/vault/vault-schema";
+import type { VaultSyncConflict } from "@repo/api/local/vault/vault-schema";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
@@ -316,11 +317,62 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(JSON.parse(sync.stdout)).toEqual({
+      conflicts: [],
+      device: "Fixture Mac",
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
       state: "no-remote",
     });
+  });
+
+  it("says each note two devices changed at once in plain words, and --json names this device", async () => {
+    const state = seededState();
+    const conflicts: VaultSyncConflict[] = [
+      {
+        at: 1_756_600_000_000,
+        copyDevice: "Kai's iPhone",
+        copyPath: "notes/Plan (conflict, Kai's iPhone).md",
+        keptDevice: "Fixture Mac",
+        kind: "copied",
+        path: "notes/Plan.md",
+      },
+      {
+        at: 1_756_600_000_000,
+        deletedDevice: "Fixture Mac",
+        keptDevice: "Kai's iPhone",
+        kind: "kept-edit",
+        path: "Ideas.md",
+      },
+    ];
+    state.vaultStatus = {
+      conflicts,
+      device: "Fixture Mac",
+      lastError: null,
+      lastSyncAt: null,
+      remote: "https://cloud.test/v1/git/vault.git",
+      remoteSource: "account",
+      state: "clean",
+    };
+    const server = await boot(state);
+
+    const status = await runCliForTest({ argv: ["vault", "status"], baseUrl: server.baseUrl });
+    expect(status.stdout).toBe(
+      [
+        "state: clean",
+        "remote: https://cloud.test/v1/git/vault.git",
+        "last sync: never",
+        "Both versions of “Plan” were kept: yours stays, and the one from Kai's iPhone is in “Plan (conflict, Kai's iPhone)”.",
+        "“Ideas” was deleted here but edited on Kai's iPhone, so it was kept.",
+        "",
+      ].join("\n"),
+    );
+
+    const json = await runCliForTest({
+      argv: ["vault", "status", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(json.stdout)).toMatchObject({ conflicts, device: "Fixture Mac" });
   });
 
   it("lists deleted docs, and restores one that is gone with an exclusive create", async () => {

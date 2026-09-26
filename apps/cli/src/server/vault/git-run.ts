@@ -17,12 +17,13 @@ export interface CommitAuthor {
 
 export const ENGINE_IDENTITY: CommitAuthor = { email: "vault@inteligir.local", name: "inteligir" };
 
-// the committer stays the engine so a commit always says which machine wrote it.
-export const identityEnv = (author?: CommitAuthor) => ({
-  GIT_AUTHOR_EMAIL: author?.email ?? ENGINE_IDENTITY.email,
-  GIT_AUTHOR_NAME: author?.name ?? ENGINE_IDENTITY.name,
+// the author says who made the change (the engine, the agent, an undo); the committer names the
+// device that committed it, which is how another device's merge says whose version it copied aside.
+export const identityEnv = (device: string, author: CommitAuthor = ENGINE_IDENTITY) => ({
+  GIT_AUTHOR_EMAIL: author.email,
+  GIT_AUTHOR_NAME: author.name,
   GIT_COMMITTER_EMAIL: ENGINE_IDENTITY.email,
-  GIT_COMMITTER_NAME: ENGINE_IDENTITY.name,
+  GIT_COMMITTER_NAME: device,
 });
 
 export class GitError extends Error {
@@ -41,6 +42,8 @@ export class GitError extends Error {
 export interface RunGitOptions {
   timeoutMs?: number;
   env?: Record<string, string>;
+  // what git reads on stdin (`hash-object --stdin`); unset, stdin is closed empty.
+  input?: string;
 }
 
 export type RunGitCommand = (args: readonly string[]) => Promise<{ stdout: string }>;
@@ -64,8 +67,23 @@ const unattendedGitEnv = (env: NodeJS.ProcessEnv) => {
   return unattended;
 };
 
-// execFile's rejection carries the child's stderr and its terminating signal as untyped properties.
-const execFileFailure = z.object({ signal: z.string().nullish(), stderr: z.string() });
+// execFile's rejection carries the child's stderr and its terminating signal as untyped
+// properties; a run that reads bytes carries its stderr as bytes too.
+const execFileFailure = z.object({
+  signal: z.string().nullish(),
+  stderr: z.union([z.string(), z.instanceof(Buffer).transform((bytes) => bytes.toString("utf-8"))]),
+});
+
+const gitFailure = (
+  gitArgs: readonly string[],
+  message: string,
+  failure: z.infer<typeof execFileFailure> | null,
+): GitError =>
+  new GitError(
+    `git ${gitArgs[0] ?? ""} failed: ${message}`,
+    failure?.stderr ?? "",
+    failure?.signal ?? null,
+  );
 
 // ahead of every subcommand. --literal-pathspecs: a pathspec is a glob, so a commit scoped to
 // `[a].md` would also stage `a.md`, and a log for it would report `a.md`'s history. the vault's
@@ -96,19 +114,44 @@ export const runGit = async (
     maxBuffer: GIT_MAX_BUFFER_BYTES,
     timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
   });
-  // execFile hands the child a stdin pipe nobody writes to; closing it turns a read into eof
-  // rather than a wait on the timeout.
-  pending.child.stdin?.end();
+  // execFile hands the child a stdin pipe; closing it once written turns a read into eof rather
+  // than a wait on the timeout. a git that exits before reading its input says so through its
+  // exit, not a broken pipe.
+  pending.child.stdin?.on("error", () => {
+    /* empty */
+  });
+  pending.child.stdin?.end(options.input);
   try {
     const { stdout } = await pending;
     return { stdout };
   } catch (error) {
     const failure = execFileFailure.safeParse(error);
-    throw new GitError(
-      `git ${gitArgs[0] ?? ""} failed: ${messageOf(error)}`,
-      failure.success ? failure.data.stderr : "",
-      failure.success ? (failure.data.signal ?? null) : null,
-    );
+    throw gitFailure(gitArgs, messageOf(error), failure.success ? failure.data : null);
+  }
+};
+
+// a blob's exact bytes: runGit decodes stdout as utf-8, which would turn every byte of a file
+// that is not text into U+FFFD.
+export const readGitBlob = async (
+  cwd: string,
+  oid: string,
+  options: RunGitOptions = {},
+): Promise<Uint8Array> => {
+  const gitArgs = ["cat-file", "blob", oid];
+  const pending = execFileAsync("git", engineArgv(gitArgs), {
+    cwd,
+    encoding: "buffer",
+    env: engineEnv(options),
+    maxBuffer: GIT_MAX_BUFFER_BYTES,
+    timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
+  });
+  pending.child.stdin?.end();
+  try {
+    const { stdout } = await pending;
+    return stdout;
+  } catch (error) {
+    const failure = execFileFailure.safeParse(error);
+    throw gitFailure(gitArgs, messageOf(error), failure.success ? failure.data : null);
   }
 };
 

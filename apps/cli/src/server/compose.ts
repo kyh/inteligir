@@ -27,6 +27,7 @@ import { ConnectorsStore } from "./connectors/connectors-store";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
 import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
 import { debugLog } from "./debug-log";
+import { deviceNameReader, readMachineName } from "./device-name";
 import { messageOf } from "./error-message";
 import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
@@ -73,6 +74,8 @@ export interface ComposePorts {
   // a suite runs the scan inline: a worker booted from source costs every compose seconds
   knowledge?: Pick<KnowledgeRuntimeArgs, "projector">;
   openExternalUrl?: OpenExternalUrl;
+  // what this device is called before any sign-in names it; unset, the machine's own name.
+  machineName?: string;
   vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote" | "spawnWatcherChannel">>;
 }
 
@@ -129,9 +132,11 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       externalSync,
       pinnedRemote: config.vaultRemote,
     });
+  const machineName = ports.machineName ?? (await readMachineName());
   const vaultArgs: VaultRuntimeArgs = {
     dataDir: config.dataDir,
     debugLog: debugLog(config.debug, "watcher"),
+    deviceName: deviceNameReader(config.dataDir, machineName),
     externalSync,
     notifier: bus,
     onFilesChanged: (change) => {
@@ -212,6 +217,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     dataDir: config.dataDir,
     db,
     debugLog: debugLog(config.debug, "sync"),
+    machineName,
     // the rail's one sync row reads the vault's git sync and this runtime together, so both ride one kind.
     onStatusChanged: () => {
       bus.notifyVault(["sync-status-changed"]);

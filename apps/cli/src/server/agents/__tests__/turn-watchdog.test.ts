@@ -44,6 +44,8 @@ const fakeGitEngine = (): GitEngine => ({
   startAutoSync: () => {},
   status: async () =>
     await Promise.resolve({
+      conflicts: [],
+      device: "Test Mac",
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
@@ -51,6 +53,8 @@ const fakeGitEngine = (): GitEngine => ({
     }),
   syncNow: async () =>
     await Promise.resolve({
+      conflicts: [],
+      device: "Test Mac",
       externalSync: null,
       lastError: null,
       lastSyncAt: null,

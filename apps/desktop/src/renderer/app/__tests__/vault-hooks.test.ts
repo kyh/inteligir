@@ -90,7 +90,7 @@ describe("renaming a vault entry", () => {
   });
 });
 
-const SYNC_FIELDS = { lastError: null, lastSyncAt: null };
+const SYNC_FIELDS = { conflicts: [], device: "This Mac", lastError: null, lastSyncAt: null };
 const REMOTE = {
   remote: "git@example.com:vault.git",
   remoteSource: "explicit" as const,
@@ -111,11 +111,6 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
   { state: "too-large", ...REMOTE, remoteSource: "account" },
   { state: "account-mismatch", ...REMOTE },
   { state: "detached", ...REMOTE },
-  {
-    conflict: { files: ["a.md", "b.md"], ours: { commits: 1 }, theirs: { commits: 1 } },
-    state: "conflict",
-    ...REMOTE,
-  },
   { state: "broken", ...REMOTE },
 ];
 
@@ -137,9 +132,7 @@ describe("naming a sync state", () => {
         "utf-8",
       );
       for (const status of EVERY_STATUS) {
-        // the conflict label carries an interpolated count; match the part before it.
-        const sentence = syncStateLabel(status).split(" (")[0] ?? "";
-        expect(source).not.toContain(sentence);
+        expect(source).not.toContain(syncStateLabel(status));
       }
     },
   );
@@ -150,7 +143,7 @@ describe("naming a sync state", () => {
       "utf-8",
     );
     for (const status of EVERY_STATUS) {
-      expect(source).toContain(syncStateLabel(status).split(" (")[0] ?? "");
+      expect(source).toContain(syncStateLabel(status));
     }
   });
 });
@@ -204,6 +197,8 @@ describe("a folder another service syncs", () => {
 
   it.each(SERVICES)("names %o where a vault alone says Only on this Mac", (externalSync, label) => {
     const status: VaultStatusResponse = {
+      conflicts: [],
+      device: "This Mac",
       externalSync,
       lastError: GIT_STDERR,
       lastSyncAt: null,
