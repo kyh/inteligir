@@ -24,6 +24,14 @@ describe("buildContentSecurityPolicy", () => {
     expect(directive(policy, "connect-src")).toBe("connect-src 'self' ws://127.0.0.1:4664");
   });
 
+  it("connects nowhere but 'self' for a page with no server behind it", () => {
+    const serverless = buildContentSecurityPolicy({ wsOrigin: null });
+    expect(directive(serverless, "connect-src")).toBe("connect-src 'self'");
+    expect(serverless.replace("connect-src 'self'", "connect-src 'self' ws://127.0.0.1:4664")).toBe(
+      policy,
+    );
+  });
+
   it("forbids objects, framing and workers, and pins base-uri and form-action", () => {
     expect(policy).toContain("default-src 'self'");
     expect(policy).toContain("object-src 'none'");

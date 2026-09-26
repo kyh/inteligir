@@ -10,6 +10,13 @@ import {
   diagnosticsChoiceSchema,
   diagnosticsStateSchema,
 } from "./diagnostics-state";
+import {
+  firstRunAnswerSchema,
+  firstRunChoiceSchema,
+  firstRunStateSchema,
+  pickFolderAnswerSchema,
+  pickParentAnswerSchema,
+} from "./first-run-state";
 import { pathActionRequestSchema, pathActionResultSchema } from "./path-action";
 import { spellcheckChoiceSchema, spellcheckStateSchema } from "./spellcheck-state";
 import { updateStateSchema } from "./update-state";
@@ -75,6 +82,15 @@ export const INVOKE_ROUTES = {
     open: route("desktop:vaults-open", vaultPathSchema, vaultSwitchAnswerSchema),
     pick: route("desktop:vaults-pick", noRequest, vaultSwitchAnswerSchema),
   },
+} as const;
+
+// the first-run window's own channels, carried by its own preload: it has no server, so it asks
+// for nothing the app window asks for, and the app window for none of these
+export const FIRST_RUN_ROUTES = {
+  finish: route("desktop:first-run-finish", firstRunChoiceSchema, firstRunAnswerSchema),
+  getState: route("desktop:first-run-get-state", noRequest, firstRunStateSchema),
+  pickFolder: route("desktop:first-run-pick-folder", noRequest, pickFolderAnswerSchema),
+  pickParent: route("desktop:first-run-pick-parent", noRequest, pickParentAnswerSchema),
 } as const;
 
 export const UPDATE_STATE_PUSH: PushRoute<typeof updateStateSchema> = {

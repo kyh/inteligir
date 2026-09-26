@@ -1,5 +1,6 @@
 export interface ContentSecurityPolicyArgs {
-  wsOrigin: string;
+  // null for a page with no server behind it, the desktop's first run, which dials no socket
+  wsOrigin: string | null;
 }
 
 export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): string =>
@@ -12,7 +13,7 @@ export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): str
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     // csp3 says 'self' covers ws: on the same host and port; the bus is not worth the spec bet.
-    `connect-src 'self' ${args.wsOrigin}`,
+    ["connect-src 'self'", ...(args.wsOrigin === null ? [] : [args.wsOrigin])].join(" "),
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

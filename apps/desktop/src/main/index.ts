@@ -18,8 +18,16 @@ import {
   utilityProcess,
 } from "electron";
 import type { ForkOptions, MenuItemConstructorOptions, UtilityProcess } from "electron";
-import { rendererDir, appPreloadScript } from "./bundle-paths";
+import { rendererDir, appPreloadScript, firstRunPreloadScript } from "./bundle-paths";
 import { socketCredentialFilter } from "./credential-scope";
+import {
+  folderFactsOf,
+  planFirstRunChoice,
+  planLaunch,
+  proposedNewVault,
+  runFirstRun,
+} from "./first-run";
+import type { HandedOut, LaunchPlan } from "./first-run";
 import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
 import type { ShellPathResolution } from "./login-shell-path";
 import {
@@ -31,6 +39,7 @@ import {
 } from "./origin-pin";
 import { registerAppProtocol, registerAppScheme } from "./protocol";
 import { APP_ORIGIN, carriesBearer } from "./protocol-handler";
+import type { AppRenderer } from "./protocol-handler";
 import { createDiagnostics, DIAGNOSTICS_FILE_NAME } from "./diagnostics";
 import type { Diagnostics } from "./diagnostics";
 import { createForkBroker } from "./fork-broker";
@@ -46,6 +55,7 @@ import {
   browserSignInUrl,
   bundledServerVersion,
   describeServerVerdict,
+  folderFactsContext,
   planServerStart,
   resolveServerTarget,
   serverEntryPath,
@@ -70,7 +80,21 @@ import type { VaultSwitchOutcome } from "./vaults";
 import { forkRequestSchema } from "inteligir/server/child-host/fork-broker-wire";
 import { writeManagedVaultDir } from "inteligir/server/config";
 import { authorizationHeader } from "inteligir/server/server-file";
-import { INVOKE_ROUTES, SOCKET_ORIGIN_CHANNEL, UPDATE_STATE_PUSH } from "../ipc-contract";
+import { inspectVaultFolder } from "inteligir/server/vault/folder-facts";
+import type { VaultFolderFacts } from "inteligir/server/vault/folder-facts";
+import { outsideSyncWarning } from "../first-run-state";
+import type {
+  FirstRunAnswer,
+  FirstRunChoice,
+  PickFolderAnswer,
+  PickParentAnswer,
+} from "../first-run-state";
+import {
+  FIRST_RUN_ROUTES,
+  INVOKE_ROUTES,
+  SOCKET_ORIGIN_CHANNEL,
+  UPDATE_STATE_PUSH,
+} from "../ipc-contract";
 import type { InvokeRoute, PushRoute } from "../ipc-contract";
 import type { PathActionRequest, PathActionResult } from "../path-action";
 import { toErrorMessage } from "../types";
@@ -78,11 +102,21 @@ import type { VaultSwitchAnswer, VaultsState } from "../vaults-state";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
 const RECENT_VAULTS_FILE_NAME = "recent-vaults.json";
+// no `persist:` prefix, so it lives in memory: the page has nothing to keep, and a vault's own
+// partition must not start holding first-run storage
+const FIRST_RUN_PARTITION = "inteligir-first-run";
+const FIRST_RUN_PAGE = "/first-run.html";
+// where the app window opens after a first run: the steps between the vault and the notes
+const WELCOME_PATH = "/welcome";
 
 // set by `electron-vite dev`; absent in a packaged app.
 const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
 
 let mainWindow: BrowserWindow | null = null;
+// the window before any vault exists; closed once the first boot opens the app window
+let firstRunWindow: BrowserWindow | null = null;
+// set for a launch that began with no vault, until the first boot succeeds
+let firstRunLaunch: ServerTarget | null = null;
 let tray: Tray | null = null;
 // null when the shell adopted a server it did not start; quitting must leave that one running.
 let serverProcess: ServerProcess | null = null;
@@ -289,21 +323,18 @@ const spellcheckFor = (windowSession: Electron.Session): Spellcheck =>
     },
   });
 
+const appRenderer = (): AppRenderer =>
+  rendererDevUrl === undefined
+    ? { dir: rendererDir(), kind: "files" }
+    : { kind: "dev", origin: rendererDevUrl };
+
 // once per vault, not per window: the partition is the data dir's, so a switch is a new session
 // and a vault revisited in one launch re-registers on its old one.
 const prepareWindowSession = (target: ServerTarget, server: LiveServer): void => {
   const windowSession = lockDownSession(sessionPartition(target.dataDir));
   attachSocketCredential(windowSession, server);
   spellcheck = spellcheckFor(windowSession);
-  registerAppProtocol({
-    renderer:
-      rendererDevUrl === undefined
-        ? { dir: rendererDir(), kind: "files" }
-        : { kind: "dev", origin: rendererDevUrl },
-    serverOrigin: server.origin,
-    session: windowSession,
-    token: server.token,
-  });
+  registerAppProtocol({ renderer: appRenderer(), server, session: windowSession });
 };
 
 const guardNavigation = (event: Electron.Event, url: string): void => {
@@ -325,22 +356,10 @@ const loadWindow = async (window: BrowserWindow, url: string): Promise<void> => 
   }
 };
 
-const createWindow = (target: ServerTarget): BrowserWindow => {
-  const partition = sessionPartition(target.dataDir);
-  const window = new BrowserWindow({
-    autoHideMenuBar: true,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#141415" : "#f0f2f2",
-    height: 800,
-    minHeight: 600,
-    minWidth: 800,
-    show: false,
-    title: APP_DISPLAY_NAME,
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 12 },
-    webPreferences: appWindowWebPreferences(appPreloadScript(), partition),
-    width: 1200,
-  });
+const windowBackground = (): string => (nativeTheme.shouldUseDarkColors ? "#141415" : "#f0f2f2");
 
+// the pin, for every window this shell opens: one origin, no popup, and the app's own title
+const pinWindow = (window: BrowserWindow): void => {
   window.webContents.on("input-event", (_event, input) => {
     if (grantsActivation(input.type)) {
       lastInputAt = Date.now();
@@ -365,6 +384,24 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
   window.once("ready-to-show", () => {
     window.show();
   });
+};
+
+const createWindow = (target: ServerTarget, pagePath = "/"): BrowserWindow => {
+  const partition = sessionPartition(target.dataDir);
+  const window = new BrowserWindow({
+    autoHideMenuBar: true,
+    backgroundColor: windowBackground(),
+    height: 800,
+    minHeight: 600,
+    minWidth: 800,
+    show: false,
+    title: APP_DISPLAY_NAME,
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 16, y: 12 },
+    webPreferences: appWindowWebPreferences(appPreloadScript(), partition),
+    width: 1200,
+  });
+  pinWindow(window);
   window.on("closed", () => {
     if (mainWindow === window) {
       mainWindow = null;
@@ -386,23 +423,73 @@ const createWindow = (target: ServerTarget): BrowserWindow => {
     },
   );
 
-  void loadWindow(window, `${APP_ORIGIN}/`);
+  void loadWindow(window, `${APP_ORIGIN}${pagePath}`);
   return window;
 };
 
-const showMainWindow = (): BrowserWindow => {
-  const existing = mainWindow;
-  if (existing === null) {
-    mainWindow = createWindow(requireTarget());
-    return mainWindow;
+// the first-run page is served from the bundle with no server behind it, on a session of its own
+// locked down like every vault's
+const prepareFirstRunSession = (): void => {
+  registerAppProtocol({
+    renderer: appRenderer(),
+    server: null,
+    session: lockDownSession(FIRST_RUN_PARTITION),
+  });
+};
+
+const createFirstRunWindow = (): BrowserWindow => {
+  const window = new BrowserWindow({
+    backgroundColor: windowBackground(),
+    height: 620,
+    minHeight: 520,
+    minWidth: 560,
+    show: false,
+    title: APP_DISPLAY_NAME,
+    webPreferences: appWindowWebPreferences(firstRunPreloadScript(), FIRST_RUN_PARTITION),
+    width: 720,
+  });
+  pinWindow(window);
+  window.on("closed", () => {
+    if (firstRunWindow === window) {
+      firstRunWindow = null;
+    }
+  });
+  void loadWindow(window, `${APP_ORIGIN}${FIRST_RUN_PAGE}`);
+  return window;
+};
+
+const bringForward = (window: BrowserWindow): void => {
+  if (window.isMinimized()) {
+    window.restore();
   }
-  if (existing.isMinimized()) {
-    existing.restore();
-  }
-  existing.show();
-  existing.focus();
+  window.show();
+  window.focus();
   app.focus();
-  return existing;
+};
+
+const showMainWindow = (): void => {
+  if (mainWindow === null) {
+    mainWindow = createWindow(requireTarget());
+    return;
+  }
+  bringForward(mainWindow);
+};
+
+// the window the app is on: the app window once a server is live, the first run's before the first
+// vault opens, and none while a boot is still under way
+const showCurrentWindow = (): void => {
+  if (live !== null) {
+    showMainWindow();
+    return;
+  }
+  if (firstRunLaunch === null || currentTarget !== null) {
+    return;
+  }
+  if (firstRunWindow === null) {
+    firstRunWindow = createFirstRunWindow();
+    return;
+  }
+  bringForward(firstRunWindow);
 };
 
 // `shell.openPath` answers "" when the OS took the path, else its own words for why not
@@ -433,22 +520,27 @@ const updateFeedDisabledReason = (): string | null => {
   return null;
 };
 
-const fromMainWindow = (event: Electron.IpcMainInvokeEvent): boolean =>
-  senderIsWindow(event.sender, mainWindow);
-
 // every page-facing channel refuses a stranger's webContents before it reads a frame, and
-// the frame is parsed here, at the boundary, so a handler only ever sees a value it knows
-const handle = <Request extends z.ZodType, Answer extends z.ZodType>(
-  route: InvokeRoute<Request, Answer>,
-  handler: (request: z.output<Request>) => z.input<Answer> | Promise<z.input<Answer>>,
-): void => {
-  ipcMain.handle(route.channel, async (event, frame) => {
-    if (!fromMainWindow(event)) {
-      throw new Error("refused");
-    }
-    return await handler(route.request.parse(frame));
-  });
-};
+// the frame is parsed here, at the boundary, so a handler only ever sees a value it knows.
+// each window answers on its own channels alone: the first run's are refused to the app window,
+// and the app window's to the first run's
+const answeringOnly =
+  (window: () => BrowserWindow | null) =>
+  <Request extends z.ZodType, Answer extends z.ZodType>(
+    route: InvokeRoute<Request, Answer>,
+    handler: (request: z.output<Request>) => z.input<Answer> | Promise<z.input<Answer>>,
+  ): void => {
+    ipcMain.handle(route.channel, async (event, frame) => {
+      if (!senderIsWindow(event.sender, window())) {
+        throw new Error("refused");
+      }
+      return await handler(route.request.parse(frame));
+    });
+  };
+
+const handle = answeringOnly(() => mainWindow);
+
+const handleFirstRun = answeringOnly(() => firstRunWindow);
 
 const push = <Frame extends z.ZodType>(route: PushRoute<Frame>, frame: z.input<Frame>): void => {
   mainWindow?.webContents.send(route.channel, frame);
@@ -693,7 +785,7 @@ const rememberCurrentVault = (): void => {
 };
 
 // the server first, then the session it answers on, then the window that loads from it
-const bootVault = async (target: ServerTarget): Promise<void> => {
+const bootVault = async (target: ServerTarget, pagePath = "/"): Promise<void> => {
   currentTarget = target;
   await startServer(target);
   // everything below names the origin the server answered on, which an adopted one chose.
@@ -703,10 +795,60 @@ const bootVault = async (target: ServerTarget): Promise<void> => {
   }
   prepareWindowSession(target, server);
   rememberCurrentVault();
-  mainWindow = createWindow(target);
+  mainWindow = createWindow(target, pagePath);
 };
 
-const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
+const resolveLaunchTarget = (): ServerTarget => {
+  const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
+  if (next.kind === "refused") {
+    throw new Error(next.error);
+  }
+  return next.target;
+};
+
+const inspectFolder = async (dir: string) =>
+  await inspectVaultFolder(
+    dir,
+    folderFactsContext({ env: process.env, isPackaged: app.isPackaged }),
+  );
+
+// the folder's own service keeps syncing it and the app will not, which the first run says on its
+// page and a picked switch asks here, in the same words; a folder that cannot be read is not asked
+// about, and its boot says what is wrong with it
+const confirmOutsideSync = async (vaultDir: string): Promise<boolean> => {
+  let facts: VaultFolderFacts;
+  try {
+    facts = await inspectFolder(vaultDir);
+  } catch (error) {
+    console.warn(`[desktop] could not look at ${vaultDir}: ${toErrorMessage(error)}`);
+    return true;
+  }
+  if (facts.externalSync === null) {
+    return true;
+  }
+  const warning = outsideSyncWarning(facts.externalSync);
+  const options: Electron.MessageBoxOptions = {
+    buttons: ["Open", "Cancel"],
+    cancelId: 1,
+    defaultId: 0,
+    detail: warning.detail,
+    message: warning.headline,
+    title: "Open vault",
+    type: "warning",
+  };
+  const { response } =
+    mainWindow === null
+      ? await dialog.showMessageBox(options)
+      : await dialog.showMessageBox(mainWindow, options);
+  return response === 0;
+};
+
+// `confirm` runs once the switch is planned, so a refusal is said before anything is asked; a
+// declined one moves nothing, like a cancelled picker
+const switchVault = async (
+  vaultDir: string,
+  confirm?: (vaultDir: string) => Promise<boolean>,
+): Promise<VaultSwitchOutcome> => {
   const previous = requireTarget();
   const plan = planVaultSwitch({ current: previous, ownsServer: serverProcess !== null }, vaultDir);
   if (plan.kind === "refused") {
@@ -716,6 +858,9 @@ const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
   const candidate = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged, vaultDir });
   if (candidate.kind === "refused") {
     return { ok: false, reason: candidate.error };
+  }
+  if (confirm !== undefined && !(await confirm(candidate.target.vaultDir))) {
+    return { ok: true };
   }
   if (switching) {
     return { ok: false, reason: "Another vault is already opening." };
@@ -739,13 +884,7 @@ const switchVault = async (vaultDir: string): Promise<VaultSwitchOutcome> => {
         reportFailure: (reason) => {
           dialog.showErrorBox("Could not open the vault", reason);
         },
-        resolveTarget: () => {
-          const next = resolveServerTarget({ env: process.env, isPackaged: app.isPackaged });
-          if (next.kind === "refused") {
-            throw new Error(next.error);
-          }
-          return next.target;
-        },
+        resolveTarget: resolveLaunchTarget,
         stopServer: stopOwnedServer,
         writeSelector: (selected) => {
           writeManagedVaultDir(previous.rootDataDir, selected);
@@ -777,10 +916,13 @@ const pickVaultDir = async (): Promise<string | null> => {
   return picked.filePaths[0] ?? null;
 };
 
-const switchVaultFromMenu = async (vaultDir: string): Promise<void> => {
+const switchVaultFromMenu = async (
+  vaultDir: string,
+  confirm?: (vaultDir: string) => Promise<boolean>,
+): Promise<void> => {
   let outcome: VaultSwitchOutcome;
   try {
-    outcome = await switchVault(vaultDir);
+    outcome = await switchVault(vaultDir, confirm);
   } catch (error) {
     outcome = { ok: false, reason: toErrorMessage(error) };
   }
@@ -804,7 +946,7 @@ const openInBrowserFromMenu = async (): Promise<void> => {
 const pickAndSwitchFromMenu = async (): Promise<void> => {
   const picked = await pickVaultDir();
   if (picked !== null) {
-    await switchVaultFromMenu(picked);
+    await switchVaultFromMenu(picked, confirmOutsideSync);
   }
 };
 
@@ -815,7 +957,9 @@ const configureVaultsIpc = (): void => {
   handle(INVOKE_ROUTES.vaults.getState, () => vaultsState());
   handle(INVOKE_ROUTES.vaults.pick, async () => {
     const picked = await pickVaultDir();
-    return answerSwitch(picked === null ? { ok: true } : await switchVault(picked));
+    return answerSwitch(
+      picked === null ? { ok: true } : await switchVault(picked, confirmOutsideSync),
+    );
   });
   // only a path this process handed out comes back: the list is the page's whole vocabulary
   handle(INVOKE_ROUTES.vaults.open, async (vaultDir): Promise<VaultSwitchAnswer> => {
@@ -830,8 +974,133 @@ const configureVaultsIpc = (): void => {
   });
 };
 
+const pickFolderForFirstRun = async (
+  options: Electron.OpenDialogOptions,
+): Promise<string | null> => {
+  const picked =
+    firstRunWindow === null
+      ? await dialog.showOpenDialog(options)
+      : await dialog.showOpenDialog(firstRunWindow, options);
+  return picked.canceled ? null : (picked.filePaths[0] ?? null);
+};
+
+const finishFirstRun = async (
+  launch: ServerTarget,
+  choice: FirstRunChoice,
+  handedOut: HandedOut,
+): Promise<FirstRunAnswer> => {
+  const plan = planFirstRunChoice(choice, {
+    defaultVaultDir: launch.vaultDir,
+    exists: existsSync,
+    handedOut,
+    resolve: (vaultDir) =>
+      resolveServerTarget({ env: process.env, isPackaged: app.isPackaged, vaultDir }),
+  });
+  if (plan.kind === "refused") {
+    return { ok: false, reason: plan.reason };
+  }
+  if (switching) {
+    return { ok: false, reason: "The vault is already opening." };
+  }
+  switching = true;
+  try {
+    const outcome = await runFirstRun(
+      {
+        boot: async (target) => {
+          await bootVault(target, WELCOME_PATH);
+        },
+        log: (message, cause) => {
+          console.error(`[desktop] ${message}`, cause);
+        },
+        resolveTarget: resolveLaunchTarget,
+        stopServer: stopOwnedServer,
+        writeSelector: (selected) => {
+          writeManagedVaultDir(launch.rootDataDir, selected);
+        },
+      },
+      plan,
+    );
+    if (!outcome.ok) {
+      // the page stays up on no vault, to be asked again
+      currentTarget = null;
+      return outcome;
+    }
+    firstRunLaunch = null;
+    firstRunWindow?.close();
+    return outcome;
+  } finally {
+    switching = false;
+  }
+};
+
+// registered on a first run alone, over the launch's default vault: every folder the page names
+// back is one handed out here, the proposal's parent or a pick
+const configureFirstRunIpc = (launch: ServerTarget): void => {
+  const proposal = proposedNewVault(launch);
+  const handedOut = { folders: new Set<string>(), parents: new Set([proposal.parent]) };
+  handleFirstRun(FIRST_RUN_ROUTES.getState, () => ({ newVault: proposal }));
+  handleFirstRun(FIRST_RUN_ROUTES.pickParent, async (): Promise<PickParentAnswer> => {
+    const picked = await pickFolderForFirstRun({
+      buttonLabel: "Choose",
+      defaultPath: proposal.parent,
+      properties: ["openDirectory", "createDirectory"],
+      title: "Where should the vault go?",
+    });
+    if (picked === null) {
+      return { kind: "cancelled" };
+    }
+    handedOut.parents.add(picked);
+    return { kind: "picked", path: picked };
+  });
+  handleFirstRun(FIRST_RUN_ROUTES.pickFolder, async (): Promise<PickFolderAnswer> => {
+    const picked = await pickFolderForFirstRun({
+      buttonLabel: "Open",
+      properties: ["openDirectory"],
+      title: "Open a folder of notes",
+    });
+    if (picked === null) {
+      return { kind: "cancelled" };
+    }
+    handedOut.folders.add(picked);
+    return { facts: folderFactsOf(await inspectFolder(picked)), kind: "picked", path: picked };
+  });
+  handleFirstRun(
+    FIRST_RUN_ROUTES.finish,
+    async (choice) => await finishFirstRun(launch, choice, handedOut),
+  );
+};
+
+// the tray's menu, rebuilt with the application menu: both offer the data folder only once a vault
+// is open, which a first run has not yet
+const trayMenu = (): Menu =>
+  Menu.buildFromTemplate([
+    {
+      click: () => {
+        showCurrentWindow();
+      },
+      label: `Show ${APP_DISPLAY_NAME}`,
+    },
+    {
+      click: () => {
+        (mainWindow ?? firstRunWindow)?.hide();
+      },
+      label: "Hide",
+    },
+    { type: "separator" },
+    {
+      click: () => {
+        void openDataDir();
+      },
+      enabled: currentTarget !== null,
+      label: "Open Data Folder",
+    },
+    { type: "separator" },
+    { role: "quit" },
+  ]);
+
 const configureApplicationMenu = (): void => {
   const current = currentTarget?.vaultDir ?? null;
+  const vaultOpen = current !== null;
   const recentItems: MenuItemConstructorOptions[] = offeredRecentVaults(
     recentVaults,
     current,
@@ -859,6 +1128,7 @@ const configureApplicationMenu = (): void => {
           click: () => {
             void openDataDir();
           },
+          enabled: vaultOpen,
           label: "Open Data Folder",
         },
         { type: "separator" },
@@ -878,10 +1148,11 @@ const configureApplicationMenu = (): void => {
           click: () => {
             void pickAndSwitchFromMenu();
           },
+          enabled: vaultOpen,
           label: "Open Vault…",
         },
         {
-          enabled: recentItems.length > 0,
+          enabled: vaultOpen && recentItems.length > 0,
           label: "Open Recent Vault",
           submenu: recentItems,
         },
@@ -905,6 +1176,7 @@ const configureApplicationMenu = (): void => {
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  tray?.setContextMenu(trayMenu());
 };
 
 const createTray = (): Tray | null => {
@@ -918,38 +1190,22 @@ const createTray = (): Tray | null => {
   icon.setTemplateImage(true);
   const created = new Tray(icon);
   created.setToolTip(APP_DISPLAY_NAME);
-  created.setContextMenu(
-    Menu.buildFromTemplate([
-      {
-        click: () => {
-          showMainWindow();
-        },
-        label: `Show ${APP_DISPLAY_NAME}`,
-      },
-      {
-        click: () => {
-          mainWindow?.hide();
-        },
-        label: "Hide",
-      },
-      { type: "separator" },
-      {
-        click: () => {
-          void openDataDir();
-        },
-        label: "Open Data Folder",
-      },
-      { type: "separator" },
-      { role: "quit" },
-    ]),
-  );
+  created.setContextMenu(trayMenu());
   created.on("click", () => {
-    showMainWindow();
+    showCurrentWindow();
   });
   return created;
 };
 
-const onAppReady = async (target: ServerTarget): Promise<void> => {
+// nothing is booted: the vault is chosen first, since a server is bound to one vault and data dir
+const startFirstRun = (launch: ServerTarget): void => {
+  firstRunLaunch = launch;
+  configureFirstRunIpc(launch);
+  prepareFirstRunSession();
+  showCurrentWindow();
+};
+
+const onAppReady = async (plan: LaunchPlan): Promise<void> => {
   app.setName(APP_DISPLAY_NAME);
   app.setAboutPanelOptions({
     applicationName: APP_DISPLAY_NAME,
@@ -977,7 +1233,13 @@ const onAppReady = async (target: ServerTarget): Promise<void> => {
   configureApplicationMenu();
   tray = createTray();
   updates = configureUpdates();
-  await bootVault(target);
+  if (plan.kind === "first-run") {
+    // the updater needs no vault, and a first run left open must still hear of a fix
+    updates.start();
+    startFirstRun(plan.target);
+    return;
+  }
+  await bootVault(plan.target);
   updates.start();
 };
 
@@ -1005,7 +1267,7 @@ const applyShellPath = (resolution: ShellPathResolution): void => {
   process.env.PATH = resolution.path;
 };
 
-const startApp = async (target: ServerTarget): Promise<void> => {
+const startApp = async (plan: LaunchPlan): Promise<void> => {
   try {
     // asked while Electron readies, so the login shell's startup overlaps a wait the boot has anyway
     const shellPath = resolveShellPath({
@@ -1018,7 +1280,7 @@ const startApp = async (target: ServerTarget): Promise<void> => {
     });
     await app.whenReady();
     applyShellPath(await shellPath);
-    await onAppReady(target);
+    await onAppReady(plan);
   } catch (error) {
     // the teardown in flight quits once the child is down; a modal here would hold main open
     if (quitRequested) {
@@ -1037,9 +1299,7 @@ if (target.kind === "refused") {
   app.exit(2);
 } else {
   app.on("activate", () => {
-    if (live !== null) {
-      showMainWindow();
-    }
+    showCurrentWindow();
   });
 
   // empty on purpose: closing the last window hides to the tray; Electron's default handler would quit.
@@ -1061,11 +1321,9 @@ if (target.kind === "refused") {
   // two shells would race for the port and the loser would adopt the winner's server.
   if (app.requestSingleInstanceLock()) {
     app.on("second-instance", () => {
-      if (live !== null) {
-        showMainWindow();
-      }
+      showCurrentWindow();
     });
-    void startApp(target.target);
+    void startApp(planLaunch({ exists: existsSync, target: target.target }));
   } else {
     app.quit();
   }

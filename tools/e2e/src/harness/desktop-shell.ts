@@ -18,6 +18,8 @@ import type { TrackedProcess } from "./tracked-child";
 
 // the window's one origin (apps/desktop/src/main/protocol-handler.ts)
 export const SHELL_APP_URL = "inteligir://app/";
+// the page a launch with no vault opens instead, on the same origin (apps/desktop/src/main/index.ts)
+export const SHELL_FIRST_RUN_URL = `${SHELL_APP_URL}first-run.html`;
 
 // a bridge call awaited in the page; the answer crosses back as a JSON string
 export const askBridge = async <T>(
@@ -49,7 +51,8 @@ export interface ShellPage {
 export interface DesktopShell extends TrackedProcess {
   // the Chrome DevTools port an agent-browser session connects to
   cdpPort: number;
-  // the server the shell runs now: the port is pinned across a switch, the bearer re-read per call
+  // the server the shell runs now: the port is pinned across a switch, the bearer re-read per call,
+  // so on a first run it answers once the chosen vault's server.json appears
   api: InstanceApi;
   serverOrigin: string;
   // what the shell resolves now, derived as main derives it, so a vault switch moves it
@@ -62,19 +65,27 @@ export interface DesktopShell extends TrackedProcess {
   quit: () => Promise<void>;
 }
 
-export interface DesktopShellOptions {
-  // the vault the shell opens on first launch, before its server's repo init commits it
-  seedVault?: (vaultDir: string) => Promise<void>;
+export type DesktopShellOptions = {
   // the shell's own userData (its recent-vaults list, its session partitions)
   seedUserData?: (userDataDir: string) => Promise<void>;
-}
+} & (
+  | {
+      firstRun?: false;
+      // the vault the shell opens, made before launch so the shell boots it rather than asking
+      // for one; seeded before its server's repo init commits it
+      seedVault?: (vaultDir: string) => Promise<void>;
+    }
+  // no vault and nothing seeded: the shell opens its first run and boots nothing until a vault
+  // is chosen. A relaunch over the same scratch finds the vault that run made
+  | { firstRun: true }
+);
 
-export interface LaunchDesktopShellArgs extends DesktopShellOptions {
+export type LaunchDesktopShellArgs = DesktopShellOptions & {
   repoRoot: string;
   scratchDir: string;
   onLog: (line: string) => void;
   register: (shell: DesktopShell) => void;
-}
+};
 
 const cdpTargetsSchema = z.array(
   z.looseObject({ id: z.string(), type: z.string(), url: z.string() }),
@@ -168,10 +179,11 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
     return { dataDir, vaultDir };
   };
 
-  if (args.seedVault !== undefined) {
+  // the default vault already there is what a launch before first run left, so the shell boots it
+  if (args.firstRun !== true) {
     const { vaultDir } = target();
     await mkdir(vaultDir, { recursive: true });
-    await args.seedVault(vaultDir);
+    await args.seedVault?.(vaultDir);
   }
   await args.seedUserData?.(userDataDir);
   const binary = await electronBinary(desktopDir);

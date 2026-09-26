@@ -3,12 +3,18 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import * as contract from "../../ipc-contract";
-import { INVOKE_ROUTES, SOCKET_ORIGIN_CHANNEL, UPDATE_STATE_PUSH } from "../../ipc-contract";
+import {
+  FIRST_RUN_ROUTES,
+  INVOKE_ROUTES,
+  SOCKET_ORIGIN_CHANNEL,
+  UPDATE_STATE_PUSH,
+} from "../../ipc-contract";
 
 const channels = [
   ...Object.values(INVOKE_ROUTES).flatMap((arm) =>
     Object.values(arm).map((route) => route.channel),
   ),
+  ...Object.values(FIRST_RUN_ROUTES).map((route) => route.channel),
   UPDATE_STATE_PUSH.channel,
   SOCKET_ORIGIN_CHANNEL,
 ];
@@ -23,6 +29,7 @@ describe("the bridge's channels", () => {
 const SRC_DIR = path.resolve(import.meta.dirname, "../..");
 const MAIN_FILE = "main/index.ts";
 const PRELOAD_FILE = "preload/index.ts";
+const FIRST_RUN_PRELOAD_FILE = "preload/first-run.ts";
 
 const sourceOf = (file: string): string => readFileSync(path.join(SRC_DIR, file), "utf-8");
 
@@ -74,6 +81,20 @@ const invokeWiring = (): ChannelWiring[] =>
     }),
   );
 
+// the first-run window's rows: main answers them only to that window, and only its own preload
+// asks them, so the app window's preload may not
+const firstRunWiring = (): ChannelWiring[] =>
+  Object.keys(FIRST_RUN_ROUTES).map((route) => {
+    const row = `FIRST_RUN_ROUTES.${route}`;
+    return {
+      ends: [
+        channelEnd(MAIN_FILE, "exactly-one", "handleFirstRun", row),
+        channelEnd(FIRST_RUN_PRELOAD_FILE, "at-least-one", "invoke", row),
+      ],
+      row,
+    };
+  });
+
 // every export but the invoke table, by what it is, so a push route or a sync channel is held to
 // both ends the day it is declared
 const contractExportSchema = z.union([
@@ -123,6 +144,9 @@ const contractWiring = (): ChannelWiring[] =>
     if (name === "INVOKE_ROUTES") {
       return invokeWiring();
     }
+    if (name === "FIRST_RUN_ROUTES") {
+      return firstRunWiring();
+    }
     const kind = contractExportSchema.safeParse(value);
     if (!kind.success) {
       throw new Error(
@@ -135,11 +159,28 @@ const contractWiring = (): ChannelWiring[] =>
   });
 
 describe("both ends of the bridge are wired to the contract", () => {
-  const sources = new Map([MAIN_FILE, PRELOAD_FILE].map((file) => [file, sourceOf(file)]));
+  const sources = new Map(
+    [MAIN_FILE, PRELOAD_FILE, FIRST_RUN_PRELOAD_FILE].map((file) => [file, sourceOf(file)]),
+  );
   const wiring = contractWiring();
 
   it("finds every row the contract declares", () => {
     expect(wiring.map((channel) => channel.row)).toHaveLength(channels.length);
+  });
+
+  it("keeps each window's rows to its own preload", () => {
+    const crossed = [
+      ...Object.keys(FIRST_RUN_ROUTES)
+        .map((route) => `FIRST_RUN_ROUTES.${route}`)
+        .filter((row) => (sources.get(PRELOAD_FILE) ?? "").includes(row)),
+      ...((sources.get(FIRST_RUN_PRELOAD_FILE) ?? "").includes("INVOKE_ROUTES")
+        ? ["INVOKE_ROUTES"]
+        : []),
+    ];
+    expect(
+      crossed,
+      "the first-run window has no server and the app window no first run: a row reaches one preload",
+    ).toEqual([]);
   });
 
   it("registers every channel in main and calls it from the preload", () => {

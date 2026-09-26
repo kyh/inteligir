@@ -22,8 +22,12 @@
       ]
     },
     "apps/desktop": {
+      // the first-run preload is its own build (electron.vite.config.ts), and first-run.html's
+      // script is read by knip's vite plugin only from index.html
       "entry": [
         "scripts/*.{mjs,cjs}",
+        "src/preload/first-run.ts",
+        "src/renderer/first-run/first-run-main.tsx",
         "src/renderer/routes/**/*.tsx",
         "src/**/__tests__/**/*.test.{ts,tsx}"
       ],
