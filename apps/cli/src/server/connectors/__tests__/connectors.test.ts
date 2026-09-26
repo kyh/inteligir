@@ -345,7 +345,8 @@ describe("the connectors service", () => {
     const service = serviceOver(vendors, "codex", { signInWindowMs: 300 });
     await service.add({ name: "docs", target: URL_ROW });
     await service.signIn("docs");
-    const { pid } = runOf(vendors, "login");
+    // the login's own record lands once its process has started, which a loaded runner delays
+    const { pid } = await vi.waitFor(() => runOf(vendors, "login"), SLOW_VENDOR);
     await vi.waitFor(async () => {
       expect(await firstSignIn(service)).toMatchObject({ state: "failed" });
     }, SLOW_VENDOR);
@@ -358,7 +359,7 @@ describe("the connectors service", () => {
     const vendors = fakeMcpVendors({ FAKE_CODEX_ADD_SIGN_IN: "1" });
     const service = serviceOver(vendors, "codex");
     await service.add({ name: "docs", target: URL_ROW });
-    const { pid } = runOf(vendors, "add");
+    const { pid } = await vi.waitFor(() => runOf(vendors, "add"), SLOW_VENDOR);
     await service.dispose();
     expect(processAlive(pid)).toBe(false);
   });
