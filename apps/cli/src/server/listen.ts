@@ -1,4 +1,6 @@
 import { once } from "node:events";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
 import { z } from "zod";
@@ -51,6 +53,18 @@ const GOING_AWAY_CLOSE_CODE = 1001;
 
 // generous enough for a laptop waking up, far short of the step's own budget.
 const SOCKET_DRAIN_MS = 1500;
+
+// node hands an upgrade's socket over with no error listener, and the websocket library awaits the
+// route before it takes the socket, so a peer that resets in that window (a window reconnecting to a
+// child that just replaced another) raised an uncaught ECONNRESET that took the server down. A reset
+// upgrade is the peer's loss alone.
+export const guardUpgradeSockets = (server: ServerType): void => {
+  server.on("upgrade", (_request: IncomingMessage, socket: Duplex) => {
+    socket.on("error", () => {
+      /* the upgrade is abandoned; nothing else holds the socket yet */
+    });
+  });
+};
 
 // an upgraded socket is detached from the http server's connection tracking:
 // server.close() never fires while one is open and closeAllConnections() does

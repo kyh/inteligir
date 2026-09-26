@@ -1,12 +1,12 @@
 import { once } from "node:events";
 import { createServer as createHttpServer } from "node:http";
 import type { Server as HttpServer } from "node:http";
-import { connect, createServer } from "node:net";
+import { Socket as NetSocket, connect, createServer } from "node:net";
 import type { Server, Socket } from "node:net";
 import type { Duplex } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { closeServer, listenWithRetry } from "../listen";
+import { closeServer, guardUpgradeSockets, listenWithRetry } from "../listen";
 import type { ListenResult, UpgradedSocket } from "../listen";
 import { boundAddressSchema } from "./bound-address";
 
@@ -184,5 +184,26 @@ describe("closeServer", () => {
   it("closes with no upgraded sockets at all", async () => {
     const { server } = await upgradingServer();
     await expect(closeServer(server, new Set())).resolves.toBeUndefined();
+  });
+});
+
+// node emits a socket's error to its listeners, and throws when it has none
+const upgradeThatResets = (server: HttpServer): (() => void) => {
+  const socket = new NetSocket();
+  server.emit("upgrade", {}, socket, Buffer.alloc(0));
+  return () => {
+    socket.emit("error", Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+  };
+};
+
+describe("guardUpgradeSockets", () => {
+  it("lets a peer reset an upgrade it has not finished without taking the server down", () => {
+    const server = createHttpServer();
+    guardUpgradeSockets(server);
+    expect(upgradeThatResets(server)).not.toThrow();
+  });
+
+  it("is what stands between that reset and an uncaught error", () => {
+    expect(upgradeThatResets(createHttpServer())).toThrow(/ECONNRESET/u);
   });
 });

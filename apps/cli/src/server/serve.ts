@@ -28,7 +28,7 @@ import { debugLog } from "./debug-log";
 import { resolveCheckoutRoot } from "./dev-instance";
 import { messageOf } from "./error-message";
 import type { ReconcileStats } from "./knowledge/knowledge-runtime";
-import { closeServer, listenWithRetry } from "./listen";
+import { closeServer, guardUpgradeSockets, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
 import { removeRetiredModelDir } from "./retired-model-dir";
 import { acquireServeLock, serveLockPath } from "./serve-lock";
@@ -227,6 +227,7 @@ const boot = async (
     vaultDir: config.vaultDir,
     version,
   });
+  guardUpgradeSockets(server);
   injectWebSocket(server);
   const listening = performance.now();
   // kicked after listen: an unsettled index only delays the searches that ask for it.
