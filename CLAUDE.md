@@ -1618,7 +1618,17 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `apps/desktop/src/main/index.ts`), which
   `tools/e2e/src/scenarios/desktop-shell.ts` reads back as a denied microphone.
   The model folder an install already holds is removed after listen
-  (`apps/cli/src/server/retired-model-dir.ts`).
+  (`apps/cli/src/server/retired-model-dir.ts`). With the mic button gone, a
+  Mac's ⌘K composer says "fn fn to dictate" beside Send
+  (`apps/desktop/src/renderer/app/actions/action-composer.tsx`), the app's one
+  hint. A dictated phrase lands as one IME-style commit, which Chromium once
+  left the caret before when it was a field's first edit after a programmatic
+  focus (`reconcileInsertionCaret` in `packages/editor/src/combobox-input.ts`
+  still repairs the editor's combobox);
+  `tools/e2e/src/scenarios/os-dictation-browser.ts` dictates and then types
+  into the composer and into the note focus returns to, and both land in
+  order, so `InputMessage` carries no such repair until that scenario says
+  otherwise.
 
 ### Cloud, sync and accounts
 
@@ -2380,7 +2390,10 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   the rail's own Fluid resize handle (`panelWidth` beside `sidebarWidth` in
   `app/prefs.ts`), because a second resize mechanism would be a second answer
   to one drag, and is reported once a drag lets go (`onWidthCommitted`), never
-  per frame.
+  per frame. Closed, a sidebar is slid off-screen rather than unmounted, so it
+  is `inert` (`SidebarPanel` in `packages/ui/src/components/sidebar-core.tsx`):
+  otherwise its controls answer Tab and share their names with the surface
+  that is open, the ⌘K composer's sign-in included.
 
 - **AMBIENT STATE LIVES IN THE RAIL'S FOOTER; THE NOTE KEEPS ITS COUNT.** A
   strip across the whole window was a second bar under a rail that already

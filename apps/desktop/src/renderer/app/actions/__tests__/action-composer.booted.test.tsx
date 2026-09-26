@@ -11,6 +11,7 @@ import type { AgentStatus } from "@repo/api/local/system/system-schema";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const noViewContext = async () => null;
@@ -123,6 +124,30 @@ describe("the composer over the default agent's sign-in", () => {
       screen.findByRole("button", { name: "Sign in with Claude" }, { timeout: SETTLE_MS }),
     ).rejects.toThrow();
     expect(screen.getByRole("combobox", { name: "Ask the agent" })).toBeDefined();
+  });
+});
+
+const MAC_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+const WINDOWS_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+
+const mountUnder = async (userAgent: string): Promise<void> => {
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(userAgent);
+  await bootAgent(SCRIPTED, "signed-in");
+  mountComposer();
+  await screen.findByRole("combobox", { name: "Ask the agent" });
+};
+
+describe("the composer's dictation hint", () => {
+  it("tells a Mac that fn twice dictates", async () => {
+    await mountUnder(MAC_UA);
+    expect(screen.getByText("fn fn to dictate")).toBeDefined();
+  });
+
+  it("says nothing off a Mac, which has no fn twice", async () => {
+    await mountUnder(WINDOWS_UA);
+    expect(screen.queryByText("fn fn to dictate")).toBeNull();
   });
 });
 

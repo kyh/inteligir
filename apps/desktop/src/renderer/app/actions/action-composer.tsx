@@ -5,6 +5,7 @@ import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogPopup } from "@repo/ui/components/dialog";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { cn } from "@repo/ui/lib/cn";
+import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
@@ -322,6 +323,11 @@ export const ActionComposer = ({
               onSend={() => {
                 submit();
               }}
+              rightSlot={
+                platformShortcutModifier() === "meta" ? (
+                  <span className="text-caption text-muted-foreground">fn fn to dictate</span>
+                ) : null
+              }
               placeholder="Ask the agent… @ mentions a note"
               minRows={2}
               maxRows={8}
