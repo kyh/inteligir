@@ -352,7 +352,9 @@ describe("the connectors service", () => {
     }, SLOW_VENDOR);
     expect(processAlive(pid)).toBe(false);
     await service.signIn("docs");
-    expect(vendors.runs().filter((run) => run.args[1] === "login")).toHaveLength(2);
+    await vi.waitFor(() => {
+      expect(vendors.runs().filter((run) => run.args[1] === "login")).toHaveLength(2);
+    }, SLOW_VENDOR);
   });
 
   it("kills every running sign-in at teardown", async () => {
