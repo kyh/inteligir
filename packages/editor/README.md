@@ -13,11 +13,13 @@ workspace above it consumes an editor rather than containing one.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, no electron. The host contract is this package's own
-`host-io.ts` (`EditorHostIo`) and `note/vault-session.ts` (`VaultSessionPorts`);
-the app implements both. The package also ships ONE
-stylesheet, `styles.css` (toggle collapse, the callout marker swap, the hljs
-theme, the prose scope the appearance dials feed and typeset's table rules),
-inert until the host `@import`s `@repo/editor/styles.css` —
+`host-io.ts` (`EditorHostIo`), `note/vault-session.ts` (`VaultSessionPorts`)
+and `guarded-vault-io.ts` (`GuardedVaultPort`); a host implements all three,
+and everything above its store (the write policy, the link resolver, note
+formulas) is this package's, so a second host copies none of it. The package
+also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
+swap, the hljs theme, the prose scope the appearance dials feed and typeset's
+table rules), inert until the host `@import`s `@repo/editor/styles.css` —
 `style-hooks.ts` spells the selectors it reads, and
 `__tests__/style-hooks.test.ts` pins the two together.
 
@@ -76,6 +78,12 @@ src/
   host-io.ts, host.ts  # the injected host as a MODULE SINGLETON (vault actions,
                        # the wiki resolver store, IO, change events) and the two
                        # hooks React reads it through
+  guarded-vault-io.ts  # the write policy every host runs over its own store:
+                       # the base each note was read as, the diff3 retry, vanished
+  link-resolver-store.ts
+                       # the resolver store a host installs, rebuilt from the
+                       # listing and the index's wiki targets
+  note-formulas.ts     # a bound ref's note found by id, read once per change
   node-props.ts        # the Slate decode boundary: a node's dialect fields ride
                        # TElement's open index signature, so every read arrives
                        # unknown and becomes a domain value here, once
@@ -153,7 +161,9 @@ src/
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
   as a paste does). The editor never reaches the
   server for any of it; the app installs it once
-  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), and `host.ts` is
+  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), building the
+  resolver store with `link-resolver-store.ts` and `readNoteFormulas` with
+  `note-formulas.ts` over its own reads, and `host.ts` is
   React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
   resolves it from the note it is written in — the open note, or the one an
@@ -163,6 +173,14 @@ src/
   notes with (`vault-editor.ts`: read/write/create/remove), the
   publish/notify callbacks, and the one question it asks the user
   (`askVanished`). Drivable without React.
+- `guarded-vault-io.ts` — `GuardedVaultPort`, the host's store under that
+  `VaultIO`: a read, a write under an `absent` or `expected` guard answering
+  written, exists, changed (with the bytes now there) or missing, and a remove.
+  `createGuardedVaultIo` is the one write policy over it, so no host decides
+  what a stale save does: the base each note was read as, a `changed` answer
+  diff3-merged and retried once against those bytes, `missing` as vanished. A
+  host turns the base into whatever its store compares (the desktop hashes it
+  for the server's CAS).
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.
 - `editor-profile.tsx` — `EditorProfileProvider`, set once by a host around

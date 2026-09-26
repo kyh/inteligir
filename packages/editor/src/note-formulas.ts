@@ -6,12 +6,12 @@ import type { EditorHostIo, VaultChangedEvent } from "@repo/editor/host-io";
 import { collectFormulas } from "@repo/notes/formulas/collect-formulas";
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
-import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 
 export interface NoteFormulaPorts {
   /** Must join the refetch a vault change set off, so an id is never looked up in a listing older than that change. */
-  readonly listTargets: () => Promise<readonly WikiTargetWire[]>;
+  readonly listTargets: () => Promise<readonly WikiTarget[]>;
   readonly readFile: (path: string) => Promise<string>;
 }
 

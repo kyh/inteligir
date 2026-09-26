@@ -1,7 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
 import { setEditorHostIo } from "@repo/editor/host-io";
-import type { EditorHostIo, LinkResolver, VaultActions, VaultEntry } from "@repo/editor/host-io";
+import type {
+  EditorHostIo,
+  LinkResolverStore,
+  VaultActions,
+  VaultEntry,
+} from "@repo/editor/host-io";
+import { createLinkResolverStore } from "@repo/editor/link-resolver-store";
+import { createNoteFormulas } from "@repo/editor/note-formulas";
+import type { NoteFormulas } from "@repo/editor/note-formulas";
 import { readVaultTree, readWikiTargets, renameVaultEntry, useWikiTargets } from "../vault-hooks";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
@@ -9,9 +18,7 @@ import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type { VaultSession, WorkspaceBoot } from "@repo/editor/note/vault-session";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { HTML_FRAME_PATH, vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
@@ -21,15 +28,11 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { createStore } from "zustand/vanilla";
-import type { StoreApi } from "zustand/vanilla";
 
 import { client } from "../api";
 import { forgetPref, PREFS, readPref, writePref } from "../prefs";
 import { useWorkspace } from "../workspace-context";
-import { createGuardedVaultIo } from "./guarded-vault-io";
-import { createNoteFormulas } from "./note-formulas";
-import type { NoteFormulas } from "./note-formulas";
+import { createGuardedVaultPort } from "./guarded-vault-io";
 
 const noOpenPathMirror = (): void => {
   /* empty */
@@ -37,12 +40,6 @@ const noOpenPathMirror = (): void => {
 
 const noHistory = (): void => {
   /* empty */
-};
-
-const NO_RESOLVER: LinkResolver = {
-  resolveMdTarget: () => null,
-  resolveWikiTarget: () => null,
-  targets: [],
 };
 
 const listingEntries = (tree: VaultTreeResponse): VaultEntry[] =>
@@ -76,7 +73,7 @@ export interface VaultProviderProps {
 // render, and a ref read by a function render calls is a ref read in render.
 interface VaultPort {
   readonly session: VaultSession;
-  readonly linkResolver: StoreApi<LinkResolver>;
+  readonly linkResolver: LinkResolverStore;
   readonly formulas: NoteFormulas;
   setWikiTargets: (next: readonly WikiTarget[]) => void;
   setOnOpenPath: (next: (path: string | null) => void) => void;
@@ -90,26 +87,10 @@ interface VaultPortInputs {
 }
 
 const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): VaultPort => {
-  let entries: readonly VaultEntry[] = [];
-  let wikiTargets: readonly WikiTarget[] = [];
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
   let showHistory: (path: string) => void = noHistory;
-  const linkResolver = createStore<LinkResolver>()(() => NO_RESOLVER);
-  // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
-  const rebuildResolver = (): void => {
-    const { aliasEntries, idEntries } = resolverEntriesOf(wikiTargets);
-    const resolver = buildResolver(
-      entries.map((entry) => entry.path),
-      aliasEntries,
-      idEntries,
-    );
-    linkResolver.setState({
-      resolveMdTarget: (target, fromPath) => resolver.resolveMd(target, fromPath),
-      resolveWikiTarget: (target, alias) => resolver.resolveWiki(target, alias),
-      targets: wikiTargets,
-    });
-  };
-  const io = createGuardedVaultIo(client);
+  const linkResolver = createLinkResolverStore();
+  const io = createGuardedVaultIo(createGuardedVaultPort(client));
   const formulas = createNoteFormulas({
     listTargets: async () => {
       const { targets } = await readWikiTargets(queryClient);
@@ -166,10 +147,7 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
       );
     },
     publishEditor: store.publishEditor,
-    publishListing: (next) => {
-      entries = next;
-      rebuildResolver();
-    },
+    publishListing: linkResolver.setListing,
     publishOpenPath: (path, change) => {
       store.publishOpenPath(path, change);
       if (path === null) {
@@ -184,7 +162,7 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
 
   return {
     formulas,
-    linkResolver,
+    linkResolver: linkResolver.store,
     session,
     setOnOpenPath: (next) => {
       mirrorOpenPath = next;
@@ -192,10 +170,7 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     setOnShowHistory: (next) => {
       showHistory = next;
     },
-    setWikiTargets: (next) => {
-      wikiTargets = next;
-      rebuildResolver();
-    },
+    setWikiTargets: linkResolver.setTargets,
   };
 };
 

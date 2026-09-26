@@ -1,84 +1,42 @@
-import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
-import { diff3 } from "@repo/notes/text/diff3";
+import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/guarded-vault-io";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import { isDefinedError, refusalMessage, safe } from "../api";
+import type { VaultWriteGuard } from "@repo/api/local/vault/vault-schema";
+import { isDefinedError, safe } from "../api";
 import type { client } from "../api";
 
 export interface GuardedVaultApi {
   vault: Pick<(typeof client)["vault"], "read" | "write" | "remove">;
 }
 
-export const createGuardedVaultIo = (api: GuardedVaultApi): VaultIO => {
-  const bases = new Map<string, string>();
+const wireGuard = async (guard: GuardedWrite): Promise<VaultWriteGuard> =>
+  guard.kind === "absent"
+    ? { kind: "absent" }
+    : { hash: await contentHashHex(guard.base), kind: "expected" };
 
-  const read = async (path: string): Promise<string> => {
+export const createGuardedVaultPort = (api: GuardedVaultApi): GuardedVaultPort => ({
+  read: async (path) => {
     const { content } = await api.vault.read({ path });
-    bases.set(path, content);
     return content;
-  };
-
-  const create = async (path: string, content: string): Promise<CreateOutcome> => {
-    // absent, never a hash: hashing content not yet on disk names bytes the
-    // server cannot match, so it refuses every create.
-    const { error } = await safe(api.vault.write({ content, guard: { kind: "absent" }, path }));
-    if (error === null) {
-      bases.set(path, content);
-      return { kind: "created" };
-    }
-    if (isDefinedError(error) && error.code === "ALREADY_EXISTS") {
-      return { kind: "exists" };
-    }
-    throw error;
-  };
-
-  const write = async (path: string, content: string): Promise<WriteOutcome> => {
-    const base = bases.get(path);
-    // Not inferred from `content`: that would let a concurrent edit merge to
-    // the disk's bytes alone and drop this write silently.
-    if (base === undefined) {
-      throw new Error(`write ${path}: no base was read, so nothing can guard this write`);
-    }
-    const hash = await contentHashHex(base);
-    const { error } = await safe(
-      api.vault.write({ content, guard: { hash, kind: "expected" }, path }),
-    );
-    if (error === null) {
-      bases.set(path, content);
-      return { conflicted: false, content, kind: "landed" };
-    }
-    if (isDefinedError(error) && error.code === "CAS_MISMATCH") {
-      // No `current` means a delete raced the write; nothing to merge against.
-      if (error.data.current === undefined) {
-        return { kind: "vanished" };
-      }
-      const disk = error.data.current.content;
-      const { conflicted, merged } = diff3(base, content, disk);
-      const retry = await safe(
-        api.vault.write({
-          content: merged,
-          guard: { hash: await contentHashHex(disk), kind: "expected" },
-          path,
-        }),
-      );
-      if (retry.error === null) {
-        bases.set(path, merged);
-        return { conflicted, content: merged, kind: "landed" };
-      }
-      throw new Error(
-        `write ${path}: conflict retry refused (${refusalMessage(retry.error, "no reason given")})`,
-      );
-    }
-    throw error;
-  };
-
-  // an absent file is as gone as a removed one.
-  const remove = async (path: string): Promise<void> => {
+  },
+  remove: async (path) => {
     const { error } = await safe(api.vault.remove({ path }));
     if (error !== null && !(isDefinedError(error) && error.code === "NOT_FOUND")) {
       throw error;
     }
-    bases.delete(path);
-  };
-
-  return { create, read, remove, write };
-};
+  },
+  write: async (path, content, guard) => {
+    const { error } = await safe(api.vault.write({ content, guard: await wireGuard(guard), path }));
+    if (error === null) {
+      return { kind: "written" };
+    }
+    if (isDefinedError(error) && error.code === "ALREADY_EXISTS") {
+      return { kind: "exists" };
+    }
+    if (isDefinedError(error) && error.code === "CAS_MISMATCH") {
+      return error.data.current === undefined
+        ? { kind: "missing" }
+        : { current: error.data.current.content, kind: "changed" };
+    }
+    throw error;
+  },
+});
