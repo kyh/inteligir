@@ -16,6 +16,9 @@ import {
 import type { RunGit, RunGitCommand } from "./git-run";
 
 export const ACCOUNT_MARKER_KEY = "inteligir.account";
+// the first commit of a vault this bootstrap seeded: while HEAD is still it, the history holds
+// nothing of the user's, so a pass takes a remote's history in its place (git-engine.ts).
+export const SEED_COMMIT_KEY = "inteligir.seedCommit";
 
 // info/, not a committed file: the vault's files belong to the user. a template without info/
 // (hooks only, say) leaves git with no such dir.
@@ -56,6 +59,31 @@ export interface EnsureVaultRepoArgs {
   run?: RunGit;
 }
 
+// the sync loop rebases, and a rebase needs a commit to stand on. a folder the bootstrap created
+// and seeded holds the seed alone, so its first commit is the seed, and is recorded. any other
+// folder's is empty: staging its tree here hashes every file before the server listens, and a
+// large folder opened as a vault outlasts the shell's readiness wait. the runtime's boot sweep
+// commits it after the listen.
+const commitInitial = async (
+  run: RunGit,
+  git: RunGitCommand,
+  args: EnsureVaultRepoArgs,
+  seeded: boolean,
+): Promise<void> => {
+  if (seeded) {
+    await git(["add", "-A"]);
+  }
+  await run(
+    args.root,
+    ["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "vault: initialize"],
+    { env: { ...args.env, ...identityEnv(args.deviceName ?? ENGINE_IDENTITY.name) } },
+  );
+  if (seeded) {
+    const { stdout } = await git(["rev-parse", "--verify", "HEAD"]);
+    await git(["config", SEED_COMMIT_KEY, stdout.trim()]);
+  }
+};
+
 // "missing" (no repository at the remote) may seed: the first push creates it. "failed"
 // (offline, refused credential) boots empty instead: seeding beside a populated remote plants
 // a history the first sync must rebase through, and failing the boot would take down the
@@ -78,7 +106,8 @@ const tryCloneVault = async (
 };
 
 // an existing vault beside a populated remote is not merged here: the first sync pass merges the
-// unrelated histories, and copies aside only the paths the two hold differently.
+// unrelated histories, and copies aside only the paths the two hold differently, unless HEAD is
+// still the seed's commit, which gives way to the remote's history instead.
 export const ensureVaultRepo = async (
   args: EnsureVaultRepoArgs,
 ): Promise<{ created: boolean; cloned: boolean }> => {
@@ -118,18 +147,12 @@ export const ensureVaultRepo = async (
   // the hosted worker says "no repository" only for a truly absent repo (auth precedes it);
   // github answers 404 for a private repo the credential cannot see, so a byo not-found boots empty.
   const seedable = remote === null || (outcome === "missing" && remote.source === "account");
-  if (created && seedable && args.seed) {
-    await args.seed(args.root);
+  const seed = created && seedable ? args.seed : undefined;
+  if (seed !== undefined) {
+    await seed(args.root);
   }
-  // the sync loop rebases, and a rebase needs a commit to stand on; nothing more. staging the
-  // tree here hashes every file before the server listens, and a large folder opened as a vault
-  // outlasts the shell's readiness wait. the runtime's boot sweep commits it after the listen.
   if (!(await hasHeadCommit(git))) {
-    await run(
-      args.root,
-      ["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "vault: initialize"],
-      { env: { ...args.env, ...identityEnv(args.deviceName ?? ENGINE_IDENTITY.name) } },
-    );
+    await commitInitial(run, git, args, seed !== undefined);
   }
   return { cloned, created };
 };

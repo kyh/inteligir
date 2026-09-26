@@ -777,8 +777,9 @@ to the END of its group.
   rebase and the merge run with rerere pinned off, and every status read
   passes `--untracked-files=normal`, because a user's commit-msg hook, a
   recorded rerere resolution or `status.showUntrackedFiles=no` would refuse,
-  rewrite or hide an engine commit and hold every sync behind it. The
-  bootstrap makes only the empty initial commit before the listen
+  rewrite or hide an engine commit and hold every sync behind it. Before the
+  listen the bootstrap stages nothing but the starter notes it seeded into a
+  folder it created; an opened folder's first commit is empty
   (`apps/cli/src/server/vault/git-bootstrap.ts`), since staging a large folder
   there outran the shell's readiness wait. A pass concludes one `SyncOutcome`,
   and a path two devices changed is never one of them: a detached HEAD says
@@ -930,6 +931,29 @@ to the END of its group.
   until someone ran git, which a knowledge worker cannot, and a rebase
   through the conflict, which replays every local commit and has nowhere to
   keep the other version.
+
+- **AN UNTOUCHED STARTER VAULT YIELDS TO A REMOTE THAT HAS HISTORY** (0.6
+  direction: a second Mac signs in to notes the account already holds). A
+  vault whose history is exactly its seed holds nothing of the user's, and
+  merging it is wrong: the two histories are unrelated, so a starter the user
+  edited elsewhere is added on both sides with no base, the fresh seed stays at
+  the path and the user's own version becomes the conflict copy, and every
+  starter they deleted comes back. So the bootstrap commits the starter notes
+  it seeds into a folder it created and records that commit
+  (`inteligir.seedCommit`, `apps/cli/src/server/vault/git-bootstrap.ts`); a
+  folder it did not seed never gets the key. A pass that meets a remote branch
+  it does not contain while HEAD is still that commit, after its own commit of
+  the dirty tree, moves the branch to the remote's tip with git's own checkout,
+  announces the paths that moved so the index, `/ws` and the open buffer
+  converge, drops the record and names it once in the server log; nothing is
+  a conflict, since nothing of the user's was replaced (`yieldSeededHistory`
+  in `apps/cli/src/server/vault/git-engine.ts`). The rule reads local history
+  alone, so it holds for every remote: the account's, an adopted origin, one
+  set in Advanced. Any other HEAD merges as above and drops the record.
+  Rejected: `reset --hard`, which would overwrite a change landed after the
+  pass's commit, where the checkout refuses it and the next pass commits and
+  merges it. Residual: a vault an older build seeded has no record, and
+  merges.
 
 ### Knowledge: index, search and links
 

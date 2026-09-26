@@ -16,7 +16,7 @@ import { ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig, VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
 import { messageOf } from "../error-message";
 import { readOriginConfig, REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
-import { ACCOUNT_MARKER_KEY } from "./git-bootstrap";
+import { ACCOUNT_MARKER_KEY, SEED_COMMIT_KEY } from "./git-bootstrap";
 import {
   cachedDeletionLog,
   readDeletedNotes,
@@ -79,6 +79,8 @@ export interface GitEngineArgs {
   // fired mid-pass, when a rebase or a merge moved the tree.
   onFilesChanged?: (change: VaultFilesChange) => void;
   onError?: (message: string) => void;
+  // a pass's decision the log should name once, which no status carries.
+  onNotice?: (message: string) => void;
   quietMs?: number;
   maxWaitMs?: number;
   env?: Record<string, string>;
@@ -589,15 +591,18 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  const readAccountMarker = async (): Promise<string | null> => {
+  const readConfig = async (key: string): Promise<string | null> => {
     try {
-      const { stdout } = await run(["config", "--get", ACCOUNT_MARKER_KEY]);
+      const { stdout } = await run(["config", "--get", key]);
       const value = stdout.trim();
       return value === "" ? null : value;
     } catch {
       return null;
     }
   };
+
+  const readAccountMarker = async (): Promise<string | null> =>
+    await readConfig(ACCOUNT_MARKER_KEY);
 
   // the repo is left off its rebase either way. "conflicted" is a rebase that stopped on paths
   // both sides changed, which the pass merges instead; "unhandled" is the caller's cue to rethrow.
@@ -795,8 +800,43 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return { branch, remote };
   };
 
+  // a history that is still the commit the bootstrap seeded holds nothing of the user's, and
+  // merging it into a remote with history of its own would keep each starter over the user's
+  // version of it, copy theirs aside and bring back every starter they deleted. so the branch
+  // takes the remote's tip whole, through git's own checkout, which writes nothing through a
+  // symlink and refuses to overwrite a change landed since the pass's commit (the next pass
+  // commits that change and merges). a HEAD moved off the seed drops the record. answers whether
+  // the branch moved.
+  const yieldSeededHistory = async (
+    remote: VaultRemoteSpec,
+    branch: string,
+    remoteRef: string,
+    tips: IntegrationTips,
+  ): Promise<boolean> => {
+    const seed = await readConfig(SEED_COMMIT_KEY);
+    if (seed === null) {
+      return false;
+    }
+    if (seed !== tips.head) {
+      await run(["config", "--unset-all", SEED_COMMIT_KEY]);
+      return false;
+    }
+    await run(["checkout", "-q", "--no-track", "-B", branch, remoteRef, "--"]);
+    await reportMovedTree(tips.head, tips.remote);
+    await run(["config", "--unset-all", SEED_COMMIT_KEY]);
+    args.onNotice?.(
+      `this vault held only its starter notes, so it took the history of ` +
+        `${redactRemoteUrl(remote.url)} in their place rather than merging the two`,
+    );
+    return true;
+  };
+
   // under the lock, between the fetch and the push. false ends the pass before its push.
-  const integrateFetched = async (branch: string, remoteHasBranch: boolean): Promise<boolean> => {
+  const integrateFetched = async (
+    remote: VaultRemoteSpec,
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<boolean> => {
     // the lock was free across the fetch: a turn may have taken its hold and begun writing,
     // and a dispose may have run the final flush.
     if (disposed || liveHolds.size > 0) {
@@ -813,6 +853,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       remote: await revParse(remoteRef),
     };
     if (await isAncestor(tips.remote, tips.head)) {
+      return true;
+    }
+    if (await yieldSeededHistory(remote, branch, remoteRef, tips)) {
+      lastOutcome = { kind: "none" };
       return true;
     }
     if (failedMerge?.head === tips.head && failedMerge.remote === tips.remote) {
@@ -862,7 +906,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
     const pushing = await withRepoLock(
       async () =>
-        (await integrateFetched(branch, remoteHasBranch)) &&
+        (await integrateFetched(remote, branch, remoteHasBranch)) &&
         !(await repeatsRefusedPush(remote, branch, remoteHasBranch)),
     );
     if (!pushing) {

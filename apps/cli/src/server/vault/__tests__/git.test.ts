@@ -22,7 +22,7 @@ import { writeDeviceCredential } from "../../cloud/credential-store";
 import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../../cloud/vault-remote";
 import type { VaultRemoteSpec } from "../../cloud/vault-remote";
 import { REMOTE_MARKER_KEY } from "../folder-facts";
-import { ensureVaultRepo } from "../git-bootstrap";
+import { ensureVaultRepo, SEED_COMMIT_KEY } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
@@ -69,22 +69,37 @@ const makeEngine = async (args: {
   // also the bootstrap's committer, so two devices' first commits are two histories
   device?: string;
   reconcile?: Reconcile;
+  // given, the vault is a folder the bootstrap creates and seeds, unless `root` already exists
+  seed?: EnsureVaultRepoArgs["seed"];
 }): Promise<{
   root: string;
   engine: GitEngine;
   statusChanges: () => number;
   filesChanges: () => VaultFilesChange[];
+  notices: () => string[];
 }> => {
-  const root = args.root ?? scratchDir("inteligir-git-vault-");
+  const root =
+    args.root ??
+    (args.seed === undefined
+      ? scratchDir("inteligir-git-vault-")
+      : path.join(scratchDir("inteligir-git-seeded-"), "vault"));
   const device = args.device ?? TEST_DEVICE;
-  await ensureVaultRepo({ deviceName: device, env, root });
+  const bootstrap: EnsureVaultRepoArgs = { deviceName: device, env, root };
+  if (args.seed !== undefined) {
+    bootstrap.seed = args.seed;
+  }
+  await ensureVaultRepo(bootstrap);
   let statusChanges = 0;
   const filesChanges: VaultFilesChange[] = [];
+  const notices: string[] = [];
   const engineArgs: GitEngineArgs = {
     deviceName: () => device,
     env: { ...env, ...args.env },
     onFilesChanged: (change) => {
       filesChanges.push(change);
+    },
+    onNotice: (message) => {
+      notices.push(message);
     },
     onStatusChanged: () => {
       statusChanges += 1;
@@ -103,6 +118,7 @@ const makeEngine = async (args: {
   return {
     engine,
     filesChanges: () => [...filesChanges],
+    notices: () => [...notices],
     root,
     statusChanges: () => statusChanges,
   };
@@ -1491,6 +1507,120 @@ describe("a pass that pulls", { timeout: 30_000 }, () => {
   });
 });
 
+const STARTER_WELCOME = "# Welcome\n\nThe note every new vault starts with.\n";
+const WELCOME_ON_A = "# Welcome\n\nRewritten on A.\n";
+
+const seedStarters = async (dir: string): Promise<void> => {
+  await writeFile(path.join(dir, "Welcome.md"), STARTER_WELCOME, "utf-8");
+  await writeFile(path.join(dir, "Tour.md"), "# Tour\n\nA second starter.\n", "utf-8");
+};
+
+const seedMarker = async (root: string): Promise<string | null> => {
+  try {
+    const { stdout } = await runGit(root, ["config", "--get", SEED_COMMIT_KEY], { env });
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+};
+
+// A seeded, rewrote one starter, deleted the other, wrote a note of its own and pushed it all.
+const accountWithHistory = async () => {
+  const remote = await makeBareRemote();
+  const a = await makeEngine({ device: DEVICE_A, remoteUrl: remote, seed: seedStarters });
+  await commitFile(a, "Welcome.md", WELCOME_ON_A);
+  await commitRemoval(a, "Tour.md");
+  await commitFile(a, "only-on-a.md", "# Only on A\n");
+  expect(await syncState(a.engine)).toBe("clean");
+  return { a, remote };
+};
+
+describe("a starter vault meeting a remote with history", { timeout: 30_000 }, () => {
+  it("records the commit it seeded, and only for a folder it seeded", async () => {
+    const seeded = await makeEngine({ remoteUrl: null, seed: seedStarters });
+    expect(await seedMarker(seeded.root)).toBe(await tipOf(seeded.root, "HEAD"));
+    expect(await trackedFiles(seeded.root)).toEqual(["Tour.md", "Welcome.md"]);
+
+    const opened = await makeEngine({ remoteUrl: null });
+    expect(await seedMarker(opened.root)).toBeNull();
+  });
+
+  it("takes the remote's history whole: no starter kept over it, copied aside or brought back", async () => {
+    const { a, remote } = await accountWithHistory();
+    const b = await makeEngine({ device: DEVICE_B, remoteUrl: remote, seed: seedStarters });
+
+    const status = await b.engine.syncNow();
+    expect(status.state).toBe("clean");
+    expect(status.conflicts).toEqual([]);
+    expect(await tipOf(b.root, "HEAD")).toBe(await tipOf(a.root, "HEAD"));
+    expect(await treeOf(b.root)).toBe(await treeOf(a.root));
+    expect(await conflictCopies(b.root)).toEqual([]);
+    expect(await readVault(b, "Welcome.md")).toBe(WELCOME_ON_A);
+    expect(existsSync(path.join(b.root, "Tour.md"))).toBe(false);
+    expect(await seedMarker(b.root)).toBeNull();
+    expect(b.filesChanges()).toEqual([
+      { kind: "paths", paths: ["Tour.md", "Welcome.md", "only-on-a.md"] },
+    ]);
+    expect(b.notices()).toHaveLength(1);
+    await expectCleanRepo(b.root);
+
+    const aHead = await tipOf(a.root, "HEAD");
+    expect(await syncState(a.engine)).toBe("clean");
+    expect(await tipOf(a.root, "HEAD")).toBe(aHead);
+    expect(await syncState(b.engine)).toBe("clean");
+    expect(b.notices()).toHaveLength(1);
+  });
+
+  it("merges as ever once anything was written here, and keeps what was written", async () => {
+    const { remote } = await accountWithHistory();
+    const b = await makeEngine({ device: DEVICE_B, remoteUrl: remote, seed: seedStarters });
+    await commitFile(b, "Welcome.md", "# Welcome\n\nRewritten on B.\n");
+
+    expect(await syncState(b.engine)).toBe("clean");
+    expect(await readVault(b, "Welcome.md")).toBe("# Welcome\n\nRewritten on B.\n");
+    expect(await readVault(b, "Welcome (conflict, Device A).md")).toBe(WELCOME_ON_A);
+    expect(await readVault(b, "only-on-a.md")).toBe("# Only on A\n");
+    expect(await seedMarker(b.root)).toBeNull();
+    expect(b.notices()).toEqual([]);
+  });
+
+  it("never takes over a folder it did not seed, whatever it holds", async () => {
+    const { remote } = await accountWithHistory();
+    const root = scratchDir("inteligir-git-opened-");
+    await writeFile(path.join(root, "Welcome.md"), STARTER_WELCOME, "utf-8");
+    const b = await makeEngine({ device: DEVICE_B, remoteUrl: remote, root });
+
+    expect(await syncState(b.engine)).toBe("clean");
+    expect(await readVault(b, "Welcome.md")).toBe(STARTER_WELCOME);
+    expect(await conflictCopies(b.root)).toEqual(["Welcome (conflict, Device A).md"]);
+    expect(b.notices()).toEqual([]);
+  });
+
+  it("keeps the seed's claim across a restart", async () => {
+    const { a, remote } = await accountWithHistory();
+    const root = path.join(scratchDir("inteligir-git-restarted-"), "vault");
+    const before = await makeEngine({
+      device: DEVICE_B,
+      remoteUrl: null,
+      root,
+      seed: seedStarters,
+    });
+    const seed = await tipOf(root, "HEAD");
+    await before.engine.dispose();
+
+    const after = await makeEngine({
+      device: DEVICE_B,
+      remoteUrl: remote,
+      root,
+      seed: seedStarters,
+    });
+    expect(await seedMarker(root)).toBe(seed);
+    expect(await syncState(after.engine)).toBe("clean");
+    expect(await treeOf(root)).toBe(await treeOf(a.root));
+    expect(await seedMarker(root)).toBeNull();
+  });
+});
+
 const gitEnvValue = async (root: string, name: string): Promise<string> => {
   const { stdout } = await runGit(
     root,
@@ -1924,15 +2054,20 @@ describe("the bootstrap port", () => {
     env: Record<string, string> | undefined;
   }
 
-  // answers --git-path as a plain repo would; the bootstrap makes the dir it appends in.
+  const FAKE_HEAD = "f".repeat(40);
+
+  // answers --git-path as a plain repo would, and HEAD once a commit ran; the bootstrap makes the
+  // dir it appends in.
   const fakeGit = (clone: "missing" | "failed") => {
     const calls: Invocation[] = [];
+    let born = false;
     const run = async (
       cwd: string,
       args: readonly string[],
       options: { timeoutMs?: number; env?: Record<string, string> } = {},
     ): Promise<{ stdout: string }> => {
       calls.push({ args: [...args], cwd, env: options.env, timeoutMs: options.timeoutMs });
+      born ||= args.includes("commit");
       switch (args[0]) {
         case "clone": {
           throw new GitError(
@@ -1945,6 +2080,9 @@ describe("the bootstrap port", () => {
         case "rev-parse": {
           if (args[1] === "--git-path") {
             return { stdout: `.git/${args[2] ?? ""}\n` };
+          }
+          if (born) {
+            return { stdout: `${FAKE_HEAD}\n` };
           }
           throw new GitError("git rev-parse failed", "");
         }
@@ -1959,7 +2097,7 @@ describe("the bootstrap port", () => {
     return { calls, run };
   };
 
-  it("drives clone-miss → init → seed → born HEAD through the injected run, staging nothing", async () => {
+  it("drives clone-miss → init → seed → the seed's own first commit through the injected run, and records it", async () => {
     const root = path.join(scratchDir("inteligir-git-port-"), "vault");
     const fake = fakeGit("missing");
     let seeded = false;
@@ -1986,14 +2124,18 @@ describe("the bootstrap port", () => {
       "rev-parse --git-path",
       "rev-parse --git-path",
       "rev-parse --verify",
+      "add -A",
       "-c commit.gpgsign=false",
+      "rev-parse --verify",
+      `config ${SEED_COMMIT_KEY}`,
     ]);
     const [clone] = fake.calls;
     expect(clone?.cwd).not.toBe(root);
     expect(clone?.timeoutMs).toBe(120_000);
-    const commit = fake.calls.at(-1);
+    const commit = fake.calls.find((call) => call.args.includes("commit"));
     expect(commit?.args).toContain("vault: initialize");
     expect(commit?.env?.GIT_AUTHOR_NAME).toBe("inteligir");
+    expect(fake.calls.at(-1)?.args).toEqual(["config", SEED_COMMIT_KEY, FAKE_HEAD]);
   });
 
   it("boots EMPTY on a clone failure that is not a missing repo", async () => {
@@ -2014,6 +2156,7 @@ describe("the bootstrap port", () => {
     });
     expect(seeded).toBe(false);
     expect(fake.calls.at(-1)?.args).toContain("vault: initialize");
+    expect(fake.calls.some((call) => call.args.includes("add"))).toBe(false);
   });
 });
 

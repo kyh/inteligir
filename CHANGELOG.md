@@ -111,6 +111,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **What an agent deletes** is committed with the rest of its action, rather than landing in the next automatic commit.
 - **`inteligir open`** against a server started without the app's interface says how to fix it, instead of opening a link that leads nowhere.
 - **Your phone** no longer re-reads the whole notes list on every refresh when nothing in the vault changed.
+- **A second Mac gets your notes as they are.** Signing in on a Mac whose vault still holds only the starter notes it was created with now brings your account's notes exactly as they are: your own Welcome note rather than the starter one with yours saved beside it as a conflict copy, and no starter note you deleted coming back. A vault you have already written in combines with your account's notes as before.
 
 ### On the command line
 

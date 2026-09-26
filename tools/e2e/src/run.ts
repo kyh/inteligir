@@ -23,6 +23,7 @@ import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { extractNoteBrowser } from "./scenarios/extract-note-browser";
 import { hostedVaultPhoneWrite } from "./scenarios/hosted-vault-phone-write";
+import { hostedVaultSecondMac } from "./scenarios/hosted-vault-second-mac";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { phoneDispatchHosted } from "./scenarios/phone-dispatch-hosted";
@@ -48,6 +49,7 @@ const SCENARIOS: readonly Scenario[] = [
   slowStorage,
   vaultSync,
   hostedVaultSync,
+  hostedVaultSecondMac,
   hostedVaultPhoneWrite,
   phoneOfflineEdit,
   phoneFileOpsHosted,

@@ -108,6 +108,10 @@ what each one is FOR.
 | hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
 |                           | convergence through the derived remote, boot clone, a same-line edit      |
 |                           | copied aside under the signed-in device's name, revoke → unauthorized     |
+| hosted-vault-second-mac   | A signs in, rewrites the starter Welcome.md and syncs; B boots fresh with |
+|                           | its own starter notes, signs in to the same account and syncs: B lands on |
+|                           | A's history byte for byte, with no conflict copy and A's note searchable, |
+|                           | and A's next sync takes nothing                                           |
 | hosted-vault-phone-write  | a second login plays the phone against a wrangler-dev Worker: its change  |
 |                           | set lands and A syncs its bytes, history naming the phone; a stale set    |
 |                           | gets A's bytes back as a conflict, and a recommit on them converges       |
