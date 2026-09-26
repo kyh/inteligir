@@ -95,118 +95,123 @@ against the hosted vault (`hosted-vault.ts`).
 `pnpm e2e --list` prints this table from the registry itself; what follows is
 what each one is FOR.
 
-| name                      | proves                                                                    |
-| ------------------------- | ------------------------------------------------------------------------- |
-| vault-crud                | write/read/rename/delete over the wire, bytes verified on disk; refused   |
-|                           | ops verified to leave the disk untouched                                  |
-| slow-storage              | a doc whose read stalls 30s (`INTELIGIR_SLOW_READS`): the reconcile       |
-|                           | finishes and search answers without it, the boot line counts it deferred, |
-|                           | and it is indexed once its read lands                                     |
-| vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):     |
-|                           | propagation, then a same-line edit merged with a copy aside, both repos   |
-|                           | converged byte-identical and left mid-nothing                             |
-| hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
-|                           | convergence through the derived remote, boot clone, a same-line edit      |
-|                           | copied aside under the signed-in device's name, revoke → unauthorized     |
-| hosted-vault-phone-write  | a second login plays the phone against a wrangler-dev Worker: its change  |
-|                           | set lands and A syncs its bytes, history naming the phone; a stale set    |
-|                           | gets A's bytes back as a conflict, and a recommit on them converges       |
-| phone-offline-edit        | the phone's own runtime (`composeRuntime` under node, over node's sqlite) |
-|                           | edits a note offline while A edits it too; reconnected, a far edit lands  |
-|                           | merged with A's, and a same-line one keeps the phone's version with A's   |
-|                           | as the copy the phone named, both on A's disk after A syncs               |
-| phone-file-ops-hosted     | the phone's own runtime creates a note, renames one another note links    |
-|                           | to, deletes one with a comment and adds a photo; after A syncs, A holds   |
-|                           | the rewritten link, the old name as the note's alias, no comment store    |
-|                           | and the photo's bytes                                                     |
-| phone-editor-page         | the phone's editor page, built through turbo, loads from `file://` at     |
-|                           | 390×844 with a scripted phone on its bridge: a typed paragraph writes     |
-|                           | exactly the note's new bytes under its read base, typing in a tab panel   |
-|                           | or on a chart writes nothing, a nonce-less frame is ignored, an announced |
-|                           | change reloads the buffer, a write the phone finds changed lands merged   |
-|                           | and shows, and Ask agent and a wiki link tap reach the native end         |
-| thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
-|                           | socket opens, and B holds A's timeline before its poll timer could run,   |
-|                           | so the Durable Object's ping is what delivered it                         |
-| phone-dispatch-hosted     | a second login plays the phone: its request waits with no desktop online  |
-|                           | until A signs in and runs it over the note it named, the reply naming the |
-|                           | note and the phone's pull holding the request; with A and B both          |
-|                           | listening, exactly one runs the next, before a poll could                 |
-| account-hosted            | an account created in the app (`cloud.signUp`) against a wrangler-dev     |
-|                           | Worker signs that instance in as it; the invite is spent, so a second     |
-|                           | sign-up with it is FORBIDDEN; a second instance signs in with the same    |
-|                           | email and password                                                        |
-| built-worker-boot         | the vite-built bundle — what `wrangler deploy` ships — boots under        |
-|                           | wrangler dev and answers; built through turbo on every run, so it is the  |
-|                           | current source, and the one place a module-scope crash of the emitted     |
-|                           | module can show                                                           |
-| built-cli-boot            | the esbuild bundle — what npm and the .app run — boots in production      |
-|                           | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
-|                           | write, hears an on-disk write through its forked watcher, and answers a   |
-|                           | client verb run from the same split bundle                                |
-| desktop-shell             | the built Electron shell over DevTools: the window is on `inteligir://`,  |
-|                           | the rail and a note ride the protocol handler's bearer, an API write      |
-|                           | reaches the open editor through the socket, `window.open` is denied, the  |
-|                           | microphone reads denied, Reveal refuses a symlink out of the vault, a     |
-|                           | switch boots a new child on the new vault, and a SIGTERM quit stops it    |
-|                           | and retracts `server.json`                                                |
-| desktop-diagnostics       | the shell's debug-logging choice, seeded in its own userData, reaches the |
-|                           | server it forks, whose output always lands in the data dir's              |
-|                           | `logs/server.log`: off, the boot line and no trace; on, an external write |
-|                           | traced there, the bridge reports the choice, and turning it off asks for  |
-|                           | a restart                                                                 |
-| desktop-onboarding        | the built shell on a fresh home opens only its first-run page and boots   |
-|                           | nothing; Create with the defaults boots the default vault, and the app    |
-|                           | window replaces the page on `/welcome` over the seeded vault; finishing   |
-|                           | shows Welcome.md, and a relaunch goes straight to the app                 |
-| threads-scripted          | a turn through the scripted driver: send, settle, timeline, and the note  |
-|                           | its changes name under the turn's own id                                  |
-| action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
-|                           | CAS write guards the save (typed conflict, current bytes in the body);    |
-|                           | a rename drags the attachment along — all verified on disk                |
-| undo-scripted             | undoing the second of two scripted turns leaves the first turn's text     |
-|                           | and a line the user added since, on disk and through `vault.read`; the    |
-|                           | first turn's note is then kept as edited since, and an untouched turn's   |
-|                           | undo removes the note it made                                             |
-| cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get    |
-|                           | resolves against this checkout; a byte copy's shared id is listed, and    |
-|                           | `vault new-id` gives it its own on the same line with a copy of the store |
-| debug-log                 | `INTELIGIR_DEBUG` traces what the watcher kept and dropped and the        |
-|                           | index's verdict, by path and never by content or credential; an instance  |
-|                           | without it writes no debug line                                           |
-| browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,    |
-|                           | API reached, the palette chord safe, clean console after a settle window  |
-| note-create-browser       | a note created through the session — the sidebar's New note, the inline   |
-|                           | name, Enter — lands on disk as the file a user would go looking for       |
-| editor-constructs-browser | every live-preview construct renders in a real browser (jsdom has no      |
-|                           | layout, so the unit suite cannot prove a widget survived the bundle and   |
-|                           | a measure pass), and the file is re-read to prove rendering wrote no      |
-|                           | bytes                                                                     |
-| slash-menu-browser        | a typed slash opens the menu, and the picked construct lands in the file  |
-| external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
-|                           | clobbering                                                                |
-| view-context-browser      | the agent is told which note the message left from, and at what revision  |
-| undo-browser              | a ⌘K action's finish toast offers Undo, which removes the note it made    |
-|                           | and the reply says Changes undone; a reply's Undo changes, clicked inside |
-|                           | the autosave debounce, takes its turn back and keeps a line typed since,  |
-|                           | on disk and in the editor                                                 |
-| settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
-|                           | dialog on that route, and a refused connector add toasts there; signed    |
-|                           | out, Create an account asks for an invite code, and a sign-up the cloud   |
-|                           | cannot answer says so and keeps what was typed                            |
-| agent-sign-in-browser     | signed out, ⌘K offers Sign in with Claude in place of the field; the      |
-|                           | login (a fake claude, `tools/e2e/src/fixtures/fake-claude.mjs`) takes the |
-|                           | code pasted from its page and the field opens; Settings shows Claude      |
-|                           | signed in and ChatGPT under Other; a send on the real bundled codex,      |
-|                           | signed out under the instance's empty store, puts ChatGPT's sign-in above |
-|                           | the reply                                                                 |
-| vault-search-browser      | the palette's vault search lists every match; Enter lands the find bar on |
-|                           | one; Replace all rewrites the notes on disk                               |
-| tree-ops-browser          | the tree's row menu pins a note into its frontmatter, and a drag moves it |
-| extract-note-browser      | the selection toolbar extracts the selected block to a new note and       |
-|                           | leaves a link                                                             |
-| remote-content-browser    | under the built bundle's CSP a remote embed is an unloaded card, and an   |
-|                           | html block's Run executes its script under its own policy                 |
+| name                       | proves                                                                    |
+| -------------------------- | ------------------------------------------------------------------------- |
+| vault-crud                 | write/read/rename/delete over the wire, bytes verified on disk; refused   |
+|                            | ops verified to leave the disk untouched                                  |
+| slow-storage               | a doc whose read stalls 30s (`INTELIGIR_SLOW_READS`): the reconcile       |
+|                            | finishes and search answers without it, the boot line counts it deferred, |
+|                            | and it is indexed once its read lands                                     |
+| vault-sync                 | two instances + one bare remote (auto-sync off, every sync explicit):     |
+|                            | propagation, then a same-line edit merged with a copy aside, both repos   |
+|                            | converged byte-identical and left mid-nothing                             |
+| hosted-vault-sync          | the hosted loop for real: a wrangler-dev Worker, production login,        |
+|                            | convergence through the derived remote, boot clone, a same-line edit      |
+|                            | copied aside under the signed-in device's name, revoke → unauthorized     |
+| hosted-vault-phone-write   | a second login plays the phone against a wrangler-dev Worker: its change  |
+|                            | set lands and A syncs its bytes, history naming the phone; a stale set    |
+|                            | gets A's bytes back as a conflict, and a recommit on them converges       |
+| phone-offline-edit         | the phone's own runtime (`composeRuntime` under node, over node's sqlite) |
+|                            | edits a note offline while A edits it too; reconnected, a far edit lands  |
+|                            | merged with A's, and a same-line one keeps the phone's version with A's   |
+|                            | as the copy the phone named, both on A's disk after A syncs               |
+| phone-file-ops-hosted      | the phone's own runtime creates a note, renames one another note links    |
+|                            | to, deletes one with a comment and adds a photo; after A syncs, A holds   |
+|                            | the rewritten link, the old name as the note's alias, no comment store    |
+|                            | and the photo's bytes                                                     |
+| phone-editor-page          | the phone's editor page, built through turbo, loads from `file://` at     |
+|                            | 390×844 with a scripted phone on its bridge: a typed paragraph writes     |
+|                            | exactly the note's new bytes under its read base, typing in a tab panel   |
+|                            | or on a chart writes nothing, a nonce-less frame is ignored, an announced |
+|                            | change reloads the buffer, a write the phone finds changed lands merged   |
+|                            | and shows, and Ask agent and a wiki link tap reach the native end         |
+| thread-sync-hosted         | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
+|                            | socket opens, and B holds A's timeline before its poll timer could run,   |
+|                            | so the Durable Object's ping is what delivered it                         |
+| phone-dispatch-hosted      | a second login plays the phone: its request waits with no desktop online  |
+|                            | until A signs in and runs it over the note it named, the reply naming the |
+|                            | note and the phone's pull holding the request; with A and B both          |
+|                            | listening, exactly one runs the next, before a poll could                 |
+| account-hosted             | an account created in the app (`cloud.signUp`) against a wrangler-dev     |
+|                            | Worker signs that instance in as it; the invite is spent, so a second     |
+|                            | sign-up with it is FORBIDDEN; a second instance signs in with the same    |
+|                            | email and password                                                        |
+| onboarding-account-browser | `/welcome`'s account step against a wrangler-dev Worker opens on Create;  |
+|                            | an account made there with the invite code signs the instance in, its     |
+|                            | vault syncs through that account, and the page moves on by itself to      |
+|                            | Welcome.md                                                                |
+| built-worker-boot          | the vite-built bundle — what `wrangler deploy` ships — boots under        |
+|                            | wrangler dev and answers; built through turbo on every run, so it is the  |
+|                            | current source, and the one place a module-scope crash of the emitted     |
+|                            | module can show                                                           |
+| built-cli-boot             | the esbuild bundle — what npm and the .app run — boots in production      |
+|                            | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
+|                            | write, hears an on-disk write through its forked watcher, and answers a   |
+|                            | client verb run from the same split bundle                                |
+| desktop-shell              | the built Electron shell over DevTools: the window is on `inteligir://`,  |
+|                            | the rail and a note ride the protocol handler's bearer, an API write      |
+|                            | reaches the open editor through the socket, `window.open` is denied, the  |
+|                            | microphone reads denied, Reveal refuses a symlink out of the vault, a     |
+|                            | switch boots a new child on the new vault, and a SIGTERM quit stops it    |
+|                            | and retracts `server.json`                                                |
+| desktop-diagnostics        | the shell's debug-logging choice, seeded in its own userData, reaches the |
+|                            | server it forks, whose output always lands in the data dir's              |
+|                            | `logs/server.log`: off, the boot line and no trace; on, an external write |
+|                            | traced there, the bridge reports the choice, and turning it off asks for  |
+|                            | a restart                                                                 |
+| desktop-onboarding         | the built shell on a fresh home opens only its first-run page and boots   |
+|                            | nothing; Create with the defaults boots the default vault, and the app    |
+|                            | window replaces the page on `/welcome` over the seeded vault; skipping    |
+|                            | the agent and the account shows Welcome.md, and a relaunch goes straight  |
+|                            | to the app                                                                |
+| threads-scripted           | a turn through the scripted driver: send, settle, timeline, and the note  |
+|                            | its changes name under the turn's own id                                  |
+| action-scripted            | an action attaches to its note; a scripted turn writes the vault; the     |
+|                            | CAS write guards the save (typed conflict, current bytes in the body);    |
+|                            | a rename drags the attachment along — all verified on disk                |
+| undo-scripted              | undoing the second of two scripted turns leaves the first turn's text     |
+|                            | and a line the user added since, on disk and through `vault.read`; the    |
+|                            | first turn's note is then kept as edited since, and an untouched turn's   |
+|                            | undo removes the note it made                                             |
+| cli-drive                  | the CLI drives a real instance, and the env an agent's shell would get    |
+|                            | resolves against this checkout; a byte copy's shared id is listed, and    |
+|                            | `vault new-id` gives it its own on the same line with a copy of the store |
+| debug-log                  | `INTELIGIR_DEBUG` traces what the watcher kept and dropped and the        |
+|                            | index's verdict, by path and never by content or credential; an instance  |
+|                            | without it writes no debug line                                           |
+| browser-smoke              | headless page load: the REAL policy on the served document, SPA mount,    |
+|                            | API reached, the palette chord safe, clean console after a settle window  |
+| note-create-browser        | a note created through the session — the sidebar's New note, the inline   |
+|                            | name, Enter — lands on disk as the file a user would go looking for       |
+| editor-constructs-browser  | every live-preview construct renders in a real browser (jsdom has no      |
+|                            | layout, so the unit suite cannot prove a widget survived the bundle and   |
+|                            | a measure pass), and the file is re-read to prove rendering wrote no      |
+|                            | bytes                                                                     |
+| slash-menu-browser         | a typed slash opens the menu, and the picked construct lands in the file  |
+| external-edit-browser      | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
+|                            | clobbering                                                                |
+| view-context-browser       | the agent is told which note the message left from, and at what revision  |
+| undo-browser               | a ⌘K action's finish toast offers Undo, which removes the note it made    |
+|                            | and the reply says Changes undone; a reply's Undo changes, clicked inside |
+|                            | the autosave debounce, takes its turn back and keeps a line typed since,  |
+|                            | on disk and in the editor                                                 |
+| settings-browser           | /settings hosts the window-level surfaces: Sign out opens its confirm     |
+|                            | dialog on that route, and a refused connector add toasts there; signed    |
+|                            | out, Create an account asks for an invite code, and a sign-up the cloud   |
+|                            | cannot answer says so and keeps what was typed                            |
+| agent-sign-in-browser      | signed out, ⌘K offers Sign in with Claude in place of the field; the      |
+|                            | login (a fake claude, `tools/e2e/src/fixtures/fake-claude.mjs`) takes the |
+|                            | code pasted from its page and the field opens; Settings shows Claude      |
+|                            | signed in and ChatGPT under Other; a send on the real bundled codex,      |
+|                            | signed out under the instance's empty store, puts ChatGPT's sign-in above |
+|                            | the reply                                                                 |
+| vault-search-browser       | the palette's vault search lists every match; Enter lands the find bar on |
+|                            | one; Replace all rewrites the notes on disk                               |
+| tree-ops-browser           | the tree's row menu pins a note into its frontmatter, and a drag moves it |
+| extract-note-browser       | the selection toolbar extracts the selected block to a new note and       |
+|                            | leaves a link                                                             |
+| remote-content-browser     | under the built bundle's CSP a remote embed is an unloaded card, and an   |
+|                            | html block's Run executes its script under its own policy                 |
 
 ## Adding a scenario
 

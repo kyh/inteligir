@@ -75,8 +75,10 @@ apps/
                  @repo/api/local; `app/workspace.tsx` owns the note, the rail,
                  the palette and the panel; `app/note/` the guarded writes;
                  `app/palette/` the ⌘P pages; `app/sidebar/` the rail's
-                 Recent | Files | Deleted views; and `first-run/`, the page a
-                 launch with no vault opens, with no router and no server).
+                 Recent | Files | Deleted views; `app/onboarding/` the agent
+                 and account steps `/welcome` offers after a first run; and
+                 `first-run/`, the page a launch with no vault opens, with no
+                 router and no server).
                  The whole security surface is
                  the ORIGIN PIN (src/main/origin-pin.ts, pure + unit-tested):
                  one origin, top-level navigation away goes to the system
@@ -2177,11 +2179,24 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   exactly as a boot would before anything is written (`planFirstRunChoice`). An
   existing folder is plain markdown where it is, shown before it opens with what
   `inspectVaultFolder` says of it: its notes, a service that syncs it (which
-  keeps it, so the hosted vault stays off), an origin of its own. Until a vault
-  is open the updater still runs and the menus offer nothing that needs one.
-  `apps/desktop/src/main/first-run.ts`, `apps/desktop/src/first-run-state.ts`,
+  keeps it, so the hosted vault stays off), an origin of its own; a picked
+  switch later asks the outside-sync check alone (`folderExternalSync`), never
+  the walk and the git read. Until a vault is open the updater still runs and
+  the menus offer nothing that needs one. `/welcome` then offers the agent and
+  an account in turn, each skippable, the step in `?step=` beside the `?note=`
+  the workspace underneath mirrors (so its boot keeps the step), and composes
+  the shared controls rather than spelling either flow again: `AgentSignIn`,
+  or the default agent shown connected when the vendors' shared store already
+  holds a sign-in, then `AccountForm` opening on Create, whose sentence follows
+  where the vault already syncs, and which moves on by itself once the device
+  is signed in. Finishing carries the note the workspace booted on, Welcome.md
+  when the vault has one. `apps/desktop/src/main/first-run.ts`,
+  `apps/desktop/src/first-run-state.ts`,
   `apps/desktop/src/renderer/first-run/vault-step.tsx`,
-  `tools/e2e/src/scenarios/desktop-onboarding.ts`.
+  `apps/desktop/src/renderer/routes/_workspace/welcome.tsx`,
+  `apps/desktop/src/renderer/app/onboarding/account-step.tsx`,
+  `tools/e2e/src/scenarios/desktop-onboarding.ts`,
+  `tools/e2e/src/scenarios/onboarding-account-browser.ts`.
 
 - **THE .APP SHIPS ITS OWN GIT, AND RUNS IT WHERE THE MAC HAS NONE.** Every
   vault write, sync and history read is git, and so is an agent's own

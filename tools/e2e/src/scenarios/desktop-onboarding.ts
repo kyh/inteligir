@@ -2,20 +2,20 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { readServerFile } from "inteligir/server/server-file";
-import { parseEval } from "../harness/agent-browser";
+import { clickButtonIn, parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { SHELL_APP_URL, SHELL_FIRST_RUN_URL } from "../harness/desktop-shell";
 import type { DesktopShell, ShellPage } from "../harness/desktop-shell";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR } from "../harness/selectors";
+import { EDITOR, WELCOME_STEP, welcomeStep } from "../harness/selectors";
 
 // where main opens the app window after a first run (apps/desktop/src/main/index.ts)
 const WELCOME_URL = `${SHELL_APP_URL}welcome`;
 const WELCOME_NOTE = "Welcome.md";
 // the seeded note's heading (apps/cli/seed/Welcome.md)
 const WELCOME_HEADING = "Welcome to inteligir";
-const FINISH_LINE = "Your vault is ready";
+const STEP_ON_SCREEN = `document.querySelector('${WELCOME_STEP}')?.dataset.welcomeStep ?? "none"`;
 const BOOT_DEADLINE_MS = 90_000;
 const EDITOR_DEADLINE_MS = 30_000;
 
@@ -31,7 +31,7 @@ const shellState = async (shell: DesktopShell): Promise<ShellState> => ({
 
 export const desktopOnboarding: Scenario = {
   description:
-    "the built shell on a fresh home opens only its first run, with no server; Create with the defaults boots the default vault and replaces the page with the app on /welcome over the seeded vault; finishing shows Welcome.md; a relaunch goes straight to the app",
+    "the built shell on a fresh home opens only its first run, with no server; Create with the defaults boots the default vault and replaces the page with the app on /welcome over the seeded vault; skipping the agent and the account shows Welcome.md; a relaunch goes straight to the app",
   name: "desktop-onboarding",
   // a cold run downloads the Electron binary, and the shell launches twice
   timeoutMs: 300_000,
@@ -75,19 +75,18 @@ export const desktopOnboarding: Scenario = {
     const { content } = await shell.api.vault.read({ path: WELCOME_NOTE });
     expect(content.includes(WELCOME_HEADING), `the server reads another vault:\n${content}`);
 
-    ctx.log("finishing uncovers the workspace on Welcome.md");
+    ctx.log("skipping the agent and the account uncovers the workspace on Welcome.md");
     // the first-run page closed with its window; the app window is the only page left to bind,
     // and its url names /welcome before the route has drawn
     await browser(["connect", String(shell.cdpPort)], 60_000);
-    await browser(["wait", "--text", FINISH_LINE], EDITOR_DEADLINE_MS);
-    await browser(["find", "role", "button", "click", "--name", "Open my notes", "--exact"]);
-    const covered = `document.body.textContent.includes(${JSON.stringify(FINISH_LINE)}) ? "covered" : "uncovered"`;
+    await clickButtonIn(browser, welcomeStep("agent"), "Skip for now", EDITOR_DEADLINE_MS);
+    await clickButtonIn(browser, welcomeStep("account"), "Skip for now", EDITOR_DEADLINE_MS);
     await pollUntil(
-      async () => parseEval(await browser(["eval", covered]), z.string()),
-      (state) => state === "uncovered",
+      async () => parseEval(await browser(["eval", STEP_ON_SCREEN]), z.string()),
+      (step) => step === "none",
       {
         deadlineMs: EDITOR_DEADLINE_MS,
-        describe: () => "the welcome layer never left the workspace",
+        describe: (step) => `the welcome layer never left the workspace: still on ${step}`,
       },
     );
     await pollUntil(

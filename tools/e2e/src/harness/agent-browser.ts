@@ -2,6 +2,7 @@ import { z } from "zod";
 import { skip } from "./assert";
 import { describeExecError, exec } from "./exec";
 import type { AppInstance } from "./instance";
+import { pollUntil } from "./poll";
 import { EDITOR, SIDEBAR } from "./selectors";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
@@ -35,6 +36,31 @@ export const modChord = (key: string): string =>
 export const parseEval = <T>(raw: string, schema: z.ZodType<T>): T => {
   const text = z.string().parse(JSON.parse(raw));
   return schema.parse(/^[{[]/u.test(text) ? JSON.parse(text) : text);
+};
+
+// by exact text inside one scope: a covered workspace may still hold a button of the same name.
+const pressButtonIn = (scope: string, name: string): string => `(() => {
+  const root = document.querySelector(${JSON.stringify(scope)});
+  const button = root ? [...root.querySelectorAll("button")].find((el) => el.textContent.trim() === ${JSON.stringify(name)}) : null;
+  if (!button) return "missing";
+  if (button.disabled) return "disabled";
+  button.click();
+  return "clicked";
+})()`;
+
+// retried until it lands: the button may draw a moment after its scope does, and one pressed a
+// render before its state enables it is refused.
+export const clickButtonIn = async (
+  browser: AgentBrowser,
+  scope: string,
+  name: string,
+  deadlineMs = 30_000,
+): Promise<void> => {
+  await pollUntil(
+    async () => parseEval(await browser(["eval", pressButtonIn(scope, name)]), z.string()),
+    (outcome) => outcome === "clicked",
+    { deadlineMs, describe: (outcome) => `the ${name} button in ${scope} stayed ${outcome}` },
+  );
 };
 
 // teardown: a session that already died must not mask the failure the scenario is reporting.
