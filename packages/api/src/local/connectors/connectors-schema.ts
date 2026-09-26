@@ -1,17 +1,25 @@
-// secrets never transit a read: the write path accepts full header values, every response reduces them to hasAuth
+// a connector is a row of the default agent's own MCP config, read and written through the
+// vendor's bundled binary: the list is what the vendor holds, so it names the agent it belongs to.
 
 import { z } from "zod";
 
-export const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u;
+// what this app adds is a name no vendor flag can start with; a row the vendor already holds may
+// carry any name, and is only ever passed after `--`.
+export const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/u;
 export const CONNECTOR_NAME_MAX_LENGTH = 64;
 export const CONNECTOR_ARGS_MAX = 64;
-export const CONNECTOR_HEADERS_MAX = 16;
 
 export const connectorNameSchema = z
   .string()
   .min(1)
   .max(CONNECTOR_NAME_MAX_LENGTH)
-  .regex(CONNECTOR_NAME_PATTERN, "must use letters, numbers, '-' and '_' only");
+  .regex(
+    CONNECTOR_NAME_PATTERN,
+    "must start with a letter or number and use letters, numbers, '-' and '_' only",
+  );
+
+const VENDOR_ROW_NAME_MAX_LENGTH = 256;
+const vendorRowNameSchema = z.string().min(1).max(VENDOR_ROW_NAME_MAX_LENGTH);
 
 const HTTP_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
 
@@ -26,9 +34,8 @@ export const connectorUrlSchema = z
     }
   }, "must be an http:// or https:// URL");
 
-export const CONNECTOR_SCOPES_MAX = 32;
-
-export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
+export const connectorTargetInputSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("http"), url: connectorUrlSchema }).strict(),
   z
     .object({
       args: z.array(z.string().min(1)).max(CONNECTOR_ARGS_MAX),
@@ -36,143 +43,71 @@ export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
       kind: z.literal("stdio"),
     })
     .strict(),
-  z
-    .object({
-      headers: z
-        .record(z.string().min(1), z.string().min(1))
-        .refine((value) => Object.keys(value).length <= CONNECTOR_HEADERS_MAX, {
-          message: `at most ${String(CONNECTOR_HEADERS_MAX)} headers`,
-        })
-        .optional(),
-      kind: z.literal("http"),
-      url: connectorUrlSchema,
-    })
-    .strict(),
-  // tokens are never input: they arrive through the callback, live in the store, and read back as a status.
-  // the url alone is a whole row: the first authorize discovers the endpoints and registers a client.
-  // endpoints named by hand come as a pair and with a client id, because discovery is what finds a
-  // registration endpoint.
-  z
-    .object({
-      authorizationEndpoint: connectorUrlSchema.optional(),
-      clientId: z.string().min(1).optional(),
-      kind: z.literal("oauth"),
-      scopes: z.array(z.string().min(1)).max(CONNECTOR_SCOPES_MAX),
-      tokenEndpoint: connectorUrlSchema.optional(),
-      url: connectorUrlSchema,
-    })
-    .strict()
-    .superRefine((value, ctx) => {
-      if (value.authorizationEndpoint === undefined && value.tokenEndpoint === undefined) {
-        return;
-      }
-      if (value.authorizationEndpoint === undefined || value.tokenEndpoint === undefined) {
-        ctx.addIssue({
-          code: "custom",
-          message: "is required alongside the other endpoint",
-          path: [
-            value.authorizationEndpoint === undefined ? "authorizationEndpoint" : "tokenEndpoint",
-          ],
-        });
-        return;
-      }
-      if (value.clientId === undefined) {
-        ctx.addIssue({
-          code: "custom",
-          message: "is required when the endpoints are named",
-          path: ["clientId"],
-        });
-      }
-    }),
 ]);
-export type ConnectorTransportInput = z.infer<typeof connectorTransportInputSchema>;
+export type ConnectorTargetInput = z.infer<typeof connectorTargetInputSchema>;
 
-// needs-reauth: a refresh the provider refused
-export const connectorOauthStatusSchema = z.enum(["needs-auth", "connected", "needs-reauth"]);
-export type ConnectorOauthStatus = z.infer<typeof connectorOauthStatusSchema>;
-
-export const connectorTransportViewSchema = z.discriminatedUnion("kind", [
+// other: a transport the vendor holds and this app neither adds nor signs in to, named as the
+// vendor names it.
+export const connectorTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("http"), url: z.string().min(1) }).strict(),
   z
-    .object({
-      args: z.array(z.string()),
-      command: z.string().min(1),
-      kind: z.literal("stdio"),
-    })
+    .object({ args: z.array(z.string()), command: z.string().min(1), kind: z.literal("stdio") })
     .strict(),
-  z.object({ hasAuth: z.boolean(), kind: z.literal("http"), url: z.string().min(1) }).strict(),
-  // the endpoints and client id the row authorizes with, named or discovered; absent until known
-  z
-    .object({
-      authorizationEndpoint: z.string().min(1).optional(),
-      clientId: z.string().min(1).optional(),
-      kind: z.literal("oauth"),
-      scopes: z.array(z.string()),
-      status: connectorOauthStatusSchema,
-      tokenEndpoint: z.string().min(1).optional(),
-      url: z.string().min(1),
-    })
-    .strict(),
+  z.object({ kind: z.literal("other"), type: z.string().min(1) }).strict(),
 ]);
-export type ConnectorTransportView = z.infer<typeof connectorTransportViewSchema>;
+export type ConnectorTarget = z.infer<typeof connectorTargetSchema>;
+
+// the vendor's own answer: unknown is a vendor that keeps none it will say without connecting.
+export const connectorAuthSchema = z.enum(["signed-in", "needs-sign-in", "not-needed", "unknown"]);
+export type ConnectorAuth = z.infer<typeof connectorAuthSchema>;
+
+// a sign-in this server ran for the row. url: the address the vendor printed for a browser that
+// did not open, null until it prints one.
+export const connectorSignInSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("idle") }).strict(),
+  z.object({ state: z.literal("pending"), url: z.string().nullable() }).strict(),
+  z.object({ detail: z.string(), state: z.literal("failed") }).strict(),
+]);
+export type ConnectorSignIn = z.infer<typeof connectorSignInSchema>;
 
 export const connectorViewSchema = z
   .object({
-    enabled: z.boolean(),
+    auth: connectorAuthSchema,
     name: z.string().min(1),
-    transport: connectorTransportViewSchema,
+    signIn: connectorSignInSchema,
+    target: connectorTargetSchema,
   })
   .strict();
 export type ConnectorView = z.infer<typeof connectorViewSchema>;
 
-export const connectorTarget = (transport: ConnectorTransportView): string => {
-  switch (transport.kind) {
+export const connectorTargetText = (target: ConnectorTarget): string => {
+  switch (target.kind) {
     case "stdio": {
-      return [transport.command, ...transport.args].join(" ");
+      return [target.command, ...target.args].join(" ");
     }
-    case "http":
-    case "oauth": {
-      return transport.url;
+    case "http": {
+      return target.url;
+    }
+    case "other": {
+      return target.type;
     }
     // no default
   }
 };
 
+// the harness a new thread starts on, whose config every row is.
 export const connectorsResponseSchema = z
-  .object({ servers: z.array(connectorViewSchema) })
+  .object({
+    agent: z.object({ displayName: z.string().min(1), id: z.string().min(1) }).strict(),
+    servers: z.array(connectorViewSchema),
+  })
   .strict();
 export type ConnectorsResponse = z.infer<typeof connectorsResponseSchema>;
 
 export const connectorAddRequestSchema = z
-  .object({ name: connectorNameSchema, transport: connectorTransportInputSchema })
+  .object({ name: connectorNameSchema, target: connectorTargetInputSchema })
   .strict();
 export type ConnectorAddRequest = z.infer<typeof connectorAddRequestSchema>;
 
-export const connectorRemoveRequestSchema = z.object({ name: connectorNameSchema }).strict();
-export type ConnectorRemoveRequest = z.infer<typeof connectorRemoveRequestSchema>;
-
-export const connectorToggleRequestSchema = z
-  .object({ enabled: z.boolean(), name: connectorNameSchema })
-  .strict();
-export type ConnectorToggleRequest = z.infer<typeof connectorToggleRequestSchema>;
-
-// a plain route, not a procedure: the provider's consent page redirects a browser here, which wants a page
-export const CONNECTOR_OAUTH_CALLBACK_PATH = "/connectors/oauth/callback";
-
-export const connectorOauthBeginRequestSchema = z
-  .object({
-    name: connectorNameSchema,
-    // required, not defaulted: the caller that must say false is the one a default lets forget
-    open: z.boolean(),
-  })
-  .strict();
-export type ConnectorOauthBeginRequest = z.infer<typeof connectorOauthBeginRequestSchema>;
-
-export const connectorOauthBeginResponseSchema = z
-  .object({ opened: z.boolean(), url: z.string().min(1) })
-  .strict();
-export type ConnectorOauthBeginResponse = z.infer<typeof connectorOauthBeginResponseSchema>;
-
-export const connectorOauthDisconnectRequestSchema = z
-  .object({ name: connectorNameSchema })
-  .strict();
-export type ConnectorOauthDisconnectRequest = z.infer<typeof connectorOauthDisconnectRequestSchema>;
+export const connectorRowRequestSchema = z.object({ name: vendorRowNameSchema }).strict();
+export type ConnectorRowRequest = z.infer<typeof connectorRowRequestSchema>;

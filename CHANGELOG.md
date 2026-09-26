@@ -19,11 +19,12 @@ Everything since 0.4.0 (September 4, 2026).
 - **The app's own git runs skip your vault's git hooks.** A hook in the vault (`pre-commit`, `commit-msg`, `post-commit`, `pre-rebase`, `pre-push` and the rest) could refuse, stall or rewrite every automatic commit and sync. Your own commits and pushes still run them.
 - **Two computers adding to `Inbox.md` no longer jam sync.** Captures from your phone are kept from both sides. One side effect: a line you delete from `Inbox.md` on one computer can come back if the other added a capture at the same moment.
 - **Signing out frees the device.** Signing a computer out now removes it from your account's devices, so it stops counting toward the limit.
-- **A second vault starts fresh.** Every vault besides the first keeps its own sign-in, connectors and default agent, so it starts signed out, with no connectors and no default agent chosen. Settings says so where it matters.
-- **Agents ignore agent settings kept inside your vault.** Your vault syncs from other devices and git remotes, so a vault can no longer configure the agent that works in it. Claude Code skips the vault's `.claude` folder, `.mcp.json`, `CLAUDE.md` and `CLAUDE.local.md`, and MCP servers added with `claude mcp add` from inside the vault folder; Codex won't open on a vault that holds a `.codex` folder until you remove it. Instructions for the agent belong in the vault's `AGENTS.md`, which both agents still get. Add MCP servers in Settings › Connectors, or at user level in Claude Code (`claude mcp add --scope user`) or Codex (`~/.codex/config.toml`).
+- **A second vault starts fresh.** Every vault besides the first keeps its own sign-in and default agent, so it starts signed out, with no default agent chosen. Settings says so where it matters. Connectors belong to your agent, so every vault shares them.
+- **Agents ignore agent settings kept inside your vault.** Your vault syncs from other devices and git remotes, so a vault can no longer configure the agent that works in it. Claude Code skips the vault's `.claude` folder, `.mcp.json`, `CLAUDE.md` and `CLAUDE.local.md`, and MCP servers added with `claude mcp add` from inside the vault folder; Codex won't open on a vault that holds a `.codex` folder until you remove it. Instructions for the agent belong in the vault's `AGENTS.md`, which both agents still get. Add connectors in Settings › Connectors instead.
 - **What your `.gitignore` files leave out, the app leaves out too.** A folder or file a `.gitignore` in the vault names (a docs repo's `node_modules/` or build output, say) no longer shows in Files, ⌘P, search or links, and changes inside it no longer wake the app. A note you want to see again needs taking out of `.gitignore`.
 - **Dictation is your Mac's own.** The microphone button in the ⌘K composer, Settings › Voice and the downloaded speech model are gone, and the app no longer asks for the microphone; the model's folder is deleted on the first launch. To dictate, press fn twice (or the 🎤 key), or choose Edit › Start Dictation, wherever you type.
-- **`inteligir connectors` is gone.** Add and remove connectors in Settings › Connectors, or at user level in Claude Code (`claude mcp add --scope user`) or Codex (`~/.codex/config.toml`); a script that ran `inteligir connectors add` needs one of those instead.
+- **`inteligir connectors` is gone.** Add and remove connectors in Settings › Connectors, or with Claude Code's `claude mcp add --scope user` or Codex's `codex mcp add`, which edit the same list; a script that ran `inteligir connectors add` needs one of those instead.
+- **Connectors moved into your agent's own settings.** Settings › Connectors now shows and changes the connectors Claude or ChatGPT itself keeps, for the agent your new actions use, and signing in to one happens in your browser through that agent's own sign-in. Connectors you added in the app before are not carried over: add them again there (Linear, Notion, Context7 and Exa are one click). Turning a connector off without removing it is gone.
 
 ### New
 
@@ -42,7 +43,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **Files** sorts by name or by newest, and a right-click offers Reveal in Finder, Open with default app, Copy path and Copy absolute path.
 - **Choose where pasted images go**: the top of the vault, beside the note, or a folder (`assets/` unless you pick another), in Settings › Vault or with `inteligir vault attachments`.
 - **Choose your default agent**, Claude or ChatGPT, in Settings › Agents or with `inteligir agents default`. An action keeps the agent it started with.
-- **Add a connector by its address alone.** For an MCP server that signs in with OAuth, paste its URL; the app finds its sign-in page and registers itself.
+- **Connect Linear, Notion, Context7 or Exa in one click** in Settings › Connectors, or add another by its address or the command that runs it. One that needs a sign-in opens it in your browser.
 - **Spell check** can be turned off in Settings › Editor; outside macOS you can also pick its languages.
 - **A Keyboard shortcuts page** in ⌘P, spelled for your keyboard. ⌘, opens Settings, and `[` and `]` hide and show the sidebar and the panel while you are not typing.
 - **Facts about a note** in the Metadata tab's About section: where it lives, when it was changed and first created, its words, characters and reading time, and how many notes link to it. The word count and reading time also sit under the note.
@@ -100,7 +101,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **A browser tab whose sign-in stopped working**, say after the server restarted, shows one signed-out notice instead of an error for every request.
 - **Quitting during start-up** quits, and a vault switch that fails says so and goes back to the vault you had.
 - **`inteligir serve`** refuses to start a second server on the same data folder, and closing its terminal still saves pending changes to the vault.
-- **Settings.** Choice rows respond to the arrow keys, and a connector shows as connected as soon as its sign-in finishes.
+- **Settings.** Choice rows respond to the arrow keys, and a connector says so as soon as its sign-in finishes.
 - **A settings file the app cannot read** is reported by name instead of being treated as empty and overwritten.
 - **Typing in a long note is quicker**, and the save after you stop typing in one takes a fraction of the time it did.
 - **A vault on slow storage** (iCloud Drive files not yet downloaded, a sleeping disk, a network folder) no longer holds up search. A note that takes more than two seconds to read keeps its last search entry and catches up once it arrives.

@@ -9,22 +9,21 @@ import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
 import { resolveMigrationsFolder } from "../paths";
+import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import { createAgentsService } from "./agents/agents-service";
 import { listTurnChanges, undoTurnChanges } from "./agents/turn-changes";
 import { createBrowserSession } from "./browser-session";
 import { createCommentsService } from "./comments/comments-service";
-import { systemOpenExternalUrl } from "./browser-opener";
-import type { OpenExternalUrl } from "./browser-opener";
 import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import { createCloudRuntime } from "./cloud/sync-runtime";
 import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
-import { createConnectorsService } from "./connectors/connectors-service";
-import { ConnectorsStore } from "./connectors/connectors-store";
-import { createConnectorOauthFlow } from "./connectors/oauth-flow";
+import { createConnectorsService, createVendorMcpConfigs } from "./connectors/connectors-service";
+import { removeRetiredConnectorsFile } from "./connectors/retired-connectors-file";
+import type { VendorMcpConfigs } from "./connectors/vendor-mcp-config";
 import { debugLog } from "./debug-log";
 import { deviceNameReader, readMachineName } from "./device-name";
 import { messageOf } from "./error-message";
@@ -70,7 +69,8 @@ interface ComposeDriverDeps {
 export interface ComposePorts {
   // a suite runs the scan inline: a worker booted from source costs every compose seconds
   knowledge?: Pick<KnowledgeRuntimeArgs, "projector">;
-  openExternalUrl?: OpenExternalUrl;
+  // a suite's vendor configs live under its own temp dir; unset, each vendor's own on this Mac.
+  connectors?: VendorMcpConfigs;
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
   vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote" | "spawnWatcherChannel">>;
@@ -175,18 +175,24 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   });
   knowledgeRef = knowledge;
 
-  const connectorsStore = new ConnectorsStore(config.dataDir);
-  const connectors = createConnectorsService(connectorsStore);
-  const connectorsOauth = createConnectorOauthFlow(connectorsStore);
-  register("connectors", () => {
-    connectorsOauth.dispose();
-  });
   const folders = createFoldersService({
     dataDir: config.dataDir,
     store: new FoldersStore(config.dataDir),
     vaultDir: config.vaultDir,
   });
   const agentPrefs = new AgentPrefsStore(config.dataDir);
+  try {
+    removeRetiredConnectorsFile(config.dataDir);
+  } catch (error) {
+    console.warn(`[connectors] the retired registry was left in place: ${messageOf(error)}`);
+  }
+  const connectors = createConnectorsService({
+    configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
+    defaultHarness: () => defaultHarnessId(agentPrefs.read().defaultHarness ?? null),
+  });
+  register("connectors", async () => {
+    await connectors.dispose();
+  });
 
   const agentDriver = args.driver({
     agentPrefs,
@@ -273,10 +279,8 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     cloudPrefs,
     comments,
     connectors,
-    connectorsOauth,
     folders,
     knowledge,
-    openExternalUrl: ports.openExternalUrl ?? systemOpenExternalUrl,
     recordAgentWrites: agentDriver.recordAgentWrites,
     renameNote: async (from: string, to: string) =>
       await renameNoteWithLinkRewrite({ from, knowledge, service: vault.service, to }),

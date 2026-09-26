@@ -6,7 +6,7 @@ export const LOOPBACK_HOST = "127.0.0.1";
 
 const LOCAL_HOSTS = [LOOPBACK_HOST, "localhost"] as const;
 
-export const isLocalHostname = (hostname: string): boolean =>
+const isLocalHostname = (hostname: string): boolean =>
   LOCAL_HOSTS.some((local) => local === hostname);
 
 // a foreign hostname answers null: the server binds 127.0.0.1 only, and honoring

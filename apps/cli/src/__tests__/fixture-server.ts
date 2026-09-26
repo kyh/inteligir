@@ -6,8 +6,8 @@ import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
 import type {
   ConnectorsResponse,
-  ConnectorTransportInput,
-  ConnectorTransportView,
+  ConnectorTargetInput,
+  ConnectorView,
 } from "@repo/api/local/connectors/connectors-schema";
 import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import {
@@ -148,7 +148,7 @@ export const makeFixtureState = (): FixtureState => ({
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" },
   comments: new Map(),
   concurrentWrite: null,
-  connectors: { servers: [] },
+  connectors: { agent: { displayName: "Claude", id: "claude" }, servers: [] },
   dataDir: "/fixture/data",
   failWith: null,
   folders: { folders: [] },
@@ -290,55 +290,22 @@ const commentsRouter = {
   }),
 };
 
-const storedTransport = (transport: ConnectorTransportInput): ConnectorTransportView => {
-  if (transport.kind === "stdio") {
-    return { args: transport.args, command: transport.command, kind: "stdio" };
-  }
-  if (transport.kind === "oauth") {
-    return {
-      authorizationEndpoint: transport.authorizationEndpoint,
-      clientId: transport.clientId,
-      kind: "oauth",
-      scopes: transport.scopes,
-      status: "needs-auth",
-      tokenEndpoint: transport.tokenEndpoint,
-      url: transport.url,
-    };
-  }
-  return {
-    hasAuth: Object.keys(transport.headers ?? {}).length > 0,
-    kind: "http",
-    url: transport.url,
-  };
-};
+const connectorView = (name: string, target: ConnectorTargetInput): ConnectorView => ({
+  auth: target.kind === "http" ? "unknown" : "not-needed",
+  name,
+  signIn: { state: "idle" },
+  target,
+});
 
 const connectorsRouter = {
   add: base.connectors.add.handler(({ context, input, errors }) => {
     if (context.connectors.servers.some((row) => row.name === input.name)) {
       throw errors.ALREADY_EXISTS({ message: `"${input.name}" exists` });
     }
-    context.connectors.servers.push({
-      enabled: true,
-      name: input.name,
-      transport: storedTransport(input.transport),
-    });
+    context.connectors.servers.push(connectorView(input.name, input.target));
     return context.connectors;
   }),
   list: base.connectors.list.handler(({ context }) => context.connectors),
-  oauthBegin: base.connectors.oauthBegin.handler(({ context, input, errors }) => {
-    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
-    if (row === undefined) {
-      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
-    }
-    return { opened: input.open, url: `${FIXTURE_CLOUD_URL}/oauth/${input.name}/authorize` };
-  }),
-  oauthDisconnect: base.connectors.oauthDisconnect.handler(({ context, input, errors }) => {
-    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
-    if (row === undefined) {
-      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
-    }
-    return context.connectors;
-  }),
   remove: base.connectors.remove.handler(({ context, input, errors }) => {
     const before = context.connectors.servers.length;
     context.connectors.servers = context.connectors.servers.filter(
@@ -349,12 +316,15 @@ const connectorsRouter = {
     }
     return context.connectors;
   }),
-  toggle: base.connectors.toggle.handler(({ context, input, errors }) => {
+  signIn: base.connectors.signIn.handler(({ context, input, errors }) => {
     const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
     if (row === undefined) {
       throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
     }
-    row.enabled = input.enabled;
+    if (row.target.kind !== "http") {
+      throw errors.BAD_REQUEST({ message: `${input.name} is not a URL` });
+    }
+    row.signIn = { state: "pending", url: `${FIXTURE_CLOUD_URL}/oauth/${input.name}/authorize` };
     return context.connectors;
   }),
 };

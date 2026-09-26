@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
@@ -17,12 +19,13 @@ const STATUS_DEADLINE_MS = 30_000;
 const ALERT_DIALOG = '[role="alertdialog"][data-open]';
 const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null ? "gone" : "present"`;
 const TOAST = "[data-sonner-toast]";
-// by placeholder: the ids are React-minted per mount.
-const NAME_INPUT = 'input[placeholder="context7"]';
-const URL_INPUT = `input[placeholder="${CONNECTOR_URL}"]`;
-// exact label: `find text` would also match the "Add a connector" heading beside it.
+// the hand-written connector's form: the presets above it carry Add buttons of their own. by
+// placeholder inside it, since the ids are React-minted per mount.
+const CONNECTOR_FORM = 'form[aria-label="Another connector"]';
+const NAME_INPUT = `${CONNECTOR_FORM} input[placeholder="my-connector"]`;
+const URL_INPUT = `${CONNECTOR_FORM} input[placeholder="https://example.com"]`;
 const CLICK_ADD = `(() => {
-  const button = [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Add");
+  const button = document.querySelector('${CONNECTOR_FORM} button[type="submit"]');
   if (!button) return "missing";
   if (button.disabled) return "disabled";
   button.click();
@@ -67,7 +70,7 @@ const accountFieldsSchema = z.object({
 
 export const settingsBrowser: Scenario = {
   description:
-    "/settings hosts the dialog and the toaster: Sign out confirms, a refused add toasts, and signed out a refused sign-up keeps the form",
+    "/settings hosts the dialog and the toaster: Sign out confirms, a refused connector add toasts, and signed out a refused sign-up keeps the form",
   name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -80,11 +83,11 @@ export const settingsBrowser: Scenario = {
         });
       },
     });
-    // the row the form's add will collide with.
-    await app.api.connectors.add({
-      name: CONNECTOR_NAME,
-      transport: { kind: "http", url: CONNECTOR_URL },
-    });
+    // the row the form's add will collide with, in the claude store the instance runs claude over.
+    await writeFile(
+      path.join(app.vendorDirs.claudeConfigDir, ".claude.json"),
+      JSON.stringify({ mcpServers: { [CONNECTOR_NAME]: { type: "http", url: CONNECTOR_URL } } }),
+    );
 
     const agentBrowser = await ctx.browser("settings");
 
@@ -148,7 +151,7 @@ export const settingsBrowser: Scenario = {
     await agentBrowser(["wait", TOAST], 30_000);
     const toastText = await agentBrowser(["get", "text", TOAST]);
     expect(
-      toastText.includes("already exists"),
+      toastText.includes(`already has a connector named "${CONNECTOR_NAME}"`),
       `the toast did not carry the refusal:\n${toastText}`,
     );
 

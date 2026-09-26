@@ -1,154 +1,106 @@
+// Settings' connectors are the default agent's own, resolved per call from the stored choice, so a
+// change of agent moves the section to the other vendor's config at once. Every call on one vendor's
+// config waits for the one before it: two adds of one name would both pass the list's check, and
+// codex would let the second replace the first.
+
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   ConnectorAddRequest,
-  ConnectorTransportInput,
-  ConnectorView,
+  ConnectorsResponse,
 } from "@repo/api/local/connectors/connectors-schema";
-
-import { oauthServerOf } from "./connectors-store";
-import type {
-  ConnectorsStore,
-  StoredConnector,
-  StoredOauthTransport,
-  StoredTransport,
-} from "./connectors-store";
-
-export class ConnectorConflictError extends Error {
-  readonly kind: "already-exists" | "not-found";
-
-  constructor(kind: "already-exists" | "not-found", message: string) {
-    super(message);
-    this.name = "ConnectorConflictError";
-    this.kind = kind;
-  }
-}
-
-interface SessionMcpServer {
-  name: string;
-  transport: StoredTransport;
-}
+import type { VendorProcessContext } from "../agents/vendor-process";
+import { createClaudeMcpConfig } from "./claude-mcp-config";
+import { createCodexMcpConfig } from "./codex-mcp-config";
+import { createMcpSignIns } from "./mcp-sign-ins";
+import type { CreateMcpSignInsArgs } from "./mcp-sign-ins";
+import type { VendorMcpConfigs, VendorMcpServer } from "./vendor-mcp-config";
 
 export interface ConnectorsService {
-  list: () => ConnectorView[];
-  add: (request: ConnectorAddRequest) => ConnectorView[];
-  remove: (name: string) => ConnectorView[];
-  toggle: (name: string, enabled: boolean) => ConnectorView[];
-  enabledForSessions: () => SessionMcpServer[];
+  list: () => Promise<ConnectorsResponse>;
+  add: (request: ConnectorAddRequest) => Promise<ConnectorsResponse>;
+  remove: (name: string) => Promise<ConnectorsResponse>;
+  signIn: (name: string) => Promise<ConnectorsResponse>;
+  // ends every running sign-in with its vendor process.
+  dispose: () => Promise<void>;
 }
 
-const oauthStatus = (
-  transport: StoredOauthTransport,
-): "needs-reauth" | "needs-auth" | "connected" => {
-  if (transport.needsReauth === true) {
-    return "needs-reauth";
-  }
-  return transport.tokens === undefined ? "needs-auth" : "connected";
-};
+export interface CreateConnectorsServiceArgs {
+  configs: VendorMcpConfigs;
+  defaultHarness: () => HarnessId;
+  signInWindowMs?: CreateMcpSignInsArgs["windowMs"];
+}
 
-const toView = (row: StoredConnector): ConnectorView => {
-  if (row.transport.kind === "stdio") {
-    return {
-      enabled: row.enabled,
-      name: row.name,
-      transport: { args: row.transport.args, command: row.transport.command, kind: "stdio" },
-    };
-  }
-  if (row.transport.kind === "oauth") {
-    return {
-      enabled: row.enabled,
-      name: row.name,
-      transport: {
-        ...oauthServerOf(row.transport),
-        kind: "oauth",
-        scopes: row.transport.scopes,
-        status: oauthStatus(row.transport),
-        url: row.transport.url,
-      },
-    };
-  }
-  return {
-    enabled: row.enabled,
-    name: row.name,
-    transport: {
-      hasAuth: Object.keys(row.transport.headers ?? {}).length > 0,
-      kind: "http",
-      url: row.transport.url,
+export const createVendorMcpConfigs = (context: VendorProcessContext): VendorMcpConfigs => ({
+  claude: createClaudeMcpConfig(context),
+  codex: createCodexMcpConfig(context),
+});
+
+export const createConnectorsService = (args: CreateConnectorsServiceArgs): ConnectorsService => {
+  const signIns = createMcpSignIns(
+    args.signInWindowMs === undefined ? {} : { windowMs: args.signInWindowMs },
+  );
+  const chains = new Map<HarnessId, Promise<void>>();
+
+  const exclusive = async <T>(harness: HarnessId, work: () => Promise<T>): Promise<T> => {
+    const previous = chains.get(harness) ?? Promise.resolve();
+    const next = (async () => {
+      await previous;
+      return await work();
+    })();
+    chains.set(
+      harness,
+      (async () => {
+        try {
+          await next;
+        } catch {
+          // the rejection is the caller's; the chain only orders the next call.
+        }
+      })(),
+    );
+    return await next;
+  };
+
+  const answer = (harness: HarnessId, servers: VendorMcpServer[]): ConnectorsResponse => ({
+    agent: { displayName: HARNESSES[harness].displayName, id: harness },
+    servers: servers.map((server) => ({ ...server, signIn: signIns.state(harness, server.name) })),
+  });
+
+  // every call answers the whole list as the vendor holds it once the call's own work is done.
+  const onDefault = async (
+    work: (harness: HarnessId) => Promise<void> = async () => {
+      await Promise.resolve();
     },
+  ): Promise<ConnectorsResponse> => {
+    const harness = args.defaultHarness();
+    return await exclusive(harness, async () => {
+      await work(harness);
+      return answer(harness, await args.configs[harness].list());
+    });
+  };
+
+  return {
+    add: async (request) =>
+      await onDefault(async (harness) => {
+        const started = await args.configs[harness].add(request.name, request.target);
+        if (started !== null) {
+          signIns.adopt(harness, request.name, started);
+        }
+      }),
+    dispose: async () => {
+      await signIns.dispose();
+    },
+    list: async () => await onDefault(),
+    remove: async (name) =>
+      await onDefault(async (harness) => {
+        await signIns.forget(harness, name);
+        await args.configs[harness].remove(name);
+      }),
+    signIn: async (name) =>
+      await onDefault(async (harness) => {
+        if (!signIns.running(harness, name)) {
+          signIns.adopt(harness, name, await args.configs[harness].signIn(name));
+        }
+      }),
   };
 };
-
-const toStoredTransport = (input: ConnectorTransportInput): StoredTransport => {
-  if (input.kind === "stdio") {
-    return { args: input.args, command: input.command, kind: "stdio" };
-  }
-  if (input.kind === "oauth") {
-    const oauth: StoredOauthTransport = { kind: "oauth", scopes: input.scopes, url: input.url };
-    if (input.authorizationEndpoint !== undefined) {
-      oauth.authorizationEndpoint = input.authorizationEndpoint;
-    }
-    if (input.tokenEndpoint !== undefined) {
-      oauth.tokenEndpoint = input.tokenEndpoint;
-    }
-    if (input.clientId !== undefined) {
-      oauth.clientId = input.clientId;
-    }
-    return oauth;
-  }
-  const next: StoredTransport = { kind: "http", url: input.url };
-  if (input.headers !== undefined && Object.keys(input.headers).length > 0) {
-    next.headers = input.headers;
-  }
-  return next;
-};
-
-const requireRow = (servers: StoredConnector[], name: string): StoredConnector => {
-  const row = servers.find((candidate) => candidate.name === name);
-  if (row === undefined) {
-    throw new ConnectorConflictError("not-found", `No connector named "${name}" is configured`);
-  }
-  return row;
-};
-
-export const createConnectorsService = (store: ConnectorsStore): ConnectorsService => ({
-  add(request: ConnectorAddRequest): ConnectorView[] {
-    const servers = store.read();
-    if (servers.some((row) => row.name === request.name)) {
-      throw new ConnectorConflictError(
-        "already-exists",
-        `A connector named "${request.name}" already exists — remove it first, or pick another name`,
-      );
-    }
-    servers.push({
-      enabled: true,
-      name: request.name,
-      transport: toStoredTransport(request.transport),
-    });
-    store.write(servers);
-    return servers.map(toView);
-  },
-
-  enabledForSessions(): SessionMcpServer[] {
-    return store
-      .read()
-      .filter((row) => row.enabled)
-      .map((row) => ({ name: row.name, transport: row.transport }));
-  },
-
-  list(): ConnectorView[] {
-    return store.read().map(toView);
-  },
-
-  remove(name: string): ConnectorView[] {
-    const servers = store.read();
-    requireRow(servers, name);
-    const remaining = servers.filter((row) => row.name !== name);
-    store.write(remaining);
-    return remaining.map(toView);
-  },
-
-  toggle(name: string, enabled: boolean): ConnectorView[] {
-    const servers = store.read();
-    requireRow(servers, name).enabled = enabled;
-    store.write(servers);
-    return servers.map(toView);
-  },
-});

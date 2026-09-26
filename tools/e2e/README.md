@@ -43,7 +43,8 @@ scratch dir and tears everything down afterwards:
   `src/` under tsx in a checkout) or `built` (`dist/index.js` under
   `NODE_ENV=production`, what npm and the .app run). Scratch `data/` + `vault/`
   siblings, empty vendor stores of its own (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`,
-  so no instance runs the agent or asks its sign-in on the host's account), a
+  named on the instance as `vendorDirs`, so no instance runs the agent, asks
+  its sign-in or edits its connectors on the host's account), a
   reserved free port (bind races retry with a fresh port,
   bounded), health-gated on `/health` answering `{ok:true}`. Registered for
   teardown at SPAWN, before the health wait, and torn down as a process group
@@ -191,9 +192,14 @@ what each one is FOR.
 |                           | the autosave debounce, takes its turn back and keeps a line typed since,  |
 |                           | on disk and in the editor                                                 |
 | settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
-|                           | dialog on that route, and a refused connector add toasts there; signed    |
-|                           | out, Create an account asks for an invite code, and a sign-up the cloud   |
-|                           | cannot answer says so and keeps what was typed                            |
+|                           | dialog on that route, and a connector add that collides with a row in     |
+|                           | the instance's claude store toasts there; signed out, Create an account   |
+|                           | asks for an invite code, and a sign-up the cloud cannot answer says so    |
+|                           | and keeps what was typed                                                  |
+| connectors-browser        | Settings' connectors are the default agent's own config, through the real |
+|                           | bundled binaries: a URL added under Claude lands in the instance's        |
+|                           | `.claude.json`, a command added under ChatGPT in its codex `config.toml`, |
+|                           | and each Remove confirms and takes its row out of that file               |
 | agent-sign-in-browser     | signed out, ⌘K offers Sign in with Claude in place of the field; the      |
 |                           | login (a fake claude, `tools/e2e/src/fixtures/fake-claude.mjs`) takes the |
 |                           | code pasted from its page and the field opens; Settings shows Claude      |

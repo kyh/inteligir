@@ -14,8 +14,8 @@ export const TEARDOWN_BUDGETS_MS = {
   // cloud sync writes the db and the vault, so it stops above both.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
   agent: DEFAULT_STEP_TIMEOUT_MS,
-  // the connector sign-in flow stops taking callbacks: one flag and one map, nothing to wait out.
-  connectors: 1000,
+  // each running connector sign-in's vendor process is killed and its close awaited.
+  connectors: 2000,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
   // a git commit over a large dirty tree; the step the ordering exists to protect.
   vault: 8000,

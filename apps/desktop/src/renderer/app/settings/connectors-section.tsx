@@ -1,61 +1,63 @@
+// Connectors are the default agent's own: this section reads and edits that agent's list through
+// the server, so what it shows is what the agent's next action gets, and every vault shares it.
+
 import {
   connectorAddRequestSchema,
-  connectorTarget,
+  connectorTargetText,
 } from "@repo/api/local/connectors/connectors-schema";
 import type {
-  ConnectorOauthStatus,
-  ConnectorTransportInput,
+  ConnectorAuth,
+  ConnectorSignIn,
+  ConnectorsResponse,
+  ConnectorTargetInput,
   ConnectorView,
 } from "@repo/api/local/connectors/connectors-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
+import { toast } from "@repo/ui/components/sonner";
+import { Spinner } from "@repo/ui/components/spinner";
 import { Textarea } from "@repo/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { z } from "zod";
-import { failed, orpc } from "../api";
-import { useDataDirScope } from "../vault-hooks";
-import { ChoiceRow, SecondVaultNote, SectionHeading } from "./settings-chrome";
+import { failed, orpc, refusalMessage } from "../api";
+import { CONNECTOR_PRESETS } from "./connector-presets";
+import type { ConnectorPreset } from "./connector-presets";
+import { ChoiceRow, SectionHeading } from "./settings-chrome";
 
-// The OAuth callback lands on the server and nothing on the ws bus announces it, so the list is
-// polled from the moment the browser is sent to the provider until the row reads connected.
-const AUTHORIZE_POLL_MS = 1000;
-const AUTHORIZE_WAIT_MS = 5 * 60 * 1000;
+// A sign-in finishes in the browser and nothing on the ws bus announces it, so the list is polled
+// while any row waits on one.
+const SIGN_IN_POLL_MS = 1500;
 
-interface AwaitedAuthorize {
-  name: string;
-  until: number;
-}
-
-const oauthStatusOf = (
+export const signInPollInterval = (
   servers: readonly ConnectorView[] | undefined,
-  name: string,
-): ConnectorOauthStatus | null => {
-  const transport = servers?.find((server) => server.name === name)?.transport;
-  return transport?.kind === "oauth" ? transport.status : null;
-};
+): number | false =>
+  servers?.some((server) => server.signIn.state === "pending") === true ? SIGN_IN_POLL_MS : false;
 
-export const authorizePollInterval = (
-  awaited: AwaitedAuthorize | null,
-  servers: readonly ConnectorView[] | undefined,
-  now: number,
-): number | false => {
-  if (awaited === null || now >= awaited.until) {
-    return false;
-  }
-  const status = oauthStatusOf(servers, awaited.name);
-  return status === null || status === "connected" ? false : AUTHORIZE_POLL_MS;
-};
-
-const useConnectors = (awaited: AwaitedAuthorize | null) =>
+const useConnectors = () =>
   useQuery({
     ...orpc.connectors.list.queryOptions(),
-    refetchInterval: (query) =>
-      authorizePollInterval(awaited, query.state.data?.servers, Date.now()),
+    refetchInterval: (query) => signInPollInterval(query.state.data?.servers),
     staleTime: 0,
   });
+
+// The row going back to idle is the only word a finished sign-in sends.
+const useSignedInToasts = (response: ConnectorsResponse | undefined): void => {
+  const pending = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const servers = response?.servers ?? [];
+    for (const server of servers) {
+      if (pending.current.has(server.name) && server.signIn.state === "idle") {
+        toast.success(`${server.name} is signed in.`);
+      }
+    }
+    pending.current = new Set(
+      servers.flatMap((server) => (server.signIn.state === "pending" ? [server.name] : [])),
+    );
+  }, [response]);
+};
 
 export const argumentLines = (text: string): string[] =>
   text
@@ -63,154 +65,52 @@ export const argumentLines = (text: string): string[] =>
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
-type TransportKind = ConnectorTransportInput["kind"];
+type TargetKind = ConnectorTargetInput["kind"];
 
-const TRANSPORT_CHOICES: readonly { value: TransportKind; label: string }[] = [
+const TARGET_CHOICES: readonly { value: TargetKind; label: string }[] = [
   { label: "URL", value: "http" },
   { label: "Command", value: "stdio" },
-  { label: "OAuth", value: "oauth" },
 ];
 
 export interface AddConnectorDraft {
   name: string;
-  kind: TransportKind;
+  kind: TargetKind;
+  url: string;
   command: string;
   argsText: string;
-  url: string;
-  headerName: string;
-  headerValue: string;
-  authorizationEndpoint: string;
-  tokenEndpoint: string;
-  clientId: string;
-  scopesText: string;
 }
 
 export const EMPTY_DRAFT: AddConnectorDraft = {
   argsText: "",
-  authorizationEndpoint: "",
-  clientId: "",
   command: "",
-  headerName: "",
-  headerValue: "",
   kind: "http",
   name: "",
-  scopesText: "",
-  tokenEndpoint: "",
   url: "",
 };
 
-// an OAuth entry is its URL alone: the first Connect discovers the endpoints and registers a client.
-type CatalogEntry = { name: string; description: string; url: string; docsUrl: string } & (
-  | { kind: "http"; authHeader?: string }
-  | { kind: "oauth" }
-);
-
-const CATALOG: readonly CatalogEntry[] = [
-  {
-    authHeader: "CONTEXT7_API_KEY",
-    description: "Up-to-date library documentation for coding questions",
-    docsUrl: "https://context7.com/docs",
-    kind: "http",
-    name: "context7",
-    url: "https://mcp.context7.com/mcp",
-  },
-  {
-    authHeader: "x-api-key",
-    description: "Web search and crawling",
-    docsUrl: "https://docs.exa.ai/reference/exa-mcp",
-    kind: "http",
-    name: "exa",
-    url: "https://mcp.exa.ai/mcp",
-  },
-  {
-    description: "Issues and projects (OAuth)",
-    docsUrl: "https://linear.app/docs/mcp",
-    kind: "oauth",
-    name: "linear",
-    url: "https://mcp.linear.app/mcp",
-  },
-  {
-    description: "Pages and databases (OAuth)",
-    docsUrl: "https://developers.notion.com/docs/mcp",
-    kind: "oauth",
-    name: "notion",
-    url: "https://mcp.notion.com/mcp",
-  },
-];
-
 type DraftVerdict =
-  | { ok: true; transport: ConnectorTransportInput }
+  | { ok: true; name: string; target: ConnectorTargetInput }
   | { ok: false; problem: string };
 
-type OauthTransportInput = Extract<ConnectorTransportInput, { kind: "oauth" }>;
-
-// a blank field is left for discovery to fill, never sent as an empty value
-const draftOauthTransport = (draft: AddConnectorDraft): OauthTransportInput => {
-  const transport: OauthTransportInput = {
-    kind: "oauth",
-    scopes: draft.scopesText.split(/\s+/u).filter((scope) => scope.length > 0),
-    url: draft.url.trim(),
-  };
-  const authorizationEndpoint = draft.authorizationEndpoint.trim();
-  if (authorizationEndpoint !== "") {
-    transport.authorizationEndpoint = authorizationEndpoint;
-  }
-  const tokenEndpoint = draft.tokenEndpoint.trim();
-  if (tokenEndpoint !== "") {
-    transport.tokenEndpoint = tokenEndpoint;
-  }
-  const clientId = draft.clientId.trim();
-  if (clientId !== "") {
-    transport.clientId = clientId;
-  }
-  return transport;
-};
-
-const draftTransport = (draft: AddConnectorDraft): ConnectorTransportInput => {
-  switch (draft.kind) {
-    case "stdio": {
-      return { args: argumentLines(draft.argsText), command: draft.command.trim(), kind: "stdio" };
-    }
-    case "oauth": {
-      return draftOauthTransport(draft);
-    }
-    case "http": {
-      const url = draft.url.trim();
-      const headerName = draft.headerName.trim();
-      const headerValue = draft.headerValue.trim();
-      return headerName === "" || headerValue === ""
-        ? { kind: "http", url }
-        : { headers: { [headerName]: headerValue }, kind: "http", url };
-    }
-    // no default
-  }
-};
+const draftTarget = (draft: AddConnectorDraft): ConnectorTargetInput =>
+  draft.kind === "http"
+    ? { kind: "http", url: draft.url.trim() }
+    : { args: argumentLines(draft.argsText), command: draft.command.trim(), kind: "stdio" };
 
 // The schema is the rule; this table only names each field the way the form labels it.
 const FIELD_LABELS = {
   args: "arguments",
-  authorizationEndpoint: "authorize endpoint",
-  clientId: "client id",
   command: "command",
   name: "name",
-  scopes: "scopes",
-  tokenEndpoint: "token endpoint",
   url: "URL",
 } satisfies Record<string, string>;
 
 const isLabelledField = (key: PropertyKey): key is keyof typeof FIELD_LABELS =>
   Object.hasOwn(FIELD_LABELS, key);
 
-const fieldLabel = (kind: TransportKind, path: readonly PropertyKey[]): string => {
-  const field = path.findLast(isLabelledField);
-  if (field === undefined) {
-    return "connector";
-  }
-  return field === "url" && kind === "oauth" ? "server URL" : FIELD_LABELS[field];
-};
-
-const problemOf = (kind: TransportKind, issue: z.core.$ZodIssue): string => {
-  const label = fieldLabel(kind, issue.path);
+const problemOf = (issue: z.core.$ZodIssue): string => {
+  const field = issue.path.findLast(isLabelledField);
+  const label = field === undefined ? "connector" : FIELD_LABELS[field];
   switch (issue.code) {
     case "too_small": {
       return `Fill in the ${label}.`;
@@ -230,259 +130,206 @@ const problemOf = (kind: TransportKind, issue: z.core.$ZodIssue): string => {
 export const draftToRequest = (draft: AddConnectorDraft): DraftVerdict => {
   const parsed = connectorAddRequestSchema.safeParse({
     name: draft.name,
-    transport: draftTransport(draft),
+    target: draftTarget(draft),
   });
   if (!parsed.success) {
     const [issue] = parsed.error.issues;
     return {
       ok: false,
-      problem:
-        issue === undefined ? "The connector is not complete." : problemOf(draft.kind, issue),
+      problem: issue === undefined ? "The connector is not complete." : problemOf(issue),
     };
   }
-  // the one draft rule the schema cannot state: it only ever sees a header that is whole
-  if (
-    draft.kind === "http" &&
-    (draft.headerName.trim() === "") !== (draft.headerValue.trim() === "")
-  ) {
-    return { ok: false, problem: "An auth header needs both its name and its value." };
-  }
-  return { ok: true, transport: parsed.data.transport };
+  return { name: parsed.data.name, ok: true, target: parsed.data.target };
 };
 
-const OAUTH_STATUS_LABEL = {
-  connected: "connected",
-  "needs-auth": "not connected",
-  "needs-reauth": "needs re-auth",
-} satisfies Record<ConnectorOauthStatus, string>;
+const AUTH_LABELS = {
+  "needs-sign-in": "needs sign-in",
+  "not-needed": null,
+  "signed-in": "signed in",
+  unknown: null,
+} satisfies Record<ConnectorAuth, string | null>;
 
-const ConnectorRow = ({
+// A URL the agent may need a sign-in for is offered one; one it needs none for, or already has, is
+// not, and neither is one already signing in.
+export const offersSignIn = (server: ConnectorView): boolean =>
+  server.target.kind === "http" &&
+  server.signIn.state !== "pending" &&
+  (server.auth === "needs-sign-in" || server.auth === "unknown");
+
+const SignInLine = ({ signIn }: { signIn: ConnectorSignIn }) => {
+  switch (signIn.state) {
+    case "idle": {
+      return null;
+    }
+    case "pending": {
+      return (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body">
+          <span className="flex items-center gap-2">
+            <Spinner className="size-3.5 text-muted-foreground" />
+            Finish signing in in your browser.
+          </span>
+          {signIn.url === null ? null : (
+            <a
+              href={signIn.url}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Open the sign-in page
+            </a>
+          )}
+        </div>
+      );
+    }
+    case "failed": {
+      return <p className="text-body text-destructive">{signIn.detail}</p>;
+    }
+    // no default
+  }
+};
+
+export const ConnectorRow = ({
   server,
-  onChanged,
-  onAuthorizing,
+  busy,
+  onSignIn,
+  onRemove,
 }: {
   server: ConnectorView;
-  onChanged: (servers: ConnectorView[]) => void;
-  onAuthorizing: (name: string) => void;
+  busy: boolean;
+  onSignIn: () => void;
+  onRemove: () => void;
 }) => {
-  const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
-
-  const connect = useMutation(
-    orpc.connectors.oauthBegin.mutationOptions({
-      onError: (cause) => {
-        failed(cause, `Could not start authorizing ${server.name}.`);
-      },
-      onMutate: () => {
-        setAuthorizeUrl(null);
-      },
-      onSuccess: (body) => {
-        if (!body.opened) {
-          setAuthorizeUrl(body.url);
-        }
-        onAuthorizing(server.name);
-      },
-    }),
-  );
-
-  const disconnect = useMutation(
-    orpc.connectors.oauthDisconnect.mutationOptions({
-      onError: (cause) => {
-        failed(cause, `Could not disconnect ${server.name}.`);
-      },
-      onSuccess: (body) => {
-        onChanged(body.servers);
-      },
-    }),
-  );
-
-  const toggle = useMutation(
-    orpc.connectors.toggle.mutationOptions({
-      onError: (cause) => {
-        failed(cause, `Could not toggle ${server.name}.`);
-      },
-      onSuccess: (body) => {
-        onChanged(body.servers);
-      },
-    }),
-  );
-
-  const removeServer = useMutation(
-    orpc.connectors.remove.mutationOptions({
-      onError: (cause) => {
-        failed(cause, `Could not remove ${server.name}.`);
-      },
-      onSuccess: (body) => {
-        onChanged(body.servers);
-      },
-    }),
-  );
-
-  const busy =
-    connect.isPending || disconnect.isPending || toggle.isPending || removeServer.isPending;
-
-  // Confirm before mutate: a row greyed out while the dialog waits claims
-  // work that has not started.
-  const remove = (): void => {
-    void (async () => {
-      const confirmed = await confirm({
-        body: "Agent sessions stop getting this server on their next launch.",
-        confirmLabel: "Remove",
-        destructive: true,
-        title: `Remove ${server.name}?`,
-      });
-      if (confirmed) {
-        removeServer.mutate({ name: server.name });
-      }
-    })();
-  };
-
-  const oauth = server.transport.kind === "oauth" ? server.transport : null;
-
+  const status = AUTH_LABELS[server.auth];
   return (
-    <div className="py-1.5">
+    <div className="space-y-1 py-1.5">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-subtitle">
             {server.name}
-            {server.transport.kind === "http" && server.transport.hasAuth ? (
-              <span className="ml-2 text-body text-muted-foreground">authenticated</span>
-            ) : null}
-            {oauth === null ? null : (
-              <span className="ml-2 text-body text-muted-foreground">
-                {OAUTH_STATUS_LABEL[oauth.status]}
-              </span>
+            {status === null ? null : (
+              <span className="ml-2 text-body text-muted-foreground">{status}</span>
             )}
           </p>
           <p className="truncate text-body text-muted-foreground">
-            {connectorTarget(server.transport)}
+            {connectorTargetText(server.target)}
           </p>
         </div>
-        {oauth === null ? null : (
-          <Button
-            size="compact"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              connect.mutate({ name: server.name, open: true });
-            }}
-          >
-            {oauth.status === "needs-auth" ? "Connect" : "Reconnect"}
-          </Button>
-        )}
-        {oauth !== null && oauth.status !== "needs-auth" ? (
-          <Button
-            size="compact"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              disconnect.mutate({ name: server.name });
-            }}
-          >
-            Disconnect
+        {offersSignIn(server) ? (
+          <Button size="compact" variant="ghost" disabled={busy} onClick={onSignIn}>
+            Sign in
           </Button>
         ) : null}
-        <Button
-          size="compact"
-          variant="ghost"
-          disabled={busy}
-          onClick={() => {
-            toggle.mutate({ enabled: !server.enabled, name: server.name });
-          }}
-        >
-          {server.enabled ? "Disable" : "Enable"}
-        </Button>
-        <Button size="compact" variant="ghost" disabled={busy} onClick={remove}>
+        <Button size="compact" variant="ghost" disabled={busy} onClick={onRemove}>
           Remove
         </Button>
       </div>
-      {authorizeUrl === null ? null : (
-        <p className="mt-1 text-body text-muted-foreground">
-          Browser did not open —{" "}
-          <a
-            href={authorizeUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2"
-          >
-            authorize here
-          </a>
-          .
-        </p>
-      )}
+      <SignInLine signIn={server.signIn} />
     </div>
   );
 };
 
+const presetAction = (preset: ConnectorPreset, added: boolean): string => {
+  if (added) {
+    return "Added";
+  }
+  return preset.signIn ? "Connect" : "Add";
+};
+
 export const ConnectorsSection = () => {
   const queryClient = useQueryClient();
-  const [awaited, setAwaited] = useState<AwaitedAuthorize | null>(null);
-  const query = useConnectors(awaited);
+  const query = useConnectors();
   const [draft, setDraft] = useState<AddConnectorDraft>(EMPTY_DRAFT);
   const formId = useId();
+  useSignedInToasts(query.data);
 
   const servers = query.data?.servers ?? [];
-  // dropped once it lands, so a later Disconnect does not start the poll again
-  if (awaited !== null && oauthStatusOf(servers, awaited.name) === "connected") {
-    setAwaited(null);
-  }
-
-  const awaitAuthorize = (name: string): void => {
-    setAwaited({ name, until: Date.now() + AUTHORIZE_WAIT_MS });
-  };
-  const setServers = (next: ConnectorView[]): void => {
-    queryClient.setQueryData(orpc.connectors.list.queryKey(), { servers: next });
+  const agentName = query.data?.agent.displayName ?? "your agent";
+  const setList = (next: ConnectorsResponse): void => {
+    queryClient.setQueryData(orpc.connectors.list.queryKey(), next);
   };
 
-  const verdict = draftToRequest(draft);
-
+  const signIn = useMutation(
+    orpc.connectors.signIn.mutationOptions({
+      onError: (cause, variables) => {
+        failed(cause, `Could not start signing in to ${variables.name}.`);
+      },
+      onSuccess: setList,
+    }),
+  );
+  const removeServer = useMutation(
+    orpc.connectors.remove.mutationOptions({
+      onError: (cause, variables) => {
+        failed(cause, `Could not remove ${variables.name}.`);
+      },
+      onSuccess: setList,
+    }),
+  );
   const addServer = useMutation(
     orpc.connectors.add.mutationOptions({
       onError: (cause, variables) => {
         failed(cause, `Could not add ${variables.name}.`);
       },
-      onSuccess: (body) => {
-        setServers(body.servers);
-        setDraft(EMPTY_DRAFT);
-      },
+      onSuccess: setList,
     }),
   );
+  const busy = signIn.isPending || removeServer.isPending || addServer.isPending;
 
+  // Confirm before mutate: a row greyed out while the dialog waits claims work that has not started.
+  const remove = (name: string): void => {
+    void (async () => {
+      const confirmed = await confirm({
+        body: `${agentName} stops using it from the next action, in every vault.`,
+        confirmLabel: "Remove",
+        destructive: true,
+        title: `Remove ${name}?`,
+      });
+      if (confirmed) {
+        removeServer.mutate({ name });
+      }
+    })();
+  };
+
+  const addPreset = (preset: ConnectorPreset): void => {
+    addServer.mutate(
+      { name: preset.name, target: { kind: "http", url: preset.url } },
+      {
+        onSuccess: () => {
+          if (preset.signIn) {
+            signIn.mutate({ name: preset.name });
+          }
+        },
+      },
+    );
+  };
+
+  const verdict = draftToRequest(draft);
   const submit = (): void => {
-    if (!verdict.ok || addServer.isPending) {
+    if (!verdict.ok || busy) {
       return;
     }
-    addServer.mutate({ name: draft.name, transport: verdict.transport });
+    addServer.mutate(
+      { name: verdict.name, target: verdict.target },
+      {
+        onSuccess: () => {
+          setDraft(EMPTY_DRAFT);
+        },
+      },
+    );
   };
-
-  const prefill = (entry: CatalogEntry): void => {
-    if (entry.kind === "oauth") {
-      setDraft({ ...EMPTY_DRAFT, kind: "oauth", name: entry.name, url: entry.url });
-      return;
-    }
-    setDraft({
-      ...EMPTY_DRAFT,
-      headerName: entry.authHeader ?? "",
-      kind: "http",
-      name: entry.name,
-      url: entry.url,
-    });
-  };
-
-  const scope = useDataDirScope();
 
   const list = () => {
     if (query.isError) {
       return (
-        <p className="text-subtitle text-destructive">The connector list could not be read.</p>
+        <p className="text-subtitle text-destructive">
+          {refusalMessage(query.error, "The connector list could not be read.")}
+        </p>
       );
     }
+    if (query.data === undefined) {
+      return null;
+    }
     if (servers.length === 0) {
-      return (
-        <div className="space-y-1">
-          <p className="text-subtitle text-muted-foreground">No connectors configured.</p>
-          <SecondVaultNote scope={scope} />
-        </div>
-      );
+      return <p className="text-subtitle text-muted-foreground">No connectors yet.</p>;
     }
     return (
       <div className="divide-y divide-line">
@@ -490,122 +337,35 @@ export const ConnectorsSection = () => {
           <ConnectorRow
             key={server.name}
             server={server}
-            onChanged={setServers}
-            onAuthorizing={awaitAuthorize}
+            busy={busy}
+            onSignIn={() => {
+              signIn.mutate({ name: server.name });
+            }}
+            onRemove={() => {
+              remove(server.name);
+            }}
           />
         ))}
       </div>
     );
   };
 
-  const transportFields = () => {
+  const targetFields = () => {
     if (draft.kind === "http") {
       return (
-        <>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-body">
-              URL
-            </Label>
-            <Input
-              id={`${formId}-url`}
-              value={draft.url}
-              placeholder="https://mcp.example.com/mcp"
-              onChange={(event) => {
-                setDraft({ ...draft, url: event.target.value });
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-header`} className="w-24 shrink-0 text-body">
-              Auth header
-            </Label>
-            <Input
-              id={`${formId}-header`}
-              value={draft.headerName}
-              placeholder="x-api-key"
-              className="w-40"
-              onChange={(event) => {
-                setDraft({ ...draft, headerName: event.target.value });
-              }}
-            />
-            <Input
-              aria-label="Auth header value"
-              type="password"
-              value={draft.headerValue}
-              placeholder="value"
-              onChange={(event) => {
-                setDraft({ ...draft, headerValue: event.target.value });
-              }}
-            />
-          </div>
-        </>
-      );
-    }
-    if (draft.kind === "oauth") {
-      return (
-        <>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-oauth-url`} className="w-24 shrink-0 text-body">
-              Server URL
-            </Label>
-            <Input
-              id={`${formId}-oauth-url`}
-              value={draft.url}
-              placeholder="https://mcp.example.com/mcp"
-              onChange={(event) => {
-                setDraft({ ...draft, url: event.target.value });
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-authz`} className="w-24 shrink-0 text-body">
-              Authorize
-            </Label>
-            <Input
-              id={`${formId}-authz`}
-              value={draft.authorizationEndpoint}
-              placeholder="optional — found from the server URL"
-              onChange={(event) => {
-                setDraft({ ...draft, authorizationEndpoint: event.target.value });
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-token`} className="w-24 shrink-0 text-body">
-              Token
-            </Label>
-            <Input
-              id={`${formId}-token`}
-              value={draft.tokenEndpoint}
-              placeholder="optional — found from the server URL"
-              onChange={(event) => {
-                setDraft({ ...draft, tokenEndpoint: event.target.value });
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`${formId}-client`} className="w-24 shrink-0 text-body">
-              Client id
-            </Label>
-            <Input
-              id={`${formId}-client`}
-              value={draft.clientId}
-              placeholder="optional — registered for you"
-              onChange={(event) => {
-                setDraft({ ...draft, clientId: event.target.value });
-              }}
-            />
-            <Input
-              aria-label="Scopes"
-              value={draft.scopesText}
-              placeholder="scopes (optional)"
-              className="w-48"
-              onChange={(event) => {
-                setDraft({ ...draft, scopesText: event.target.value });
-              }}
-            />
-          </div>
-        </>
+        <div className="flex items-center gap-2">
+          <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-body">
+            URL
+          </Label>
+          <Input
+            id={`${formId}-url`}
+            value={draft.url}
+            placeholder="https://example.com"
+            onChange={(event) => {
+              setDraft({ ...draft, url: event.target.value });
+            }}
+          />
+        </div>
       );
     }
     return (
@@ -642,17 +402,48 @@ export const ConnectorsSection = () => {
   };
 
   return (
-    <section>
+    <section className="space-y-2">
       <SectionHeading>Connectors</SectionHeading>
-      <p className="mb-2 text-body text-muted-foreground">
-        MCP servers every agent session gets — Claude Code and Codex alike. Enabled rows ride each
-        session&apos;s launch; changes apply from the next action.
+      <p className="text-body text-muted-foreground">
+        Apps and services {agentName} can use while it works on your notes. They belong to{" "}
+        {agentName} on this Mac, so every vault shares them, and a change reaches the next action.
       </p>
 
       {list()}
 
       <SectionHeading>Add a connector</SectionHeading>
-      <div className="flex flex-col gap-2">
+      <div className="divide-y divide-line">
+        {CONNECTOR_PRESETS.map((preset) => {
+          const added = servers.some((server) => server.name === preset.name);
+          return (
+            <div key={preset.name} className="flex items-center gap-2 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-subtitle">{preset.label}</p>
+                <p className="truncate text-body text-muted-foreground">{preset.description}</p>
+              </div>
+              <Button
+                size="compact"
+                variant="ghost"
+                disabled={added || busy || query.data === undefined}
+                onClick={() => {
+                  addPreset(preset);
+                }}
+              >
+                {presetAction(preset, added)}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+
+      <form
+        aria-label="Another connector"
+        className="flex flex-col gap-2 pt-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
         <div className="flex items-center gap-2">
           <Label htmlFor={`${formId}-name`} className="w-24 shrink-0 text-body">
             Name
@@ -660,63 +451,32 @@ export const ConnectorsSection = () => {
           <Input
             id={`${formId}-name`}
             value={draft.name}
-            placeholder="context7"
+            placeholder="my-connector"
             onChange={(event) => {
               setDraft({ ...draft, name: event.target.value });
             }}
           />
         </div>
         <ChoiceRow
-          label="Transport"
+          label="Connect by"
           value={draft.kind}
-          options={TRANSPORT_CHOICES}
+          options={TARGET_CHOICES}
           onChange={(kind) => {
             setDraft({ ...draft, kind });
           }}
         />
-        {transportFields()}
+        {targetFields()}
         <div className="flex items-center gap-2">
           {draft.name !== "" && !verdict.ok ? (
             <p className="flex-1 text-body text-muted-foreground">{verdict.problem}</p>
           ) : (
             <span className="flex-1" />
           )}
-          <Button size="compact" disabled={!verdict.ok || addServer.isPending} onClick={submit}>
+          <Button type="submit" size="compact" disabled={!verdict.ok || busy}>
             Add
           </Button>
         </div>
-      </div>
-
-      <SectionHeading>Known servers</SectionHeading>
-      <div className="divide-y divide-line">
-        {CATALOG.map((entry) => (
-          <div key={entry.name} className="flex items-center gap-2 py-1.5">
-            <div className="min-w-0 flex-1">
-              <p className="text-subtitle">
-                {entry.name}
-                <a
-                  href={entry.docsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="ml-2 text-body text-muted-foreground underline-offset-2 hover:underline"
-                >
-                  docs
-                </a>
-              </p>
-              <p className="truncate text-body text-muted-foreground">{entry.description}</p>
-            </div>
-            <Button
-              size="compact"
-              variant="ghost"
-              onClick={() => {
-                prefill(entry);
-              }}
-            >
-              Use
-            </Button>
-          </div>
-        ))}
-      </div>
+      </form>
     </section>
   );
 };

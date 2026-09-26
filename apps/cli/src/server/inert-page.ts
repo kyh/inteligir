@@ -1,5 +1,5 @@
-// the server's own browser landings, a connector's oauth callback and a tab with no session: a
-// page that runs no script and loads nothing, since the tab it lands in is not one it trusts.
+// the page a tab with no session lands on: it runs no script and loads nothing, since the tab it
+// lands in is not one it trusts.
 export interface InertPage {
   title: string;
   detail: string;
@@ -36,7 +36,7 @@ export const renderInertPage = (page: InertPage): string =>
 </html>
 `;
 
-// a callback url carries a live code; no-referrer keeps it off any link added later.
+// no-referrer: a link added later hands no other origin even this page's address.
 export const INERT_PAGE_HEADERS = {
   "cache-control": "no-store",
   "content-security-policy":

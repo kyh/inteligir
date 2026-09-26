@@ -4,7 +4,6 @@ import nodePath from "node:path";
 import { isDefinedError, safe } from "@orpc/client";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
-import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
@@ -443,7 +442,6 @@ describe("the host guard", () => {
       [STATUS_RPC_PATH, rpcPost({ authorization: bearer })],
       [`${VAULT_ASSET_PATH}?path=a.png`, { headers: { authorization: bearer } }],
       [WS_PATH, { headers: { authorization: bearer, upgrade: "websocket" } }],
-      [`${CONNECTOR_OAUTH_CALLBACK_PATH}?state=s&code=c`, {}],
       ["/assets/app.js", {}],
     ];
     for (const host of FOREIGN_HOSTS) {

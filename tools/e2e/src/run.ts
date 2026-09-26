@@ -15,6 +15,7 @@ import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
+import { connectorsBrowser } from "./scenarios/connectors-browser";
 import { debugLogTrace } from "./scenarios/debug-log";
 import { desktopDiagnostics } from "./scenarios/desktop-diagnostics";
 import { desktopOnboarding } from "./scenarios/desktop-onboarding";
@@ -73,6 +74,7 @@ const SCENARIOS: readonly Scenario[] = [
   viewContextBrowser,
   undoBrowser,
   settingsBrowser,
+  connectorsBrowser,
   agentSignInBrowser,
   vaultSearchBrowser,
   treeOpsBrowser,
