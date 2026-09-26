@@ -16,6 +16,9 @@ const STATUS_DEADLINE_MS = 30_000;
 // answers nothing.
 const ALERT_DIALOG = '[role="alertdialog"][data-open]';
 const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null ? "gone" : "present"`;
+// the section's own heading, not a row or the nav link that share its word
+const ACCOUNT_HEADING = `[...document.querySelectorAll("h3")].some((el) => el.textContent.trim() === "Account") ? "drawn" : "missing"`;
+const DEVICES_UNREACHABLE = "Couldn't reach your account to list its devices.";
 const TOAST = "[data-sonner-toast]";
 // by placeholder: the ids are React-minted per mount.
 const NAME_INPUT = 'input[placeholder="context7"]';
@@ -67,7 +70,7 @@ const accountFieldsSchema = z.object({
 
 export const settingsBrowser: Scenario = {
   description:
-    "/settings hosts the dialog and the toaster: Sign out confirms, a refused add toasts, and signed out a refused sign-up keeps the form",
+    "/settings hosts the dialog and the toaster: the Account section says a dead cloud's device list couldn't load, Sign out confirms, a refused add toasts, and signed out a refused sign-up keeps the form",
   name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -98,7 +101,20 @@ export const settingsBrowser: Scenario = {
       (body) => body.includes("Sign out"),
       {
         deadlineMs: STATUS_DEADLINE_MS,
-        describe: (body) => `the Devices section never showed Sign out:\n${body}`,
+        describe: (body) => `the Account section never showed Sign out:\n${body}`,
+        intervalMs: 500,
+      },
+    );
+
+    ctx.log("the Account section draws, and says the dead cloud's device list couldn't load");
+    const heading = parseEval(await agentBrowser(["eval", ACCOUNT_HEADING]), z.string());
+    expect(heading === "drawn", "Settings drew no Account heading");
+    await pollUntil(
+      async () => await agentBrowser(["get", "text", "body"]),
+      (body) => body.includes(DEVICES_UNREACHABLE),
+      {
+        deadlineMs: STATUS_DEADLINE_MS,
+        describe: (body) => `the Account section never said its devices couldn't load:\n${body}`,
         intervalMs: 500,
       },
     );
@@ -152,7 +168,7 @@ export const settingsBrowser: Scenario = {
       `the toast did not carry the refusal:\n${toastText}`,
     );
 
-    ctx.log("signed out, the Devices section offers to create an account");
+    ctx.log("signed out, the Account section offers to create an account");
     await openSignOutConfirm();
     const confirmed = parseEval(await agentBrowser(["eval", CONFIRM_SIGN_OUT]), z.string());
     expect(confirmed === "clicked", `the confirm's Sign out was ${confirmed}`);

@@ -313,7 +313,8 @@ files — those are git's job.
   behind it is.
 - \`inteligir cloud login --email <address> [--password <password>] [--name <device>]\`
   — sign this machine in with the account's own email and password; it gets
-  its own device credential, revocable from the account's Devices page.
+  its own device credential, revocable from Settings › Account on any signed-in
+  Mac, or the account's Devices page.
   \`--password -\` reads the password from stdin; omitted on a terminal, it is
   prompted for without echo; under \`--json\` it is required. \`--name\` sets how
   this machine appears in the account's device list (default: the hostname).
@@ -324,7 +325,7 @@ files — those are git's job.
   the work has actually reached the account.
 
 There is no \`logout\` here: it discards writes that have not reached the
-account yet, so it lives in the app's Settings → Devices, in front of the state
+account yet, so it lives in the app's Settings › Account, in front of the state
 it would throw away. Nor is there a sign-up: creating an account takes the
 user's own invite code and password, so it is theirs to do in the app.
 

@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 
 export interface RelativeTimeOptions {
   seconds?: boolean;
+  // after other words ("Synced just now"), where a label standing alone is capitalized
+  inSentence?: boolean;
 }
 
 const MINUTE_MS = 60_000;
@@ -20,7 +22,10 @@ export const relativeTimeLabel = (
   // A synced timestamp from a device whose clock is ahead reads as "now".
   const elapsed = Math.max(0, nowMs - atMs);
   if (elapsed < MINUTE_MS) {
-    return options?.seconds === true ? `${String(Math.floor(elapsed / 1000))}s ago` : "Just now";
+    if (options?.seconds === true) {
+      return `${String(Math.floor(elapsed / 1000))}s ago`;
+    }
+    return options?.inSentence === true ? "just now" : "Just now";
   }
   if (elapsed < HOUR_MS) {
     return `${String(Math.floor(elapsed / MINUTE_MS))}m ago`;

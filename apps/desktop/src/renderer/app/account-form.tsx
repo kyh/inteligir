@@ -1,4 +1,4 @@
-// The one account form, which the rail's dialog and Settings › Devices draw over
+// The one account form, which the rail's dialog and Settings › Account draw over
 // `useCloudSession`. Creating the account signs this device in with it, so nobody meets a second
 // sign-in right after the first.
 

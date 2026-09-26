@@ -1,5 +1,5 @@
 import { isDefinedError, safe } from "@orpc/client";
-import { expect } from "../harness/assert";
+import { expect, expectEq } from "../harness/assert";
 import { OWNER } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { AppInstance } from "../harness/instance";
@@ -25,7 +25,7 @@ const untilSignedInAs = async (app: AppInstance, label: string): Promise<void> =
 
 export const accountHosted: Scenario = {
   description:
-    "an account created in the app signs that device in and spends its invite; a second device signs in with the same email and password",
+    "an account created in the app signs that device in and spends its invite; a second device signs in with the same email and password, and the first lists and revokes it",
   name: "account-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -73,5 +73,47 @@ export const accountHosted: Scenario = {
     const joined = await b.api.cloud.login({ ...OWNER, deviceName: "E2E Device B" });
     expect(joined.state === "signed-in", `B's login answered ${joined.state}`);
     await untilSignedInAs(b, "B");
+
+    ctx.log("A lists the account's devices with its own credential: itself, marked, and B");
+    const listed = await a.api.cloud.devices();
+    expectEq(
+      listed.devices.map(({ current, name }) => ({ current, name })),
+      [
+        { current: true, name: "E2E Device A" },
+        { current: false, name: "E2E Device B" },
+      ],
+      "A's device list",
+    );
+    const bRow = listed.devices.find((device) => !device.current);
+    expect(bRow?.id === joined.deviceId, `A listed B as ${JSON.stringify(bRow)}`);
+
+    ctx.log("A revokes B");
+    expectEq(
+      await a.api.cloud.revokeDevice({ deviceId: joined.deviceId }),
+      { revoked: true },
+      "A's revoke of B",
+    );
+    const after = await a.api.cloud.devices();
+    expectEq(
+      after.devices.map((device) => device.name),
+      ["E2E Device A"],
+      "A's device list after the revoke",
+    );
+
+    ctx.log("B's next request is refused: B reaches unauthorized");
+    await pollUntil(
+      async () => {
+        await b.api.cloud.syncNow();
+        return await b.api.cloud.status();
+      },
+      (status) => status.state === "unauthorized",
+      {
+        deadlineMs: IDENTITY_DEADLINE_MS,
+        describe: (status) => `B never answered unauthorized: ${JSON.stringify(status)}`,
+        intervalMs: POLL_INTERVAL_MS,
+      },
+    );
+    const stillA = await a.api.cloud.status();
+    expect(stillA.state === "signed-in", `A after revoking B is ${stillA.state}`);
   },
 };

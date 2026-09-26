@@ -63,6 +63,52 @@ const signUp = base.cloud.signUp.handler(async ({ context, input, errors }) => {
 
 const logout = base.cloud.logout.handler(({ context }) => context.cloud.logout());
 
+const devices = base.cloud.devices.handler(async ({ context, errors }) => {
+  const outcome = await context.cloud.devices();
+  switch (outcome.kind) {
+    case "answered": {
+      return outcome.value;
+    }
+    case "not-live": {
+      throw errors.PRECONDITION_FAILED({ message: outcome.message });
+    }
+    case "failed": {
+      throw errors.PROVIDER_UNAVAILABLE({ message: describeCloudFailure(outcome.failure) });
+    }
+    default: {
+      const unanswered: never = outcome;
+      return unanswered;
+    }
+  }
+});
+
+const revokeDevice = base.cloud.revokeDevice.handler(async ({ context, input, errors }) => {
+  const outcome = await context.cloud.revokeDevice(input.deviceId);
+  switch (outcome.kind) {
+    case "answered": {
+      return outcome.value;
+    }
+    case "this-device": {
+      throw errors.BAD_REQUEST({ message: "That's this Mac. Sign it out instead." });
+    }
+    case "not-live": {
+      throw errors.PRECONDITION_FAILED({ message: outcome.message });
+    }
+    case "failed": {
+      const { failure } = outcome;
+      // another account's device and one already revoked answer alike
+      if (failure.kind === "refused" && failure.code === "not-found") {
+        throw errors.NOT_FOUND({ message: "That device isn't signed in to your account anymore." });
+      }
+      throw errors.PROVIDER_UNAVAILABLE({ message: describeCloudFailure(failure) });
+    }
+    default: {
+      const unanswered: never = outcome;
+      return unanswered;
+    }
+  }
+});
+
 const syncNow = base.cloud.syncNow.handler(async ({ context }) => await context.cloud.syncNow());
 
 const prefs = base.cloud.prefs.handler(({ context }) => ({
@@ -77,9 +123,11 @@ const setPrefs = base.cloud.setPrefs.handler(({ context, input }) => {
 });
 
 export const cloudRouter = {
+  devices,
   login,
   logout,
   prefs,
+  revokeDevice,
   setPrefs,
   signUp,
   status,

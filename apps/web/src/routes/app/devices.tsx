@@ -37,9 +37,8 @@ const DevicesShell = ({ children }: { children: React.ReactNode }) => (
     </Link>
     <h1 className="text-lg font-medium tracking-tight">Devices</h1>
     <p className="mt-1 text-sm text-muted-foreground">
-      To add a machine, sign in there — Settings → Devices in the app, or{" "}
-      <code>inteligir cloud login</code>. Each device gets its own credential; revoking one cuts it
-      off immediately.
+      To add a Mac or a phone, sign in on it with this account. Revoking a device cuts it off at
+      once; a signed-in Mac can do the same from Settings › Account.
     </p>
     {children}
   </main>

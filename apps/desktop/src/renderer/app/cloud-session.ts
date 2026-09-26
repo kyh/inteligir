@@ -1,4 +1,4 @@
-// The device's account session as one hook, so the rail's footer and Settings › Devices run the
+// The device's account session as one hook, so the rail's footer and Settings › Account run the
 // same sign-in, sign-up, sign-out and status: two spellings of a credential flow are two to audit.
 
 import type {

@@ -124,10 +124,12 @@ apps/
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device login (POST /v1/device/login mints the device
                  credential from email + password, POST /v1/device/sign-up
-                 creates the account and mints it; /app/devices lists and
-                 revokes), the per-user ThreadSyncDO (merged thread log +
-                 capture inbox + dispatch inbox + ws invalidation), and the
-                 hosted vault git remote (issue #618): durable-git repo
+                 creates the account and mints it; /app/devices, and any
+                 signed-in Mac's Settings › Account with its own device
+                 credential, list and revoke), the per-user ThreadSyncDO
+                 (merged thread log + capture inbox + dispatch inbox + ws
+                 invalidation), and the hosted vault git remote
+                 (issue #618): durable-git repo
                  cells behind src/worker/vault/git-remote.ts, one per user,
                  device-authed, which the Worker commits to itself through
                  the cell's own receive-pack
@@ -1508,7 +1510,7 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   resolves it through `answerInteraction`, and an answer delivered twice reads
   delivered both times. `pending_interactions.relay` is the only bookkeeping,
   and the bus (`WsBus.onThreadChange`) brings a pass forward when an approval
-  moves. Let my phone ask this Mac (Settings › Devices,
+  moves. Let my phone ask this Mac (Settings › Account,
   `<dataDir>/cloud-prefs.json`, owner decision: on unless turned off) is read
   per pass, and off, this Mac claims nothing. Residual: a follow-up one Mac
   claims on a thread another Mac ran opens a fresh provider session there.
@@ -1562,8 +1564,16 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   credential** (owner decision, the Obsidian model, reversing the
   browser-approved pairing line). `POST /v1/device/login` verifies the password
   through Better Auth, mints the device credential and deletes the session the
-  sign-in created, so a device holds exactly one secret. The route is throttled
-  per caller address: a login route with no throttle is a password oracle.
+  sign-in created, so a device holds exactly one secret. That secret also
+  lists and revokes the account's devices (`GET /v1/device/list` and
+  `POST /v1/device/revoke` take a session or a live device credential of the
+  same account, the `igd_` prefix deciding which), so any signed-in Mac's
+  Settings › Account removes a lost phone, with no password asked, as a
+  sign-out asks none; the web's devices page stays as the fallback. A Mac's
+  own row offers no Revoke and `cloud.revokeDevice` refuses its own id: this
+  device leaves through a sign-out, which also forgets its queue. The login
+  route is throttled per caller address: a login route with no throttle is a
+  password oracle.
   Rejected: the browser approve page, the one-time code, PKCE and the loopback
   callback, a ceremony whose point was keeping the password out of the app.
   Residual: the password passes through the app once over HTTPS. No social
@@ -1576,8 +1586,9 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   back. The site's sign-up page stays, and the phone stays sign-in only; the
   CLI has no sign-up verb, since creating an account is a person's act.
   `@repo/api/cloud/device/login-flow.ts`, `apps/web/src/worker/device/login.ts`,
-  `apps/web/src/worker/device/sign-up.ts`,
-  `apps/desktop/src/renderer/app/account-form.tsx`.
+  `apps/web/src/worker/device/sign-up.ts`, `apps/web/src/worker/device/routes.ts`,
+  `apps/desktop/src/renderer/app/account-form.tsx`,
+  `apps/desktop/src/renderer/app/settings/account-section.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
   never waited on.** Forgetting the file alone leaves the row active, and the
@@ -1590,8 +1601,9 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   local state without waiting: an unreachable cloud must not hold a sign-out
   open. A revoke the cloud did not take is said on the desktop's signed-out
   status (`revokeError`) until the next login or restart, since the row stays
-  live until the Devices page removes it; one refused as unauthorized says
-  nothing, since that credential is already dead.
+  live until another Mac's Settings › Account or the devices page removes it;
+  one refused as unauthorized says nothing, since that credential is already
+  dead.
   `apps/web/src/worker/device/routes.ts`,
   `apps/cli/src/server/cloud/sync-runtime.ts`,
   `apps/mobile/src/sync/sync-runtime.ts`,
@@ -2223,7 +2235,7 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   chrome. Not tabs and not stacked sections: a stack made every list short,
   and a tab row was a third line of chrome. Every other verb is a right-click,
   as in an IDE. The footer's account row runs the one `useCloudSession`
-  (`app/cloud-session.ts`) Settings › Devices runs too; it offers Sync now and
+  (`app/cloud-session.ts`) Settings › Account runs too; it offers Sync now and
   no second sync for actions, which sync on their own, and its words are the
   sync state's alone (GIT IS THE ENGINE, above). The view is the
   workspace's (`railView` in `app/prefs.ts`), because a `#tag` chip, a create
