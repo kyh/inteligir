@@ -79,7 +79,8 @@ src/
                        # typed-property ADT (YAML it cannot represent is
                        # preserved byte-exactly)
   comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
-                       # marker ids, the sidecar schema
+                       # marker ids, the sidecar schema, and the entry-wise
+                       # merge two devices' stores take (never a line merge)
   formulas/            # {{source|display|meta}} pills: collection, expression
                        # evaluation, the resolve graph and the walk that loads
                        # it across notes, and result formatting
@@ -88,6 +89,11 @@ src/
                        # past which the changed span is one hunk
     source-lines.ts    # what a LINE is — content excludes its terminator,
                        # whichever flavor — stated once, for every reader
+  sync/                # what a path two writers changed becomes
+    reconcile-file.ts  # the ONE verdict, bytes in and bytes out, that the
+                       # desktop's sync and the phone's write queue both run
+    conflict-copy.ts   # the copy's name, its parse, and the one sentence
+                       # every surface says about it
 ```
 
 ## Invariants

@@ -243,6 +243,37 @@ describe("diff3", () => {
     });
   });
 
+  describe("the union overlap", () => {
+    it("keeps both sides' appends at one spot, mine first, and still reports the overlap", () => {
+      const base = doc("# Inbox", "", "- first");
+      expect(
+        diff3(
+          base,
+          doc("# Inbox", "", "- first", "- mine"),
+          doc("# Inbox", "", "- first", "- theirs"),
+          {
+            overlap: "union",
+          },
+        ),
+      ).toEqual({ conflicted: true, merged: doc("# Inbox", "", "- first", "- mine", "- theirs") });
+    });
+
+    it("writes a line both sides added once", () => {
+      expect(
+        diff3("", doc("# Inbox", "", "- mine"), doc("# Inbox", "", "- theirs"), {
+          overlap: "union",
+        }),
+      ).toEqual({ conflicted: true, merged: doc("# Inbox", "", "- mine", "- theirs") });
+    });
+
+    it("merges what does not overlap exactly as the default does", () => {
+      const base = doc("one", "two", "three", "four", "five");
+      const mine = doc("ONE", "two", "three", "four", "five");
+      const theirs = doc("one", "two", "three", "four", "FIVE");
+      expect(diff3(base, mine, theirs, { overlap: "union" })).toEqual(diff3(base, mine, theirs));
+    });
+  });
+
   describe("a side past the line diff's budget", () => {
     // mine rewrites 1000..2199 but keeps every tenth line: 2160 edits, past the budget of 2000.
     const baseLines = numbered(3000, "line");

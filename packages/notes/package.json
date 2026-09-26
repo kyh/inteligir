@@ -7,6 +7,7 @@
   "exports": {
     "./comments/comment-threads": "./src/comments/comment-threads.ts",
     "./comments/marker-ids": "./src/comments/marker-ids.ts",
+    "./comments/merge-comment-stores": "./src/comments/merge-comment-stores.ts",
     "./comments/sidecar-schema": "./src/comments/sidecar-schema.ts",
     "./formulas/collect-formulas": "./src/formulas/collect-formulas.ts",
     "./formulas/expression": "./src/formulas/expression.ts",
@@ -49,6 +50,8 @@
     "./markdown/remark-opaque": "./src/markdown/remark-opaque.ts",
     "./markdown/remark-tabs": "./src/markdown/remark-tabs.ts",
     "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts",
+    "./sync/conflict-copy": "./src/sync/conflict-copy.ts",
+    "./sync/reconcile-file": "./src/sync/reconcile-file.ts",
     "./templates/placeholders": "./src/templates/placeholders.ts",
     "./text/diff3": "./src/text/diff3.ts",
     "./text/line-diff": "./src/text/line-diff.ts"

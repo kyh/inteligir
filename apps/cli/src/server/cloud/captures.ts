@@ -1,9 +1,8 @@
 import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
+import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import { messageOf } from "../error-message";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
-
-export const CAPTURE_INBOX_PATH = "Inbox.md";
 
 // only needs to outlive a lapsed claim (five minutes by contract); a week is slack.
 export const APPLIED_CAPTURE_RETENTION_MS = 7 * 24 * 60 * 60_000;

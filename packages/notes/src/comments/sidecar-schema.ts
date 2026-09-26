@@ -10,7 +10,19 @@ const NOTE_ID_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 
 export const isNoteIdKey = (id: string): boolean => NOTE_ID_KEY_RE.test(id);
 
-export const commentsStorePath = (noteId: string): string => `${COMMENTS_STORE_DIR}/${noteId}.json`;
+const STORE_FILE_SUFFIX = ".json";
+
+export const commentsStorePath = (noteId: string): string =>
+  `${COMMENTS_STORE_DIR}/${noteId}${STORE_FILE_SUFFIX}`;
+
+export const isCommentsStorePath = (path: string): boolean => {
+  const prefix = `${COMMENTS_STORE_DIR}/`;
+  return (
+    path.startsWith(prefix) &&
+    path.endsWith(STORE_FILE_SUFFIX) &&
+    isNoteIdKey(path.slice(prefix.length, -STORE_FILE_SUFFIX.length))
+  );
+};
 
 // The beside-the-note spelling older vaults and older agents still write: recognised so it can be
 // folded into the store, never written.
