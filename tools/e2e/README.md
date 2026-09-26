@@ -220,6 +220,9 @@ what each one is FOR.
 |                            | leaves a link                                                             |
 | remote-content-browser     | under the built bundle's CSP a remote embed is an unloaded card, and an   |
 |                            | html block's Run executes its script under its own policy                 |
+| sync-conflict-browser      | two instances + one bare remote, B's window open: B's sync meets A's      |
+|                            | same-line edit and the window says both versions were kept, naming the    |
+|                            | copy, still up past a toast's usual 4s; its Open shows A's line           |
 
 ## Adding a scenario
 

@@ -11,3 +11,14 @@ export const OPTION_COUNT = `String(document.querySelectorAll('${OPTION}').lengt
 // the step /welcome draws over the workspace after a first run; none once it is finished.
 export const WELCOME_STEP = "[data-welcome-step]";
 export const welcomeStep = (step: "agent" | "account"): string => `[data-welcome-step="${step}"]`;
+export const TOAST = "[data-sonner-toast]";
+// every toast's text at once: another may be up beside the one a scenario waits on.
+export const TOAST_TEXT = `String([...document.querySelectorAll('${TOAST}')].map((el) => el.textContent).join("\\n"))`;
+// the action of the toast saying `toastText`, found by that text; answers "clicked" or "missing".
+export const clickToastAction = (toastText: string): string => `(() => {
+  const toast = [...document.querySelectorAll('${TOAST}')].find((el) => el.textContent.includes(${JSON.stringify(toastText)}));
+  const button = toast ? toast.querySelector("[data-action]") : null;
+  if (!button) return "missing";
+  button.click();
+  return "clicked";
+})()`;

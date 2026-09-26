@@ -7,7 +7,13 @@ import { expect, expectEq } from "../harness/assert";
 import type { InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { COMPOSER, EDITOR, PALETTE_INPUT } from "../harness/selectors";
+import {
+  clickToastAction,
+  COMPOSER,
+  EDITOR,
+  PALETTE_INPUT,
+  TOAST_TEXT,
+} from "../harness/selectors";
 import { untilThreadIdle } from "../harness/threads";
 
 // the scripted driver writes `# Agent note\n\n<text>\n` to Agent/<thread>.md on every turn.
@@ -20,17 +26,8 @@ const USER_LINE = "Call Sam about the draft";
 const DEADLINE_MS = 30_000;
 const NO_DIALOG = `document.querySelector('[data-slot="dialog-content"]') === null`;
 
-const TOAST_TEXT = `String([...document.querySelectorAll("[data-sonner-toast]")].map((el) => el.textContent).join("\\n"))`;
 const UNDO_BUTTONS = `[...document.querySelectorAll("button")].filter((el) => el.textContent.trim() === "Undo changes")`;
 const UNDO_BUTTON_COUNT = `String(${UNDO_BUTTONS}.length)`;
-// the finish toast's own action, found by its text: another toast may be up beside it.
-const clickToastAction = (toastText: string): string => `(() => {
-  const toast = [...document.querySelectorAll("[data-sonner-toast]")].find((el) => el.textContent.includes(${JSON.stringify(toastText)}));
-  const button = toast ? toast.querySelector("[data-action]") : null;
-  if (!button) return "missing";
-  button.click();
-  return "clicked";
-})()`;
 // the last reply's footer: turn 2 sits below turn 1.
 const CLICK_LAST_UNDO = `(() => {
   const button = ${UNDO_BUTTONS}.at(-1);

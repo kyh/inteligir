@@ -972,7 +972,13 @@ to the END of its group.
   merge or rebase a crash left is aborted before the engine's first commit.
   The status carries this device's name and each report since boot, a copy a
   pull brought included, and every surface words them through
-  `describeSyncConflict`. Rejected: a `conflict` state that stopped sync
+  `describeSyncConflict`. The desktop says each report once, as a toast that
+  stays until dismissed and whose Open shows the version set aside, against
+  the newest `at` it said, kept in the page's prefs so a reload says nothing
+  again and a boot sync's report is still said
+  (`apps/desktop/src/renderer/app/sync-conflict-notices.ts`); there is no
+  lasting conflict list, because Recent shows the copy and the copies are the
+  record. Rejected: a `conflict` state that stopped sync
   until someone ran git, which a knowledge worker cannot, and a rebase
   through the conflict, which replays every local commit and has nowhere to
   keep the other version.

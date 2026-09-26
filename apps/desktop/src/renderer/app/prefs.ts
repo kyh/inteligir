@@ -58,6 +58,8 @@ const railWidth = z.codec(
 
 const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === raw);
 
+const epochMs = z.codec(z.string(), z.int().nonnegative(), { decode: Number, encode: String });
+
 // in the order the rail's view menu lists them
 export const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
 export type RailView = (typeof RAIL_VIEWS)[number];
@@ -76,6 +78,8 @@ export const PREFS = {
   relatedOpen: pref("inteligir.related-open", flag, true),
   sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
   spellcheck: unsetPref("inteligir.spellcheck", json(spellcheckChoiceSchema)),
+  // the `at` of the newest sync conflict this window announced, on the server's clock
+  syncConflictSeenAt: unsetPref("inteligir.sync-conflict-seen-at", epochMs),
   theme: pref("inteligir.theme", themeName, "system"),
   treeSort: pref("inteligir.tree-sort", z.enum(TREE_SORTS), "name"),
 };

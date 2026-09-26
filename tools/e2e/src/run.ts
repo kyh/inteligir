@@ -35,6 +35,7 @@ import { remoteContentBrowser } from "./scenarios/remote-content-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { slowStorage } from "./scenarios/slow-storage";
+import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
 import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { treeOpsBrowser } from "./scenarios/tree-ops-browser";
@@ -84,6 +85,7 @@ const SCENARIOS: readonly Scenario[] = [
   treeOpsBrowser,
   extractNoteBrowser,
   remoteContentBrowser,
+  syncConflictBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]
