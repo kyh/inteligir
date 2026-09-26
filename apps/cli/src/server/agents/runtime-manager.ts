@@ -371,11 +371,7 @@ class AcpTurnDriver implements TurnDriver {
   // history, so it is handed them again only when they changed (a connected folder, AGENTS.md).
   private instructionsFor(threadId: string, loaded: boolean): string | undefined {
     const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
-    if (
-      loaded &&
-      instructions !== undefined &&
-      this.instructionHashes.get(threadId) === instructionsHash(instructions)
-    ) {
+    if (loaded && this.instructionHashes.get(threadId) === instructionsHash(instructions)) {
       return undefined;
     }
     return instructions;

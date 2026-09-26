@@ -18,7 +18,7 @@ import { apiFor } from "../../../context";
 import { loopbackOrigin } from "../../server-file";
 import type { TurnDriver } from "../../threads/turn-driver";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
-import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
+import { AUDIENCE_INSTRUCTIONS, CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
 import { createAcpRuntimeManager } from "../runtime-manager";
 import type { AcpRuntimeManager, AcpRuntimeManagerDeps } from "../runtime-manager";
 import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../../__tests__/boot-app";
@@ -238,6 +238,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     if (echoed?.kind !== "conversation") {
       throw new Error("expected the echoed prompt");
     }
+    expect(echoed.text.startsWith(AUDIENCE_INSTRUCTIONS)).toBe(true);
     expect(echoed.text).toContain(CLI_POINTER_INSTRUCTIONS);
     expect(echoed.text).toContain("$INTELIGIR_SKILLS_DIR");
     expect(echoed.text).not.toContain("hello agent");
@@ -270,6 +271,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await sendAfterTheChildIsGone("resumed after a settings change");
 
     const [first, resumed, changed] = await echoes();
+    expect(first?.startsWith(AUDIENCE_INSTRUCTIONS)).toBe(true);
     expect(first).toContain(CLI_POINTER_INSTRUCTIONS);
     // the fake echoes the prompt's first block: the user's own text, with nothing ahead of it.
     expect(resumed).toBe("resumed");
