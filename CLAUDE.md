@@ -1615,7 +1615,10 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `<dataDir>/cloud-prefs.json`, owner decision: on unless turned off) is read
   per pass, and off, this Mac claims nothing. The Mac also says it on its
   socket's upgrade (`SYNC_WS_PHONE_REQUESTS_PARAM`), so the phone's "a Mac is
-  listening" counts only Macs that would claim, and a change dials again
+  listening" counts only Macs that would claim, the status counting the open
+  Macs with it off beside them (`desktopsDeclining`), so the phone's waiting
+  caption names the switch rather than asking for a Mac to be opened, and a
+  change dials again
   (`phoneRequestsChanged`), since a hibernated socket's tags are fixed when it
   is accepted; an unreadable choice is announced off. Residual: a follow-up one Mac
   claims on a thread another Mac ran opens a fresh provider session there.

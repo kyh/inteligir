@@ -283,7 +283,7 @@ describe("a phone's turn", () => {
     phoneWs.socket.close();
   });
 
-  it("walks waiting, claimed and delivered or refused, and counts the Macs listening", async () => {
+  it("walks waiting, claimed and delivered or refused, and counts the Macs listening and declining", async () => {
     const { mac, otherMac, phone } = await account("dispatch-status@example.test");
     const done = turn("thr_status", "rename the draft");
     const refused = turn("thr_archived", "reopen this");
@@ -292,6 +292,7 @@ describe("a phone's turn", () => {
     await create(phone.credential, refused);
 
     expect(await status(phone.credential, [done.id, refused.id, never])).toEqual({
+      desktopsDeclining: 0,
       desktopsOnline: 0,
       dispatches: [
         { id: done.id, state: "waiting" },
@@ -302,11 +303,15 @@ describe("a phone's turn", () => {
 
     // a Mac whose person turned phone requests off is open, and would never claim one
     const quietMacWs = await openSocket(otherMac.credential, "desktop");
-    expect(await status(phone.credential, [done.id])).toMatchObject({ desktopsOnline: 0 });
+    expect(await status(phone.credential, [done.id])).toMatchObject({
+      desktopsDeclining: 1,
+      desktopsOnline: 0,
+    });
 
     const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
     const claimed = await claim(mac.credential);
     expect(await status(phone.credential, [done.id])).toEqual({
+      desktopsDeclining: 1,
       desktopsOnline: 1,
       dispatches: [{ id: done.id, state: "claimed" }],
     });
@@ -319,6 +324,7 @@ describe("a phone's turn", () => {
       ],
     });
     expect(await status(phone.credential, [done.id, refused.id])).toEqual({
+      desktopsDeclining: 1,
       desktopsOnline: 1,
       dispatches: [
         { id: done.id, state: "delivered" },

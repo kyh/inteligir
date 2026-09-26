@@ -370,6 +370,7 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
     "a dispatch status",
     dispatchStatusResponseSchema,
     {
+      desktopsDeclining: 0,
       desktopsOnline: 1,
       dispatches: [
         { id: DISPATCH_ID, state: "claimed" },
@@ -796,6 +797,7 @@ describe("the dispatch inbox", () => {
     ).toBe(false);
     expect(
       dispatchStatusResponseSchema.safeParse({
+        desktopsDeclining: 0,
         desktopsOnline: 0,
         dispatches: [{ id: DISPATCH_ID, state: "refused" }],
       }).success,

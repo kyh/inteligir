@@ -13,6 +13,7 @@ import { UNTITLED_THREAD } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import type {
   AnswerDispatch,
+  DesktopsOnline,
   DispatchPhase,
   DispatchState,
   TurnDispatch,
@@ -22,17 +23,24 @@ export const WORKING_CAPTION = "Your Mac is working…";
 
 const ASKING_CAPTION = "Your Mac is waiting for your answer";
 
-// desktopsOnline is null before the first status poll answered, which says nothing is listening
-// no more than it says something is
-export const dispatchCaption = (phase: DispatchPhase, desktopsOnline: number | null): string => {
+const WAITING_CAPTION = "Waiting for your Mac…";
+
+// what a request waiting on no Mac says: a Mac that is open but turned phone requests off is named
+// by its switch, since opening inteligir there again would change nothing
+const noMacCaption = ({ declining }: DesktopsOnline): string =>
+  declining > 0
+    ? "Waiting for your Mac — turn on “Let my phone ask this Mac” in its Settings"
+    : "Waiting for your Mac — open inteligir on it to run this";
+
+// desktops is null before the first status poll answered, which says nothing is listening no more
+// than it says something is
+export const dispatchCaption = (phase: DispatchPhase, desktops: DesktopsOnline | null): string => {
   switch (phase.kind) {
     case "unsent": {
       return "Not sent yet — retrying";
     }
     case "waiting": {
-      return desktopsOnline === 0
-        ? "Waiting for your Mac — open inteligir on it to run this"
-        : "Waiting for your Mac…";
+      return desktops === null || desktops.listening > 0 ? WAITING_CAPTION : noMacCaption(desktops);
     }
     case "claimed":
     case "delivered": {
@@ -89,7 +97,7 @@ export interface ThreadDispatches {
   // oldest first, and never one the log already holds
   pending: readonly TurnDispatch[];
   approvals: readonly ApprovalView[];
-  desktopsOnline: number | null;
+  desktops: DesktopsOnline | null;
 }
 
 const isTurn = (dispatch: DispatchState["dispatches"][number]): dispatch is TurnDispatch =>
@@ -121,7 +129,7 @@ export const threadDispatches = (
           reason: approval.payload.reason,
         };
       }),
-    desktopsOnline: state.desktopsOnline,
+    desktops: state.desktops,
     pending: state.dispatches
       .filter(isTurn)
       .filter(
@@ -144,13 +152,13 @@ const captionFor = (
   thread: ThreadProjection | null,
   state: DispatchState,
 ): string => {
-  const { approvals, pending, desktopsOnline } = threadDispatches(threadId, thread, state);
+  const { approvals, pending, desktops } = threadDispatches(threadId, thread, state);
   if (approvals.some((approval) => approval.answer === null && !approval.answeredElsewhere)) {
     return ASKING_CAPTION;
   }
   const latest = pending.at(-1);
   if (latest !== undefined) {
-    return dispatchCaption(latest.phase, desktopsOnline);
+    return dispatchCaption(latest.phase, desktops);
   }
   if (thread === null) {
     return "";

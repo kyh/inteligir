@@ -13,7 +13,7 @@ import type { SyncStore } from "../../sync/sync-store";
 import { projectThread } from "../../sync/thread-projection";
 import { dispatchCaption, threadDispatches, threadListEntries } from "../dispatch-projection";
 import { createDispatchRuntime, DISPATCH_STATUS_POLL_MS } from "../dispatch-runtime";
-import type { DispatchView } from "../dispatch-runtime";
+import type { DesktopsOnline, DispatchView } from "../dispatch-runtime";
 import { createFakeInbox } from "./fake-inbox";
 import type { FakeInbox } from "./fake-inbox";
 
@@ -111,6 +111,8 @@ const pullMacRequest = async (
   );
 };
 
+const ONE_MAC: DesktopsOnline = { declining: 0, listening: 1 };
+
 describe("the phone's requests to a Mac", () => {
   it("keeps a request the cloud never answered and resends it under the SAME id after a relaunch", async () => {
     const file = tempDbPath();
@@ -200,12 +202,18 @@ describe("the phone's requests to a Mac", () => {
     const id = idOf(await dispatch.askAgent({ text: "tidy my inbox", threadId: "thr_a" }));
     await dispatch.sendNow();
     const caption = (): string => {
-      const { desktopsOnline, pending } = threadDispatches("thr_a", null, dispatch.get());
+      const { desktops, pending } = threadDispatches("thr_a", null, dispatch.get());
       const [shown] = pending;
-      return shown === undefined ? "" : dispatchCaption(shown.phase, desktopsOnline);
+      return shown === undefined ? "" : dispatchCaption(shown.phase, desktops);
     };
 
     expect(caption()).toBe("Waiting for your Mac — open inteligir on it to run this");
+
+    inbox.desktopsDeclining = 1;
+    await dispatch.sendNow();
+    expect(caption()).toBe(
+      "Waiting for your Mac — turn on “Let my phone ask this Mac” in its Settings",
+    );
 
     inbox.desktopsOnline = 1;
     await dispatch.sendNow();
@@ -219,11 +227,11 @@ describe("the phone's requests to a Mac", () => {
     await dispatch.sendNow();
     expect(caption()).toBe("Your Mac has it");
 
-    expect(dispatchCaption({ error: "offline", kind: "unsent" }, 1)).toBe(
+    expect(dispatchCaption({ error: "offline", kind: "unsent" }, ONE_MAC)).toBe(
       "Not sent yet — retrying",
     );
     expect(dispatchCaption({ kind: "waiting" }, null)).toBe("Waiting for your Mac…");
-    expect(dispatchCaption({ kind: "refused", message: "This thread is archived." }, 1)).toBe(
+    expect(dispatchCaption({ kind: "refused", message: "This thread is archived." }, ONE_MAC)).toBe(
       "This thread is archived.",
     );
   });
@@ -243,7 +251,7 @@ describe("the phone's requests to a Mac", () => {
     expect(inbox.rows.has(unclaimed)).toBe(false);
     const left = only(dispatch.get().dispatches);
     expect(left).toMatchObject({ id: claimed, phase: { kind: "claimed" } });
-    expect(dispatchCaption(left.phase, 1)).toBe("Your Mac has it");
+    expect(dispatchCaption(left.phase, ONE_MAC)).toBe("Your Mac has it");
     expect(await rowsIn(db)).toBe(1);
   });
 

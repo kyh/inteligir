@@ -21,7 +21,7 @@ import {
 } from "@/dispatch/dispatch-projection";
 import type { ApprovalView } from "@/dispatch/dispatch-projection";
 import { noMacHasIt } from "@/dispatch/dispatch-runtime";
-import type { AskAgentRequest, TurnDispatch } from "@/dispatch/dispatch-runtime";
+import type { AskAgentRequest, DesktopsOnline, TurnDispatch } from "@/dispatch/dispatch-runtime";
 import {
   answerApproval,
   askAgent,
@@ -177,10 +177,10 @@ const cancel = async (id: string): Promise<void> => {
 // them for the user to copy before dismissing it
 const PendingRow = ({
   dispatch,
-  desktopsOnline,
+  desktops,
 }: {
   dispatch: TurnDispatch;
-  desktopsOnline: number | null;
+  desktops: DesktopsOnline | null;
 }) => {
   const theme = useTheme();
   const { phase } = dispatch;
@@ -199,7 +199,7 @@ const PendingRow = ({
         <Text
           style={[styles.caption, { color: refused ? theme.destructive : theme.mutedForeground }]}
         >
-          {dispatchCaption(phase, desktopsOnline)}
+          {dispatchCaption(phase, desktops)}
         </Text>
         {cancellable ? (
           <TextAction
@@ -234,10 +234,10 @@ const WorkingRow = () => {
 
 const ApprovalAnswer = ({
   approval,
-  desktopsOnline,
+  desktops,
 }: {
   approval: ApprovalView;
-  desktopsOnline: number | null;
+  desktops: DesktopsOnline | null;
 }) => {
   const theme = useTheme();
   const { answer } = approval;
@@ -248,7 +248,7 @@ const ApprovalAnswer = ({
         <Text
           style={[styles.caption, { color: refused ? theme.destructive : theme.mutedForeground }]}
         >
-          {`${DECISION_LABELS[answer.decision]} · ${dispatchCaption(answer.phase, desktopsOnline)}`}
+          {`${DECISION_LABELS[answer.decision]} · ${dispatchCaption(answer.phase, desktops)}`}
         </Text>
         {refused ? (
           <TextAction
@@ -306,10 +306,10 @@ const ApprovalAnswer = ({
 
 const ApprovalCard = ({
   approval,
-  desktopsOnline,
+  desktops,
 }: {
   approval: ApprovalView;
-  desktopsOnline: number | null;
+  desktops: DesktopsOnline | null;
 }) => {
   const theme = useTheme();
   return (
@@ -324,7 +324,7 @@ const ApprovalCard = ({
       {approval.reason === null || approval.reason === "" ? null : (
         <Text style={[styles.caption, { color: theme.mutedForeground }]}>{approval.reason}</Text>
       )}
-      <ApprovalAnswer approval={approval} desktopsOnline={desktopsOnline} />
+      <ApprovalAnswer approval={approval} desktops={desktops} />
     </View>
   );
 };
@@ -435,7 +435,7 @@ const ThreadScreen = () => {
   const quote = firstParam(params.quote);
   const thread = useThread(threadId);
   const live = useLiveItems(threadId);
-  const { approvals, desktopsOnline, pending } = useDispatches(threadId);
+  const { approvals, desktops, pending } = useDispatches(threadId);
   const list = useRef<FlatList<ThreadRow>>(null);
 
   const fresh = thread === null && pending.length === 0;
@@ -472,10 +472,10 @@ const ThreadScreen = () => {
         return <WorkingRow />;
       }
       case "approval": {
-        return <ApprovalCard approval={row.approval} desktopsOnline={desktopsOnline} />;
+        return <ApprovalCard approval={row.approval} desktops={desktops} />;
       }
       case "pending": {
-        return <PendingRow dispatch={row.dispatch} desktopsOnline={desktopsOnline} />;
+        return <PendingRow dispatch={row.dispatch} desktops={desktops} />;
       }
       // no default
     }

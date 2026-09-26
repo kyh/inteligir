@@ -169,7 +169,7 @@ describe("the thread projection", () => {
       threadId: "thr_a",
       type: "turn/completed",
     };
-    const idle: DispatchState = { approvals: [], desktopsOnline: null, dispatches: [] };
+    const idle: DispatchState = { approvals: [], desktops: null, dispatches: [] };
     await store.applyPlan(
       planPage(
         [
@@ -216,7 +216,7 @@ describe("the thread projection", () => {
     );
     const pending: DispatchState = {
       approvals: [],
-      desktopsOnline: 1,
+      desktops: { declining: 0, listening: 1 },
       dispatches: [
         {
           createdAt: 1,

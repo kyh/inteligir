@@ -73,16 +73,23 @@ export interface AnswerDispatch extends DispatchViewBase {
 
 export type DispatchView = TurnDispatch | AnswerDispatch;
 
+// the Macs open at the last status poll: those that take this phone's requests, and those whose
+// "Let my phone ask this Mac" is off
+export interface DesktopsOnline {
+  listening: number;
+  declining: number;
+}
+
 export interface DispatchState {
   // oldest first
   dispatches: readonly DispatchView[];
   // a phone-started turn's questions its Mac is waiting on
   approvals: readonly ApprovalRow[];
-  // Macs listening at the last status poll; null before one answered
-  desktopsOnline: number | null;
+  // null before a status poll answered
+  desktops: DesktopsOnline | null;
 }
 
-const EMPTY_STATE: DispatchState = { approvals: [], desktopsOnline: null, dispatches: [] };
+const EMPTY_STATE: DispatchState = { approvals: [], desktops: null, dispatches: [] };
 
 export interface AskAgentRequest {
   threadId: string;
@@ -198,7 +205,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
 
   let rows: DispatchRow[] = [];
   let approvals: readonly ApprovalRow[] = [];
-  let desktopsOnline: number | null = null;
+  let desktops: DesktopsOnline | null = null;
   // why an unsent row's last try did not reach the cloud; not kept across a relaunch
   const errors = new Map<string, string>();
   let generation = 0;
@@ -244,7 +251,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   const publish = (): void => {
     state.set({
       approvals,
-      desktopsOnline,
+      desktops,
       dispatches: rows.map((row) => viewOf(row, errors.get(row.request.id) ?? null)),
     });
   };
@@ -327,7 +334,10 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
       if (!result.ok) {
         return session.recordFailure(result.failure) === "ended" ? "fenced" : "stop";
       }
-      ({ desktopsOnline } = result.value);
+      desktops = {
+        declining: result.value.desktopsDeclining,
+        listening: result.value.desktopsOnline,
+      };
       publish();
       for (const status of result.value.dispatches) {
         if (!(await record(status.id, status, fence))) {
@@ -660,7 +670,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
       generation += 1;
       rows = [];
       approvals = [];
-      desktopsOnline = null;
+      desktops = null;
       errors.clear();
       clearTimer();
       publish();

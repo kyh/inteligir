@@ -500,8 +500,11 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (gone !== null) {
       return gone;
     }
+    // every Mac that takes a phone's requests is also a desktop socket
+    const listening = this.ctx.getWebSockets(PHONE_REQUESTS_TAG).length;
     return accepted({
-      desktopsOnline: this.ctx.getWebSockets(PHONE_REQUESTS_TAG).length,
+      desktopsDeclining: this.ctx.getWebSockets(platformTag("desktop")).length - listening,
+      desktopsOnline: listening,
       dispatches: dispatchStatuses(this.ctx.storage.sql, request.ids, Date.now()),
     });
   }

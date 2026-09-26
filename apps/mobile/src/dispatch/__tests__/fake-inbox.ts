@@ -26,6 +26,7 @@ export interface FakeInbox {
   creates: CreateDispatchRequest[];
   network: InboxNetwork;
   desktopsOnline: number;
+  desktopsDeclining: number;
   // a Mac asking the phone, as the Mac holding a phone-started turn's waiter does
   openApproval: (row: ApprovalRow) => void;
   approvals: () => readonly ApprovalRow[];
@@ -107,6 +108,7 @@ export const createFakeInbox = (): FakeInbox => {
       dispatchStatus: async (ids) =>
         inbox.network === "up"
           ? ok({
+              desktopsDeclining: inbox.desktopsDeclining,
               desktopsOnline: inbox.desktopsOnline,
               dispatches: ids.map(
                 (id): DispatchStatus => rows.get(id)?.status ?? { id, state: "unknown" },
@@ -119,6 +121,7 @@ export const createFakeInbox = (): FakeInbox => {
     deliver: (id) => {
       settle(id, { id, state: "delivered" });
     },
+    desktopsDeclining: 0,
     desktopsOnline: 1,
     hold: null,
     network: "up",

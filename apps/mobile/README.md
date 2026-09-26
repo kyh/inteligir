@@ -336,7 +336,9 @@ sha-256 of the bytes the note screen showed as its view context's revision.
   listening, lists the open approvals, and pulls the log when a Mac has taken
   a request or a turn runs. The words: Not sent yet — retrying; Waiting for your
   Mac…, or, with no Mac listening, Waiting for your Mac — open inteligir on it
-  to run this; Your Mac has it; and a running turn's Your Mac is working….
+  to run this, or, when a Mac is open with Let my phone ask this Mac off,
+  Waiting for your Mac — turn on “Let my phone ask this Mac” in its Settings;
+  Your Mac has it; and a running turn's Your Mac is working….
 - **The log replaces it, once.** A row leaves when a pulled
   `client/turn/requested` carries its id, and the thread view filters the
   pending rows by the same ids, so the message is never drawn twice between
