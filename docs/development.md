@@ -17,22 +17,24 @@ routes and deploy, `AGENTS.md` the runnable quickstart for coding agents.
 ## Commands
 
 ```bash
-pnpm dev              # THE PRODUCT — the shell over its own server
-pnpm dev:desktop      # Alias of dev
-pnpm dev:mobile       # apps/mobile: expo start
-pnpm cli serve        # The server ALONE, from source, no window; a shell adopts it
-pnpm cli <verb>       # Every other verb, against this checkout's instance
-pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
-pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
-pnpm package:desktop  # The macOS arm64 dmg, signed + notarized when the keys are present
-pnpm smoke:cli        # Pack, install into a scratch prefix, boot, probe, stop
-pnpm smoke:desktop    # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
-pnpm build            # Build all
-pnpm typecheck        # Type check all
-pnpm lint             # Lint all   (oxlint)
-pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
-pnpm verify           # The static gate (CI adds the e2e suite on top)
-pnpm e2e              # The scenario suite (one mode — the SPA is a static build)
+pnpm dev                # THE PRODUCT — the shell over its own server
+pnpm dev:desktop        # Alias of dev
+pnpm dev:mobile         # apps/mobile: expo start
+pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
+pnpm cli <verb>         # Every other verb, against this checkout's instance
+pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort)
+pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
+pnpm package:desktop    # The macOS arm64 dmg, signed + notarized when the keys are present
+pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
+pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
+pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; apps/mobile/README.md § Shipping)
+pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
+pnpm build              # Build all
+pnpm typecheck          # Type check all
+pnpm lint               # Lint all   (oxlint)
+pnpm format:fix         # Format     (oxfmt) — run BEFORE gates, never after
+pnpm verify             # The static gate (CI adds the e2e suite on top)
+pnpm e2e                # The scenario suite (one mode — the SPA is a static build)
 ```
 
 ## Running
@@ -108,8 +110,10 @@ pnpm format:fix && pnpm verify
 ```
 
 `pnpm verify` = `typecheck && lint && knip && format && test && build`, the same
-six steps CI runs. It is check-only on purpose — `format:fix` is a separate
-first step, never folded in. Format before gates, commit after gates. CI runs
+six steps CI runs, and its `build` bundles the phone too (`expo export
+--platform ios`), so JavaScript Metro refuses fails here rather than on EAS.
+It is check-only on purpose — `format:fix` is a separate first step, never
+folded in. Format before gates, commit after gates. CI runs
 every gate independently (each step runs even if an earlier one fails), so a
 red format cannot hide test regressions behind it.
 

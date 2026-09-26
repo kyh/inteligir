@@ -34,7 +34,10 @@
     },
     "apps/mobile": {
       "entry": ["src/app/**/*.tsx", "src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"]
+      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
+      // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
+      // leaves it off until the EAS project is committed
+      "ignoreDependencies": ["expo-updates"]
     },
     "apps/web": {
       "entry": ["src/routes/**/*.tsx", "src/worker/index.ts", "src/worker/__tests__/**/*.test.ts"],

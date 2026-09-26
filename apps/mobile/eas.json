@@ -1,0 +1,18 @@
+{
+  "cli": {
+    "version": ">= 24.8.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "production": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "channel": "production",
+      "node": "24.21.0",
+      "pnpm": "12.3.4"
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

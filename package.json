@@ -13,6 +13,7 @@
     "e2e": "pnpm --filter @repo/e2e e2e",
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
+    "hotfix:mobile": "pnpm --filter @repo/mobile hotfix",
     "knip": "knip",
     "lint": "oxlint --report-unused-disable-directives",
     "lint:fix": "oxlint --fix",
@@ -22,6 +23,7 @@
     "smoke:cli": "turbo run build --filter=inteligir && pnpm --filter inteligir smoke",
     "smoke:desktop": "pnpm package:desktop && pnpm --filter @repo/desktop smoke",
     "test": "turbo run test --concurrency=4",
+    "testflight:mobile": "pnpm --filter @repo/mobile testflight",
     "typecheck": "turbo run typecheck",
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
   },

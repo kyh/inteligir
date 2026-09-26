@@ -21,15 +21,6 @@ import type { AppRuntime } from "./compose-runtime";
 
 let runtime: AppRuntime | null = null;
 
-// a misconfigured build should say "could not reach the cloud" rather than crash on first render.
-const resolveCloudUrl = (): string => {
-  try {
-    return getCloudUrl();
-  } catch {
-    return "http://cloud.invalid";
-  }
-};
-
 // console.warn would raise a LogBox toast per skipped row or offline pass.
 const devLog = (message: string): void => {
   if (__DEV__) {
@@ -40,7 +31,7 @@ const devLog = (message: string): void => {
 const build = (): AppRuntime => {
   const rt = composeRuntime({
     cache: createExpoNoteCache(),
-    cloudUrl: resolveCloudUrl(),
+    cloudUrl: getCloudUrl(),
     credentials: {
       clear: clearDeviceCredential,
       read: readDeviceCredential,
