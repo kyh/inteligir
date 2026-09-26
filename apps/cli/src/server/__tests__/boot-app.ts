@@ -18,7 +18,8 @@ import type { CloudTransport } from "../cloud/sync-runtime";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
 import type { RecordAgentWrites } from "../agents/agent-driver";
-import type { VendorAccounts } from "../agents/vendor-accounts";
+import { SignInInProgressError } from "../agents/agent-sign-in";
+import type { AgentAccounts, SigningIn } from "../agents/agent-sign-in";
 import type { AppConfig } from "../config";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
@@ -44,23 +45,49 @@ export const TEST_SERVER_TOKEN = "test-server-token";
 // an in-process Request carries no Host until one is set, and the host guard refuses one naming none.
 export const TEST_HOST = "127.0.0.1:4664";
 
-// a booted suite never runs a vendor binary: every harness answers signed in unless told otherwise.
-export const fakeVendorAccounts = (
+// a booted suite never runs a vendor binary: every harness answers signed in unless told otherwise,
+// and a sign-in stays running until it is cancelled, as one the person never finishes in the browser.
+export const fakeAgentAccounts = (
   answers: Partial<Record<HarnessId, VendorAccount>> = {},
-): VendorAccounts => ({
-  invalidate: () => {
-    /* empty */
-  },
-  status: async (id) =>
-    await Promise.resolve(
-      answers[id] ?? { email: null, label: HARNESSES[id].displayName, state: "signed-in" },
-    ),
-});
+): AgentAccounts => {
+  const disposed = new AbortController();
+  let current: SigningIn | null = null;
+  return {
+    dispose: async () => {
+      disposed.abort();
+      await Promise.resolve();
+    },
+    invalidate: () => {
+      /* empty */
+    },
+    signIn: async (id, cancel) => {
+      if (current !== null) {
+        throw new SignInInProgressError(HARNESSES[current.id]);
+      }
+      current = { authUrl: null, id };
+      try {
+        const stopped = AbortSignal.any([cancel, disposed.signal]);
+        if (!stopped.aborted) {
+          await once(stopped, "abort");
+        }
+        return { outcome: "cancelled" };
+      } finally {
+        current = null;
+      }
+    },
+    signOut: async () => await Promise.resolve({ outcome: "signed-out" }),
+    signingIn: () => current,
+    status: async (id) =>
+      await Promise.resolve(
+        answers[id] ?? { email: null, label: HARNESSES[id].displayName, state: "signed-in" },
+      ),
+  };
+};
 
 export interface BootTestAppOptions {
   agent?: AgentStatus;
   // absent, every harness answers signed in.
-  accounts?: VendorAccounts;
+  accounts?: AgentAccounts;
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
   clientDir?: string;
@@ -146,7 +173,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
         vaultDir,
       });
       return {
-        accounts: options.accounts ?? fakeVendorAccounts(),
+        accounts: options.accounts ?? fakeAgentAccounts(),
         createTurnDriver: made?.createTurnDriver ?? (() => unavailableTurnDriver),
         dispose:
           made?.dispose ??

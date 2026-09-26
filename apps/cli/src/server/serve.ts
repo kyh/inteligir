@@ -9,7 +9,7 @@ import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
 import type { ResolveAgentDriverArgs } from "./agents/agent-driver";
 import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
-import { createVendorAccounts } from "./agents/vendor-accounts";
+import { createAgentAccounts } from "./agents/agent-sign-in";
 import { createApp } from "./app";
 import { bootReport } from "./boot-report";
 import type { BootPhases } from "./boot-report";
@@ -158,7 +158,11 @@ const boot = async (
       const cliBinDir = resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
-        accounts: createVendorAccounts({ cwd: driverConfig.dataDir, env }),
+        accounts: createAgentAccounts({
+          cwd: driverConfig.dataDir,
+          env,
+          spawnAdapter: children.spawnAdapter,
+        }),
         config: driverConfig,
         db,
         debugLog: debugLog(driverConfig.debug, "acp"),

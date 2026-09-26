@@ -193,12 +193,18 @@ const commentsBody = (state: FixtureState, path: string) => {
 
 const base = implement(localContract).$context<FixtureState>();
 
+const FIXTURE_AGENTS = { defaultId: "claude", harnesses: [], signingIn: null };
+
+// no verb signs an agent in or out; the contract asks every server to answer those rows
 const agentsRouter = {
+  cancelSignIn: base.agents.cancelSignIn.handler(() => FIXTURE_AGENTS),
   setDefault: base.agents.setDefault.handler(({ input }) => ({
+    ...FIXTURE_AGENTS,
     defaultId: input.id,
-    harnesses: [],
   })),
-  status: base.agents.status.handler(() => ({ defaultId: "claude", harnesses: [] })),
+  signIn: base.agents.signIn.handler(() => ({ outcome: "cancelled", status: FIXTURE_AGENTS })),
+  signOut: base.agents.signOut.handler(() => ({ outcome: "signed-out", status: FIXTURE_AGENTS })),
+  status: base.agents.status.handler(() => FIXTURE_AGENTS),
 };
 
 const cloudRouter = {

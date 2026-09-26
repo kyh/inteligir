@@ -190,6 +190,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   register("agent", async () => {
     // the oauth flow serves agent sessions, so it stops with them.
     connectorsOauth.dispose();
+    await agentDriver.accounts.dispose();
     await agentDriver.dispose();
   });
   const agents = createAgentsService({

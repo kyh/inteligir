@@ -6,7 +6,7 @@ import { systemStatusResponseSchema } from "@repo/api/local/system/system-schema
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { defaultHarnessId, resolveAgentDriver } from "../agent-driver";
-import { bootTestApp, fakeVendorAccounts, makeTempDir } from "../../__tests__/boot-app";
+import { bootTestApp, fakeAgentAccounts, makeTempDir } from "../../__tests__/boot-app";
 import {
   awaitThreadStatus,
   createThread,
@@ -34,7 +34,7 @@ const bootAuto = async (env: NodeJS.ProcessEnv) =>
     agent: { detail: "placeholder", mode: "auto", runtime: "unavailable" },
     makeDriver: ({ db, bus, vault, vaultDir }) =>
       resolveAgentDriver({
-        accounts: fakeVendorAccounts(),
+        accounts: fakeAgentAccounts(),
         config: { agent: "auto", agentModels: NO_MODELS, vaultDir },
         db,
         env,
@@ -84,7 +84,7 @@ describe("agent driver resolution", () => {
       agent: { detail: "The agent is disabled (INTELIGIR_AGENT=off)", mode: "off", runtime: "off" },
       makeDriver: ({ db, bus, vault, vaultDir }) =>
         resolveAgentDriver({
-          accounts: fakeVendorAccounts(),
+          accounts: fakeAgentAccounts(),
           config: { agent: "off", agentModels: NO_MODELS, vaultDir },
           db,
           mcpServers: () => [],
