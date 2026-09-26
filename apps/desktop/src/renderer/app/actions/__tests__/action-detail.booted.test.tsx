@@ -1,7 +1,13 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { createPendingInteraction } from "@repo/db/pending-interactions";
 import { noopNotifier } from "@repo/domain/notifier";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { bootThreadHarness } from "inteligir/server/testing";
+import {
+  AGENT_COMMIT_AUTHOR,
+  agentCommitMessage,
+  bootThreadHarness,
+} from "inteligir/server/testing";
 import type { ThreadHarness } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -71,6 +77,46 @@ describe("the action detail's transcript", () => {
     expect(await screen.findByText("Queued")).toBeTruthy();
     expect(field).toHaveProperty("value", "");
     expect(screen.getByText("for later")).toBeTruthy();
+  });
+});
+
+describe("the action detail's changes footer", () => {
+  it("offers a settled turn's changes back, and says so once the undo lands", async () => {
+    const harness = await bootPanel();
+    const { client } = harness;
+    const plans = path.join(harness.vaultDir, "Plans.md");
+    await client.vault.write({
+      content: "# Plans\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
+    await client.vault.commitNow();
+    const { thread } = await client.threads.create({});
+    const sent = await client.threads.send({ text: "tidy the plan", threadId: thread.id });
+    if (sent.kind !== "started") {
+      throw new Error(`expected a started turn, got ${sent.kind}`);
+    }
+    harness.driver.completeTurn(thread.id, sent.turnId, "completed");
+    // the turn's write and its commit, as the agent's turn writes land them
+    await client.vault.write({
+      content: "# Plans\n\nTidied.\n",
+      guard: { kind: "overwrite" },
+      path: "Plans.md",
+    });
+    await harness.vault.git.commitPaths(
+      ["Plans.md"],
+      AGENT_COMMIT_AUTHOR,
+      agentCommitMessage(thread.id, sent.turnId),
+    );
+
+    mountDetail(thread.id);
+    expect(await screen.findByText("Edited 1 note")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Undo changes" }));
+
+    // no socket reaches this page, so the footer moves on the undo's own re-read
+    expect(await screen.findByText("Changes undone")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Undo changes" })).toBeNull();
+    expect(await readFile(plans, "utf-8")).toBe("# Plans\n");
   });
 });
 

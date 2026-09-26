@@ -28,6 +28,7 @@ Everything since 0.4.0 (September 4, 2026).
 ### New
 
 - **Stop a running action.** A Stop button sits in the action's header while the agent works; `inteligir action stop` does the same, and archiving a running action stops it.
+- **Undo what the agent changed.** When an action finishes editing your notes, a message says how many it edited, with Undo, and each of the action's replies lists the notes it edited with Undo changes. Undo takes back only that reply's changes and keeps every edit made since, yours included; a note edited in the same place since is left as it is and named, with Open History.
 - **More than one vault.** Open another folder as a vault from File › Open Vault…, the vault's name at the top of the sidebar, or Settings › Vault; recent vaults are one click away. `inteligir vault open <folder>` picks the vault the server opens next time it starts.
 - **Templates.** Notes in a `templates/` folder are templates: New note from template… and Insert template… in the command palette (⌘P), and a Templates group in the `/` menu. `{{date}}`, `{{time}}` and `{{title}}` are filled in, and `templates/Daily.md` shapes the daily note (⌘D).
 - **Search and replace across the vault.** Search across the vault… in ⌘P lists every match with its line, with match-case and whole-word options, and can replace them all. It shows its progress, can be stopped between notes, and leaves alone any note that changed while it ran, naming it. On the command line: `inteligir matches`.

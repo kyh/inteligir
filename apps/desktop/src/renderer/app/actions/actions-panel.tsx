@@ -9,7 +9,9 @@ import {
 import type { TaskStatus } from "@repo/ui/ai/task-rows";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
+import type { TimelineRow } from "@repo/api/local/thread-timeline";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
+import { isThreadRunning } from "@repo/domain/thread-status";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { isImeComposing } from "@repo/ui/lib/ime";
@@ -24,8 +26,8 @@ import {
   SquareIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Fragment, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 
 import { client, failed, orpc, safe } from "../api";
@@ -35,14 +37,27 @@ import { useFollowBottom } from "./follow-bottom";
 import { THREAD_ACTIVITY_LABELS, threadActivity, threadStopControl } from "../thread-activity";
 import type { ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
-import { useNoteThreads, useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
+import {
+  useNoteThreads,
+  useThreadDetail,
+  useThreads,
+  useThreadTimeline,
+  useTurnChanges,
+} from "./thread-hooks";
 import { NoteFacts } from "./note-facts";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
 import type { CommentFocus } from "./comments-tab";
 import { HistoryTab } from "./history-tab";
 import { ReadRefusal } from "./read-refusal";
-import { QueuedReplyView, TimelineRowView } from "./timeline-rows";
+import {
+  QueuedReplyView,
+  TimelineRowView,
+  TurnChangesFooter,
+  turnFooterSlots,
+} from "./timeline-rows";
+import type { TurnUndoState } from "./timeline-rows";
+import { reportUndo, undoTurnChanges } from "./undo-turn";
 import { usePinnedPaths } from "../vault-hooks";
 import { bindingFor } from "../global-shortcuts";
 
@@ -219,14 +234,74 @@ const ShowMoreActions = ({
     </div>
   ) : null;
 
+// each settled reply ends with what its turn changed
+const TranscriptRows = ({
+  threadId,
+  thread,
+  rows,
+  onShowHistory,
+}: {
+  threadId: string;
+  // null until the thread's detail is read
+  thread: Thread | null;
+  rows: readonly TimelineRow[];
+  onShowHistory: (path: string) => void;
+}) => {
+  const canUndo = thread !== null && !isThreadRunning(thread.status);
+  const queryClient = useQueryClient();
+  const turnChanges = useTurnChanges(threadId);
+  const changesByTurn = new Map((turnChanges.data?.turns ?? []).map((turn) => [turn.turnId, turn]));
+  const footerSlots = turnFooterSlots(rows);
+
+  // settles once the thread's changes are read again, so the footer goes from pending to undone
+  // without offering the undo a second time in between.
+  const undoTurn = useMutation({
+    mutationFn: async (turnId: string) => await undoTurnChanges(client, { threadId, turnId }),
+    onSuccess: async (outcome) => {
+      reportUndo(outcome, onShowHistory);
+      await queryClient.invalidateQueries({
+        queryKey: orpc.threads.turnChanges.key({ input: { threadId } }),
+      });
+    },
+  });
+  const undoStateOf = (turnId: string): TurnUndoState => {
+    if (!canUndo) {
+      return "withheld";
+    }
+    return undoTurn.isPending && undoTurn.variables === turnId ? "pending" : "offered";
+  };
+  const undo = (turnId: string): void => {
+    undoTurn.mutate(turnId);
+  };
+
+  return rows.map((row) => {
+    const endedTurn = footerSlots.get(row.id);
+    return (
+      <Fragment key={row.id}>
+        <TimelineRowView row={row} />
+        {endedTurn === undefined ? null : (
+          <TurnChangesFooter
+            status={endedTurn.status}
+            changes={changesByTurn.get(endedTurn.turnId)}
+            undo={undoStateOf(endedTurn.turnId)}
+            onUndo={undo}
+          />
+        )}
+      </Fragment>
+    );
+  });
+};
+
 const ActionDetail = ({
   threadId,
   onBack,
   onOpenDoc,
+  onShowHistory,
 }: {
   threadId: string;
   onBack: () => void;
   onOpenDoc: (path: string) => void;
+  onShowHistory: (path: string) => void;
 }) => {
   const queryClient = useQueryClient();
   const detailQuery = useThreadDetail(threadId);
@@ -348,9 +423,14 @@ const ActionDetail = ({
           {transcript.state === "refused" ? (
             <ReadRefusal lead="The transcript could not be read." error={transcript.error} />
           ) : null}
-          {transcript.state === "read"
-            ? transcript.timeline.rows.map((row) => <TimelineRowView key={row.id} row={row} />)
-            : null}
+          {transcript.state === "read" ? (
+            <TranscriptRows
+              threadId={threadId}
+              rows={transcript.timeline.rows}
+              thread={thread}
+              onShowHistory={onShowHistory}
+            />
+          ) : null}
           {queued.map((message) => (
             <QueuedReplyView key={message.id} text={message.text} />
           ))}
@@ -485,6 +565,10 @@ export const ActionsPanel = ({
               onSelectThread(null);
             }}
             onOpenDoc={onOpenDoc}
+            onShowHistory={(path) => {
+              onOpenDoc(path);
+              onTabChange("history");
+            }}
           />
         )}
       </TabsContent>

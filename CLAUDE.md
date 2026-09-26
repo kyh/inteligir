@@ -1039,10 +1039,20 @@ to the END of its group.
   The agent edits the vault directly and anchored comments are the review
   channel; the panel's Actions | Comments | History | Metadata tabs are
   transcript, review, revision, and the note's own properties, related notes
-  and delete. "Ask agent" seeds the composer through
-  `packages/editor/src/agent-request.ts`, so the editor never imports the shell.
-  `apps/desktop/src/renderer/app/actions/actions-panel.tsx` and
-  `action-composer.tsx`.
+  and delete. The transcript ends each settled reply with the notes its turn
+  edited and Undo changes, withheld while the thread runs; a finish toast
+  ("Agent edited N notes", Undo) sits outside the panel, mounted by the
+  workspace. A `changes-committed` frame names its thread, never its turn,
+  since the bus carries no payload, and an undo sends the same frame a turn
+  does: so the toast reads a thread's turns on its first frame since the
+  window opened and announces the newest applied turn that read did not hold,
+  and a thread first heard through a commit frame alone is an undo's
+  (`apps/desktop/src/renderer/app/actions/turn-finish-toast.ts`). Both undos
+  flush the open note first, so a line still inside the autosave debounce is
+  merged around rather than missed (`undo-turn.ts`). "Ask agent" seeds the
+  composer through `packages/editor/src/agent-request.ts`, so the editor never
+  imports the shell. `apps/desktop/src/renderer/app/actions/actions-panel.tsx`
+  and `action-composer.tsx`.
 
 - **COMMENTS CARRY THE AUTHOR'S `source`, AND THE STORE WRITE IS A CAS.** The
   server signs `user` when a caller says nothing; the CLI signs `agent` under

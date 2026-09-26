@@ -29,6 +29,7 @@ import { slowStorage } from "./scenarios/slow-storage";
 import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { treeOpsBrowser } from "./scenarios/tree-ops-browser";
+import { undoBrowser } from "./scenarios/undo-browser";
 import { undoScripted } from "./scenarios/undo-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
 import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
@@ -57,6 +58,7 @@ const SCENARIOS: readonly Scenario[] = [
   slashMenuBrowser,
   externalEditBrowser,
   viewContextBrowser,
+  undoBrowser,
   settingsBrowser,
   vaultSearchBrowser,
   treeOpsBrowser,

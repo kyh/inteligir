@@ -21,6 +21,7 @@ import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
 import { NoteFooter } from "./note-footer";
 import { useThreads } from "./actions/thread-hooks";
+import { useTurnFinishToast } from "./actions/turn-finish-toast";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
@@ -279,6 +280,8 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     },
     [setOpenNote, revealPanel],
   );
+
+  useTurnFinishToast(showHistory);
 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialSidebarWidth] = useState(() => `${String(readPref(PREFS.sidebarWidth))}px`);

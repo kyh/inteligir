@@ -252,12 +252,32 @@ describe("a thread change", () => {
     "title-changed",
   ];
   const MOVES_DETAIL_ALONE: readonly ThreadChangeKind[] = ["queue-changed", "interactions-changed"];
-  const MOVES_NEITHER: readonly ThreadChangeKind[] = ["events-appended", "changes-committed"];
+  const MOVES_CHANGES_ALONE: readonly ThreadChangeKind[] = ["changes-committed"];
+  const MOVES_NEITHER: readonly ThreadChangeKind[] = ["events-appended"];
 
   it("weighs every kind in the vocabulary here too", () => {
-    expect([...MOVES_LIST_AND_DETAIL, ...MOVES_DETAIL_ALONE, ...MOVES_NEITHER].toSorted()).toEqual(
-      [...THREAD_CHANGE_KINDS].toSorted(),
-    );
+    expect(
+      [
+        ...MOVES_LIST_AND_DETAIL,
+        ...MOVES_DETAIL_ALONE,
+        ...MOVES_CHANGES_ALONE,
+        ...MOVES_NEITHER,
+      ].toSorted(),
+    ).toEqual([...THREAD_CHANGE_KINDS].toSorted());
+  });
+
+  it.each(MOVES_CHANGES_ALONE)("%s moves that thread's recorded turn changes alone", (kind) => {
+    const applied = apply(threadChanged("t1", [kind]));
+
+    expect(applied.invalidated).toEqual([
+      [...orpc.threads.turnChanges.key({ input: { threadId: "t1" } })],
+    ]);
+  });
+
+  it("re-reads every thread's turn changes when a commit frame names no thread", () => {
+    const applied = apply({ changes: ["changes-committed"], entity: "thread", type: "changed" });
+
+    expect(applied.invalidated).toEqual([[...orpc.threads.turnChanges.key()]]);
   });
 
   it.each(MOVES_LIST_AND_DETAIL)("%s moves the list row and the thread's detail", (kind) => {
