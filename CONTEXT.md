@@ -44,6 +44,20 @@ a re-joined split.
 aliases, the pin and the note's `id` (`@repo/notes/knowledge/projection`,
 `projectDoc`). An index stores projections, not documents.
 
+**conflict copy** — the other device's whole version of a file both devices
+changed where their edits overlap, written beside it as
+`<name> (conflict, <device>)<ext>`, while the path keeps the line merge with
+this device's lines at the overlaps. A note's copy drops its `id:`, so the two
+never answer to one `[[Title|uuid]]` link. Which paths get one is
+`@repo/notes/sync/reconcile-file` (the one verdict the desktop's sync and the
+phone's write queue both run: an edit beats a deletion, the capture inbox and
+the comment store merge and are never copied, another app's dot-folder keeps
+this device's); the name, its parse and the one sentence every surface says
+about it are `@repo/notes/sync/conflict-copy`. Not the open note's own
+overlap: a save that meets a concurrent write merges into the buffer, keeps
+its lines and makes no copy (`packages/editor/src/vault-editor.ts`), because
+the person is looking at the note and its History holds the rest.
+
 ## The agent
 
 The four words below are one chain and are constantly swapped for each other.

@@ -41,15 +41,27 @@ export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(
 export const isVaultMetadataPath = (path: string): boolean =>
   isLegacyCommentsSidecarPath(path) || path.split("/").some((segment) => segment.startsWith("."));
 
-// The first of `stem`, `stem 2`, `stem 3`… not taken under `dir`. Lowercased on both sides
-// because the disk may be case-insensitive; the server's `absent` guard stays the real one.
-export const freeDocPath = (dir: string, stem: string, takenPaths: Iterable<string>): string => {
-  const taken = new Set([...takenPaths].map((path) => path.toLowerCase()));
+// Lowercased on both sides because the disk may be case-insensitive; the server's `absent` guard
+// stays the real one.
+export const takenIgnoringCase = (takenPaths: Iterable<string>): ((path: string) => boolean) => {
+  const taken = new Set(Array.from(takenPaths, (path) => path.toLowerCase()));
+  return (path) => taken.has(path.toLowerCase());
+};
+
+// The first of `stem`, `stem 2`, `stem 3`… under `dir`, extension kept, that `isTaken` refuses.
+export const freePath = (
+  dir: string,
+  stem: string,
+  extension: string,
+  isTaken: (path: string) => boolean,
+): string => {
   for (let n = 1; ; n += 1) {
-    const name = `${n === 1 ? stem : `${stem} ${String(n)}`}${DEFAULT_DOC_EXTENSION}`;
-    const path = joinPath(dir, name);
-    if (!taken.has(path.toLowerCase())) {
+    const path = joinPath(dir, `${n === 1 ? stem : `${stem} ${String(n)}`}${extension}`);
+    if (!isTaken(path)) {
       return path;
     }
   }
 };
+
+export const freeDocPath = (dir: string, stem: string, takenPaths: Iterable<string>): string =>
+  freePath(dir, stem, DEFAULT_DOC_EXTENSION, takenIgnoringCase(takenPaths));

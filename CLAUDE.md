@@ -171,7 +171,9 @@ packages/
                  cuts included), `templates/` (the three placeholders and the
                  convention folders), the dialect's own modules
                  (markdown/remark-*, comments/, formulas/),
-                 and `text/` — ONE Myers diff under diff3. No node/react/ui
+                 `text/` — ONE Myers diff under diff3 — and `sync/`, the one
+                 verdict a path two writers changed gets and the conflict
+                 copy's name and words. No node/react/ui
                  imports — lint-enforced. `markdown/mdast-nodes.ts` is the
                  mdast NARROWING boundary: a walk asks it what a node is
                  rather than discriminating structurally at each visit.
@@ -660,7 +662,8 @@ to the END of its group.
   `.gitattributes`, because the vault's files are the user's. Residual: a
   bullet one device deleted beside the other's append comes back.
   `apps/cli/src/server/vault/git-bootstrap.ts`, over `CAPTURE_INBOX_PATH` in
-  `apps/cli/src/server/cloud/captures.ts`.
+  `@repo/notes/sync/reconcile-file`, whose verdict unions the same file
+  (`diff3`'s `union` overlap) for a writer that runs no git.
 
 - **A SAVE THAT FAILS IS SAID ONCE AND RETRIED; ONE WHOSE FILE IS GONE IS ASKED
   ABOUT.** A refused write keeps the buffer dirty, said once per failure and

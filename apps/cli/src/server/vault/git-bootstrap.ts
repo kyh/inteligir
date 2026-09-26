@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
-import { CAPTURE_INBOX_PATH } from "../cloud/captures";
+import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import type { VaultRemoteSpec } from "../cloud/vault-remote";
 import {
   gitPath,
