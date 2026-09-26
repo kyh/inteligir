@@ -83,6 +83,7 @@ its own `tsconfig.json`.
 | `GET /v1/vault/asset`                   | device            | One embedded binary at that commit                                  |
 | `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
 | `GET /v1/account`                       | device            | Whose account this device credential syncs as                       |
+| `POST /v1/account/delete`               | device + password | Delete the account through Better Auth's `deleteUser`               |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
@@ -199,7 +200,13 @@ answers git clients in plain text.
   ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
   authenticated microseconds before step one — then the deleted email off the
   invite it spent (`redeemed_at` stays set, so the code stays burned).
-  `docs/privacy.md` is the user-facing statement of all of it.
+  The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),
+  holding a device credential and no session: the credential, a per-device
+  window of 5 a minute, the password checked again through `signInEmail`, then
+  `auth.api.deleteUser` under the session that sign-in minted, so this hook
+  stays the one purge path. The credential alone deletes nothing: whoever held a
+  stolen one could end the account. `docs/privacy.md` is the user-facing
+  statement of all of it.
 
 Minting invites is `wrangler d1 execute`, deliberately — no admin UI, no
 self-serve issuance:

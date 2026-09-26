@@ -1,19 +1,22 @@
 // No on/off toggle: the credential on disk is the switch, and a second value could disagree with
 // it. The sync's raw state, this device's id and the last error are Settings › Advanced's; here a
-// person sees who they are signed in as and which devices share the account, and removes one they
-// lost from any device still signed in.
+// person sees who they are signed in as and which devices share the account, removes one they
+// lost from any device still signed in, and deletes the account from any of them.
 
 import { cloudDevicesPageUrl } from "@repo/api/local/cloud/cloud-schema";
 import type { CloudDevice } from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
+import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AccountForm } from "../account-form";
-import { failed, orpc } from "../api";
+import { accountOffer } from "../account-offer";
+import { failed, orpc, refusalMessage } from "../api";
 import { useCloudSession } from "../cloud-session";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useDataDirScope, useVaultStatus } from "../vault-hooks";
+import { DeleteAccountDialog } from "./delete-account-dialog";
 import { PhoneRequestsRow } from "./phone-requests-row";
 import { Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
@@ -176,6 +179,16 @@ export const AccountSection = () => {
     retry: false,
     staleTime: 0,
   });
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteAccount = useMutation(
+    orpc.cloud.deleteAccount.mutationOptions({
+      onSuccess: (next) => {
+        queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
+        setDeleteOpen(false);
+        toast.success("Your account was deleted. Your notes on this Mac are still here.");
+      },
+    }),
+  );
   const revoke = useMutation(
     orpc.cloud.revokeDevice.mutationOptions({
       onError: (cause) => {
@@ -199,6 +212,7 @@ export const AccountSection = () => {
   const accountForm = (cloudUrl: string) => (
     <AccountForm
       cloudUrl={cloudUrl}
+      lead={vaultStatus === undefined ? undefined : accountOffer(vaultStatus).lead}
       onCreate={signUp}
       onSignIn={signIn}
       pending={pending}
@@ -254,9 +268,36 @@ export const AccountSection = () => {
           />
           <PhoneRequestsRow />
         </dl>
-        <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
-          Sign out
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
+            Sign out
+          </Button>
+          <Button
+            size="compact"
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            disabled={pending}
+            onClick={() => {
+              deleteAccount.reset();
+              setDeleteOpen(true);
+            }}
+          >
+            Delete account…
+          </Button>
+        </div>
+        <DeleteAccountDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          onDelete={(password) => {
+            deleteAccount.mutate({ password });
+          }}
+          pending={deleteAccount.isPending}
+          refusal={
+            deleteAccount.isError
+              ? refusalMessage(deleteAccount.error, "Could not delete the account.")
+              : null
+          }
+        />
       </div>
     );
   };

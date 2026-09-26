@@ -1,6 +1,7 @@
 import { oc } from "@orpc/contract";
 import { PROVIDER_UNAVAILABLE } from "../local-errors";
 import {
+  cloudDeleteAccountRequestSchema,
   cloudDevicesResponseSchema,
   cloudLoginRequestSchema,
   cloudPrefsSchema,
@@ -11,6 +12,20 @@ import {
 } from "./cloud-schema";
 
 export const cloudContract = {
+  // ends the account this device is signed in to, and signs this device out; its notes and their
+  // history stay. UNAUTHORIZED is a wrong password, TOO_MANY_REQUESTS this device's window,
+  // PRECONDITION_FAILED no live sign-in to ask with, a credential the cloud refuses included, which
+  // also moves the status to unauthorized; PROVIDER_UNAVAILABLE as devices'
+  deleteAccount: oc
+    .input(cloudDeleteAccountRequestSchema)
+    .output(cloudStatusResponseSchema)
+    .errors({
+      PRECONDITION_FAILED: {},
+      PROVIDER_UNAVAILABLE,
+      TOO_MANY_REQUESTS: {},
+      UNAUTHORIZED: {},
+    }),
+
   // asked with this device's own credential. PRECONDITION_FAILED is no live sign-in to ask with, a
   // credential the cloud refuses included, which also moves the status to unauthorized;
   // PROVIDER_UNAVAILABLE a cloud that did not answer or answered nothing this build reads

@@ -1,3 +1,4 @@
+import { isDeleteAccountRefusal } from "@repo/api/cloud/account/account-schema";
 import { describeCloudFailure } from "@repo/api/cloud/client";
 import { isDeviceLoginRefusal, isDeviceSignUpRefusal } from "@repo/api/cloud/device/device-schema";
 import { base } from "../orpc";
@@ -109,6 +110,42 @@ const revokeDevice = base.cloud.revokeDevice.handler(async ({ context, input, er
   }
 });
 
+// the vault is not touched either way: its notes and their history stay on this Mac
+const deleteAccount = base.cloud.deleteAccount.handler(async ({ context, input, errors }) => {
+  const outcome = await context.cloud.deleteAccount(input.password);
+  switch (outcome.kind) {
+    case "answered": {
+      return outcome.value;
+    }
+    case "not-live": {
+      throw errors.PRECONDITION_FAILED({ message: outcome.message });
+    }
+    case "failed": {
+      const { failure } = outcome;
+      if (failure.kind === "refused" && isDeleteAccountRefusal(failure.code)) {
+        const { message } = failure;
+        switch (failure.code) {
+          case "invalid-credentials": {
+            throw errors.UNAUTHORIZED({ message });
+          }
+          case "rate-limited": {
+            throw errors.TOO_MANY_REQUESTS({ message });
+          }
+          default: {
+            const unanswered: never = failure.code;
+            return unanswered;
+          }
+        }
+      }
+      throw errors.PROVIDER_UNAVAILABLE({ message: describeCloudFailure(failure) });
+    }
+    default: {
+      const unanswered: never = outcome;
+      return unanswered;
+    }
+  }
+});
+
 const syncNow = base.cloud.syncNow.handler(async ({ context }) => await context.cloud.syncNow());
 
 const prefs = base.cloud.prefs.handler(({ context }) => ({
@@ -123,6 +160,7 @@ const setPrefs = base.cloud.setPrefs.handler(({ context, input }) => {
 });
 
 export const cloudRouter = {
+  deleteAccount,
   devices,
   login,
   logout,

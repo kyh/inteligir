@@ -104,6 +104,7 @@ type RevokeDeviceOutcome = AccountCallOutcome<CloudRevokeDeviceResponse> | { kin
 const NOT_SIGNED_IN = "This Mac isn't signed in to an account.";
 const SIGNED_OUT_BY_ACCOUNT = "This Mac was signed out of your account.";
 const SIGN_IN_CHANGED = "This Mac's sign-in changed while that was asked. Try again.";
+const SHUTTING_DOWN: CloudFailure = { kind: "unreachable", message: "This app is shutting down." };
 
 export interface CloudRuntime {
   status: () => CloudStatusResponse;
@@ -121,6 +122,8 @@ export interface CloudRuntime {
   devices: () => Promise<AccountCallOutcome<CloudDevicesResponse>>;
   /** cuts another of the account's devices off; this one signs out instead. */
   revokeDevice: (deviceId: string) => Promise<RevokeDeviceOutcome>;
+  /** ends the account and forgets this device's sign-in; the vault is left as it is. */
+  deleteAccount: (password: string) => Promise<AccountCallOutcome<CloudStatusResponse>>;
   syncNow: () => Promise<CloudStatusResponse>;
   dispose: () => Promise<void>;
 }
@@ -495,6 +498,56 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     args.onVaultPing?.();
   };
 
+  const forgetSignIn = (): CloudStatusResponse => {
+    session.close();
+    haltTransport();
+    clearDeviceCredential(args.dataDir);
+    resetSyncState(args.db);
+    lastError = null;
+    link.resetBackoff();
+    notifyStatus();
+    return status();
+  };
+
+  // its own client, as a sign-out's: the deletion revokes this very credential first, and a pass
+  // that meets it ends the session, which aborts every request the session's client carries
+  const deleteAbort = new AbortController();
+
+  const deleteAccount = async (
+    password: string,
+  ): Promise<AccountCallOutcome<CloudStatusResponse>> => {
+    const asked = session.current();
+    if (disposed || asked.kind !== "live") {
+      return { kind: "not-live", message: NOT_SIGNED_IN };
+    }
+    const client = createCloudClient(clientArgs(asked.credential.credential, deleteAbort.signal));
+    const result = await client.deleteAccount(password);
+    if (disposed) {
+      return { failure: SHUTTING_DOWN, kind: "failed" };
+    }
+    const now = session.current();
+    // live still, or refused since by a pass that met the deletion's own revocation
+    const sameSignIn =
+      now.kind !== "off" && now.credential.credential === asked.credential.credential;
+    if (result.ok) {
+      if (!sameSignIn) {
+        return { kind: "answered", value: status() };
+      }
+      // no sign-out: every device row went with the account, so none is left to revoke
+      revokeError = null;
+      return { kind: "answered", value: forgetSignIn() };
+    }
+    if (!sessionAlive(asked.id)) {
+      return { kind: "not-live", message: sameSignIn ? SIGNED_OUT_BY_ACCOUNT : SIGN_IN_CHANGED };
+    }
+    const { failure } = result;
+    if (failure.kind === "refused" && SYNC_TERMINAL_CODES.has(failure.code)) {
+      recordFailure(failure);
+      return { kind: "not-live", message: SIGNED_OUT_BY_ACCOUNT };
+    }
+    return { failure, kind: "failed" };
+  };
+
   // login and sign-up both end in a credential this device adopts, through the one store, which
   // keeps the name it joined under: the vault's commits carry it.
   const joinAccount = async (
@@ -502,10 +555,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     join: (store: DeviceCredentialStore, deviceName: string) => Promise<DeviceLoginOutcome>,
   ): Promise<LoginOutcome> => {
     if (disposed) {
-      return {
-        failure: { kind: "unreachable", message: "This app is shutting down." },
-        kind: "refused",
-      };
+      return { failure: SHUTTING_DOWN, kind: "refused" };
     }
     const deviceName = normalizeDeviceName(requestedName ?? args.machineName);
     const outcome = await join(
@@ -527,6 +577,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     attach(next) {
       sink = next;
     },
+
+    deleteAccount,
 
     async devices() {
       return await accountCall(async ({ client, credential }) => {
@@ -554,6 +606,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     async dispose() {
       disposed = true;
       haltTransport();
+      deleteAbort.abort();
       // without the abort the teardown budget is a hope: the pass would wait out
       // every round trip and keep writing.
       session.abort();
@@ -607,14 +660,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       if (current.kind === "live") {
         signOutBestEffort(current.credential);
       }
-      session.close();
-      haltTransport();
-      clearDeviceCredential(args.dataDir);
-      resetSyncState(args.db);
-      lastError = null;
-      link.resetBackoff();
-      notifyStatus();
-      return status();
+      return forgetSignIn();
     },
 
     async revokeDevice(deviceId) {

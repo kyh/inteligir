@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { isDefinedError, safe } from "@orpc/client";
+import { deviceCredentialPath } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
@@ -25,7 +27,7 @@ const untilSignedInAs = async (app: AppInstance, label: string): Promise<void> =
 
 export const accountHosted: Scenario = {
   description:
-    "an account created in the app signs that device in and spends its invite; a second device signs in with the same email and password, and the first lists and revokes it",
+    "an account created in the app signs that device in and spends its invite; a second device signs in with the same email and password, and the first lists and revokes it, then deletes the account with its password",
   name: "account-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -115,5 +117,41 @@ export const accountHosted: Scenario = {
     );
     const stillA = await a.api.cloud.status();
     expect(stillA.state === "signed-in", `A after revoking B is ${stillA.state}`);
+
+    ctx.log("A's deletion with a wrong password is refused, and A stays signed in");
+    const [wrong] = await safe(a.api.cloud.deleteAccount({ password: "not-the-password" }));
+    expect(
+      isDefinedError(wrong) && wrong.code === "UNAUTHORIZED",
+      `a wrong password answered ${isDefinedError(wrong) ? wrong.code : String(wrong)}`,
+    );
+    const kept = await a.api.cloud.status();
+    expect(kept.state === "signed-in", `A after the wrong password is ${kept.state}`);
+
+    ctx.log("A deletes the account with its password: A is signed out, its credential gone");
+    const deleted = await a.api.cloud.deleteAccount({ password: OWNER.password });
+    expect(deleted.state === "signed-out", `A's deletion answered ${deleted.state}`);
+    expect(
+      !existsSync(deviceCredentialPath(a.dataDir)),
+      "A's credential file outlived the deletion",
+    );
+
+    ctx.log("the account is gone: its password signs nothing in, and its invite stays spent");
+    const [login] = await safe(a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" }));
+    expect(
+      isDefinedError(login) && login.code === "UNAUTHORIZED",
+      `signing in to the deleted account answered ${isDefinedError(login) ? login.code : String(login)}`,
+    );
+    const [recreated] = await safe(
+      a.api.cloud.signUp({
+        ...OWNER,
+        deviceName: "E2E Device A",
+        inviteCode: E2E_INVITE_CODE,
+        name: "E2E Owner",
+      }),
+    );
+    expect(
+      isDefinedError(recreated) && recreated.code === "FORBIDDEN",
+      `reusing the deleted account's invite answered ${isDefinedError(recreated) ? recreated.code : String(recreated)}`,
+    );
   },
 };

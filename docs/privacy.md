@@ -135,6 +135,13 @@ Durable Object — never in anything shared across accounts.
 
 ## Account deletion
 
+You delete the account in the app: Settings › Account › Delete account…, on
+any Mac signed in to it. It asks for your password again, and the cloud checks
+the password before it deletes anything, so this Mac's sign-in alone cannot end
+the account. If you lost your Mac, sign in on any other and delete from there.
+The Mac you delete from is signed out; every other device is refused at its
+next request.
+
 Deleting the account deletes the account's data, in this order, before the
 account row itself goes:
 
@@ -191,6 +198,7 @@ else under `/v1/` exists.
 | `/v1/device/list`                  | Your devices' names and when each was created, last seen and revoked, for the account pages and Settings › Account. | Your signed-in browser session, or a signed-in device's credential. |
 | `/v1/device/revoke`                | The id of the device to revoke.                                                                                     | Your signed-in browser session, or a signed-in device's credential. |
 | `/v1/account`                      | Your account's email and id, answered to a signed-in device.                                                        | The device's credential.                                            |
+| `/v1/account/delete`               | Your password, once, to delete the account and everything this page says the cloud holds for it.                    | Your password and the device's credential; throttled per device.    |
 | `/v1/sync/push`                    | Your conversations with the agent, as events, with each one's title, note, agent and archived state.                | The device's credential.                                            |
 | `/v1/sync/pull`                    | The same events, written by your other devices.                                                                     | The device's credential.                                            |
 | `/v1/sync/ws`                      | A live connection that says only that something changed; the content moves by push and pull.                        | The device's credential.                                            |

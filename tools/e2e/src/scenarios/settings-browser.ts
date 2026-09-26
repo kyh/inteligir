@@ -22,6 +22,26 @@ const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null
 // the section's own heading, not a row or the nav link that share its word
 const ACCOUNT_HEADING = `[...document.querySelectorAll("h3")].some((el) => el.textContent.trim() === "Account") ? "drawn" : "missing"`;
 const DEVICES_UNREACHABLE = "Couldn't reach your account to list its devices.";
+// by its title, so no other dialog on the page can stand in for it
+const DELETE_DIALOG = `[...document.querySelectorAll('[role="dialog"]')].find((el) => el.textContent.includes("Delete your account?"))`;
+const DELETE_DIALOG_PRESENCE = `(${DELETE_DIALOG}) ? "present" : "gone"`;
+const DELETE_PASSWORD = '[role="dialog"] input[type="password"]';
+// the dialog's own button: the section's Delete account… behind it carries an ellipsis
+const DELETE_BUTTON_STATE = `(() => {
+  const dialog = ${DELETE_DIALOG};
+  const button = dialog ? [...dialog.querySelectorAll("button")].find((el) => el.textContent.trim() === "Delete account") : null;
+  if (!button) return "missing";
+  return button.disabled ? "disabled" : "enabled";
+})()`;
+const CLICK_DELETE = `(() => {
+  const dialog = ${DELETE_DIALOG};
+  const button = dialog ? [...dialog.querySelectorAll("button")].find((el) => el.textContent.trim() === "Delete account") : null;
+  if (!button) return "missing";
+  if (button.disabled) return "disabled";
+  button.click();
+  return "clicked";
+})()`;
+const DELETE_DIALOG_TEXT = `(() => { const dialog = ${DELETE_DIALOG}; return dialog ? dialog.textContent : ""; })()`;
 // the hand-written connector's form: the presets above it carry Add buttons of their own. by
 // placeholder inside it, since the ids are React-minted per mount.
 const CONNECTOR_FORM = 'form[aria-label="Another connector"]';
@@ -73,7 +93,7 @@ const accountFieldsSchema = z.object({
 
 export const settingsBrowser: Scenario = {
   description:
-    "/settings hosts the dialog and the toaster: the Account section says a dead cloud's device list couldn't load, Sign out confirms, a refused connector add toasts, and signed out a refused sign-up keeps the form",
+    "/settings hosts the dialog and the toaster: the Account section says a dead cloud's device list couldn't load, Delete account… holds its button until a password is typed and shows the dead cloud's refusal, Sign out confirms, a refused connector add toasts, and signed out a refused sign-up keeps the form",
   name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -120,6 +140,60 @@ export const settingsBrowser: Scenario = {
         describe: (body) => `the Account section never said its devices couldn't load:\n${body}`,
         intervalMs: 500,
       },
+    );
+
+    ctx.log("Delete account… asks for the password, and holds its button until one is typed");
+    let dialogOpened = false;
+    for (let attempt = 0; attempt < 3 && !dialogOpened; attempt += 1) {
+      await agentBrowser([
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Delete account…",
+        "--exact",
+      ]);
+      dialogOpened = await pollUntil(
+        async () => parseEval(await agentBrowser(["eval", DELETE_DIALOG_PRESENCE]), z.string()),
+        (presence) => presence === "present",
+        { deadlineMs: 10_000, describe: () => "no delete dialog", intervalMs: 200 },
+      ).then(
+        () => true,
+        () => false,
+      );
+    }
+    expect(dialogOpened, "the delete-account dialog never opened");
+    const untyped = parseEval(await agentBrowser(["eval", DELETE_BUTTON_STATE]), z.string());
+    expect(untyped === "disabled", `the dialog's Delete account was ${untyped} before a password`);
+    await agentBrowser(["fill", DELETE_PASSWORD, "a password to check"]);
+    const deleteClicked = parseEval(await agentBrowser(["eval", CLICK_DELETE]), z.string());
+    expect(deleteClicked === "clicked", `the dialog's Delete account was ${deleteClicked}`);
+
+    ctx.log("the dead cloud's refusal shows in the dialog, and the Mac stays signed in");
+    await pollUntil(
+      async () => parseEval(await agentBrowser(["eval", DELETE_DIALOG_TEXT]), z.string()),
+      (text) => text.includes("Could not reach the cloud"),
+      {
+        deadlineMs: STATUS_DEADLINE_MS,
+        describe: (text) => `the dialog never said the cloud was unreachable:\n${text}`,
+        intervalMs: 500,
+      },
+    );
+    await agentBrowser(["press", "Escape"]);
+    await pollUntil(
+      async () => parseEval(await agentBrowser(["eval", DELETE_DIALOG_PRESENCE]), z.string()),
+      (presence) => presence === "gone",
+      {
+        deadlineMs: STATUS_DEADLINE_MS,
+        describe: () => "the delete dialog never left the page",
+        intervalMs: 100,
+      },
+    );
+    const afterRefusal = await agentBrowser(["get", "text", "body"]);
+    expect(
+      afterRefusal.includes("Sign out"),
+      `a refused deletion took Sign out away:\n${afterRefusal}`,
     );
 
     // by role, since the unauthorized state's prose carries the words too; retried, because a

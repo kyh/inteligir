@@ -47,6 +47,7 @@ const allowInWindow = async (
 
 // named here because eviction must spend the same spellings the routes do; the table has no foreign key
 const DEVICE_RATE_KEY_PREFIXES = {
+  accountDelete: "account-delete:",
   vaultGit: "vault-git:",
   vaultRead: "vault-read:",
   vaultWrite: "vault-write:",
@@ -91,6 +92,9 @@ export const callerRateKey = (family: CallerRateFamily, request: Request): strin
 
 // every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
 export const RATE_WINDOWS = {
+  // a password check behind a device credential, so a stolen one guesses here rather than at
+  // login's per-address window; a person mistypes a few times, never dozens
+  accountDelete: { max: 5, windowMs: 60_000 },
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
   login: { max: 10, windowMs: 60_000 },

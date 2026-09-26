@@ -2090,6 +2090,23 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   edits queued. Rejected: a Worker-side meter, which counts bytes offered, not
   kept, and the head tree's size, which ignores the history that grows.
 
+- **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH
+  BETTER AUTH'S `deleteUser`** (owner decision: someone who lost their Mac signs
+  in on any Mac to delete). The app holds a device credential and no session, so
+  `POST /v1/account/delete` takes the credential, spends a per-device window,
+  checks the password through `signInEmail` and runs `deleteUser` under the
+  session that sign-in minted: its `beforeDelete` order and tombstone stay the
+  ONE purge path, where a second purge beside it would drift. The credential
+  alone deletes nothing, since whoever holds a stolen one could end the account.
+  The local server asks on a client of its own, because the purge revokes this
+  very credential first, and a pass that meets the revocation ends the session,
+  which aborts every request on the session's client; success forgets the
+  sign-in as a sign-out does, minus the revoke, and leaves the vault alone. No
+  CLI verb: the password is a person's to type.
+  `apps/web/src/worker/device/account.ts`,
+  `apps/cli/src/server/cloud/sync-runtime.ts`,
+  `apps/desktop/src/renderer/app/settings/delete-account-dialog.tsx`.
+
 ### Server process and the desktop shell
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**

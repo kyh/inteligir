@@ -84,22 +84,39 @@ export const mintDeviceCredential = async (
   return inserted.meta.changes === 0 ? null : { credential, deviceId };
 };
 
+interface SignedIn {
+  // the session the sign-in minted: whoever asked deletes it, or the account holds a bearer nobody sees
+  token: string;
+  user: { id: string };
+}
+
+// null is a wrong password or an unknown address, one answer for both
+export const signInWithPassword = async (
+  auth: Auth,
+  email: string,
+  password: string,
+): Promise<SignedIn | null> => {
+  try {
+    return await auth.api.signInEmail({ body: { email, password } });
+  } catch (error) {
+    // 401 is INVALID_EMAIL_OR_PASSWORD, which is also what a user with no credential account and no
+    // password gets; anything else is a fault, not a refusal
+    if (error instanceof APIError && error.statusCode === 401) {
+      return null;
+    }
+    throw error;
+  }
+};
+
 export const loginDevice = async (
   db: Db,
   d1: D1Database,
   auth: Auth,
   args: LoginArgs,
 ): Promise<LoginResult> => {
-  let signedIn: { token: string; user: { id: string } };
-  try {
-    signedIn = await auth.api.signInEmail({ body: { email: args.email, password: args.password } });
-  } catch (error) {
-    // 401 is INVALID_EMAIL_OR_PASSWORD, which is also what a user with no credential account and no
-    // password gets; anything else is a fault, not a refusal
-    if (error instanceof APIError && error.statusCode === 401) {
-      return refuseLogin("invalid-credentials");
-    }
-    throw error;
+  const signedIn = await signInWithPassword(auth, args.email, args.password);
+  if (signedIn === null) {
+    return refuseLogin("invalid-credentials");
   }
   const minted = await mintDeviceCredential(db, d1, {
     deviceName: args.deviceName,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CloudErrorCode } from "../cloud-errors";
 import {
   deviceLoginRequestSchema,
   PASSWORD_MAX_LENGTH,
@@ -9,6 +10,7 @@ import {
 // strictly, and a field they refuse fails their sign-in.
 export const ACCOUNT_API_PATHS = {
   account: "/v1/account",
+  delete: "/v1/account/delete",
 } as const;
 
 export const accountResponseSchema = z.object({
@@ -16,6 +18,26 @@ export const accountResponseSchema = z.object({
   id: z.string().min(1),
 });
 export type AccountResponse = z.infer<typeof accountResponseSchema>;
+
+// asked with a device credential, which alone would let whoever holds a stolen one end the
+// account: the password is asked again
+export const deleteAccountRequestSchema = z
+  .object({ password: deviceLoginRequestSchema.shape.password })
+  .strict();
+export type DeleteAccountRequest = z.infer<typeof deleteAccountRequestSchema>;
+
+export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) });
+export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
+
+// what the delete route answers besides bad-request and the credential's own refusals
+export const DELETE_ACCOUNT_REFUSALS = [
+  "invalid-credentials",
+  "rate-limited",
+] as const satisfies readonly CloudErrorCode[];
+export type DeleteAccountRefusal = (typeof DELETE_ACCOUNT_REFUSALS)[number];
+
+export const isDeleteAccountRefusal = (code: CloudErrorCode): code is DeleteAccountRefusal =>
+  DELETE_ACCOUNT_REFUSALS.some((refusal) => refusal === code);
 
 // sign-up is the invite gate, not Better Auth's own route, and the emailed reset link lands on
 // a Worker-served page, because it must work with no app installed

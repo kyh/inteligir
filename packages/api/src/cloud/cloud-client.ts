@@ -3,8 +3,17 @@
 // verdict on the credential; `malformed` is a body this build cannot read (an intercepting proxy).
 
 import type { z } from "zod";
-import { ACCOUNT_API_PATHS, accountResponseSchema } from "./account/account-schema";
-import type { AccountResponse, DeviceSignUpRequest } from "./account/account-schema";
+import {
+  ACCOUNT_API_PATHS,
+  accountResponseSchema,
+  deleteAccountResponseSchema,
+} from "./account/account-schema";
+import type {
+  AccountResponse,
+  DeleteAccountRequest,
+  DeleteAccountResponse,
+  DeviceSignUpRequest,
+} from "./account/account-schema";
 import {
   ackCapturesResponseSchema,
   CAPTURE_API_PATHS,
@@ -337,6 +346,9 @@ export interface CloudClient {
   closeApproval: (id: string) => Promise<CloudResult<CloseApprovalResponse>>;
   listApprovals: () => Promise<CloudResult<ListApprovalsResponse>>;
   account: () => Promise<CloudResult<AccountResponse>>;
+  // ends the account the credential belongs to, every device's credential with it, once the
+  // password checks out again
+  deleteAccount: (password: string) => Promise<CloudResult<DeleteAccountResponse>>;
   // the account's devices, revoked rows included, and another of them cut off: what the
   // account's web page does, asked with this device's credential
   listDevices: () => Promise<CloudResult<ListDevicesResponse>>;
@@ -418,6 +430,10 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
       await send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
     createDispatch: async (request) =>
       await send(DISPATCH_API_PATHS.dispatch, request, createDispatchResponseSchema),
+    deleteAccount: async (password) => {
+      const request: DeleteAccountRequest = { password };
+      return await send(ACCOUNT_API_PATHS.delete, request, deleteAccountResponseSchema);
+    },
     dispatchStatus: async (ids) =>
       await send(DISPATCH_API_PATHS.status, { ids }, dispatchStatusResponseSchema),
     listApprovals: async () =>

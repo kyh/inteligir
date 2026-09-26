@@ -59,6 +59,7 @@ import {
 import { PREFS, RAIL_VIEWS, usePref } from "../prefs";
 import type { RailView } from "../prefs";
 import { AccountForm } from "../account-form";
+import { accountOffer } from "../account-offer";
 import type { SettingsSection } from "../settings/settings-page";
 import { hasInsetTitleBar } from "../title-bar";
 import {
@@ -208,6 +209,7 @@ const AccountDialog = ({
 }) => {
   const handleSignIn = session.signIn;
   const handleSignUp = session.signUp;
+  const vault = useVaultStatus().data;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
@@ -219,6 +221,7 @@ const AccountDialog = ({
         </DialogHeader>
         <AccountForm
           cloudUrl={cloudUrl}
+          lead={vault === undefined ? undefined : accountOffer(vault).lead}
           onCreate={handleSignUp}
           onSignIn={handleSignIn}
           pending={session.pending}
