@@ -1,6 +1,7 @@
 // Every arm of the desktop bridge, answering from memory: a DOM suite that needs the bridge
 // merely present installs this and spreads its own over the one arm it asserts on.
 
+import type { DiagnosticsState } from "../../../diagnostics-state";
 import type { DesktopBridge } from "../../../types";
 import { initialUpdateState } from "../../../update-state";
 
@@ -19,7 +20,21 @@ const inertSpellcheck = {
   languagesConfigurable: false,
 };
 
+const inertDiagnostics: DiagnosticsState = {
+  canRestart: false,
+  debug: false,
+  restartRequired: false,
+  server: "owned",
+};
+
 export const inertBridge = (): DesktopBridge => ({
+  diagnostics: {
+    getState: async () => inertDiagnostics,
+    openDataFolder: async () => ({ ok: true }),
+    restart: async () => ({ ok: true, state: inertDiagnostics }),
+    setDebug: async () => ({ ok: true, state: inertDiagnostics }),
+    showLog: async () => ({ ok: true }),
+  },
   paths: {
     open: async () => ({ ok: true }),
     reveal: async () => ({ ok: true }),

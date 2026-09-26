@@ -31,7 +31,10 @@ import {
 } from "./origin-pin";
 import { registerAppProtocol, registerAppScheme } from "./protocol";
 import { APP_ORIGIN, carriesBearer } from "./protocol-handler";
+import { createDiagnostics, DIAGNOSTICS_FILE_NAME } from "./diagnostics";
+import type { Diagnostics } from "./diagnostics";
 import { createForkBroker } from "./fork-broker";
+import { createServerLog, serverLogPath } from "./server-log";
 import { createServerProcess } from "./server-process";
 import type { ServerProcess } from "./server-process";
 import { createSpellcheck, senderIsWindow } from "./spellcheck";
@@ -93,6 +96,8 @@ let switching = false;
 let spellcheck: Spellcheck | null = null;
 // the shell's own, never a vault's: a vault is a git repo that leaves this machine
 let recentVaultsPath: string | null = null;
+// the shell's too, and read before the first fork, which is the only thing it changes
+let diagnostics: Diagnostics | null = null;
 let recentVaults: string[] = [];
 // a quit mid-boot stops the child the boot is waiting on, so the boot's failure is the quit's
 let quitRequested = false;
@@ -114,6 +119,17 @@ const requireTarget = (): ServerTarget => {
     throw new Error("no vault is open yet");
   }
   return currentTarget;
+};
+
+const requireDiagnostics = (): Diagnostics => {
+  if (diagnostics === null) {
+    throw new Error("the diagnostics choice is not read yet");
+  }
+  return diagnostics;
+};
+
+const warnFromMain = (message: string): void => {
+  console.warn(`[desktop] ${message}`);
 };
 
 const judgeServer = async (
@@ -162,15 +178,22 @@ const startServer = async (target: ServerTarget): Promise<void> => {
     console.log(`[desktop] adopting the server already serving ${target.dataDir}`);
     ({ live } = plan);
     serverProcess = null;
+    requireDiagnostics().recordRun({ kind: "adopted" });
     return;
   }
   const entryPath = serverEntryPath(app.getAppPath());
   if (!existsSync(entryPath)) {
     throw new Error(`the bundled server is missing (${entryPath}) — this install is incomplete`);
   }
+  const debug = requireDiagnostics().debug();
+  const serverLog = createServerLog({
+    filePath: serverLogPath(target.dataDir),
+    warn: warnFromMain,
+  });
+  serverLog.append(`[desktop] starting the server, debug logging ${debug ? "on" : "off"}`);
   const child = createServerProcess({
     entryPath,
-    env: serverProcessEnv(target, app.isPackaged),
+    env: serverProcessEnv(target, app.isPackaged, debug),
     fork: forkServer,
     // a child that lost the port race must not be reported up about a stranger.
     isReady: async () => {
@@ -183,6 +206,7 @@ const startServer = async (target: ServerTarget): Promise<void> => {
     },
     log: (message) => {
       console.log(`[server] ${message}`);
+      serverLog.append(message);
     },
     // no in-place restart: a fresh child mints a fresh token the window's bindings do not hold.
     onUnexpectedExit: (code) => {
@@ -194,6 +218,7 @@ const startServer = async (target: ServerTarget): Promise<void> => {
     },
   });
   serverProcess = child;
+  requireDiagnostics().recordRun({ debug, kind: "owned" });
   await child.start();
 };
 
@@ -380,8 +405,21 @@ const showMainWindow = (): BrowserWindow => {
   return existing;
 };
 
-const openDataDir = (): void => {
-  void shell.openPath(requireTarget().dataDir);
+// `shell.openPath` answers "" when the OS took the path, else its own words for why not
+const openedByOs = (refusal: string): PathActionResult =>
+  refusal === "" ? { ok: true } : { ok: false, reason: refusal };
+
+const openDataDir = async (): Promise<PathActionResult> =>
+  openedByOs(await shell.openPath(requireTarget().dataDir));
+
+// a server the shell adopted wrote no log here, but an earlier one on this data dir may have
+const showServerLog = (): PathActionResult => {
+  const logPath = serverLogPath(requireTarget().dataDir);
+  if (!existsSync(logPath)) {
+    return { ok: false, reason: "Nothing has been logged for this vault yet." };
+  }
+  shell.showItemInFolder(logPath);
+  return { ok: true };
 };
 
 // electron-builder writes the feed beside the app; without it a check can only fail.
@@ -440,9 +478,7 @@ const configurePathActionsIpc = (): void => {
     if (!verdict.ok) {
       return verdict;
     }
-    // answers "" when the OS took the file, else its own words for why not
-    const refusal = await shell.openPath(verdict.absPath);
-    return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
+    return openedByOs(await shell.openPath(verdict.absPath));
   });
 };
 
@@ -603,6 +639,15 @@ const configureUpdates = (): Updates => {
     return created.state();
   });
   return created;
+};
+
+// registered once per launch, reading the vault of the moment like the path actions
+const configureDiagnosticsIpc = (): void => {
+  handle(INVOKE_ROUTES.diagnostics.getState, () => requireDiagnostics().state());
+  handle(INVOKE_ROUTES.diagnostics.setDebug, ({ debug }) => requireDiagnostics().setDebug(debug));
+  handle(INVOKE_ROUTES.diagnostics.restart, () => requireDiagnostics().restart());
+  handle(INVOKE_ROUTES.diagnostics.openDataFolder, async () => await openDataDir());
+  handle(INVOKE_ROUTES.diagnostics.showLog, () => showServerLog());
 };
 
 const requireSpellcheck = (): Spellcheck => {
@@ -812,7 +857,7 @@ const configureApplicationMenu = (): void => {
         { type: "separator" },
         {
           click: () => {
-            openDataDir();
+            void openDataDir();
           },
           label: "Open Data Folder",
         },
@@ -890,7 +935,7 @@ const createTray = (): Tray | null => {
       { type: "separator" },
       {
         click: () => {
-          openDataDir();
+          void openDataDir();
         },
         label: "Open Data Folder",
       },
@@ -911,13 +956,22 @@ const onAppReady = async (target: ServerTarget): Promise<void> => {
     applicationVersion: app.getVersion(),
   });
   recentVaultsPath = path.join(app.getPath("userData"), RECENT_VAULTS_FILE_NAME);
-  recentVaults = readRecentVaults(recentVaultsPath, (message) => {
-    console.warn(`[desktop] ${message}`);
+  recentVaults = readRecentVaults(recentVaultsPath, warnFromMain);
+  diagnostics = createDiagnostics({
+    // electron-vite started a development shell, and a relaunch would leave its dev server behind
+    canRestart: app.isPackaged,
+    filePath: path.join(app.getPath("userData"), DIAGNOSTICS_FILE_NAME),
+    relaunch: () => {
+      app.relaunch();
+      app.quit();
+    },
+    warn: warnFromMain,
   });
   ipcMain.on(SOCKET_ORIGIN_CHANNEL, (event) => {
     event.returnValue = live?.origin ?? "";
   });
   configureSpellcheckIpc();
+  configureDiagnosticsIpc();
   configureVaultsIpc();
   configurePathActionsIpc();
   configureApplicationMenu();

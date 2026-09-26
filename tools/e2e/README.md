@@ -126,6 +126,11 @@ what each one is FOR.
 |                           | microphone reads denied, Reveal refuses a symlink out of the vault, a     |
 |                           | switch boots a new child on the new vault, and a SIGTERM quit stops it    |
 |                           | and retracts `server.json`                                                |
+| desktop-diagnostics       | the shell's debug-logging choice, seeded in its own userData, reaches the |
+|                           | server it forks, whose output always lands in the data dir's              |
+|                           | `logs/server.log`: off, the boot line and no trace; on, an external write |
+|                           | traced there, the bridge reports the choice, and turning it off asks for  |
+|                           | a restart                                                                 |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline, and the note  |
 |                           | its changes name under the turn's own id                                  |
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |

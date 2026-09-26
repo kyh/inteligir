@@ -80,6 +80,17 @@ never by a note's content or a credential; an unknown name is refused at boot.
 `inteligir guide` § Diagnostics is the user's copy, and
 `apps/cli/src/server/debug-log.ts` says what each one traces.
 
+A Finder-launched app has no env to set and no terminal to read, so the
+desktop shell carries both halves itself. Settings › Advanced › Debug logging
+is `diagnostics.json` in the shell's own userData, read before each fork: on,
+the server the shell forks next runs with every namespace
+(`serverProcessEnv` in `apps/desktop/src/main/server-instance.ts`), so a change
+asks for a restart; off, main's own `INTELIGIR_DEBUG` still reaches the child.
+Whatever that child prints, traced or not, is appended, stamped, to
+`<dataDir>/logs/server.log`, which rotates at 5 MiB into one `server.log.1`
+(`apps/desktop/src/main/server-log.ts`); Show log reveals it. A server the
+shell adopted is not its child, so neither the switch nor the log reaches it.
+
 The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
 staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` wraps that same package in the
@@ -100,6 +111,8 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | The product's SQLite + config.json   | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
 | A vault other than the default       | `<that dir>/vaults/<hash of the vault path>/`     |
 | Connectors, folders, agent, vault    | JSON files beside them (the app writes these)     |
+| The desktop's server log             | `<data dir>/logs/server.log` (+ one `.1`)         |
+| The desktop's debug-logging choice   | `diagnostics.json` in Electron's userData         |
 | Site + cloud Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                      |
 | UI gallery (`pnpm dev:gallery`)      | 5175 (pinned — `strictPort`), at `/gallery`       |
 | Accounts, sessions, devices, invites | D1 (local file under `apps/web/.wrangler`)        |

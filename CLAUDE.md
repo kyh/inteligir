@@ -65,7 +65,8 @@ apps/
                  inteligir:// protocol handler, the forked server),
                  src/preload/ (the bridge: only what main owns — the loopback
                  ws origin, the updater, the spell checker, the vault switch,
-                 Reveal/Open of a vault entry — and nothing that holds a
+                 Reveal/Open of a vault entry, the diagnostics (data folder,
+                 debug choice, restart, log) — and nothing that holds a
                  token; every frame crosses as `unknown` and is parsed on both
                  sides, the page mirroring each through one `bridge-store.ts`),
                  and src/renderer/ (the SPA: TanStack Router file routes over
@@ -795,16 +796,18 @@ to the END of its group.
   neither they nor the rail read `lastError`: it is git's own stderr, so a
   state only the engine can explain says "Sync paused" and the rail offers
   Sync details…, which opens Settings at `#advanced`, the one section that
-  shows the remote, the raw state and the last error
-  (`apps/desktop/src/renderer/app/settings/settings-page.tsx`). History names
-  a version by when and who, never by its subject or sha: the server reads
-  `authorKind` off the author (the engine's identity is the user's own edits,
-  the agent's is the agent, anyone else, another device or a person's own git,
-  is `external` and keeps its name and subject), so no client matches an email
-  (`apps/cli/src/server/vault/git-history.ts`). Quoting the engine's error
-  inside a friendlier sentence is rejected: no sentence around git's stderr
-  makes it the user's. `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts`
-  holds the copy to that and guards both sources against reading `lastError`.
+  shows the remote, the raw state and the last error, the thread sync's
+  included (`apps/desktop/src/renderer/app/settings/advanced-section.tsx`).
+  History names a version by when and who, never by its subject or sha: the
+  server reads `authorKind` off the author (the engine's identity is the
+  user's own edits, the agent's is the agent, anyone else, another device or a
+  person's own git, is `external` and keeps its name and subject), so no
+  client matches an email (`apps/cli/src/server/vault/git-history.ts`).
+  Quoting the engine's error inside a friendlier sentence is rejected: no
+  sentence around git's stderr makes it the user's.
+  `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` holds the copy
+  to that and refuses a `lastError` read in any renderer source but that
+  section.
 
 - **AN OPENED FOLDER'S OWN ORIGIN IS ITS BYO REMOTE, AND A FOLDER ANOTHER
   SERVICE SYNCS NEVER TAKES THE HOSTED VAULT** (0.6 direction: an existing
@@ -1793,8 +1796,8 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   (`carriesBearer`), so a sandboxed note frame gets a 403 and a bare upgrade.
   The pin cannot use `URL.origin`, which answers `"null"` for any non-special
   scheme. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS (the loopback origin, the
-  updater, the spell checker, the vault switch, Reveal/Open), because no server
-  can answer for any of them. Each channel is one row
+  updater, the spell checker, the vault switch, Reveal/Open, the diagnostics),
+  because no server can answer for any of them. Each channel is one row
   (`apps/desktop/src/ipc-contract.ts`) typing both ends, every frame parsed by
   the side that receives it, and its test holds both ends to every row
   (`apps/desktop/src/main/__tests__/ipc-contract.test.ts`). A refusal crosses
@@ -1872,6 +1875,24 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   `tools/repo-guards/src/changelog.test.ts` holds the file's shape and makes a
   version bump date its section. Settings › About links the file on main
   (`apps/desktop/src/renderer/app/settings/version-row.tsx`).
+
+- **THE PACKAGED APP'S DIAGNOSTICS ARE A SWITCH AND A FILE, BOTH MAIN'S.** A
+  Finder-launched app has no env to set `INTELIGIR_DEBUG` in and drops main's
+  stdout, so the traces above could not reach a user's report. Debug logging
+  is Settings › Advanced's switch, kept as `diagnostics.json` in the shell's
+  userData, because main reads it before the fork it changes; the page's
+  prefs load after that fork, and config.json is the app's to read, never to
+  write. On, the next child traces every namespace, since a report cannot
+  know which decision went wrong, so a change asks for a Restart, which is
+  `app.relaunch` through the ordinary quit (the child stops first and its
+  commit flushes), refused in a dev shell. Whatever the child prints, traced
+  or not, is appended to `<dataDir>/logs/server.log`, rotated at 5 MiB into
+  one `.1`, and a write that fails costs the log, never main; the server
+  writing its own file was rejected, since a crash before its logger is up is
+  the line a report most needs. An adopted server is nobody's child here, so
+  the switch is refused and says why. `apps/desktop/src/main/diagnostics.ts`,
+  `apps/desktop/src/main/server-log.ts`, end to end in
+  `tools/e2e/src/scenarios/desktop-diagnostics.ts`.
 
 ### Desktop workspace surfaces
 

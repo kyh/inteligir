@@ -58,7 +58,16 @@ const vaults: DesktopBridge["vaults"] = {
   pick: async () => await invoke(INVOKE_ROUTES.vaults.pick),
 };
 
+const diagnostics: DesktopBridge["diagnostics"] = {
+  getState: async () => await invoke(INVOKE_ROUTES.diagnostics.getState),
+  openDataFolder: async () => await invoke(INVOKE_ROUTES.diagnostics.openDataFolder),
+  restart: async () => await invoke(INVOKE_ROUTES.diagnostics.restart),
+  setDebug: async (debug) => await invoke(INVOKE_ROUTES.diagnostics.setDebug, { debug }),
+  showLog: async () => await invoke(INVOKE_ROUTES.diagnostics.showLog),
+};
+
 contextBridge.exposeInMainWorld("desktopBridge", {
+  diagnostics,
   paths,
   socketOrigin,
   spellcheck,

@@ -1,4 +1,3 @@
-import { externalSyncName } from "@repo/api/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
 import { useTheme } from "@repo/ui/lib/theme";
@@ -19,6 +18,7 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "../vault-hooks";
+import { AdvancedSection } from "./advanced-section";
 import { AgentsSection } from "./agents-section";
 import { AttachmentsRow } from "./attachments-row";
 import { ConnectorsSection } from "./connectors-section";
@@ -52,46 +52,6 @@ const NAV = [
 export type SettingsSection = (typeof NAV)[number]["id"];
 
 type SystemStatus = ReturnType<typeof useSystemStatus>["data"];
-type VaultStatus = ReturnType<typeof useVaultStatus>["data"];
-
-const gitRemote = (status: VaultStatus) => {
-  if (status === undefined) {
-    return "…";
-  }
-  if (status.state === "no-remote") {
-    return (
-      <span className="text-muted-foreground">
-        {status.externalSync === null
-          ? "None — sign in under Devices to sync through your account, or give the vault folder a git origin of its own."
-          : `None — ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off; a git origin of the vault's own still syncs.`}
-      </span>
-    );
-  }
-  return (
-    <span className="block truncate font-mono text-body" title={status.remote}>
-      {status.remote}
-    </span>
-  );
-};
-
-// the engine's own words, raw, for whoever brings their own sync server; the rail and its toasts
-// speak only sync
-const AdvancedSection = ({ status }: { status: VaultStatus }) => (
-  <section id="advanced" className="scroll-mt-10 space-y-2">
-    <SectionHeading>Advanced</SectionHeading>
-    <dl className="space-y-1.5">
-      <Row label="Git remote">{gitRemote(status)}</Row>
-      <Row label="Sync state">
-        <span className="font-mono text-body">{status?.state ?? "…"}</span>
-      </Row>
-      <Row label="Last git error">
-        <span className="block text-body text-muted-foreground">
-          {status === undefined ? "…" : (status.lastError ?? "None")}
-        </span>
-      </Row>
-    </dl>
-  </section>
-);
 
 const AgentSummary = ({ system }: { system: SystemStatus }) => (
   <section id="agent" className="scroll-mt-10 space-y-2">
@@ -118,21 +78,6 @@ const AboutSection = ({ system }: { system: SystemStatus }) => (
     <dl className="space-y-1.5">
       <VersionRow version={system?.version} />
       <UpdatesRow />
-      <Row label="Data dir">
-        <span className="block truncate font-mono text-body" title={system?.dataDir}>
-          {system?.dataDir ?? "…"}
-        </span>
-      </Row>
-      <Row label="Schema">
-        <span className="font-mono text-body">
-          {system === undefined ? "…" : `v${system.schemaVersion}`}
-        </span>
-      </Row>
-      <Row label="Uptime">
-        <span className="font-mono text-body">
-          {system === undefined ? "…" : `${Math.round(system.uptimeMs / 1000)}s`}
-        </span>
-      </Row>
     </dl>
   </section>
 );
@@ -280,7 +225,9 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             </dl>
           </section>
           <Separator />
-          <AdvancedSection status={status} />
+          <div id="advanced" className="scroll-mt-10">
+            <AdvancedSection />
+          </div>
           <Separator />
           <AboutSection system={system} />
         </main>

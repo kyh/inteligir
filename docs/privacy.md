@@ -89,6 +89,12 @@ Durable Object — never in anything shared across accounts.
   model. Dictation is your operating system's own (on a Mac, press fn twice),
   which types into the app like a keyboard; where that audio goes is the
   operating system's to say, under its own settings and terms.
+- **The app's log.** The desktop app keeps what its local server prints in
+  `logs/server.log` inside its data folder (at most 5 MB, plus one older
+  file), whether or not Debug logging is on; with it on (Settings › Advanced),
+  the log also records each file change, sync step and agent message by file
+  name and id, never what a note says or a credential. Nothing reads or sends
+  it: it leaves the machine only if you attach it to a report yourself.
 - **Telemetry about note content.** There is none.
 
 ## Retention

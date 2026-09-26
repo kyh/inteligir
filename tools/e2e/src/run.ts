@@ -15,6 +15,7 @@ import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
 import { debugLogTrace } from "./scenarios/debug-log";
+import { desktopDiagnostics } from "./scenarios/desktop-diagnostics";
 import { desktopShell } from "./scenarios/desktop-shell";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
@@ -46,6 +47,7 @@ const SCENARIOS: readonly Scenario[] = [
   builtWorkerBoot,
   builtCliBoot,
   desktopShell,
+  desktopDiagnostics,
   threadsScripted,
   actionScripted,
   undoScripted,

@@ -5,6 +5,11 @@
 // the page a thrown error's message wrapped in its own words.
 
 import { z } from "zod";
+import {
+  diagnosticsAnswerSchema,
+  diagnosticsChoiceSchema,
+  diagnosticsStateSchema,
+} from "./diagnostics-state";
 import { pathActionRequestSchema, pathActionResultSchema } from "./path-action";
 import { spellcheckChoiceSchema, spellcheckStateSchema } from "./spellcheck-state";
 import { updateStateSchema } from "./update-state";
@@ -33,6 +38,22 @@ const route = <Request extends z.ZodType, Answer extends z.ZodType>(
 const noRequest = z.undefined();
 
 export const INVOKE_ROUTES = {
+  diagnostics: {
+    getState: route("desktop:diagnostics-get-state", noRequest, diagnosticsStateSchema),
+    // the OS takes the folder or says why not, like Reveal/Open
+    openDataFolder: route(
+      "desktop:diagnostics-open-data-folder",
+      noRequest,
+      pathActionResultSchema,
+    ),
+    restart: route("desktop:diagnostics-restart", noRequest, diagnosticsAnswerSchema),
+    setDebug: route(
+      "desktop:diagnostics-set-debug",
+      diagnosticsChoiceSchema,
+      diagnosticsAnswerSchema,
+    ),
+    showLog: route("desktop:diagnostics-show-log", noRequest, pathActionResultSchema),
+  },
   paths: {
     open: route("desktop:open-path", pathActionRequestSchema, pathActionResultSchema),
     reveal: route("desktop:reveal-path", pathActionRequestSchema, pathActionResultSchema),

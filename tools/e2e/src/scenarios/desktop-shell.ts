@@ -5,9 +5,8 @@ import { physicalVaultDir } from "inteligir/server/config";
 import { readServerFile } from "inteligir/server/server-file";
 import { processAlive } from "inteligir/server/server-probe";
 import { parseEval } from "../harness/agent-browser";
-import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { SHELL_APP_URL } from "../harness/desktop-shell";
+import { askBridge, SHELL_APP_URL } from "../harness/desktop-shell";
 import type { DesktopShell, ShellPage, ShellTarget } from "../harness/desktop-shell";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -31,14 +30,6 @@ const pathActionSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(false), reason: z.string() }),
 ]);
 const vaultsStateSchema = z.looseObject({ current: z.looseObject({ path: z.string() }) });
-
-// a bridge call awaited in the page; the answer crosses back as a JSON string
-const askBridge = async <T>(
-  browser: AgentBrowser,
-  call: string,
-  schema: z.ZodType<T>,
-): Promise<T> =>
-  parseEval(await browser(["eval", `${call}.then((answer) => JSON.stringify(answer))`]), schema);
 
 const requireServer = (target: ShellTarget) => {
   const server = readServerFile(target.dataDir);
