@@ -91,9 +91,9 @@ export interface AcpRuntimeManagerDeps {
   hostEnv: NodeJS.ProcessEnv;
   // a getter: the stored default can change between two thread starts
   defaultProviderId: () => HarnessId;
-  // read per send: non-null refuses the turn with it before anything is spawned. absent, every
-  // send is attempted.
-  unavailableReason?: () => string | null;
+  // read per send with the thread's own provider: non-null refuses the turn with it before
+  // anything is spawned. absent, every send is attempted.
+  unavailableReason?: (providerId: string) => string | null;
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   createRuntime?: typeof createAcpAgentRuntime;
@@ -238,7 +238,9 @@ class AcpTurnDriver implements TurnDriver {
     if (this.disposed) {
       throw new Error("The agent runtime manager is disposed");
     }
-    const unavailable = this.deps.unavailableReason?.() ?? null;
+    const unavailable =
+      this.deps.unavailableReason?.(this.providerIdOf(getThread(this.deps.db, args.threadId))) ??
+      null;
     if (unavailable !== null) {
       throw new TurnDriverUnavailableError(unavailable);
     }

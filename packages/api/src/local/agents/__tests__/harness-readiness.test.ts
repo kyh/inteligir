@@ -1,32 +1,35 @@
 import { describe, expect, it } from "vitest";
 
 import { harnessReadiness } from "../agents-schema";
-import type { HarnessProbe } from "../agents-schema";
+import type { HarnessStatus, VendorAccount } from "../agents-schema";
 
-const probe = (overrides: Partial<HarnessProbe>): HarnessProbe => ({
-  cliPath: "/usr/local/bin/claude",
-  credentials: "present",
-  displayName: "Claude Code",
+const bundled = (account: VendorAccount): HarnessStatus => ({
+  account,
+  displayName: "Claude",
   id: "claude",
-  loginCommand: "claude /login",
-  ...overrides,
+  runtime: "bundled",
 });
 
 describe("harness readiness", () => {
-  it("is not-installed with no CLI on PATH, whatever the credentials say", () => {
-    expect(harnessReadiness(probe({ cliPath: null }))).toBe("not-installed");
-    expect(harnessReadiness(probe({ cliPath: null, credentials: "absent" }))).toBe("not-installed");
+  it("is unavailable when this copy of the app is missing the runtime", () => {
+    expect(harnessReadiness({ displayName: "Claude", id: "claude", runtime: "missing" })).toBe(
+      "unavailable",
+    );
   });
 
-  it("is ready with the CLI and a credential", () => {
-    expect(harnessReadiness(probe({}))).toBe("ready");
+  it("is ready when the vendor says it is signed in", () => {
+    expect(
+      harnessReadiness(
+        bundled({ email: "ada@example.com", label: "Claude Max", state: "signed-in" }),
+      ),
+    ).toBe("ready");
   });
 
-  it("needs a sign-in only when the credential is known to be absent", () => {
-    expect(harnessReadiness(probe({ credentials: "absent" }))).toBe("needs-sign-in");
+  it("is signed out only when the vendor says so", () => {
+    expect(harnessReadiness(bundled({ state: "signed-out" }))).toBe("signed-out");
   });
 
-  it("is unknown when the credential store could not be read", () => {
-    expect(harnessReadiness(probe({ credentials: "unknown" }))).toBe("unknown");
+  it("is unknown when the vendor did not answer", () => {
+    expect(harnessReadiness(bundled({ detail: "timed out", state: "unknown" }))).toBe("unknown");
   });
 });

@@ -6,7 +6,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { accessSync, constants, existsSync, readdirSync, readFileSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -33,15 +33,19 @@ const VAULTS_DIR_NAME = "vaults";
 const CONFIG_FILE_NAME = "config.json";
 // what the runtime reports when the vendor refuses for want of a sign-in
 // (packages/agent-runtime/src/acp/provider-error.ts)
-const CODEX_SIGNED_OUT = "Codex is not signed in";
+const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
 // main's line once the child it started has stopped (src/main/server-process.ts)
 const SERVER_STOPPED_CLEANLY = "server exited (code 0)";
 // main's lines once the window's page has loaded, or has not (src/main/index.ts)
 const WINDOW_LOADED = "[desktop] window loaded";
 const WINDOW_FAILED = "[desktop] window failed to load";
-// each would steer the agent turn off the bundled adapter and its codex: the host's own codex, its
-// credentials, or an agent mode that is not ACP
+// each would steer the agent off the bundled vendors and their empty stores: the host's own vendor
+// binaries, its credentials, or an agent mode that is not ACP
 const HOST_AGENT_ENV = new Set([
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "CLAUDE_CODE_EXECUTABLE",
+  "CLAUDE_CODE_OAUTH_TOKEN",
   "CODEX_PATH",
   "CODEX_API_KEY",
   "OPENAI_API_KEY",
@@ -148,24 +152,21 @@ const dataDir = path.join(scratch, "data");
 const vaultDir = path.join(scratch, "vault");
 // its own profile and single-instance lock, so an installed Inteligir neither blocks nor sees it
 const userDataDir = path.join(scratch, "electron");
-// a send is refused until a vendor CLI is on PATH; the adapter never runs this one
-const stubBinDir = path.join(scratch, "bin");
-// no sign-in lives here, so the turn stops at the vendor's refusal
+// no sign-in lives in either, so each vendor answers signed out and the turn stops at its refusal
+const claudeConfigDir = path.join(scratch, "claude-config");
 const codexHome = path.join(scratch, "codex-home");
 
-await mkdir(stubBinDir, { recursive: true });
+await mkdir(claudeConfigDir, { recursive: true });
 await mkdir(codexHome, { recursive: true });
-await writeFile(path.join(stubBinDir, "codex"), "#!/bin/sh\nexit 0\n");
-await chmod(path.join(stubBinDir, "codex"), 0o755);
 
 // an undefined value unsets the variable
 const appEnv = (env) =>
   Object.fromEntries(
     Object.entries({
       ...process.env,
+      CLAUDE_CONFIG_DIR: claudeConfigDir,
       CODEX_HOME: codexHome,
       INTELIGIR_SYNC_INTERVAL_MS: "0",
-      PATH: `${stubBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
       ...env,
     }).filter(([name, value]) => value !== undefined && !HOST_AGENT_ENV.has(name)),
   );
@@ -267,6 +268,22 @@ const killGroup = (launched) => {
   }
 };
 
+// the server runs each vendor's bundled binary itself and asks it for the sign-in: both must be
+// there in the pack, and over an empty store both must answer signed out, never unknown.
+const proveVendorsBundled = async (rpc) => {
+  const { harnesses } = await rpc("agents/status");
+  for (const id of ["claude", "codex"]) {
+    const harness = harnesses.find((row) => row.id === id);
+    if (harness?.runtime !== "bundled") {
+      fail(`the packaged app does not carry the ${id} runtime: ${JSON.stringify(harness)}`);
+    }
+    if (harness.account.state !== "signed-out") {
+      fail(`${id} over an empty store did not answer signed out: ${JSON.stringify(harness)}`);
+    }
+  }
+  log("agents -> claude and codex bundled, both signed out");
+};
+
 // main forks the codex adapter through the broker, the adapter starts its bundled native codex, and
 // the ACP handshake runs; with no sign-in the vendor then refuses the session. only a live adapter
 // can say that: one main could not start, or a codex it could not run, fails the turn differently.
@@ -323,6 +340,7 @@ try {
   log(`vault tree -> ${tree.entries.length} entries under ${tree.root}`);
   await proveWatcherAlive({ fail, log, rpc, vaultDir });
 
+  await proveVendorsBundled(rpc);
   await proveAgentTurn(rpc);
 
   const status = await run(cliBin, ["status", "--json"], {

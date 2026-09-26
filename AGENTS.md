@@ -45,10 +45,14 @@ root `packageManager`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
 The agent RUNTIME is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
-`off`; default `auto` — the ACP runtime, which looks for Claude Code or the
-Codex CLI on PATH at every send and refuses the send while neither is there,
-with the reason `system.status` states under `agent`). WHICH harness runs is a
-thread's own `providerId`, never this variable.
+`off`; default `auto` — the ACP runtime, which runs the vendor binaries bundled
+beside its adapters and never looks at PATH; it refuses a send only when the
+thread's runtime is missing from the install, with the reason `system.status`
+states under `agent`, and a signed-out vendor refuses the session itself). WHICH
+harness runs is a thread's own `providerId`, never this variable; unset, a new
+thread starts on claude. `inteligir agents list` asks each vendor for its
+sign-in (`claude auth status`, `codex login status`) over its shared store, so a
+machine already signed in to either needs nothing more.
 **`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send an
 action message, watch the turn stream, find the note in the vault with an

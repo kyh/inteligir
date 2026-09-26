@@ -1,67 +1,82 @@
-import { chmodSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import path from "node:path";
+import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import { systemStatusResponseSchema } from "@repo/api/local/system/system-schema";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
-import { availableHarnesses, defaultHarnessId, resolveAgentDriver } from "../agent-driver";
-import { bootTestApp, makeTempDir } from "../../__tests__/boot-app";
-import { createThread, fakeSessionFacts } from "./agent-test-harness";
+import { defaultHarnessId, resolveAgentDriver } from "../agent-driver";
+import { bootTestApp, fakeVendorAccounts, makeTempDir } from "../../__tests__/boot-app";
+import {
+  awaitThreadStatus,
+  createThread,
+  fakeSessionFacts,
+  fetchTimelineRows,
+  flattenTimelineRows,
+  sendMessage,
+} from "./agent-test-harness";
+
+const require = createRequire(import.meta.url);
+const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-agent");
 
 const NO_MODELS = { claude: null, codex: null };
 
+// the fake stands in for the adapter, so no turn here reaches a vendor or spends a model call.
+const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env) => ({
+  child: spawn(process.execPath, [FAKE_AGENT], {
+    env: { ...env, FAKE_ACP_MODE: "message" },
+    stdio: ["pipe", "pipe", "pipe"],
+  }),
+});
+
+const bootAuto = async (env: NodeJS.ProcessEnv) =>
+  await bootTestApp({
+    agent: { detail: "placeholder", mode: "auto", runtime: "unavailable" },
+    makeDriver: ({ db, bus, vault, vaultDir }) =>
+      resolveAgentDriver({
+        accounts: fakeVendorAccounts(),
+        config: { agent: "auto", agentModels: NO_MODELS, vaultDir },
+        db,
+        env,
+        mcpServers: () => [],
+        notifier: bus,
+        sessionFacts: () => fakeSessionFacts(),
+        spawnAdapter: spawnFakeAdapter,
+        vault,
+      }),
+  });
+
 describe("agent driver resolution", () => {
-  it("with no CLI on PATH, answers unavailable and 503s a send, without crashing", async () => {
-    const harness = await bootTestApp({
-      agent: { detail: "placeholder", mode: "auto", runtime: "unavailable" },
-      makeDriver: ({ db, bus, vault, vaultDir }) =>
-        resolveAgentDriver({
-          config: { agent: "auto", agentModels: NO_MODELS, vaultDir },
-          db,
-          env: { PATH: "/nonexistent-dir" },
-          mcpServers: () => [],
-          notifier: bus,
-          sessionFacts: () => fakeSessionFacts(),
-          vault,
-        }),
-    });
+  it("runs on the bundled runtime with nothing on PATH, and a send is not refused", async () => {
+    const harness = await bootAuto({ PATH: "/nonexistent-dir" });
     const status = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(status.agent.runtime).toBe("unavailable");
-    expect(status.agent.detail).toContain("No agent CLI was found on PATH");
+    expect(status.agent).toEqual({ detail: null, mode: "auto", runtime: "acp" });
+
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "hello");
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(
+      rows.find((row) => row.kind === "conversation" && row.role === "assistant"),
+    ).toMatchObject({ text: "hello from the fake agent", turnId });
+  });
+
+  it("refuses a send when the runtime the thread runs on is missing, and says to reinstall", async () => {
+    const missing = path.join(makeTempDir("inteligir-agent-runtime-"), "claude");
+    const harness = await bootAuto({ CLAUDE_CODE_EXECUTABLE: missing });
+    const reinstall = "This copy of inteligir is missing its Claude runtime — reinstall it";
+    const status = systemStatusResponseSchema.parse(await harness.client.system.status());
+    expect(status.agent).toEqual({ detail: reinstall, mode: "auto", runtime: "unavailable" });
 
     const threadId = await createThread(harness.client);
     const [refusal] = await safe(harness.client.threads.send({ text: "hello", threadId }));
     expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
-    expect(refusal?.message).toContain("No agent CLI was found on PATH");
+    expect(refusal?.message).toBe(reinstall);
   });
 
-  it("finds a CLI installed after boot on the next request, without a restart", async () => {
-    const binDir = makeTempDir("inteligir-agent-path-");
-    const env = { PATH: binDir };
-    const harness = await bootTestApp({
-      agent: { detail: "placeholder", mode: "auto", runtime: "unavailable" },
-      makeDriver: ({ db, bus, vault, vaultDir }) =>
-        resolveAgentDriver({
-          config: { agent: "auto", agentModels: NO_MODELS, vaultDir },
-          db,
-          env,
-          mcpServers: () => [],
-          notifier: bus,
-          sessionFacts: () => fakeSessionFacts(),
-          vault,
-        }),
-    });
-    const before = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(before.agent.runtime).toBe("unavailable");
-    expect(defaultHarnessId(null, env)).toBe("claude");
-
-    const codex = path.join(binDir, "codex");
-    writeFileSync(codex, "#!/bin/sh\n");
-    chmodSync(codex, 0o755);
-
-    const after = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(after.agent).toEqual({ detail: null, mode: "auto", runtime: "acp" });
-    expect(availableHarnesses(env)).toEqual(["codex"]);
-    expect(defaultHarnessId(null, env)).toBe("codex");
+  it("starts a new thread on claude with nothing chosen, whatever PATH holds", () => {
+    expect(defaultHarnessId(null)).toBe("claude");
+    expect(defaultHarnessId("codex")).toBe("codex");
   });
 
   it("the off mode reads as off on /system/status", async () => {
@@ -69,6 +84,7 @@ describe("agent driver resolution", () => {
       agent: { detail: "The agent is disabled (INTELIGIR_AGENT=off)", mode: "off", runtime: "off" },
       makeDriver: ({ db, bus, vault, vaultDir }) =>
         resolveAgentDriver({
+          accounts: fakeVendorAccounts(),
           config: { agent: "off", agentModels: NO_MODELS, vaultDir },
           db,
           mcpServers: () => [],

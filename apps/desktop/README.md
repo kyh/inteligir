@@ -156,8 +156,10 @@ ambient `NODE_ENV`: a packaged install is the production one (`~/.inteligir`,
 ## The child's PATH is the login shell's
 
 An app opened from Finder or the Dock inherits launchd's PATH
-(`/usr/bin:/bin:/usr/sbin:/sbin`), which holds neither agent CLI, and the server
-refuses every send while it cannot find one on PATH. So before the first fork
+(`/usr/bin:/bin:/usr/sbin:/sbin`). The agent itself never needs PATH — its
+runtimes are bundled — but its bash and the vendor's stdio MCP servers run the
+user's own commands by name (`node`, `npx`, `uvx`, a version manager's
+shims), and none of those is on launchd's PATH. So before the first fork
 the packaged shell runs `$SHELL -ilc` once, reads the PATH it prints, and puts
 those entries ahead of the inherited ones on main's own environment, which every
 child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,
@@ -225,10 +227,12 @@ Inteligir neither blocks it nor sees it) and a mock keychain (an unsigned pack
 must not stop on a prompt for the installed app's cookie key), with the data and
 vault dirs pinned by environment. It checks that the native modules load under
 Electron's runtime, that the SPA and API answer, that the watcher main forked
-reports an external write, that an agent turn reaches a live adapter (codex, on
-a scratch `CODEX_HOME`: main forks the adapter, the adapter starts its bundled
-native codex, and codex refuses the session for want of a sign-in, which only a
-live adapter can say), that the bundled CLI is executable where the agent's PATH
+reports an external write, that both vendor runtimes ship in the pack and each
+answers signed out over a scratch store (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`),
+with no vendor CLI on PATH, that an agent turn reaches a live adapter (codex:
+main forks the adapter, the adapter starts its bundled native codex, and codex
+refuses the session for want of a sign-in, which only a live adapter can say),
+that the bundled CLI is executable where the agent's PATH
 resolver looks for it, and that SIGTERM to main stops the server cleanly and
 exits 0. **The window opens, and the smoke checks nothing in it**: the origin
 pin is proven by its unit tests, and the window, the protocol handler, the

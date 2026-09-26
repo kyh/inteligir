@@ -1,6 +1,6 @@
-// A Finder or Dock launch inherits launchd's PATH (/usr/bin:/bin:/usr/sbin:/sbin), and the server
-// decides whether the agent runs by finding its CLI on PATH. The user's PATH is written down in
-// their login shell, so main asks it once before the first fork.
+// A Finder or Dock launch inherits launchd's PATH (/usr/bin:/bin:/usr/sbin:/sbin), and the agent's
+// bash and the vendor's stdio MCP servers run the user's own commands by name. The user's PATH is
+// written down in their login shell, so main asks it once before the first fork.
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -54,7 +54,7 @@ export const mergePath = (first: readonly string[], inherited: string | undefine
   return [...new Set(entries)].join(path.delimiter);
 };
 
-// where the agent CLIs' own installers and Homebrew put binaries
+// where per-user installers and Homebrew put binaries
 const wellKnownDirs = (homeDir: string): string[] => [
   path.join(homeDir, ".local", "bin"),
   "/opt/homebrew/bin",

@@ -1,6 +1,6 @@
-// binary presence is read per call, never once at boot: a CLI installed after launch serves the next
-// send, and with none on PATH a send fails synchronously rather than wedging a thread on an async
-// spawn failure.
+// a runtime missing from this copy of the app refuses a send synchronously rather than wedging a
+// thread on an async spawn failure. a signed-out vendor is not refused here: its adapter refuses the
+// session, and that refusal is the one that names the vendor.
 
 import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -11,18 +11,18 @@ import type {
   AcpAgentRuntimeOptions,
   AcpMcpServerConfig,
 } from "@repo/agent-runtime/acp/acp-runtime";
-import { HARNESSES, HARNESS_IDS } from "@repo/agent-runtime/acp/harness-registry";
+import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
 import type { DebugLog } from "../debug-log";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
 import type { AgentSessionFacts } from "./agent-shell-env";
-import { binaryOnPath } from "./binary-on-path";
 import { createAcpRuntimeManager } from "./runtime-manager";
 import type { AcpRuntimeManagerDeps } from "./runtime-manager";
 import { createScriptedTurnDriverFactory } from "./scripted-driver";
 import type { ScriptedDriverDeps } from "./scripted-driver";
+import type { VendorAccounts } from "./vendor-accounts";
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModels" | "vaultDir">;
@@ -32,8 +32,10 @@ export interface ResolveAgentDriverArgs {
   vault: VaultRuntime;
   // a getter, read per session open, so a Settings edit reaches the next session without a reboot.
   sessionFacts: () => AgentSessionFacts;
-  // the stored choice, read per thread start for the same reason; null falls back to what PATH holds
+  // the stored choice, read per thread start for the same reason; null falls back to claude
   preferredProviderId?: () => HarnessId | null;
+  // each vendor's own sign-in answer; carried here because only serve.ts may build what spawns one.
+  accounts: VendorAccounts;
   env?: NodeJS.ProcessEnv;
   // absent: the runtime forks each adapter with child_process
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
@@ -46,8 +48,9 @@ export interface ResolveAgentDriverArgs {
 export type RecordAgentWrites = (threadId: string, paths: readonly string[]) => void;
 
 export interface ResolvedAgentDriver {
-  // read per request: an install or an uninstall after boot is the next answer.
+  // read per request: a runtime removed from under a running app is the next answer.
   status: () => AgentStatus;
+  accounts: VendorAccounts;
   createTurnDriver: CreateTurnDriver;
   recordAgentWrites: RecordAgentWrites;
   dispose: () => Promise<void>;
@@ -61,20 +64,26 @@ const recordNothing: RecordAgentWrites = () => {
   /* empty */
 };
 
-const NO_AGENT_CLI =
-  "No agent CLI was found on PATH — install Claude Code or the Codex CLI, or set INTELIGIR_AGENT=scripted";
+export const defaultHarnessId = (preferred: HarnessId | null): HarnessId => preferred ?? "claude";
 
-export const availableHarnesses = (env: NodeJS.ProcessEnv): HarnessId[] =>
-  HARNESS_IDS.filter((id) => binaryOnPath(HARNESSES[id].vendorBinary, env) !== null);
-
-export const defaultHarnessId = (preferred: HarnessId | null, env: NodeJS.ProcessEnv): HarnessId =>
-  preferred ?? availableHarnesses(env)[0] ?? HARNESS_IDS[0];
+// a provider this build does not know is left to the runtime, whose refusal names it.
+const missingRuntime = (providerId: string, env: NodeJS.ProcessEnv): string | null => {
+  if (!isHarnessId(providerId)) {
+    return null;
+  }
+  const harness = HARNESSES[providerId];
+  return harness.vendorExecutable(env) === null
+    ? `This copy of inteligir is missing its ${harness.displayName} runtime — reinstall it`
+    : null;
+};
 
 export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentDriver => {
   const mode = args.config.agent;
+  const { accounts } = args;
   if (mode === "off") {
     const detail = "The agent is disabled (INTELIGIR_AGENT=off)";
     return {
+      accounts,
       createTurnDriver: () => createUnavailableTurnDriver(detail),
       dispose: noDispose,
       recordAgentWrites: recordNothing,
@@ -90,6 +99,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       vault: args.vault.service,
     };
     return {
+      accounts,
       createTurnDriver: createScriptedTurnDriverFactory(scripted),
       dispose: noDispose,
       recordAgentWrites: recordNothing,
@@ -98,12 +108,11 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
   }
 
   const env = args.env ?? process.env;
-  const unavailableReason = (): string | null =>
-    availableHarnesses(env).length === 0 ? NO_AGENT_CLI : null;
+  const defaultProviderId = (): HarnessId => defaultHarnessId(args.preferredProviderId?.() ?? null);
   const acp: AcpRuntimeManagerDeps = {
     db: args.db,
     debugLog: args.debugLog,
-    defaultProviderId: () => defaultHarnessId(args.preferredProviderId?.() ?? null, env),
+    defaultProviderId,
     git: args.vault.git,
     hostEnv: env,
     mcpServers: args.mcpServers,
@@ -111,7 +120,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     notifier: args.notifier,
     onDebug,
     sessionFacts: args.sessionFacts,
-    unavailableReason,
+    unavailableReason: (providerId) => missingRuntime(providerId, env),
     vaultDir: args.config.vaultDir,
   };
   if (args.spawnAdapter !== undefined) {
@@ -119,13 +128,15 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
   }
   const manager = createAcpRuntimeManager(acp);
   return {
+    accounts,
     createTurnDriver: manager.createTurnDriver,
     dispose: async () => {
       await manager.dispose();
     },
     recordAgentWrites: manager.recordAgentWrites,
+    // the harness a new thread would start on.
     status: () => {
-      const detail = unavailableReason();
+      const detail = missingRuntime(defaultProviderId(), env);
       return detail === null
         ? { detail: null, mode, runtime: "acp" }
         : { detail, mode, runtime: "unavailable" };

@@ -1,6 +1,7 @@
 // reachable from the renderer's suites through `inteligir/server/testing`, so everything imported
-// here compiles under the browser tsconfig: the cloud socket opener and the acp agent runtime are
-// injected (`cloudTransport`, `driver`) rather than imported, and serve.ts supplies the real ones.
+// here compiles under the browser tsconfig: the cloud socket opener, the acp agent runtime and the
+// vendor account probe are injected (`cloudTransport`, `driver`, which carries `accounts`) rather
+// than imported, and serve.ts supplies the real ones.
 
 import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
@@ -175,7 +176,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vaultDir: config.vaultDir,
   });
   const agentPrefs = new AgentPrefsStore(config.dataDir);
-  const agents = createAgentsService({ env: process.env, store: agentPrefs });
 
   const agentDriver = args.driver({
     agentPrefs,
@@ -191,6 +191,11 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     // the oauth flow serves agent sessions, so it stops with them.
     connectorsOauth.dispose();
     await agentDriver.dispose();
+  });
+  const agents = createAgentsService({
+    accounts: agentDriver.accounts,
+    env: process.env,
+    store: agentPrefs,
   });
 
   // before the thread service, which takes the outbox hook at construction; attach() closes the other direction.

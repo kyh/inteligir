@@ -42,13 +42,15 @@ scratch dir and tears everything down afterwards:
   fresh instance. `mode` is `source` (the default: `bin/inteligir`, which runs
   `src/` under tsx in a checkout) or `built` (`dist/index.js` under
   `NODE_ENV=production`, what npm and the .app run). Scratch `data/` + `vault/`
-  siblings, a reserved free port (bind races retry with a fresh port,
+  siblings, empty vendor stores of its own (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`,
+  so no instance runs the agent or asks its sign-in on the host's account), a
+  reserved free port (bind races retry with a fresh port,
   bounded), health-gated on `/health` answering `{ok:true}`. Registered for
   teardown at SPAWN, before the health wait, and torn down as a process group
   that is polled to verified-dead (SIGTERM →
   SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
-  group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
-  `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
+  group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
+  port, NODE_ENV, `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
   before boot; the app's repo init commits them. `seedData` does the same for
   the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for

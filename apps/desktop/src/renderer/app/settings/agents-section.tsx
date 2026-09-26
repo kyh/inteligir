@@ -1,42 +1,45 @@
 import { harnessReadiness } from "@repo/api/local/agents/agents-schema";
-import type { HarnessProbe, HarnessReadiness } from "@repo/api/local/agents/agents-schema";
+import type { HarnessReadiness, HarnessStatus } from "@repo/api/local/agents/agents-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { failed, orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
 import { ChoiceRow, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 const READINESS_LABELS = {
-  "needs-sign-in": "needs sign-in",
-  "not-installed": "not installed",
   ready: "ready",
-  unknown: "sign-in unknown",
+  "signed-out": "signed out",
+  unavailable: "missing",
+  unknown: "unknown",
 } satisfies Record<HarnessReadiness, string>;
 
-const readinessSentence = (probe: HarnessProbe, readiness: HarnessReadiness): string => {
-  switch (readiness) {
-    case "not-installed": {
-      return `The ${probe.displayName} CLI was not found on PATH — install it, then sign in with: ${probe.loginCommand}`;
+const readinessSentence = (status: HarnessStatus): string => {
+  if (status.runtime === "missing") {
+    return "This copy of inteligir is missing it. Reinstall the app to use it.";
+  }
+  const { account } = status;
+  switch (account.state) {
+    case "signed-in": {
+      return account.email === null
+        ? `Signed in with ${account.label}.`
+        : `Signed in with ${account.label} as ${account.email}.`;
     }
-    case "ready": {
-      return "Signed in.";
-    }
-    case "needs-sign-in": {
-      return `Not signed in — run: ${probe.loginCommand}`;
+    case "signed-out": {
+      return "Signed out on this Mac.";
     }
     case "unknown": {
-      return "Sign-in state unknown on this platform.";
+      return "Could not tell whether it is signed in.";
     }
     // no default
   }
 };
 
-const HarnessRow = ({ probe }: { probe: HarnessProbe }) => {
-  const readiness = harnessReadiness(probe);
+const HarnessRow = ({ status }: { status: HarnessStatus }) => {
+  const readiness = harnessReadiness(status);
   return (
     <div className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0">
-        <p className="text-subtitle font-medium">{probe.displayName}</p>
-        <p className="text-body text-muted-foreground">{readinessSentence(probe, readiness)}</p>
+        <p className="text-subtitle font-medium">{status.displayName}</p>
+        <p className="text-body text-muted-foreground">{readinessSentence(status)}</p>
       </div>
       <span
         className={
@@ -55,7 +58,7 @@ export const AgentsSection = () => {
   const queryClient = useQueryClient();
   const statusQuery = useQuery({
     ...orpc.agents.status.queryOptions(),
-    // Login state changes outside this app; opening the page re-probes.
+    // a sign-in can change outside this app; opening the page asks the vendors again.
     staleTime: 0,
   });
   const setDefault = useMutation(
@@ -76,12 +79,12 @@ export const AgentsSection = () => {
     <section>
       <SectionHeading>Agents</SectionHeading>
       <p className="text-body text-muted-foreground">
-        Actions run on your own agent subscriptions. The protocol adapters ship with the app; the
-        CLIs and their sign-ins are yours.
+        Actions run on your own Claude or ChatGPT plan. Both ship with the app; the sign-in is
+        yours.
       </p>
       <div className="mt-2 divide-y divide-line">
-        {harnesses.map((probe) => (
-          <HarnessRow key={probe.id} probe={probe} />
+        {harnesses.map((harness) => (
+          <HarnessRow key={harness.id} status={harness} />
         ))}
       </div>
       {status === undefined ? null : (
@@ -89,7 +92,10 @@ export const AgentsSection = () => {
           <Row label="Default agent">
             <ChoiceRow
               label="Default agent"
-              options={harnesses.map((probe) => ({ label: probe.displayName, value: probe.id }))}
+              options={harnesses.map((harness) => ({
+                label: harness.displayName,
+                value: harness.id,
+              }))}
               value={status.defaultId}
               onChange={(id) => {
                 setDefault.mutate({ id });

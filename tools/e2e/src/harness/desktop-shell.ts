@@ -109,11 +109,21 @@ const requireDisplay = (): void => {
   }
 };
 
+interface ShellDirs {
+  homeDir: string;
+  claudeConfigDir: string;
+  codexHome: string;
+}
+
 // HOME, not INTELIGIR_DATA_DIR/INTELIGIR_VAULT_DIR: the shell refuses a switch while either is
-// pinned, so the scratch is reached through the dev instance a home derives
-const shellEnv = (homeDir: string, serverPort: number): NodeJS.ProcessEnv =>
+// pinned, so the scratch is reached through the dev instance a home derives. the vendors' stores
+// are the scratch's own and empty: a keychain entry is not under HOME, so a scratch home alone
+// would still find the signed-in account of the machine running the suite.
+const shellEnv = (dirs: ShellDirs, serverPort: number): NodeJS.ProcessEnv =>
   Object.assign(appLaunchEnv(), {
-    HOME: homeDir,
+    CLAUDE_CONFIG_DIR: dirs.claudeConfigDir,
+    CODEX_HOME: dirs.codexHome,
+    HOME: dirs.homeDir,
     INTELIGIR_AGENT: "scripted",
     INTELIGIR_PORT: String(serverPort),
     INTELIGIR_SYNC_INTERVAL_MS: "0",
@@ -125,8 +135,15 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
   const shellDir = path.join(args.scratchDir, "shell");
   const homeDir = path.join(shellDir, "home");
   const userDataDir = path.join(shellDir, "user-data");
+  const dirs: ShellDirs = {
+    claudeConfigDir: path.join(shellDir, "claude-config"),
+    codexHome: path.join(shellDir, "codex-home"),
+    homeDir,
+  };
   await mkdir(homeDir, { recursive: true });
   await mkdir(userDataDir, { recursive: true });
+  await mkdir(dirs.claudeConfigDir, { recursive: true });
+  await mkdir(dirs.codexHome, { recursive: true });
   const checkoutPath = resolveCheckoutRoot(desktopDir);
   // main resolves an unpackaged shell in development mode, for the checkout its cwd names; the
   // rest of the env it hands the resolution moves neither dir
@@ -165,7 +182,7 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
           `--user-data-dir=${userDataDir}`,
         ],
         cwd: desktopDir,
-        env: shellEnv(homeDir, serverPort),
+        env: shellEnv(dirs, serverPort),
         file: binary,
         name: "shell",
       });

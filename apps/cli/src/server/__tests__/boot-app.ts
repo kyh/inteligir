@@ -9,6 +9,8 @@ import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
 import type { OpenExternalUrl } from "../browser-opener";
@@ -16,6 +18,7 @@ import type { CloudTransport } from "../cloud/sync-runtime";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
 import type { RecordAgentWrites } from "../agents/agent-driver";
+import type { VendorAccounts } from "../agents/vendor-accounts";
 import type { AppConfig } from "../config";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
@@ -40,8 +43,23 @@ export const TEST_SERVER_TOKEN = "test-server-token";
 // an in-process Request carries no Host until one is set, and the host guard refuses one naming none.
 export const TEST_HOST = "127.0.0.1:4664";
 
+// a booted suite never runs a vendor binary: every harness answers signed in unless told otherwise.
+export const fakeVendorAccounts = (
+  answers: Partial<Record<HarnessId, VendorAccount>> = {},
+): VendorAccounts => ({
+  invalidate: () => {
+    /* empty */
+  },
+  status: async (id) =>
+    await Promise.resolve(
+      answers[id] ?? { email: null, label: HARNESSES[id].displayName, state: "signed-in" },
+    ),
+});
+
 export interface BootTestAppOptions {
   agent?: AgentStatus;
+  // absent, every harness answers signed in.
+  accounts?: VendorAccounts;
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
   clientDir?: string;
@@ -127,6 +145,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
         vaultDir,
       });
       return {
+        accounts: options.accounts ?? fakeVendorAccounts(),
         createTurnDriver: made?.createTurnDriver ?? (() => unavailableTurnDriver),
         dispose:
           made?.dispose ??

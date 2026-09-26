@@ -6,9 +6,9 @@ import { describeProviderError } from "../provider-error";
 const WIRE_AUTH_REQUIRED = { code: -32_000, message: "Authentication required" };
 
 describe("describeProviderError", () => {
-  it("names the harness's login command for an auth refusal", () => {
+  it("names the harness for an auth refusal", () => {
     expect(describeProviderError(RequestError.authRequired(), HARNESSES.claude)).toBe(
-      "Claude Code is not signed in — run: claude /login",
+      "Claude is signed out on this Mac.",
     );
   });
 

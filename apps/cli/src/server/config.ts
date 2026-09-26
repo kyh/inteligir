@@ -171,7 +171,7 @@ const parseSyncIntervalValue = (name: string, rawValue: string): number => {
 const ENV_VARS = {
   agent: defineEnvVar({
     description:
-      "Agent runtime selection: auto (the ACP runtime, over whichever vendor CLI is on PATH when a turn is sent), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
+      "Agent runtime selection: auto (the ACP runtime, over the vendor binaries bundled with the adapters; PATH is never consulted), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
     name: "INTELIGIR_AGENT",
     parse: ({ name, value }) => parseAgentModeValue(name, value),
   }),

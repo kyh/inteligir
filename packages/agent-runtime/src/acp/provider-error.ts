@@ -14,7 +14,7 @@ export const describeProviderError = (cause: unknown, harness?: HarnessDefinitio
   const parsed = jsonRpcErrorSchema.safeParse(cause);
   if (parsed.success) {
     return parsed.data.code === AUTH_REQUIRED_CODE && harness !== undefined
-      ? `${harness.displayName} is not signed in — run: ${harness.loginCommand}`
+      ? `${harness.displayName} is signed out on this Mac.`
       : parsed.data.message;
   }
   return cause instanceof Error ? cause.message : String(cause);

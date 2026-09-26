@@ -1047,14 +1047,15 @@ to the END of its group.
 
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
   `<dataDir>/agent-prefs.json`, not config.json, which is read once at boot and
-  never written by the app; unset, the first harness on PATH. A thread keeps
-  the harness it started on. PATH is read per request, so a CLI installed after
-  launch serves the next send. A model is per harness, because a model id is
-  vendor-specific; a one-model spelling (`INTELIGIR_AGENT_MODEL`, config.json's
-  `agentModel`) is named in a boot warning, never refused, since config a build
-  does not act on must not brick it (`legacyModelWarnings` in
-  `apps/cli/src/server/config.ts`). `apps/cli/src/server/agents/agent-prefs-store.ts`,
-  `defaultHarnessId` in `agent-driver.ts`, `harnessReadiness` in
+  never written by the app; unset, claude, whatever PATH holds (reversing "the
+  first harness on PATH": both runtimes ship in the app, so PATH says nothing
+  about which one can run). A thread keeps the harness it started on. A model
+  is per harness, because a model id is vendor-specific; a one-model spelling
+  (`INTELIGIR_AGENT_MODEL`, config.json's `agentModel`) is named in a boot
+  warning, never refused, since config a build does not act on must not brick
+  it (`legacyModelWarnings` in `apps/cli/src/server/config.ts`).
+  `apps/cli/src/server/agents/agent-prefs-store.ts`, `defaultHarnessId` in
+  `agent-driver.ts`, `harnessReadiness` in
   `@repo/api/local/agents/agents-schema`.
 
 - **CONNECTORS ARE AN APP-OWNED REGISTRY, injected per-session over ACP**
@@ -1200,6 +1201,26 @@ to the END of its group.
   release can outgrow. User-level vendor config stays.
   `packages/agent-runtime/src/acp/__tests__/vault-config-isolation.test.ts`
   runs each pinned adapter against a fake vendor and reads what it was handed.
+
+- **AN AGENT IS READY WHEN ITS VENDOR SAYS SO, THROUGH THE BUNDLED BINARY, OVER
+  THE SHARED STORE, AND PATH IS NEVER CONSULTED** (reversing the PATH gate and
+  the credential-file probe). Both runtimes ship inside the app, so a user with
+  no vendor CLI installed is not an agent-less user: a harness row names its
+  vendor executable, the override the adapter itself honours
+  (`CLAUDE_CODE_EXECUTABLE`, `CODEX_PATH`) else the binary bundled beside the
+  adapter, never PATH's. Signed-in is the vendor's own answer (`claude auth
+status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
+  so a Mac already signed in stays signed in; a file or keychain entry
+  existing said nothing about whether the vendor still accepts it. Every vendor
+  run goes through one spawn policy (`apps/cli/src/server/agents/vendor-process.ts`:
+  the bundled binary alone, the data dir as cwd since a vendor reads project
+  config from its cwd, the harness's `envOmit`, a deadline that kills the
+  process group), and the answer is shared between concurrent asks and kept
+  10s (`vendor-accounts.ts`), built in `serve.ts` and carried on the driver so
+  `compose.ts` spawns nothing. A send is refused up front only when the
+  thread's own runtime is missing from the install; a signed-out vendor is not
+  pre-gated, because the adapter's `authRequired` is the refusal and it names
+  the vendor. `packages/agent-runtime/src/acp/harness-registry.ts`.
 
 ### Dictation
 
@@ -1619,12 +1640,14 @@ to the END of its group.
   `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
 
 - **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST FORK.** A Finder
-  or Dock launch inherits launchd's bare PATH, and the server finds the agent
-  on PATH, so the app opened the normal way would report no agent. A packaged
-  macOS shell runs `$SHELL -ilc` once, capped at 5s, and prepends its PATH to
-  main's own, which every child spreads. A fixed list of bin dirs alone is
-  rejected, as is an `LSEnvironment` PATH in the bundle: neither can know a
-  version manager's directory. `apps/desktop/src/main/login-shell-path.ts`.
+  or Dock launch inherits launchd's bare PATH. The agent's runtime needs none
+  (it is bundled, and nothing about the agent reads PATH), but the agent's bash
+  and the vendor's stdio MCP servers run the user's own commands by name, which
+  launchd's PATH does not reach. A packaged macOS shell runs `$SHELL -ilc`
+  once, capped at 5s, and prepends its PATH to main's own, which every child
+  spreads. A fixed list of bin dirs alone is rejected, as is an `LSEnvironment`
+  PATH in the bundle: neither can know a version manager's directory.
+  `apps/desktop/src/main/login-shell-path.ts`.
 
 - **THE PACKAGED BINARY'S FUSES ARE ALL FLIPPED, AND MAIN FORKS THE SERVER'S
   NODE CHILDREN.** electron-builder flips them before signing, so no local

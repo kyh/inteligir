@@ -1,23 +1,23 @@
 import { defineCommand } from "citty";
-import { harnessReadiness } from "@repo/api/local/agents/agents-schema";
-import type { HarnessProbe } from "@repo/api/local/agents/agents-schema";
+import type { HarnessStatus } from "@repo/api/local/agents/agents-schema";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
-const readinessLine = (probe: HarnessProbe): string => {
-  switch (harnessReadiness(probe)) {
-    case "not-installed": {
-      return "not installed";
+const statusLine = (status: HarnessStatus): string => {
+  if (status.runtime === "missing") {
+    return "runtime missing";
+  }
+  const { account } = status;
+  switch (account.state) {
+    case "signed-in": {
+      return `signed in (${account.email === null ? account.label : `${account.label}, ${account.email}`})`;
     }
-    case "ready": {
-      return "ready";
-    }
-    case "needs-sign-in": {
-      return `needs sign-in (${probe.loginCommand})`;
+    case "signed-out": {
+      return "signed out";
     }
     case "unknown": {
-      return "sign-in state unknown";
+      return `sign-in state unknown (${account.detail})`;
     }
     // no default
   }
@@ -52,7 +52,10 @@ export const agentsCommand = (deps: CliDeps) =>
 
       list: defineCommand({
         args: { ...jsonArg },
-        meta: { description: "Each harness: CLI found, signed in, and the default", name: "list" },
+        meta: {
+          description: "Each harness: its runtime, its vendor's sign-in, and the default",
+          name: "list",
+        },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.agents.status();
@@ -60,9 +63,9 @@ export const agentsCommand = (deps: CliDeps) =>
             return;
           }
           writeLines(
-            body.harnesses.map((probe) => {
-              const marker = probe.id === body.defaultId ? " (default)" : "";
-              return `${probe.id}${marker} — ${readinessLine(probe)}`;
+            body.harnesses.map((status) => {
+              const marker = status.id === body.defaultId ? " (default)" : "";
+              return `${status.id}${marker} — ${statusLine(status)}`;
             }),
           );
         },

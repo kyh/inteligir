@@ -46,13 +46,24 @@ export interface AppInstance extends TrackedProcess {
   port: number;
 }
 
+// the vendors' stores are the instance's own, empty: an instance never runs the agent, or asks
+// its sign-in, on whatever account the machine running the suite is signed into.
 const HARNESS_OWNED_ENV_KEYS = new Set([
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
   "INTELIGIR_DATA_DIR",
   "INTELIGIR_VAULT_DIR",
   "INTELIGIR_PORT",
   "INTELIGIR_VAULT_REMOTE",
   "NODE_ENV",
 ]);
+
+interface InstanceDirs {
+  dataDir: string;
+  vaultDir: string;
+  claudeConfigDir: string;
+  codexHome: string;
+}
 
 interface LaunchCommand {
   file: string;
@@ -63,22 +74,23 @@ interface LaunchCommand {
 const buildChildEnv = (
   args: LaunchAppArgs,
   command: LaunchCommand,
-  dataDir: string,
-  vaultDir: string,
+  dirs: InstanceDirs,
   port: number,
 ): NodeJS.ProcessEnv => {
   for (const key of Object.keys(args.extraEnv ?? {})) {
     if (HARNESS_OWNED_ENV_KEYS.has(key) || key.startsWith("GIT_")) {
       throw new Error(
-        `extraEnv must not set "${key}": the harness owns the instance paths, the port, the runtime mode and git isolation`,
+        `extraEnv must not set "${key}": the harness owns the instance paths, the vendors' stores, the port, the runtime mode and git isolation`,
       );
     }
   }
   const env = appLaunchEnv();
   // extraEnv merges first; the harness-owned keys below always win.
   Object.assign(env, args.extraEnv ?? {}, command.env);
-  env.INTELIGIR_DATA_DIR = dataDir;
-  env.INTELIGIR_VAULT_DIR = vaultDir;
+  env.CLAUDE_CONFIG_DIR = dirs.claudeConfigDir;
+  env.CODEX_HOME = dirs.codexHome;
+  env.INTELIGIR_DATA_DIR = dirs.dataDir;
+  env.INTELIGIR_VAULT_DIR = dirs.vaultDir;
   env.INTELIGIR_PORT = String(port);
   if (args.vaultRemote !== undefined) {
     env.INTELIGIR_VAULT_REMOTE = args.vaultRemote;
@@ -167,7 +179,15 @@ export const launchApp = async (args: LaunchAppArgs): Promise<AppInstance> => {
   // siblings: the app refuses a data dir inside the vault.
   const dataDir = path.join(args.instanceDir, "data");
   const vaultDir = path.join(args.instanceDir, "vault");
+  const dirs: InstanceDirs = {
+    claudeConfigDir: path.join(args.instanceDir, "claude-config"),
+    codexHome: path.join(args.instanceDir, "codex-home"),
+    dataDir,
+    vaultDir,
+  };
   await mkdir(dataDir, { recursive: true });
+  await mkdir(dirs.claudeConfigDir, { recursive: true });
+  await mkdir(dirs.codexHome, { recursive: true });
 
   const cliDir = path.join(args.repoRoot, "apps", "cli");
   const command = resolveCommand(cliDir, args.mode);
@@ -184,7 +204,7 @@ export const launchApp = async (args: LaunchAppArgs): Promise<AppInstance> => {
       const child = spawnSupervised({
         argv: command.argv,
         cwd: cliDir,
-        env: buildChildEnv(args, command, dataDir, vaultDir, port),
+        env: buildChildEnv(args, command, dirs, port),
         file: command.file,
         name: args.name,
       });

@@ -1,5 +1,5 @@
-// The harness probe for Settings' detect+guide surface. It refuses nothing:
-// an absent CLI or an unreadable credential store is a REPORTED fact.
+// each harness's runtime and its vendor's sign-in, for Settings and `agents list`. It refuses
+// nothing: a missing runtime or a vendor that did not answer is a REPORTED fact.
 
 import { ORPCError } from "@orpc/server";
 import { base, refusals } from "../orpc";

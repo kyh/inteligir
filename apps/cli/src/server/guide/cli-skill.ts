@@ -258,8 +258,9 @@ them as read-only — do not modify them.
 
 ## Agents — the harnesses actions run on
 
-- \`inteligir agents list\` — each harness (claude, codex): CLI on PATH, signed
-  in, and which is the default.
+- \`inteligir agents list\` — each harness (claude, codex): whether its
+  bundled runtime is there, what its vendor says of the sign-in, and which is
+  the default.
 - \`inteligir agents default <id>\` — the harness a NEW action starts on; a
   running action keeps the one it started on.
 

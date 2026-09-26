@@ -61,8 +61,10 @@ interface ManagerOptions {
   children?: ChildProcess[];
   // mutable on purpose: a sign-in between two sends, read at the next session open.
   mode?: FakeAcpMode;
-  // mutable on purpose: a CLI installed between two sends, read at the next send.
+  // mutable on purpose: a runtime restored between two sends, read at the next send.
   unavailableReason?: string | null;
+  // the provider each send's refusal check was asked about.
+  checkedProviders?: string[];
 }
 
 interface ManagerHarness extends BootedTestApp {
@@ -113,7 +115,10 @@ const bootWithManager = async (
             skillsDir: options.skillsDir ?? null,
           }),
         spawnAdapter: fakeSpawn(mode, options),
-        unavailableReason: () => options.unavailableReason ?? null,
+        unavailableReason: (providerId) => {
+          options.checkedProviders?.push(providerId);
+          return options.unavailableReason ?? null;
+        },
         vaultDir,
       };
       if (options.turnIdleTimeoutMs !== undefined) {
@@ -279,16 +284,19 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(children).toHaveLength(3);
   });
 
-  it("refuses a send while no agent CLI is installed, and runs the next once one is", async () => {
-    const managerOptions: ManagerOptions = { unavailableReason: "No agent CLI was found on PATH" };
+  it("refuses a send while the thread's runtime is missing, and runs the next once it is back", async () => {
+    const missing = "This copy of inteligir is missing its ChatGPT runtime — reinstall it";
+    const checkedProviders: string[] = [];
+    const managerOptions: ManagerOptions = { checkedProviders, unavailableReason: missing };
     const harness = await bootWithManager("message", managerOptions);
     const threadId = await createThread(harness.client);
     const [refusal] = await safe(harness.client.threads.send({ text: "too soon", threadId }));
     expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
-    expect(refusal?.message).toBe("No agent CLI was found on PATH");
+    expect(refusal?.message).toBe(missing);
+    expect(checkedProviders).toEqual(["codex"]);
 
     managerOptions.unavailableReason = null;
-    const turnId = await sendMessage(harness.client, threadId, "installed since");
+    const turnId = await sendMessage(harness.client, threadId, "reinstalled since");
     await awaitThreadStatus(harness.client, threadId, "idle");
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(
@@ -496,7 +504,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await awaitThreadStatus(harness.client, threadId, "idle");
   });
 
-  it("names the harness and its login command when session/new is refused for auth", async () => {
+  it("names the harness when session/new is refused for auth", async () => {
     const harness = await bootWithManager("authOnSessionOpen");
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "hello agent");
@@ -505,12 +513,12 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      detail: "Codex is not signed in — run: codex login",
+      detail: "ChatGPT is signed out on this Mac.",
       message: "The agent provider failed",
     });
   });
 
-  it("fails a prompt refused for auth with the login hint", async () => {
+  it("fails a prompt refused for auth with the signed-out sentence", async () => {
     const harness = await bootWithManager("authOnPrompt");
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "hello agent");
@@ -519,7 +527,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      message: "Codex is not signed in — run: codex login",
+      message: "ChatGPT is signed out on this Mac.",
       turnId,
     });
   });
@@ -573,7 +581,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      detail: "The Codex adapter exited (code 3): fake agent: cannot start",
+      detail: "The ChatGPT adapter exited (code 3): fake agent: cannot start",
       message: "The agent provider failed",
     });
   });
@@ -594,7 +602,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      message: "The Codex adapter exited (signal SIGKILL)",
+      message: "The ChatGPT adapter exited (signal SIGKILL)",
       turnId,
     });
   });

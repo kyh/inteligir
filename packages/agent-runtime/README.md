@@ -34,15 +34,15 @@ src/
   acp/
     acp-runtime.ts     # createAcpAgentRuntime: one adapter child per thread,
                        # the ACP client handlers, session open/load/close/reap
-    harness-registry.ts  # HARNESSES — claude and codex as rows: vendor binary,
-                       # login command, adapter entry, credential probes,
+    harness-registry.ts  # HARNESSES — claude and codex as rows: adapter entry,
+                       # bundled vendor executable, account probe,
                        # model application, env keys to omit
     acp-event-mapping.ts  # AcpTurnMapper: one session's notifications → the
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
                        # payload and resolution
     provider-error.ts  # describeProviderError: a refusal's message, or for
-                       # an auth refusal the login command
+                       # an auth refusal the signed-out sentence
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
   thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
@@ -72,14 +72,19 @@ scripts/
   counterpart (a plan update, a tool's progress, a notice) is dropped with a
   reason, never re-shaped. `CONTEXT.md` "event means four things" holds the four
   layers apart.
-- **A harness is a data row.** `HARNESSES` names the vendor binary, the login
-  command, the adapter entry resolved through `require.resolve`, the credential
-  probes the status probe checks, how a model is applied (an env var for
+- **A harness is a data row.** `HARNESSES` names the adapter entry resolved
+  through `require.resolve`, the vendor executable (`vendorExecutable(env)`:
+  the override the adapter honours, `CLAUDE_CODE_EXECUTABLE` or `CODEX_PATH`,
+  else the native binary bundled beside the adapter, resolved the way the
+  adapter itself resolves it; never PATH, and null when an override names
+  nothing), the account probe (the vendor's own `claude auth status --json` or
+  `codex login status`, and the parse of its answer into signed in, signed out
+  or unknown), how a model is applied (an env var for
   either: `ANTHROPIC_MODEL`, or a `CODEX_CONFIG` the codex adapter merges into
   every session) and the env keys to omit — the claude SDK
   refuses to run when it believes it is nested inside another claude session,
   so the nesting sentinel must not leak through from whatever launched this
-  app. `HARNESS_IDS` is the id set in preference order, and `harnessIdSchema`
+  app. `HARNESS_IDS` is the id set, claude first, and `harnessIdSchema`
   and `isHarnessId` are the only ways in: an own-key check, since `in` admits
   every `Object.prototype` name. `requireHarness` is the one gate from a
   `providerId` to a row. A model is per harness (`models`, a `HarnessModels`),
@@ -126,8 +131,7 @@ scripts/
 - **What a user reads of a refusal is `describeProviderError`.** The SDK
   rejects a refused request with a `RequestError` (an Error carrying the
   JSON-RPC `code`); the adapter's message is shown, except an auth refusal
-  (`-32000`) with a harness in hand, which names the harness and its login
-  command.
+  (`-32000`) with a harness in hand, which says that harness is signed out.
 - **A session is registered only once the agent names it.** A refused or
   failed `initialize`, `session/new` or `session/load` registers nothing and
   takes its child with it, so the send after a sign-in opens a new adapter
@@ -173,8 +177,10 @@ scripts/
   `test-support/fake-acp-agent.mjs` through it, and the desktop shell's server
   has main fork each adapter as a utility process through it. A harness row's
   `adapterEnv` rides every spawn unless the host's env names it already.
-- `HARNESSES` — read by the server's status probe for "is the CLI on PATH, is a
-  credential present, what is the login command"; the prompt and env are the
+- `HARNESSES` — read by the server for "is the runtime bundled" and "what
+  does the vendor say of its sign-in"; the server runs the account probe
+  through its one vendor spawn policy
+  (`apps/cli/src/server/agents/vendor-process.ts`). The prompt and env are the
   host's own projections of its session facts.
 
 ## Testing

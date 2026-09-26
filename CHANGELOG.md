@@ -40,7 +40,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **Move notes and folders** by dragging them in Files, or with Move note to folder… in ⌘P. Links into and out of everything that moved are rewritten, whole folders included.
 - **Files** sorts by name or by newest, and a right-click offers Reveal in Finder, Open with default app, Copy path and Copy absolute path.
 - **Choose where pasted images go**: the top of the vault, beside the note, or a folder (`assets/` unless you pick another), in Settings › Vault or with `inteligir vault attachments`.
-- **Choose your default agent**, Claude Code or Codex, in Settings › Agents or with `inteligir agents default`. An action keeps the agent it started with.
+- **Choose your default agent**, Claude or ChatGPT, in Settings › Agents or with `inteligir agents default`. An action keeps the agent it started with.
 - **Add a connector by its address alone.** For an MCP server that signs in with OAuth, paste its URL; the app finds its sign-in page and registers itself.
 - **Spell check** can be turned off in Settings › Editor; outside macOS you can also pick its languages.
 - **A Keyboard shortcuts page** in ⌘P, spelled for your keyboard. ⌘, opens Settings, and `[` and `]` hide and show the sidebar and the panel while you are not typing.
@@ -66,6 +66,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **The app is smaller.** It no longer carries the command line's source code and tests inside it.
 - **The agent talks about your notes in plain language.** It no longer brings up version control or the command line unless you ask, and it never asks you to run a command. Instructions you keep in your vault's `AGENTS.md` still have the last word.
 - **The agent writes the same callouts you make from the `/` menu** (Note, Tip, Important, Warning and Caution), and a new vault's starter notes use them too. Callouts already in your notes in the older form still show and save unchanged.
+- **The agent needs nothing else installed.** Claude and ChatGPT run from inside the app, so neither Claude Code nor Codex has to be on your Mac, and a Mac already signed in to either stays signed in. Settings › Agents and `inteligir agents list` show each one's sign-in as Claude or ChatGPT reports it, with the plan and account.
 
 ### Fixed
 
@@ -78,8 +79,7 @@ Everything since 0.4.0 (September 4, 2026).
 - **Folding and dragging follow your edits.** A new heading gets its fold arrow, and a fold or a drop lands on the right block.
 - **Typing Chinese, Japanese or Korean** no longer submits half-composed text when Enter confirms a candidate.
 - **Run on an HTML block** runs the block's scripts, in a sandbox.
-- **Opening the app from Finder or the Dock finds Claude Code and Codex**, which were found before only when the app was launched from a terminal.
-- **Agent errors are readable.** "[object Object]" is gone, and an agent that is not signed in says so and names the command that signs it in.
+- **Agent errors are readable.** "[object Object]" is gone, and an agent that is signed out says so.
 - **A stuck or crashed agent no longer wedges an action.** The next message starts cleanly, a crash ends the turn with its reason, a queued message keeps its place in line (after a failed turn too), and a refused approval can be answered again.
 - **Signing in again no longer duplicates your own actions**, and the duplicates an earlier sign-in left behind are removed once, on the first launch.
 - **Sync.** Saves no longer wait while the network is down; a refused push or a detached branch is reported as such instead of Offline or Synced; a failed automatic commit shows as the sync error; sync works where git has no name or email configured; and one bad entry no longer holds up your phone's captures.

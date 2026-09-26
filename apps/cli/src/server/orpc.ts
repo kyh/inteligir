@@ -32,7 +32,7 @@ interface SystemFacts {
   startedAt: number;
   // false in a checkout whose UI was never built: no page answers a browser.
   servesUi: boolean;
-  // read per request: a vendor CLI installed or removed after boot is the next answer.
+  // read per request: a bundled runtime removed from under a running app is the next answer.
   agent: () => AgentStatus;
 }
 

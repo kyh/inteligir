@@ -197,6 +197,17 @@ is the one adapter that runs a node script of its own (its bundled launcher,
 through `process.execPath`), so the harness row names the native binary that
 launcher would start as `CODEX_PATH`.
 
+A vendor's own binary is native, so the server runs it itself. Whether an agent
+is signed in is the vendor's answer (`claude auth status --json`, `codex login
+status`) over its shared store (`~/.claude`, `~/.codex`), so a machine already
+signed in needs nothing more, asked through `src/server/agents/vendor-process.ts`,
+the one vendor spawn policy: the bundled binary alone, never PATH's; the data
+dir as cwd, never the vault; the harness's `envOmit` dropped; a deadline that
+kills the process group. `vendor-accounts.ts` shares one probe between
+concurrent asks and keeps its answer for 10s. Nothing about the agent reads
+PATH: a send is refused up front only when the thread's runtime is missing
+from the install, and a signed-out vendor refuses the session itself.
+
 Four trees are staged as CONTENT rather than code: the committed SQL
 migrations, the dialect skills the agent reads with its own shell, the
 workspace UI — the desktop renderer's build — which `serve` answers over plain
