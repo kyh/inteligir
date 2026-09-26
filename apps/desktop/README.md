@@ -330,21 +330,23 @@ vault dirs pinned by environment. It checks that the native modules load under
 Electron's runtime, that the SPA and API answer, that the watcher main forked
 reports an external write, that both vendor runtimes ship in the pack and each
 answers signed out over a scratch store (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`),
-with no vendor CLI on PATH, that an agent turn reaches a live adapter (codex:
+with the host's vendor overrides and keys stripped from its environment
+(`HOST_AGENT_ENV`), that an agent turn reaches a live adapter (codex:
 main forks the adapter, the adapter starts its bundled native codex, and codex
 refuses the session for want of a sign-in, which only a live adapter can say),
 that the bundled CLI is executable where the agent's PATH
 resolver looks for it, and that SIGTERM to main stops the server cleanly and
 exits 0. Its first launch plays a Mac without the developer tools:
 `DEVELOPER_DIR` names a dir holding no git, and a login shell of the smoke's
-own puts a `git` first on PATH that fails and logs each call. That launch
+own resolves `git` to one that fails and logs each call. That launch
 must still initialize the vault and commit an API write, and the log must stay
 empty through the quit, agent turn and shutdown flush included. **The window
 opens, and the smoke checks nothing in it**: the origin pin is proven by its
 unit tests, and the window, the protocol handler, the bridge and the vault
-switch are the `desktop-shell` scenario's, over the checkout's build. CI's `test-macos` job runs it on every push and pull request,
-unsigned: `CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through
-to the `package` task, because turbo's strict env mode would strip it.
+switch are the `desktop-shell` scenario's, over the checkout's build. CI's
+`test-macos` job runs it on every push and pull request, unsigned:
+`CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through to the
+`package` task, because turbo's strict env mode would strip it.
 
 There is no native-rebuild step, and that is a fact rather than an omission: the
 two native modules are Node-API addons shipping per-platform prebuilds, and

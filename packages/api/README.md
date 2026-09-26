@@ -73,8 +73,12 @@ src/
                        # that fits an over-cap event to one row, payload text
                        # only, so a peer's fold settles it the same)
     captures/          # at-least-once delivery, exactly-once deletion by claim
+    dispatch/          # the dispatch inbox: a phone's `turn` any Mac may claim,
+                       # its `answer` only the asking Mac may, and the
+                       # approvals that Mac opens for the phone
     account/           # /v1/account — its own route, because 0.4.0 and older
-                       # read the login answer strictly
+                       # read the login answer strictly — and the delete,
+                       # which asks the password again
     vault/             # VAULT_API_PATHS, the hosted tree/file/files/asset
                        # shapes and ceilings, VAULT_GIT_PATH, and the asset
                        # media-type allowlist the desktop and Worker routes share;
@@ -88,13 +92,15 @@ src/
 - **apps/web** SERVES every `/cloud` row and reaches nothing under `/local`;
   `dep-dag.test.ts` pins that per import.
 - **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes all
-  of `/cloud` — push, pull, claim, ack, the git remote.
-- **apps/mobile** pulls threads, produces captures and commits vault change
-  sets (`vaultCommit`), and never pushes thread events, claims a capture or
-  speaks git, because the desktop runs the turns and owns applying a capture
-  to the vault. It reaches nothing under `/local`
-  either, pinned by the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as
-  apps/web: a phone install may be months stale against the deployed Worker.
+  of `/cloud` — push, pull, the capture and dispatch claims and acks, the
+  approvals it relays, the git remote.
+- **apps/mobile** pulls threads, produces captures and dispatches, answers a
+  phone-started turn's approvals and commits vault change sets
+  (`vaultCommit`), and never pushes thread events, claims a capture or a
+  dispatch or speaks git, because the desktop runs the turns and owns applying
+  a capture to the vault. It reaches nothing under `/local` either, pinned by
+  the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
+  install may be months stale against the deployed Worker.
 - **apps/desktop** compiles against `/local` (plus `cloud/bytes`, once).
 
 ## Invariants

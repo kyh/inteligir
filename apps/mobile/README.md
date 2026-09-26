@@ -1,9 +1,9 @@
-# @repo/mobile — the inteligir phone companion
+# @repo/mobile — the inteligir phone
 
-A notes-and-capture client. **The agent and the vault ENGINE stay on the
-desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
-FEEDS the CAPTURE inbox, ASKS a Mac's agent through the DISPATCH inbox and
-holds a MIRROR of every note's text from the account's hosted vault, reaching
+A full editor over the account's hosted vault. **The agent and the vault
+ENGINE stay on the desktop** (issue #542's re-founding): the phone holds the
+SYNCED THREADS, FEEDS the CAPTURE inbox, ASKS a Mac's agent through the
+DISPATCH inbox and holds a MIRROR of every note's text, reaching
 `@repo/api/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar),
 `@repo/notes` (wiki resolution, the rename and delete rules and the one
 conflict verdict, guard-pure) and `@repo/mobile-editor/bridge-protocol` (the
