@@ -5,6 +5,16 @@ import {
   claimCapturesRequestSchema,
 } from "@repo/api/cloud/captures/captures-schema";
 import {
+  ackDispatchesRequestSchema,
+  cancelDispatchRequestSchema,
+  claimDispatchesRequestSchema,
+  closeApprovalRequestSchema,
+  createDispatchRequestSchema,
+  DISPATCH_API_PATHS,
+  dispatchStatusRequestSchema,
+  openApprovalRequestSchema,
+} from "@repo/api/cloud/dispatch/dispatch-schema";
+import {
   pullQuerySchema,
   pushRequestSchema,
   SYNC_API_PATHS,
@@ -45,7 +55,7 @@ const answer = <T>(result: SyncResult<T>): Response =>
   result.ok ? Response.json(result.value) : refusal(result);
 
 // the log compares a replayed body byte for byte, so each is serialized once, here, and the
-// object stores and compares that text
+// object stores and compares that text. a stale install's `threads` goes no further than the parse.
 const storedBatch = (request: PushRequest): EventBatch => ({
   events: request.events.map(({ createdAt, deviceSeq, event, threadId }) => ({
     createdAt,
@@ -53,7 +63,6 @@ const storedBatch = (request: PushRequest): EventBatch => ({
     event: JSON.stringify(event),
     threadId,
   })),
-  threads: request.threads ?? [],
 });
 
 // a parse failure is storage corruption; surface the raw string rather than 500 every pull forever
@@ -141,6 +150,74 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
         : refuse("bad-request", "Send { claimToken, ids }.");
     },
   ],
+  [
+    `POST ${DISPATCH_API_PATHS.dispatch}`,
+    async ({ device, request, stub }) => {
+      const body = createDispatchRequestSchema.safeParse(await request.json().catch(() => null));
+      return body.success
+        ? answer(await stub.createDispatch(device.deviceId, body.data))
+        : refuse(
+            "bad-request",
+            'Send { kind: "turn", id, threadId, text } or { kind: "answer", id, approvalId, decision }.',
+          );
+    },
+  ],
+  [
+    `POST ${DISPATCH_API_PATHS.claim}`,
+    async ({ device, request, stub }) => {
+      // an empty body is a claim at the default limit
+      const body = claimDispatchesRequestSchema.safeParse(await request.json().catch(() => ({})));
+      return body.success
+        ? answer(await stub.claimDispatches(device.deviceId, body.data))
+        : refuse("bad-request", "Send { limit? }.");
+    },
+  ],
+  [
+    `POST ${DISPATCH_API_PATHS.ack}`,
+    async ({ request, stub }) => {
+      const body = ackDispatchesRequestSchema.safeParse(await request.json().catch(() => null));
+      return body.success
+        ? answer(await stub.ackDispatches(body.data))
+        : refuse("bad-request", "Send { claimToken, results }.");
+    },
+  ],
+  [
+    `POST ${DISPATCH_API_PATHS.status}`,
+    async ({ request, stub }) => {
+      const body = dispatchStatusRequestSchema.safeParse(await request.json().catch(() => null));
+      return body.success
+        ? answer(await stub.dispatchStatus(body.data))
+        : refuse("bad-request", "Send { ids }.");
+    },
+  ],
+  [
+    `POST ${DISPATCH_API_PATHS.cancel}`,
+    async ({ request, stub }) => {
+      const body = cancelDispatchRequestSchema.safeParse(await request.json().catch(() => null));
+      return body.success
+        ? answer(await stub.cancelDispatch(body.data))
+        : refuse("bad-request", "Send { id }.");
+    },
+  ],
+  [
+    `POST ${DISPATCH_API_PATHS.approval}`,
+    async ({ device, request, stub }) => {
+      const body = openApprovalRequestSchema.safeParse(await request.json().catch(() => null));
+      return body.success
+        ? answer(await stub.openApproval(device.deviceId, body.data))
+        : refuse("bad-request", "Send { id, threadId, turnId, payload }.");
+    },
+  ],
+  [
+    `POST ${DISPATCH_API_PATHS.approvalClose}`,
+    async ({ device, request, stub }) => {
+      const body = closeApprovalRequestSchema.safeParse(await request.json().catch(() => null));
+      return body.success
+        ? answer(await stub.closeApproval(device.deviceId, body.data))
+        : refuse("bad-request", "Send { id }.");
+    },
+  ],
+  [`GET ${DISPATCH_API_PATHS.approvals}`, async ({ stub }) => answer(await stub.listApprovals())],
   [`GET ${SYNC_WS_PATH}`, openSocket],
 ]);
 

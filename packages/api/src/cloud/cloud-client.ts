@@ -30,6 +30,30 @@ import type {
   DeviceLoginResponse,
   RevokeDeviceResponse,
 } from "./device/device-schema";
+import {
+  ackDispatchesResponseSchema,
+  cancelDispatchResponseSchema,
+  claimDispatchesResponseSchema,
+  closeApprovalResponseSchema,
+  createDispatchResponseSchema,
+  DISPATCH_API_PATHS,
+  dispatchStatusResponseSchema,
+  listApprovalsResponseSchema,
+  openApprovalResponseSchema,
+} from "./dispatch/dispatch-schema";
+import type {
+  AckDispatchesRequest,
+  AckDispatchesResponse,
+  CancelDispatchResponse,
+  ClaimDispatchesResponse,
+  CloseApprovalResponse,
+  CreateDispatchRequest,
+  CreateDispatchResponse,
+  DispatchStatusResponse,
+  ListApprovalsResponse,
+  OpenApprovalRequest,
+  OpenApprovalResponse,
+} from "./dispatch/dispatch-schema";
 import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
 import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
 import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
@@ -301,6 +325,14 @@ export interface CloudClient {
   createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
   claimCaptures: (limit: number) => Promise<CloudResult<ClaimCapturesResponse>>;
   ackCaptures: (request: AckCapturesRequest) => Promise<CloudResult<AckCapturesResponse>>;
+  createDispatch: (request: CreateDispatchRequest) => Promise<CloudResult<CreateDispatchResponse>>;
+  claimDispatches: (limit: number) => Promise<CloudResult<ClaimDispatchesResponse>>;
+  ackDispatches: (request: AckDispatchesRequest) => Promise<CloudResult<AckDispatchesResponse>>;
+  dispatchStatus: (ids: readonly string[]) => Promise<CloudResult<DispatchStatusResponse>>;
+  cancelDispatch: (id: string) => Promise<CloudResult<CancelDispatchResponse>>;
+  openApproval: (request: OpenApprovalRequest) => Promise<CloudResult<OpenApprovalResponse>>;
+  closeApproval: (id: string) => Promise<CloudResult<CloseApprovalResponse>>;
+  listApprovals: () => Promise<CloudResult<ListApprovalsResponse>>;
   account: () => Promise<CloudResult<AccountResponse>>;
   // revokes the device the credential names: forgetting a credential leaves its row holding one
   // of the account's device slots
@@ -365,10 +397,26 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     account: async () => await send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
     ackCaptures: async (request) =>
       await send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
+    ackDispatches: async (request) =>
+      await send(DISPATCH_API_PATHS.ack, request, ackDispatchesResponseSchema),
+    cancelDispatch: async (id) =>
+      await send(DISPATCH_API_PATHS.cancel, { id }, cancelDispatchResponseSchema),
     claimCaptures: async (limit) =>
       await send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
+    claimDispatches: async (limit) =>
+      await send(DISPATCH_API_PATHS.claim, { limit }, claimDispatchesResponseSchema),
+    closeApproval: async (id) =>
+      await send(DISPATCH_API_PATHS.approvalClose, { id }, closeApprovalResponseSchema),
     createCapture: async (request) =>
       await send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
+    createDispatch: async (request) =>
+      await send(DISPATCH_API_PATHS.dispatch, request, createDispatchResponseSchema),
+    dispatchStatus: async (ids) =>
+      await send(DISPATCH_API_PATHS.status, { ids }, dispatchStatusResponseSchema),
+    listApprovals: async () =>
+      await send(DISPATCH_API_PATHS.approvals, undefined, listApprovalsResponseSchema),
+    openApproval: async (request) =>
+      await send(DISPATCH_API_PATHS.approval, request, openApprovalResponseSchema),
     pull: async (query) =>
       await send(
         `${SYNC_API_PATHS.pull}${queryString({ afterSeq: query.afterSeq, limit: query.limit })}`,

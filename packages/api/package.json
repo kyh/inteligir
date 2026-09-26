@@ -10,6 +10,7 @@
     "./cloud/captures/captures-schema": "./src/cloud/captures/captures-schema.ts",
     "./cloud/client": "./src/cloud/cloud-client.ts",
     "./cloud/device/device-schema": "./src/cloud/device/device-schema.ts",
+    "./cloud/dispatch/dispatch-schema": "./src/cloud/dispatch/dispatch-schema.ts",
     "./cloud/device/login-flow": "./src/cloud/device/login-flow.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",
     "./cloud/origin": "./src/cloud/cloud-origin.ts",

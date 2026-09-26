@@ -8,8 +8,25 @@ import type {
   ClaimCapturesRequest,
   ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
+import type {
+  AckDispatchesRequest,
+  AckDispatchesResponse,
+  CancelDispatchRequest,
+  CancelDispatchResponse,
+  ClaimDispatchesRequest,
+  ClaimDispatchesResponse,
+  CloseApprovalRequest,
+  CloseApprovalResponse,
+  CreateDispatchRequest,
+  CreateDispatchResponse,
+  DispatchStatusRequest,
+  DispatchStatusResponse,
+  ListApprovalsResponse,
+  OpenApprovalRequest,
+  OpenApprovalResponse,
+} from "@repo/api/cloud/dispatch/dispatch-schema";
 import type { CloudErrorCode } from "@repo/api/cloud/errors";
-import type { PullQuery, PushResponse, ThreadMetaInput } from "@repo/api/cloud/sync/sync-schema";
+import type { PullQuery, PushResponse } from "@repo/api/cloud/sync/sync-schema";
 import {
   devicePlatformSchema,
   SYNC_WS_KEEPALIVE_PING,
@@ -19,6 +36,19 @@ import {
 import type { DevicePlatform, SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { DurableObject } from "cloudflare:workers";
 import { refuse } from "../cloud-http";
+import {
+  ackDispatchRows,
+  cancelDispatchRow,
+  claimDispatchRows,
+  closeApprovalRow,
+  createDispatchRow,
+  DISPATCH_TABLES,
+  dispatchStatuses,
+  forgetDevice,
+  openApprovalRow,
+  openApprovalRows,
+} from "./dispatch-inbox";
+import type { DispatchPing } from "./dispatch-inbox";
 
 // Named `user:<userId>` from the verified credential only: naming an object creates one. The
 // Worker parses every body and calls a method with the verified deviceId as an argument; fetch
@@ -52,7 +82,6 @@ interface StoredEvent {
 
 export interface EventBatch {
   readonly events: readonly StoredEvent[];
-  readonly threads: readonly ThreadMetaInput[];
 }
 
 interface StoredEventRow extends StoredEvent {
@@ -109,12 +138,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
         created_at INTEGER NOT NULL,
         UNIQUE (device_id, device_seq)
       );
-      CREATE TABLE IF NOT EXISTS thread_meta (
-        thread_id TEXT PRIMARY KEY,
-        lane TEXT NOT NULL DEFAULT 'any',
-        title TEXT,
-        updated_at INTEGER NOT NULL
-      );
       CREATE TABLE IF NOT EXISTS captures (
         id TEXT PRIMARY KEY,
         idempotency_key TEXT NOT NULL UNIQUE,
@@ -128,6 +151,10 @@ export class ThreadSyncDO extends DurableObject<Env> {
         purged_at INTEGER NOT NULL
       );
     `);
+    this.ctx.storage.sql.exec(DISPATCH_TABLES);
+    // an object older than the dispatch inbox still holds each thread's lane and title, which
+    // nothing reads: dropped on wake, or it would sit in the account's storage for good
+    this.ctx.storage.sql.exec("DROP TABLE IF EXISTS thread_meta");
   }
 
   // the tombstone refuses a call that verified its credential just before the account was
@@ -178,7 +205,8 @@ export class ThreadSyncDO extends DurableObject<Env> {
     broadcast({ type: "vault" }, this.socketsExcept(pushingDeviceId));
   }
 
-  // a credential check on the next request does not reach a socket that already has one
+  // a credential check on the next request does not reach a socket that already has one, nor a
+  // dispatch row the device left waiting
   severDevice(deviceId: string): void {
     for (const ws of this.ctx.getWebSockets(deviceTag(deviceId))) {
       try {
@@ -186,6 +214,9 @@ export class ThreadSyncDO extends DurableObject<Env> {
       } catch {
         // already closing
       }
+    }
+    if (this.tombstone() === null) {
+      forgetDevice(this.ctx.storage.sql, deviceId, Date.now());
     }
   }
 
@@ -208,23 +239,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
     }
 
     const { sql } = this.ctx.storage;
-    for (const thread of batch.threads) {
-      // last-writer-wins on the client's timestamp: a delayed retry carries an old updated_at and
-      // loses, where a server-side now would silently undo a since-changed lane
-      sql.exec(
-        `INSERT INTO thread_meta (thread_id, lane, title, updated_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT (thread_id) DO UPDATE SET
-           lane = excluded.lane,
-           title = COALESCE(excluded.title, thread_meta.title),
-           updated_at = excluded.updated_at
-         WHERE excluded.updated_at > thread_meta.updated_at`,
-        thread.threadId,
-        thread.lane,
-        thread.title ?? null,
-        thread.updatedAt,
-      );
-    }
-
     const highWater = sql
       .exec<{ high: number | null }>(
         "SELECT MAX(device_seq) AS high FROM sync_events WHERE device_id = ?",
@@ -234,7 +248,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
 
     let stored = 0;
     let duplicates = 0;
-    const touchedThreads = new Set<string>();
     for (const event of events) {
       const [existing] = sql
         .exec<{ event: string }>(
@@ -274,7 +287,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
         event.createdAt,
       );
       stored += 1;
-      touchedThreads.add(event.threadId);
     }
 
     const lastSeq = this.lastSeq();
@@ -282,33 +294,8 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (stored > 0) {
       broadcast({ seq: lastSeq, type: "sync" }, this.socketsExcept(deviceId));
     }
-    // not gated on stored: registering a desktop-lane thread is itself the dispatch, and may precede its first event
-    const desktops = this.socketsExcept(deviceId, platformTag("desktop"));
-    for (const threadId of this.desktopLaneThreads(touchedThreads, batch.threads)) {
-      broadcast({ threadId, type: "dispatch" }, desktops);
-    }
 
     return accepted({ accepted: stored, duplicates, lastSeq });
-  }
-
-  private desktopLaneThreads(
-    touched: ReadonlySet<string>,
-    metaUpserts: readonly { readonly threadId: string }[],
-  ): Set<string> {
-    const candidates = new Set<string>(touched);
-    for (const meta of metaUpserts) {
-      candidates.add(meta.threadId);
-    }
-    const desktop = new Set<string>();
-    for (const threadId of candidates) {
-      const [row] = this.ctx.storage.sql
-        .exec<{ lane: string }>("SELECT lane FROM thread_meta WHERE thread_id = ?", threadId)
-        .toArray();
-      if (row?.lane === "desktop") {
-        desktop.add(threadId);
-      }
-    }
-    return desktop;
   }
 
   private lastSeq(): number {
@@ -437,6 +424,124 @@ export class ThreadSyncDO extends DurableObject<Env> {
       return { id, outcome: survivor === undefined ? "unknown" : "reclaimed" };
     });
     return accepted({ results });
+  }
+
+  private sendDispatchPing(fromDeviceId: string, ping: DispatchPing): void {
+    broadcast(
+      { threadId: ping.threadId, type: "dispatch" },
+      ping.to === "desktops"
+        ? this.socketsExcept(fromDeviceId, platformTag("desktop"))
+        : this.ctx.getWebSockets(deviceTag(ping.deviceId)),
+    );
+  }
+
+  createDispatch(
+    deviceId: string,
+    request: CreateDispatchRequest,
+  ): SyncResult<CreateDispatchResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    const outcome = createDispatchRow(this.ctx.storage.sql, deviceId, request, Date.now());
+    switch (outcome.kind) {
+      case "full": {
+        return refused("rate-limited", "Too many requests are already waiting for a computer.");
+      }
+      case "no-approval": {
+        return refused("not-found", "No such request is waiting for an answer.");
+      }
+      case "not-offered": {
+        return refused("bad-request", "That request does not offer that answer.");
+      }
+      case "stored": {
+        if (outcome.ping !== null) {
+          this.sendDispatchPing(deviceId, outcome.ping);
+        }
+        return accepted({ dispatch: outcome.dispatch, duplicate: outcome.duplicate });
+      }
+      // no default
+    }
+  }
+
+  claimDispatches(
+    deviceId: string,
+    request: ClaimDispatchesRequest,
+  ): SyncResult<ClaimDispatchesResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    return accepted(claimDispatchRows(this.ctx.storage.sql, deviceId, request.limit, Date.now()));
+  }
+
+  ackDispatches(request: AckDispatchesRequest): SyncResult<AckDispatchesResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    return accepted(
+      ackDispatchRows(this.ctx.storage.sql, request.claimToken, request.results, Date.now()),
+    );
+  }
+
+  dispatchStatus(request: DispatchStatusRequest): SyncResult<DispatchStatusResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    return accepted({
+      desktopsOnline: this.ctx.getWebSockets(platformTag("desktop")).length,
+      dispatches: dispatchStatuses(this.ctx.storage.sql, request.ids, Date.now()),
+    });
+  }
+
+  cancelDispatch(request: CancelDispatchRequest): SyncResult<CancelDispatchResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    return accepted({ outcome: cancelDispatchRow(this.ctx.storage.sql, request.id, Date.now()) });
+  }
+
+  // the phone is the reader: a fresh approval pings mobile sockets
+  openApproval(deviceId: string, request: OpenApprovalRequest): SyncResult<OpenApprovalResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    const outcome = openApprovalRow(this.ctx.storage.sql, deviceId, request, Date.now());
+    if (outcome.kind === "full") {
+      return refused("rate-limited", "Too many requests are already waiting for an answer.");
+    }
+    if (!outcome.duplicate) {
+      broadcast(
+        { threadId: request.threadId, type: "dispatch" },
+        this.ctx.getWebSockets(platformTag("mobile")),
+      );
+    }
+    return accepted({ duplicate: outcome.duplicate, state: outcome.state });
+  }
+
+  closeApproval(
+    deviceId: string,
+    request: CloseApprovalRequest,
+  ): SyncResult<CloseApprovalResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    return accepted({
+      outcome: closeApprovalRow(this.ctx.storage.sql, deviceId, request.id, Date.now()),
+    });
+  }
+
+  listApprovals(): SyncResult<ListApprovalsResponse> {
+    const gone = this.tombstone();
+    if (gone !== null) {
+      return gone;
+    }
+    return accepted({ approvals: openApprovalRows(this.ctx.storage.sql) });
   }
 
   // the tombstone is written last so a request that verified just before the account died cannot rebuild what this removed; idempotent

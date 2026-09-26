@@ -121,13 +121,17 @@ detached has none. Neither is a
 its text (`contextPaths` on `client/turn/requested`) and, being part of what
 was asked rather than a statement about the screen, survives the queue.
 
-**lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
-thread's metadata row (`@repo/api/cloud/sync/sync-schema`). It is what makes
-the sync log double as a dispatch mailbox — a `desktop`-lane thread pokes the
-desktop sockets, an `any`-lane one only bumps sync. A desktop's push fills the
-row from the titled `thread/meta` events it carries, always `any`, since a
-thread a desktop runs is no dispatch; nothing sets `desktop` yet. There is no
-lane in the local server; locally a thread is just a thread.
+**dispatch** — a CLOUD word first: a row in the account's dispatch inbox
+(`@repo/api/cloud/dispatch/dispatch-schema`), the one way a phone asks a Mac's
+agent anything. A `turn` dispatch asks for a turn on a thread, new or
+existing, and any Mac may claim it; an `answer` dispatch answers an
+**approval** a Mac opened there for a phone-started turn, and only that Mac
+may claim it. A dispatch is not a thread event: once a Mac takes a turn in,
+its `client/turn/requested` row carries the `dispatchId`, and the log is the
+record from then on. Locally the word also names a runtime handing a turn to
+its provider (`apps/cli/src/server/agents/runtime-manager.ts`); the two never
+meet. A 0.4.0 install still sends a thread **lane** beside its pushes; the
+Worker drops it, and nothing else speaks of lanes.
 
 ## "event" means four things
 

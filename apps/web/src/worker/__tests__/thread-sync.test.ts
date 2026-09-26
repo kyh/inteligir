@@ -5,7 +5,7 @@ import {
 } from "@repo/api/cloud/captures/captures-schema";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/api/cloud/sync/sync-schema";
-import type { PushRequest, ThreadMetaInput } from "@repo/api/cloud/sync/sync-schema";
+import type { PushRequest } from "@repo/api/cloud/sync/sync-schema";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -25,7 +25,18 @@ import {
   userIdOf,
 } from "./cloud-helpers";
 
-const push = async (credential: string, body: PushRequest): Promise<Response> =>
+// what 0.4.0 sends beside its events: each titled thread's lane and title
+interface StaleThreadMeta {
+  lane: "any" | "desktop";
+  threadId: string;
+  title?: string;
+  updatedAt: number;
+}
+
+const push = async (
+  credential: string,
+  body: PushRequest & { threads?: readonly StaleThreadMeta[] },
+): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
     body: JSON.stringify(body),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
@@ -52,20 +63,6 @@ const event = (
   event: { payload, type: "test" },
   threadId,
 });
-
-const meta = (
-  threadId: string,
-  lane: "any" | "desktop",
-  updatedAt: number,
-  title?: string,
-): ThreadMetaInput => {
-  const input: ThreadMetaInput = { lane, threadId, updatedAt };
-  // the contract is strict: an explicit undefined title is not the same as an unsent one
-  if (title !== undefined) {
-    input.title = title;
-  }
-  return input;
-};
 
 const capture = async (
   credential: string,
@@ -206,27 +203,7 @@ describe("thread sync log", () => {
     expect(bobsView.lastSeq).toBe(0);
   });
 
-  it("keeps the NEWEST thread metadata when a delayed retry arrives", async () => {
-    const { bearer } = await signUpUser("sync-meta@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const desktop = await loginDevice(bearer, "Desktop");
-    const desktopWs = await openSocket(desktop.credential, "desktop");
-
-    await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
-    await push(phone.credential, { events: [], threads: [meta("th_1", "any", 2000, "Second")] });
-    await awaitFrames(desktopWs, [{ threadId: "th_1", type: "dispatch" }]);
-
-    await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
-    await push(phone.credential, { events: [event("th_1", 1, "after the retry")] });
-    await awaitFrames(desktopWs, [
-      { threadId: "th_1", type: "dispatch" },
-      { seq: 1, type: "sync" },
-    ]);
-
-    desktopWs.socket.close();
-  });
-
-  it("pings other devices on push, desktop sockets on desktop-lane threads", async () => {
+  it("pings every other device on push, and never the pusher", async () => {
     const { bearer } = await signUpUser("sync-ping@example.test");
     const desktop = await loginDevice(bearer, "Desktop");
     const phone = await loginDevice(bearer, "Phone");
@@ -236,31 +213,10 @@ describe("thread sync log", () => {
     const tabletWs = await openSocket(tablet.credential, "other");
     const phoneWs = await openSocket(phone.credential, "other");
 
-    await push(phone.credential, {
-      events: [event("th_dispatch", 1, "run this")],
-      threads: [meta("th_dispatch", "desktop", 1000, "Do the thing")],
-    });
+    await push(phone.credential, { events: [event("th_chat", 1, "hello")] });
 
-    await awaitFrames(desktopWs, [
-      { seq: 1, type: "sync" },
-      { threadId: "th_dispatch", type: "dispatch" },
-    ]);
+    await awaitFrames(desktopWs, [{ seq: 1, type: "sync" }]);
     await awaitFrames(tabletWs, [{ seq: 1, type: "sync" }]);
-    expect(phoneWs.frames).toEqual([]);
-
-    await push(phone.credential, {
-      events: [event("th_chat", 2, "hello")],
-      threads: [meta("th_chat", "any", 1000)],
-    });
-    await awaitFrames(desktopWs, [
-      { seq: 1, type: "sync" },
-      { threadId: "th_dispatch", type: "dispatch" },
-      { seq: 2, type: "sync" },
-    ]);
-    await awaitFrames(tabletWs, [
-      { seq: 1, type: "sync" },
-      { seq: 2, type: "sync" },
-    ]);
     expect(phoneWs.frames).toEqual([]);
 
     desktopWs.socket.close();
@@ -268,20 +224,37 @@ describe("thread sync log", () => {
     phoneWs.socket.close();
   });
 
-  it("dispatches a metadata-ONLY push, which carries no events to sync", async () => {
-    const { bearer } = await signUpUser("sync-meta-only@example.test");
+  it("accepts a stale install's desktop lane and dispatches nothing for it", async () => {
+    const { bearer } = await signUpUser("sync-stale-lane@example.test");
     const desktop = await loginDevice(bearer, "Desktop");
-    const phone = await loginDevice(bearer, "Phone");
+    const stale = await loginDevice(bearer, "Old Laptop");
     const desktopWs = await openSocket(desktop.credential, "desktop");
 
-    const pushed = await push(phone.credential, {
-      events: [],
-      threads: [meta("th_later", "desktop", 1000, "Queued")],
+    const pushed = await push(stale.credential, {
+      events: [event("th_lane", 1, "run this")],
+      threads: [{ lane: "desktop", threadId: "th_lane", title: "Do the thing", updatedAt: 1000 }],
     });
-    const response = emitted(pushResponseSchema, await pushed.text());
-    expect(response).toEqual({ accepted: 0, duplicates: 0, lastSeq: 0 });
+    expect(emitted(pushResponseSchema, await pushed.text())).toEqual({
+      accepted: 1,
+      duplicates: 0,
+      lastSeq: 1,
+    });
+    const metaOnly = await push(stale.credential, {
+      events: [],
+      threads: [{ lane: "desktop", threadId: "th_later", updatedAt: 2000 }],
+    });
+    expect(emitted(pushResponseSchema, await metaOnly.text())).toEqual({
+      accepted: 0,
+      duplicates: 0,
+      lastSeq: 1,
+    });
+    await push(stale.credential, { events: [event("th_lane", 2, "and this")] });
 
-    await awaitFrames(desktopWs, [{ threadId: "th_later", type: "dispatch" }]);
+    // frames arrive in order, so a dispatch for either push would sit before the second sync
+    await awaitFrames(desktopWs, [
+      { seq: 1, type: "sync" },
+      { seq: 2, type: "sync" },
+    ]);
     desktopWs.socket.close();
   });
 
@@ -297,14 +270,8 @@ describe("thread sync log", () => {
     );
     expect(tags).toEqual([[`device:${desktop.deviceId}`, "platform:desktop"]]);
 
-    await push(phone.credential, {
-      events: [event("th_x", 1, "after")],
-      threads: [meta("th_x", "desktop", 1000)],
-    });
-    await awaitFrames(desktopWs, [
-      { seq: 1, type: "sync" },
-      { threadId: "th_x", type: "dispatch" },
-    ]);
+    await push(phone.credential, { events: [event("th_x", 1, "after")] });
+    await awaitFrames(desktopWs, [{ seq: 1, type: "sync" }]);
     desktopWs.socket.close();
   });
 
@@ -468,10 +435,10 @@ describe("account deletion", () => {
     const stub = threadSyncStub(env, userId);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
       captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
+      dispatches: state.storage.sql.exec("SELECT COUNT(*) AS n FROM dispatches").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
-      threads: state.storage.sql.exec("SELECT COUNT(*) AS n FROM thread_meta").one().n,
     }));
-    expect(rows).toEqual({ captures: 0, events: 0, threads: 0 });
+    expect(rows).toEqual({ captures: 0, dispatches: 0, events: 0 });
   });
 
   it("refuses a request that verified just before the account died", async () => {
@@ -491,7 +458,6 @@ describe("account deletion", () => {
     const late = [
       await stub.push(deviceId, {
         events: [{ createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" }],
-        threads: [],
       }),
       await stub.pull({ afterSeq: 0, limit: 10 }),
       await stub.capture({ idempotencyKey: "key-after-purge", text: "after the purge" }),
