@@ -80,16 +80,18 @@ export const treeOpsBrowser: Scenario = {
         moved: await readOrNull(path.join(app.vaultDir, FOLDER, NOTE)),
         original: await readOrNull(path.join(app.vaultDir, NOTE)),
       }),
+      // a move lands the rename, then rewrites the moved note's own links: wait for both
       (state): state is { moved: string; original: null } =>
-        state.moved !== null && state.original === null,
+        state.moved !== null && state.original === null && state.moved.includes(REBASED_URL),
       {
         deadlineMs: DISK_DEADLINE_MS,
         describe: (state) =>
-          `the drop never moved the note: ${FOLDER}/${NOTE} ${state.moved === null ? "absent" : "present"}, ${NOTE} ${state.original === null ? "absent" : "present"}`,
+          state.moved !== null && state.original === null
+            ? `the move did not re-base the image:\n${state.moved}`
+            : `the drop never moved the note: ${FOLDER}/${NOTE} ${state.moved === null ? "absent" : "present"}, ${NOTE} ${state.original === null ? "absent" : "present"}`,
       },
     );
     expect(moved.includes("pinned: true"), `the move dropped the frontmatter:\n${moved}`);
-    expect(moved.includes(REBASED_URL), `the move did not re-base the image:\n${moved}`);
 
     // a fresh load, so no image the note drew before the move can answer for it
     ctx.log("the moved note's re-based image still loads");

@@ -366,16 +366,21 @@ describe("the login window", () => {
     env.RATE_LIMIT_DISABLED = wasDisabled;
   });
 
-  it("closes on the eleventh attempt from one address, right or wrong", async () => {
-    const email = "login-window@example.test";
-    await signUpUser(email);
-    const guess = { deviceName: "Guesser", email, password: "not-the-password" };
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const refused = await postLogin(guess);
-      expect(refused.status).toBe(401);
-    }
-    const shut = await postLogin({ ...guess, password: PASSWORD });
-    expect(shut.status).toBe(429);
-    expect(emitted(cloudErrorSchema, await shut.text()).error.code).toBe("rate-limited");
-  });
+  // eleven password verifies, slow on purpose, outrun five seconds on a CI runner
+  it(
+    "closes on the eleventh attempt from one address, right or wrong",
+    { timeout: 60_000 },
+    async () => {
+      const email = "login-window@example.test";
+      await signUpUser(email);
+      const guess = { deviceName: "Guesser", email, password: "not-the-password" };
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const refused = await postLogin(guess);
+        expect(refused.status).toBe(401);
+      }
+      const shut = await postLogin({ ...guess, password: PASSWORD });
+      expect(shut.status).toBe(429);
+      expect(emitted(cloudErrorSchema, await shut.text()).error.code).toBe("rate-limited");
+    },
+  );
 });
