@@ -4,8 +4,14 @@ description: Your vault's front door.
 
 # Welcome to inteligir
 
-This folder is your vault: plain markdown files that belong to you, versioned with git. Edit them here or with any other tool — changes show up either way.
+inteligir is a notes app with an agent in it. Your notes are ordinary files in a folder on this Mac, and they belong to you: open one in any other app and you read the same words.
 
-Start with [[Getting Started]] for the full tour of what notes can hold, skim [[Use Cases]] for real workflows, or open [[Kitchen Sink]] to see every block in one place.
+The agent reads and edits your notes with you when you ask it to, on your own Claude or ChatGPT plan. Press ⌘K over any note to ask it something. When it changes a note, its reply offers **Undo changes**, which takes back what it did and keeps everything you wrote since.
 
-Press ⌘K (Ctrl+K on Windows and Linux) to ask the agent anything about the note you are reading.
+Where to go next:
+
+- [[Getting Started]] walks through writing, linking, comments and the agent.
+- [[Use Cases]] has five ways to use it on real work: meetings, research, drafting, decisions and a weekly review.
+- [[Kitchen Sink]] shows every kind of block in one note.
+
+These notes are yours to edit or delete.
