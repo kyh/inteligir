@@ -39,7 +39,13 @@
       "ignoreDependencies": ["expo-updates"]
     },
     "apps/web": {
-      "entry": ["src/routes/**/*.tsx", "src/worker/index.ts", "src/worker/__tests__/**/*.test.ts"],
+      // gallery-main is gallery.html's script, which knip's vite plugin reads only from index.html
+      "entry": [
+        "src/routes/**/*.tsx",
+        "src/components/gallery/gallery-main.tsx",
+        "src/worker/index.ts",
+        "src/worker/__tests__/**/*.test.ts"
+      ],
       "project": ["src/**/*.{ts,tsx,css}"],
       "ignore": ["src/worker/types/durable-git.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package

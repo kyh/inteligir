@@ -111,8 +111,9 @@ apps/
                  and the desktop renderer's bundle as dist/ui, which
                  `serve --open` answers over plain HTTP.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
-                 marketing site, the auth pages, the @repo/ui gallery at
-                 /design (src/components/gallery), Better Auth on D1
+                 marketing site, the auth pages, the @repo/ui gallery
+                 (src/components/gallery: `pnpm dev:gallery`, a dev-only
+                 page the Worker never ships), Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device login (POST /v1/device/login mints the device
                  credential from email + password; /app/devices lists and

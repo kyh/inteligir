@@ -8,6 +8,7 @@
     "cli": "apps/cli/bin/inteligir",
     "dev": "turbo run dev -F @repo/desktop",
     "dev:desktop": "turbo run dev -F @repo/desktop",
+    "dev:gallery": "pnpm --filter @repo/web dev:gallery",
     "dev:mobile": "turbo run dev -F @repo/mobile",
     "dev:web": "turbo watch dev -F @repo/web...",
     "e2e": "pnpm --filter @repo/e2e e2e",

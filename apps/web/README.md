@@ -13,11 +13,11 @@ src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
     privacy.tsx      docs/privacy.md itself, rendered
-    design.tsx       The @repo/ui gallery, client-only
     app/             /app/sign-in, /app/sign-up, /app/forgot-password and
                      /app/devices (the device table, client-only)
   components/        The site's own components (auth card, header, theme, orb)
-    gallery/         The design-system gallery /design renders
+    gallery/         The @repo/ui gallery: gallery-main.tsx mounts it under
+                     gallery.html for `pnpm dev:gallery`, never a route
   lib/               Better Auth client, session guard, site config, and the
                      GitHub-release reader behind the Download button
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
@@ -49,7 +49,6 @@ its own `tsconfig.json`.
 | ------------------------------ | ------- | ---------------------------------------------------------- |
 | `/`                            | —       | Marketing page (SSR)                                       |
 | `/privacy`                     | —       | Renders `docs/privacy.md` itself (SSR) — never a copy      |
-| `/design`                      | —       | The @repo/ui gallery (client-only)                         |
 | `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
 | `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
 | `/app/forgot-password`         | —       | Requests the reset link                                    |
@@ -206,6 +205,12 @@ pnpm --filter @repo/web db:push
 Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers`)
 against the same D1 binding wrangler.jsonc declares; the schema DDL is derived
 from `src/worker/db/schema.ts` at config load (see `vitest.config.ts`).
+
+The @repo/ui gallery is its own dev server, `pnpm dev:gallery` on :5175
+(`vite.gallery.config.ts`, at `/gallery`): React and Tailwind over
+`gallery.html`, with no Worker and no router, so the deployed site has no page
+for it and ships none of its code. TanStack Start has no dev-only route, and
+any route file emits its chunk into the build.
 
 ## Build & deploy (owner-only)
 
