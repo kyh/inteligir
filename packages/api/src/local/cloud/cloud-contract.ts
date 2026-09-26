@@ -15,7 +15,8 @@ export const cloudContract = {
   // ends the account this device is signed in to, and signs this device out; its notes and their
   // history stay. UNAUTHORIZED is a wrong password, TOO_MANY_REQUESTS this device's window,
   // PRECONDITION_FAILED no live sign-in to ask with, a credential the cloud refuses included, which
-  // also moves the status to unauthorized; PROVIDER_UNAVAILABLE as devices'
+  // also moves the status to unauthorized; PROVIDER_UNAVAILABLE as devices'. A retry after a
+  // deletion whose answer was lost, which meets only that deletion's revocation, answers signed out
   deleteAccount: oc
     .input(cloudDeleteAccountRequestSchema)
     .output(cloudStatusResponseSchema)

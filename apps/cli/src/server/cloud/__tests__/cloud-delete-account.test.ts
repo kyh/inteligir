@@ -23,6 +23,19 @@ const signedInMac = async (cloud: FakeCloud): Promise<BootedTestApp> => {
   return app;
 };
 
+// the cloud carries out the first deletion, and its answer never arrives
+const lostFirstDeletion = (cloud: FakeCloud): CloudFetch => {
+  let lost = false;
+  return async (input, init) => {
+    const answer = await cloud.fetch(input, init);
+    if (lost || new URL(input).pathname !== ACCOUNT_API_PATHS.delete) {
+      return answer;
+    }
+    lost = true;
+    throw new Error("the connection was reset");
+  };
+};
+
 // the account's hosted vault, as the vault engine derives it from the data dir each pass
 const accountRemote = (app: BootedTestApp) =>
   createVaultRemoteProvider({
@@ -80,6 +93,35 @@ describe("cloud.deleteAccount", () => {
 
     const deleted = await deleting;
     expect(deleted.state).toBe("signed-out");
+    expect(existsSync(deviceCredentialPath(app.dataDir))).toBe(false);
+  });
+
+  it("reads a retry that meets its own lost deletion's revocation as the account gone", async () => {
+    const cloud = new FakeCloud();
+    const app = await boot(lostFirstDeletion(cloud));
+    await app.client.cloud.login(FAKE_ACCOUNT);
+
+    const [lost] = await safe(app.client.cloud.deleteAccount(RIGHT_PASSWORD));
+    expect(isDefinedError(lost) && lost.code).toBe("PROVIDER_UNAVAILABLE");
+    expect(cloud.hasAccount(FAKE_ACCOUNT.email)).toBe(false);
+
+    const retried = await app.client.cloud.deleteAccount(RIGHT_PASSWORD);
+    expect(retried.state).toBe("signed-out");
+    expect(existsSync(deviceCredentialPath(app.dataDir))).toBe(false);
+  });
+
+  it("reads a retry after a pass met that revocation as the account gone, asking nothing", async () => {
+    const cloud = new FakeCloud();
+    const app = await boot(lostFirstDeletion(cloud));
+    await app.client.cloud.login(FAKE_ACCOUNT);
+    await safe(app.client.cloud.deleteAccount(RIGHT_PASSWORD));
+    const met = await app.client.cloud.syncNow();
+    expect(met.state).toBe("unauthorized");
+    const asked = cloud.requests.length;
+
+    const retried = await app.client.cloud.deleteAccount(RIGHT_PASSWORD);
+    expect(retried.state).toBe("signed-out");
+    expect(cloud.requests).toHaveLength(asked);
     expect(existsSync(deviceCredentialPath(app.dataDir))).toBe(false);
   });
 

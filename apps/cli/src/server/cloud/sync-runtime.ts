@@ -527,14 +527,30 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   // its own client, as a sign-out's: the deletion revokes this very credential first, and a pass
   // that meets it ends the session, which aborts every request the session's client carries
   const deleteAbort = new AbortController();
+  // the credential a deletion went out on whose answer never came back: the cloud may have
+  // carried it out, and then a retry meets only that deletion's own revocation
+  let unansweredDelete: string | null = null;
+
+  // no sign-out: every device row went with the account, so none is left to revoke
+  const forgetDeletedAccount = (): CloudStatusResponse => {
+    unansweredDelete = null;
+    revokeError = null;
+    return forgetSignIn();
+  };
 
   const deleteAccount = async (
     password: string,
   ): Promise<AccountCallOutcome<CloudStatusResponse>> => {
     const asked = session.current();
-    if (disposed || asked.kind !== "live") {
+    if (disposed || asked.kind === "off") {
       return { kind: "not-live", message: NOT_SIGNED_IN };
     }
+    if (asked.kind !== "live") {
+      return asked.credential.credential === unansweredDelete
+        ? { kind: "answered", value: forgetDeletedAccount() }
+        : { kind: "not-live", message: NOT_SIGNED_IN };
+    }
+    const retried = asked.credential.credential === unansweredDelete;
     const client = createCloudClient(clientArgs(asked.credential.credential, deleteAbort.signal));
     const result = await client.deleteAccount(password);
     if (disposed) {
@@ -545,18 +561,27 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     const sameSignIn =
       now.kind !== "off" && now.credential.credential === asked.credential.credential;
     if (result.ok) {
-      if (!sameSignIn) {
-        return { kind: "answered", value: status() };
-      }
-      // no sign-out: every device row went with the account, so none is left to revoke
-      revokeError = null;
-      return { kind: "answered", value: forgetSignIn() };
-    }
-    if (!sessionAlive(asked.id)) {
-      return { kind: "not-live", message: sameSignIn ? SIGNED_OUT_BY_ACCOUNT : SIGN_IN_CHANGED };
+      return sameSignIn
+        ? { kind: "answered", value: forgetDeletedAccount() }
+        : { kind: "answered", value: status() };
     }
     const { failure } = result;
+    if (failure.kind !== "refused") {
+      unansweredDelete = asked.credential.credential;
+    } else if (!SYNC_TERMINAL_CODES.has(failure.code)) {
+      // the cloud checks the credential before anything else it refuses, so the account is there
+      unansweredDelete = null;
+    }
+    if (!sessionAlive(asked.id)) {
+      if (sameSignIn && retried) {
+        return { kind: "answered", value: forgetDeletedAccount() };
+      }
+      return { kind: "not-live", message: sameSignIn ? SIGNED_OUT_BY_ACCOUNT : SIGN_IN_CHANGED };
+    }
     if (failure.kind === "refused" && SYNC_TERMINAL_CODES.has(failure.code)) {
+      if (retried) {
+        return { kind: "answered", value: forgetDeletedAccount() };
+      }
       recordFailure(failure);
       return { kind: "not-live", message: SIGNED_OUT_BY_ACCOUNT };
     }

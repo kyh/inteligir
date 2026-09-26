@@ -2121,8 +2121,12 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   The local server asks on a client of its own, because the purge revokes this
   very credential first, and a pass that meets the revocation ends the session,
   which aborts every request on the session's client; success forgets the
-  sign-in as a sign-out does, minus the revoke, and leaves the vault alone. No
-  CLI verb: the password is a person's to type.
+  sign-in as a sign-out does, minus the revoke, and leaves the vault alone. A
+  deletion whose answer never came back may have happened, so the server keeps
+  its credential, and a retry that meets only that credential's refusal, or
+  finds the session already ended by it, is read as the account gone and signs
+  this Mac out; any other refusal proves the account is there. No CLI verb:
+  the password is a person's to type.
   `apps/web/src/worker/device/account.ts`,
   `apps/cli/src/server/cloud/sync-runtime.ts`,
   `apps/desktop/src/renderer/app/settings/delete-account-dialog.tsx`.
