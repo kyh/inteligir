@@ -115,6 +115,10 @@ what each one is FOR.
 |                           | edits a note offline while A edits it too; reconnected, a far edit lands  |
 |                           | merged with A's, and a same-line one keeps the phone's version with A's   |
 |                           | as the copy the phone named, both on A's disk after A syncs               |
+| phone-file-ops-hosted     | the phone's own runtime creates a note, renames one another note links    |
+|                           | to, deletes one with a comment and adds a photo; after A syncs, A holds   |
+|                           | the rewritten link, the old name as the note's alias, no comment store    |
+|                           | and the photo's bytes                                                     |
 | thread-sync-hosted        | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
 |                           | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                           | so the Durable Object's ping is what delivered it                         |

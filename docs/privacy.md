@@ -100,6 +100,10 @@ Durable Object — never in anything shared across accounts.
   model. Dictation is your operating system's own (on a Mac, press fn twice),
   which types into the app like a keyboard; where that audio goes is the
   operating system's to say, under its own settings and terms.
+- **Where a photo was taken.** The phone opens the camera or your photo
+  library only when you add a photo to a note, and keeps a smaller copy of it,
+  saved again without its location or any other camera details; only that
+  copy reaches your vault.
 - **The app's log.** The desktop app keeps what its local server prints in
   `logs/server.log` inside its data folder (at most 5 MB, plus one older
   file), whether or not Debug logging is on; with it on (Settings › Advanced),

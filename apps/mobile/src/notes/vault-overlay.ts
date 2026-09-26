@@ -1,7 +1,7 @@
 // what the phone shows is the mirror with every unsent row laid over it, oldest first: a pending
-// edit reads as the note, a create and a staged photo list before the vault holds them, and a
-// rename or a delete moves or hides the row now. A parked row is laid over too, since its bytes are
-// the user's until they discard them.
+// edit reads as the note, a create and a staged photo list before the vault holds them, a rename
+// moves the row and rewrites the links naming it now, and a delete hides the note and its comment
+// store. A parked row is laid over too, since its bytes are the user's until they discard them.
 
 import { utf8ByteLength } from "@repo/api/cloud/bytes";
 import type { OutboxRow, VaultOp } from "./outbox-ops";
@@ -39,6 +39,9 @@ const lay = (entries: Map<string, OverlayEntry>, op: VaultOp): void => {
     }
     case "remove": {
       entries.delete(op.path);
+      for (const store of op.stores) {
+        entries.delete(store.path);
+      }
       return;
     }
     case "putAsset": {
@@ -54,10 +57,15 @@ const lay = (entries: Map<string, OverlayEntry>, op: VaultOp): void => {
     case "rename": {
       const moving = entries.get(op.from);
       entries.delete(op.from);
-      if (moving !== undefined) {
+      if (op.content !== null) {
+        entries.set(op.to, textEntry(op.to, op.content));
+      } else if (moving !== undefined) {
         entries.set(op.to, { ...moving, path: op.to });
       } else if (op.baseContent !== null) {
         entries.set(op.to, textEntry(op.to, op.baseContent));
+      }
+      for (const rewrite of op.rewrites) {
+        entries.set(rewrite.path, textEntry(rewrite.path, rewrite.content));
       }
       break;
     }

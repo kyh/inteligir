@@ -42,7 +42,7 @@ const notFound = (message: string): Response =>
 export const FAKE_PHONE_DEVICE = "Test Phone";
 
 // a commit that moved head answers with this header, so a test can lose exactly those answers
-export const APPLIED_HEADER = "x-fake-applied";
+const APPLIED_HEADER = "x-fake-applied";
 
 const describeChange = (change: VaultChangeRequest): string => {
   switch (change.op) {
@@ -351,6 +351,26 @@ export const createFakeVault = (
 
 export const clientOver = (fetch: CloudFetch): CloudClient =>
   createCloudClient({ baseUrl: "https://cloud.test", credential: `igd_${"a".repeat(64)}`, fetch });
+
+// the network between the phone and the vault: off, or on and losing the answer to every set
+// the vault applied, once
+export interface Network {
+  online: boolean;
+  loseApplied: boolean;
+}
+
+export const networkOver =
+  (vault: FakeVault, net: Network): CloudFetch =>
+  async (input, init) => {
+    if (!net.online) {
+      throw new Error("offline");
+    }
+    const response = await vault.fetch(input, init);
+    if (net.loseApplied && response.headers.get(APPLIED_HEADER) === "true") {
+      throw new Error("the answer was lost on the way back");
+    }
+    return response;
+  };
 
 // the requests of one kind, in order
 export const requestsOf = (

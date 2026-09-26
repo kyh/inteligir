@@ -15,7 +15,7 @@ import { createSingleFlight } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
 import { vaultChangePaths } from "@repo/api/cloud/vault/vault-commit-schema";
 import type { VaultChangeRequest } from "@repo/api/cloud/vault/vault-commit-schema";
-import { freePath } from "@repo/notes/knowledge/doc-file";
+import { docStem, freePath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath, dirnamePath, extnamePath } from "@repo/notes/knowledge/vault-path";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
@@ -25,7 +25,14 @@ import type { ReadableStore } from "../lib/external-store";
 import { migratePhoneDb } from "../lib/phone-db";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
-import { isTextOp, opPaths, putText, settleSchema, vaultOpSchema } from "./outbox-ops";
+import {
+  isTextOp,
+  opPaths,
+  putText,
+  renameChanges,
+  settleSchema,
+  vaultOpSchema,
+} from "./outbox-ops";
 import type { OutboxRow, RowState, VaultOp } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { keptLanding, resolveConflict } from "./outbox-reconcile";
@@ -403,6 +410,18 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     };
   };
 
+  // a note another device changed before a rename reached the vault keeps its bytes, and so its
+  // link keeps the old name, which the renamed note's alias still answers
+  const unlinkedNotice = (path: string): ConflictNotice => {
+    noticeIds += 1;
+    return {
+      copyPath: null,
+      id: noticeIds,
+      message: `${docStem(path)} changed on another device first, so its link keeps the old name, which still opens the note.`,
+      path,
+    };
+  };
+
   // the landings and the row's retirement are one transaction; a text written since stays queued
   const settleRow = async (
     fence: Fence,
@@ -467,13 +486,17 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         return { changes: [putText(op.path, null, op.content)], kind: "set" };
       }
       case "remove": {
-        return { changes: [{ base: op.baseOid, op: "delete", path: op.path }], kind: "set" };
-      }
-      case "rename": {
         return {
-          changes: [{ base: op.baseOid, from: op.from, op: "move", to: op.to }],
+          changes: [op, ...op.stores].map((removed): VaultChangeRequest => ({
+            base: removed.baseOid,
+            op: "delete",
+            path: removed.path,
+          })),
           kind: "set",
         };
+      }
+      case "rename": {
+        return { changes: renameChanges(op), kind: "set" };
       }
       case "putAsset": {
         let bytes: Uint8Array;
@@ -542,7 +565,15 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
             replaceRow(kept);
           }
         });
-        return saved ? "again" : "fenced";
+        if (!saved) {
+          return "fenced";
+        }
+        // a retarget changes what the row lays over the mirror
+        if (resolution.kind === "retarget") {
+          conflicts = [...conflicts, ...resolution.unlinked.map(unlinkedNotice)];
+          changed([]);
+        }
+        return "again";
       }
       case "local": {
         const mine = isTextOp(row.op) ? row.op.content : null;

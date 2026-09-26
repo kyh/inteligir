@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { CommentsRead } from "@/notes/notes-store";
 import {
+  addPhotoToNote,
   assetSource,
   readNote,
   readNoteComments,
@@ -138,6 +139,18 @@ const NoteScreen = () => {
     [entries],
   );
 
+  const [addingPhoto, setAddingPhoto] = useState(false);
+  const addPhoto = useCallback(async () => {
+    setAddingPhoto(true);
+    const added = await addPhotoToNote(path);
+    setAddingPhoto(false);
+    if (added.kind === "added") {
+      setScreen({ projection: projectNote(path, added.content), state: "ready" });
+    } else if (added.kind === "refused") {
+      Alert.alert("Couldn't add the photo", added.message);
+    }
+  }, [path]);
+
   const title = screen.state === "ready" ? screen.projection.title : "…";
 
   return (
@@ -146,6 +159,16 @@ const NoteScreen = () => {
       edges={["left", "right"]}
     >
       <Stack.Screen options={{ title }} />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          disabled={screen.state !== "ready" || addingPhoto}
+          onPress={() => {
+            void addPhoto();
+          }}
+        >
+          {addingPhoto ? "Adding…" : "Add photo"}
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
       <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
         <NoteBody screen={screen} onWikiLink={onWikiLink} resolveAsset={resolveAsset} />
         {screen.state === "ready" && comments !== null ? <Comments comments={comments} /> : null}

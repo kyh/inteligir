@@ -3,12 +3,14 @@
 // loses its rewrite, never its content), then record a renamed note's old stem
 // as an alias so any link the surgery missed or skipped still resolves. A folder
 // is the same set over every file under it, and records no alias: its moves keep
-// every name.
+// every name. The moves, the alias and the writes are @repo/notes/knowledge/plan-rename,
+// which the phone plans its renames with too; the guards are this file's.
 
-import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
+import { movesOf, renameAlias, renameWrites } from "@repo/notes/knowledge/plan-rename";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import type { VaultEntry, VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
 import { snapshotDocs } from "./snapshot-docs";
 import { normalizeVaultPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultService } from "../vault/vault-service";
@@ -36,19 +38,6 @@ const recordAliasStandalone = async (
   } catch {
     // losing the fallback alias never fails the rename.
   }
-};
-
-// one move for a note, one per file under a folder
-const movesOf = (source: VaultEntry, files: readonly string[], to: string): Map<string, string> => {
-  if (source.kind === "file") {
-    return new Map([[source.path, to]]);
-  }
-  const prefix = `${source.path}/`;
-  return new Map(
-    files
-      .filter((file) => file.startsWith(prefix))
-      .map((file): [string, string] => [file, `${to}/${file.slice(prefix.length)}`]),
-  );
 };
 
 export const renameNoteWithLinkRewrite = async (
@@ -79,43 +68,30 @@ export const renameNoteWithLinkRewrite = async (
 
   const renamed = await service.rename(fromPath, toPath);
   const moves = movesOf(source, allFiles, renamed.path);
-
-  // a case-only retitle records nothing: the old spelling still resolves through the case-insensitive tiers.
-  const oldStem = docStem(fromPath);
-  const recordAlias =
-    source.kind === "file" &&
-    isDocPath(fromPath) &&
-    isDocPath(renamed.path) &&
-    oldStem !== "" &&
-    oldStem.toLowerCase() !== docStem(renamed.path).toLowerCase();
+  const alias = renameAlias(source, renamed.path);
 
   const edits = await knowledge.renameEdits({ aliasEntries, allFiles, docs, idEntries, moves });
-  // a moved doc's edit is keyed at its new path; its snapshot sits at the old one.
-  const movedFrom = new Map([...moves].map(([from, to]): [string, string] => [to, from]));
   const rewritten: string[] = [];
   let aliasRecorded = false;
 
-  for (const [postPath, content] of edits) {
-    const snapshot = docs.get(movedFrom.get(postPath) ?? postPath);
+  for (const write of renameWrites({ alias, edits, moves, renamed: renamed.path })) {
+    const snapshot = docs.get(write.from);
     if (snapshot === undefined) {
       continue;
     }
-    const isRenamedNote = postPath === renamed.path;
-    const withAlias =
-      recordAlias && isRenamedNote ? (addFrontmatterAlias(content, oldStem) ?? content) : content;
-    const result = await service.writeIfUnchanged(postPath, snapshot, withAlias);
+    const result = await service.writeIfUnchanged(write.path, snapshot, write.content);
     if (result.applied) {
-      rewritten.push(postPath);
-      if (isRenamedNote) {
+      rewritten.push(write.path);
+      if (write.renamedNote) {
         aliasRecorded = true;
       }
     } else {
-      skipped.push({ path: postPath, reason: result.reason });
+      skipped.push({ path: write.path, reason: result.reason });
     }
   }
 
-  if (recordAlias && !aliasRecorded) {
-    await recordAliasStandalone(service, renamed.path, oldStem);
+  if (alias !== null && !aliasRecorded) {
+    await recordAliasStandalone(service, renamed.path, alias);
   }
   return { path: renamed.path, rewritten, skipped };
 };

@@ -5,9 +5,16 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createCloudClient } from "@repo/api/cloud/client";
+import type { CloudFetch } from "@repo/api/cloud/client";
 import { onTestFinished } from "vitest";
 import { openNodeSqlDriver } from "../../lib/node-sql-driver";
+import type { SqlDriver } from "../../lib/sql-driver";
+import { createMemorySyncStore } from "../../sync/memory-sync-store";
+import { createSyncRuntime } from "../../sync/sync-runtime";
 import type { AttachmentFiles } from "../attachment-files";
+import { createNotesStore } from "../notes-store";
+import type { NotesStore } from "../notes-store";
 import type { Sha1 } from "../outbox-ops";
 import type { OutboxFiles } from "../outbox-files";
 
@@ -78,3 +85,24 @@ export const phonePorts = () => ({
   retryBaseMs: null,
   sha1: nodeSha1,
 });
+
+const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+
+// one launch of the phone over a database file, signed in as the boot restore does
+export const launchPhone = (fetch: CloudFetch, db: SqlDriver = openTempDb()): NotesStore => {
+  const sync = createSyncRuntime({
+    cloudUrl: "https://cloud.test",
+    createClient: (credential) =>
+      createCloudClient({
+        baseUrl: "https://cloud.test",
+        credential: credential.credential,
+        fetch,
+      }),
+    pollIntervalMs: null,
+    store: createMemorySyncStore(),
+  });
+  const store = createNotesStore({ ...phonePorts(), db, session: sync.session });
+  sync.setCredential(CREDENTIAL);
+  store.reset("restored");
+  return store;
+};

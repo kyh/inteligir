@@ -11,7 +11,10 @@ import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
 import { createExpoOutboxFiles } from "../notes/expo-outbox-files";
+import type { CreatedNote, RenamedNote } from "../notes/file-ops";
 import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
+import { ingestPhoto } from "../notes/photo-ingest";
+import { withPhotoEmbed } from "../notes/photo-plan";
 import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
@@ -103,6 +106,42 @@ export const readNote = async (path: string): Promise<NoteRead> =>
 
 export const readNoteComments = async (note: NoteText): Promise<CommentsRead> =>
   await getRuntime().notes.readComments(note);
+
+export const createNote = async (dir: string): Promise<CreatedNote> =>
+  await getRuntime().fileOps.create(dir);
+
+export const renameNote = async (from: string, name: string): Promise<RenamedNote> =>
+  await getRuntime().fileOps.rename(from, name);
+
+export const deleteNote = async (path: string): Promise<void> => {
+  await getRuntime().fileOps.remove(path);
+};
+
+type AddedPhoto =
+  | { kind: "added"; content: string }
+  | { kind: "cancelled" }
+  | { kind: "refused"; message: string };
+
+// the note is read again once the photo is kept, so the write is guarded by the text the phone
+// holds then; a note gone meanwhile leaves the photo in the vault and in no note
+export const addPhotoToNote = async (path: string): Promise<AddedPhoto> => {
+  const rt = getRuntime();
+  const photo = await ingestPhoto(rt.fileOps);
+  if (photo.kind !== "picked") {
+    return photo;
+  }
+  const read = await rt.notes.readNote(path);
+  if (!read.ok) {
+    return { kind: "refused", message: read.message };
+  }
+  const written = await rt.notes.write(path, withPhotoEmbed(read.content, photo.path));
+  return written.kind === "landed"
+    ? { content: written.content, kind: "added" }
+    : {
+        kind: "refused",
+        message: "The photo was kept, but this note was deleted before it landed.",
+      };
+};
 
 export const resolveWikiPath = (target: string, alias?: string): string | null =>
   getRuntime().notes.resolveWiki(target, alias);

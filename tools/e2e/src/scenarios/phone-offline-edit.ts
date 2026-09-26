@@ -1,107 +1,19 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { createCloudClient } from "@repo/api/cloud/client";
-import type { CloudFetch } from "@repo/api/cloud/client";
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
-import { composeRuntime } from "@repo/mobile/lib/compose-runtime";
-import type { AppRuntime } from "@repo/mobile/lib/compose-runtime";
-import { openNodeSqlDriver } from "@repo/mobile/lib/node-sql-driver";
-import type { AttachmentFiles } from "@repo/mobile/notes/attachment-files";
-import type { OutboxFiles } from "@repo/mobile/notes/outbox-files";
 import { expect, expectEq } from "../harness/assert";
 import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import { hostedVaultEnv, syncUntil, untilIdentityKnown } from "../harness/hosted-vault";
-import { pollUntil } from "../harness/poll";
+import { PHONE_NAME, phoneRuntime, readPhoneNote, untilMirrored } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const NOTE = "notes/plan.md";
-const PHONE_NAME = "E2E Phone";
-const MIRROR_DEADLINE_MS = 20_000;
 
 // ten lines, so line 1 and line 10 are far apart and two edits of line 5 overlap
 const plan = (edits: Record<number, string> = {}): string => {
   const lines = Array.from({ length: 10 }, (_, index) => `line ${String(index + 1)}`);
   return `${lines.map((line, index) => edits[index + 1] ?? line).join("\n")}\n`;
-};
-
-// the phone's files that are not the database: under node they live in memory, answered as the
-// async ports they stand in for
-const memoryFiles = (): AttachmentFiles & OutboxFiles => {
-  const files = new Map<string, Uint8Array>();
-  return {
-    clear: () => {
-      files.clear();
-      return Promise.resolve();
-    },
-    find: (name) => Promise.resolve(files.has(name) ? `memory://${name}` : null),
-    read: (name) => {
-      const bytes = files.get(name);
-      expect(bytes !== undefined, `the phone staged ${name}`);
-      return Promise.resolve(bytes);
-    },
-    remove: (name) => {
-      files.delete(name);
-      return Promise.resolve();
-    },
-    save: (name, bytes) => {
-      files.set(name, bytes);
-      return Promise.resolve(`memory://${name}`);
-    },
-    stage: (name, bytes) => {
-      files.set(name, bytes);
-      return Promise.resolve();
-    },
-  };
-};
-
-// the scenario holds the phone's credential; the phone never signs out here
-const heldCredential = (credential: DeviceCredential) => ({
-  clear: () => Promise.resolve(),
-  read: () => Promise.resolve(credential),
-  write: () => Promise.resolve(),
-});
-
-// the phone's own runtime, the one the app composes, over node's sqlite and a network the
-// scenario can take away
-const phoneRuntime = async (
-  origin: string,
-  dir: string,
-  credential: DeviceCredential,
-  network: { online: boolean },
-): Promise<AppRuntime> => {
-  await mkdir(dir, { recursive: true });
-  const fetch: CloudFetch = async (input, init) => {
-    if (!network.online) {
-      throw new Error("the phone is offline");
-    }
-    return await globalThis.fetch(input, init);
-  };
-  const files = memoryFiles();
-  return composeRuntime({
-    attachments: files,
-    cloudUrl: origin,
-    credentials: heldCredential(credential),
-    db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
-    deviceName: PHONE_NAME,
-    mintCaptureKey: () => randomUUID(),
-    outboxFiles: files,
-    retryBaseMs: null,
-    sha1: (bytes) => Promise.resolve(createHash("sha1").update(bytes).digest()),
-    sync: {
-      createClient: (signedIn) =>
-        createCloudClient({ baseUrl: origin, credential: signedIn.credential, fetch }),
-      pollIntervalMs: null,
-    },
-  });
-};
-
-const readNote = async (phone: AppRuntime, notePath: string): Promise<string> => {
-  const read = await phone.notes.readNote(notePath);
-  expect(read.ok, `the phone reads ${notePath}: ${read.ok ? "" : read.message}`);
-  return read.content;
 };
 
 export const phoneOfflineEdit: Scenario = {
@@ -130,15 +42,8 @@ export const phoneOfflineEdit: Scenario = {
       network,
     );
     await phone.start();
-    await pollUntil(
-      () => Promise.resolve(phone.notes.tree.get()),
-      (tree) => tree.state === "ready" && tree.entries.some((entry) => entry.path === NOTE),
-      {
-        deadlineMs: MIRROR_DEADLINE_MS,
-        describe: (tree) => `the phone's notes are still ${tree.state}`,
-      },
-    );
-    expectEq(await readNote(phone, NOTE), plan(), "the phone's mirrored note");
+    await untilMirrored(phone, [NOTE]);
+    expectEq(await readPhoneNote(phone, NOTE), plan(), "the phone's mirrored note");
 
     ctx.log("offline, the phone edits line 1 while A edits line 10 and syncs");
     network.online = false;
@@ -159,7 +64,7 @@ export const phoneOfflineEdit: Scenario = {
     expectEq(await readFile(path.join(a.vaultDir, NOTE), "utf-8"), both, "A's note");
 
     ctx.log("offline again, both rewrite line 5");
-    expectEq(await readNote(phone, NOTE), both, "the phone's note after the merge landed");
+    expectEq(await readPhoneNote(phone, NOTE), both, "the phone's note after the merge landed");
     network.online = false;
     const fromPhone = plan({ 1: "the phone's line 1", 5: "the phone's line 5", 10: "A's line 10" });
     const fromA = plan({ 1: "the phone's line 1", 5: "A's line 5", 10: "A's line 10" });

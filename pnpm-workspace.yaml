@@ -57,6 +57,8 @@ catalog:
   expo-constants: ~57.0.19
   expo-crypto: ~57.0.3
   expo-file-system: ~57.0.7
+  expo-image-manipulator: ~57.0.19
+  expo-image-picker: ~57.0.19
   expo-network: ~57.0.2
   expo-router: ~57.0.22
   expo-secure-store: ~57.0.4

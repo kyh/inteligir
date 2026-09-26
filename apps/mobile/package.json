@@ -28,6 +28,8 @@
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",
     "expo-file-system": "catalog:",
+    "expo-image-manipulator": "catalog:",
+    "expo-image-picker": "catalog:",
     "expo-network": "catalog:",
     "expo-router": "catalog:",
     "expo-secure-store": "catalog:",
