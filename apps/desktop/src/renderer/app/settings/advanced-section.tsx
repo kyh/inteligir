@@ -73,7 +73,7 @@ export const VaultSyncRows = ({
         <Row label="Remote">
           <span className="text-body text-muted-foreground">
             {status.externalSync === null
-              ? "None — sign in under Devices to sync through your account, or choose your own git server above."
+              ? "None — sign in under Account to sync through your account, or choose your own git server above."
               : `None — ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off; your own git server, chosen above, still syncs.`}
           </span>
         </Row>

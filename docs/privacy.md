@@ -169,8 +169,9 @@ delete.
   flight.
 - Signing out on a device revokes it the same way, but only if the cloud hears
   the sign-out: a device that signs out offline forgets its credential while its
-  row stays active, until you revoke it from the dashboard. The desktop's
-  Settings › Devices says so until it restarts or signs in again.
+  row stays active, until you revoke it from Settings › Account on another Mac
+  or from the dashboard. The desktop's Settings › Account says so until it
+  restarts or signs in again.
 - `git push` to ANY remote is subject to that remote's own retention; the
   hosted vault repo is deleted with the account, a GitHub remote is governed
   by GitHub.
@@ -181,35 +182,35 @@ Your account's cloud is one origin, `https://inteligir.com`, and every call the
 app, the phone or the account pages make to it is one of these routes. Nothing
 else under `/v1/` exists.
 
-| Route                              | What it carries                                                                                      | What authenticates it                                       |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `/v1/auth/sign-up`                 | Your email, name, password and invite code, once, to create the account.                             | The invite code; attempts are throttled per caller address. |
-| `/v1/device/login`                 | Your email, password and this device's name, once; it answers the device's credential.               | Your password; attempts are throttled per caller address.   |
-| `/v1/device/sign-up`               | Your name, email, password, invite code and this device's name, once, to create the account.         | The invite code; attempts are throttled per caller address. |
-| `/v1/device/sign-out`              | Nothing but the credential; the device it names is removed from your account.                        | That device's credential.                                   |
-| `/v1/device/list`                  | Your devices' names and when each was created, last seen and revoked, for the account pages.         | Your signed-in browser session.                             |
-| `/v1/device/revoke`                | The id of the device to revoke.                                                                      | Your signed-in browser session.                             |
-| `/v1/account`                      | Your account's email and id, answered to a signed-in device.                                         | The device's credential.                                    |
-| `/v1/sync/push`                    | Your conversations with the agent, as events, with each one's title, note, agent and archived state. | The device's credential.                                    |
-| `/v1/sync/pull`                    | The same events, written by your other devices.                                                      | The device's credential.                                    |
-| `/v1/sync/ws`                      | A live connection that says only that something changed; the content moves by push and pull.         | The device's credential.                                    |
-| `/v1/capture`                      | The text of a quick capture.                                                                         | The device's credential.                                    |
-| `/v1/sync/captures/claim`          | The captures waiting for a computer to add them to your Inbox note.                                  | The device's credential.                                    |
-| `/v1/sync/captures/ack`            | The ids of the captures that computer added.                                                         | The device's credential and the claim it was handed.        |
-| `/v1/sync/dispatch`                | What you ask your computer's agent from your phone, or your answer to its permission question.       | The device's credential.                                    |
-| `/v1/sync/dispatch/claim`          | The requests waiting for a computer to pick up, and the answers meant for that computer.             | The device's credential.                                    |
-| `/v1/sync/dispatch/ack`            | The ids of the requests that computer took, and why it turned one down.                              | The device's credential and the claim it was handed.        |
-| `/v1/sync/dispatch/status`         | Whether your requests are waiting, picked up or answered, and whether a computer is online.          | The device's credential.                                    |
-| `/v1/sync/dispatch/cancel`         | The id of a request you took back before a computer picked it up.                                    | The device's credential.                                    |
-| `/v1/sync/dispatch/approval`       | The command or change an agent wants your permission for, in a conversation your phone started.      | The device's credential.                                    |
-| `/v1/sync/dispatch/approval/close` | The id of a permission question that no longer needs your answer.                                    | The device's credential.                                    |
-| `/v1/sync/dispatch/approvals`      | The permission questions waiting for your answer.                                                    | The device's credential.                                    |
-| `/v1/vault/tree`                   | The names, sizes and content ids of the files in your hosted vault.                                  | The device's credential, within a per-device budget.        |
-| `/v1/vault/file`                   | One note's text from your hosted vault.                                                              | The device's credential, within a per-device budget.        |
-| `/v1/vault/files`                  | Up to 40 notes' text from your hosted vault, in one request.                                         | The device's credential, within a per-device budget.        |
-| `/v1/vault/asset`                  | One attachment from your hosted vault.                                                               | The device's credential, within a per-device budget.        |
-| `/v1/vault/commit`                 | Your phone's edits and photos; a note another device changed first answers its text and name.        | The device's credential, within a per-device budget.        |
-| `/v1/git/vault.git`                | Your vault and its history, sent up from and down to your computers.                                 | The device's credential, within a per-device budget.        |
+| Route                              | What it carries                                                                                                     | What authenticates it                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `/v1/auth/sign-up`                 | Your email, name, password and invite code, once, to create the account.                                            | The invite code; attempts are throttled per caller address.         |
+| `/v1/device/login`                 | Your email, password and this device's name, once; it answers the device's credential.                              | Your password; attempts are throttled per caller address.           |
+| `/v1/device/sign-up`               | Your name, email, password, invite code and this device's name, once, to create the account.                        | The invite code; attempts are throttled per caller address.         |
+| `/v1/device/sign-out`              | Nothing but the credential; the device it names is removed from your account.                                       | That device's credential.                                           |
+| `/v1/device/list`                  | Your devices' names and when each was created, last seen and revoked, for the account pages and Settings › Account. | Your signed-in browser session, or a signed-in device's credential. |
+| `/v1/device/revoke`                | The id of the device to revoke.                                                                                     | Your signed-in browser session, or a signed-in device's credential. |
+| `/v1/account`                      | Your account's email and id, answered to a signed-in device.                                                        | The device's credential.                                            |
+| `/v1/sync/push`                    | Your conversations with the agent, as events, with each one's title, note, agent and archived state.                | The device's credential.                                            |
+| `/v1/sync/pull`                    | The same events, written by your other devices.                                                                     | The device's credential.                                            |
+| `/v1/sync/ws`                      | A live connection that says only that something changed; the content moves by push and pull.                        | The device's credential.                                            |
+| `/v1/capture`                      | The text of a quick capture.                                                                                        | The device's credential.                                            |
+| `/v1/sync/captures/claim`          | The captures waiting for a computer to add them to your Inbox note.                                                 | The device's credential.                                            |
+| `/v1/sync/captures/ack`            | The ids of the captures that computer added.                                                                        | The device's credential and the claim it was handed.                |
+| `/v1/sync/dispatch`                | What you ask your computer's agent from your phone, or your answer to its permission question.                      | The device's credential.                                            |
+| `/v1/sync/dispatch/claim`          | The requests waiting for a computer to pick up, and the answers meant for that computer.                            | The device's credential.                                            |
+| `/v1/sync/dispatch/ack`            | The ids of the requests that computer took, and why it turned one down.                                             | The device's credential and the claim it was handed.                |
+| `/v1/sync/dispatch/status`         | Whether your requests are waiting, picked up or answered, and whether a computer is online.                         | The device's credential.                                            |
+| `/v1/sync/dispatch/cancel`         | The id of a request you took back before a computer picked it up.                                                   | The device's credential.                                            |
+| `/v1/sync/dispatch/approval`       | The command or change an agent wants your permission for, in a conversation your phone started.                     | The device's credential.                                            |
+| `/v1/sync/dispatch/approval/close` | The id of a permission question that no longer needs your answer.                                                   | The device's credential.                                            |
+| `/v1/sync/dispatch/approvals`      | The permission questions waiting for your answer.                                                                   | The device's credential.                                            |
+| `/v1/vault/tree`                   | The names, sizes and content ids of the files in your hosted vault.                                                 | The device's credential, within a per-device budget.                |
+| `/v1/vault/file`                   | One note's text from your hosted vault.                                                                             | The device's credential, within a per-device budget.                |
+| `/v1/vault/files`                  | Up to 40 notes' text from your hosted vault, in one request.                                                        | The device's credential, within a per-device budget.                |
+| `/v1/vault/asset`                  | One attachment from your hosted vault.                                                                              | The device's credential, within a per-device budget.                |
+| `/v1/vault/commit`                 | Your phone's edits and photos; a note another device changed first answers its text and name.                       | The device's credential, within a per-device budget.                |
+| `/v1/git/vault.git`                | Your vault and its history, sent up from and down to your computers.                                                | The device's credential, within a per-device budget.                |
 
 Everything else the app reaches is someone else's:
 

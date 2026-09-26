@@ -22,9 +22,11 @@ import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PREFIX,
   deviceLoginRequestSchema,
+  revokeDeviceRequestSchema,
 } from "@repo/api/cloud/device/device-schema";
 import type {
   DeviceLoginResponse,
+  ListDevicesResponse,
   RevokeDeviceResponse,
 } from "@repo/api/cloud/device/device-schema";
 import {
@@ -129,7 +131,9 @@ export const FAKE_INVITE_CODE = "FAKE-INVITE";
 interface FakeDevice {
   deviceId: string;
   email: string;
-  revoked: boolean;
+  name: string;
+  createdAt: number;
+  revokedAt: number | null;
 }
 
 export class FakeCloud {
@@ -162,8 +166,8 @@ export class FakeCloud {
 
   revoke(deviceId: string): void {
     for (const device of this.devices.values()) {
-      if (device.deviceId === deviceId) {
-        device.revoked = true;
+      if (device.deviceId === deviceId && device.revokedAt === null) {
+        device.revokedAt = Date.now();
       }
     }
   }
@@ -204,7 +208,7 @@ export class FakeCloud {
   }
 
   activeDeviceCount(): number {
-    return [...this.devices.values()].filter((device) => !device.revoked).length;
+    return [...this.devices.values()].filter((device) => device.revokedAt === null).length;
   }
 
   readonly fetch: CloudFetch = async (input, init) =>
@@ -247,6 +251,12 @@ export class FakeCloud {
     }
     if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
       return this.account(device);
+    }
+    if (route === `GET ${DEVICE_API_PATHS.list}`) {
+      return this.listDevices(device);
+    }
+    if (route === `POST ${DEVICE_API_PATHS.revoke}`) {
+      return this.revokeDevice(device, body);
     }
     return (
       this.dispatchRoute(route, device.deviceId, body) ?? refuse("not-found", "No such route.")
@@ -538,6 +548,41 @@ export class FakeCloud {
       : Response.json({ email: device.email, id: account.id });
   }
 
+  private listDevices(caller: FakeDevice): Response {
+    const response: ListDevicesResponse = {
+      devices: [...this.devices.values()]
+        .filter((device) => device.email === caller.email)
+        .map((device) => ({
+          createdAt: device.createdAt,
+          id: device.deviceId,
+          lastSeenAt: null,
+          name: device.name,
+          revokedAt: device.revokedAt,
+        })),
+    };
+    return Response.json(response);
+  }
+
+  // the worker's scope: another account's device and one already revoked are both not-found
+  private revokeDevice(caller: FakeDevice, body: RequestBody): Response {
+    const parsed = revokeDeviceRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { deviceId }.");
+    }
+    const target = [...this.devices.values()].find(
+      (device) =>
+        device.deviceId === parsed.data.deviceId &&
+        device.email === caller.email &&
+        device.revokedAt === null,
+    );
+    if (target === undefined) {
+      return refuse("not-found", "No such active device.");
+    }
+    target.revokedAt = Date.now();
+    const response: RevokeDeviceResponse = { revoked: true };
+    return Response.json(response);
+  }
+
   private authorize(init: RequestInit | undefined): FakeDevice | null {
     const headers = init?.headers;
     const authorization = z
@@ -552,7 +597,7 @@ export class FakeCloud {
     }
     const credential = authorization.data.replace(/^Bearer /u, "");
     const device = this.devices.get(credential);
-    if (device === undefined || device.revoked) {
+    if (device === undefined || device.revokedAt !== null) {
       return null;
     }
     return device;
@@ -573,7 +618,7 @@ export class FakeCloud {
     if (this.activeDeviceCount() >= this.maxDevices) {
       return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
-    return this.mint(parsed.data.email);
+    return this.mint(parsed.data.email, parsed.data.deviceName);
   }
 
   // the worker's order: the claim, then the account, and a refused account leaves the code unspent.
@@ -597,16 +642,22 @@ export class FakeCloud {
     }
     this.inviteCodes.delete(inviteCode);
     this.accounts.set(email, { id: `user_${this.accounts.size + 1}`, password });
-    return this.mint(email);
+    return this.mint(email, parsed.data.deviceName);
   }
 
-  private mint(email: string): Response {
+  private mint(email: string, name: string): Response {
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
     // random like the worker's, never derived from the per-cloud device counter: two fake clouds
     // would mint one credential, and a sign-out sent to the other would revoke a stranger
     const credential = `${DEVICE_CREDENTIAL_PREFIX}${randomBytes(32).toString("hex")}`;
-    this.devices.set(credential, { deviceId, email, revoked: false });
+    this.devices.set(credential, {
+      createdAt: Date.now(),
+      deviceId,
+      email,
+      name,
+      revokedAt: null,
+    });
     const response: DeviceLoginResponse = { credential, deviceId };
     return Response.json(response);
   }

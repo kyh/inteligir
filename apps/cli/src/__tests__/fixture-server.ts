@@ -236,7 +236,11 @@ const cloudRouter = {
     return context.cloud;
   }),
   // no verb reaches these; the contract asks every server to answer them
+  devices: base.cloud.devices.handler(() => ({ devices: [] })),
   prefs: base.cloud.prefs.handler(() => ({ phoneRequests: true })),
+  revokeDevice: base.cloud.revokeDevice.handler(({ errors }) => {
+    throw errors.NOT_FOUND({ message: "no devices in the fixture" });
+  }),
   setPrefs: base.cloud.setPrefs.handler(({ input }) => input),
   signUp: base.cloud.signUp.handler(({ errors }) => {
     throw errors.FORBIDDEN({ message: "no invite in the fixture" });

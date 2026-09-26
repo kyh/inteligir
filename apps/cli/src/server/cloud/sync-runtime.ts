@@ -4,9 +4,11 @@
 
 import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
 import type {
+  CloudClient,
   CloudEndpoint,
   CloudFailure,
   CloudFetch,
+  CloudResult,
   CloudSocketOpener,
   CreateCloudClientArgs,
 } from "@repo/api/cloud/client";
@@ -30,7 +32,9 @@ import {
 } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type {
+  CloudDevicesResponse,
   CloudLoginRequest,
+  CloudRevokeDeviceResponse,
   CloudSignUpRequest,
   CloudStatusResponse,
 } from "@repo/api/local/cloud/cloud-schema";
@@ -88,6 +92,19 @@ export type LoginOutcome =
   | { kind: "logged-in"; status: CloudStatusResponse }
   | Extract<DeviceLoginOutcome, { kind: "refused" }>;
 
+// a call a person asks of the account over this device's live sign-in. `not-live`: none to ask
+// with, or the cloud refused its credential just now, which ends the session as a pass's refusal would
+type AccountCallOutcome<TValue> =
+  | { kind: "answered"; value: TValue }
+  | { kind: "not-live"; message: string }
+  | { kind: "failed"; failure: CloudFailure };
+
+type RevokeDeviceOutcome = AccountCallOutcome<CloudRevokeDeviceResponse> | { kind: "this-device" };
+
+const NOT_SIGNED_IN = "This Mac isn't signed in to an account.";
+const SIGNED_OUT_BY_ACCOUNT = "This Mac was signed out of your account.";
+const SIGN_IN_CHANGED = "This Mac's sign-in changed while that was asked. Try again.";
+
 export interface CloudRuntime {
   status: () => CloudStatusResponse;
   enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;
@@ -100,6 +117,10 @@ export interface CloudRuntime {
   /** creates the account and keeps its first credential, exactly as login keeps one. */
   signUp: (request: CloudSignUpRequest) => Promise<LoginOutcome>;
   logout: () => CloudStatusResponse;
+  /** the account's devices still signed in, this one marked current. */
+  devices: () => Promise<AccountCallOutcome<CloudDevicesResponse>>;
+  /** cuts another of the account's devices off; this one signs out instead. */
+  revokeDevice: (deviceId: string) => Promise<RevokeDeviceOutcome>;
   syncNow: () => Promise<CloudStatusResponse>;
   dispose: () => Promise<void>;
 }
@@ -155,7 +176,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   const signOutAbort = new AbortController();
 
   // never awaited by the caller: an unreachable cloud must not hold a sign-out open, and the row it
-  // leaves is the Devices page's to revoke, which the signed-out status says. its own client,
+  // leaves is another device's to revoke, which the signed-out status says. its own client,
   // because closing the session aborts every request the session's client carries.
   const signOutBestEffort = (credential: DeviceCredential): void => {
     const client = createCloudClient(clientArgs(credential.credential, signOutAbort.signal));
@@ -165,7 +186,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       if (!result.ok) {
         const message = describeCloudFailure(result.failure);
         debug(`sign-out did not revoke this device: ${message}`);
-        // a credential the cloud refuses is no longer live: the devices page has nothing to remove.
+        // a credential the cloud refuses is no longer live: no other device has anything to remove.
         const refusedCredential =
           result.failure.kind === "refused" && SYNC_TERMINAL_CODES.has(result.failure.code);
         if (!refusedCredential) {
@@ -324,6 +345,34 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     return outcome;
   };
 
+  // over the session's own client, fenced like a pass: an answer that lands after a sign-out or a
+  // sign-in may speak for an account this device has left, and only a terminal refusal reaches
+  // recordFailure, since any other is this call's alone and not the sync's last error
+  const accountCall = async <TValue>(
+    call: (live: {
+      client: CloudClient;
+      credential: DeviceCredential;
+    }) => Promise<CloudResult<TValue>>,
+  ): Promise<AccountCallOutcome<TValue>> => {
+    const current = session.current();
+    if (disposed || current.kind !== "live") {
+      return { kind: "not-live", message: NOT_SIGNED_IN };
+    }
+    const result = await call(current);
+    if (!sessionAlive(current.id)) {
+      return { kind: "not-live", message: SIGN_IN_CHANGED };
+    }
+    if (result.ok) {
+      return { kind: "answered", value: result.value };
+    }
+    const { failure } = result;
+    if (failure.kind === "refused" && SYNC_TERMINAL_CODES.has(failure.code)) {
+      recordFailure(failure);
+      return { kind: "not-live", message: SIGNED_OUT_BY_ACCOUNT };
+    }
+    return { failure, kind: "failed" };
+  };
+
   const passDeps: SyncPassDeps = {
     build: args.build,
     db: args.db,
@@ -479,6 +528,29 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       sink = next;
     },
 
+    async devices() {
+      return await accountCall(async ({ client, credential }) => {
+        const result = await client.listDevices();
+        if (!result.ok) {
+          return result;
+        }
+        const devices = result.value.devices.flatMap((device) =>
+          device.revokedAt === null
+            ? [
+                {
+                  createdAt: device.createdAt,
+                  current: device.id === credential.deviceId,
+                  id: device.id,
+                  lastSeenAt: device.lastSeenAt,
+                  name: device.name,
+                },
+              ]
+            : [],
+        );
+        return { ok: true, value: { devices } };
+      });
+    },
+
     async dispose() {
       disposed = true;
       haltTransport();
@@ -543,6 +615,16 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       link.resetBackoff();
       notifyStatus();
       return status();
+    },
+
+    async revokeDevice(deviceId) {
+      // refused before any request: this device leaves through a sign-out, which also forgets its
+      // credential and its queue, where a revoke would leave both behind, refused
+      const current = session.current();
+      if (current.kind !== "off" && current.credential.deviceId === deviceId) {
+        return { kind: "this-device" };
+      }
+      return await accountCall(async ({ client }) => await client.revokeDevice(deviceId));
     },
 
     async signUp(request) {

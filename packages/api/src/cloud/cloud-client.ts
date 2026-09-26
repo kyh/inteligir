@@ -23,11 +23,14 @@ import type { CloudError, CloudErrorCode } from "./cloud-errors";
 import {
   DEVICE_API_PATHS,
   deviceLoginResponseSchema,
+  listDevicesResponseSchema,
   revokeDeviceResponseSchema,
 } from "./device/device-schema";
 import type {
   DeviceLoginRequest,
   DeviceLoginResponse,
+  ListDevicesResponse,
+  RevokeDeviceRequest,
   RevokeDeviceResponse,
 } from "./device/device-schema";
 import {
@@ -334,6 +337,10 @@ export interface CloudClient {
   closeApproval: (id: string) => Promise<CloudResult<CloseApprovalResponse>>;
   listApprovals: () => Promise<CloudResult<ListApprovalsResponse>>;
   account: () => Promise<CloudResult<AccountResponse>>;
+  // the account's devices, revoked rows included, and another of them cut off: what the
+  // account's web page does, asked with this device's credential
+  listDevices: () => Promise<CloudResult<ListDevicesResponse>>;
+  revokeDevice: (deviceId: string) => Promise<CloudResult<RevokeDeviceResponse>>;
   // revokes the device the credential names: forgetting a credential leaves its row holding one
   // of the account's device slots
   signOut: () => Promise<CloudResult<RevokeDeviceResponse>>;
@@ -415,6 +422,8 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
       await send(DISPATCH_API_PATHS.status, { ids }, dispatchStatusResponseSchema),
     listApprovals: async () =>
       await send(DISPATCH_API_PATHS.approvals, undefined, listApprovalsResponseSchema),
+    listDevices: async () =>
+      await send(DEVICE_API_PATHS.list, undefined, listDevicesResponseSchema),
     openApproval: async (request) =>
       await send(DISPATCH_API_PATHS.approval, request, openApprovalResponseSchema),
     pull: async (query) =>
@@ -424,6 +433,10 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
         pullResponseSchema,
       ),
     push: async (request) => await send(SYNC_API_PATHS.push, request, pushResponseSchema),
+    revokeDevice: async (deviceId) => {
+      const request: RevokeDeviceRequest = { deviceId };
+      return await send(DEVICE_API_PATHS.revoke, request, revokeDeviceResponseSchema);
+    },
     // the credential names the device, so the body carries nothing
     signOut: async () => await send(DEVICE_API_PATHS.signOut, {}, revokeDeviceResponseSchema),
     vaultAsset: async (query) => {

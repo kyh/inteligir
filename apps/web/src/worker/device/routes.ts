@@ -10,7 +10,7 @@ import type {
   RevokeDeviceResponse,
 } from "@repo/api/cloud/device/device-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { verifyDeviceCredential } from "./device-auth";
+import { carriesDeviceCredential, verifyDeviceCredential } from "./device-auth";
 import { loginDevice } from "./login";
 import type { LoginFailure } from "./login";
 import { signUpDevice } from "./sign-up";
@@ -22,14 +22,23 @@ import { device } from "../db/schema";
 import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
-// session auth for everything except login and sign-up, which ARE the authentication, and
-// sign-out, which a device asks with its own credential: the local app holds no session
+// login and sign-up ARE the authentication; sign-out is a device's alone, since a session naming
+// no device has nothing to sign out
 
-const sessionUserId = async (
+// list and revoke answer a signed-in browser, or any live device of the account, since the local
+// app and the phone hold no session. A device credential is judged by the device table alone: a
+// revoked one is refused, never handed on to Better Auth
+const accountUserId = async (
   request: Request,
   env: Env,
+  db: ReturnType<typeof createDb>,
   origin: string,
 ): Promise<string | null> => {
+  const authorization = request.headers.get("authorization");
+  if (carriesDeviceCredential(authorization)) {
+    const verified = await verifyDeviceCredential(db, authorization);
+    return verified?.userId ?? null;
+  }
   const session = await createAuth(env, origin).api.getSession({ headers: request.headers });
   return session?.user.id ?? null;
 };
@@ -121,9 +130,14 @@ export const handleDeviceRoutes = async (
     return Response.json(response);
   }
 
-  const userId = await sessionUserId(request, env, url.origin);
+  const userId = await accountUserId(request, env, db, url.origin);
   if (userId === null) {
-    return refuse("unauthorized", "Sign in first.");
+    return refuse(
+      "unauthorized",
+      carriesDeviceCredential(request.headers.get("authorization"))
+        ? "No valid device credential."
+        : "Sign in first.",
+    );
   }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {
@@ -151,7 +165,7 @@ export const handleDeviceRoutes = async (
     if (!body.success) {
       return refuse("bad-request", "Send { deviceId }.");
     }
-    // scoped to the session's own userId, so another account's device answers not-found
+    // scoped to the caller's own userId, so another account's device answers not-found
     if (!(await revokeDevice(env, db, { deviceId: body.data.deviceId, userId }))) {
       return refuse("not-found", "No such active device.");
     }

@@ -95,7 +95,7 @@ export const SyncRemoteForm = ({ status, pending, onSave }: SyncRemoteFormProps)
 
   const accountNote =
     status.externalSync === null
-      ? "Syncs through the account you sign in with under Devices."
+      ? "Syncs through the account you sign in with under Account."
       : `${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off here.`;
 
   return (

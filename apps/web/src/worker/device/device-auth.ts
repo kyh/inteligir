@@ -105,3 +105,6 @@ export const verifyDeviceCredential = async (
   const credential = bearerCredential(authorization);
   return credential === null ? null : await verifyDeviceCredentialValue(db, credential);
 };
+
+export const carriesDeviceCredential = (authorization: string | null): boolean =>
+  bearerCredential(authorization)?.startsWith(DEVICE_CREDENTIAL_PREFIX) ?? false;

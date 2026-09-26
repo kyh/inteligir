@@ -202,7 +202,7 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
       return {
         message:
           status.remoteSource === "account"
-            ? "This Mac was signed out of sync. Sign in again in Settings."
+            ? "This Mac was signed out of sync. Sign in again in Settings › Account."
             : `Your sync server refused this Mac. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };

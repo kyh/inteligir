@@ -194,7 +194,7 @@ const RAIL_VIEW_LABELS: Record<RailView, string> = {
   recent: "Recent",
 };
 
-// The account the rail's sync row offers, over the same flow Settings › Devices runs.
+// The account the rail's sync row offers, over the same flow Settings › Account runs.
 const AccountDialog = ({
   cloudUrl,
   session,

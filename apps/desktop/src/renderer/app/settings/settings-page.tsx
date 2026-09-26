@@ -18,6 +18,7 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "../vault-hooks";
+import { AccountSection } from "./account-section";
 import { AdvancedSection } from "./advanced-section";
 import { AgentsSection } from "./agents-section";
 import { AttachmentsRow } from "./attachments-row";
@@ -25,7 +26,6 @@ import { ConnectorsSection } from "./connectors-section";
 import { FoldersSection } from "./folders-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRows } from "./spellcheck-rows";
-import { SyncSection } from "./sync-section";
 import { UpdatesRow } from "./updates-row";
 import { VaultsRow } from "./vaults-rows";
 import { VersionRow } from "./version-row";
@@ -42,7 +42,7 @@ const NAV = [
   { id: "agents", label: "Agent" },
   { id: "connectors", label: "Connectors" },
   { id: "folders", label: "Connected folders" },
-  { id: "devices", label: "Devices" },
+  { id: "account", label: "Account" },
   { id: "editor", label: "Editor" },
   { id: "advanced", label: "Advanced" },
   { id: "about", label: "About" },
@@ -149,8 +149,8 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             <FoldersSection />
           </div>
           <Separator />
-          <div id="devices" className="scroll-mt-10">
-            <SyncSection />
+          <div id="account" className="scroll-mt-10">
+            <AccountSection />
           </div>
           <Separator />
           <section id="editor" className="scroll-mt-10 space-y-2">

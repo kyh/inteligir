@@ -46,43 +46,43 @@ its own `tsconfig.json`.
 
 ## Routes
 
-| Route                                   | Auth    | What                                                                |
-| --------------------------------------- | ------- | ------------------------------------------------------------------- |
-| `/`                                     | —       | Marketing page (SSR)                                                |
-| `/privacy`                              | —       | Renders `docs/privacy.md` itself (SSR) — never a copy               |
-| `/app/sign-in`                          | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
-| `/app/sign-up`                          | —       | Sign-up form; submits to the invite gate                            |
-| `/app/forgot-password`                  | —       | Requests the reset link                                             |
-| `/app/devices`                          | session | The device table: list and revoke                                   |
-| `/api/auth/*`                           | —       | Better Auth (email+password, bearer)                                |
-| `/auth/reset`                           | —       | The ONE reset page — Worker-served, static, `no-store`              |
-| `/v1/auth/sign-up`                      | —       | The invite gate in front of Better Auth's sign-up                   |
-| `POST /v1/device/login`                 | —       | Email + password in, the durable device credential out              |
-| `POST /v1/device/sign-up`               | —       | Sign-up from the app: account + device credential out               |
-| `GET /v1/device/list`                   | session | The device table (revoked rows included)                            |
-| `POST /v1/device/revoke`                | session | Cut a device off — bites on its next request                        |
-| `POST /v1/device/sign-out`              | device  | The same revoke, for the device the credential names                |
-| `POST /v1/sync/push`                    | device  | Outbox batch in — idempotent, conflict-aware                        |
-| `GET /v1/sync/pull`                     | device  | Page the merged log by global `seq`                                 |
-| `GET /v1/sync/ws`                       | device  | Invalidation socket (Bearer on the upgrade; hibernatable)           |
-| `POST /v1/capture`                      | device  | Quick capture in, deduped on an idempotency key                     |
-| `POST /v1/sync/captures/claim`          | device  | Take the inbox for a five-minute window                             |
-| `POST /v1/sync/captures/ack`            | device  | Delete what that claim owns — per-id outcomes                       |
-| `POST /v1/sync/dispatch`                | device  | A phone's turn or approval answer in, deduped on its id             |
-| `POST /v1/sync/dispatch/claim`          | device  | Take waiting turns, and answers meant for this Mac, for two minutes |
-| `POST /v1/sync/dispatch/ack`            | device  | Settle what that claim owns, delivered or refused — per-id outcomes |
-| `POST /v1/sync/dispatch/status`         | device  | Each dispatch's state, and how many desktops are listening          |
-| `POST /v1/sync/dispatch/cancel`         | device  | Withdraw a dispatch no Mac holds                                    |
-| `POST /v1/sync/dispatch/approval`       | device  | A Mac opens an approval a phone-started turn waits on               |
-| `POST /v1/sync/dispatch/approval/close` | device  | That Mac closes it: answered there, or its turn ended               |
-| `GET /v1/sync/dispatch/approvals`       | device  | The approvals waiting for the phone's answer                        |
-| `/v1/git/vault.git/*`                   | device  | The hosted vault git remote — smart HTTP, 90 MiB push cap           |
-| `GET /v1/vault/tree`                    | device  | Flat listing — path, size, blob oid — at one commit                 |
-| `GET /v1/vault/file`                    | device  | One note's bytes at that commit — 2 MB ceiling                      |
-| `POST /v1/vault/files`                  | device  | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
-| `GET /v1/vault/asset`                   | device  | One embedded binary at that commit                                  |
-| `POST /v1/vault/commit`                 | device  | A change set, each change CAS'd on its blob — one commit            |
-| `GET /v1/account`                       | device  | Whose account this device credential syncs as                       |
+| Route                                   | Auth              | What                                                                |
+| --------------------------------------- | ----------------- | ------------------------------------------------------------------- |
+| `/`                                     | —                 | Marketing page (SSR)                                                |
+| `/privacy`                              | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy               |
+| `/app/sign-in`                          | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
+| `/app/sign-up`                          | —                 | Sign-up form; submits to the invite gate                            |
+| `/app/forgot-password`                  | —                 | Requests the reset link                                             |
+| `/app/devices`                          | session           | The device table: list and revoke                                   |
+| `/api/auth/*`                           | —                 | Better Auth (email+password, bearer)                                |
+| `/auth/reset`                           | —                 | The ONE reset page — Worker-served, static, `no-store`              |
+| `/v1/auth/sign-up`                      | —                 | The invite gate in front of Better Auth's sign-up                   |
+| `POST /v1/device/login`                 | —                 | Email + password in, the durable device credential out              |
+| `POST /v1/device/sign-up`               | —                 | Sign-up from the app: account + device credential out               |
+| `GET /v1/device/list`                   | session or device | The device table (revoked rows included)                            |
+| `POST /v1/device/revoke`                | session or device | Cut a device off — bites on its next request                        |
+| `POST /v1/device/sign-out`              | device            | The same revoke, for the device the credential names                |
+| `POST /v1/sync/push`                    | device            | Outbox batch in — idempotent, conflict-aware                        |
+| `GET /v1/sync/pull`                     | device            | Page the merged log by global `seq`                                 |
+| `GET /v1/sync/ws`                       | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
+| `POST /v1/capture`                      | device            | Quick capture in, deduped on an idempotency key                     |
+| `POST /v1/sync/captures/claim`          | device            | Take the inbox for a five-minute window                             |
+| `POST /v1/sync/captures/ack`            | device            | Delete what that claim owns — per-id outcomes                       |
+| `POST /v1/sync/dispatch`                | device            | A phone's turn or approval answer in, deduped on its id             |
+| `POST /v1/sync/dispatch/claim`          | device            | Take waiting turns, and answers meant for this Mac, for two minutes |
+| `POST /v1/sync/dispatch/ack`            | device            | Settle what that claim owns, delivered or refused — per-id outcomes |
+| `POST /v1/sync/dispatch/status`         | device            | Each dispatch's state, and how many desktops are listening          |
+| `POST /v1/sync/dispatch/cancel`         | device            | Withdraw a dispatch no Mac holds                                    |
+| `POST /v1/sync/dispatch/approval`       | device            | A Mac opens an approval a phone-started turn waits on               |
+| `POST /v1/sync/dispatch/approval/close` | device            | That Mac closes it: answered there, or its turn ended               |
+| `GET /v1/sync/dispatch/approvals`       | device            | The approvals waiting for the phone's answer                        |
+| `/v1/git/vault.git/*`                   | device            | The hosted vault git remote — smart HTTP, 90 MiB push cap           |
+| `GET /v1/vault/tree`                    | device            | Flat listing — path, size, blob oid — at one commit                 |
+| `GET /v1/vault/file`                    | device            | One note's bytes at that commit — 2 MB ceiling                      |
+| `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
+| `GET /v1/vault/asset`                   | device            | One embedded binary at that commit                                  |
+| `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
+| `GET /v1/account`                       | device            | Whose account this device credential syncs as                       |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
@@ -146,17 +146,22 @@ answers git clients in plain text.
   created — the device holds its credential and nothing else, and a session
   nobody sees is a bearer nobody revokes. A wrong password and an unknown
   address answer one `invalid-credentials`, throttled
-  per address; `/app/devices` is where a credential is revoked.
+  per address. A credential is revoked from `/app/devices` or from any
+  signed-in Mac's Settings › Account: `GET /v1/device/list` and
+  `POST /v1/device/revoke` take a session or a live device credential of the
+  same account (`src/worker/device/routes.ts`), the `igd_` prefix deciding
+  which, so a device credential never reaches Better Auth and a revoked one is
+  refused rather than tried as a session.
 - **A signing-out device revokes itself** (`POST /v1/device/sign-out`, the one
-  device route a device credential authenticates, since an app holds no
-  session). It is the dashboard's revoke — the row's `revoked_at`, the device's
+  device route only a device credential authenticates, since a session names
+  no device). It is the dashboard's revoke — the row's `revoked_at`, the device's
   limiter rows, its live sockets — so the account's twenty-device cap counts
   only devices still signed in. It answers `{ revoked: true }` even when a
   dashboard revoke lands mid-request, and `unauthorized` to a credential
   already revoked. The desktop's local server and the phone send it best-effort
   as they drop the credential, and the login flow sends it for a credential its
   store could not keep; a sign-out the cloud never hears leaves the row for
-  `/app/devices`.
+  another Mac's Settings › Account or `/app/devices`.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
   limiter on the auth routes, and the same table behind the invite gate's and
   the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
