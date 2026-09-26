@@ -155,6 +155,9 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `apps/desktop`'s version — a release's notes are its top section. The     |
 |                                | release-notes script, run over staged trees and the real one, prints that |
 |                                | section only when it is titled for the package's version.                 |
+| `release-versions.test.ts`     | The CLI, the desktop and the phone manifests carry one version, and the   |
+|                                | phone's EAS build installs with the pnpm, the node major and at least the |
+|                                | eas-cli the repo pins — a release ships three artifacts as one product.   |
 | `ime-enter.test.ts`            | A source under `packages/ui/src`, `packages/editor/src` or the desktop    |
 |                                | renderer that tests a key against Enter imports `isImeComposing`, or is   |
 |                                | a `NOT_A_TEXT_FIELD` row — the Enter that commits an IME candidate is not |

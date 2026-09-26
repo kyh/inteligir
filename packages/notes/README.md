@@ -62,18 +62,19 @@ src/
                        # the rest of the dialect's own remark plugins
     md-plugins.ts      # the EDITOR's plugin list, owned here so verbatim-spans
                        # can run it as a bare parse
-    parse.ts           # the total parse the phone renders through; it answers
-                       # the escaped text its offsets index
+    parse.ts           # the editor's parse (`parseMdast`, which its
+                       # markdown→Slate conversion runs); it answers the
+                       # escaped text its offsets index
     parsed-offsets.ts  # the one rebase every parse here runs: micromark
                        # counts from past a leading BOM, so without it every
                        # offset on a BOM note cuts one byte early
     mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
                        # node is, never discriminates structurally
     fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
-                       # and ONE callout-payload grammar — the rule table, the
-                       # scan and the mobile projection all read them; a
-                       # COMPAT_* spelling (the inteligir-callout fence) is
-                       # read and round-tripped, never written new or taught
+                       # and ONE callout-payload grammar — the rule table and
+                       # the scan both read them; a COMPAT_* spelling (the
+                       # inteligir-callout fence) is read and round-tripped,
+                       # never written new or taught
     frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
                        # CRLF aware), split/recombine (ONE
                        # `replaceFrontmatterYaml`, which

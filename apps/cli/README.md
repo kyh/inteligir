@@ -198,8 +198,8 @@ through `process.execPath`), so the harness row names the native binary that
 launcher would start as `CODEX_PATH`.
 
 A vendor's own binary is native, so the server runs it itself. Whether an agent
-is signed in is the vendor's answer (`claude auth status --json`, `codex login
-status`) over its shared store (`~/.claude`, `~/.codex`), so a machine already
+is signed in is the vendor's own status command (the harness row's account
+probe) over its shared store (`~/.claude`, `~/.codex`), so a machine already
 signed in needs nothing more, asked through `src/server/agents/vendor-process.ts`,
 the one vendor spawn policy: the bundled binary alone, never PATH's; the data
 dir as cwd, never the vault; the harness's `envOmit` dropped; a deadline that
@@ -208,9 +208,12 @@ concurrent asks and keeps its answer for 10s. Signing in is the vendor's own
 too (`agent-sign-in.ts`): claude's login is that binary run under the same
 policy, with its stdin kept open for the code its sign-in page shows
 (`agents.submitSignInCode`), codex's is its adapter's `authenticate`, one
-sign-in per server, and a cancel, the ceiling or shutdown ends it. Nothing about the agent reads
-PATH: a send is refused up front only when the thread's runtime is missing
-from the install, and a signed-out vendor refuses the session itself.
+sign-in per server, and a cancel, the ceiling or shutdown ends it. Nothing
+about the agent reads PATH: a send is refused up front only when the thread's
+runtime is missing from the install, and a signed-out vendor refuses the
+session itself. Connectors are the default agent's own MCP config, read and
+edited through the same bundled binary and spawn policy
+(`src/server/connectors/vendor-mcp-config.ts`); the app keeps no registry.
 
 Four trees are staged as CONTENT rather than code: the committed SQL
 migrations, the dialect skills the agent reads with its own shell, the

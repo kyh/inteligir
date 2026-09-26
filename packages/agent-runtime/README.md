@@ -9,10 +9,11 @@ or a wire format.
 
 ## Why it exists
 
-The product drives a coding agent it does not own. Two harnesses exist today
-and both speak ACP, so the seam between "the server's thread service" and "a
-vendor's CLI" is one adapter over one protocol, and adding a harness is a row
-in a table rather than a second runtime. What the server needs from that seam
+The product drives an agent it does not own, on the user's own Claude or
+ChatGPT plan. Two harnesses exist today and both speak ACP, so the seam between
+"the server's thread service" and "a vendor's runtime" is one adapter over one
+protocol, and adding a harness is a row in a table rather than a second
+runtime. What the server needs from that seam
 is small — an `AgentRuntime` with `startThread`, `resumeThread`, `runTurn`,
 `reapIdleProviderSessions`, `hasThread`, `cancelTurn`, `closeThread`, `shutdown`
 (`types.ts`) — and the interface carries only what the host calls, because a
@@ -41,7 +42,8 @@ src/
     harness-registry.ts  # HARNESSES — claude and codex as rows: adapter entry,
                        # bundled vendor executable, account probe, sign-in
                        # method and sign-out args, model application, env
-                       # keys to omit
+                       # keys to omit, and what keeps the vault's own config
+                       # out of a session (sessionMeta, refusedVaultEntries)
     acp-event-mapping.ts  # AcpTurnMapper: one session's notifications → the
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
@@ -83,11 +85,10 @@ scripts/
   the override the adapter honours, `CLAUDE_CODE_EXECUTABLE` or `CODEX_PATH`,
   else the native binary bundled beside the adapter, resolved the way the
   adapter itself resolves it; never PATH, and null when an override names
-  nothing), the account probe (the vendor's own `claude auth status --json` or
-  `codex login status`, and the parse of its answer into signed in, signed out
-  or unknown), how a model is applied (an env var for
-  either: `ANTHROPIC_MODEL`, or a `CODEX_CONFIG` the codex adapter merges into
-  every session) and the env keys to omit — the claude SDK
+  nothing), the account probe (the vendor's own status command, and the parse
+  of its answer into signed in, signed out or unknown), how a model is applied
+  (an env var for either: `ANTHROPIC_MODEL`, or a `CODEX_CONFIG` the codex
+  adapter merges into every session) and the env keys to omit — the claude SDK
   refuses to run when it believes it is nested inside another claude session,
   so the nesting sentinel must not leak through from whatever launched this
   app. `HARNESS_IDS` is the id set, claude first, and `harnessIdSchema`
@@ -117,6 +118,12 @@ scripts/
   second source of truth for one question
   (`packages/agent-runtime/src/acp/__tests__/spawn-env.test.ts`,
   `packages/agent-runtime/src/acp/__tests__/vault-config-isolation.test.ts`).
+- **No configuration inside the vault reaches a session.** The vault is synced
+  content, so a claude session opens with `settingSources: ["user"]` (the
+  row's `sessionMeta`): `project` and `local` would read the vault's `.claude`
+  settings and `.mcp.json`. codex-acp marks its root trusted, so a pnpm patch
+  marks it untrusted, and since npm applies no patch, a codex session also
+  refuses a vault holding `.codex` (`refusedVaultEntries`).
 - **File-shaped tool kinds become `fileChange` items.** An `edit`/`delete`/
   `move` call lands as one `fileChange` with a change per diff or location, and
   the server's commit hold stages a turn's write set from exactly these. An
