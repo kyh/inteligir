@@ -337,7 +337,9 @@ files — those are git's job.
 There is no \`logout\` here: it discards writes that have not reached the
 account yet, so it lives in the app's Settings › Account, in front of the state
 it would throw away. Nor is there a sign-up: creating an account takes the
-user's own invite code and password, so it is theirs to do in the app.
+user's own invite code and password, so it is theirs to do in the app. Deleting
+the account is the same: it takes the user's password and cannot be undone, so
+it lives in Settings › Account, where it says what goes and what stays.
 
 ## System
 

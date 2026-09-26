@@ -14,8 +14,10 @@ import type {
 } from "@repo/api/cloud/captures/captures-schema";
 import {
   ACCOUNT_API_PATHS,
+  deleteAccountRequestSchema,
   deviceSignUpRequestSchema,
 } from "@repo/api/cloud/account/account-schema";
+import type { DeleteAccountResponse } from "@repo/api/cloud/account/account-schema";
 import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
 import type { CloudErrorCode } from "@repo/api/cloud/errors";
 import {
@@ -159,6 +161,8 @@ export class FakeCloud {
   loginWindowShut = false;
   /** the invite gate's window is shut: every sign-up answers rate-limited. */
   signUpWindowShut = false;
+  /** every device's deletion window is shut: every account deletion answers rate-limited. */
+  deleteWindowShut = false;
   /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
   readonly unreadableTypes = new Set<string>();
   /** what the status route counts as desktop sockets: this fake holds none of its own. */
@@ -207,6 +211,10 @@ export class FakeCloud {
     return this.devices.size;
   }
 
+  hasAccount(email: string): boolean {
+    return this.accounts.has(email);
+  }
+
   activeDeviceCount(): number {
     return [...this.devices.values()].filter((device) => device.revokedAt === null).length;
   }
@@ -251,6 +259,9 @@ export class FakeCloud {
     }
     if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
       return this.account(device);
+    }
+    if (route === `POST ${ACCOUNT_API_PATHS.delete}`) {
+      return this.deleteAccount(device, body);
     }
     if (route === `GET ${DEVICE_API_PATHS.list}`) {
       return this.listDevices(device);
@@ -546,6 +557,28 @@ export class FakeCloud {
     return account === undefined
       ? refuse("unauthorized", "No valid device credential.")
       : Response.json({ email: device.email, id: account.id });
+  }
+
+  // the worker's order: the window, the password asked again, then the account and every device row
+  private deleteAccount(caller: FakeDevice, body: RequestBody): Response {
+    if (this.deleteWindowShut) {
+      return refuse("rate-limited", "Too many attempts — wait a minute.");
+    }
+    const parsed = deleteAccountRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { password }.");
+    }
+    if (this.accounts.get(caller.email)?.password !== parsed.data.password) {
+      return refuse("invalid-credentials", "Wrong password.");
+    }
+    this.accounts.delete(caller.email);
+    for (const [credential, device] of this.devices) {
+      if (device.email === caller.email) {
+        this.devices.delete(credential);
+      }
+    }
+    const response: DeleteAccountResponse = { deleted: true };
+    return Response.json(response);
   }
 
   private listDevices(caller: FakeDevice): Response {

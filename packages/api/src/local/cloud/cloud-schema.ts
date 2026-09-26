@@ -10,6 +10,7 @@ import { z } from "zod";
 
 // imported, not restated: a name accepted here and refused at login is a shape error long after the click
 export const CLOUD_DEVICE_NAME_MAX_LENGTH = DEVICE_NAME_MAX_LENGTH;
+export { deleteAccountRequestSchema as cloudDeleteAccountRequestSchema } from "@repo/api/cloud/account/account-schema";
 export {
   PASSWORD_MAX_LENGTH as CLOUD_PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH as CLOUD_PASSWORD_MIN_LENGTH,

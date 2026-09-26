@@ -80,6 +80,7 @@ const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient => ({
   closeApproval: unreachable,
   createCapture: unreachable,
   createDispatch: unreachable,
+  deleteAccount: unreachable,
   dispatchStatus: unreachable,
   listApprovals: unreachable,
   listDevices: unreachable,

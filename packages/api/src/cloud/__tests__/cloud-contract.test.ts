@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  ACCOUNT_API_PATHS,
   accountResponseSchema,
+  DELETE_ACCOUNT_REFUSALS,
+  deleteAccountRequestSchema,
+  deleteAccountResponseSchema,
   deviceSignUpRequestSchema,
+  isDeleteAccountRefusal,
   signUpRequestSchema,
 } from "../account/account-schema";
 import {
@@ -235,6 +240,7 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
     },
   ],
   ["a sign-out", revokeDeviceResponseSchema, { revoked: true }],
+  ["an account deletion", deleteAccountResponseSchema, { deleted: true }],
   ["a push", pushResponseSchema, { accepted: 1, duplicates: 0, lastSeq: 1 }],
   [
     "a pull",
@@ -505,6 +511,30 @@ describe("device login", () => {
     ]);
   });
 
+  it("deletes the account with its own credential and the password asked again", async () => {
+    const seen: { path: string; authorization: string | null; body: unknown }[] = [];
+    const credential = `igd_${"a".repeat(64)}`;
+    const password = " the password, spaces kept ";
+    const result = await createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential,
+      fetch: async (input, init) => {
+        seen.push({
+          authorization: new Headers(init?.headers).get("authorization"),
+          body: JSON.parse(z.string().parse(init?.body)),
+          path: new URL(input).pathname,
+        });
+        return Response.json({ deleted: true });
+      },
+    }).deleteAccount(password);
+    expect(result).toStrictEqual({ ok: true, value: { deleted: true } });
+    expect(seen).toStrictEqual([
+      { authorization: `Bearer ${credential}`, body: { password }, path: ACCOUNT_API_PATHS.delete },
+    ]);
+    expect(deleteAccountRequestSchema.safeParse({ password: "short" }).success).toBe(false);
+    expect(deleteAccountRequestSchema.safeParse({ email: "x", password }).success).toBe(false);
+  });
+
   it("names refusals the envelope can carry, and nothing else as one", () => {
     for (const refusal of DEVICE_LOGIN_REFUSALS) {
       expect(CLOUD_ERROR_CODES).toContain(refusal);
@@ -516,6 +546,11 @@ describe("device login", () => {
       expect(isDeviceSignUpRefusal(refusal)).toBe(true);
     }
     expect(isDeviceSignUpRefusal("device-limit")).toBe(false);
+    for (const refusal of DELETE_ACCOUNT_REFUSALS) {
+      expect(CLOUD_ERROR_CODES).toContain(refusal);
+      expect(isDeleteAccountRefusal(refusal)).toBe(true);
+    }
+    expect(isDeleteAccountRefusal("unauthorized")).toBe(false);
   });
 });
 

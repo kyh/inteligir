@@ -236,6 +236,9 @@ const cloudRouter = {
     return context.cloud;
   }),
   // no verb reaches these; the contract asks every server to answer them
+  deleteAccount: base.cloud.deleteAccount.handler(({ errors }) => {
+    throw errors.PRECONDITION_FAILED({ message: "no account in the fixture" });
+  }),
   devices: base.cloud.devices.handler(() => ({ devices: [] })),
   prefs: base.cloud.prefs.handler(() => ({ phoneRequests: true })),
   revokeDevice: base.cloud.revokeDevice.handler(({ errors }) => {
