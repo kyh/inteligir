@@ -90,7 +90,13 @@ describe("renaming a vault entry", () => {
   });
 });
 
-const SYNC_FIELDS = { conflicts: [], device: "This Mac", lastError: null, lastSyncAt: null };
+const SYNC_FIELDS = {
+  conflicts: [],
+  device: "This Mac",
+  externalSync: null,
+  lastError: null,
+  lastSyncAt: null,
+};
 const REMOTE = {
   remote: "git@example.com:vault.git",
   remoteSource: "explicit" as const,
@@ -98,7 +104,7 @@ const REMOTE = {
 };
 
 const EVERY_STATUS: readonly VaultStatusResponse[] = [
-  { externalSync: null, state: "no-remote", ...SYNC_FIELDS },
+  { state: "no-remote", ...SYNC_FIELDS },
   { state: "clean", ...REMOTE },
   { state: "dirty", ...REMOTE },
   { state: "syncing", ...REMOTE },

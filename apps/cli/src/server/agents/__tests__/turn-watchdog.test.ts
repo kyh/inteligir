@@ -41,6 +41,7 @@ const fakeGitEngine = (): GitEngine => ({
   revision: async () => await Promise.resolve(""),
   runExclusive: async (work) => await work(),
   scheduleCommit: () => {},
+  setOrigin: async () => await Promise.resolve("set"),
   startAutoSync: () => {},
   status: async () =>
     await Promise.resolve({

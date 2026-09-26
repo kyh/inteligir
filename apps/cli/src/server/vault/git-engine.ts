@@ -6,6 +6,7 @@ import type {
   ExternalSync,
   VaultDeletedEntry,
   VaultRevision,
+  VaultSetRemoteRequest,
   VaultStatusResponse,
   VaultSyncConflict,
 } from "@repo/api/local/vault/vault-schema";
@@ -70,7 +71,7 @@ export interface GitEngineArgs {
   deviceName: () => string;
   // the verdict a path both sides changed gets; a suite injects one that fails.
   reconcile?: Reconcile;
-  // the service that syncs the folder instead, which the no-remote status names.
+  // the service that syncs the folder, which every status names.
   externalSync?: ExternalSync | null;
   // fired on a sync transition, never on a commit that lands: the state is dirty on both sides
   // of a commit, and each announcement costs every client a porcelain read under the repo lock.
@@ -123,12 +124,18 @@ export interface GitEngine {
   status: () => Promise<VaultStatusResponse>;
   // what the next pass would sync with, read as a pass reads it.
   currentRemote: () => Promise<VaultRemoteSpec | null>;
+  // the one write to where the vault syncs, Settings' and the CLI's: it edits the origin every pass
+  // reads, so a person's own `git remote` and the app never disagree. "pinned" changes nothing:
+  // INTELIGIR_VAULT_REMOTE decides, and a pass would write it over the origin anyway.
+  setOrigin: (choice: VaultSetRemoteRequest) => Promise<SetOriginOutcome>;
   isSyncing: () => boolean;
   // vault mutations run through this so a write cannot interleave a rebase's checkout/abort window.
   runExclusive: <T>(work: () => Promise<T>) => Promise<T>;
   startAutoSync: (intervalMs: number) => void;
   dispose: () => Promise<void>;
 }
+
+type SetOriginOutcome = "set" | "pinned";
 
 // the tips a merge failed outright between: while neither moves, another try fails the same way.
 interface IntegrationTips {
@@ -482,6 +489,63 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     } else if (!managed && origin.markedAccount) {
       await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
     }
+  };
+
+  // a new url leaves the old remote's tips under refs/remotes/origin, and a status measured against
+  // them would call the vault synced with a remote that never saw it.
+  const forgetOriginTips = async (): Promise<void> => {
+    const { stdout } = await run([
+      "for-each-ref",
+      "--format=delete %(refname)",
+      "refs/remotes/origin",
+    ]);
+    if (stdout.trim().length > 0) {
+      // origin/HEAD is a symref: deleted through, it would delete the branch it names twice.
+      await run(["update-ref", "--no-deref", "--stdin"], { input: stdout });
+    }
+  };
+
+  // the account choice drops only an origin the provider calls the user's own: the app's own stays
+  // for the next signed-in pass, and the mark keeps it the app's. signed out, no pass adds one.
+  const writeOrigin = async (choice: VaultSetRemoteRequest): Promise<SetOriginOutcome> => {
+    const { origin, remote } = await readRemote();
+    if (remote?.source === "pinned") {
+      return "pinned";
+    }
+    if (choice.kind === "remote") {
+      if (origin.url === null) {
+        await run(["remote", "add", "--", "origin", choice.url]);
+      } else if (origin.url !== choice.url) {
+        await forgetOriginTips();
+        await run(["remote", "set-url", "--", "origin", choice.url]);
+      }
+      if (origin.markedAccount) {
+        await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
+      }
+    } else {
+      if (origin.url !== null && remote?.source === "explicit") {
+        await run(["remote", "remove", "origin"]);
+      }
+      if (!origin.markedAccount) {
+        await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
+      }
+    }
+    // what a pass concluded about the old remote says nothing of the new one; a repo left
+    // mid-integration is broken whichever remote it syncs with.
+    if (lastOutcome.kind !== "broken") {
+      lastOutcome = { kind: "none" };
+      lastError = null;
+    }
+    failedMerge = null;
+    return "set";
+  };
+
+  const setOrigin = async (choice: VaultSetRemoteRequest): Promise<SetOriginOutcome> => {
+    const outcome = await withRepoLock(async () => await writeOrigin(choice));
+    if (outcome === "set") {
+      args.onStatusChanged?.();
+    }
+    return outcome;
   };
 
   const revListCount = async (range: string): Promise<number> => {
@@ -928,11 +992,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const statusFields = {
       conflicts,
       device: args.deviceName(),
+      externalSync,
       lastError: flushError ?? lastError,
       lastSyncAt,
     };
     if (remote === null) {
-      return { ...statusFields, externalSync, state: "no-remote" };
+      return { ...statusFields, state: "no-remote" };
     }
     const fields = {
       ...statusFields,
@@ -1060,6 +1125,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return await readNoteRevision(run, notePath, sha);
     },
     runExclusive: withRepoLock,
+    setOrigin,
     scheduleCommit(paths?: readonly string[]) {
       if (!disposed) {
         noteCommitPaths(paths);

@@ -141,6 +141,16 @@ rather than dropped. Quote an argument that holds spaces
   off) and \`remote\` (its own git origin, which it keeps syncing with).
 - \`inteligir vault attachments [root|beside-note|folder:<path>]\` — where a
   pasted image lands; with no argument, print the current choice.
+- \`inteligir vault remote [account|<url>]\` — where the vault syncs: \`account\`
+  (the signed-in account's hosted vault; signed out, nowhere until a sign-in)
+  or the git URL of a server of the user's own (\`https://\`, \`ssh://\`,
+  \`git://\`, \`file://\` or \`user@host:path\`), dialled with this machine's git
+  credentials. It edits the vault repo's own \`origin\`, the one record a sync
+  reads, and a sync starts at once. With no argument, print the current remote,
+  redacted, and where it comes from. \`--json\` answers the vault status
+  (\`remote\`, \`remoteSource\`: \`account\`, \`explicit\` or \`pinned\`). A vault
+  whose remote \`INTELIGIR_VAULT_REMOTE\` pins refuses a change as \`CONFLICT\`.
+  Choosing where a person's notes sync is theirs to decide: ask before changing it.
 - \`inteligir vault status\` — git sync state (remote, dirty), then one line
   per note two devices changed at once since the server started: which
   version stayed and which note holds the other. A sync never stops on one;

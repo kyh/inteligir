@@ -255,7 +255,7 @@ describe("the vault dir and remote", () => {
       });
       expect(retired.vaultRemote).toBeNull();
       expect(retired.warnings).toEqual([
-        `${configPath}'s vaultRemote is ignored: a vault syncs with its own git origin, so run \`git remote add origin <url>\` in the vault, or pin one with INTELIGIR_VAULT_REMOTE.`,
+        `${configPath}'s vaultRemote is ignored: a vault syncs with its own git origin, so run \`inteligir vault remote <url>\`, or pin one with INTELIGIR_VAULT_REMOTE.`,
       ]);
     }
 

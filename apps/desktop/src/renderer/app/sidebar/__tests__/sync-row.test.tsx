@@ -124,6 +124,7 @@ const GIT_STDERR =
 const REMOTE_FIELDS = {
   conflicts: [],
   device: "This Mac",
+  externalSync: null,
   lastError: GIT_STDERR,
   lastSyncAt: null,
   remote: "https://example.com/vault.git",

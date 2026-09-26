@@ -2,6 +2,7 @@ import { hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/placeholders";
 import { z } from "zod";
+import { remoteUrlSchema } from "./remote-url";
 
 // the same grammar as the server's filesystem gate; it normalizes as it parses, so handlers
 // downstream treat the value as canonical.
@@ -291,14 +292,6 @@ export type VaultSyncConflict = z.infer<typeof vaultSyncConflictSchema>;
 // themselves are the lasting record.
 export const VAULT_SYNC_CONFLICTS_MAX = 20;
 
-const syncStatusFields = {
-  conflicts: z.array(vaultSyncConflictSchema).max(VAULT_SYNC_CONFLICTS_MAX),
-  // the name a report's devices are told against: "yours" and "here" when one of them is this one.
-  device: z.string().min(1),
-  lastError: z.string().nullable(),
-  lastSyncAt: z.number().int().nullable(),
-};
-
 // another service that already syncs the vault's folder, judged from where the folder physically
 // sits. a second sync engine over one tree fights the first, so the hosted vault stays off there.
 // `cloud-storage` is a File Provider folder this build has no name for; `provider` is the one its
@@ -343,26 +336,31 @@ export const externalSyncName = (sync: ExternalSync): string => {
   }
 };
 
+const syncStatusFields = {
+  conflicts: z.array(vaultSyncConflictSchema).max(VAULT_SYNC_CONFLICTS_MAX),
+  // the name a report's devices are told against: "yours" and "here" when one of them is this one.
+  device: z.string().min(1),
+  // the service that syncs the folder, judged once at boot: why a `no-remote` vault took no hosted
+  // one though signed in, and why choosing the account for a vault with a remote of its own would
+  // leave it syncing nowhere.
+  externalSync: externalSyncSchema.nullable(),
+  lastError: z.string().nullable(),
+  lastSyncAt: z.number().int().nullable(),
+};
+
 // "account" is the remote derived from the signed-in account (signing out removes it); "explicit"
-// is the user's own: the vault's own origin, or the one INTELIGIR_VAULT_REMOTE pins.
+// is the vault's own origin, the user's; "pinned" is the one INTELIGIR_VAULT_REMOTE pins over it,
+// which no procedure changes.
 const remoteFields = {
   remote: z.string().min(1),
-  remoteSource: z.enum(["explicit", "account"]),
+  remoteSource: z.enum(["explicit", "pinned", "account"]),
 };
 
 const remoteState = <State extends string>(state: State) =>
   z.object({ state: z.literal(state), ...remoteFields, ...syncStatusFields }).strict();
 
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
-  // `externalSync` names the service that syncs the folder instead, which is why no hosted vault
-  // was derived even when signed in.
-  z
-    .object({
-      state: z.literal("no-remote"),
-      externalSync: externalSyncSchema.nullable(),
-      ...syncStatusFields,
-    })
-    .strict(),
+  z.object({ state: z.literal("no-remote"), ...syncStatusFields }).strict(),
   // a rebase or merge even its own abort could not clear; `lastError` names the manual recovery
   // and no pass runs while broken.
   remoteState("broken"),
@@ -390,3 +388,11 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   remoteState("detached"),
 ]);
 export type VaultStatusResponse = z.infer<typeof vaultStatusResponseSchema>;
+
+// where a vault syncs, as a person chooses it: the account's hosted vault, or a git server of their
+// own by its url. no "off": a folder another service syncs is already the derived off.
+export const vaultSetRemoteRequestSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("account") }).strict(),
+  z.object({ kind: z.literal("remote"), url: remoteUrlSchema }).strict(),
+]);
+export type VaultSetRemoteRequest = z.infer<typeof vaultSetRemoteRequestSchema>;

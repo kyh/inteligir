@@ -904,6 +904,18 @@ to the END of its group.
   `vaultRemote`, which pinned one remote for every vault the root selects and
   is now a boot warning. `inspectVaultFolder` answers the same facts before a
   folder is a vault (`inteligir vault open`), so a picker and a boot agree.
+  ONE WRITE PATH EDITS THAT ORIGIN: `vault.setRemote`, which Settings ›
+  Advanced (`apps/desktop/src/renderer/app/settings/sync-remote-row.tsx`) and
+  `inteligir vault remote` both call, runs `setOrigin` in
+  `apps/cli/src/server/vault/git-engine.ts` under the repo lock and kicks a
+  pass. A url is `remote add|set-url` and drops the mark, forgetting the old
+  remote's tips so no status calls the vault synced before a pass reached the
+  new one; the account drops only an origin the provider calls the user's own
+  and sets the mark, so signed out the vault syncs nowhere. The url grammar is
+  one, `@repo/api/local/vault/remote-url`, which the pin, the wire and the
+  field all run. A pinned vault reports `remoteSource: "pinned"` and refuses a
+  change (`CONFLICT`), since every pass writes the pin over the origin. No
+  "off" choice: a folder another service syncs is already the derived off.
 
 - **CONCURRENT EDITS NEVER STOP SYNC** (0.6 direction: diff3 auto-merge, an
   overlap makes a conflict copy). A pass rebases first, which keeps the
@@ -1554,8 +1566,9 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   entitles threads, captures and the hosted vault, with no second flag, except
   that a folder with an origin of its own, or one another service syncs, never
   takes the hosted vault; its threads sync either way. The invite gate is
-  account-creation policy. The BYO remote is the vault's own origin and stays
-  accountless; `INTELIGIR_VAULT_REMOTE` only pins one over it, and config.json's
+  account-creation policy. The BYO remote is the vault's own origin, edited in
+  Settings › Advanced and `inteligir vault remote`, and stays accountless;
+  `INTELIGIR_VAULT_REMOTE` only pins one over it, and config.json's
   `vaultRemote` is retired.
 
 - **A DEVICE SIGNS IN WITH EMAIL + PASSWORD, and gets the same device

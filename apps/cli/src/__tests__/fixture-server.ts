@@ -661,6 +661,15 @@ const vaultRouter = {
     context.vaultPrefs = { attachments: input.attachments };
     return context.vaultPrefs;
   }),
+  // the status a choice leaves, signed out as a scratch data dir is: the account is no remote
+  // until a sign-in, and a url is the vault's own origin, not yet synced.
+  setRemote: base.vault.setRemote.handler(({ context, input }) => {
+    const { conflicts, device, externalSync, lastError, lastSyncAt } = context.vaultStatus;
+    const fields = { conflicts, device, externalSync, lastError, lastSyncAt };
+    return input.kind === "account"
+      ? { ...fields, state: "no-remote" }
+      : { ...fields, remote: input.url, remoteSource: "explicit", state: "dirty" };
+  }),
   status: base.vault.status.handler(({ context }) => context.vaultStatus),
   syncNow: base.vault.syncNow.handler(({ context }) => context.vaultStatus),
   tree: base.vault.tree.handler(({ context }) => ({

@@ -141,6 +141,8 @@ export interface BootTestAppOptions {
   vaultPath?: string;
   // the vault remote the config, the vault's origin and a credential derive; absent, none.
   derivedRemote?: boolean;
+  // INTELIGIR_VAULT_REMOTE's pin, over a derived remote.
+  pinnedRemote?: string;
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
@@ -190,7 +192,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     slowReads: null,
     vaultDir,
     vaultDirSource: "env",
-    vaultRemote: null,
+    vaultRemote: options.pinnedRemote ?? null,
     // tests drive syncNow directly; a timer would race the assertions.
     vaultSyncIntervalMs: null,
     warnings: [],
@@ -200,7 +202,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     knowledge: { projector: createInlineProjector() },
     machineName: TEST_MACHINE_NAME,
     vault:
-      options.derivedRemote === true
+      options.derivedRemote === true || options.pinnedRemote !== undefined
         ? { gitEnv: hermeticGitEnv(), watch: false }
         : { gitEnv: hermeticGitEnv(), remote: () => null, watch: false },
   };

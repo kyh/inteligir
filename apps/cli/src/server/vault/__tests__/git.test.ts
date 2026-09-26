@@ -2226,3 +2226,73 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
   });
 });
+
+describe("a remote the person chooses", { timeout: 30_000 }, () => {
+  it("clears what a pass concluded about the unreachable one, and its first pass lands clean", async () => {
+    const unreachable = path.join(scratchDir("inteligir-git-choose-"), "gone.git");
+    const root = await repoWithOrigin(unreachable);
+    const engine = engineOn(root, composedProvider(false));
+    await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
+    await engine.commitNow();
+    const offline = await engine.syncNow();
+    expect(offline.state).toBe("offline");
+    expect(offline.lastError).not.toBeNull();
+
+    const reachable = await makeBareRemote();
+    expect(await engine.setOrigin({ kind: "remote", url: `file://${reachable}` })).toBe("set");
+    expect(await engine.status()).toMatchObject({
+      lastError: null,
+      remote: `file://${reachable}`,
+      remoteSource: "explicit",
+      state: "dirty",
+    });
+
+    expect(await engine.syncNow()).toMatchObject({ lastError: null, state: "clean" });
+    expect(await tipOf(reachable, "main")).toBe(await tipOf(root, "HEAD"));
+  });
+
+  it("forgets the old remote's tips, so no status calls the vault synced with the new one first", async () => {
+    const first = await makeBareRemote();
+    const root = await repoWithOrigin(`file://${first}`);
+    const engine = engineOn(root, composedProvider(false));
+    await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+    // a symref, as a clone leaves: forgetting it must not delete the branch it names twice
+    await runGit(root, ["remote", "set-head", "origin", "main"], { env });
+
+    const second = await makeBareRemote();
+    await engine.setOrigin({ kind: "remote", url: `file://${second}` });
+    expect(await reportedState(engine)).toBe("dirty");
+    expect(await syncState(engine)).toBe("clean");
+    expect(await tipOf(second, "main")).toBe(await tipOf(root, "HEAD"));
+  });
+
+  it("says pinned and changes nothing while INTELIGIR_VAULT_REMOTE decides", async () => {
+    const pinned = await makeBareRemote();
+    const root = await repoWithOrigin(`file://${pinned}`);
+    const statusChanges: string[] = [];
+    const engine = createGitEngine({
+      deviceName: () => TEST_DEVICE,
+      env,
+      onStatusChanged: () => {
+        statusChanges.push("changed");
+      },
+      remote: createVaultRemoteProvider({
+        cloudUrl: OWN_ORIGIN_CLOUD_URL,
+        dataDir: scratchDir("inteligir-git-pinned-data-"),
+        externalSync: null,
+        pinnedRemote: `file://${pinned}`,
+      }),
+      root,
+    });
+    onTestFinished(async () => {
+      await engine.dispose();
+    });
+
+    expect(await engine.setOrigin({ kind: "account" })).toBe("pinned");
+    expect(await originOf(root)).toBe(`file://${pinned}`);
+    await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
+    expect(statusChanges).toEqual([]);
+  });
+});
