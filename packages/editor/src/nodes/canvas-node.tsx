@@ -6,6 +6,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
 
+import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 
 import { clearCanvasGrid, paintCanvasCells, strokeSegmentCells } from "./canvas-sketch";
@@ -415,6 +416,7 @@ const CanvasBody = ({
 export const CanvasElement = (props: PlateElementProps) => {
   const [mode, setMode] = useState<CanvasMode>("view");
   const [tool, setTool] = useState<SketchTool>("pencil");
+  const locked = useRichBlocksLocked();
   const value = stringProp(props.element, "value") ?? "";
   const parsed = parseCanvasPayload(value);
 
@@ -422,7 +424,9 @@ export const CanvasElement = (props: PlateElementProps) => {
     <PlateElement {...props}>
       <RichBlockCard
         label="canvas"
-        actions={<CanvasActions canSketch={parsed.ok} mode={mode} onMode={setMode} />}
+        actions={
+          locked ? null : <CanvasActions canSketch={parsed.ok} mode={mode} onMode={setMode} />
+        }
       >
         <CanvasBody
           mode={mode}

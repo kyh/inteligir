@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
 
+// the actions wait for a hover, which a finger never makes, so a coarse pointer shows them outright
 export const RichBlockCard = ({
   actions,
   children,
@@ -23,13 +24,18 @@ export const RichBlockCard = ({
         {label}
       </span>
       <span className="flex-1" />
-      <span className="opacity-0 transition-opacity group-hover/richblock:opacity-100">
+      <span className="opacity-0 transition-opacity group-hover/richblock:opacity-100 pointer-coarse:opacity-100">
         {actions}
       </span>
     </div>
     {children}
   </div>
 );
+
+// Outside the editable a tap places no caret, so a locked container's blocks take no typing; the
+// lock's model guard refuses whatever edit arrives some other way.
+export const LockedContent = ({ children, locked }: { children: ReactNode; locked: boolean }) =>
+  locked ? <div contentEditable={false}>{children}</div> : children;
 
 export const DegradedPayloadView = ({ reason, value }: { reason: string; value: string }) => (
   <div>

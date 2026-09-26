@@ -69,6 +69,13 @@ export type VaultChangedEvent =
 export const vaultChangeTouches = (event: VaultChangedEvent, path: string): boolean =>
   event.kind === "files" ? event.paths === null || event.paths.includes(path) : event.path === path;
 
+// `picked` is an image the host has already written to the vault; `refused` is one it would not
+// take, and `message` says why in the user's words.
+export type PickImageResult =
+  | { readonly kind: "picked"; readonly path: string }
+  | { readonly kind: "cancelled" }
+  | { readonly kind: "refused"; readonly message: string };
+
 export interface EditorHostIo {
   actions: VaultActions;
   linkResolver: LinkResolverStore;
@@ -81,8 +88,10 @@ export interface EditorHostIo {
     formulas: CollectedFormula[];
   } | null>;
   onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
-  /** Where a note's html block runs: a same-origin document answered under its own sandbox policy, since a srcdoc frame inherits the page's and runs no inline script. */
-  htmlFrameUrl: string;
+  /** Where a note's html block runs: a same-origin document answered under its own sandbox policy, since a srcdoc frame inherits the page's and runs no inline script. Null where no server answers one, and the block offers no Run. */
+  htmlFrameUrl: string | null;
+  /** A native photo picker that writes what it picks; null where paste and drop are the only way in. */
+  pickImage: (() => Promise<PickImageResult>) | null;
 }
 
 let installed: EditorHostIo | null = null;

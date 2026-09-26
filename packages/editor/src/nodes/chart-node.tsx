@@ -6,6 +6,7 @@ import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { useState } from "react";
 
+import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 
 import { ChartGridEditor, emitChartPayload } from "./chart-grid";
@@ -341,8 +342,40 @@ const ChartBody = ({
   );
 };
 
+const ChartActions = ({
+  mode,
+  onMode,
+  parsed,
+}: {
+  mode: ChartMode;
+  onMode: (mode: ChartMode) => void;
+  parsed: ChartParse;
+}) =>
+  mode === "view" ? (
+    <button
+      type="button"
+      className="text-body text-muted-foreground hover:text-foreground"
+      onClick={() => {
+        onMode(parsed.ok ? "grid" : "raw");
+      }}
+    >
+      Edit data
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="text-body text-muted-foreground hover:text-foreground"
+      onClick={() => {
+        onMode("view");
+      }}
+    >
+      Done
+    </button>
+  );
+
 export const ChartElement = (props: PlateElementProps) => {
   const [mode, setMode] = useState<ChartMode>("view");
+  const locked = useRichBlocksLocked();
   const value = stringProp(props.element, "value") ?? "";
   const parsed = parseChartPayload(value);
 
@@ -350,29 +383,7 @@ export const ChartElement = (props: PlateElementProps) => {
     <PlateElement {...props}>
       <RichBlockCard
         label={parsed.ok ? (parsed.chart.title ?? "chart") : "chart"}
-        actions={
-          mode === "view" ? (
-            <button
-              type="button"
-              className="text-body text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setMode(parsed.ok ? "grid" : "raw");
-              }}
-            >
-              Edit data
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="text-body text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setMode("view");
-              }}
-            >
-              Done
-            </button>
-          )
-        }
+        actions={locked ? null : <ChartActions mode={mode} parsed={parsed} onMode={setMode} />}
       >
         <ChartBody
           mode={mode}

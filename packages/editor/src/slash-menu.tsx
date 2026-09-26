@@ -41,6 +41,7 @@ import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms
 import type { TurnIntoId } from "@repo/editor/block-transforms";
 import { useWikiTargets } from "@repo/editor/host";
 import { insertTemplate } from "@repo/editor/insert-template";
+import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import {
   insertCanvasBlock,
   insertChartBlock,
@@ -68,12 +69,14 @@ const turnInto = (editor: PlateEditor, id: TurnIntoId): void => {
   turnIntoSelection(editor, turnIntoOption(id));
 };
 
-interface SlashItem {
+export interface SlashItem {
   icon: React.ReactNode;
   label: string;
   value: string;
   description: string;
   keywords?: string[];
+  // the row inserts a block the rich-block lock holds, which a locked editor could never fill
+  richBlock?: true;
   onSelect: (editor: PlateEditor) => void;
 }
 
@@ -224,6 +227,7 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         onSelect: (editor) => {
           insertTabGroup(editor);
         },
+        richBlock: true,
         value: "tabs",
       },
       {
@@ -234,6 +238,7 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         onSelect: (editor) => {
           insertChartBlock(editor);
         },
+        richBlock: true,
         value: "chart",
       },
       {
@@ -244,6 +249,7 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         onSelect: (editor) => {
           insertCanvasBlock(editor);
         },
+        richBlock: true,
         value: "canvas",
       },
       {
@@ -254,6 +260,7 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         onSelect: (editor) => {
           insertHtmlBlock(editor);
         },
+        richBlock: true,
         value: "html",
       },
       {
@@ -264,6 +271,7 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         onSelect: (editor) => {
           insertColumnGroup(editor, 2);
         },
+        richBlock: true,
         value: "columns-2",
       },
       {
@@ -274,6 +282,7 @@ export const GROUPS: { group: string; items: SlashItem[] }[] = [
         onSelect: (editor) => {
           insertColumnGroup(editor, 3);
         },
+        richBlock: true,
         value: "columns-3",
       },
       {
@@ -388,8 +397,15 @@ const useTemplateItems = (): SlashItem[] => templateItems(useWikiTargets());
 const SlashInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
   const templates = useTemplateItems();
+  const locked = useRichBlocksLocked();
+  const offered = locked
+    ? GROUPS.map(({ group, items }) => ({
+        group,
+        items: items.filter((item) => item.richBlock !== true),
+      }))
+    : GROUPS;
   const groups =
-    templates.length === 0 ? GROUPS : [...GROUPS, { group: TEMPLATES_GROUP, items: templates }];
+    templates.length === 0 ? offered : [...offered, { group: TEMPLATES_GROUP, items: templates }];
   return (
     <PlateElement {...props} as="span">
       <InlineCombobox element={element} trigger="/">

@@ -31,6 +31,9 @@ export interface FakeEditorHostOptions {
   // flight or find a name taken that the listing lacks
   readonly createNewFileAt?: VaultActions["createNewFileAt"];
   readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
+  // null is a host with no frame to run an html block in
+  readonly htmlFrameUrl?: string | null;
+  readonly pickImage?: EditorHostIo["pickImage"];
 }
 
 export const FAKE_HTML_FRAME_URL = "/html-frame-under-test";
@@ -81,11 +84,12 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
 
   setEditorHostIo({
     actions,
-    htmlFrameUrl: FAKE_HTML_FRAME_URL,
+    htmlFrameUrl: options.htmlFrameUrl === undefined ? FAKE_HTML_FRAME_URL : options.htmlFrameUrl,
     linkResolver,
     onVaultChanged: () => () => {
       // the fake vault announces no change, so there is no subscription to end
     },
+    pickImage: options.pickImage ?? null,
     readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>
       await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),

@@ -5,7 +5,8 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
-import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
+import { editorColumnPx } from "@repo/editor/editor-chrome";
+import { useEditorProfile } from "@repo/editor/editor-profile";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { useOpenNote, useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { focusNoteBody, registerNoteBodyFocus } from "@repo/editor/note-body-focus";
@@ -20,6 +21,7 @@ import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault
 const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) => {
   const content = useOpenNote((s) => (s.editor.kind === "open" ? s.editor.content : ""));
   const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
+  const columnPx = editorColumnPx(useEditorProfile());
 
   const fileName = basenamePath(path);
   const dot = fileName.lastIndexOf(".");
@@ -171,7 +173,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
         }}
         onKeyDown={onTitleKeyDown}
         className={cn(
-          EDITOR_COLUMN_PX,
+          columnPx,
           "mb-1 w-full break-words font-[family-name:var(--editor-font)] text-[calc(var(--editor-size)*2)] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
         )}
       />
@@ -194,7 +196,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
           }}
           spellCheck={false}
           className={cn(
-            EDITOR_COLUMN_PX,
+            columnPx,
             "min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-[family-name:var(--editor-mono)] text-[length:var(--editor-size)] leading-[var(--editor-line-height)] text-foreground outline-none",
           )}
           placeholder="Empty note"

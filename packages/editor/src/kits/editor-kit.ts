@@ -32,7 +32,10 @@ import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formula-autocomplete";
 import { WikiAutocompleteKit } from "@repo/editor/wiki-autocomplete";
 
-export const EDITOR_KIT = [
+// Everything the document is made of: every node, the dialect's inputs and decorations, the
+// comment decoration and the markdown wiring. Every surface composes this whole, so a note reads
+// and serializes alike wherever it is open.
+export const CONTENT_KIT = [
   ...BasicMarksKit,
   ...BasicBlocksKit,
   ...CodeBlockKit,
@@ -52,13 +55,19 @@ export const EDITOR_KIT = [
   ...InlineConstructsKit,
   ...RichBlocksKit,
   ...CommentKit,
-  ...CommentGutterKit,
   ...TabsKit,
-  ...HeadingCollapseKit,
   ...WikiAutocompleteKit,
   ...FormulaAutocompleteKit,
   // no BASE_KIT twin: a leaf decoration never reaches the value, so there is nothing to serialize.
   ...TagChipKit,
+  ...MarkdownKit,
+];
+
+// A later plugin's aboveNodes wraps an earlier one's, so the gutter stays inside the fold that
+// hides its block, and both inside the drag handle.
+export const DESKTOP_CHROME_KIT = [
+  ...CommentGutterKit,
+  ...HeadingCollapseKit,
   ...SlashKit,
   ...EditorShortcutsKit,
   ...FindBarKit,
@@ -66,5 +75,6 @@ export const EDITOR_KIT = [
   ...BlockMenuKit,
   ...FloatingToolbarKit,
   ...BlockPlaceholderKit,
-  ...MarkdownKit,
 ];
+
+export const EDITOR_KIT = [...CONTENT_KIT, ...DESKTOP_CHROME_KIT];

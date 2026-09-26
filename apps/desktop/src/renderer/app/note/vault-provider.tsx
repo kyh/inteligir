@@ -248,6 +248,8 @@ export const VaultProvider = ({
       htmlFrameUrl: HTML_FRAME_PATH,
       linkResolver: port.linkResolver,
       onVaultChanged: (listener) => vaultChanges.subscribe(listener),
+      // the desktop takes images by paste and drop
+      pickImage: null,
       readNoteFormulas: port.formulas.read,
       // A plain fetch, not a procedure: the ETag and sandbox CSP do not
       // survive an RPC envelope.

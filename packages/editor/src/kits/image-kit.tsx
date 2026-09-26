@@ -39,17 +39,27 @@ const writeAsset = async (file: File, name: string): Promise<string> => {
   return written.path;
 };
 
+// A paste, a drop and a host's photo picker all land their written image here, so the three agree
+// on the bytes. False when the note closed while the image was written: it is in the vault and in
+// no note, and the toast says where it went.
+export const insertVaultImage = (editor: SlateEditor, path: string): boolean => {
+  if (!isLiveEditor(editor)) {
+    toast.warning(`Added ${path} to the vault, but its note closed before the image landed`);
+    return false;
+  }
+  insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url: path });
+  return true;
+};
+
 // Never rejects: the handlers have already eaten the event, so a rejection reaches nobody — toast instead.
 export const ingestImageFiles = async (editor: SlateEditor, files: File[]): Promise<void> => {
   for (const file of files) {
     const name = file.name === "" ? `pasted-image${extFromMime(file.type)}` : file.name;
     try {
-      const url = await writeAsset(file, name);
-      if (!isLiveEditor(editor)) {
-        toast.warning(`Added ${url} to the vault, but its note closed before the image landed`);
+      const path = await writeAsset(file, name);
+      if (!insertVaultImage(editor, path)) {
         return;
       }
-      insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       toast.error(`Couldn't add ${name} — ${detail}`);

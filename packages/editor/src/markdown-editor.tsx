@@ -3,10 +3,13 @@ import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 
 import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
+import { useEditorProfile } from "@repo/editor/editor-profile";
+import type { EditorProfile } from "@repo/editor/editor-profile";
 import { announceLiveEditorEdit, registerLiveEditor } from "@repo/editor/live-editor";
 import { clearNoteStats, collectNoteStats, publishNoteStats } from "@repo/editor/note-stats";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import type { Debouncer } from "@repo/editor/lib/debounce";
@@ -16,6 +19,13 @@ import {
 } from "@repo/editor/formulas/formula-recompute";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { TableOfContents } from "@repo/editor/toc";
+
+// typed by the union of both kits' plugins, since usePlateEditor infers its plugin type from one
+// array and refuses a union of two
+export const PROFILE_KITS: Record<
+  EditorProfile,
+  ((typeof EDITOR_KIT)[number] | (typeof TOUCH_EDITOR_KIT)[number])[]
+> = { desktop: EDITOR_KIT, touch: TOUCH_EDITOR_KIT };
 
 // bounds per-keystroke work; the 600ms autosave debounce downstream gates the write.
 const SERIALIZE_DEBOUNCE_MS = 150;
@@ -37,8 +47,9 @@ interface Props {
 }
 
 export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush }: Props) => {
+  const profile = useEditorProfile();
   const editor = usePlateEditor({
-    plugins: EDITOR_KIT,
+    plugins: PROFILE_KITS[profile],
     value: () => seedValue(value),
   });
 
@@ -154,7 +165,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
       <EditorContainer>
         <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
       </EditorContainer>
-      <TableOfContents />
+      {profile === "desktop" ? <TableOfContents /> : null}
     </Plate>
   );
 };

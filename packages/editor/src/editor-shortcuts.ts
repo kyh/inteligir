@@ -72,38 +72,39 @@ const LIST_FOR_ACTION = {
   "toggle-todo-list": "todo-list",
 } satisfies Partial<Record<EditorShortcutAction, TurnIntoId>>;
 
-export const handleEditorShortcut = (editor: PlateEditor, event: ShortcutKeyEvent): void => {
-  const row = editorShortcutFor(EDITOR_SHORTCUTS, event);
-  if (row === null) {
-    return;
-  }
-  switch (row.action) {
+// false when the action does not apply where the caret is, so a key it did not take still types;
+// a surface with no key (the touch toolbar) runs the same rows through here
+export const runEditorShortcut = (editor: PlateEditor, action: EditorShortcutAction): boolean => {
+  switch (action) {
     case "focus-note-title": {
-      if (focusNoteTitle(liveEditorPath(editor))) {
-        event.preventDefault();
-      }
-      return;
+      return focusNoteTitle(liveEditorPath(editor));
     }
     case "toggle-code-mark": {
       // a code mark inside a code block is nonsense the serializer would nest
       if (inCodeBlock(editor)) {
-        return;
+        return false;
       }
-      event.preventDefault();
       editor.tf.toggleMark(KEYS.code);
-      return;
+      return true;
     }
     case "toggle-todo-list":
     case "toggle-numbered-list":
     case "toggle-bulleted-list": {
       if (inCodeBlock(editor)) {
-        return;
+        return false;
       }
-      event.preventDefault();
-      toggleList(editor, LIST_FOR_ACTION[row.action]);
+      toggleList(editor, LIST_FOR_ACTION[action]);
+      return true;
     }
     // an exhaustive switch: falling off the end is what makes tsc reject a new action
     // no default
+  }
+};
+
+export const handleEditorShortcut = (editor: PlateEditor, event: ShortcutKeyEvent): void => {
+  const row = editorShortcutFor(EDITOR_SHORTCUTS, event);
+  if (row !== null && runEditorShortcut(editor, row.action)) {
+    event.preventDefault();
   }
 };
 

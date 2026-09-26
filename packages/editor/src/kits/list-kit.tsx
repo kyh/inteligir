@@ -1,4 +1,5 @@
 import { KEYS } from "platejs";
+import type { SlateEditor } from "platejs";
 import { BaseIndentPlugin } from "@platejs/indent";
 import { IndentPlugin } from "@platejs/indent/react";
 import { BaseListPlugin, BulletedListRules, OrderedListRules, TaskListRules } from "@platejs/list";
@@ -29,3 +30,12 @@ export const ListKit = [
     render: { belowNodes: BlockList },
   }),
 ];
+
+// what Tab and Shift+Tab run, so a surface with no Tab key indents exactly the blocks the key would
+export const indentBlocks = (editor: SlateEditor): void => {
+  editor.tf.tab({ reverse: false });
+};
+
+export const outdentBlocks = (editor: SlateEditor): void => {
+  editor.tf.tab({ reverse: true });
+};

@@ -9,6 +9,7 @@ import type { PlateElementProps } from "platejs/react";
 import { useRef, useState } from "react";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
+import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 
 import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
@@ -31,12 +32,12 @@ const SourceView = ({ value }: { value: string }) => {
 
 // the frame's document.write fires its load again, so the bytes are posted on the first load
 // alone. "*": an opaque origin has no name to target, and the frame is this origin's own loader.
-const RunFrame = ({ value }: { value: string }) => {
+const RunFrame = ({ frameUrl, value }: { frameUrl: string; value: string }) => {
   const posted = useRef(false);
   return (
     <iframe
       title="HTML run"
-      src={getEditorHostIo().htmlFrameUrl}
+      src={frameUrl}
       sandbox="allow-scripts"
       className={FRAME_CLASS}
       onLoad={(event) => {
@@ -53,12 +54,14 @@ const RunFrame = ({ value }: { value: string }) => {
 // a sandboxed frame prints blank on some engines; print gets the source.
 const HtmlBody = ({
   editing,
+  frameUrl,
   mode,
   onCancel,
   onSave,
   value,
 }: {
   editing: boolean;
+  frameUrl: string | null;
   mode: HtmlMode;
   onCancel: () => void;
   onSave: (next: string) => void;
@@ -77,8 +80,8 @@ const HtmlBody = ({
   }
   return (
     <>
-      {mode === "run" ? (
-        <RunFrame key={value} value={value} />
+      {mode === "run" && frameUrl !== null ? (
+        <RunFrame key={value} frameUrl={frameUrl} value={value} />
       ) : (
         <iframe title="HTML preview" srcDoc={value} sandbox="" className={FRAME_CLASS} />
       )}
@@ -92,6 +95,8 @@ const HtmlBody = ({
 export const HtmlElement = (props: PlateElementProps) => {
   const [mode, setMode] = useState<HtmlMode>("source");
   const [editing, setEditing] = useState(false);
+  const locked = useRichBlocksLocked();
+  const { htmlFrameUrl } = getEditorHostIo();
   const value = stringProp(props.element, "value") ?? "";
 
   const modeButton = (target: HtmlMode, label: string) => (
@@ -119,21 +124,24 @@ export const HtmlElement = (props: PlateElementProps) => {
           <span className="flex items-center gap-2">
             {modeButton("source", "Source")}
             {modeButton("preview", "Preview")}
-            {modeButton("run", "Run")}
-            <button
-              type="button"
-              className="text-body text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setEditing(true);
-              }}
-            >
-              Edit
-            </button>
+            {htmlFrameUrl === null ? null : modeButton("run", "Run")}
+            {locked ? null : (
+              <button
+                type="button"
+                className="text-body text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setEditing(true);
+                }}
+              >
+                Edit
+              </button>
+            )}
           </span>
         }
       >
         <HtmlBody
           editing={editing}
+          frameUrl={htmlFrameUrl}
           mode={mode}
           value={value}
           onCancel={() => {

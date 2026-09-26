@@ -20,7 +20,8 @@ vi.mock("@repo/ui/components/sonner", () => ({
 }));
 
 const { toast } = await import("@repo/ui/components/sonner");
-const { ingestImageFiles } = await import("@repo/editor/kits/image-kit");
+const { ingestImageFiles, insertVaultImage } = await import("@repo/editor/kits/image-kit");
+const { serializeNote } = await import("@repo/editor/markdown/markdown-doc");
 const { EDITOR_KIT } = await import("@repo/editor/kits/editor-kit");
 
 const unregisters: (() => void)[] = [];
@@ -67,6 +68,18 @@ describe("image ingestion", () => {
 
     expect(helpers.writeVaultAsset).toHaveBeenCalledWith({ baseName: "shot.png", file: shot });
     expect(imageUrls(editor)).toEqual(["assets/landed.png"]);
+  });
+
+  // a host's photo picker writes the image itself and lands it through insertVaultImage
+  it("lands a pasted image with the bytes insertVaultImage lands for the same path", async () => {
+    const { editor: pasted } = newEditor();
+    await ingestImageFiles(pasted, [imageFile("shot.png", 1024)]);
+    const { editor: picked } = newEditor();
+
+    expect(insertVaultImage(picked, "assets/landed.png")).toBe(true);
+
+    expect(serializeNote(picked)).toBe(serializeNote(pasted));
+    expect(serializeNote(picked)).toContain("assets/landed.png");
   });
 
   it("reports a refused write instead of rejecting into nothing", async () => {

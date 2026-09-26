@@ -366,10 +366,20 @@ to the END of its group.
   `--editor-size` (`packages/editor/src/editor-column.tsx`), and a fixed size
   that is part of the note is a reasoned `PROSE_SIZES` row in that guard.
 
-- **THE PLATE SLASH MENU IS THE INSERTION SURFACE.** Slash items are grouped
+- **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS
+  ITS SOFT-KEYBOARD TWIN.** Slash items are grouped
   data (`GROUPS` in `packages/editor/src/slash-menu.tsx`), and every row's
   markdown must re-parse to a modeled construct and be its own fixpoint
   (`packages/editor/src/__tests__/slash-rows.test.ts`, which excepts no row).
+  A soft keyboard has no chord and a finger no hover, so the touch kit adds a
+  keyboard toolbar (`packages/editor/src/touch-toolbar.tsx`) whose buttons are
+  rows of the tables the desktop reads: the headings, lists, to-do and quote
+  are `GROUPS` rows run as the slash menu runs them, the marks are
+  `MARK_SHORTCUTS`, inline code is `EDITOR_SHORTCUTS`' row through
+  `runEditorShortcut`, and indent is what Tab runs; only what no table holds is
+  `TOUCH_ACTIONS` (`packages/editor/src/__tests__/touch-toolbar.test.tsx`
+  refuses a button named by anything else). A locked editor's slash menu
+  offers no `richBlock` row, a block it could never fill.
   An empty inline equation writes no bytes, by owner decision: markdown has no
   empty inline math (`packages/editor/src/markdown/md-rules.ts`). Legacy
   `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
@@ -513,6 +523,27 @@ to the END of its group.
   is converted. A paragraph rule's prune was rejected, because a heading or a
   list item then saved `**a****b**`; Plate's own `serializeMd` skips the
   pre-pass and writes a ZWSP beside every chip.
+
+- **THE PHONE RUNS THE DESKTOP'S EDITOR THROUGH A TOUCH KIT, AND ITS RICH
+  BLOCKS ARE READ-ONLY IN THE MODEL** (0.6 direction: the phone is a full
+  editor). A host sets `EditorProfileProvider`
+  (`packages/editor/src/editor-profile.tsx`); `touch` mounts
+  `TOUCH_EDITOR_KIT`, which is `CONTENT_KIT`, the lock and the touch chrome,
+  COMPOSED rather than the desktop kit minus its pointer chrome, so a pointer
+  surface added to the desktop stays off the phone until someone names it
+  there (`packages/editor/src/kits/touch-editor-kit.ts`,
+  `packages/editor/src/__tests__/touch-kit.test.ts`). A chart, a canvas, an
+  html block, tabs and columns are read-only there by owner decision: the lock
+  is an `apply` override refusing every op inside one, and a payload's
+  `set_node` on the void itself, while a whole-block insert, remove or move
+  passes, so a re-seed lands and a deleted block comes back with one undo; a
+  refused op never reaches history
+  (`packages/editor/src/kits/rich-block-lock-kit.ts`). Hiding the edit buttons
+  alone was rejected: a paste, a key or a transform from elsewhere would still
+  reach the block, so the renderers hide them (`useRichBlocksLocked`) and the
+  model refuses what arrives anyway. An html block's Run needs the host's
+  frame, and a host with none (`htmlFrameUrl: null`) draws no Run.
+  `packages/editor/src/__tests__/rich-block-lock.test.tsx`.
 
 ### Vault: writes, git and containment
 

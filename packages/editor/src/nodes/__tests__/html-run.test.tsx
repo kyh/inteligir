@@ -57,6 +57,13 @@ describe("an html block's Run", () => {
     expect(posted.mock.calls).toEqual([[PAYLOAD, "*"]]);
   });
 
+  it("is not offered by a host with no frame to run it in", () => {
+    installFakeEditorHost({ htmlFrameUrl: null });
+    renderBlock();
+    expect(screen.queryByRole("button", { name: "Run" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeTruthy();
+  });
+
   it("previews with no permissions at all, and scripts off", () => {
     renderBlock();
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
