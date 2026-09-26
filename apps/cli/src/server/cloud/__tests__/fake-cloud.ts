@@ -469,6 +469,7 @@ export class FakeCloud {
       return refuse("bad-request", "Send { ids }.");
     }
     const response: DispatchStatusResponse = {
+      desktopsDeclining: 0,
       desktopsOnline: this.desktopsOnline,
       dispatches: parsed.data.ids.map((id) => this.dispatchStatus(id)),
     };
