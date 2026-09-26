@@ -86,8 +86,6 @@ export interface FixtureState {
   backlinks: BacklinkEntryWire[];
   related: RelatedNoteWire[];
   connectors: ConnectorsResponse;
-  // the header values each add carried: the listing reduces them to hasAuth, as the real store's does.
-  connectorHeaders: Map<string, Record<string, string>>;
   folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
@@ -146,7 +144,6 @@ export const makeFixtureState = (): FixtureState => ({
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" },
   comments: new Map(),
   concurrentWrite: null,
-  connectorHeaders: new Map(),
   connectors: { servers: [] },
   dataDir: "/fixture/data",
   failWith: null,
@@ -295,9 +292,6 @@ const connectorsRouter = {
   add: base.connectors.add.handler(({ context, input, errors }) => {
     if (context.connectors.servers.some((row) => row.name === input.name)) {
       throw errors.ALREADY_EXISTS({ message: `"${input.name}" exists` });
-    }
-    if (input.transport.kind === "http" && input.transport.headers !== undefined) {
-      context.connectorHeaders.set(input.name, input.transport.headers);
     }
     context.connectors.servers.push({
       enabled: true,

@@ -83,9 +83,8 @@ list|read|history|revision|restore|write|rename|delete|deleted|mkdir|attachments
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
 `unlinked` · `problems` · `tags` · `tag notes|rename` · `action
 list|new|send|show|stop|wait|archive|changes` · `comment list|add|reply|resolve|remove` ·
-`interactions list|answer` · `agents list|default` · `connectors
-list|add|remove` · `folders list|add|remove` · `cloud status|login|sync` ·
-`status` · `guide`.
+`interactions list|answer` · `agents list|default` · `folders
+list|add|remove` · `cloud status|login|sync` · `status` · `guide`.
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
 2 `action wait` timeout · 3 no server reachable · 4 `action wait
@@ -156,10 +155,10 @@ declared, long or short, and a word past its last positional. citty parses with
 node's `parseArgs` in NON-strict mode and binds positionals in order, so
 without that gate `vault write notes/a.md --contentt x` would silently read
 stdin and exit 0, and `search two words` would search for `two`. Only the words
-before `--` are counted: what follows is a leaf's own channel
-(`connectors add x -- npx -y srv`). The walk is exact only while no command
-with subcommands declares args, and the enforcement test holds every group to
-that.
+before `--` are counted: `--` ends the options, so what follows reaches the leaf
+as an operand however it is spelled (`vault read -- -draft.md`). The walk is
+exact only while no command with subcommands declares args, and the
+enforcement test holds every group to that.
 
 ## What ships
 

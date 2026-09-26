@@ -204,7 +204,7 @@ export const assertKnownFlags = (rawArgs: readonly string[], argsDef: ArgsDef): 
 };
 
 // citty binds positionals in order and drops the rest, so `search a b` would search for `a` alone. only the
-// words before `--` count: what follows it is a leaf's own channel (`connectors add x -- npx -y srv`).
+// words before `--` count: what follows it is a leaf's own channel, read from its raw argv.
 export const assertPositionalArity = (rest: readonly string[], argsDef: ArgsDef): void => {
   const declared = Object.values(argsDef).filter((def) => def.type === "positional").length;
   const extra = splitArgv(rest, argsDef).positionals.slice(declared);

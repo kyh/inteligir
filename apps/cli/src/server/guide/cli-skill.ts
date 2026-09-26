@@ -128,7 +128,7 @@ rather than dropped. Quote an argument that holds spaces
   boots on (the app's own vault switch writes the same selector). A running
   server is untouched and named; restart it, or reopen the app, to switch. A
   vault other than the default keeps its own data dir beneath the root, so it
-  starts with no index, no credential and no connectors.
+  starts with no index and no credential.
 - \`inteligir vault attachments [root|beside-note|folder:<path>]\` — where a
   pasted image lands; with no argument, print the current choice.
 - \`inteligir vault status\` — git sync state (remote, dirty, conflicts).
@@ -245,29 +245,6 @@ editing files directly).
   \`--source <user|agent|external>\` overrides.
 - \`inteligir comment remove <path> <id>\` — delete a thread's entries; the
   answer names the marker ids you still owe the note body.
-
-## Connectors — the MCP servers every session gets
-
-The registry is this app's own; enabled rows reach every agent session's
-launch, Claude Code and Codex alike.
-
-- \`inteligir connectors list\` — the configured servers, each with its target
-  and whether it is enabled and authenticated; an OAuth server shows
-  \`needs-auth\`, \`connected\` or \`needs-reauth\`.
-- \`inteligir connectors add <name> --url <https://…> [--header NAME=VALUE]\` —
-  add a remote server (the header carries its API key). \`--header NAME=-\`
-  reads the value from stdin instead, which keeps the key out of the process
-  list and the shell's history:
-  \`printf '%s' "$KEY" | inteligir connectors add <name> --url <…> --header x-api-key=-\`.
-  A server that signs in with OAuth takes \`--oauth\` in place of a header:
-  \`inteligir connectors add <name> --url <https://…> --oauth\`; its endpoints
-  and client are found from the URL when the user connects it in Settings →
-  Connectors, and sessions get it once it reads \`connected\`.
-  For a local stdio server, name the program after \`--\` instead:
-  \`inteligir connectors add <name> -- <command> [args…]\`. Exactly one of the
-  two forms; \`--header\` and \`--oauth\` are for the remote one.
-- \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
-  from their next launch.
 
 ## Connected folders — reference context you are pointed at
 

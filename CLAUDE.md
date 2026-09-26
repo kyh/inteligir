@@ -1052,9 +1052,10 @@ to the END of its group.
 
 - **CONNECTORS ARE AN APP-OWNED REGISTRY, injected per-session over ACP**
   (reversing the codex-owned registry, whose premise died with the ACP runtime).
-  One store, edited in Settings and by the CLI; every harness receives the
-  enabled rows through `session/new`'s `mcpServers`. Secrets stay in the data
-  dir and are redacted on every read
+  One store, edited in Settings alone: the CLI has no connector verb, because
+  a shell already has each harness's own (`claude mcp add --scope user`,
+  `codex mcp add`). Every harness receives the enabled rows through
+  `session/new`'s `mcpServers`. Secrets stay in the data dir and are redacted on every read
   (`apps/cli/src/server/connectors/connectors-service.ts`).
 
 - **CONNECTOR OAUTH IS THE MCP AUTHORIZATION SPEC'S, AND A REFRESH TOKEN IS
