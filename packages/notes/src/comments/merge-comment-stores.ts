@@ -1,7 +1,7 @@
 // Entry by entry, never as text: two devices each adding a comment both touch the store's closing
 // brace, so a line merge calls every pair of appends an overlap.
 
-import { parseSidecar, serializeSidecar } from "./sidecar-schema";
+import { parseSidecar, sameCommentEntry, serializeSidecar } from "./sidecar-schema";
 import type { CommentEntry, CommentSidecar } from "./sidecar-schema";
 
 // `unreadable`: a side does not parse, and the caller keeps mine. Folding it to {} would read as
@@ -17,28 +17,23 @@ export interface CommentStoreSides {
   readonly theirs: string;
 }
 
-// a zod parse emits declared fields in one order, so equal entries stringify equally; an unknown
-// field in another order reads as an edit, which only ever keeps an entry
-const sameEntry = (a: CommentEntry, b: CommentEntry): boolean =>
-  JSON.stringify(a) === JSON.stringify(b);
-
 const mergeEntry = (
   base: CommentEntry | undefined,
   mine: CommentEntry | undefined,
   theirs: CommentEntry | undefined,
 ): CommentEntry | undefined => {
   if (mine === undefined) {
-    return theirs === undefined || (base !== undefined && sameEntry(base, theirs))
+    return theirs === undefined || (base !== undefined && sameCommentEntry(base, theirs))
       ? undefined
       : theirs;
   }
   if (theirs === undefined) {
-    return base !== undefined && sameEntry(base, mine) ? undefined : mine;
+    return base !== undefined && sameCommentEntry(base, mine) ? undefined : mine;
   }
-  if (base !== undefined && sameEntry(base, mine)) {
+  if (base !== undefined && sameCommentEntry(base, mine)) {
     return theirs;
   }
-  if (base !== undefined && sameEntry(base, theirs)) {
+  if (base !== undefined && sameCommentEntry(base, theirs)) {
     return mine;
   }
   return theirs.updatedAt > mine.updatedAt ? theirs : mine;

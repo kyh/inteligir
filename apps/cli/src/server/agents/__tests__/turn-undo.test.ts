@@ -4,9 +4,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { isDefinedError, safe } from "@orpc/client";
+import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { describe, expect, it } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
 import type { ThreadHarness } from "../../__tests__/boot-app";
+import { removeEntryWithComments } from "../../comments/remove-with-comments";
 import { beginAgentTurnWrites } from "../agent-commits";
 import type { AgentTurnWrites } from "../agent-commits";
 import { undoTurnChanges } from "../turn-changes";
@@ -42,6 +45,33 @@ const agentWrites = async (
   turn.writes.recordPaths([written.path]);
 };
 
+// `inteligir comment add` from the agent's shell, attributed to its turn as the router does.
+const agentComments = async (
+  harness: ThreadHarness,
+  turn: OpenTurn,
+  notePath: string,
+  id: string,
+): Promise<void> => {
+  const added = await harness.composed.context.comments.add({
+    id,
+    path: notePath,
+    source: "agent",
+    text: "Consider Thursday",
+  });
+  turn.writes.recordPaths(added.wrote);
+};
+
+const anchored = (content: string, id: string, span: string): string =>
+  content.replace(span, `%%i:${id}:start%%${span}%%i:${id}:end%%`);
+
+const storeOf = (content: string): string => {
+  const id = frontmatterId(content);
+  if (id === null) {
+    throw new Error("the note carries no id");
+  }
+  return commentsStorePath(id);
+};
+
 const settle = async (harness: ThreadHarness, turn: OpenTurn): Promise<void> => {
   await turn.writes.finish();
   harness.driver.completeTurn(turn.threadId, turn.turnId, "completed");
@@ -53,6 +83,22 @@ const boot = async (seed: Record<string, string> = {}): Promise<ThreadHarness> =
   for (const [notePath, content] of Object.entries(seed)) {
     await harness.vault.service.write(notePath, content);
   }
+  await harness.vault.git.commitNow();
+  return harness;
+};
+
+const THREADED = doc(
+  "---",
+  "id: note-a",
+  "---",
+  "# A",
+  "",
+  "ship on %%i:c1:start%%Friday%%i:c1:end%%",
+);
+
+const bootThreaded = async (): Promise<ThreadHarness> => {
+  const harness = await boot({ "a.md": THREADED });
+  await harness.client.comments.add({ id: "c1", path: "a.md", text: "Why Friday?" });
   await harness.vault.git.commitNow();
   return harness;
 };
@@ -109,6 +155,7 @@ describe("undoing a turn", () => {
     const outcome = await undoTurnChanges({
       db: harness.db,
       git: harness.vault.git,
+      knowledge: harness.composed.context.knowledge,
       notifier: harness.bus,
       service: {
         ...service,
@@ -162,6 +209,100 @@ describe("undoing a turn", () => {
     });
     expect(onDisk(harness, "gone.md")).toBe(doc("# Gone", "", "kept bytes"));
     expect(onDisk(harness, "made.md")).toBeNull();
+  });
+
+  it("takes back a comment the turn left: its anchor, its entry and the store it started", async () => {
+    const original = doc("# A", "", "ship on Friday");
+    const harness = await boot({ "a.md": original });
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    await agentComments(harness, turn, "a.md", "a1");
+    const { content: withId } = await harness.vault.service.read("a.md");
+    await agentWrites(harness, turn, "a.md", anchored(withId, "a1", "Friday"));
+    await settle(harness, turn);
+    const store = storeOf(withId);
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [],
+      reverted: ["a.md", store],
+    });
+    expect(onDisk(harness, "a.md")).toBe(original);
+    expect(onDisk(harness, store)).toBeNull();
+  });
+
+  it("keeps a comment answered since, with its answer, and still takes the note back", async () => {
+    const harness = await boot({ "a.md": doc("# A", "", "ship on Friday") });
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    await agentComments(harness, turn, "a.md", "a1");
+    const { content: withId } = await harness.vault.service.read("a.md");
+    await agentWrites(harness, turn, "a.md", anchored(withId, "a1", "Friday"));
+    await settle(harness, turn);
+    await harness.client.comments.reply({
+      id: "u1",
+      parentId: "a1",
+      path: "a.md",
+      text: "No, Friday",
+    });
+    const store = storeOf(withId);
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [{ path: store, reason: "edited-since" }],
+      reverted: ["a.md"],
+    });
+    // the anchor goes with the turn; the id the kept thread is filed under stays
+    expect(onDisk(harness, "a.md")).toBe(withId);
+    const { threads } = await harness.client.comments.list({ path: "a.md" });
+    expect(threads).toMatchObject([{ anchored: false, replies: [{ id: "u1" }], rootId: "a1" }]);
+    const [latest] = await harness.vault.git.history("a.md", { limit: 1, skip: 0 });
+    if (latest === undefined) {
+      throw new Error("a.md has no history");
+    }
+    expect(latest.subject).toBe("vault: undo agent changes");
+    expect(await harness.vault.git.revision("a.md", latest.sha)).toBe(withId);
+  });
+
+  it("reopens a thread the turn resolved", async () => {
+    const harness = await bootThreaded();
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    const resolved = await harness.composed.context.comments.resolve({
+      id: "c1",
+      path: "a.md",
+      resolved: true,
+      source: "agent",
+    });
+    turn.writes.recordPaths(resolved.wrote);
+    await settle(harness, turn);
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [],
+      reverted: [commentsStorePath("note-a")],
+    });
+    const { threads } = await harness.client.comments.list({ path: "a.md" });
+    expect(threads).toMatchObject([{ anchored: true, resolved: false, rootId: "c1" }]);
+  });
+
+  it("brings back a note the turn deleted with the comments filed under it", async () => {
+    const harness = await bootThreaded();
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    turn.writes.recordPaths(
+      await removeEntryWithComments(
+        harness.vault.service,
+        "a.md",
+        harness.composed.context.knowledge,
+      ),
+    );
+    await settle(harness, turn);
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [],
+      reverted: ["a.md", commentsStorePath("note-a")],
+    });
+    expect(onDisk(harness, "a.md")).toBe(THREADED);
+    const { threads } = await harness.client.comments.list({ path: "a.md" });
+    expect(threads).toMatchObject([{ anchored: true, resolved: false, rootId: "c1" }]);
   });
 
   it("refuses a turn already undone, a turn still running and one it holds no change of", async () => {

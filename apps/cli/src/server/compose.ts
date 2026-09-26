@@ -286,6 +286,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       await undoTurnChanges({
         db,
         git: vault.git,
+        knowledge,
         notifier: bus,
         service: vault.service,
         threadId,
