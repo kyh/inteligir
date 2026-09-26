@@ -10,6 +10,7 @@ import { createScenarioContext } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { actionScripted } from "./scenarios/action-scripted";
+import { agentSignInBrowser } from "./scenarios/agent-sign-in-browser";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
@@ -64,6 +65,7 @@ const SCENARIOS: readonly Scenario[] = [
   viewContextBrowser,
   undoBrowser,
   settingsBrowser,
+  agentSignInBrowser,
   vaultSearchBrowser,
   treeOpsBrowser,
   extractNoteBrowser,

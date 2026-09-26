@@ -1081,7 +1081,22 @@ to the END of its group.
   flush the open note first, so a line still inside the autosave debounce is
   merged around rather than missed (`undo-turn.ts`). "Ask agent" seeds the
   composer through `packages/editor/src/agent-request.ts`, so the editor never
-  imports the shell. `apps/desktop/src/renderer/app/actions/actions-panel.tsx`
+  imports the shell. A SIGNED-OUT AGENT IS ANSWERED BY ITS SIGN-IN, NOT BY A
+  REFUSED SEND: under the ACP runtime, a default agent its vendor calls signed
+  out puts the sign-in in ⌘K's place, keeping what was typed or seeded for after
+  it, and the Actions list offers it where it said "Press ⌘K"; a thread whose
+  agent (`providerId`, else the default) is signed out, and that no other device
+  runs, carries it above the reply. A vendor that did not answer is not signed
+  out, and a scripted or disabled agent needs no sign-in, so both keep the
+  field. Every one of those, each Settings card and onboarding draw ONE surface,
+  `AgentSignIn` (`apps/desktop/src/renderer/app/agents/agent-sign-in.tsx`, over
+  `agent-hooks.ts`): the default first ("Sign in with Claude" unless ChatGPT was
+  chosen), the rest under Other, the waiting state with the page's address and
+  its code, and a failure's own sentence with Try again. Settings has one Agent
+  section: a card per agent, Claude first, ChatGPT under Other, "Use for new
+  actions" only on a signed-in card that is not already, and Sign out behind a
+  confirm that names the vendor's own app it signs out too (`vendorApp`: the
+  store is shared). `apps/desktop/src/renderer/app/actions/actions-panel.tsx`
   and `action-composer.tsx`.
 
 - **COMMENTS CARRY THE AUTHOR'S `source`, AND THE STORE WRITE IS A CAS.** The
@@ -1347,7 +1362,11 @@ status --json`, `codex login status`) read over `~/.claude` and `~/.codex`,
   so the server runs the bundled claude with `auth login --claudeai` through
   the one vendor spawn policy, piped, with no pty: why none is needed is the
   header of `agent-sign-in.ts`. The first address it prints is
-  `signingIn.authUrl`. codex's `chat-gpt` is an agent method, so its adapter is
+  `signingIn.authUrl`, and the code that address's page shows reaches the
+  login's stdin through `agents.submitSignInCode`, so a sign-in whose browser
+  never opened still finishes; the harness row's `acceptsCode` holds the
+  vendor's own test for a whole code, because the vendor answers a malformed
+  one only on stderr and keeps waiting (`incomplete`). codex's `chat-gpt` is an agent method, so its adapter is
   started for the sign-in alone, on the env a session gets (`adapterSpawnEnv`),
   asked through `authenticate` and ended SIGTERM then SIGKILL
   (`packages/agent-runtime/src/acp/acp-sign-in.ts`). A login that exits 0 counts

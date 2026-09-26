@@ -109,3 +109,21 @@ describe("codex's account probe", () => {
     });
   });
 });
+
+const acceptsClaudeCode = (code: string): boolean => {
+  const method = HARNESSES.claude.signIn;
+  return method.kind === "terminal" && method.acceptsCode(code);
+};
+
+describe("claude's pasted sign-in code", () => {
+  it("takes the page's whole code, as the vendor would", () => {
+    expect(acceptsClaudeCode("abc123#state456")).toBe(true);
+    expect(acceptsClaudeCode("  abc123#state456\n")).toBe(true);
+  });
+
+  it("refuses a code missing either half, which the vendor would answer only on stderr", () => {
+    expect(acceptsClaudeCode("abc123")).toBe(false);
+    expect(acceptsClaudeCode("abc123#")).toBe(false);
+    expect(acceptsClaudeCode("#state456")).toBe(false);
+  });
+});

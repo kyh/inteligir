@@ -5,7 +5,8 @@ import { InertSocket } from "../../__tests__/inert-socket";
 import { WorkspaceProvider } from "../../workspace-context";
 import { ActionComposer } from "../action-composer";
 import { routeRendererFetch } from "./booted-fetch";
-import { bootThreadHarness } from "inteligir/server/testing";
+import { bootThreadHarness, fakeAgentAccounts } from "inteligir/server/testing";
+import type { AgentStatus } from "@repo/api/local/system/system-schema";
 
 afterEach(() => {
   cleanup();
@@ -15,6 +16,91 @@ afterEach(() => {
 const noViewContext = async () => null;
 
 const noteColumn = { current: document.body };
+
+const ACP: AgentStatus = { detail: null, mode: "auto", runtime: "acp" };
+const SCRIPTED: AgentStatus = { detail: null, mode: "scripted", runtime: "scripted" };
+const AUTH_URL = "https://claude.test/oauth/authorize?code=true";
+// longer than a signed-out agent's sign-in takes to replace the field
+const SETTLE_MS = 2000;
+
+const bootAgent = async (agent: AgentStatus, claude: "signed-in" | "signed-out") => {
+  const harness = await bootThreadHarness(
+    { mode: "manual" },
+    {
+      accounts: fakeAgentAccounts(
+        claude === "signed-out" ? { claude: { state: "signed-out" } } : {},
+        { authUrl: AUTH_URL },
+      ),
+      agent,
+    },
+  );
+  vi.stubGlobal("WebSocket", InertSocket);
+  routeRendererFetch(harness);
+  return harness;
+};
+
+const mountComposer = (seed: string | null = null): void => {
+  render(
+    <WorkspaceProvider>
+      <ActionComposer
+        open
+        onOpenChange={() => {}}
+        seed={seed}
+        docPath={null}
+        readViewContext={noViewContext}
+        onLaunched={() => {}}
+        container={noteColumn}
+      />
+    </WorkspaceProvider>,
+  );
+};
+
+describe("the composer over the default agent's sign-in", () => {
+  it("offers the sign-in in place of the field while the agent is signed out", async () => {
+    const harness = await bootAgent(ACP, "signed-out");
+    mountComposer("Tidy the intro");
+
+    expect(await screen.findByRole("button", { name: "Sign in with Claude" })).toBeDefined();
+    expect(screen.queryByRole("combobox", { name: "Ask the agent" })).toBeNull();
+    const { threads } = await harness.client.threads.list({});
+    expect(threads).toEqual([]);
+  });
+
+  it("shows the field, keeping what was seeded, once the sign-in finishes", async () => {
+    await bootAgent(ACP, "signed-out");
+    mountComposer("Tidy the intro");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in with Claude" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Paste the code" }));
+    fireEvent.change(screen.getByLabelText("Code from the sign-in page"), {
+      target: { value: "page-code#page-state" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    const field = await screen.findByRole("combobox", { name: "Ask the agent" });
+    expect(field).toHaveProperty("value", "Tidy the intro");
+  });
+
+  it("shows the field while the agent is signed in", async () => {
+    await bootAgent(ACP, "signed-in");
+    mountComposer();
+
+    expect(await screen.findByRole("combobox", { name: "Ask the agent" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Sign in with Claude" })).toBeNull();
+  });
+
+  it("shows the field to a scripted agent, which needs no sign-in", async () => {
+    await bootAgent(SCRIPTED, "signed-out");
+    mountComposer();
+
+    expect(await screen.findByRole("combobox", { name: "Ask the agent" })).toBeDefined();
+    // the field shows while the statuses load, so the sign-in is given the time it takes to arrive.
+    await expect(
+      screen.findByRole("button", { name: "Sign in with Claude" }, { timeout: SETTLE_MS }),
+    ).rejects.toThrow();
+    expect(screen.getByRole("combobox", { name: "Ask the agent" })).toBeDefined();
+  });
+});
 
 describe("the composer under a refused first send", () => {
   it("keeps the prompt and retries into the already-created thread", async () => {

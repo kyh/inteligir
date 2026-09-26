@@ -170,7 +170,8 @@ scripts/
 - **A sign-in is the method the adapter advertises, and it never outlives
   itself.** A harness row's `signIn` names it: a `terminal` method (claude's
   `claude-ai-login`) is the client's to run, so the server runs the vendor
-  binary with the row's args itself; an `agent` method (codex's `chat-gpt`) is
+  binary with the row's args itself, and the row's `acceptsCode` is the
+  vendor's own test for a code pasted from its page; an `agent` method (codex's `chat-gpt`) is
   `runAgentSignIn`'s. That starts the adapter on the env a session gets
   (`adapterSpawnEnv`, so the two cannot disagree), initializes with
   `auth.terminal` so every method is advertised, refuses a method it does not

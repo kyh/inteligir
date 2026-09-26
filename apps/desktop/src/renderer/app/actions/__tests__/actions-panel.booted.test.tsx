@@ -2,8 +2,9 @@ import { setTimeout as delay } from "node:timers/promises";
 import { THREADS_LIST_DEFAULT_LIMIT } from "@repo/api/local/threads/threads-schema";
 import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { bootThreadHarness } from "inteligir/server/testing";
+import { bootThreadHarness, fakeAgentAccounts } from "inteligir/server/testing";
 import type { ThreadHarness } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -178,5 +179,80 @@ describe("the action list", () => {
 
     expect(await screen.findByText("Action 0")).toBeDefined();
     expect(screen.queryByText("Archived action")).toBeNull();
+  });
+});
+
+const ACP: AgentStatus = { detail: null, mode: "auto", runtime: "acp" };
+
+const bootSignedOut = async (harness: "claude" | "codex"): Promise<ThreadHarness> => {
+  const booted = await bootThreadHarness(
+    { mode: "manual" },
+    { accounts: fakeAgentAccounts({ [harness]: { state: "signed-out" } }), agent: ACP },
+  );
+  vi.stubGlobal("WebSocket", InertSocket);
+  routeRendererFetch(booted);
+  return booted;
+};
+
+// a thread whose rows name the harness it runs on; `turn` leaves a turn another device runs.
+const syncCodexThread = (booted: ThreadHarness, threadId: string, turn: boolean): void => {
+  const { threads } = booted.composed.context;
+  threads.applySyncedEvents({
+    cursor: 1,
+    rows: [
+      {
+        event: {
+          providerId: "codex",
+          scope: threadScope(),
+          threadId,
+          title: "Drafted on ChatGPT",
+          type: "thread/meta",
+        },
+        origin: { deviceId: "dev_other", deviceSeq: 1 },
+      },
+    ],
+    threadId,
+  });
+  if (turn) {
+    threads.applySyncedEvents({
+      cursor: 2,
+      rows: [
+        {
+          event: { scope: turnScope("turn_remote"), threadId, type: "turn/started" },
+          origin: { deviceId: "dev_other", deviceSeq: 2 },
+        },
+      ],
+      threadId,
+    });
+  }
+};
+
+describe("an agent the panel needs signed in", () => {
+  it("says above the reply that the thread's agent is signed out, with its sign-in", async () => {
+    const booted = await bootSignedOut("codex");
+    syncCodexThread(booted, "thr_codex", false);
+    mountAction("thr_codex");
+
+    expect(await screen.findByText("ChatGPT is signed out on this Mac.")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Sign in with ChatGPT" })).toBeDefined();
+    expect(screen.getByLabelText("Reply to the agent")).toBeDefined();
+  });
+
+  it("says nothing of a thread another device runs", async () => {
+    const booted = await bootSignedOut("codex");
+    syncCodexThread(booted, "thr_elsewhere", true);
+    mountAction("thr_elsewhere");
+
+    expect(await screen.findByText("Running on another device")).toBeDefined();
+    expect(screen.queryByText("ChatGPT is signed out on this Mac.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign in with ChatGPT" })).toBeNull();
+  });
+
+  it("offers the sign-in in an empty list while the default agent is signed out", async () => {
+    await bootSignedOut("claude");
+    mountPanel({ docPath: null, threadId: null });
+
+    expect(await screen.findByRole("button", { name: "Sign in with Claude" })).toBeDefined();
+    expect(screen.queryByText(/to ask the agent\.$/u)).toBeNull();
   });
 });

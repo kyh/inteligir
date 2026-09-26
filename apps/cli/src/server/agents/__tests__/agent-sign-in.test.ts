@@ -15,10 +15,13 @@ import type { AgentAccounts } from "../agent-sign-in";
 const require = createRequire(import.meta.url);
 const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-agent");
 
+const PAGE_CODE = "page-code#page-state";
+
 // stands in for both vendor binaries over one store dir: claude's `auth status|login|logout` and
 // codex's `login status` and `logout`, each reading or writing a marker the way the vendor's own
 // store would. FAKE_CLAUDE_LOGIN picks how a login goes: wait (until a release file appears),
-// fail, or hang (a helper in its process group, so a cancel must kill the group).
+// fail, hang (a helper in its process group, so a cancel must kill the group), or code (a line
+// pasted on stdin, which it exchanges only when it is the page's code).
 const FAKE_VENDOR = `#!/bin/sh
 store="$FAKE_VENDOR_STORE"
 case "$1 $2" in
@@ -38,6 +41,13 @@ case "$1 $2" in
       fail)
         echo "Login failed: the code was refused" >&2
         exit 1
+        ;;
+      code)
+        read -r pasted
+        if [ "$pasted" != "${PAGE_CODE}" ]; then
+          echo "Login failed: Invalid authorization code" >&2
+          exit 1
+        fi
         ;;
       hang)
         sleep 30 &
@@ -136,6 +146,7 @@ describe("signing claude in", () => {
     const pending = harness.client.agents.signIn({ id: "claude" });
     await vi.waitFor(async () => {
       expect(await signingInOn(harness)).toEqual({
+        acceptsCode: true,
         authUrl: PRINTED_URL,
         id: "claude",
       });
@@ -254,6 +265,88 @@ describe("signing claude in", () => {
   });
 });
 
+// wrapped, since an async function returning the sign-in's own promise would wait it out.
+const waitingForCode = async (harness: SignInHarness) => {
+  const pending = harness.client.agents.signIn({ id: "claude" });
+  await vi.waitFor(async () => {
+    const signingIn = await signingInOn(harness);
+    expect(signingIn?.authUrl).toBe(PRINTED_URL);
+  });
+  return { pending };
+};
+
+describe("a code pasted from claude's sign-in page", () => {
+  it("reaches the login waiting on it, which signs in with it", async () => {
+    const harness = await bootSignIn("code");
+    const { pending } = await waitingForCode(harness);
+
+    const sent = await harness.client.agents.submitSignInCode({
+      code: ` ${PAGE_CODE}\n`,
+      id: "claude",
+    });
+    expect(sent).toEqual({ outcome: "sent" });
+
+    const answer = await pending;
+    expect(answer.outcome).toBe("signed-in");
+    expect(accountOf(answer.status, "claude")).toMatchObject({ account: { state: "signed-in" } });
+  });
+
+  it("is answered incomplete when half of it is missing, and the login keeps waiting", async () => {
+    const harness = await bootSignIn("code");
+    const { pending } = await waitingForCode(harness);
+
+    const [code] = PAGE_CODE.split("#");
+    expect(
+      await harness.client.agents.submitSignInCode({ code: code ?? "", id: "claude" }),
+    ).toEqual({ outcome: "incomplete" });
+    expect(await signingInOn(harness)).not.toBeNull();
+
+    await harness.client.agents.submitSignInCode({ code: PAGE_CODE, id: "claude" });
+    expect(await outcomeOf(pending)).toBe("signed-in");
+  });
+
+  it("fails the sign-in with the vendor's words when the vendor refuses it", async () => {
+    const harness = await bootSignIn("code");
+    const { pending } = await waitingForCode(harness);
+
+    await harness.client.agents.submitSignInCode({ code: "stale#code", id: "claude" });
+    expect(await pending).toMatchObject({
+      detail: "Claude could not finish signing in: Login failed: Invalid authorization code",
+      outcome: "failed",
+    });
+  });
+
+  it("is refused CONFLICT when no sign-in is waiting for one", async () => {
+    const harness = await bootSignIn("code");
+    const [refusal] = await safe(
+      harness.client.agents.submitSignInCode({ code: PAGE_CODE, id: "claude" }),
+    );
+    expect(isDefinedError(refusal) && refusal.code).toBe("CONFLICT");
+  });
+
+  it("is refused CONFLICT for a sign-in that reads no code", async () => {
+    const booted = await bootTestApp();
+    const codex = booted.client.agents.signIn({ id: "codex" });
+    await vi.waitFor(async () => {
+      expect(await signingInOn(booted)).toEqual({ acceptsCode: false, authUrl: null, id: "codex" });
+    });
+    const [refusal] = await safe(
+      booted.client.agents.submitSignInCode({ code: PAGE_CODE, id: "codex" }),
+    );
+    expect(isDefinedError(refusal) && refusal.code).toBe("CONFLICT");
+    await booted.client.agents.cancelSignIn({ id: "codex" });
+    expect(await outcomeOf(codex)).toBe("cancelled");
+  });
+
+  it("never carries a second line to the vendor", async () => {
+    const booted = await bootTestApp();
+    const [refusal] = await safe(
+      booted.client.agents.submitSignInCode({ code: `${PAGE_CODE}\nmore#lines`, id: "claude" }),
+    );
+    expect(refusal).toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
 describe("signing codex in", () => {
   it("asks its adapter to authenticate, and the vendor then answers signed in", async () => {
     const harness = await bootSignIn();
@@ -279,6 +372,7 @@ describe("a sign-in the server cannot run", () => {
     const first = booted.client.agents.signIn({ id: "claude" });
     await vi.waitFor(async () => {
       expect(await signingInOn(booted)).toEqual({
+        acceptsCode: true,
         authUrl: null,
         id: "claude",
       });

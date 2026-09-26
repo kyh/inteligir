@@ -9,7 +9,7 @@ import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
-import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
+import { HARNESS_IDS, HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
@@ -45,13 +45,25 @@ export const TEST_SERVER_TOKEN = "test-server-token";
 // an in-process Request carries no Host until one is set, and the host guard refuses one naming none.
 export const TEST_HOST = "127.0.0.1:4664";
 
-// a booted suite never runs a vendor binary: every harness answers signed in unless told otherwise,
-// and a sign-in stays running until it is cancelled, as one the person never finishes in the browser.
+type FakeSignInOutcome = Awaited<ReturnType<AgentAccounts["signIn"]>>;
+
+// a booted suite never runs a vendor binary: every harness answers signed in unless told otherwise.
+// A sign-in stays running until it is cancelled, as one the person never finishes in the browser,
+// or until a code is pasted, which signs it in as the vendor's own exchange would; `authUrl` is the
+// address it says it printed, and `refusal` fails every sign-in at once with that detail. A sign-out
+// signs the harness out.
 export const fakeAgentAccounts = (
   answers: Partial<Record<HarnessId, VendorAccount>> = {},
+  signIn: { authUrl?: string; refusal?: string } = {},
 ): AgentAccounts => {
+  const accounts = new Map<HarnessId, VendorAccount>(
+    HARNESS_IDS.map((id) => [
+      id,
+      answers[id] ?? { email: null, label: HARNESSES[id].displayName, state: "signed-in" },
+    ]),
+  );
   const disposed = new AbortController();
-  let current: SigningIn | null = null;
+  let current: { progress: SigningIn; finish: (outcome: FakeSignInOutcome) => void } | null = null;
   return {
     dispose: async () => {
       disposed.abort();
@@ -62,25 +74,53 @@ export const fakeAgentAccounts = (
     },
     signIn: async (id, cancel) => {
       if (current !== null) {
-        throw new SignInInProgressError(HARNESSES[current.id]);
+        throw new SignInInProgressError(HARNESSES[current.progress.id]);
       }
-      current = { authUrl: null, id };
+      if (signIn.refusal !== undefined) {
+        return { detail: signIn.refusal, outcome: "failed" };
+      }
+      const ended = Promise.withResolvers<FakeSignInOutcome>();
+      const stopped = AbortSignal.any([cancel, disposed.signal]);
+      const stop = (): void => {
+        ended.resolve({ outcome: "cancelled" });
+      };
+      current = {
+        finish: ended.resolve,
+        progress: {
+          acceptsCode: HARNESSES[id].signIn.kind === "terminal",
+          authUrl: signIn.authUrl ?? null,
+          id,
+        },
+      };
+      if (stopped.aborted) {
+        stop();
+      }
+      stopped.addEventListener("abort", stop, { once: true });
       try {
-        const stopped = AbortSignal.any([cancel, disposed.signal]);
-        if (!stopped.aborted) {
-          await once(stopped, "abort");
-        }
-        return { outcome: "cancelled" };
+        return await ended.promise;
       } finally {
+        stopped.removeEventListener("abort", stop);
         current = null;
       }
     },
-    signOut: async () => await Promise.resolve({ outcome: "signed-out" }),
-    signingIn: () => current,
-    status: async (id) =>
-      await Promise.resolve(
-        answers[id] ?? { email: null, label: HARNESSES[id].displayName, state: "signed-in" },
-      ),
+    signOut: async (id) => {
+      accounts.set(id, { state: "signed-out" });
+      return await Promise.resolve({ outcome: "signed-out" });
+    },
+    signingIn: () => (current === null ? null : { ...current.progress }),
+    status: async (id) => await Promise.resolve(accounts.get(id) ?? { state: "signed-out" }),
+    submitCode: (id, code) => {
+      const method = HARNESSES[id].signIn;
+      if (method.kind !== "terminal" || current?.progress.id !== id) {
+        return "not-waiting";
+      }
+      if (!method.acceptsCode(code)) {
+        return "incomplete";
+      }
+      accounts.set(id, { email: null, label: HARNESSES[id].displayName, state: "signed-in" });
+      current.finish({ outcome: "signed-in" });
+      return "sent";
+    },
   };
 };
 

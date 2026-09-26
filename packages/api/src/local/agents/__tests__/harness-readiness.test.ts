@@ -8,13 +8,19 @@ const bundled = (account: VendorAccount): HarnessStatus => ({
   displayName: "Claude",
   id: "claude",
   runtime: "bundled",
+  vendorApp: "Claude Code",
 });
 
 describe("harness readiness", () => {
   it("is unavailable when this copy of the app is missing the runtime", () => {
-    expect(harnessReadiness({ displayName: "Claude", id: "claude", runtime: "missing" })).toBe(
-      "unavailable",
-    );
+    expect(
+      harnessReadiness({
+        displayName: "Claude",
+        id: "claude",
+        runtime: "missing",
+        vendorApp: "Claude Code",
+      }),
+    ).toBe("unavailable");
   });
 
   it("is ready when the vendor says it is signed in", () => {

@@ -39,8 +39,7 @@ const THEMES: readonly { value: Theme; label: string }[] = [
 // Ids must agree with the section anchors below.
 const NAV = [
   { id: "vault", label: "Vault" },
-  { id: "agent", label: "Agent" },
-  { id: "agents", label: "Agents" },
+  { id: "agents", label: "Agent" },
   { id: "connectors", label: "Connectors" },
   { id: "folders", label: "Connected folders" },
   { id: "devices", label: "Devices" },
@@ -52,25 +51,6 @@ const NAV = [
 export type SettingsSection = (typeof NAV)[number]["id"];
 
 type SystemStatus = ReturnType<typeof useSystemStatus>["data"];
-
-const AgentSummary = ({ system }: { system: SystemStatus }) => (
-  <section id="agent" className="scroll-mt-10 space-y-2">
-    <SectionHeading>Agent</SectionHeading>
-    <dl className="space-y-1.5">
-      <Row label="Mode">
-        <span className="font-mono text-body">{system?.agent.mode ?? "…"}</span>
-      </Row>
-      <Row label="Runtime">
-        <span className="font-mono text-body">{system?.agent.runtime ?? "…"}</span>
-      </Row>
-      {system !== undefined && system.agent.detail !== null ? (
-        <Row label="Detail">
-          <span className="text-body text-muted-foreground">{system.agent.detail}</span>
-        </Row>
-      ) : null}
-    </dl>
-  </section>
-);
 
 const AboutSection = ({ system }: { system: SystemStatus }) => (
   <section id="about" className="scroll-mt-10 space-y-2 pb-16">
@@ -156,8 +136,6 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
               <VaultsRow />
             </dl>
           </section>
-          <Separator />
-          <AgentSummary system={system} />
           <Separator />
           <div id="agents" className="scroll-mt-10">
             <AgentsSection />

@@ -4,12 +4,17 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogPopup } from "@repo/ui/components/dialog";
 import { InputMessage } from "@repo/ui/components/input-message";
+import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
+import { useRadius } from "@repo/ui/lib/radius-context";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { toast } from "@repo/ui/components/sonner";
 import { XIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 
+import { useSignedOutHarness } from "../agents/agent-hooks";
+import { AgentSignIn } from "../agents/agent-sign-in";
 import { failed } from "../api";
 import { ensureOpenNoteId } from "../note/open-note-id";
 import type { ViewContextSource } from "../thread-activity";
@@ -39,6 +44,25 @@ export interface ActionComposerProps {
   // the note column: the composer floats over the note, never over the panel beside it
   container: RefObject<HTMLElement | null>;
 }
+
+// Mounted with the popup, so each open asks the vendors again: a sign-in can change outside the
+// app. Only a default agent the vendor calls signed out stands in for the field; the text typed or
+// seeded so far is the composer's, and waits for it.
+const SignInFirst = ({ children, onSignedIn }: { children: ReactNode; onSignedIn: () => void }) => {
+  const radius = useRadius();
+  const signedOut = useSignedOutHarness(null);
+  if (signedOut === null) {
+    return children;
+  }
+  return (
+    <div className={cn("space-y-3 p-3", surfaceClasses(2, 2), radius.container)}>
+      <p className="text-subtitle">
+        Sign in to ask the agent. It works on your notes with your own Claude or ChatGPT plan.
+      </p>
+      <AgentSignIn onSignedIn={onSignedIn} />
+    </div>
+  );
+};
 
 export const ActionComposer = ({
   open,
@@ -191,134 +215,142 @@ export const ActionComposer = ({
         aria-label="Action composer"
         className="absolute inset-x-6 bottom-10 mx-auto max-w-xl"
       >
-        <div className="relative">
-          <MentionCombobox
-            id={listId}
-            options={mentionOptions}
-            activeIndex={activeMention}
-            onHover={setMentionIndex}
-            onPick={pickMention}
-          />
-          <InputMessage
-            topSlot={
-              docPath !== null || mentions.length > 0 ? (
-                <>
-                  {docPath === null ? null : (
-                    <NoteBadge
-                      path={docPath}
-                      className={attached ? undefined : "text-muted-foreground line-through"}
-                    >
-                      {attached ? (
+        <SignInFirst
+          onSignedIn={() => {
+            requestAnimationFrame(() => {
+              focusField()?.focus();
+            });
+          }}
+        >
+          <div className="relative">
+            <MentionCombobox
+              id={listId}
+              options={mentionOptions}
+              activeIndex={activeMention}
+              onHover={setMentionIndex}
+              onPick={pickMention}
+            />
+            <InputMessage
+              topSlot={
+                docPath !== null || mentions.length > 0 ? (
+                  <>
+                    {docPath === null ? null : (
+                      <NoteBadge
+                        path={docPath}
+                        className={attached ? undefined : "text-muted-foreground line-through"}
+                      >
+                        {attached ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-compact"
+                            className="size-4"
+                            aria-label="Detach note"
+                            onClick={() => {
+                              setAttached(false);
+                            }}
+                          >
+                            <XIcon className="size-3" />
+                          </Button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setAttached(true);
+                            }}
+                          >
+                            attach
+                          </button>
+                        )}
+                      </NoteBadge>
+                    )}
+                    {mentions.map((path) => (
+                      <NoteBadge key={path} path={path}>
                         <Button
                           variant="ghost"
                           size="icon-compact"
                           className="size-4"
-                          aria-label="Detach note"
+                          aria-label={`Remove ${path}`}
                           onClick={() => {
-                            setAttached(false);
+                            setMentions((prior) => prior.filter((kept) => kept !== path));
                           }}
                         >
                           <XIcon className="size-3" />
                         </Button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="text-muted-foreground hover:text-foreground"
-                          onClick={() => {
-                            setAttached(true);
-                          }}
-                        >
-                          attach
-                        </button>
-                      )}
-                    </NoteBadge>
-                  )}
-                  {mentions.map((path) => (
-                    <NoteBadge key={path} path={path}>
-                      <Button
-                        variant="ghost"
-                        size="icon-compact"
-                        className="size-4"
-                        aria-label={`Remove ${path}`}
-                        onClick={() => {
-                          setMentions((prior) => prior.filter((kept) => kept !== path));
-                        }}
-                      >
-                        <XIcon className="size-3" />
-                      </Button>
-                    </NoteBadge>
-                  ))}
-                  {mentionsFull ? (
-                    <span className="self-center text-caption text-muted-foreground">
-                      At most {MAX_CONTEXT_PATHS} notes can be attached
-                    </span>
-                  ) : null}
-                </>
-              ) : null
-            }
-            value={text}
-            onValueChange={(value) => {
-              setText(value);
-              const field = fieldRef.current;
-              if (field !== null) {
-                syncMention(value, field.selectionStart);
+                      </NoteBadge>
+                    ))}
+                    {mentionsFull ? (
+                      <span className="self-center text-caption text-muted-foreground">
+                        At most {MAX_CONTEXT_PATHS} notes can be attached
+                      </span>
+                    ) : null}
+                  </>
+                ) : null
               }
-            }}
-            onSend={() => {
-              submit();
-            }}
-            placeholder="Ask the agent… @ mentions a note"
-            minRows={2}
-            maxRows={8}
-            sendLabel="Send"
-            disabled={sending}
-            textareaRef={fieldRef}
-            textareaProps={{
-              "aria-activedescendant": listShown
-                ? mentionOptionId(listId, activeMention)
-                : undefined,
-              "aria-autocomplete": "list",
-              "aria-controls": listShown ? listId : undefined,
-              "aria-expanded": listShown,
-              "aria-label": "Ask the agent",
-              onBlur: () => {
-                setMention(null);
-              },
-              onKeyDown: (event) => {
-                if (isImeComposing(event)) {
-                  return;
+              value={text}
+              onValueChange={(value) => {
+                setText(value);
+                const field = fieldRef.current;
+                if (field !== null) {
+                  syncMention(value, field.selectionStart);
                 }
-                if (listShown) {
-                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    const step = event.key === "ArrowDown" ? 1 : -1;
-                    setMentionIndex((prior) =>
-                      Math.min(Math.max(prior + step, 0), mentionOptions.length - 1),
-                    );
+              }}
+              onSend={() => {
+                submit();
+              }}
+              placeholder="Ask the agent… @ mentions a note"
+              minRows={2}
+              maxRows={8}
+              sendLabel="Send"
+              disabled={sending}
+              textareaRef={fieldRef}
+              textareaProps={{
+                "aria-activedescendant": listShown
+                  ? mentionOptionId(listId, activeMention)
+                  : undefined,
+                "aria-autocomplete": "list",
+                "aria-controls": listShown ? listId : undefined,
+                "aria-expanded": listShown,
+                "aria-label": "Ask the agent",
+                onBlur: () => {
+                  setMention(null);
+                },
+                onKeyDown: (event) => {
+                  if (isImeComposing(event)) {
                     return;
                   }
-                  if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
-                    event.preventDefault();
-                    const active = mentionOptions[activeMention];
-                    if (active !== undefined) {
-                      pickMention(active);
+                  if (listShown) {
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      const step = event.key === "ArrowDown" ? 1 : -1;
+                      setMentionIndex((prior) =>
+                        Math.min(Math.max(prior + step, 0), mentionOptions.length - 1),
+                      );
+                      return;
                     }
-                    return;
+                    if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+                      event.preventDefault();
+                      const active = mentionOptions[activeMention];
+                      if (active !== undefined) {
+                        pickMention(active);
+                      }
+                      return;
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMention(null);
+                    }
                   }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setMention(null);
-                  }
-                }
-              },
-              onSelect: (event) => {
-                syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
-              },
-              role: "combobox",
-            }}
-          />
-        </div>
+                },
+                onSelect: (event) => {
+                  syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
+                },
+                role: "combobox",
+              }}
+            />
+          </div>
+        </SignInFirst>
       </DialogPopup>
     </Dialog>
   );
