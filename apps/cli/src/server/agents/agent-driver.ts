@@ -19,7 +19,7 @@ import { createAcpRuntimeManager } from "./runtime-manager";
 import type { AcpRuntimeManagerDeps } from "./runtime-manager";
 import { createScriptedTurnDriverFactory } from "./scripted-driver";
 import type { ScriptedDriverDeps } from "./scripted-driver";
-import type { AgentAccounts } from "./agent-sign-in";
+import { missingRuntimeDetail } from "./vendor-process";
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModels" | "vaultDir">;
@@ -30,9 +30,6 @@ export interface ResolveAgentDriverArgs {
   sessionFacts: () => AgentSessionFacts;
   // the stored choice, read per thread start for the same reason; null falls back to claude
   preferredProviderId?: () => HarnessId | null;
-  // each vendor's own sign-in answer and the sign-in itself; carried here because only serve.ts may
-  // build what spawns one.
-  accounts: AgentAccounts;
   env?: NodeJS.ProcessEnv;
   // absent: the runtime forks each adapter with child_process
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
@@ -47,7 +44,6 @@ export type RecordAgentWrites = (threadId: string, paths: readonly string[]) => 
 export interface ResolvedAgentDriver {
   // read per request: a runtime removed from under a running app is the next answer.
   status: () => AgentStatus;
-  accounts: AgentAccounts;
   createTurnDriver: CreateTurnDriver;
   recordAgentWrites: RecordAgentWrites;
   dispose: () => Promise<void>;
@@ -69,18 +65,14 @@ const missingRuntime = (providerId: string, env: NodeJS.ProcessEnv): string | nu
     return null;
   }
   const harness = HARNESSES[providerId];
-  return harness.vendorExecutable(env) === null
-    ? `This copy of inteligir is missing its ${harness.displayName} runtime — reinstall it`
-    : null;
+  return harness.vendorExecutable(env) === null ? missingRuntimeDetail(harness) : null;
 };
 
 export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentDriver => {
   const mode = args.config.agent;
-  const { accounts } = args;
   if (mode === "off") {
     const detail = "The agent is disabled (INTELIGIR_AGENT=off)";
     return {
-      accounts,
       createTurnDriver: () => createUnavailableTurnDriver(detail),
       dispose: noDispose,
       recordAgentWrites: recordNothing,
@@ -96,7 +88,6 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       vault: args.vault.service,
     };
     return {
-      accounts,
       createTurnDriver: createScriptedTurnDriverFactory(scripted),
       dispose: noDispose,
       recordAgentWrites: recordNothing,
@@ -124,7 +115,6 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
   }
   const manager = createAcpRuntimeManager(acp);
   return {
-    accounts,
     createTurnDriver: manager.createTurnDriver,
     dispose: async () => {
       await manager.dispose();

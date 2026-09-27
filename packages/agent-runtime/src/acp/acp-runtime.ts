@@ -39,7 +39,7 @@ import { AcpTurnMapper } from "./acp-event-mapping.js";
 import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping.js";
 import { traceFrames } from "./frame-trace.js";
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
-import { VaultConfigRefusedError, requireHarness } from "./harness-registry.js";
+import { VaultConfigRefusedError, harnessHostEnv, requireHarness } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
 import { describeProviderError } from "./provider-error.js";
 
@@ -101,13 +101,7 @@ export const adapterSpawnEnv = (
   harness: HarnessDefinition,
   options: AdapterSpawnEnvOptions,
 ): AgentRuntimeShellEnvironment => {
-  const omitted = new Set(harness.envOmit);
-  const env: AgentRuntimeShellEnvironment = {};
-  for (const [key, value] of Object.entries(options.hostEnv)) {
-    if (value !== undefined && !omitted.has(key)) {
-      env[key] = value;
-    }
-  }
+  const env = harnessHostEnv(harness, options.hostEnv);
   Object.assign(
     env,
     options.threadId === null

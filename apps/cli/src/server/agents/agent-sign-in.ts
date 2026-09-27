@@ -16,21 +16,19 @@ import type {
   AgentSignIn,
   HarnessDefinition,
   HarnessId,
+  SignInMethod,
   TerminalSignIn,
-  VendorExit,
+  VendorAccount,
 } from "@repo/agent-runtime/acp/harness-registry";
 import { createVendorAccounts } from "./vendor-accounts";
-import type { CreateVendorAccountsArgs, VendorAccounts } from "./vendor-accounts";
-import { runVendor } from "./vendor-process";
+import type { CreateVendorAccountsArgs } from "./vendor-accounts";
+import { failureOf, printedUrlWatcher, runVendor, succeeded } from "./vendor-process";
 
 // long enough for a person to finish in the browser, short enough that a forgotten one ends.
 const SIGN_IN_CEILING_MS = 10 * 60_000;
 // a sign-out only edits the vendor's own store.
 const SIGN_OUT_TIMEOUT_MS = 30_000;
-const STDERR_TAIL_LINES = 5;
 
-// the address a vendor prints for a browser that did not open, taken only once a space or line
-// end closes it, so a chunk boundary never exposes half of one.
 const PRINTED_URL = /https:\/\/\S+(?=\s)/u;
 
 type SignInOutcome =
@@ -56,9 +54,13 @@ export class SignInInProgressError extends Error {
   }
 }
 
-export interface AgentAccounts extends VendorAccounts {
+export interface AgentAccounts {
+  status: (id: HarnessId) => Promise<VendorAccount>;
   // one at a time per server: two browser logins at once would race each other's callback.
-  signIn: (id: HarnessId, signal: AbortSignal) => Promise<SignInOutcome>;
+  signIn: (id: HarnessId) => Promise<SignInOutcome>;
+  // ends that harness's running sign-in with its vendor process, and waits for it to have ended;
+  // nothing when none runs.
+  cancel: (id: HarnessId) => Promise<void>;
   signOut: (id: HarnessId) => Promise<SignOutOutcome>;
   signingIn: () => SigningIn | null;
   // hands the running sign-in a code pasted from its page, once the harness's own test says it is
@@ -78,30 +80,21 @@ export interface CreateAgentAccountsArgs extends CreateVendorAccountsArgs {
 // how far a sign-in got before its account is re-read: `stopped` is its signal, cancel or ceiling.
 type Attempt = { kind: "finished" } | { kind: "stopped" } | { kind: "failed"; detail: string };
 
-const missingRuntime = (harness: HarnessDefinition): string =>
-  `This copy of inteligir is missing its ${harness.displayName} runtime`;
-
-const exitDetail = (harness: HarnessDefinition, doing: string, exit: VendorExit): string => {
-  const tail = exit.stderr
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "")
-    .slice(-STDERR_TAIL_LINES)
-    .join("\n");
-  return tail === ""
-    ? `${harness.displayName} stopped ${doing} (exit ${String(exit.code)})`
-    : `${harness.displayName} could not finish ${doing}: ${tail}`;
-};
+// codes: the vendor's stdin while a terminal sign-in runs, null for a method that reads none.
+interface StartedSignIn {
+  attempt: Promise<Attempt>;
+  codes: PassThrough | null;
+}
 
 export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccounts => {
   const vendor = createVendorAccounts(args);
   const context = { cwd: args.cwd, env: args.env };
   const ceilingMs = args.signInCeilingMs ?? SIGN_IN_CEILING_MS;
   const disposed = new AbortController();
-  // codes: the vendor's stdin while a terminal sign-in runs, null for a method that reads none.
   let current: {
     progress: SigningIn;
-    codes: PassThrough | null;
+    codes: StartedSignIn["codes"];
+    cancel: AbortController;
     ended: Promise<SignInOutcome>;
   } | null = null;
 
@@ -112,35 +105,21 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
     progress: SigningIn,
     codes: PassThrough,
   ): Promise<Attempt> => {
-    let printed = "";
+    const printed = printedUrlWatcher(PRINTED_URL);
     const run = await runVendor(harness, method.args, context, {
       onStdout: (chunk) => {
-        printed += chunk;
-        const url = PRINTED_URL.exec(printed)?.[0];
-        if (progress.authUrl === null && url !== undefined && URL.canParse(url)) {
-          progress.authUrl = url;
-        }
+        printed.onStdout(chunk);
+        progress.authUrl = printed.authUrl();
       },
       signal,
       stdin: codes,
     });
-    switch (run.kind) {
-      case "exited": {
-        return run.code === 0
-          ? { kind: "finished" }
-          : { detail: exitDetail(harness, "signing in", run), kind: "failed" };
-      }
-      case "stopped": {
-        return { kind: "stopped" };
-      }
-      case "missing": {
-        return { detail: missingRuntime(harness), kind: "failed" };
-      }
-      case "failed": {
-        return { detail: run.detail, kind: "failed" };
-      }
-      // no default
+    if (succeeded(run)) {
+      return { kind: "finished" };
     }
+    return run.kind === "stopped"
+      ? { kind: "stopped" }
+      : { detail: failureOf(harness, "signing in", run, ceilingMs), kind: "failed" };
   };
 
   const runAgent = async (
@@ -170,6 +149,19 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
     }
   };
 
+  const start = (
+    harness: HarnessDefinition,
+    method: SignInMethod,
+    signal: AbortSignal,
+    progress: SigningIn,
+  ): StartedSignIn => {
+    if (method.kind === "agent") {
+      return { attempt: runAgent(harness, method, signal), codes: null };
+    }
+    const codes = new PassThrough();
+    return { attempt: runTerminal(harness, method, signal, progress, codes), codes };
+  };
+
   // a vendor that says it finished is asked again: its own answer is what a session will meet.
   const verified = async (id: HarnessId): Promise<SignInOutcome> => {
     vendor.invalidate(id);
@@ -194,14 +186,14 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
   const settle = async (
     id: HarnessId,
     attempt: Attempt,
-    cancel: AbortSignal,
+    cancelled: AbortSignal,
   ): Promise<SignInOutcome> => {
     switch (attempt.kind) {
       case "finished": {
         return await verified(id);
       }
       case "stopped": {
-        return cancel.aborted
+        return cancelled.aborted
           ? { outcome: "cancelled" }
           : {
               detail: `${HARNESSES[id].displayName}'s sign-in was not finished in time; start it again.`,
@@ -216,38 +208,40 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
   };
 
   return {
+    cancel: async (id) => {
+      const running = current;
+      if (running?.progress.id !== id) {
+        return;
+      }
+      running.cancel.abort();
+      await Promise.allSettled([running.ended]);
+    },
     dispose: async () => {
       disposed.abort();
       if (current !== null) {
         await Promise.allSettled([current.ended]);
       }
     },
-    invalidate: vendor.invalidate,
-    signIn: async (id, cancel) => {
+    signIn: async (id) => {
       if (current !== null) {
         throw new SignInInProgressError(HARNESSES[current.progress.id]);
       }
       const harness = HARNESSES[id];
       const method = harness.signIn;
-      const codes = new PassThrough();
-      const acceptsCode = method.kind === "terminal";
-      const progress: SigningIn = { acceptsCode, authUrl: null, id };
+      const progress: SigningIn = { acceptsCode: method.kind === "terminal", authUrl: null, id };
+      const cancel = new AbortController();
       // a stop the user asked for, or the server's own shutdown, is a cancel; the ceiling is not.
-      const cancelled = AbortSignal.any([cancel, disposed.signal]);
+      const cancelled = AbortSignal.any([cancel.signal, disposed.signal]);
       const signal = AbortSignal.any([cancelled, AbortSignal.timeout(ceilingMs)]);
-      const ended = (async (): Promise<SignInOutcome> => {
-        const attempt =
-          method.kind === "terminal"
-            ? await runTerminal(harness, method, signal, progress, codes)
-            : await runAgent(harness, method, signal);
-        return await settle(id, attempt, cancelled);
-      })();
-      current = { codes: acceptsCode ? codes : null, ended, progress };
+      const { attempt, codes } = start(harness, method, signal, progress);
+      const ended = (async (): Promise<SignInOutcome> =>
+        await settle(id, await attempt, cancelled))();
+      current = { cancel, codes, ended, progress };
       try {
         return await ended;
       } finally {
         current = null;
-        codes.destroy();
+        codes?.destroy();
       }
     },
     signOut: async (id) => {
@@ -256,38 +250,25 @@ export const createAgentAccounts = (args: CreateAgentAccountsArgs): AgentAccount
         signal: AbortSignal.timeout(SIGN_OUT_TIMEOUT_MS),
       });
       vendor.invalidate(id);
-      switch (run.kind) {
-        case "exited": {
-          return run.code === 0
-            ? { outcome: "signed-out" }
-            : { detail: exitDetail(harness, "signing out", run), outcome: "failed" };
-        }
-        case "stopped": {
-          return {
-            detail: `${harness.displayName} did not sign out within ${String(SIGN_OUT_TIMEOUT_MS / 1000)}s`,
+      return succeeded(run)
+        ? { outcome: "signed-out" }
+        : {
+            detail: failureOf(harness, "signing out", run, SIGN_OUT_TIMEOUT_MS),
             outcome: "failed",
           };
-        }
-        case "missing": {
-          return { detail: missingRuntime(harness), outcome: "failed" };
-        }
-        case "failed": {
-          return { detail: run.detail, outcome: "failed" };
-        }
-        // no default
-      }
     },
     signingIn: () => (current === null ? null : { ...current.progress }),
     status: vendor.status,
     submitCode: (id, code) => {
       const method = HARNESSES[id].signIn;
-      if (method.kind !== "terminal" || current?.progress.id !== id || current.codes === null) {
+      const codes = current?.progress.id === id ? current.codes : null;
+      if (method.kind !== "terminal" || codes === null) {
         return "not-waiting";
       }
       if (!method.acceptsCode(code)) {
         return "incomplete";
       }
-      current.codes.write(`${code.trim()}\n`);
+      codes.write(`${code.trim()}\n`);
       return "sent";
     },
   };

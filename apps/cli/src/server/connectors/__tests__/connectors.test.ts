@@ -6,7 +6,7 @@ import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { ConnectorTargetInput } from "@repo/api/local/connectors/connectors-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { bootTestApp } from "../../__tests__/boot-app";
+import { bootTestApp, instanceVendorEnv } from "../../__tests__/boot-app";
 import { AgentPrefsStore } from "../../agents/agent-prefs-store";
 import { runVendor } from "../../agents/vendor-process";
 import { pathContains } from "../../path-containment";
@@ -14,7 +14,8 @@ import { claudeConfigPath, createClaudeMcpConfig } from "../claude-mcp-config";
 import { codexConfigPath, createCodexMcpConfig } from "../codex-mcp-config";
 import { createConnectorsService, createVendorMcpConfigs } from "../connectors-service";
 import type { ConnectorsService, CreateConnectorsServiceArgs } from "../connectors-service";
-import type { McpSignInRun } from "../mcp-sign-ins";
+import { createMcpSignIns } from "../mcp-sign-ins";
+import type { McpSignInEnd, McpSignInRun } from "../mcp-sign-ins";
 import { VendorMcpError } from "../vendor-mcp-config";
 import { fakeMcpVendors, processAlive } from "./fake-mcp-vendor";
 import type { FakeMcpVendors, FakeVendorRun } from "./fake-mcp-vendor";
@@ -138,7 +139,7 @@ describe("claude's connectors, over a fake claude", () => {
   it("reads the file CLAUDE_CONFIG_DIR names: absent is empty, malformed is refused", async () => {
     const vendors = fakeMcpVendors();
     const claude = createClaudeMcpConfig({ cwd: vendors.dataDir, env: vendors.env });
-    expect(claude.configPath).toBe(vendors.claudeConfigFile);
+    expect(claudeConfigPath(vendors.env)).toBe(vendors.claudeConfigFile);
     expect(await claude.list()).toEqual([]);
 
     writeFileSync(
@@ -414,13 +415,48 @@ describe("the connectors service", () => {
     const service = serviceOver(vendors, "codex");
     await service.add({ name: "docs", target: URL_ROW });
     await service.signIn("docs");
+    // the login is logged once its process runs, which the answer does not wait for.
+    await vi.waitFor(() => runOf(vendors, "login"), SLOW_VENDOR);
     await service.signIn("docs");
-    expect(vendors.runs().filter((run) => run.args[1] === "login")).toHaveLength(1);
     vendors.release();
     await vi.waitFor(async () => {
       expect(await firstSignIn(service)).toEqual({ state: "idle" });
     }, SLOW_VENDOR);
+    expect(vendors.runs().filter((run) => run.args[1] === "login")).toHaveLength(1);
     await service.dispose();
+  });
+});
+
+// a run the test ends by hand, which counts its stops.
+const heldRun = () => {
+  const ended = Promise.withResolvers<McpSignInEnd>();
+  let stops = 0;
+  const run: McpSignInRun = {
+    authUrl: () => null,
+    ended: ended.promise,
+    stop: () => {
+      stops += 1;
+      ended.resolve({ kind: "stopped" });
+    },
+  };
+  return { run, stops: () => stops };
+};
+
+describe("the connector sign-in registry", () => {
+  it("stops a run another takes the place of, and answers for the newer one", async () => {
+    const signIns = createMcpSignIns();
+    const first = heldRun();
+    const second = heldRun();
+    signIns.adopt("codex", "docs", first.run);
+    signIns.adopt("codex", "docs", second.run);
+    expect(first.stops()).toBe(1);
+    expect(second.stops()).toBe(0);
+
+    await first.run.ended;
+    await Promise.resolve();
+    expect(signIns.state("codex", "docs")).toEqual({ state: "pending", url: null });
+    await signIns.dispose();
+    expect(second.stops()).toBe(1);
   });
 });
 
@@ -465,10 +501,17 @@ describe("the connector procedures", () => {
   it("run a booted suite's vendors over stores under its own temp dir, never the Mac's", async () => {
     const harness = await bootTestApp();
     const instanceDir = path.dirname(harness.dataDir);
+    const env = instanceVendorEnv(instanceDir);
     const hostFiles = [claudeConfigPath(process.env), codexConfigPath(process.env)];
-    for (const config of Object.values(harness.connectors)) {
-      expect(pathContains(instanceDir, config.configPath), config.configPath).toBe(true);
-      expect(hostFiles).not.toContain(config.configPath);
+    for (const file of [claudeConfigPath(env), codexConfigPath(env)]) {
+      expect(pathContains(instanceDir, file), file).toBe(true);
+      expect(hostFiles).not.toContain(file);
     }
+    writeFileSync(
+      claudeConfigPath(env),
+      JSON.stringify({ mcpServers: { probe: { command: "srv" } } }),
+    );
+    const listed = await harness.connectors.claude.list();
+    expect(listed.map((server) => server.name)).toEqual(["probe"]);
   });
 });

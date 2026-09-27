@@ -6,6 +6,8 @@
 
 import { spawn } from "node:child_process";
 import type { Readable } from "node:stream";
+import { stripVTControlCharacters } from "node:util";
+import { harnessHostEnv } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessDefinition, VendorExit } from "@repo/agent-runtime/acp/harness-registry";
 import { messageOf } from "../error-message";
 
@@ -41,13 +43,84 @@ const PTY_WRAPPER = "/usr/bin/script";
 const ptyArgv = (executable: string, args: readonly string[]): readonly string[] | null =>
   process.platform === "darwin" ? ["-q", "/dev/null", executable, ...args] : null;
 
-const vendorEnv = (harness: HarnessDefinition, env: NodeJS.ProcessEnv): Record<string, string> => {
-  const omitted = new Set(harness.envOmit);
-  return Object.fromEntries(
-    Object.entries(env).flatMap(([key, value]) =>
-      value === undefined || omitted.has(key) ? [] : [[key, value]],
-    ),
-  );
+const STDERR_TAIL_LINES = 5;
+
+export const missingRuntimeDetail = (harness: HarnessDefinition): string =>
+  `This copy of inteligir is missing its ${harness.displayName} runtime — reinstall it`;
+
+// a pty hands back the vendor's colours and carriage returns with its words.
+const plainText = (output: string): string => stripVTControlCharacters(output).replaceAll("\r", "");
+
+const lines = (text: string): string[] =>
+  plainText(text)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+
+// the vendor's own words: its stderr's last lines, else the last line it printed, which is where a
+// pty puts both.
+const exitDetail = (harness: HarnessDefinition, doing: string, exit: VendorExit): string => {
+  const stderr = lines(exit.stderr).slice(-STDERR_TAIL_LINES);
+  const said = stderr.length > 0 ? stderr : lines(exit.stdout).slice(-1);
+  return said.length === 0
+    ? `${harness.displayName} stopped ${doing} (exit ${String(exit.code)})`
+    : `${harness.displayName} could not finish ${doing}: ${said.join("\n")}`;
+};
+
+export const succeeded = (
+  run: VendorRun,
+): run is Extract<VendorRun, { kind: "exited" }> & { code: 0 } =>
+  run.kind === "exited" && run.code === 0;
+
+// what a run that did not do its work says of it; exit 0 is its caller's to read first. A stop is
+// read as the deadline the caller's signal carried, `timeoutMs`.
+export const failureOf = (
+  harness: HarnessDefinition,
+  doing: string,
+  run: VendorRun,
+  timeoutMs: number,
+): string => {
+  switch (run.kind) {
+    case "exited": {
+      return exitDetail(harness, doing, run);
+    }
+    case "stopped": {
+      return `${harness.displayName} did not finish ${doing} within ${String(timeoutMs / 1000)}s`;
+    }
+    case "missing": {
+      return missingRuntimeDetail(harness);
+    }
+    case "failed": {
+      return run.detail;
+    }
+    // no default
+  }
+};
+
+interface PrintedUrlWatcher {
+  onStdout: (chunk: string) => void;
+  authUrl: () => string | null;
+}
+
+// the address a vendor prints for a browser that did not open, taken only once a space or line
+// end closes it, so a chunk boundary never exposes half of one. Each caller names the schemes it
+// takes.
+export const printedUrlWatcher = (pattern: RegExp): PrintedUrlWatcher => {
+  let printed = "";
+  let authUrl: string | null = null;
+  return {
+    authUrl: () => authUrl,
+    onStdout: (chunk) => {
+      if (authUrl !== null) {
+        return;
+      }
+      printed += chunk;
+      const url = pattern.exec(plainText(printed))?.[0];
+      if (url !== undefined && URL.canParse(url)) {
+        authUrl = url;
+      }
+    },
+  };
 };
 
 const killGroup = (pid: number | undefined): void => {
@@ -84,7 +157,11 @@ export const runVendor = async (
   }
   // detached: the child leads a process group of its own, which a stop kills whole. under the pty
   // wrapper the vendor leads the pty's session instead, and the wrapper's death hangs it up.
-  const spawnOptions = { cwd: context.cwd, detached: true, env: vendorEnv(harness, context.env) };
+  const spawnOptions = {
+    cwd: context.cwd,
+    detached: true,
+    env: harnessHostEnv(harness, context.env),
+  };
   // the wrapper types its own stdin into the terminal. /dev/null, never a pipe: node's is a socket,
   // which script(1) refuses; its end of input is typed as one ^D, which the vendor reads past.
   const child =

@@ -5,7 +5,7 @@
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { messageOf } from "../error-message";
-import { runVendor } from "./vendor-process";
+import { missingRuntimeDetail, runVendor } from "./vendor-process";
 import type { VendorProcessContext } from "./vendor-process";
 
 // claude-agent-acp bounds its own `claude auth status` probe the same way.
@@ -51,10 +51,7 @@ export const createVendorAccounts = (args: CreateVendorAccountsArgs): VendorAcco
           };
         }
         case "missing": {
-          return {
-            detail: `This copy of inteligir is missing its ${harness.displayName} runtime`,
-            state: "unknown",
-          };
+          return { detail: missingRuntimeDetail(harness), state: "unknown" };
         }
         case "failed": {
           return { detail: run.detail, state: "unknown" };

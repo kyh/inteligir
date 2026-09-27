@@ -158,6 +158,11 @@ const boot = async (
   const clientDir = resolveUiDir();
 
   const composeArgs: ComposeRuntimeArgs = {
+    accounts: createAgentAccounts({
+      cwd: config.dataDir,
+      env,
+      spawnAdapter: children.spawnAdapter,
+    }),
     // injected: the composed graph is also compiled under the browser tsconfig, where
     // WebSocket's second argument is a protocol list, not node's `{ headers }`.
     cloudTransport: {
@@ -168,11 +173,6 @@ const boot = async (
       const cliBinDir = resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
-        accounts: createAgentAccounts({
-          cwd: driverConfig.dataDir,
-          env,
-          spawnAdapter: children.spawnAdapter,
-        }),
         config: driverConfig,
         db,
         debugLog: debugLog(driverConfig.debug, "acp"),

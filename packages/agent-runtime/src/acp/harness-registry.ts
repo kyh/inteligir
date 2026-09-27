@@ -333,6 +333,20 @@ export const requireHarness = (providerId: string): HarnessDefinition => {
   return HARNESSES[providerId];
 };
 
+// what the host's env hands anything this harness spawns, its adapter or its vendor binary: every
+// set value, less the harness's envOmit.
+export const harnessHostEnv = (
+  harness: HarnessDefinition,
+  env: NodeJS.ProcessEnv,
+): Record<string, string> => {
+  const omitted = new Set(harness.envOmit);
+  return Object.fromEntries(
+    Object.entries(env).flatMap(([key, value]) =>
+      value === undefined || omitted.has(key) ? [] : [[key, value]],
+    ),
+  );
+};
+
 // a vault holding the vendor's own configuration would configure the agent from synced content.
 export class VaultConfigRefusedError extends Error {
   constructor(harness: HarnessDefinition, entry: string) {

@@ -1,11 +1,19 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { HARNESS_IDS } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { ConnectorTargetInput } from "@repo/api/local/connectors/connectors-schema";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { pathContains } from "../../path-containment";
+import { claudeConfigPath } from "../claude-mcp-config";
+import { codexConfigPath } from "../codex-mcp-config";
 import { createVendorMcpConfigs } from "../connectors-service";
+
+const CONFIG_PATHS: Record<HarnessId, (env: NodeJS.ProcessEnv) => string> = {
+  claude: claudeConfigPath,
+  codex: codexConfigPath,
+};
 
 // nothing listens on port 1, so a vendor's look for a sign-in is refused at once and none starts.
 const DEAD_URL = "http://127.0.0.1:1/mcp";
@@ -43,8 +51,10 @@ describe("the bundled vendors' MCP config, over empty stores", () => {
     async (harness) => {
       const root = makeTempDir(`bundled-mcp-${harness}-`);
       const dataDir = makeTempDir(`bundled-mcp-${harness}-data-`);
-      const config = createVendorMcpConfigs({ cwd: dataDir, env: scratchEnv(root) })[harness];
-      expect(pathContains(root, config.configPath)).toBe(true);
+      const env = scratchEnv(root);
+      const config = createVendorMcpConfigs({ cwd: dataDir, env })[harness];
+      const configPath = CONFIG_PATHS[harness](env);
+      expect(pathContains(root, configPath)).toBe(true);
       expect(await config.list()).toEqual([]);
 
       expect(await config.add("dead", { kind: "http", url: DEAD_URL })).toBeNull();
@@ -55,7 +65,7 @@ describe("the bundled vendors' MCP config, over empty stores", () => {
         { name: "local", target: STDIO },
       ]);
       expect(listed.find((server) => server.name === "local")?.auth).toBe("not-needed");
-      expect(readFileSync(config.configPath, "utf-8")).toContain(DEAD_URL);
+      expect(readFileSync(configPath, "utf-8")).toContain(DEAD_URL);
 
       await config.remove("dead");
       await config.remove("local");

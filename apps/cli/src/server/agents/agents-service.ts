@@ -11,6 +11,7 @@ import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import { defaultHarnessId } from "./agent-driver";
 import type { AgentPrefsStore } from "./agent-prefs-store";
 import type { AgentAccounts } from "./agent-sign-in";
+import { missingRuntimeDetail } from "./vendor-process";
 
 // what is refused before any vendor runs: a harness no row names, one this copy of the app did not
 // ship, or a sign-in code no running sign-in of that harness is waiting for.
@@ -49,17 +50,9 @@ export interface CreateAgentsServiceArgs {
   env: NodeJS.ProcessEnv;
 }
 
-interface RunningSignIn {
-  id: HarnessId;
-  cancel: AbortController;
-  ended: Promise<unknown>;
-}
-
 // facts, not verdicts: each vendor's own answer about its sign-in, and the default is stored
 // whether or not that harness is ready, so Settings can show the gap rather than hide it.
 export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsService => {
-  const running = new Set<RunningSignIn>();
-
   const harnessStatus = async (id: HarnessId): Promise<HarnessStatus> => {
     const { displayName, vendorApp } = HARNESSES[id];
     if (HARNESSES[id].vendorExecutable(args.env) === null) {
@@ -83,10 +76,7 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
     const known = knownHarness(id);
     const harness = HARNESSES[known];
     if (harness.vendorExecutable(args.env) === null) {
-      throw new HarnessRefusedError(
-        "unavailable",
-        `This copy of inteligir is missing its ${harness.displayName} runtime — reinstall it`,
-      );
+      throw new HarnessRefusedError("unavailable", missingRuntimeDetail(harness));
     }
     return known;
   };
@@ -107,12 +97,7 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
 
   return {
     async cancelSignIn(id) {
-      const known = knownHarness(id);
-      const cancelled = [...running].filter((entry) => entry.id === known);
-      for (const entry of cancelled) {
-        entry.cancel.abort();
-      }
-      await Promise.allSettled(cancelled.map(async (entry) => await entry.ended));
+      await args.accounts.cancel(knownHarness(id));
       return await status();
     },
     async setDefault(id) {
@@ -122,19 +107,11 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
     },
     async signIn(id) {
       const known = bundledHarness(id);
-      const cancel = new AbortController();
-      const ended = args.accounts.signIn(known, cancel.signal);
-      const entry: RunningSignIn = { cancel, ended, id: known };
-      running.add(entry);
-      try {
-        const outcome = await ended;
-        if (outcome.outcome === "signed-in") {
-          await adoptDefault(known);
-        }
-        return { ...outcome, status: await status() };
-      } finally {
-        running.delete(entry);
+      const outcome = await args.accounts.signIn(known);
+      if (outcome.outcome === "signed-in") {
+        await adoptDefault(known);
       }
+      return { ...outcome, status: await status() };
     },
     async signOut(id) {
       const outcome = await args.accounts.signOut(bundledHarness(id));

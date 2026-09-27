@@ -65,16 +65,25 @@ export const fakeAgentAccounts = (
     ]),
   );
   const disposed = new AbortController();
-  let current: { progress: SigningIn; finish: (outcome: FakeSignInOutcome) => void } | null = null;
+  let current: {
+    progress: SigningIn;
+    finish: (outcome: FakeSignInOutcome) => void;
+    ended: Promise<FakeSignInOutcome>;
+  } | null = null;
   return {
+    cancel: async (id) => {
+      const running = current;
+      if (running?.progress.id !== id) {
+        return;
+      }
+      running.finish({ outcome: "cancelled" });
+      await Promise.allSettled([running.ended]);
+    },
     dispose: async () => {
       disposed.abort();
       await Promise.resolve();
     },
-    invalidate: () => {
-      /* empty */
-    },
-    signIn: async (id, cancel) => {
+    signIn: async (id) => {
       if (current !== null) {
         throw new SignInInProgressError(HARNESSES[current.progress.id]);
       }
@@ -82,11 +91,11 @@ export const fakeAgentAccounts = (
         return { detail: signIn.refusal, outcome: "failed" };
       }
       const ended = Promise.withResolvers<FakeSignInOutcome>();
-      const stopped = AbortSignal.any([cancel, disposed.signal]);
       const stop = (): void => {
         ended.resolve({ outcome: "cancelled" });
       };
       current = {
+        ended: ended.promise,
         finish: ended.resolve,
         progress: {
           acceptsCode: HARNESSES[id].signIn.kind === "terminal",
@@ -94,14 +103,14 @@ export const fakeAgentAccounts = (
           id,
         },
       };
-      if (stopped.aborted) {
+      if (disposed.signal.aborted) {
         stop();
       }
-      stopped.addEventListener("abort", stop, { once: true });
+      disposed.signal.addEventListener("abort", stop, { once: true });
       try {
         return await ended.promise;
       } finally {
-        stopped.removeEventListener("abort", stop);
+        disposed.signal.removeEventListener("abort", stop);
         current = null;
       }
     },
@@ -176,7 +185,7 @@ export interface BootedTestApp {
 
 // what a booted instance hands a vendor it runs: the host's env, but the vendor's stores (and the
 // home a store defaults under) are the instance's own. codex refuses a CODEX_HOME that does not exist.
-const instanceVendorEnv = (instanceDir: string): NodeJS.ProcessEnv => {
+export const instanceVendorEnv = (instanceDir: string): NodeJS.ProcessEnv => {
   const home = path.join(instanceDir, "vendor-home");
   const stores = {
     CLAUDE_CONFIG_DIR: path.join(home, "claude"),
@@ -242,6 +251,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     }
   });
   const composeArgs: ComposeRuntimeArgs = {
+    accounts: options.accounts ?? fakeAgentAccounts(),
     config,
     driver: (deps) => {
       const made = options.makeDriver?.({
@@ -251,7 +261,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
         vaultDir,
       });
       return {
-        accounts: options.accounts ?? fakeAgentAccounts(),
         createTurnDriver: made?.createTurnDriver ?? (() => unavailableTurnDriver),
         dispose:
           made?.dispose ??
