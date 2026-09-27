@@ -44,6 +44,17 @@ export const COMMENT_SOURCES = ["user", "agent", "external"] as const;
 export const commentSourceSchema = z.enum(COMMENT_SOURCES);
 export type CommentSource = z.infer<typeof commentSourceSchema>;
 
+const COMMENT_SOURCE_LABELS = {
+  agent: "Agent",
+  external: "External",
+  user: "You",
+} satisfies Record<CommentSource, string>;
+
+// every app writer signs its entries, so an unsigned one is an external or legacy writer's and
+// claims no author
+export const commentSourceLabel = (source: CommentSource | undefined): string =>
+  source === undefined ? "—" : COMMENT_SOURCE_LABELS[source];
+
 // Every key must be legal inside a body marker, so the marker grammar is built from this one
 // spelling of the alphabet rather than restating it.
 export const COMMENT_ID_PATTERN = "[A-Za-z0-9_-]+";
@@ -80,11 +91,18 @@ export type CommentEntry = z.infer<typeof commentEntrySchema>;
 
 // a zod parse emits declared fields in one order, so equal entries stringify equally; an unknown
 // field in another order reads as an edit, which only ever keeps an entry
-export const sameCommentEntry = (a: CommentEntry, b: CommentEntry): boolean =>
-  JSON.stringify(a) === JSON.stringify(b);
+export const sameCommentEntry = (
+  a: CommentEntry | undefined,
+  b: CommentEntry | undefined,
+): boolean =>
+  a === undefined || b === undefined ? a === b : JSON.stringify(a) === JSON.stringify(b);
 
 export const commentSidecarSchema = z.record(commentIdSchema, commentEntrySchema);
 export type CommentSidecar = z.infer<typeof commentSidecarSchema>;
+
+// a Map, not the record: `__proto__` is a legal comment id
+export const commentEntriesOf = (sidecar: CommentSidecar | null): Map<string, CommentEntry> =>
+  new Map(Object.entries(sidecar ?? {}));
 
 export type SidecarParse = { ok: true; sidecar: CommentSidecar } | { ok: false; error: string };
 

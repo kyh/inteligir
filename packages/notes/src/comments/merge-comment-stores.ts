@@ -1,14 +1,19 @@
 // Entry by entry, never as text: two devices each adding a comment both touch the store's closing
 // brace, so a line merge calls every pair of appends an overlap.
 
-import { parseSidecar, sameCommentEntry, serializeSidecar } from "./sidecar-schema";
+import {
+  commentEntriesOf,
+  parseSidecar,
+  sameCommentEntry,
+  serializeSidecar,
+} from "./sidecar-schema";
 import type { CommentEntry, CommentSidecar } from "./sidecar-schema";
 
 // `unreadable`: a side does not parse, and the caller keeps mine. Folding it to {} would read as
 // "every comment deleted" and erase the other side's threads.
 export type CommentStoreMerge =
   | { readonly kind: "merged"; readonly text: string }
-  | { readonly kind: "unreadable"; readonly side: "mine" | "theirs"; readonly error: string };
+  | { readonly kind: "unreadable" };
 
 export interface CommentStoreSides {
   // null: no common ancestor, so nothing reads as deleted
@@ -23,24 +28,19 @@ const mergeEntry = (
   theirs: CommentEntry | undefined,
 ): CommentEntry | undefined => {
   if (mine === undefined) {
-    return theirs === undefined || (base !== undefined && sameCommentEntry(base, theirs))
-      ? undefined
-      : theirs;
+    return sameCommentEntry(base, theirs) ? undefined : theirs;
   }
   if (theirs === undefined) {
-    return base !== undefined && sameCommentEntry(base, mine) ? undefined : mine;
+    return sameCommentEntry(base, mine) ? undefined : mine;
   }
-  if (base !== undefined && sameCommentEntry(base, mine)) {
+  if (sameCommentEntry(base, mine)) {
     return theirs;
   }
-  if (base !== undefined && sameCommentEntry(base, theirs)) {
+  if (sameCommentEntry(base, theirs)) {
     return mine;
   }
   return theirs.updatedAt > mine.updatedAt ? theirs : mine;
 };
-
-const entriesOf = (sidecar: CommentSidecar): Map<string, CommentEntry> =>
-  new Map(Object.entries(sidecar));
 
 const sameSidecar = (a: CommentSidecar, b: CommentSidecar): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -54,17 +54,14 @@ export const mergeCommentStores = ({
   theirs,
 }: CommentStoreSides): CommentStoreMerge => {
   const mineParse = parseSidecar(mine);
-  if (!mineParse.ok) {
-    return { error: mineParse.error, kind: "unreadable", side: "mine" };
-  }
   const theirsParse = parseSidecar(theirs);
-  if (!theirsParse.ok) {
-    return { error: theirsParse.error, kind: "unreadable", side: "theirs" };
+  if (!mineParse.ok || !theirsParse.ok) {
+    return { kind: "unreadable" };
   }
   const baseParse = base === null ? null : parseSidecar(base);
-  const baseEntries = entriesOf(baseParse?.ok === true ? baseParse.sidecar : {});
-  const mineEntries = entriesOf(mineParse.sidecar);
-  const theirsEntries = entriesOf(theirsParse.sidecar);
+  const baseEntries = commentEntriesOf(baseParse?.ok === true ? baseParse.sidecar : null);
+  const mineEntries = commentEntriesOf(mineParse.sidecar);
+  const theirsEntries = commentEntriesOf(theirsParse.sidecar);
   // mine's order, then theirs' new ids: insertion order is the store's thread order
   const ids = new Set([...mineEntries.keys(), ...theirsEntries.keys()]);
 
@@ -87,7 +84,6 @@ export const mergeCommentStores = ({
     }
   }
 
-  // fromEntries rather than assignment: `__proto__` is a legal comment id
   const ordered: [string, CommentEntry][] = [];
   for (const id of ids) {
     const entry = merged.get(id);
