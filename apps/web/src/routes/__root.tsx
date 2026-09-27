@@ -1,12 +1,20 @@
 import { useEffect } from "react";
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Outlet,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 
+import { varyHeaders } from "@/lib/markdown-route";
 import { siteConfig } from "@/lib/site-config";
+import { serializeJsonLd, siteGraph } from "@/lib/structured-data";
 import { THEME_FALLBACK, THEME_STORAGE_KEY, ThemeProvider } from "@/components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
@@ -43,27 +51,45 @@ const RootComponent = () => (
   </ThemeProvider>
 );
 
-const RootDocument = ({ children }: { children: React.ReactNode }) => (
-  // suppressHydrationWarning: the inline script sets the theme class before hydration
-  // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
-  <html lang="en" suppressHydrationWarning>
-    <head>
-      <script
-        // oxlint-disable-next-line react/no-danger -- the theme must be on <html> before paint, which only an inline script can do; the payload is a constant this module builds
-        dangerouslySetInnerHTML={{
-          __html: noFlashThemeScript(THEME_STORAGE_KEY, THEME_FALLBACK),
-        }}
-      />
-      <HeadContent />
-      <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-      <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
-    </head>
-    <body className="bg-background text-foreground font-sans antialiased">
-      {children}
-      <Scripts />
-    </body>
-  </html>
-);
+// the pathname alone, so a query string never splits one page into several canonical URLs
+const useCanonical = () => {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return `${siteConfig.url}${pathname === "/" ? "" : pathname.replace(/\/+$/u, "")}`;
+};
+
+const jsonLd = serializeJsonLd(siteGraph());
+
+const RootDocument = ({ children }: { children: React.ReactNode }) => {
+  const canonical = useCanonical();
+
+  return (
+    // suppressHydrationWarning: the inline script sets the theme class before hydration
+    // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          // oxlint-disable-next-line react/no-danger -- the theme must be on <html> before paint, which only an inline script can do; the payload is a constant this module builds
+          dangerouslySetInnerHTML={{
+            __html: noFlashThemeScript(THEME_STORAGE_KEY, THEME_FALLBACK),
+          }}
+        />
+        <HeadContent />
+        <link rel="canonical" href={canonical} />
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
+        <script
+          type="application/ld+json"
+          // oxlint-disable-next-line react/no-danger -- a crawler reads JSON-LD only as inline text; serializeJsonLd escapes `<` so nothing in it can close the tag
+          dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
+      </head>
+      <body className="bg-background text-foreground font-sans antialiased">
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+};
 
 export const Route = createRootRoute({
   head: () => ({
@@ -100,6 +126,8 @@ export const Route = createRootRoute({
     ],
   }),
   // shellComponent wraps errorComponent and notFoundComponent too; without it a 404 renders with no <html>, stylesheet or scripts
+  // site-wide, so a cache keyed on the URL alone never reuses one Accept's response for another
+  headers: varyHeaders,
   shellComponent: RootDocument,
   errorComponent: ErrorBoundary,
   notFoundComponent: NotFound,
