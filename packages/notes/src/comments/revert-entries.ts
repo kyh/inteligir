@@ -3,7 +3,7 @@
 // answered since stays whole while the writer's untouched ones go. Sidecars in, the store to
 // write out: the caller reads the three versions and lands it through its own compare-and-swap.
 
-import { sameCommentEntry } from "./sidecar-schema";
+import { commentEntriesOf, sameCommentEntry } from "./sidecar-schema";
 import type { CommentEntry, CommentSidecar } from "./sidecar-schema";
 
 export interface CommentEntriesRevertInput {
@@ -25,13 +25,6 @@ export type CommentEntriesRevert =
 
 type Entries = ReadonlyMap<string, CommentEntry>;
 
-// a Map, not the record: `__proto__` is a legal comment id
-const entriesOf = (sidecar: CommentSidecar | null): Entries =>
-  new Map(Object.entries(sidecar ?? {}));
-
-const sameSide = (a: CommentEntry | undefined, b: CommentEntry | undefined): boolean =>
-  a === undefined || b === undefined ? a === b : sameCommentEntry(a, b);
-
 interface Moves {
   // ids the change added, to go
   readonly removed: Set<string>;
@@ -51,10 +44,10 @@ const movesOf = (
     const was = before.get(id);
     const made = after.get(id);
     const now = current.get(id);
-    if (sameSide(was, made)) {
+    if (sameCommentEntry(was, made)) {
       continue;
     }
-    if (!sameSide(now, made)) {
+    if (!sameCommentEntry(now, made)) {
       // an entry the change added and someone deleted since is already where the undo takes it
       moves.kept ||= was !== undefined || now !== undefined;
     } else if (was !== undefined) {
@@ -119,8 +112,13 @@ const sidecarAfter = (current: Entries, moves: Moves): CommentSidecar | null => 
 // still as the change left it, and a deleted reply only under a parent that is there. Anything
 // else is left as it is now.
 export const revertCommentEntries = (input: CommentEntriesRevertInput): CommentEntriesRevert => {
-  const current = entriesOf(input.current);
-  const moves = movesOf(entriesOf(input.before), entriesOf(input.after), current, input.markerIds);
+  const current = commentEntriesOf(input.current);
+  const moves = movesOf(
+    commentEntriesOf(input.before),
+    commentEntriesOf(input.after),
+    current,
+    input.markerIds,
+  );
   while (dropStranded(current, moves)) {
     moves.kept = true;
   }

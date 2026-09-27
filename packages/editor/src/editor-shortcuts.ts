@@ -41,9 +41,15 @@ export interface EditorShortcut<Action extends string = EditorShortcutAction> {
   readonly label: string;
 }
 
+export const CODE_MARK_SHORTCUT: EditorShortcut<"toggle-code-mark"> = {
+  action: "toggle-code-mark",
+  hotkey: "mod+e",
+  label: "Inline code",
+};
+
 export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   { action: "focus-note-title", hotkey: "mod+t", label: "Edit the note title" },
-  { action: "toggle-code-mark", hotkey: "mod+e", label: "Inline code" },
+  CODE_MARK_SHORTCUT,
   { action: "toggle-todo-list", hotkey: "mod+shift+c", label: "To-do list" },
   { action: "toggle-numbered-list", hotkey: "mod+shift+l", label: "Numbered list" },
   { action: "toggle-bulleted-list", hotkey: "mod+l", label: "Bulleted list" },

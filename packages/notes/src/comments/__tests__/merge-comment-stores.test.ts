@@ -109,11 +109,11 @@ describe("mergeCommentStores", () => {
 
   it("refuses to merge a side it cannot read, rather than reading it as empty", () => {
     const readable = store({ c1 });
-    expect(mergeCommentStores({ base: readable, mine: readable, theirs: "{ not json" })).toEqual(
-      expect.objectContaining({ kind: "unreadable", side: "theirs" }),
-    );
-    expect(mergeCommentStores({ base: readable, mine: '{"c1": 3}', theirs: readable })).toEqual(
-      expect.objectContaining({ kind: "unreadable", side: "mine" }),
-    );
+    expect(mergeCommentStores({ base: readable, mine: readable, theirs: "{ not json" })).toEqual({
+      kind: "unreadable",
+    });
+    expect(mergeCommentStores({ base: readable, mine: '{"c1": 3}', theirs: readable })).toEqual({
+      kind: "unreadable",
+    });
   });
 });

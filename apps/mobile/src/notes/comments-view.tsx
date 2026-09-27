@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { commentSourceLabel } from "@repo/notes/comments/sidecar-schema";
 import type { CommentEntry } from "@repo/notes/comments/sidecar-schema";
 import type { CommentThread } from "@repo/notes/comments/comment-threads";
 import {
@@ -45,12 +46,8 @@ const styles = StyleSheet.create({
   thread: { borderRadius: 8, borderWidth: 1, gap: SPACE.xs, padding: SPACE.md },
 });
 
-const SOURCE_LABELS = { agent: "Agent", external: "External", user: "You" } as const;
-
-const entryMeta = (entry: CommentEntry): string => {
-  const who = SOURCE_LABELS[entry.source ?? "user"];
-  return `${who} · ${new Date(entry.createdAt * 1000).toLocaleDateString()}`;
-};
+const entryMeta = (entry: CommentEntry): string =>
+  `${commentSourceLabel(entry.source)} · ${new Date(entry.createdAt * 1000).toLocaleDateString()}`;
 
 // what the sheet asks of the note's comments; each answers once the change is on the phone
 export interface CommentEdits {
@@ -184,9 +181,6 @@ const CommentsSection = ({
   threads: readonly CommentThread[];
 }) => {
   const theme = useTheme();
-  if (threads.length === 0) {
-    return null;
-  }
   return (
     <View style={styles.section}>
       <Text style={[styles.heading, { color: theme.mutedForeground }]}>Comments</Text>

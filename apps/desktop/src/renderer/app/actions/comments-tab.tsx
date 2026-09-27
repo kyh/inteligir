@@ -3,7 +3,7 @@ import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import type { CommentEntryWire, CommentThreadWire } from "@repo/api/local/comments/comments-schema";
-import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
+import { commentSourceLabel, mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
@@ -20,16 +20,11 @@ import { relativeTimeLabel, useNow } from "../relative-time";
 import { useNoteComments } from "./comment-hooks";
 import { ReadRefusal } from "./read-refusal";
 
-const SOURCE_LABELS = { agent: "Agent", external: "External", user: "Me" } as const;
-
 // the nonce tells two clicks on the same range apart, so the second one scrolls again
 export interface CommentFocus {
   ids: readonly string[];
   nonce: number;
 }
-
-const sourceLabel = (entry: CommentEntryWire): string =>
-  entry.source === undefined ? "—" : SOURCE_LABELS[entry.source];
 
 // the sidecar stamps unix seconds; the shared label takes epoch ms.
 const entryTimeMs = (entry: CommentEntryWire): number => entry.createdAt * 1000;
@@ -45,7 +40,7 @@ const CommentRow = ({
 }) => (
   <div key={id} className="px-2 py-1">
     <div className="flex items-baseline gap-2 text-caption text-muted-foreground">
-      <span className="font-medium text-foreground/80">{sourceLabel(entry)}</span>
+      <span className="font-medium text-foreground/80">{commentSourceLabel(entry.source)}</span>
       <span>{relativeTimeLabel(entryTimeMs(entry), asOfMs)}</span>
     </div>
     <p className="text-subtitle whitespace-pre-wrap">{entry.text}</p>

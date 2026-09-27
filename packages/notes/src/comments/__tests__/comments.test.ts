@@ -10,8 +10,15 @@ import {
   threadIds,
 } from "../comment-threads";
 import { markerRootIds } from "../marker-ids";
-import { COMMENT_ID_RE, mintCommentId, parseSidecar, serializeSidecar } from "../sidecar-schema";
-import type { CommentSidecar } from "../sidecar-schema";
+import {
+  COMMENT_ID_RE,
+  COMMENT_SOURCES,
+  commentSourceLabel,
+  mintCommentId,
+  parseSidecar,
+  serializeSidecar,
+} from "../sidecar-schema";
+import type { CommentEntry, CommentSidecar } from "../sidecar-schema";
 
 const AT = 1_707_900_000;
 
@@ -67,6 +74,16 @@ describe("sidecar schema", () => {
       JSON.stringify({ "bad id": { createdAt: AT, text: "t", updatedAt: AT } }),
     );
     expect(parsed.ok).toBe(false);
+  });
+
+  it("names an entry's author the same on every surface, and claims none for an unsigned one", () => {
+    expect(COMMENT_SOURCES.map((source) => commentSourceLabel(source))).toEqual([
+      "You",
+      "Agent",
+      "External",
+    ]);
+    const unsigned: CommentEntry = { createdAt: AT, text: "t", updatedAt: AT };
+    expect(commentSourceLabel(unsigned.source)).toBe("—");
   });
 });
 
