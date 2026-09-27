@@ -18,6 +18,7 @@ import { createAuth, createSignUpAuth } from "../auth/auth";
 import { signUpBodyRefusal } from "../auth/invite";
 import { jsonNoStore, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
+import type { Db } from "../db/client";
 import { device } from "../db/schema";
 import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
@@ -31,7 +32,7 @@ import { severDeviceSockets } from "../sync/routes";
 const accountUserId = async (
   request: Request,
   env: Env,
-  db: ReturnType<typeof createDb>,
+  db: Db,
   origin: string,
 ): Promise<string | null> => {
   const authorization = request.headers.get("authorization");
@@ -53,7 +54,7 @@ const LOGIN_FAILURE_MESSAGE: Record<LoginFailure, string> = {
 // false when nothing matched: another account's device, or one already revoked
 const revokeDevice = async (
   env: Env,
-  db: ReturnType<typeof createDb>,
+  db: Db,
   target: { deviceId: string; userId: string },
 ): Promise<boolean> => {
   const revoked = await db

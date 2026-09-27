@@ -4,13 +4,12 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { commitChanges } from "../vault/commit-changes";
 import type { CommitChangesResult, VaultChange, VaultConflict } from "../vault/commit-changes";
-import { blobObject } from "../vault/git-objects";
 import { vaultRegistry, vaultRepoName } from "../vault/git-remote";
 import { pushVaultPack } from "../vault/receive-pack";
 import type { VaultPackPush } from "../vault/receive-pack";
 import { encodeGitPath } from "../vault/tree-walk";
 import { loginDevice, signUpUser, userIdOf } from "./cloud-helpers";
-import { pushVaultFiles, ZERO_OID } from "./git-pack";
+import { cellOf, oidOf, pushVaultFiles, textAt, ZERO_OID } from "./git-pack";
 import type { PushFile } from "./git-pack";
 
 const encoder = new TextEncoder();
@@ -18,11 +17,6 @@ const decoder = new TextDecoder();
 
 const AUTHORED_AT = 1_750_000_000_000;
 const NOW = 1_750_000_060_000;
-
-const oidOf = async (text: string): Promise<string> => {
-  const blob = await blobObject(encoder.encode(text));
-  return blob.oid;
-};
 
 const put = (path: string, base: string | null, text: string): VaultChange => ({
   base,
@@ -54,8 +48,6 @@ const openVault = async (files: readonly PushFile[]): Promise<Vault> => {
   const userId = await userIdOf(bearer);
   return { credential, deviceId, initial: pushed.commit, repo: vaultRepoName(userId), userId };
 };
-
-const cellOf = (vault: Vault) => env.REPO.getByName(vault.repo);
 
 interface CommitOptions {
   readonly deviceName?: string;
@@ -127,11 +119,6 @@ const headOf = async (vault: Vault): Promise<string> => {
 };
 
 const commitAt = async (vault: Vault, oid: string) => await cellOf(vault).readCommit(oid);
-
-const textAt = async (vault: Vault, path: string): Promise<string | null> => {
-  const blob = await cellOf(vault).readBlob(undefined, encodeGitPath(path));
-  return blob === null ? null : decoder.decode(blob.data);
-};
 
 const listing = async (vault: Vault, folder = "") => {
   const tree = await cellOf(vault).listTree(undefined, encodeGitPath(folder));

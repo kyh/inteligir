@@ -1,5 +1,5 @@
 import { inArray, sql } from "drizzle-orm";
-import type { createDb } from "./db/client";
+import type { Db } from "./db/client";
 import { rateLimit } from "./db/schema";
 
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
@@ -21,7 +21,7 @@ export const AUTH_RATE_WINDOW_SECONDS = 60;
 // all pass, so the count is read from the write itself
 const allowInWindow = async (
   env: Env,
-  db: ReturnType<typeof createDb>,
+  db: Db,
   key: string,
   window: RateWindow,
 ): Promise<boolean> => {
@@ -60,10 +60,7 @@ export const deviceRateKey = (family: DeviceRateFamily, deviceId: string): strin
 
 // Better Auth's prune reaches a row only after its window lapsed, and only when one of Better
 // Auth's own windows rolls over; a revoked device's budget names nobody, so it goes at once
-export const forgetDeviceBudgets = async (
-  db: ReturnType<typeof createDb>,
-  deviceIds: readonly string[],
-): Promise<void> => {
+export const forgetDeviceBudgets = async (db: Db, deviceIds: readonly string[]): Promise<void> => {
   const keys = deviceIds.flatMap((deviceId) =>
     Object.values(DEVICE_RATE_KEY_PREFIXES).map((prefix) => `${prefix}${deviceId}`),
   );
@@ -112,7 +109,7 @@ export const RATE_WINDOWS = {
 
 export const spendCallerBudget = async (
   env: Env,
-  db: ReturnType<typeof createDb>,
+  db: Db,
   family: CallerRateFamily,
   request: Request,
 ): Promise<boolean> =>
@@ -120,7 +117,7 @@ export const spendCallerBudget = async (
 
 export const spendDeviceBudget = async (
   env: Env,
-  db: ReturnType<typeof createDb>,
+  db: Db,
   family: DeviceRateFamily,
   deviceId: string,
 ): Promise<boolean> =>

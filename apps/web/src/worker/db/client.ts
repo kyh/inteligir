@@ -7,3 +7,5 @@ import * as schema from "./schema";
 const relations = defineRelations(schema);
 
 export const createDb = (d1: D1Database) => drizzle(d1, { relations });
+
+export type Db = ReturnType<typeof createDb>;

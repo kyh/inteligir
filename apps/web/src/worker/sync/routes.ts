@@ -32,8 +32,8 @@ import { verifyDeviceCredential } from "../device/device-auth";
 import type { VerifiedDevice } from "../device/device-auth";
 import { SOCKET_IDENTITY_HEADERS } from "./thread-sync-do";
 import type {
-  EventBatch,
   EventPage,
+  StoredEvent,
   SyncRefusal,
   SyncResult,
   ThreadSyncDO,
@@ -60,14 +60,13 @@ const answer = <T>(result: SyncResult<T>): Response =>
 
 // the log compares a replayed body byte for byte, so each is serialized once, here, and the
 // object stores and compares that text. a stale install's `threads` goes no further than the parse.
-const storedBatch = (request: PushRequest): EventBatch => ({
-  events: request.events.map(({ createdAt, deviceSeq, event, threadId }) => ({
+const storedEvents = (request: PushRequest): StoredEvent[] =>
+  request.events.map(({ createdAt, deviceSeq, event, threadId }) => ({
     createdAt,
     deviceSeq,
     event: JSON.stringify(event),
     threadId,
-  })),
-});
+  }));
 
 // a parse failure is storage corruption; surface the raw string rather than 500 every pull forever
 const storedEventSchema = z.json();
@@ -111,13 +110,28 @@ const openSocket = async ({ device, request, stub, url }: SyncCall): Promise<Res
   return await stub.fetch(new Request("https://thread-sync/ws", { headers }));
 };
 
+const withBody =
+  <S extends z.ZodType>(
+    schema: S,
+    usage: string,
+    run: (call: SyncCall, body: z.infer<S>) => Promise<Response>,
+    // an empty body is a request at its defaults, so a claim may send nothing for its limit
+    { emptyIsDefault = false } = {},
+  ) =>
+  async (call: SyncCall): Promise<Response> => {
+    const body = schema.safeParse(
+      await call.request.json().catch(() => (emptyIsDefault ? {} : null)),
+    );
+    return body.success ? await run(call, body.data) : refuse("bad-request", usage);
+  };
+
 const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
   [
     `POST ${SYNC_API_PATHS.push}`,
     async ({ device, request, stub }) => {
       const body = pushRequestSchema.safeParse(await request.json().catch(() => null));
       return body.success
-        ? answer(await stub.push(device.deviceId, storedBatch(body.data)))
+        ? answer(await stub.push(device.deviceId, storedEvents(body.data)))
         : refuse("bad-request", "Malformed push batch.");
     },
   ],
@@ -134,98 +148,73 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
   ],
   [
     `POST ${CAPTURE_API_PATHS.capture}`,
-    async ({ request, stub }) => {
-      const body = captureRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.capture(body.data))
-        : refuse("bad-request", "Send { text, idempotencyKey }.");
-    },
+    withBody(captureRequestSchema, "Send { text, idempotencyKey }.", async ({ stub }, body) =>
+      answer(await stub.capture(body)),
+    ),
   ],
   [
     `POST ${CAPTURE_API_PATHS.claim}`,
-    async ({ request, stub }) => {
-      // an empty body is a claim at the default limit
-      const body = claimCapturesRequestSchema.safeParse(await request.json().catch(() => ({})));
-      return body.success
-        ? answer(await stub.claimCaptures(body.data))
-        : refuse("bad-request", "Send { limit? }.");
-    },
+    withBody(
+      claimCapturesRequestSchema,
+      "Send { limit? }.",
+      async ({ stub }, body) => answer(await stub.claimCaptures(body)),
+      { emptyIsDefault: true },
+    ),
   ],
   [
     `POST ${CAPTURE_API_PATHS.ack}`,
-    async ({ request, stub }) => {
-      const body = ackCapturesRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.ackCaptures(body.data))
-        : refuse("bad-request", "Send { claimToken, ids }.");
-    },
+    withBody(ackCapturesRequestSchema, "Send { claimToken, ids }.", async ({ stub }, body) =>
+      answer(await stub.ackCaptures(body)),
+    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.dispatch}`,
-    async ({ device, request, stub }) => {
-      const body = createDispatchRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.createDispatch(device.deviceId, body.data))
-        : refuse(
-            "bad-request",
-            'Send { kind: "turn", id, threadId, text } or { kind: "answer", id, approvalId, decision }.',
-          );
-    },
+    withBody(
+      createDispatchRequestSchema,
+      'Send { kind: "turn", id, threadId, text } or { kind: "answer", id, approvalId, decision }.',
+      async ({ device, stub }, body) => answer(await stub.createDispatch(device.deviceId, body)),
+    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.claim}`,
-    async ({ device, request, stub }) => {
-      // an empty body is a claim at the default limit
-      const body = claimDispatchesRequestSchema.safeParse(await request.json().catch(() => ({})));
-      return body.success
-        ? answer(await stub.claimDispatches(device.deviceId, body.data))
-        : refuse("bad-request", "Send { limit? }.");
-    },
+    withBody(
+      claimDispatchesRequestSchema,
+      "Send { limit? }.",
+      async ({ device, stub }, body) => answer(await stub.claimDispatches(device.deviceId, body)),
+      { emptyIsDefault: true },
+    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.ack}`,
-    async ({ request, stub }) => {
-      const body = ackDispatchesRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.ackDispatches(body.data))
-        : refuse("bad-request", "Send { claimToken, results }.");
-    },
+    withBody(ackDispatchesRequestSchema, "Send { claimToken, results }.", async ({ stub }, body) =>
+      answer(await stub.ackDispatches(body)),
+    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.status}`,
-    async ({ request, stub }) => {
-      const body = dispatchStatusRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.dispatchStatus(body.data))
-        : refuse("bad-request", "Send { ids }.");
-    },
+    withBody(dispatchStatusRequestSchema, "Send { ids }.", async ({ stub }, body) =>
+      answer(await stub.dispatchStatus(body)),
+    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.cancel}`,
-    async ({ request, stub }) => {
-      const body = cancelDispatchRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.cancelDispatch(body.data))
-        : refuse("bad-request", "Send { id }.");
-    },
+    withBody(cancelDispatchRequestSchema, "Send { id }.", async ({ stub }, body) =>
+      answer(await stub.cancelDispatch(body)),
+    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.approval}`,
-    async ({ device, request, stub }) => {
-      const body = openApprovalRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.openApproval(device.deviceId, body.data))
-        : refuse("bad-request", "Send { id, threadId, turnId, payload }.");
-    },
+    withBody(
+      openApprovalRequestSchema,
+      "Send { id, threadId, turnId, payload }.",
+      async ({ device, stub }, body) => answer(await stub.openApproval(device.deviceId, body)),
+    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.approvalClose}`,
-    async ({ device, request, stub }) => {
-      const body = closeApprovalRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.closeApproval(device.deviceId, body.data))
-        : refuse("bad-request", "Send { id }.");
-    },
+    withBody(closeApprovalRequestSchema, "Send { id }.", async ({ device, stub }, body) =>
+      answer(await stub.closeApproval(device.deviceId, body)),
+    ),
   ],
   [`GET ${DISPATCH_API_PATHS.approvals}`, async ({ stub }) => answer(await stub.listApprovals())],
   [`GET ${SYNC_WS_PATH}`, openSocket],

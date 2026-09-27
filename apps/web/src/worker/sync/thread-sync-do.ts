@@ -76,15 +76,11 @@ export type SyncResult<T> = { readonly ok: true; readonly value: T } | SyncRefus
 
 // an event body crosses as the JSON text the log stores and compares, never as a parsed tree:
 // the Worker owns the wire's shape, and a tree would be cloned across only to be stringified
-interface StoredEvent {
+export interface StoredEvent {
   readonly createdAt: number;
   readonly deviceSeq: number;
   readonly event: string;
   readonly threadId: string;
-}
-
-export interface EventBatch {
-  readonly events: readonly StoredEvent[];
 }
 
 interface StoredEventRow extends StoredEvent {
@@ -230,12 +226,11 @@ export class ThreadSyncDO extends DurableObject<Env> {
     }
   }
 
-  push(deviceId: string, batch: EventBatch): SyncResult<PushResponse> {
+  push(deviceId: string, events: readonly StoredEvent[]): SyncResult<PushResponse> {
     const gone = this.tombstone();
     if (gone !== null) {
       return gone;
     }
-    const { events } = batch;
     // judged before anything is stored: a batch that disagrees with itself has no prefix worth keeping
     for (const [index, event] of events.entries()) {
       const previous = index === 0 ? undefined : events[index - 1];

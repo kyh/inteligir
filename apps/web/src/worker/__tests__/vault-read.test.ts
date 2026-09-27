@@ -8,7 +8,6 @@ import {
   vaultFilesResponseSchema,
   vaultTreeResponseSchema,
 } from "@repo/api/cloud/vault/vault-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -20,6 +19,7 @@ import {
   ORIGIN,
   loginDevice,
   postVaultRead,
+  refusalCodeOf,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
@@ -28,9 +28,6 @@ import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
-
-const errorCode = async (response: Response): Promise<string> =>
-  emitted(cloudErrorSchema, await response.text()).error.code;
 
 const readTree = async (credential: string, query: VaultReadBody): Promise<Response> =>
   await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), query);
@@ -94,7 +91,7 @@ describe("vault read rows", () => {
   it("refuses the wire without a credential", async () => {
     const tree = await postVaultRead(VAULT_API_PATHS.tree, {}, {});
     expect(tree.status).toBe(401);
-    expect(await errorCode(tree)).toBe("unauthorized");
+    expect(await refusalCodeOf(tree)).toBe("unauthorized");
   });
 
   it("answers not-found for an account with no hosted vault — without creating one", async () => {
@@ -102,7 +99,7 @@ describe("vault read rows", () => {
     const { credential } = await loginDevice(bearer, "Laptop");
     const tree = await readTree(credential, {});
     expect(tree.status).toBe(404);
-    expect(await errorCode(tree)).toBe("not-found");
+    expect(await refusalCodeOf(tree)).toBe("not-found");
   });
 
   it("lists the pushed tree flat, and pages it by path cursor at one commit", async () => {
@@ -252,7 +249,7 @@ describe("vault read rows", () => {
     ]);
     const response = await readFile(credential, { path: "gone.md" });
     expect(response.status).toBe(404);
-    expect(await errorCode(response)).toBe("not-found");
+    expect(await refusalCodeOf(response)).toBe("not-found");
   });
 
   it("keeps the wire text-only: binary refuses, and so does the byte ceiling", async () => {
@@ -265,11 +262,11 @@ describe("vault read rows", () => {
 
     const binary = await readFile(credential, { path: "image.png" });
     expect(binary.status).toBe(400);
-    expect(await errorCode(binary)).toBe("bad-request");
+    expect(await refusalCodeOf(binary)).toBe("bad-request");
 
     const oversize = await readFile(credential, { path: "huge.md" });
     expect(oversize.status).toBe(413);
-    expect(await errorCode(oversize)).toBe("file-too-large");
+    expect(await refusalCodeOf(oversize)).toBe("file-too-large");
   });
 
   it("keeps two users' vaults apart on the read wire too", async () => {
@@ -295,7 +292,7 @@ describe("vault read rows", () => {
     ]) {
       const response = await readFile(credential, query);
       expect(response.status, JSON.stringify(query)).toBe(400);
-      expect(await errorCode(response)).toBe("bad-request");
+      expect(await refusalCodeOf(response)).toBe("bad-request");
     }
     const notJson = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.file}`, {
       body: "path=a.md",
@@ -303,7 +300,7 @@ describe("vault read rows", () => {
       method: "POST",
     });
     expect(notJson.status).toBe(400);
-    expect(await errorCode(notJson)).toBe("bad-request");
+    expect(await refusalCodeOf(notJson)).toBe("bad-request");
   });
 });
 
@@ -389,11 +386,11 @@ describe("the vault batch route", () => {
     ]) {
       const response = await postFiles(deviceHeaders(credential), body);
       expect(response.status, JSON.stringify(body).slice(0, 80)).toBe(400);
-      expect(await errorCode(response)).toBe("bad-request");
+      expect(await refusalCodeOf(response)).toBe("bad-request");
     }
     const get = await SELF.fetch(`${FILES}?ref=${commit}`, { headers: deviceHeaders(credential) });
     expect(get.status).toBe(400);
-    expect(await errorCode(get)).toBe("bad-request");
+    expect(await refusalCodeOf(get)).toBe("bad-request");
   });
 
   it("answers not-found for a revision the vault does not hold, rather than every path missing", async () => {
@@ -405,13 +402,13 @@ describe("the vault batch route", () => {
       ref: "b".repeat(40),
     });
     expect(response.status).toBe(404);
-    expect(await errorCode(response)).toBe("not-found");
+    expect(await refusalCodeOf(response)).toBe("not-found");
   });
 
   it("refuses the wire without a credential", async () => {
     const response = await postFiles({}, { paths: ["a.md"], ref: "c".repeat(40) });
     expect(response.status).toBe(401);
-    expect(await errorCode(response)).toBe("unauthorized");
+    expect(await refusalCodeOf(response)).toBe("unauthorized");
   });
 
   it("keeps two users' vaults apart on the batch wire too", async () => {
@@ -451,7 +448,7 @@ describe("the vault asset route", () => {
       { path: "a.png", ref: "c".repeat(40) },
     );
     expect(response.status).toBe(401);
-    expect(await errorCode(response)).toBe("unauthorized");
+    expect(await refusalCodeOf(response)).toBe("unauthorized");
   });
 
   it("requires the pinning ref — an unpinned read names no immutable bytes", async () => {
@@ -460,7 +457,7 @@ describe("the vault asset route", () => {
     ]);
     const response = await readAsset(credential, { path: "a.png" });
     expect(response.status).toBe(400);
-    expect(await errorCode(response)).toBe("bad-request");
+    expect(await refusalCodeOf(response)).toBe("bad-request");
   });
 
   it("refuses an extension outside the allowlist — never a fallback type", async () => {
@@ -470,7 +467,7 @@ describe("the vault asset route", () => {
     for (const path of ["notes.md", "script.html", "no-extension"]) {
       const response = await readAsset(credential, { path, ref: commit });
       expect(response.status).toBe(400);
-      expect(await errorCode(response)).toBe("bad-request");
+      expect(await refusalCodeOf(response)).toBe("bad-request");
     }
   });
 
@@ -480,7 +477,7 @@ describe("the vault asset route", () => {
     ]);
     const response = await readAsset(credential, { path: "gone.png", ref: commit });
     expect(response.status).toBe(404);
-    expect(await errorCode(response)).toBe("not-found");
+    expect(await refusalCodeOf(response)).toBe("not-found");
   });
 
   it("refuses bytes over the asset ceiling", async () => {
@@ -490,7 +487,7 @@ describe("the vault asset route", () => {
     ]);
     const response = await readAsset(credential, { path: "huge.png", ref: commit });
     expect(response.status).toBe(413);
-    expect(await errorCode(response)).toBe("file-too-large");
+    expect(await refusalCodeOf(response)).toBe("file-too-large");
   });
 
   it("keeps two users' vaults apart on the asset wire too", async () => {
@@ -550,16 +547,16 @@ describe("the GET form a stale install still sends", () => {
   it("refuses what the body form refuses: no credential, no vault, a query it cannot read", async () => {
     const anonymous = await SELF.fetch(`${TREE}?limit=1`);
     expect(anonymous.status).toBe(401);
-    expect(await errorCode(anonymous)).toBe("unauthorized");
+    expect(await refusalCodeOf(anonymous)).toBe("unauthorized");
 
     const { bearer } = await signUpUser("vault-read-stale-none@example.test");
     const { credential } = await loginDevice(bearer, "Phone");
     const noVault = await getRead(VAULT_API_PATHS.tree, credential, {});
     expect(noVault.status).toBe(404);
-    expect(await errorCode(noVault)).toBe("not-found");
+    expect(await refusalCodeOf(noVault)).toBe("not-found");
 
     const unpinned = await getRead(VAULT_API_PATHS.asset, credential, { path: "a.png" });
     expect(unpinned.status).toBe(400);
-    expect(await errorCode(unpinned)).toBe("bad-request");
+    expect(await refusalCodeOf(unpinned)).toBe("bad-request");
   });
 });

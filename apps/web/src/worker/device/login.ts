@@ -4,14 +4,13 @@ import { hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
 import { APIError } from "better-auth/api";
 import { eq } from "drizzle-orm";
 import type { createAuth } from "../auth/auth";
-import type { createDb } from "../db/client";
+import type { Db } from "../db/client";
 import { device, session } from "../db/schema";
 import { forgetDeviceBudgets } from "../rate-limit";
 
 // A device joins an account the way Obsidian Sync does: the account's own email and password,
 // verified by Better Auth, answered with a device credential minted here.
 
-type Db = ReturnType<typeof createDb>;
 type Auth = ReturnType<typeof createAuth>;
 
 // enforced inside the insert as well, so the cap is a property of the table rather than of a check someone raced

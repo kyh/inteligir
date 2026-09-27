@@ -1,6 +1,5 @@
 import { base64FromBytes } from "@repo/api/cloud/bytes";
 import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import {
   VAULT_COMMIT_MAX_BYTES,
   vaultCommitResponseSchema,
@@ -15,21 +14,20 @@ import {
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { blobObject } from "../vault/git-objects";
 import { vaultRegistry, vaultRepoName } from "../vault/git-remote";
 import { vaultStorageCap } from "../vault/receive-pack";
-import { encodeGitPath } from "../vault/tree-walk";
 import {
   deviceHeaders,
   emitted,
   loginDevice,
   ORIGIN,
   postVaultRead,
+  refusalCodeOf,
   sessionHeaders,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-import { pushVaultFiles, randomBytes, ZERO_OID } from "./git-pack";
+import { cellOf, oidOf, pushVaultFiles, randomBytes, textAt, ZERO_OID } from "./git-pack";
 import type { PushFile } from "./git-pack";
 
 const COMMIT = `${ORIGIN}${VAULT_API_PATHS.commit}`;
@@ -38,11 +36,6 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-const oidOf = async (text: string): Promise<string> => {
-  const blob = await blobObject(encoder.encode(text));
-  return blob.oid;
-};
 
 type Change = VaultCommitRequest["changes"][number];
 
@@ -78,9 +71,6 @@ const committed = async (response: Response) => {
   return emitted(vaultCommitResponseSchema, await response.text());
 };
 
-const errorCode = async (response: Response): Promise<string> =>
-  emitted(cloudErrorSchema, await response.text()).error.code;
-
 interface Vault {
   readonly phone: string;
   readonly laptop: string;
@@ -107,8 +97,6 @@ const openVault = async (files: readonly PushFile[]): Promise<Vault> => {
   };
 };
 
-const cellOf = (vault: Vault) => env.REPO.getByName(vault.repo);
-
 const headOf = async (vault: Vault): Promise<string | undefined> => {
   const head = await cellOf(vault).readCommit();
   return head?.oid;
@@ -117,11 +105,6 @@ const headOf = async (vault: Vault): Promise<string | undefined> => {
 const parentsOf = async (vault: Vault, oid: string): Promise<string[] | undefined> => {
   const commit = await cellOf(vault).readCommit(oid);
   return commit?.parents;
-};
-
-const textAt = async (vault: Vault, path: string): Promise<string | null> => {
-  const blob = await cellOf(vault).readBlob(undefined, encodeGitPath(path));
-  return blob === null ? null : decoder.decode(blob.data);
 };
 
 const readFile = async (credential: string, path: string) => {
@@ -338,7 +321,7 @@ describe("a phone's change set against the hosted vault", () => {
     for (const [label, send, status, code] of cases) {
       const response = await send();
       expect(response.status, label).toBe(status);
-      expect(await errorCode(response), label).toBe(code);
+      expect(await refusalCodeOf(response), label).toBe(code);
     }
     expect(await headOf(vault)).toBe(vault.initial);
   });
@@ -359,7 +342,7 @@ describe("a phone's change set against the hosted vault", () => {
     ]);
 
     expect(response.status).toBe(507);
-    expect(await errorCode(response)).toBe("vault-full");
+    expect(await refusalCodeOf(response)).toBe("vault-full");
     expect(await headOf(vault)).toBe(vault.initial);
   });
 
@@ -370,7 +353,7 @@ describe("a phone's change set against the hosted vault", () => {
     const response = await sendChanges(phone.credential, [put("a.md", null, "# a\n")]);
 
     expect(response.status).toBe(404);
-    expect(await errorCode(response)).toBe("not-found");
+    expect(await refusalCodeOf(response)).toBe("not-found");
     expect(await vaultRegistry(env).get(vaultRepoName(await userIdOf(bearer)))).toBeNull();
   });
 
@@ -387,6 +370,6 @@ describe("a phone's change set against the hosted vault", () => {
     const response = await sendChanges(phone.credential, [put("a.md", null, "# a\n")]);
 
     expect(response.status).toBe(401);
-    expect(await errorCode(response)).toBe("unauthorized");
+    expect(await refusalCodeOf(response)).toBe("unauthorized");
   });
 });

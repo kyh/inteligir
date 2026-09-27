@@ -10,13 +10,12 @@ import { eq } from "drizzle-orm";
 import { createAuth } from "../auth/auth";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
+import type { Db } from "../db/client";
 import { session, user } from "../db/schema";
 import { spendDeviceBudget } from "../rate-limit";
 import { verifyDeviceCredential } from "./device-auth";
 import type { VerifiedDevice } from "./device-auth";
 import { signInWithPassword } from "./login";
-
-type Db = ReturnType<typeof createDb>;
 
 // a live credential with no user row is the deletion race's in-flight sliver; answer what the tombstone would
 const refuseDeleted = (): Response => refuse("account-deleted", "This account was deleted.");
