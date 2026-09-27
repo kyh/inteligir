@@ -29,8 +29,9 @@ Same server, same workspace, in a browser tab instead of a window. The vault is
 created at `~/Inteligir` the first time it serves; the database and settings live in
 `~/.inteligir`. `--port`, `--data-dir` and `--vault` override that; `^C` stops
 it cleanly (the pending vault commit is flushed and the database closed before
-it exits). Every other verb of that same binary is a client against a running
-server — see [`apps/cli`](./apps/cli/README.md).
+it exits). Every other verb of that same binary but `vault open`, which picks
+the vault the next server opens, is a client against a running server — see
+[`apps/cli`](./apps/cli/README.md).
 
 The agents ship inside the app: sign in with Claude or ChatGPT in
 Settings › Agent; a Mac already signed in to Claude Code or Codex stays signed

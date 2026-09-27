@@ -42,10 +42,10 @@ The premises every change builds from, each with its reason:
 
 **TWO PROGRAMS.** `apps/desktop` is the shipped product — the window, and the
 SPA inside it — and the user installs it as the signed dmg. `apps/cli` is the
-`inteligir` binary: `serve` IS that local server, and every other verb is a
-client of a running one. The CLI is the agent's door and the developer's;
-nothing the user does needs a terminal. `apps/mobile` is the iPhone app, the
-same editor over the hosted vault.
+`inteligir` binary: `serve` IS that local server, and every other verb but
+`vault open` is a client of a running one. The CLI is the agent's door and
+the developer's; nothing the user does needs a terminal. `apps/mobile` is the
+iPhone app, the same editor over the hosted vault.
 
 **The architecture's decision record is GitHub issues
 [#542](https://github.com/kyh/inteligir/issues/542) and
@@ -1165,29 +1165,31 @@ to the END of its group.
   Lifecycle CAS predicates include the turn identity so a late completion for
   turn A cannot settle turn B (`apps/cli/src/server/threads/service.ts`).
 
-- **AN AGENT COMMIT STAGES THE TURN'S OWN WRITE SET, AND A TURN IS FOUND BY ITS
-  TRAILERS, NEVER BY ITS SHA.** The set is the fileChange events plus the vault
-  writes the agent makes through `inteligir` itself, under a counted commit
-  hold that defers the vault debounce and blocks a sync, because committing the
-  whole dirty tree attributes a concurrent turn's writes to whoever settles
-  first (`apps/cli/src/server/agents/agent-commits.ts`). Under
-  `INTELIGIR_THREAD_ID` the CLI names its thread on every call
+- **AN AGENT COMMIT STAGES THE TURN'S OWN WRITE SET, AND A TURN IS FOUND BY
+  ITS TRAILERS, NEVER BY ITS SHA.** The set is the fileChange events of edits
+  that landed (a failed or declined edit stays out, so Undo never takes the
+  user's typing), plus the vault writes the agent makes through `inteligir`
+  itself, under a counted commit hold that defers the vault debounce and
+  blocks a sync, because committing the whole dirty tree attributes a
+  concurrent turn's writes to whoever settles first
+  (`apps/cli/src/server/agents/agent-commits.ts`). Under `INTELIGIR_THREAD_ID`
+  the CLI names its thread on every call
   (`apps/cli/src/server/agent-thread-header.ts`) and the write handlers hand
   what they wrote to its running turn (`attributeWrites` in
   `apps/cli/src/server/orpc.ts`), a delete's comment stores and a minted note
   id included; the header is attribution, not authority. A rebase onto another
-  device's push rewrites a sha, so the commit carries `Thread:` and `Turn:` (an
-  undo `Undoes-Turn:`), spelled once in
+  device's push rewrites a sha, so the commit carries `Thread:` and `Turn:`
+  (an undo `Undoes-Turn:`), spelled once in
   `apps/cli/src/server/vault/turn-trailers.ts` and read back by
   `threads.turnChanges` (`apps/cli/src/server/agents/turn-changes.ts`). Undo
   needs the bytes from just before the turn, so the turn starts with a
-  checkpoint of the unclaimed dirty tree: the note the user was typing in lands
-  as the engine's, never inside the turn. Undo covers reported edits alone
-  (owner decision). Residuals: lines typed into a note WHILE the agent edits it
-  belong to the turn, since the canonicalizing save-back leaves no sound
-  per-writer split; a crash mid-turn leaves its writes to the boot sweep, so
-  that turn cannot be undone; a thread pulled from another device lists only
-  what was committed after it arrived.
+  checkpoint of the unclaimed dirty tree: the note the user was typing in
+  lands as the engine's, never inside the turn. Undo covers reported edits
+  alone (owner decision). Residuals: lines typed into a note WHILE the agent
+  edits it belong to the turn, since the canonicalizing save-back leaves no
+  sound per-writer split; a crash mid-turn leaves its writes to the boot
+  sweep, so that turn cannot be undone; a thread pulled from another device
+  lists only what was committed after it arrived.
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (what it
   retired is the register on #645; do not bring any of it back). An action is an

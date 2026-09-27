@@ -48,7 +48,11 @@ export const createBridgeStore = <TBridge, TState>(
   };
   const readFirst = async (bridge: TBridge): Promise<void> => {
     try {
-      adopt(await args.read(bridge));
+      const state = await args.read(bridge);
+      // main pushes every move, so a frame or an action adopted while the read was out is newer
+      if (snapshot.kind === "loading") {
+        adopt(state);
+      }
     } catch (error) {
       console.warn(`[${args.label}] the shell did not answer`, error);
     }
