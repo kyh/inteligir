@@ -164,19 +164,11 @@ const listOfPaths = (paths: readonly string[]): string =>
 export interface ProblemsPageProps {
   open: boolean;
   query: string;
-  // the note the editor holds, whose unsaved edits land before a write to it
-  openNotePath: string | null;
   onOpenNote: (path: string) => void;
   onOpenLink: (sourcePath: string, target: string) => void;
 }
 
-export const ProblemsPage = ({
-  open,
-  query,
-  openNotePath,
-  onOpenNote,
-  onOpenLink,
-}: ProblemsPageProps) => {
+export const ProblemsPage = ({ open, query, onOpenNote, onOpenLink }: ProblemsPageProps) => {
   // read once per visit to the page, not per keystroke: the query filters the rows it holds
   const problemsQuery = useQuery({
     ...orpc.knowledge.problems.queryOptions({
@@ -190,9 +182,7 @@ export const ProblemsPage = ({
 
   const giveOwnId = useMutation({
     mutationFn: async (pick: OwnIdPick): Promise<NoteOwnId> => {
-      if (pick.path === openNotePath) {
-        await flushOpenNote();
-      }
+      await flushOpenNote();
       return await giveNoteOwnId(client, pick.path, pick.id);
     },
     onError: (error, pick) => {

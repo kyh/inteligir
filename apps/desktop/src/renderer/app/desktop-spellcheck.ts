@@ -13,25 +13,10 @@ const applyStored = async (spellcheck: DesktopSpellcheckBridge): Promise<Spellch
   return stored === null ? await spellcheck.getState() : await spellcheck.apply(stored);
 };
 
-const adoptStored = async (
-  spellcheck: DesktopSpellcheckBridge,
-  adopt: (state: SpellcheckState) => void,
-): Promise<void> => {
-  let state;
-  try {
-    state = await applyStored(spellcheck);
-  } catch (error) {
-    console.warn("[spellcheck] the session did not answer", error);
-    return;
-  }
-  adopt(state);
-};
-
 const store = createBridgeStore<DesktopSpellcheckBridge, SpellcheckState>({
   bridge: () => window.desktopBridge?.spellcheck,
-  start: (spellcheck, adopt) => {
-    void adoptStored(spellcheck, adopt);
-  },
+  label: "spellcheck",
+  read: applyStored,
 });
 
 export const useDesktopSpellcheck = store.use;

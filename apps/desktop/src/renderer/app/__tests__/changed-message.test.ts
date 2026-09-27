@@ -147,6 +147,7 @@ describe("a vault change", () => {
       [...orpc.comments.key()],
       [...orpc.threads.list.key()],
       [...orpc.threads.get.key()],
+      [...orpc.threads.turnChanges.key()],
     ]);
     expect(applied.vaultChanges).toEqual([{ kind: "files", paths: ["a.md", "b.md"] }]);
   });
@@ -162,8 +163,29 @@ describe("a vault change", () => {
     const threadKeys = applied.invalidated.filter((key) =>
       partialMatchKey(key, orpc.threads.key()),
     );
-    expect(threadKeys).toEqual([[...orpc.threads.list.key()], [...orpc.threads.get.key()]]);
+    expect(threadKeys).toEqual([
+      [...orpc.threads.list.key()],
+      [...orpc.threads.get.key()],
+      [...orpc.threads.turnChanges.key()],
+    ]);
     expect(applied.threads).toEqual([threadChanged("t1", ["status-changed"])]);
+  });
+
+  it("re-reads every thread's turn changes once, since a pull commits turns with no thread frame", () => {
+    const pulled: ChangedMessage = {
+      changes: ["files-changed"],
+      entity: "vault",
+      paths: ["notes/plans.md"],
+      type: "changed",
+    };
+
+    expect(apply(pulled).invalidated).toContainEqual([...orpc.threads.turnChanges.key()]);
+
+    const turnChangesKeys = apply(
+      threadChanged("t1", ["changes-committed"]),
+      pulled,
+    ).invalidated.filter((key) => partialMatchKey(key, orpc.threads.turnChanges.key()));
+    expect(turnChangesKeys).toEqual([[...orpc.threads.turnChanges.key()]]);
   });
 
   it("asserts nothing when it names no paths, so every note re-checks", () => {
