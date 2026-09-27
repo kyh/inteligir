@@ -7,7 +7,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { REPO_ROOT, WORKSPACE_MANIFEST } from "./repo";
+import { readJsonFile, REPO_ROOT, WORKSPACE_MANIFEST } from "./repo";
 
 const ROOT_MANIFEST = "package.json";
 const EAS_CONFIG = "apps/mobile/eas.json";
@@ -20,16 +20,6 @@ const EAS_CLI = "eas-cli";
 
 const EXACT_VERSION = /^(?<major>\d+)\.\d+\.\d+$/u;
 const MAJOR_RANGE = /^(?<major>\d+)\.x$/u;
-
-const readJsonFile = <T>(relativePath: string, schema: z.ZodType<T>, expected: string): T => {
-  const parsed = schema.safeParse(
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf-8")),
-  );
-  if (!parsed.success) {
-    throw new Error(`${relativePath}: expected ${expected}`);
-  }
-  return parsed.data;
-};
 
 const rootManifestSchema = z.looseObject({
   engines: z.looseObject({ node: z.string() }),

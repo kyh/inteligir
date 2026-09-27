@@ -22,3 +22,13 @@ export const clickToastAction = (toastText: string): string => `(() => {
   button.click();
   return "clicked";
 })()`;
+// the hand-written connector's form in Settings: the presets above it carry Add buttons of their
+// own. by placeholder inside it, since the ids are React-minted per mount.
+export const CONNECTOR_FORM = 'form[aria-label="Another connector"]';
+export const NAME_INPUT = `${CONNECTOR_FORM} input[placeholder="my-connector"]`;
+export const URL_INPUT = `${CONNECTOR_FORM} input[placeholder="https://example.com"]`;
+// the open one: an answered confirm stays in the DOM through its exit animation, and its buttons
+// answer nothing.
+export const ALERT_DIALOG = '[role="alertdialog"][data-open]';
+// any confirm at all, the closing one included: until it is gone it still covers the page.
+export const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null ? "gone" : "present"`;

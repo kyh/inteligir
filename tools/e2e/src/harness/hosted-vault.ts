@@ -1,31 +1,41 @@
 import { expect } from "./assert";
-import type { InstanceApi } from "./instance";
+import { OWNER } from "./cloud-account";
+import type { AppInstance, InstanceApi } from "./instance";
 import { pollUntil } from "./poll";
+import { NO_AUTO_SYNC } from "./vault-sync";
 
 const IDENTITY_DEADLINE_MS = 15_000;
 const SYNC_DEADLINE_MS = 20_000;
 const POLL_INTERVAL_MS = 200;
 
-// auto-sync off: every sync is an explicit call, so each assertion reads the state the previous
-// line produced.
 export const hostedVaultEnv = (origin: string) => ({
   INTELIGIR_CLOUD_URL: origin,
-  INTELIGIR_SYNC_INTERVAL_MS: "0",
+  ...NO_AUTO_SYNC,
 });
 
 // the account identity lands asynchronously after the login, and the cross-account fence fails closed
-// until it does.
+// until it does; named by email, so a device signed in as another account never passes.
 export const untilIdentityKnown = async (api: InstanceApi, label: string): Promise<void> => {
   await pollUntil(
     async () => await api.cloud.status(),
-    (status) => status.state === "signed-in" && status.accountEmail !== null,
+    (status) => status.state === "signed-in" && status.accountEmail === OWNER.email,
     {
       deadlineMs: IDENTITY_DEADLINE_MS,
       describe: (status) =>
-        `${label}: account identity did not land within ${IDENTITY_DEADLINE_MS}ms (state: ${status.state})`,
+        `${label} never answered signed in as ${OWNER.email} within ${IDENTITY_DEADLINE_MS}ms: ${JSON.stringify(status)}`,
       intervalMs: POLL_INTERVAL_MS,
     },
   );
+};
+
+export const signInOwner = async (
+  app: AppInstance,
+  label: string,
+  deviceName: string,
+): Promise<void> => {
+  const signedIn = await app.api.cloud.login({ ...OWNER, deviceName });
+  expect(signedIn.state === "signed-in", `${label}'s login answered ${signedIn.state}`);
+  await untilIdentityKnown(app.api, label);
 };
 
 // syncNow coalesces: a call landing during a background pass has it run once more, so the answer

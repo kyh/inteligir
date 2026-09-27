@@ -2,13 +2,13 @@ import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
-import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
+import { agentShellCli } from "../harness/agent-shell-cli";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
+import { loginDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import { hostedVaultEnv, syncUntil, untilIdentityKnown } from "../harness/hosted-vault";
+import { gitIn } from "../harness/exec";
+import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
 import type { Scenario } from "../harness/scenario";
 
 // a new vault's starter notes fit many times over; one attachment past it cannot. the attachment
@@ -34,9 +34,7 @@ export const hostedVaultFull: Scenario = {
     const { userId } = await signUp(worker.origin);
 
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
-    const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
-    expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
-    await untilIdentityKnown(a.api, "A");
+    await signInOwner(a, "A", "E2E Device A");
 
     ctx.log("A's first note reaches the hosted vault");
     await a.api.vault.write({
@@ -67,27 +65,12 @@ export const hostedVaultFull: Scenario = {
       path: LATER_PATH,
     });
     await a.api.vault.commitNow({ paths: [LATER_PATH] });
-    const committed = await exec(
-      "git",
-      ["-C", a.vaultDir, "log", "-1", "--format=%H", "--", LATER_PATH],
-      { env: hermeticProcessEnv() },
-    );
-    expect(committed.stdout.trim() !== "", "A committed the later note");
+    const committed = await gitIn(a.vaultDir, ["log", "-1", "--format=%H", "--", LATER_PATH]);
+    expect(committed !== "", "A committed the later note");
     const stillFull = await a.api.vault.syncNow();
     expectEq(stillFull.state, "full", "A's sync after the later note");
 
-    const cliBinDir = resolveCliBinDir(path.join(ctx.repoRoot, "apps", "cli", "bin"));
-    expect(cliBinDir !== null, "the app resolves a CLI bin directory");
-    const status = await exec("inteligir", ["vault", "status", "--json"], {
-      env: {
-        ...hermeticProcessEnv(),
-        ...toShellEnv(
-          { cliBinDir, connectedDirs: [], dataDir: a.dataDir, skillsDir: null },
-          hermeticProcessEnv(),
-        ),
-      },
-      timeoutMs: 60_000,
-    });
+    const status = await agentShellCli(ctx.repoRoot, a.dataDir)("vault", "status", "--json");
     const reported = vaultStatusResponseSchema.parse(JSON.parse(status.stdout));
     expectEq(reported.state, "full", "`inteligir vault status --json` on A");
     expectEq(reported.lastError, FULL_MESSAGE, "the status's last error");

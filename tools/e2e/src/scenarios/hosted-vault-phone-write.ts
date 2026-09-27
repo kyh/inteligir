@@ -4,14 +4,14 @@ import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client"
 import type { CloudResult, VaultCommitOutcome } from "@repo/api/cloud/client";
 import type { VaultCommitRequest } from "@repo/api/cloud/vault/vault-commit-schema";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
+import { loginDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import { hostedVaultEnv, syncUntil, untilIdentityKnown } from "../harness/hosted-vault";
+import { gitIn } from "../harness/exec";
+import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
+import { PHONE_NAME } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const NOTE = "notes/plan.md";
-const PHONE_NAME = "E2E Phone";
 const FROM_A = "# Plan\n\nWritten on A.\n";
 const FROM_PHONE = "# Plan\n\nWritten on A.\n\nEdited on the phone.\n";
 const A_AGAIN = "# Plan\n\nRewritten on A while the phone was away.\n";
@@ -45,11 +45,6 @@ const conflictOf = (
   return result.value;
 };
 
-const git = async (vaultDir: string, args: readonly string[]): Promise<string> => {
-  const { stdout } = await exec("git", ["-C", vaultDir, ...args], { env: hermeticProcessEnv() });
-  return stdout.trim();
-};
-
 export const hostedVaultPhoneWrite: Scenario = {
   description:
     "a phone's change set lands in the hosted vault and reaches the desktop, and a stale one gets the desktop's bytes back",
@@ -61,9 +56,7 @@ export const hostedVaultPhoneWrite: Scenario = {
     ctx.log("creating the account; A signs in and pushes the note");
     await signUp(worker.origin);
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
-    const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
-    expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
-    await untilIdentityKnown(a.api, "A");
+    await signInOwner(a, "A", "E2E Device A");
     await a.api.vault.write({ content: FROM_A, guard: { kind: "overwrite" }, path: NOTE });
     await syncUntil(a.api, "A after write", "clean");
 
@@ -99,10 +92,10 @@ export const hostedVaultPhoneWrite: Scenario = {
     expectEq(conflict?.current?.content, A_AGAIN, "the bytes the conflict carries");
     expectEq(
       conflict?.device,
-      await git(a.vaultDir, ["log", "-1", "--format=%cn", "--", NOTE]),
+      await gitIn(a.vaultDir, ["log", "-1", "--format=%cn", "--", NOTE]),
       "the device the conflict names",
     );
-    expectEq(refused.head, await git(a.vaultDir, ["rev-parse", "HEAD"]), "the conflict's head");
+    expectEq(refused.head, await gitIn(a.vaultDir, ["rev-parse", "HEAD"]), "the conflict's head");
 
     ctx.log("the phone recommits on the blob the conflict named, and A converges on it");
     const current = conflict?.current;
@@ -113,7 +106,7 @@ export const hostedVaultPhoneWrite: Scenario = {
     );
     await syncUntil(a.api, "A pulling the phone's recommit", "clean");
     expectEq(await readFile(path.join(a.vaultDir, NOTE), "utf-8"), PHONE_MERGED, "A's note");
-    expectEq(await git(a.vaultDir, ["rev-parse", "HEAD"]), second.commit, "A's head");
-    await git(a.vaultDir, ["fsck", "--strict"]);
+    expectEq(await gitIn(a.vaultDir, ["rev-parse", "HEAD"]), second.commit, "A's head");
+    await gitIn(a.vaultDir, ["fsck", "--strict"]);
   },
 };

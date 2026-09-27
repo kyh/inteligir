@@ -1,29 +1,11 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
-import type { InstanceApi } from "../harness/instance";
+import { readOrNull } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
-import { untilThreadIdle } from "../harness/threads";
+import { agentNote, runTurn } from "../harness/threads";
 
-// the scripted driver writes `# Agent note\n\n<text>\n` to Agent/<thread>.md on every turn.
-const agentNote = (text: string): string => `# Agent note\n\n${text}\n`;
 // above the heading, so an unchanged line stands between it and the line each turn rewrites.
 const USER_LINE = "Call Sam about the draft";
-
-const runTurn = async (api: InstanceApi, threadId: string, text: string): Promise<string> => {
-  const outcome = await api.threads.send({ text, threadId });
-  expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
-  await untilThreadIdle(api, threadId);
-  return outcome.turnId;
-};
-
-const readOrNull = async (file: string): Promise<string | null> => {
-  try {
-    return await readFile(file, "utf-8");
-  } catch {
-    return null;
-  }
-};
 
 export const undoScripted: Scenario = {
   description: "undo takes one scripted turn back, keeping the line the user added since",

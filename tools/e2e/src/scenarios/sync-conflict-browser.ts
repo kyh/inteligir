@@ -7,26 +7,16 @@ import type { InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { clickToastAction, EDITOR, TOAST_TEXT } from "../harness/selectors";
+import { NO_AUTO_SYNC, syncExpectClean } from "../harness/vault-sync";
 
 const NOTE = "Plans.md";
 const BASE = "# Plans\n\nshared line\n";
 const ON_A = "# Plans\n\nedited on A\n";
 const ON_B = "# Plans\n\nedited on B\n";
 const BOTH_KEPT = "Both versions of “Plans” were kept";
-// every sync is an explicit call, so the divergence between A and B is deterministic.
-const NO_AUTO_SYNC = { INTELIGIR_SYNC_INTERVAL_MS: "0" };
 const DEADLINE_MS = 30_000;
 // past sonner's own 4s: a notice that closed by itself while the user typed was never heard.
 const PAST_TOAST_DEFAULT_MS = 5000;
-
-const syncExpectClean = async (api: InstanceApi, label: string) => {
-  const status = await api.vault.syncNow();
-  expect(
-    status.state === "clean",
-    `${label}: expected a clean sync, got "${status.state}" (lastError: ${status.lastError ?? "none"})`,
-  );
-  return status;
-};
 
 const write = async (api: InstanceApi, content: string): Promise<void> => {
   await api.vault.write({ content, guard: { kind: "overwrite" }, path: NOTE });

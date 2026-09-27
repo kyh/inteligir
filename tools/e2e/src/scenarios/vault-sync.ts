@@ -2,33 +2,14 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import type { InstanceApi } from "../harness/instance";
+import { gitIn } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
+import { NO_AUTO_SYNC, syncExpectClean } from "../harness/vault-sync";
 
 const SHARED_CONTENT = "# Shared\n\nWritten on A, synced to B.\n";
 const CONFLICT_BASE = "# Conflict\n\nshared line\n";
 const CONFLICT_A = "# Conflict\n\nedited on A\n";
 const CONFLICT_B = "# Conflict\n\nedited on B\n";
-
-// every sync is an explicit call, so the divergence between A and B is deterministic.
-const NO_AUTO_SYNC = { INTELIGIR_SYNC_INTERVAL_MS: "0" };
-
-const syncExpectClean = async (api: InstanceApi, label: string) => {
-  const status = await api.vault.syncNow();
-  expect(
-    status.state === "clean",
-    `${label}: expected a clean sync, got "${status.state}" (lastError: ${status.lastError ?? "none"})`,
-  );
-  return status;
-};
-
-const gitIn = async (vaultDir: string, gitArgs: readonly string[]): Promise<string> => {
-  const { stdout } = await exec("git", ["-C", vaultDir, ...gitArgs], {
-    env: hermeticProcessEnv(),
-  });
-  return stdout.trim();
-};
 
 const expectNothingLeftBehind = async (vaultDir: string, label: string): Promise<void> => {
   expectEq(

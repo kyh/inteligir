@@ -2,11 +2,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AppRuntime } from "@repo/mobile/lib/compose-runtime";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
+import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import { hostedVaultEnv, syncUntil, untilIdentityKnown } from "../harness/hosted-vault";
-import { PHONE_NAME, phoneRuntime, readPhoneNote, untilMirrored } from "../harness/phone-runtime";
+import { gitIn } from "../harness/exec";
+import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
+import { drained, phoneRuntime, readPhoneNote, untilMirrored } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const PLAN = "notes/plan.md";
@@ -37,13 +37,6 @@ const commentOnPhone = async (
   expect(added.kind === "edited", `the phone's comment ${id}: ${JSON.stringify(added)}`);
 };
 
-const drained = async (phone: AppRuntime, label: string): Promise<void> => {
-  await phone.notes.drain();
-  const { parked, unsent } = phone.notes.outbox.status.get();
-  expectEq(unsent, 0, `${label}: the phone's unsent changes`);
-  expectEq(parked.length, 0, `${label}: the phone's parked changes`);
-};
-
 export const phoneCommentsHosted: Scenario = {
   description:
     "the phone's own runtime comments on a note with no id, then replies and comments again offline while A comments on the same note; A syncs every thread anchored on its own words, and the phone's resolve",
@@ -55,20 +48,13 @@ export const phoneCommentsHosted: Scenario = {
     ctx.log("creating the account; A signs in and pushes a note with no id");
     await signUp(worker.origin);
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
-    const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
-    expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
-    await untilIdentityKnown(a.api, "A");
+    await signInOwner(a, "A", "E2E Device A");
     await a.api.vault.write({ content: NOTE, guard: { kind: "overwrite" }, path: PLAN });
     await syncUntil(a.api, "A after its note", "clean");
 
     ctx.log("the phone mirrors the note and comments on it, minting its id");
     const network = { online: true };
-    const phone = await phoneRuntime(
-      worker.origin,
-      path.join(ctx.scratchDir, "phone"),
-      await loginDevice(worker.origin, PHONE_NAME),
-      network,
-    );
+    const phone = await phoneRuntime(worker.origin, path.join(ctx.scratchDir, "phone"), network);
     await phone.start();
     await untilMirrored(phone, [PLAN]);
     await commentOnPhone(phone, "line one", "phone1", "From the phone");
@@ -144,6 +130,6 @@ export const phoneCommentsHosted: Scenario = {
         settled.threads.filter((thread) => thread.resolved).length === 1,
       `A's threads after the resolve: ${JSON.stringify(settled.threads)}`,
     );
-    await exec("git", ["-C", a.vaultDir, "fsck", "--strict"], { env: hermeticProcessEnv() });
+    await gitIn(a.vaultDir, ["fsck", "--strict"]);
   },
 };

@@ -6,10 +6,12 @@ import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
+import { loginDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { signInOwner } from "../harness/hosted-vault";
 import type { AppInstance, InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
+import { PHONE_NAME } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 import { untilThreadIdle } from "../harness/threads";
 
@@ -37,10 +39,13 @@ interface ArmedBetween {
   to: number;
 }
 
-const signIn = async (app: AppInstance, deviceName: string): Promise<ArmedBetween> => {
+const signIn = async (
+  app: AppInstance,
+  label: string,
+  deviceName: string,
+): Promise<ArmedBetween> => {
   const from = Date.now();
-  const status = await app.api.cloud.login({ ...OWNER, deviceName });
-  expect(status.state === "signed-in", `${deviceName}'s login answered ${status.state}`);
+  await signInOwner(app, label, deviceName);
   return { from, to: Date.now() };
 };
 
@@ -128,7 +133,7 @@ export const phoneDispatchHosted: Scenario = {
 
     ctx.log("creating the account through the invite gate; the phone signs in");
     await signUp(worker.origin);
-    const phoneLogin = await loginDevice(worker.origin, "E2E Phone");
+    const phoneLogin = await loginDevice(worker.origin, PHONE_NAME);
     const phone = createCloudClient({ baseUrl: worker.origin, credential: phoneLogin.credential });
 
     // each vault syncs to a bare remote of its own, so the hosted vault plays no part
@@ -165,7 +170,7 @@ export const phoneDispatchHosted: Scenario = {
     expectEq(waiting.desktopsOnline, 0, "desktops online before any Mac signed in");
 
     ctx.log("A signs in, claims it and runs it");
-    const aArmed = await signIn(a, "E2E Device A");
+    const aArmed = await signIn(a, "A", "E2E Device A");
     await pollUntil(
       async () => {
         const listing = await a.api.threads.list({});
@@ -203,7 +208,7 @@ export const phoneDispatchHosted: Scenario = {
 
     ctx.log("B signs in; both Macs listen on their sockets");
     const b = await boot("b");
-    const bArmed = await signIn(b, "E2E Device B");
+    const bArmed = await signIn(b, "B", "E2E Device B");
     await untilConnected(a, "A");
     await untilConnected(b, "B");
     // either Mac may take it, so neither one's poll may have run before it lands

@@ -2,8 +2,9 @@ import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { TimelineRow } from "@repo/api/local/thread-timeline";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { expect } from "../harness/assert";
-import { OWNER, signUp } from "../harness/cloud-account";
+import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { signInOwner } from "../harness/hosted-vault";
 import type { AppInstance, InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -46,11 +47,6 @@ const describeSync = (status: CloudStatusResponse): string =>
     ? `connected: ${String(status.connected)}, cursor ${status.cursor}, ${status.pending} pending, lastError: ${status.lastError ?? "none"}`
     : status.state;
 
-const signIn = async (app: AppInstance, deviceName: string): Promise<void> => {
-  const status = await app.api.cloud.login({ ...OWNER, deviceName });
-  expect(status.state === "signed-in", `${deviceName}'s login answered ${status.state}`);
-};
-
 export const threadSyncHosted: Scenario = {
   description:
     "a thread sent on A reaches B through a real dev Worker, carried by the socket's ping before B's poll could run",
@@ -74,10 +70,10 @@ export const threadSyncHosted: Scenario = {
     const b = await boot("b");
 
     ctx.log("both devices sign in through the production route");
-    await signIn(a, "E2E Device A");
+    await signInOwner(a, "A", "E2E Device A");
     // B's poll timer arms inside its login, so no poll of B's can run before this instant.
     const pollFloor = Date.now() + POLL_INTERVAL_MS;
-    await signIn(b, "E2E Device B");
+    await signInOwner(b, "B", "E2E Device B");
 
     ctx.log("B's socket opens against the Durable Object");
     await pollUntil(

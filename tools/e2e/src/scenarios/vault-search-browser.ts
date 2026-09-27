@@ -8,7 +8,7 @@ import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR, OPTION_COUNT, PALETTE_INPUT } from "../harness/selectors";
 
-// sort before the seeded notes, so the virgin boot opens the first and the rows come in this order.
+// sort A1 before A2, so the virgin boot opens the first and the rows come in this order.
 const NOTE_ONE = "A1 zebrafish.md";
 const NOTE_TWO = "A2 zebrafish.md";
 const NEEDLE = "zebrafish";

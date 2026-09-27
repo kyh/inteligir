@@ -48,6 +48,20 @@ const parseManifest = (file: string): Manifest => {
   return manifest.data;
 };
 
+export const readJsonFile = <T>(
+  relativePath: string,
+  schema: z.ZodType<T>,
+  expected: string,
+): T => {
+  const parsed = schema.safeParse(
+    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf-8")),
+  );
+  if (!parsed.success) {
+    throw new Error(`${relativePath}: expected ${expected}`);
+  }
+  return parsed.data;
+};
+
 export interface WorkspaceGlobs {
   // `apps/*` → `apps`: every child directory is a candidate workspace.
   groups: string[];

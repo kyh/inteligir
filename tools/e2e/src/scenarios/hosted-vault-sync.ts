@@ -8,10 +8,11 @@ import {
   writeDeviceCredential,
 } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER, revokeDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, revokeDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import { hostedVaultEnv, syncUntil, untilIdentityKnown } from "../harness/hosted-vault";
+import { gitIn } from "../harness/exec";
+import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
+import { PHONE_NAME } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const SHARED_PATH = "notes/shared.md";
@@ -57,9 +58,7 @@ export const hostedVaultSync: Scenario = {
 
     ctx.log("A boots accountless, then signs in through the production route");
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
-    const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
-    expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
-    await untilIdentityKnown(a.api, "A");
+    await signInOwner(a, "A", "E2E Device A");
 
     ctx.log("A writes and pushes through the derived hosted remote");
     await a.api.vault.write({
@@ -70,18 +69,17 @@ export const hostedVaultSync: Scenario = {
     await syncUntil(a.api, "A after write", "clean");
 
     ctx.log("a phone lists A's note under git's own blob id, and reads it in one batch");
-    const phone = await loginDevice(worker.origin, "E2E Phone");
+    const phone = await loginDevice(worker.origin, PHONE_NAME);
     const phoneClient = createCloudClient({ baseUrl: worker.origin, credential: phone.credential });
     const tree = await phoneClient.vaultTree({});
     expect(tree.ok, `the phone's tree read: ${tree.ok ? "" : describeCloudFailure(tree.failure)}`);
     const listed = tree.value.entries.find((entry) => entry.path === SHARED_PATH);
     expect(listed !== undefined, "the phone's tree lists A's note");
-    const blob = await exec(
-      "git",
-      ["-C", a.vaultDir, "rev-parse", `${tree.value.commit}:${SHARED_PATH}`],
-      { env: hermeticProcessEnv() },
+    expectEq(
+      listed.oid,
+      await gitIn(a.vaultDir, ["rev-parse", `${tree.value.commit}:${SHARED_PATH}`]),
+      "the listed oid",
     );
-    expectEq(listed.oid, blob.stdout.trim(), "the listed oid");
     const batch = await phoneClient.vaultFiles({ paths: [SHARED_PATH], ref: tree.value.commit });
     expect(batch.ok, `the phone's batch: ${batch.ok ? "" : describeCloudFailure(batch.failure)}`);
     expectEq(batch.value.files.length, 1, "files in the phone's batch");
@@ -110,17 +108,16 @@ export const hostedVaultSync: Scenario = {
       "B's on-disk content",
     );
     // a clone, not a seed: a seeded B boots on a root commit of its own.
-    const headA = await exec("git", ["-C", a.vaultDir, "rev-parse", "HEAD"], {
-      env: hermeticProcessEnv(),
-    });
-    const headB = await exec("git", ["-C", b.vaultDir, "rev-parse", "HEAD"], {
-      env: hermeticProcessEnv(),
-    });
-    expectEq(headB.stdout.trim(), headA.stdout.trim(), "B's clone landed on A's own HEAD");
-    const marker = await exec("git", ["-C", b.vaultDir, "config", "--get", "inteligir.account"], {
-      env: hermeticProcessEnv(),
-    });
-    expectEq(marker.stdout.trim(), userId, "B's clone pinned the account marker");
+    expectEq(
+      await gitIn(b.vaultDir, ["rev-parse", "HEAD"]),
+      await gitIn(a.vaultDir, ["rev-parse", "HEAD"]),
+      "B's clone landed on A's own HEAD",
+    );
+    expectEq(
+      await gitIn(b.vaultDir, ["config", "--get", "inteligir.account"]),
+      userId,
+      "B's clone pinned the account marker",
+    );
 
     ctx.log("B writes; the change reaches A the other way around");
     await b.api.vault.write({

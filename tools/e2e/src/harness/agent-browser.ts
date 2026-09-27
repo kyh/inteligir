@@ -63,6 +63,25 @@ export const clickButtonIn = async (
   );
 };
 
+export const untilBodyHolds = async (
+  browser: AgentBrowser,
+  needles: readonly string[],
+  deadlineMs = 30_000,
+): Promise<void> => {
+  await pollUntil(
+    async () => await browser(["get", "text", "body"]),
+    (body) => needles.every((needle) => body.includes(needle)),
+    {
+      deadlineMs,
+      describe: (body) => {
+        const missing = needles.filter((needle) => !body.includes(needle));
+        return `the page never said ${missing.map((needle) => `"${needle}"`).join(" and ")}:\n${body}`;
+      },
+      intervalMs: 500,
+    },
+  );
+};
+
 // teardown: a session that already died must not mask the failure the scenario is reporting.
 const closeQuietly = async (browser: AgentBrowser): Promise<void> => {
   try {

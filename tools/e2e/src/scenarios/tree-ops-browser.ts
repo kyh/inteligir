@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
+import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR, treeRow } from "../harness/selectors";
@@ -28,9 +29,6 @@ const IMAGE_DEADLINE_MS = 30_000;
 // the row's actions button is a sibling of the row, not a child: a button cannot nest a button
 const rowActions = (vaultPath: string): string =>
   `[role="tree"] li:has([data-path="${vaultPath}"]) [data-sidebar="menu-action"]`;
-
-const readOrNull = async (filePath: string): Promise<string | null> =>
-  await readFile(filePath, "utf-8").catch(() => null);
 
 interface MoveState {
   moved: string | null;
