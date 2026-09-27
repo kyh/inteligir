@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { messageOf } from "@/lib/error-message";
 import { SPACE, useTheme } from "@/lib/theme";
 import type { CommentOutcome } from "./comment-ops";
 import type { CommentsRead } from "./notes-store";
@@ -59,7 +60,7 @@ export interface CommentEdits {
 
 const failureOf = (cause: unknown): CommentOutcome => ({
   kind: "refused",
-  message: cause instanceof Error ? cause.message : String(cause),
+  message: messageOf(cause),
 });
 
 const ThreadCard = ({ edits, thread }: { edits: CommentEdits; thread: CommentThread }) => {

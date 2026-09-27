@@ -325,16 +325,8 @@ export const vaultFolders = (entries: readonly VaultEntry[]): string[] =>
     .filter((entry) => entry.kind === "dir")
     .map((entry) => entry.path);
 
-// Lowercased: the disk may be case-insensitive, so name generation must be too.
-export const filePathsLowercased = (tree: VaultTreeResponse | undefined): Set<string> => {
-  const paths = new Set<string>();
-  for (const entry of tree?.entries ?? []) {
-    if (entry.kind === "file") {
-      paths.add(entry.path.toLowerCase());
-    }
-  }
-  return paths;
-};
+const filePaths = (tree: VaultTreeResponse | undefined): string[] =>
+  (tree?.entries ?? []).filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
-export const untitledNotePath = (parentDir: string, existing: Set<string>): string =>
-  freeDocPath(parentDir, "Untitled", existing);
+export const untitledNotePath = (parentDir: string, tree: VaultTreeResponse | undefined): string =>
+  freeDocPath(parentDir, "Untitled", filePaths(tree));

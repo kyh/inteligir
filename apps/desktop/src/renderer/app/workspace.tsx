@@ -59,7 +59,6 @@ import { useTreeOps } from "./sidebar/tree-ops";
 import { useNavigate } from "@tanstack/react-router";
 import {
   canSyncNow,
-  filePathsLowercased,
   useSyncNow,
   untitledNotePath,
   usePinnedPaths,
@@ -317,8 +316,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   const newUntitledNote = useCallback(
     (parentDir: string): void => {
-      const existing = filePathsLowercased(treeQuery.data);
-      void createNote(untitledNotePath(parentDir, existing));
+      void createNote(untitledNotePath(parentDir, treeQuery.data));
     },
     [treeQuery.data, createNote],
   );
@@ -398,7 +396,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           toast.error("Could not read the template.");
           return;
         }
-        const path = untitledNotePath("", filePathsLowercased(treeQuery.data));
+        const path = untitledNotePath("", treeQuery.data);
         const body = expandTemplate(template, { now: new Date(), title: docStem(path) });
         await createNote(path, removeFrontmatterId(body));
       })();

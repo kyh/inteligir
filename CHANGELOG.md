@@ -82,6 +82,7 @@ Everything since 0.4.0 (September 4, 2026), and the first Inteligir for iPhone.
 - **Settings › Advanced keeps the technical detail in one place.** The data folder (with Open data folder), the database version and uptime moved there from About, and this device's id, queue and last error sit there too, beside your vault's sync detail and Sync threads now.
 - **Editing a note on two devices at once no longer stops sync.** Edits to different parts of a note are combined. Where both devices changed the same lines, the computer that syncs second keeps its own version and saves the other beside it as a new note named after the device it came from, such as “Plan (conflict, Kai’s MacBook).md”, which you can read, fold back in by hand or delete. A note edited on one device and deleted on the other is kept, and comments made on both are all kept. Settings › Advanced lists what sync settled this way since the app started.
 - **A new vault's starter notes are about taking notes.** Welcome, Getting Started and Use Cases now walk through writing, linking, comments, the agent and its Undo, History and Deleted notes, and what an account adds on your other Macs and your iPhone, and Use Cases offers five ways to work: meeting notes, research, drafting, decisions and a weekly review. Vaults you already have keep their notes as they are.
+- **Comments you wrote say You** on your Mac as on your phone, beside Agent for the agent's; a comment that names no author shows a dash.
 
 ### Fixed
 

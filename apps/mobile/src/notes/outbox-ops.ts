@@ -7,7 +7,7 @@ import { hexFromBytes } from "@repo/api/cloud/bytes";
 import { vaultCommitRequestSchema } from "@repo/api/cloud/vault/vault-commit-schema";
 import type { VaultChangeRequest } from "@repo/api/cloud/vault/vault-commit-schema";
 import { gitOidSchema, vaultPathSchema } from "@repo/api/cloud/vault/vault-schema";
-import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
+import { syncConflictReportSchema } from "@repo/notes/sync/conflict-copy";
 import { diff3 } from "@repo/notes/text/diff3";
 
 // a note's new text, guarded by the blob it was computed from: one a rename rewrites the links of,
@@ -91,22 +91,6 @@ const vaultSideSchema = z.object({
 });
 export type VaultSide = z.infer<typeof vaultSideSchema>;
 
-const conflictReportSchema = z.discriminatedUnion("kind", [
-  z.object({
-    copyDevice: z.string(),
-    copyPath: z.string(),
-    keptDevice: z.string(),
-    kind: z.literal("copied"),
-    path: z.string(),
-  }),
-  z.object({
-    deletedDevice: z.string(),
-    keptDevice: z.string(),
-    kind: z.literal("kept-edit"),
-    path: z.string(),
-  }),
-]) satisfies z.ZodType<SyncConflictReport>;
-
 // `against`: the vault's version of the op's path the set was reconciled against, null when it held
 // nothing there; the mirror takes it when the set lands without writing that path. `mine`: the
 // text the set was reconciled from, so an edit made since lands rebased onto the set's result.
@@ -114,7 +98,7 @@ export const settleSchema = z.object({
   against: vaultSideSchema.nullable(),
   changes: vaultCommitRequestSchema.shape.changes,
   mine: z.string().nullable(),
-  reports: z.array(conflictReportSchema),
+  reports: z.array(syncConflictReportSchema),
 });
 export type Settle = z.infer<typeof settleSchema>;
 

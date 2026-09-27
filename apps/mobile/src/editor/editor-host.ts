@@ -14,6 +14,7 @@ import type {
   RequestResult,
   Unstamped,
 } from "@repo/mobile-editor/bridge-protocol";
+import { messageOf } from "../lib/error-message";
 
 // every question the page asks, answered by the phone
 export type EditorRequestPorts = {
@@ -107,9 +108,6 @@ export const loadVerdict = (
 // window.open and a target=_blank link: never a second WebView, only Safari, only for the web
 export const openWindowVerdict = (url: string): LoadVerdict =>
   isHttpUrl(url) ? { kind: "open-outside", url } : { kind: "refuse" };
-
-const messageOf = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
 
 type PageRequest = Extract<PageFrame, { type: "request" }>;
 

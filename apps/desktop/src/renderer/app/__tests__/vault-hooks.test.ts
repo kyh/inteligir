@@ -12,7 +12,6 @@ import type {
 import { describe, expect, it } from "vitest";
 import {
   canSyncNow,
-  filePathsLowercased,
   renameVaultEntry,
   syncNeedsAttention,
   syncStateDotClass,
@@ -239,10 +238,10 @@ describe("a folder another service syncs", () => {
 });
 
 describe("naming a new note", () => {
-  it("counts up until the folder has no such file", () => {
-    const existing = filePathsLowercased(tree("Untitled.md", "notes/Untitled 2.md"));
-    expect(untitledNotePath("", existing)).toBe("Untitled 2.md");
-    expect(untitledNotePath("notes", existing)).toBe("notes/Untitled.md");
+  it("counts up until the folder has no such file, in any case", () => {
+    const listing = tree("untitled.md", "notes/Untitled 2.md");
+    expect(untitledNotePath("", listing)).toBe("Untitled 2.md");
+    expect(untitledNotePath("notes", listing)).toBe("notes/Untitled.md");
   });
 });
 

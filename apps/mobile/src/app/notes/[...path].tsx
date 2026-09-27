@@ -42,6 +42,7 @@ import {
 import { firstParam, openNote, openThread } from "@/lib/routes";
 import type { ThreadParams } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
+import { NOTE_GONE } from "@/notes/comment-ops";
 import type { CommentOutcome } from "@/notes/comment-ops";
 import { CommentsSheet } from "@/notes/comments-view";
 import type { CommentEdits } from "@/notes/comments-view";
@@ -271,7 +272,7 @@ const NoteScreen = () => {
     change: (path: string) => Promise<CommentOutcome>,
   ): Promise<CommentOutcome> => {
     if (opened === null) {
-      return { kind: "refused", message: "This note is no longer on your phone." };
+      return { kind: "refused", message: NOTE_GONE };
     }
     const outcome = await change(opened);
     if (outcome.kind === "done") {
