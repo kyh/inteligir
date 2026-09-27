@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenCloudSocketArgs } from "../cloud-client";
+import type { OpenCloudSocketArgs } from "../sync/cloud-socket";
 import { createSocketLink } from "../sync/socket-link";
 import type { SocketLinkArgs } from "../sync/socket-link";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "../sync/sync-ws";

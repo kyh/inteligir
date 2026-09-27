@@ -3,7 +3,6 @@
 // and neither is the DOM's, which takes no headers at all.
 
 import { z } from "zod";
-import type { CloudSocket, CloudSocketOpener } from "../cloud-client";
 import {
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_PATH,
@@ -12,6 +11,25 @@ import {
   SYNC_WS_PLATFORM_PARAM,
   syncPingSchema,
 } from "./sync-ws";
+import type { SocketListener, SyncPing } from "./sync-ws";
+
+// a runtime takes the opener rather than building it, so a test hands it a fake that never dials.
+export interface CloudSocket {
+  close: () => void;
+}
+
+export interface OpenCloudSocketArgs {
+  baseUrl: string;
+  credential: string;
+  listener: SocketListener;
+  onOpen: () => void;
+  onPing: (ping: SyncPing) => void;
+  // called once even if the socket never opened. SYNC_WS_REVOKED_CLOSE_CODE is a hint that runs
+  // an http pass; the pass's terminal refusal is what halts the transport.
+  onClose: (code: number) => void;
+}
+
+export type CloudSocketOpener = (args: OpenCloudSocketArgs) => CloudSocket;
 
 // answered by the worker's auto-response table without waking the hibernated object.
 const KEEPALIVE_INTERVAL_MS = 45_000;

@@ -6,22 +6,13 @@ import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { describe, expect, it } from "vitest";
-import { bootTestApp } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import { deviceCredentialPath, readDeviceCredential } from "../credential-store";
 import { createVaultRemoteProvider, NO_ORIGIN } from "../vault-remote";
+import { boot, signedInMac } from "./cloud-boot";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
 const RIGHT_PASSWORD = { password: FAKE_ACCOUNT.password };
-
-const boot = async (fetch: CloudFetch): Promise<BootedTestApp> =>
-  await bootTestApp({ cloudTransport: { fetch, pollIntervalMs: null } });
-
-const signedInMac = async (cloud: FakeCloud): Promise<BootedTestApp> => {
-  const app = await boot(cloud.fetch);
-  await app.client.cloud.login({ ...FAKE_ACCOUNT, deviceName: "Mac" });
-  return app;
-};
 
 // the cloud carries out the first deletion, and its answer never arrives
 const lostFirstDeletion = (cloud: FakeCloud): CloudFetch => {

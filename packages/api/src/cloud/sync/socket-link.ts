@@ -1,4 +1,4 @@
-import type { CloudSocket, CloudSocketOpener, OpenCloudSocketArgs } from "../cloud-client";
+import type { CloudSocket, CloudSocketOpener, OpenCloudSocketArgs } from "./cloud-socket";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "./sync-ws";
 import type { SocketListener } from "./sync-ws";
 

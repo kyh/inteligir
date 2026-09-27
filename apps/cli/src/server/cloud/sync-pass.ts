@@ -32,7 +32,12 @@ import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "../threads/thread-event-mismatch-error";
 import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
 import type { CaptureVault } from "./captures";
-import { applyDispatch, approvalsToClose, approvalsToOpen } from "./dispatches";
+import {
+  applyDispatch,
+  approvalsToClose,
+  approvalsToOpen,
+  approvalsToWithdraw,
+} from "./dispatches";
 import type { DispatchSink } from "./dispatches";
 import { ackPushBatch, takePushBatch } from "./outbox";
 
@@ -69,11 +74,22 @@ export interface SyncPassDeps {
   sink: () => SyncedEventSink | null;
   /** checked after every await, before any write. */
   fenced: (context: PassContext) => boolean;
-  /** read per pass: off, this Mac claims nothing from the dispatch inbox. */
+  /** read per pass: off, this Mac claims nothing from the dispatch inbox and offers no approval. */
   phoneRequests: () => boolean;
   recordFailure: (failure: CloudFailure) => "continue" | "ended";
   setLastError: (message: string | null) => void;
 }
+
+type PassStepName = "push" | "pull" | "captures" | "dispatch" | "approvals";
+
+// what the steps before one concluded, for a step that waits on another's work
+type EarlierSteps = ReadonlyMap<PassStepName, SyncOutcome>;
+
+type PassStep = (
+  deps: SyncPassDeps,
+  context: PassContext,
+  earlier: EarlierSteps,
+) => Promise<SyncOutcome>;
 
 // a retryable failure leaves the pass to carry on with its other steps; a terminal one has ended
 // the session, which fences the rest.
@@ -264,10 +280,20 @@ const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<
   return captures.length < CLAIM_DEFAULT_LIMIT ? "caught-up" : "more";
 };
 
-// after the pull, so a request another Mac already ran for a dispatch is here to be found. a row's
-// ack waits for every row before it in the claim; one whose apply threw is left out, so its claim
-// lapses and it comes back.
-const applyDispatches = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
+// waits for a whole log, so a request another Mac already ran for a dispatch is here to be found
+// and a follow-up lands in its thread rather than starting one the log already holds: a pull with
+// more behind it runs the next pass at once, and a failed one leaves the row for a later pass or
+// another Mac. a row's ack waits for every row before it in the claim; one whose apply threw is
+// left out, so its claim lapses and it comes back.
+const applyDispatches = async (
+  deps: SyncPassDeps,
+  context: PassContext,
+  earlier: EarlierSteps,
+): Promise<SyncOutcome> => {
+  const pulled = earlier.get("pull") ?? "failed";
+  if (pulled !== "caught-up") {
+    return pulled;
+  }
   if (!deps.fenced(context)) {
     return "fenced";
   }
@@ -339,10 +365,18 @@ const applyDispatches = async (deps: SyncPassDeps, context: PassContext): Promis
 };
 
 // a phone-started turn's approval is offered to the phone while it waits here, and taken back once
-// it settles here, however it settled. each mark follows the inbox's answer, so an answer lost on
-// the way is asked again, under the same id.
+// it settles here, however it settled, or once this Mac stops taking the phone's requests, since it
+// would never claim the answer. each mark follows the inbox's answer, so an answer lost on the way
+// is asked again, under the same id.
 const relayApprovals = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
-  for (const approval of approvalsToOpen(deps.db)) {
+  let takesRequests: boolean;
+  try {
+    takesRequests = deps.phoneRequests();
+  } catch {
+    // off, as the dispatch step takes it; that step reports what could not be read
+    takesRequests = false;
+  }
+  for (const approval of takesRequests ? approvalsToOpen(deps.db) : []) {
     if (!deps.fenced(context)) {
       return "fenced";
     }
@@ -359,7 +393,8 @@ const relayApprovals = async (deps: SyncPassDeps, context: PassContext): Promise
       opened.value.state === "closed" ? "closed" : "opened",
     );
   }
-  for (const approval of approvalsToClose(deps.db)) {
+  const toClose = takesRequests ? approvalsToClose(deps.db) : approvalsToWithdraw(deps.db);
+  for (const approval of toClose) {
     if (!deps.fenced(context)) {
       return "fenced";
     }
@@ -376,13 +411,13 @@ const relayApprovals = async (deps: SyncPassDeps, context: PassContext): Promise
   return "caught-up";
 };
 
-const PASS_STEPS = [
+const PASS_STEPS: readonly (readonly [PassStepName, PassStep])[] = [
   ["push", drain],
   ["pull", pullAndApply],
   ["captures", applyCaptures],
   ["dispatch", applyDispatches],
   ["approvals", relayApprovals],
-] as const;
+];
 
 // a failed step does not stop the ones after it: an unreachable push says nothing about the pull.
 // only a pass whose every step reached the cloud and left nothing behind is stamped synced — a
@@ -391,26 +426,27 @@ export const runSyncPass = async (
   deps: SyncPassDeps,
   context: PassContext,
 ): Promise<SyncOutcome> => {
-  const outcomes: SyncOutcome[] = [];
+  const concluded = new Map<PassStepName, SyncOutcome>();
   for (const [name, step] of PASS_STEPS) {
-    const outcome = await step(deps, context);
+    const outcome = await step(deps, context, concluded);
     deps.debugLog?.(`session ${context.sessionId} ${name}: ${outcome}`);
     if (outcome === "fenced") {
       return outcome;
     }
-    outcomes.push(outcome);
+    concluded.set(name, outcome);
   }
+  const outcomes = new Set(concluded.values());
   if (!deps.fenced(context)) {
     return "fenced";
   }
   // cleared once per pass, never per step: a later step's success would hide an earlier one's failure.
-  if (!outcomes.includes("failed")) {
+  if (!outcomes.has("failed")) {
     deps.setLastError(null);
   }
-  if (outcomes.includes("more")) {
+  if (outcomes.has("more")) {
     return "more";
   }
-  if (outcomes.includes("failed")) {
+  if (outcomes.has("failed")) {
     return "failed";
   }
   touchSyncedAt(deps.db, Date.now());

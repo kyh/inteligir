@@ -13,12 +13,8 @@ import {
 } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome, SyncSessionHandle } from "@repo/api/cloud/sync/sync-session";
 import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
-import type {
-  CloudClient,
-  CloudFailure,
-  CloudResult,
-  CloudSocketOpener,
-} from "@repo/api/cloud/client";
+import type { CloudClient, CloudFailure, CloudResult } from "@repo/api/cloud/client";
+import type { CloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import type { SyncStore } from "./sync-store";

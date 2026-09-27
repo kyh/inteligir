@@ -1,6 +1,7 @@
 import { setImmediate as tick } from "node:timers/promises";
-import type { CloudClient, CloudResult, OpenCloudSocketArgs } from "@repo/api/cloud/client";
+import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
 import type { DeviceCredential, RevokeDeviceResponse } from "@repo/api/cloud/device/device-schema";
+import type { OpenCloudSocketArgs } from "@repo/api/cloud/sync/cloud-socket";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";

@@ -562,6 +562,44 @@ describe("an approval asked on the phone", () => {
     });
   });
 
+  it("refuses the answer still waiting when its Mac closes it, and leaves one the Mac holds", async () => {
+    const { mac, phone } = await account("approval-close-answer@example.test");
+    const held = approvalOn("thr_held");
+    const waiting = approvalOn("thr_waiting");
+    await openApproval(mac.credential, held);
+    await openApproval(mac.credential, waiting);
+    const heldAnswer: CreateDispatchRequest = {
+      approvalId: held.id,
+      decision: "allow_once",
+      id: mintId(),
+      kind: "answer",
+    };
+    await create(phone.credential, heldAnswer);
+    const claimed = await claim(mac.credential);
+    const waitingAnswer: CreateDispatchRequest = {
+      approvalId: waiting.id,
+      decision: "deny",
+      id: mintId(),
+      kind: "answer",
+    };
+    await create(phone.credential, waitingAnswer);
+
+    await closeApproval(mac.credential, held.id);
+    await closeApproval(mac.credential, waiting.id);
+
+    expect(await statesOf(phone.credential, [waitingAnswer.id, heldAnswer.id])).toEqual([
+      { id: waitingAnswer.id, message: "That request is no longer waiting.", state: "refused" },
+      { id: heldAnswer.id, state: "claimed" },
+    ]);
+    await ack(mac.credential, {
+      claimToken: claimed.claimToken,
+      results: [{ id: heldAnswer.id, outcome: "delivered" }],
+    });
+    expect(await statesOf(phone.credential, [heldAnswer.id])).toEqual([
+      { id: heldAnswer.id, state: "delivered" },
+    ]);
+  });
+
   it("opens again when the answer is withdrawn before its Mac held it", async () => {
     const { mac, phone } = await account("approval-withdraw@example.test");
     const approval = approvalOn("thr_withdraw");

@@ -35,28 +35,23 @@ import {
   ackDispatchesRequestSchema,
   answerableDecisions,
   APPROVAL_MAX_OPEN,
-  cancelDispatchRequestSchema,
   claimDispatchesRequestSchema,
   closeApprovalRequestSchema,
   createDispatchRequestSchema,
   DISPATCH_API_PATHS,
   DISPATCH_CLAIM_TTL_MS,
   DISPATCH_MAX_PENDING,
-  dispatchStatusRequestSchema,
   openApprovalRequestSchema,
 } from "@repo/api/cloud/dispatch/dispatch-schema";
 import type {
   AckDispatchesResponse,
   ApprovalRow,
   ApprovalState,
-  CancelDispatchResponse,
   ClaimDispatchesResponse,
   ClaimedDispatch,
   CloseApprovalResponse,
   CreateDispatchResponse,
   DispatchStatus,
-  DispatchStatusResponse,
-  ListApprovalsResponse,
   OpenApprovalResponse,
 } from "@repo/api/cloud/dispatch/dispatch-schema";
 import {
@@ -65,7 +60,8 @@ import {
   SYNC_API_PATHS,
 } from "@repo/api/cloud/sync/sync-schema";
 import type { PullResponse, PushResponse, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
-import type { CloudFetch } from "@repo/api/cloud/client";
+import { createCloudClient, postDeviceLogin } from "@repo/api/cloud/client";
+import type { CloudClient, CloudFetch } from "@repo/api/cloud/client";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
@@ -118,6 +114,8 @@ interface DispatchRow {
 const liveDispatchClaim = (row: DispatchRow, now: number): boolean =>
   row.claimToken !== null && row.claimedAt > now - DISPATCH_CLAIM_TTL_MS;
 
+const NO_LONGER_WAITING = "That request is no longer waiting.";
+
 interface ApprovalEntry {
   row: Omit<ApprovalRow, "state">;
   fromDeviceId: string;
@@ -126,6 +124,9 @@ interface ApprovalEntry {
 
 // the one account every fake cloud holds; the runtime under test signs in as it.
 export const FAKE_ACCOUNT = { email: "owner@example.test", password: "correct horse battery" };
+
+// any origin reaches the fake; this is the one the booted suites configure.
+const FAKE_CLOUD_URL = "https://cloud.test";
 
 // the one invite every fake cloud holds until a sign-up spends it.
 export const FAKE_INVITE_CODE = "FAKE-INVITE";
@@ -165,8 +166,17 @@ export class FakeCloud {
   deleteWindowShut = false;
   /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
   readonly unreadableTypes = new Set<string>();
-  /** what the status route counts as desktop sockets: this fake holds none of its own. */
-  desktopsOnline = 0;
+
+  /** another device joining the account on its own, speaking the wire as the app does. */
+  async signInDevice(deviceName: string): Promise<{ client: CloudClient; deviceId: string }> {
+    const endpoint = { baseUrl: FAKE_CLOUD_URL, fetch: this.fetch };
+    const login = await postDeviceLogin(endpoint, { ...FAKE_ACCOUNT, deviceName });
+    if (!login.ok) {
+      throw new Error(`${deviceName} could not sign in: ${JSON.stringify(login.failure)}`);
+    }
+    const { credential, deviceId } = login.value;
+    return { client: createCloudClient({ ...endpoint, credential }), deviceId };
+  }
 
   revoke(deviceId: string): void {
     for (const device of this.devices.values()) {
@@ -285,21 +295,11 @@ export class FakeCloud {
       case `POST ${DISPATCH_API_PATHS.ack}`: {
         return this.ackDispatches(body);
       }
-      case `POST ${DISPATCH_API_PATHS.status}`: {
-        return this.dispatchStatuses(body);
-      }
-      case `POST ${DISPATCH_API_PATHS.cancel}`: {
-        return this.cancelDispatch(body);
-      }
       case `POST ${DISPATCH_API_PATHS.approval}`: {
         return this.openApproval(deviceId, body);
       }
       case `POST ${DISPATCH_API_PATHS.approvalClose}`: {
         return this.closeApproval(deviceId, body);
-      }
-      case `GET ${DISPATCH_API_PATHS.approvals}`: {
-        const response: ListApprovalsResponse = { approvals: this.listedApprovals() };
-        return Response.json(response);
       }
       default: {
         return null;
@@ -372,9 +372,7 @@ export class FakeCloud {
     const claimed: ClaimedDispatch = { ...request, createdAt, threadId: approval.row.threadId };
     if (approval.state !== "open") {
       const message =
-        approval.state === "answered"
-          ? "That request was already answered."
-          : "That request is no longer waiting.";
+        approval.state === "answered" ? "That request was already answered." : NO_LONGER_WAITING;
       this.dispatches.push({
         approvalId: request.approvalId,
         claimToken: null,
@@ -463,45 +461,6 @@ export class FakeCloud {
     return Response.json(response);
   }
 
-  private dispatchStatuses(body: RequestBody): Response {
-    const parsed = dispatchStatusRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { ids }.");
-    }
-    const response: DispatchStatusResponse = {
-      desktopsDeclining: 0,
-      desktopsOnline: this.desktopsOnline,
-      dispatches: parsed.data.ids.map((id) => this.dispatchStatus(id)),
-    };
-    return Response.json(response);
-  }
-
-  private cancelDispatch(body: RequestBody): Response {
-    const parsed = cancelDispatchRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { id }.");
-    }
-    const index = this.dispatches.findIndex((row) => row.claimed.id === parsed.data.id);
-    const row = this.dispatches[index];
-    let outcome: CancelDispatchResponse["outcome"] = "unknown";
-    if (row !== undefined) {
-      if (row.settle.state !== "pending") {
-        outcome = "settled";
-      } else if (liveDispatchClaim(row, Date.now())) {
-        outcome = "claimed";
-      } else {
-        this.dispatches.splice(index, 1);
-        const approval = row.approvalId === null ? undefined : this.approvals.get(row.approvalId);
-        if (approval?.state === "answered") {
-          approval.state = "open";
-        }
-        outcome = "cancelled";
-      }
-    }
-    const response: CancelDispatchResponse = { outcome };
-    return Response.json(response);
-  }
-
   private openApproval(deviceId: string, body: RequestBody): Response {
     const parsed = openApprovalRequestSchema.safeParse(body);
     if (!parsed.success) {
@@ -542,6 +501,16 @@ export class FakeCloud {
     if (entry !== undefined && entry.fromDeviceId === deviceId) {
       entry.state = "closed";
       outcome = "closed";
+      const now = Date.now();
+      for (const row of this.dispatches) {
+        if (
+          row.approvalId === parsed.data.id &&
+          row.settle.state === "pending" &&
+          !liveDispatchClaim(row, now)
+        ) {
+          row.settle = { message: NO_LONGER_WAITING, state: "refused" };
+        }
+      }
     }
     const response: CloseApprovalResponse = { outcome };
     return Response.json(response);

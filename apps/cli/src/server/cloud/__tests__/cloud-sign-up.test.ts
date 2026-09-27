@@ -1,9 +1,8 @@
 import { statSync } from "node:fs";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
-import { bootTestApp } from "../../__tests__/boot-app";
-import type { BootedTestApp } from "../../__tests__/boot-app";
 import { deviceCredentialPath, readDeviceCredential } from "../credential-store";
+import { boot } from "./cloud-boot";
 import { FAKE_ACCOUNT, FAKE_INVITE_CODE, FakeCloud } from "./fake-cloud";
 
 const NEW_ACCOUNT = {
@@ -13,13 +12,10 @@ const NEW_ACCOUNT = {
   password: "a fresh passphrase",
 };
 
-const boot = async (cloud: FakeCloud): Promise<BootedTestApp> =>
-  await bootTestApp({ cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null } });
-
 describe("cloud.signUp over the router", () => {
   it("creates the account, keeps the credential at 0600, and answers signed in as it", async () => {
     const cloud = new FakeCloud();
-    const app = await boot(cloud);
+    const app = await boot(cloud.fetch);
 
     const status = await app.client.cloud.signUp({ ...NEW_ACCOUNT, deviceName: "Laptop" });
     expect(status.state).toBe("signed-in");
@@ -32,7 +28,7 @@ describe("cloud.signUp over the router", () => {
 
   it("refuses an invite code that will not work as FORBIDDEN and keeps no credential", async () => {
     const cloud = new FakeCloud();
-    const app = await boot(cloud);
+    const app = await boot(cloud.fetch);
     const [refusal] = await safe(
       app.client.cloud.signUp({ ...NEW_ACCOUNT, inviteCode: "NOT-THE-CODE" }),
     );
@@ -47,7 +43,7 @@ describe("cloud.signUp over the router", () => {
 
   it("refuses an address that already has an account as CONFLICT", async () => {
     const cloud = new FakeCloud();
-    const app = await boot(cloud);
+    const app = await boot(cloud.fetch);
     const [refusal] = await safe(
       app.client.cloud.signUp({ ...NEW_ACCOUNT, email: FAKE_ACCOUNT.email }),
     );
@@ -58,18 +54,13 @@ describe("cloud.signUp over the router", () => {
   it("refuses a shut invite window as TOO_MANY_REQUESTS", async () => {
     const cloud = new FakeCloud();
     cloud.signUpWindowShut = true;
-    const app = await boot(cloud);
+    const app = await boot(cloud.fetch);
     const [refusal] = await safe(app.client.cloud.signUp(NEW_ACCOUNT));
     expect(isDefinedError(refusal) && refusal.code).toBe("TOO_MANY_REQUESTS");
   });
 
   it("reports a cloud that does not answer as PROVIDER_UNAVAILABLE", async () => {
-    const app = await bootTestApp({
-      cloudTransport: {
-        fetch: async () => await Promise.reject(new Error("network is down")),
-        pollIntervalMs: null,
-      },
-    });
+    const app = await boot(async () => await Promise.reject(new Error("network is down")));
     const [refusal] = await safe(app.client.cloud.signUp(NEW_ACCOUNT));
     expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
     expect(isDefinedError(refusal) && refusal.message).toContain("network is down");

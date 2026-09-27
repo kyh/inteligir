@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenCloudSocketArgs } from "../cloud-client";
 import { createCloudSocketOpener } from "../sync/cloud-socket";
-import type { DialledSocket } from "../sync/cloud-socket";
+import type { DialledSocket, OpenCloudSocketArgs } from "../sync/cloud-socket";
 import {
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_KEEPALIVE_PONG,

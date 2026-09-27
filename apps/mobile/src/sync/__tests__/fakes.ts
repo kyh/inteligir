@@ -13,6 +13,9 @@ import type {
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
+import { fakeCloudClient, ok } from "@repo/api/cloud/test-support/fake-cloud-client";
+
+export { ok } from "@repo/api/cloud/test-support/fake-cloud-client";
 
 export const userRequest = (threadId: string, text: string): ThreadEvent => ({
   scope: threadScope(),
@@ -60,42 +63,6 @@ export const logRow = (args: {
     seq: args.seq,
     threadId: args.event.threadId,
   });
-
-export const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
-
-const unreachable = async <T>(): Promise<CloudResult<T>> => ({
-  failure: { kind: "unreachable", message: "fake" },
-  ok: false,
-});
-
-// every method the test does not name answers unreachable, so a method the client grows is one
-// default line here rather than an edit to every fake
-const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient => ({
-  account: unreachable,
-  ackCaptures: unreachable,
-  ackDispatches: unreachable,
-  cancelDispatch: unreachable,
-  claimCaptures: unreachable,
-  claimDispatches: unreachable,
-  closeApproval: unreachable,
-  createCapture: unreachable,
-  createDispatch: unreachable,
-  deleteAccount: unreachable,
-  dispatchStatus: unreachable,
-  listApprovals: unreachable,
-  listDevices: unreachable,
-  openApproval: unreachable,
-  pull: unreachable,
-  push: unreachable,
-  revokeDevice: unreachable,
-  signOut: unreachable,
-  vaultAsset: unreachable,
-  vaultCommit: unreachable,
-  vaultFile: unreachable,
-  vaultFiles: unreachable,
-  vaultTree: unreachable,
-  ...answers,
-});
 
 export interface FakeCloud {
   client: CloudClient;

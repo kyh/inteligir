@@ -439,7 +439,10 @@ export const openApprovalRow = (
   return { duplicate: false, kind: "stored", state: "open" };
 };
 
-// only the Mac that opened it closes it: its waiter is the one that resolved
+// only the Mac that opened it closes it: its waiter is the one that resolved, or the Mac stopped
+// taking the phone's requests. an answer still waiting would never be claimed, so it is refused;
+// one its Mac holds under a live claim is left to that claim's ack, since the Mac may have
+// applied it already
 export const closeApprovalRow = (
   sql: SqlStorage,
   deviceId: string,
@@ -457,6 +460,14 @@ export const closeApprovalRow = (
     return "unknown";
   }
   closeApproval(sql, id, now);
+  sql.exec(
+    `UPDATE dispatches SET state = 'refused', message = ?, settled_at = ?
+     WHERE approval_id = ? AND state = 'pending' AND (claim_token IS NULL OR claimed_at <= ?)`,
+    NO_LONGER_WAITING,
+    now,
+    id,
+    now - DISPATCH_CLAIM_TTL_MS,
+  );
   return "closed";
 };
 

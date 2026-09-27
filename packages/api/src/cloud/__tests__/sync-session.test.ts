@@ -9,7 +9,7 @@ import {
   pullPages,
 } from "../sync/sync-session";
 import type { PullPagesArgs, SyncOutcome } from "../sync/sync-session";
-import { fakeCloudClient, unreachable } from "./fake-cloud-client";
+import { fakeCloudClient, ok, unreachable } from "../test-support/fake-cloud-client";
 
 const UNAUTHORIZED: CloudFailure = {
   code: "unauthorized",
@@ -24,8 +24,6 @@ const RATE_LIMITED: CloudFailure = {
   kind: "refused",
   message: "slow down",
 };
-
-const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
 
 const noop = (): void => {};
 

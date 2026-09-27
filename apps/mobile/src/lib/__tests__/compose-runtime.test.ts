@@ -1,6 +1,7 @@
 import type { CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudResult, CloudSocketOpener, OpenCloudSocketArgs } from "@repo/api/cloud/client";
+import type { CloudResult } from "@repo/api/cloud/client";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
+import type { CloudSocketOpener, OpenCloudSocketArgs } from "@repo/api/cloud/sync/cloud-socket";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";

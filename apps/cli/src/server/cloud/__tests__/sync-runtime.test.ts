@@ -20,13 +20,8 @@ import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import type { CaptureVault } from "../captures";
-import { createCloudClient, postDeviceLogin } from "@repo/api/cloud/client";
-import type {
-  CloudClient,
-  CloudFetch,
-  CloudSocket,
-  OpenCloudSocketArgs,
-} from "@repo/api/cloud/client";
+import type { CloudFetch } from "@repo/api/cloud/client";
+import type { CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/sync/cloud-socket";
 import { readDeviceCredential, writeDeviceCredential } from "../credential-store";
 import type { DeviceCredential } from "../credential-store";
 import type { SyncedEventSink } from "../sync-pass";
@@ -217,22 +212,6 @@ const append = (harness: Harness, events: readonly ThreadEvent[]): void => {
 
 const loginAs = async (runtime: CloudRuntime, deviceName: string): Promise<LoginOutcome> =>
   await runtime.login({ ...FAKE_ACCOUNT, deviceName });
-
-// another device on the account, asking as the phone does
-const signInPhone = async (cloud: FakeCloud): Promise<CloudClient> => {
-  const login = await postDeviceLogin(
-    { baseUrl: CLOUD_URL, fetch: cloud.fetch },
-    { ...FAKE_ACCOUNT, deviceName: "Phone" },
-  );
-  if (!login.ok) {
-    throw new Error(`the phone could not sign in: ${JSON.stringify(login.failure)}`);
-  }
-  return createCloudClient({
-    baseUrl: CLOUD_URL,
-    credential: login.value.credential,
-    fetch: cloud.fetch,
-  });
-};
 
 const signIn = async (harness: Harness): Promise<string> => {
   const outcome = await loginAs(harness.runtime, "Laptop");
@@ -692,7 +671,7 @@ describe("the invalidation socket", () => {
     if (dial === undefined) {
       throw new Error("expected a socket dial");
     }
-    const phone = await signInPhone(harness.cloud);
+    const { client: phone } = await harness.cloud.signInDevice("Phone");
     const id = "d".repeat(32);
     await phone.createDispatch({ id, kind: "turn", text: "Tidy it", threadId: "thr_1" });
     expect(harness.dispatched).toEqual([]);
