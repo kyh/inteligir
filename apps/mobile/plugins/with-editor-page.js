@@ -68,5 +68,6 @@ const withPageReference = (config) =>
  *  @returns {import("expo/config").ExpoConfig} the config, carrying the editor page */
 const withEditorPage = (config) => withPageReference(withPageLink(config));
 
-// expo takes `default` as the plugin; the name rides beside it for the phone's own test
-module.exports = { EDITOR_PAGE_FOLDER, default: withEditorPage };
+// expo takes `default` as the plugin; the name rides beside it for the phone's own test, and the
+// build's path for the fingerprint
+module.exports = { EDITOR_PAGE_FOLDER, PAGE_BUILD, default: withEditorPage };
