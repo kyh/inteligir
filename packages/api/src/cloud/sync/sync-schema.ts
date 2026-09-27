@@ -20,12 +20,14 @@ const STALE_THREADS_MAX = 50;
 // utf-8 bytes, not String.length's utf-16 units
 export const EVENT_MAX_BYTES = 64 * 1024;
 
+export const threadIdSchema = z.string().min(1).max(128);
+
 export const syncEventInputSchema = z
   .object({
     createdAt: z.number().int().nonnegative(),
     deviceSeq: z.number().int().nonnegative(),
     event: z.json(),
-    threadId: z.string().min(1).max(128),
+    threadId: threadIdSchema,
   })
   .strict()
   .refine((value) => !exceedsUtf8Bytes(JSON.stringify(value.event), EVENT_MAX_BYTES), {

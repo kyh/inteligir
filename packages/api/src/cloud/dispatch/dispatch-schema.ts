@@ -5,6 +5,7 @@ import {
 import { viewContextSchema } from "@repo/domain/view-context";
 import { z } from "zod";
 import { exceedsUtf8Bytes } from "../bytes";
+import { threadIdSchema } from "../sync/sync-schema";
 import { vaultPathSchema } from "../vault/vault-schema";
 
 // The phone asks a Mac's agent through this inbox, beside captures, because it never pushes to
@@ -45,7 +46,6 @@ export const dispatchIdSchema = z
   .string()
   .regex(/^[0-9a-f]{32}$/u, "must be 32 lowercase hex characters");
 
-const threadIdSchema = z.string().min(1).max(128);
 const turnIdSchema = z.string().min(1).max(128);
 const createdAtSchema = z.number().int().nonnegative();
 

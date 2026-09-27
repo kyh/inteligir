@@ -1,13 +1,15 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { createCloudClient, postDeviceLogin } from "@repo/api/cloud/client";
 import type { CloudClient, CloudFetch } from "@repo/api/cloud/client";
 import { DISPATCH_API_PATHS } from "@repo/api/cloud/dispatch/dispatch-schema";
+import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
+import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
 import type { SocketListener } from "@repo/api/cloud/sync/sync-ws";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { listStoredThreadEvents, threadHoldsDispatch } from "@repo/db/events";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import type { PendingInteractionRow } from "@repo/db/pending-interactions";
+import { getThread } from "@repo/db/threads";
 import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
@@ -34,17 +36,9 @@ const signInMac = async (mac: ThreadHarness): Promise<void> => {
   expect(status.state).toBe("signed-in");
 };
 
-// the phone is another device on the account, speaking the wire as the app does
 const signInPhone = async (cloud: FakeCloud): Promise<CloudClient> => {
-  const baseUrl = "https://cloud.test";
-  const login = await postDeviceLogin(
-    { baseUrl, fetch: cloud.fetch },
-    { ...FAKE_ACCOUNT, deviceName: "Phone" },
-  );
-  if (!login.ok) {
-    throw new Error(`the phone could not sign in: ${JSON.stringify(login.failure)}`);
-  }
-  return createCloudClient({ baseUrl, credential: login.value.credential, fetch: cloud.fetch });
+  const { client } = await cloud.signInDevice("Phone");
+  return client;
 };
 
 const askFromPhone = async (phone: CloudClient, threadId: string, id = TURN): Promise<void> => {
@@ -187,6 +181,64 @@ describe("a phone's request reaching a Mac", () => {
 
     expect(requestCount(mac, "thr_phone")).toBe(0);
     expect(cloud.requests).not.toContain(`POST ${DISPATCH_API_PATHS.ack}`);
+  });
+
+  it("waits for a log past one pass's cap, then lands in the thread the log holds", async () => {
+    const cloud = new FakeCloud();
+    const writer = await bootThreadHarness(
+      { mode: "scripted" },
+      { cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null } },
+    );
+    await writer.client.cloud.login({ ...FAKE_ACCOUNT, deviceName: "Writer" });
+    const { thread: filler } = await writer.client.threads.create({});
+    for (const text of ["one", "two", "three", "four"]) {
+      await writer.client.threads.send({ text, threadId: filler.id });
+    }
+    await writer.client.cloud.syncNow();
+    // every row the reader's first pass pulls is the filler's, so the thread asked about is behind it
+    expect(cloud.logSize()).toBeGreaterThanOrEqual(MAX_PULL_PAGES_PER_PASS);
+    const { thread } = await writer.client.threads.create({});
+    await writer.client.threads.send({ text: "Plan the week", threadId: thread.id });
+    await writer.client.cloud.syncNow();
+    const phone = await signInPhone(cloud);
+    await askFromPhone(phone, thread.id);
+
+    let reader: ThreadHarness | null = null;
+    let pulls = 0;
+    let claims = 0;
+    let atSecondPass: { claims: number; started: number; known: boolean } | null = null;
+    // pages of one row, so one pass's cap is a few dozen rows
+    const onePerPage: CloudFetch = async (input, init) => {
+      const url = new URL(input);
+      if (url.pathname === DISPATCH_API_PATHS.claim) {
+        claims += 1;
+      }
+      if (url.pathname === SYNC_API_PATHS.pull) {
+        url.searchParams.set("limit", "1");
+        pulls += 1;
+        if (pulls === MAX_PULL_PAGES_PER_PASS + 1 && reader !== null) {
+          atSecondPass = {
+            claims,
+            known: getThread(reader.db, thread.id) !== null,
+            started: reader.driver.startedTurns.length,
+          };
+        }
+      }
+      return await cloud.fetch(url.toString(), init);
+    };
+    reader = await bootMac(cloud, onePerPage);
+
+    await signInMac(reader);
+
+    expect(atSecondPass).toEqual({ claims: 0, known: false, started: 0 });
+    expect(cloud.dispatchStatus(TURN).state).toBe("delivered");
+    expect(reader.driver.startedTurns.map((turn) => turn.threadId)).toEqual([thread.id]);
+    expect(requestCount(reader, thread.id)).toBe(2);
+    const titles = listStoredThreadEvents(reader.db, { threadId: thread.id }).flatMap(
+      ({ event }) =>
+        event.type === "thread/meta" && event.title !== undefined ? [event.title] : [],
+    );
+    expect(titles).toEqual(["Plan the week"]);
   });
 
   it("is left waiting by a Mac whose person turned phone requests off", async () => {
@@ -347,6 +399,42 @@ describe("a phone-started turn's approval", () => {
       kind: "answer",
     });
     expect(late.ok && late.value.dispatch.state).toBe("refused");
+  });
+
+  it("is taken back from the phone once this Mac stops taking its requests", async () => {
+    const cloud = new FakeCloud();
+    const mac = await bootMac(cloud);
+    const phone = await signInPhone(cloud);
+    await askFromPhone(phone, "thr_phone");
+    await signInMac(mac);
+    const asked = raiseApproval(mac, "thr_phone");
+    await mac.client.cloud.syncNow();
+    expect(cloud.openApprovals()).toHaveLength(1);
+    const answer = {
+      approvalId: approvalIdOf(asked.id),
+      decision: "allow_once",
+      kind: "answer",
+    } as const;
+    await phone.createDispatch({ ...answer, id: ANSWER });
+
+    await mac.client.cloud.setPrefs({ phoneRequests: false });
+    await mac.client.cloud.syncNow();
+
+    expect(cloud.openApprovals()).toEqual([]);
+    expect(getPendingInteraction(mac.db, asked.id)).toMatchObject({
+      relay: "closed",
+      status: "pending",
+    });
+    expect(cloud.dispatchStatus(ANSWER)).toEqual({
+      id: ANSWER,
+      message: "That request is no longer waiting.",
+      state: "refused",
+    });
+    const late = await phone.createDispatch({ ...answer, id: "e".repeat(32) });
+    expect(late.ok && late.value.dispatch).toMatchObject({
+      message: "That request is no longer waiting.",
+      state: "refused",
+    });
   });
 
   it("reads delivered again when the answer comes back after a lost ack", async () => {

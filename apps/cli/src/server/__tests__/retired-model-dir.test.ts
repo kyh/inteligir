@@ -35,6 +35,27 @@ describe("the retired model folder", () => {
     expect(existsSync(beside)).toBe(true);
   });
 
+  it.each([
+    ["the default vault's", PROD_DATA_DIR_NAME],
+    ["another vault's", path.join(PROD_DATA_DIR_NAME, "vaults", "0123456789abcdef")],
+  ])("is removed when the desktop pins %s data dir inside the root", async (_, pinned) => {
+    const homeDir = makeTempDir("inteligir-models-test-");
+    const root = path.join(homeDir, PROD_DATA_DIR_NAME);
+    seedModelDir(root);
+    // the server's own db is in it by the time the folder is removed
+    const dataDir = path.join(homeDir, pinned);
+    mkdirSync(dataDir, { recursive: true });
+    const config = resolveAppConfig({
+      checkoutPath: CHECKOUT,
+      env: { INTELIGIR_DATA_DIR: dataDir, NODE_ENV: "production" },
+      homeDir,
+    });
+
+    await removeRetiredModelDir(config);
+
+    expect(existsSync(path.join(root, "models"))).toBe(false);
+  });
+
   it("answers a root that holds no model folder", async () => {
     const homeDir = makeTempDir("inteligir-models-test-");
     const config = resolveAppConfig({
@@ -48,7 +69,10 @@ describe("the retired model folder", () => {
 
   it.each([
     ["a dev instance", {}],
-    ["a pinned data dir", { INTELIGIR_DATA_DIR: "~/elsewhere", NODE_ENV: "production" }],
+    [
+      "a data dir pinned outside the root",
+      { INTELIGIR_DATA_DIR: "~/elsewhere", NODE_ENV: "production" },
+    ],
   ])("is left alone by %s, which does not own the installed app's root", async (_, env) => {
     const homeDir = makeTempDir("inteligir-models-test-");
     const config = resolveAppConfig({ checkoutPath: CHECKOUT, env, homeDir });

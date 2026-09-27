@@ -16,6 +16,7 @@ import type {
 import type { DbConnection } from "@repo/db/connection";
 import { turnDispatchId } from "@repo/db/events";
 import {
+  listAllOpenPendingInteractions,
   listSettledRelayedInteractions,
   listThreadPendingInteractions,
   listUnrelayedOpenInteractions,
@@ -144,10 +145,21 @@ export interface ApprovalToClose {
   approvalId: string;
 }
 
+const closing = (row: PendingInteractionRow): ApprovalToClose => ({
+  approvalId: approvalIdOf(row.id),
+  interactionId: row.id,
+});
+
 // settled here however it settled (answered on either device, timed out, its turn ended): the
 // phone's card goes with it
 export const approvalsToClose = (db: DbConnection): ApprovalToClose[] =>
-  listSettledRelayedInteractions(db).map((row) => ({
-    approvalId: approvalIdOf(row.id),
-    interactionId: row.id,
-  }));
+  listSettledRelayedInteractions(db).map(closing);
+
+// every approval the phone holds, settled here or still waiting: a Mac that no longer takes the
+// phone's requests would never claim an answer to one, so the phone would wait on it for good.
+// one still waiting stays answerable here.
+export const approvalsToWithdraw = (db: DbConnection): ApprovalToClose[] =>
+  [
+    ...listAllOpenPendingInteractions(db).filter((row) => row.relay === "opened"),
+    ...listSettledRelayedInteractions(db),
+  ].map(closing);

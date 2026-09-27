@@ -68,7 +68,6 @@ import type {
 } from "./dispatch/dispatch-schema";
 import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
 import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
-import type { SocketListener, SyncPing } from "./sync/sync-ws";
 import { vaultCommitResponseSchema, vaultConflictAnswerSchema } from "./vault/vault-commit-schema";
 import type {
   VaultCommitConflict,
@@ -147,11 +146,30 @@ const failureOf = (status: number, envelope: CloudError | null): CloudFailure =>
   };
 };
 
+// a body that stopped arriving (the call's deadline mid-transfer, a reset) is the network failing,
+// never a body this build cannot read; one that arrived and is not json reads as undefined, which
+// no schema takes
+const readBody = async (response: Response): Promise<CloudResult<unknown>> => {
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    return { failure: unreachable(error), ok: false };
+  }
+  try {
+    const body: unknown = JSON.parse(text);
+    return { ok: true, value: body };
+  } catch {
+    return { ok: true, value: undefined };
+  }
+};
+
 const readFailure = async (response: Response): Promise<CloudFailure> => {
-  const body: unknown = await response.json().catch(() => {
-    /* empty */
-  });
-  const envelope = cloudErrorSchema.safeParse(body);
+  const body = await readBody(response);
+  if (!body.ok) {
+    return body.failure;
+  }
+  const envelope = cloudErrorSchema.safeParse(body.value);
   return failureOf(response.status, envelope.success ? envelope.data : null);
 };
 
@@ -171,10 +189,11 @@ const readValue = async <TSchema extends z.ZodType>(
   if (!response.ok) {
     return { failure: await readFailure(response), ok: false };
   }
-  const body: unknown = await response.json().catch(() => {
-    /* empty */
-  });
-  const parsed = schema.safeParse(body);
+  const body = await readBody(response);
+  if (!body.ok) {
+    return body;
+  }
+  const parsed = schema.safeParse(body.value);
   return parsed.success ? { ok: true, value: parsed.data } : { failure: UNREADABLE_OK, ok: false };
 };
 
@@ -239,20 +258,21 @@ const readCommitCall = async (
   } catch (error) {
     return { failure: unreachable(error), ok: false };
   }
-  const body: unknown = await response.json().catch(() => {
-    /* empty */
-  });
+  const body = await readBody(response);
+  if (!body.ok) {
+    return body;
+  }
   if (response.ok) {
-    const committed = vaultCommitResponseSchema.safeParse(body);
+    const committed = vaultCommitResponseSchema.safeParse(body.value);
     return committed.success
       ? { ok: true, value: { kind: "committed", ...committed.data } }
       : { failure: UNREADABLE_OK, ok: false };
   }
-  const answer = vaultConflictAnswerSchema.safeParse(body);
+  const answer = vaultConflictAnswerSchema.safeParse(body.value);
   if (answer.success && answer.data.error.code === "vault-conflict") {
     return { ok: true, value: { kind: "conflict", ...answer.data.conflict } };
   }
-  const envelope = cloudErrorSchema.safeParse(body);
+  const envelope = cloudErrorSchema.safeParse(body.value);
   return {
     failure: failureOf(response.status, envelope.success ? envelope.data : null),
     ok: false,
@@ -262,6 +282,9 @@ const readCommitCall = async (
 // every call runs inside the single-flight pass, so a black-holed request stalls the whole
 // loop and the teardown waiting on it; undici's own default is 300s of headers timeout.
 const REQUEST_TIMEOUT_MS = 30_000;
+// the deadline covers the body too, and a vault transfer carries up to an attachment's 10 MiB, a
+// commit's 16 MiB or a batch read's 4 MiB, which a phone on a slow connection cannot move in 30s
+const VAULT_TRANSFER_TIMEOUT_MS = 5 * 60_000;
 
 // undefined means GET; an undefined member is a key JSON.stringify drops
 type JsonBody =
@@ -281,24 +304,16 @@ export interface CloudEndpoint {
   signal?: AbortSignal;
 }
 
-const callSignal = (signal: AbortSignal | undefined): AbortSignal => {
-  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+const callSignal = (
+  signal: AbortSignal | undefined,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): AbortSignal => {
+  const timeout = AbortSignal.timeout(timeoutMs);
   return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
 };
 
 export const endpointUrl = (baseUrl: string, path: string): string =>
   new URL(path, baseUrl).toString();
-
-const queryString = (values: Record<string, string | number | undefined>): string => {
-  const parameters = new URLSearchParams();
-  for (const [key, value] of Object.entries(values)) {
-    if (value !== undefined) {
-      parameters.set(key, String(value));
-    }
-  }
-  const rendered = parameters.toString();
-  return rendered === "" ? "" : `?${rendered}`;
-};
 
 // the two calls made without a credential: each one's answer is the credential
 const postForCredential = async (
@@ -377,8 +392,8 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
   const call = args.fetch ?? fetch;
   const authorization = `Bearer ${args.credential}`;
 
-  const requestInit = (json: JsonBody): RequestInit => {
-    const signal = callSignal(args.signal);
+  const requestInit = (json: JsonBody, timeoutMs?: number): RequestInit => {
+    const signal = callSignal(args.signal, timeoutMs);
     return json === undefined
       ? { headers: { authorization }, method: "GET", signal }
       : {
@@ -393,9 +408,10 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     path: string,
     json: JsonBody,
     schema: TSchema,
+    timeoutMs?: number,
   ): Promise<CloudResult<z.infer<TSchema>>> =>
     await readCloudCall(
-      async () => await call(endpointUrl(args.baseUrl, path), requestInit(json)),
+      async () => await call(endpointUrl(args.baseUrl, path), requestInit(json, timeoutMs)),
       schema,
     );
 
@@ -431,7 +447,10 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
       await send(DISPATCH_API_PATHS.approval, request, openApprovalResponseSchema),
     pull: async (query) =>
       await send(
-        `${SYNC_API_PATHS.pull}${queryString({ afterSeq: query.afterSeq, limit: query.limit })}`,
+        `${SYNC_API_PATHS.pull}?${new URLSearchParams({
+          afterSeq: String(query.afterSeq),
+          limit: String(query.limit),
+        })}`,
         undefined,
         pullResponseSchema,
       ),
@@ -447,36 +466,28 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     vaultAsset: async (query) =>
       await readAssetCall(
         async () =>
-          await call(endpointUrl(args.baseUrl, VAULT_API_PATHS.asset), requestInit(query)),
+          await call(
+            endpointUrl(args.baseUrl, VAULT_API_PATHS.asset),
+            requestInit(query, VAULT_TRANSFER_TIMEOUT_MS),
+          ),
         query.path,
       ),
     vaultCommit: async (request) =>
       await readCommitCall(
         async () =>
-          await call(endpointUrl(args.baseUrl, VAULT_API_PATHS.commit), requestInit(request)),
+          await call(
+            endpointUrl(args.baseUrl, VAULT_API_PATHS.commit),
+            requestInit(request, VAULT_TRANSFER_TIMEOUT_MS),
+          ),
       ),
     vaultFile: async (query) => await send(VAULT_API_PATHS.file, query, vaultFileResponseSchema),
     vaultFiles: async (request) =>
-      await send(VAULT_API_PATHS.files, request, vaultFilesResponseSchema),
+      await send(
+        VAULT_API_PATHS.files,
+        request,
+        vaultFilesResponseSchema,
+        VAULT_TRANSFER_TIMEOUT_MS,
+      ),
     vaultTree: async (query) => await send(VAULT_API_PATHS.tree, query, vaultTreeResponseSchema),
   };
 };
-
-// both clients open it with sync/cloud-socket.ts; a runtime takes the opener rather than
-// building it, so a test hands it a fake that never dials.
-export interface CloudSocket {
-  close: () => void;
-}
-
-export interface OpenCloudSocketArgs {
-  baseUrl: string;
-  credential: string;
-  listener: SocketListener;
-  onOpen: () => void;
-  onPing: (ping: SyncPing) => void;
-  // called once even if the socket never opened. SYNC_WS_REVOKED_CLOSE_CODE is a hint that runs
-  // an http pass; the pass's terminal refusal is what halts the transport.
-  onClose: (code: number) => void;
-}
-
-export type CloudSocketOpener = (args: OpenCloudSocketArgs) => CloudSocket;

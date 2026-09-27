@@ -9,7 +9,6 @@ import type {
   CloudFailure,
   CloudFetch,
   CloudResult,
-  CloudSocketOpener,
   CreateCloudClientArgs,
 } from "@repo/api/cloud/client";
 import { normalizeDeviceName } from "@repo/api/cloud/device/device-schema";
@@ -19,6 +18,7 @@ import type {
   LoginOutcome as DeviceLoginOutcome,
 } from "@repo/api/cloud/device/login-flow";
 import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
+import type { CloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
 import { createSocketLink } from "@repo/api/cloud/sync/socket-link";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";

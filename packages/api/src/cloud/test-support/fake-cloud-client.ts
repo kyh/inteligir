@@ -1,9 +1,9 @@
 import type { CloudClient, CloudResult } from "../cloud-client";
 
-export const unreachable = async <T>(): Promise<CloudResult<T>> => ({
-  failure: { kind: "unreachable", message: "fake" },
-  ok: false,
-});
+export const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
+
+export const unreachable = async <T>(): Promise<CloudResult<T>> =>
+  await Promise.resolve({ failure: { kind: "unreachable", message: "fake" }, ok: false });
 
 // every method the test does not name answers unreachable, so a method the client grows is one
 // default line here rather than an edit to every fake
