@@ -3,30 +3,13 @@
 
 import { useState } from "react";
 import type { DesktopVaultsBridge } from "../../types";
-import type { VaultRef, VaultSwitchAnswer, VaultsState } from "../../vaults-state";
+import type { VaultRef, VaultsState } from "../../vaults-state";
 import { createBridgeStore } from "./bridge-store";
 
-const adoptInitial = async (
-  vaults: DesktopVaultsBridge,
-  adopt: (state: VaultsState) => void,
-): Promise<void> => {
-  let state;
-  try {
-    state = await vaults.getState();
-  } catch (error) {
-    console.warn("[vaults] the shell did not answer", error);
-    return;
-  }
-  adopt(state);
-};
-
-const vaultsBridge = (): DesktopVaultsBridge | undefined => window.desktopBridge?.vaults;
-
 const store = createBridgeStore<DesktopVaultsBridge, VaultsState>({
-  bridge: vaultsBridge,
-  start: (vaults, adopt) => {
-    void adoptInitial(vaults, adopt);
-  },
+  bridge: () => window.desktopBridge?.vaults,
+  label: "vaults",
+  read: async (vaults) => await vaults.getState(),
 });
 
 export const useDesktopVaults = store.use;
@@ -34,28 +17,13 @@ export const useDesktopVaults = store.use;
 // main's refusal, in main's words, or null once the answer is adopted
 type VaultRefusal = string | null;
 
-const settleAnswer = async (
-  ask: (vaults: DesktopVaultsBridge) => Promise<VaultSwitchAnswer>,
-): Promise<VaultRefusal> => {
-  const vaults = vaultsBridge();
-  if (vaults === undefined) {
-    return null;
-  }
-  const answer = await ask(vaults);
-  if (!answer.ok) {
-    return answer.reason;
-  }
-  store.adopt(answer.state);
-  return null;
-};
-
 // each answers only when nothing moved: a cancelled picker, a forgotten row, or a refusal;
 // a switch replaces the window before any answer could land
 export const pickVault = async (): Promise<VaultRefusal> =>
-  await settleAnswer(async (vaults) => await vaults.pick());
+  await store.settle(async (vaults) => await vaults.pick());
 
 export const openRecentVault = async (path: string): Promise<VaultRefusal> =>
-  await settleAnswer(async (vaults) => await vaults.open(path));
+  await store.settle(async (vaults) => await vaults.open(path));
 
 // a row is forgotten whatever the list held, so there is nothing to refuse
 export const forgetRecentVault = async (path: string): Promise<null> => {

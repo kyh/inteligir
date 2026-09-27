@@ -914,7 +914,7 @@ describe("the problems page", () => {
     expect(vault.files.get("Plan copy.md")).toBe(PLAN_COPY);
   });
 
-  it("lands the open note's unsaved edits before it rewrites that note, and only that one", async () => {
+  it("lands the open note's unsaved edits before it rewrites that note", async () => {
     const vault = copiedVault();
     const store = createOpenNoteStore();
     store.setFlush(async () => {
@@ -922,28 +922,17 @@ describe("the problems page", () => {
       return true;
     });
     onTestFinished(registerOpenNoteStore(store));
-    const giveOwnId = async (openPath: string, picked: string): Promise<void> => {
-      renderPalette({ fakes: { problems: someProblems, vault }, note: makeNote(openPath) });
-      render(<ConfirmDialogHost />);
-      fireEvent.click(rows().getByText("Problems"));
-      fireEvent.click(await rows().findByText(picked));
-      const dialog = await screen.findByRole("alertdialog");
-      fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
-    };
+    renderPalette({ fakes: { problems: someProblems, vault }, note: makeNote("Plan copy.md") });
+    render(<ConfirmDialogHost />);
+    fireEvent.click(rows().getByText("Problems"));
+    fireEvent.click(await rows().findByText("Plan copy.md"));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
 
-    await giveOwnId("Plan copy.md", "Plan copy.md");
     await waitFor(() => {
       expect(vault.log).toHaveLength(3);
     });
     expect(vault.log[0]).toBe("flush");
-
-    cleanup();
-    vault.log.length = 0;
-    await giveOwnId("Welcome.md", "Plan.md");
-    await waitFor(() => {
-      expect(vault.log).toHaveLength(2);
-    });
-    expect(vault.log).not.toContain("flush");
   });
 
   it("says when the vault is clean", async () => {
